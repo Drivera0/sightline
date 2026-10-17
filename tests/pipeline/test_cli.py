@@ -182,3 +182,45 @@ def test_sample_writes_the_sample_cache_and_its_web_copy(tmp_path):
     result = invoke("sample", "--out", str(out), "--web-out", str(web))
 
     assert result.exit_code == 0 and validate_cache(out) == [] and validate_cache(web) == []
+
+
+def test_help_lists_the_serve_command():
+    assert "serve" in invoke("--help").output
+
+
+def test_serve_starts_the_upload_api_on_localhost_by_default(monkeypatch, tmp_path):
+    started = {}
+
+    def fake_run(app, host, port):
+        started.update(app=app, host=host, port=port)
+
+    monkeypatch.setattr("uvicorn.run", fake_run)
+
+    result = invoke(
+        "serve", "--cache-root", str(tmp_path / "cache"), "--data-root", str(tmp_path / "up")
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (started["host"], started["port"]) == ("127.0.0.1", 8000)
+    assert {route.path for route in started["app"].routes} >= {"/health", "/survey"}
+
+
+def test_serve_passes_the_weights_and_port_through(monkeypatch, tmp_path):
+    started = {}
+    monkeypatch.setattr("uvicorn.run", lambda app, host, port: started.update(host=host, port=port))
+
+    result = invoke(
+        "serve",
+        "--port",
+        "9001",
+        "--host",
+        "0.0.0.0",
+        "--weights",
+        "best.pt",
+        "--cache-root",
+        str(tmp_path / "c"),
+        "--data-root",
+        str(tmp_path / "d"),
+    )
+
+    assert result.exit_code == 0 and (started["host"], started["port"]) == ("0.0.0.0", 9001)

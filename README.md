@@ -27,6 +27,16 @@ If a lane's function does not exist yet, its stage writes a labelled **placehold
 the command output and in `manifest.json`. See `docs/LANE_INTERFACES.md` for what the pipeline
 expects from lanes A, B and C.
 
+## Upload API (optional)
+
+```bash
+uv run python -m sightline.pipeline serve --weights data/weights/best.pt
+curl -F file=@photos.zip http://127.0.0.1:8000/survey      # returns an id; check GET /survey/<id>
+```
+
+A zip of JPEGs becomes `cache/upload-<id>/` (frames are resized to 1000×750). The API has no login:
+keep it on `127.0.0.1` or a trusted network.
+
 ## Docs
 
 - `docs/00_OVERVIEW.md`: the project, lanes and timeline. Read this first.

@@ -216,5 +216,37 @@ def sample(
     typer.echo(f"wrote {out} and {web_out}")
 
 
+@app.command()
+def serve(
+    host: Annotated[
+        str, typer.Option(help="Interface to listen on. There is no login; keep it local.")
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to listen on.")] = 8000,
+    cache_root: Annotated[
+        Path, typer.Option(help="Where upload caches are written and served from.")
+    ] = Path("cache"),
+    data_root: Annotated[
+        Path, typer.Option(help="Where uploaded photos and work files are kept.")
+    ] = Path("data/uploads"),
+    weights: WeightsOption = None,
+    candidate_threshold: ThresholdOption = 0.25,
+    model_name: ModelNameOption = "yolo11s-heridal-tiled",
+) -> None:
+    """Run the upload API: POST a zip of JPEGs to /survey, get a cache back."""
+    import uvicorn  # imported here so the other commands start without the web server stack
+
+    from sightline.api.app import create_app
+
+    api = create_app(
+        cache_root=cache_root,
+        data_root=data_root,
+        lanes_factory=make_lanes,
+        weights=weights,
+        candidate_threshold=candidate_threshold,
+        model_name=model_name,
+    )
+    uvicorn.run(api, host=host, port=port)
+
+
 if __name__ == "__main__":
     app()
