@@ -1,0 +1,265 @@
+"""The seam between lane D's pipeline and the other lanes' functions.
+
+For each function a stage needs from lane A, B or C, `Lanes` looks it up (`sightline.ml`,
+`sightline.geo`, `sightline.search`), calls it, and turns whatever it returns into the pipeline's own
+types. If the function does not exist yet, a placeholder is used instead (LANE_D section 8) and the
+fact is recorded, so `manifest.json` can say so.
+
+The expected signatures below are DRAFTS, written before lanes B and C published theirs. If a real
+function differs, change only the matching method here; no stage needs to change. Return values are
+accepted in several shapes on purpose (object with attributes, dict, tuple, plain list).
+
+    lane B   simulate_flight(n_frames: int, seed: int) -> poses [+ lkp, area_name]
+             footprint(pose: Pose, width_px: int, height_px: int) -> 4 corners [lon, lat]
+             georef_detection(pose: Pose, box_px, width_px: int, height_px: int) -> (lat, lon, radius_m)
+    lane C   build_map(frames: list[MapFrame], lkp: LatLon, recall: float) -> MapFile [+ frame cells]
+             simulate(map_file: MapFile, frame_cells) -> SearchSim
+    lane A   run_survey(frames_dir, weights, out_dir, candidate_threshold, model_name, save_threshold)
+             load_split(split) -> list[LabeledImage]            (documented in LANE_A_ML.md)
+"""
+
+from __future__ import annotations
+
+import importlib
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from sightline.contract import LatLon, MapFile, Pose, SearchSim
+from sightline.pipeline import geometry
+from sightline.pipeline.formats import write_json
+from sightline.pipeline.geometry import FRAME_H_PX, FRAME_W_PX
+from sightline.pipeline.placeholders import (
+    placeholder_detections,
+    placeholder_map,
+    placeholder_search_sim,
+)
+from sightline.pipeline.survey import read_yolo_split
+
+REGISTRY: dict[str, tuple[str, str]] = {
+    "simulate_flight": ("sightline.geo", "simulate_flight"),
+    "footprint": ("sightline.geo", "footprint"),
+    "georef_detection": ("sightline.geo", "georef_detection"),
+    "run_survey": ("sightline.ml", "run_survey"),
+    "load_split": ("sightline.ml", "load_split"),
+    "build_map": ("sightline.search", "build_map"),
+    "simulate": ("sightline.search", "simulate"),
+}
+_LANE = {
+    "simulate_flight": "B",
+    "footprint": "B",
+    "georef_detection": "B",
+    "run_survey": "A",
+    "load_split": "A",
+    "build_map": "C",
+    "simulate": "C",
+}
+
+DEFAULT_LKP = LatLon(lat=49.37, lon=-122.945)
+DEFAULT_AREA_NAME = "Mount Seymour, North Vancouver (simulated flight path)"
+PLACEHOLDER_RADIUS_M = 10.0  # the stated position-uncertainty assumption on the simulated path
+
+Footprint = tuple[
+    tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]
+]
+FrameCells = dict[str, list[tuple[int, float]]]
+
+
+@dataclass(frozen=True)
+class Flight:
+    poses: list[Pose]
+    lkp: LatLon
+    area_name: str
+
+
+@dataclass(frozen=True)
+class MapFrame:
+    """What lane C's `build_map` is expected to receive for each frame."""
+
+    id: str
+    image_path: Path
+    pose: Pose
+    footprint: Footprint
+    flight_index: int
+
+
+def _field(obj: Any, name: str, default: Any = None) -> Any:
+    if isinstance(obj, Mapping):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+class Lanes:
+    """Resolves lane functions once, and records every placeholder that had to stand in."""
+
+    def __init__(
+        self,
+        registry: Mapping[str, tuple[str, str]] | None = None,
+        overrides: Mapping[str, Callable[..., Any] | None] | None = None,
+    ) -> None:
+        self._registry = dict(REGISTRY if registry is None else registry)
+        self._overrides = dict(overrides or {})
+        self._cache: dict[str, Callable[..., Any] | None] = {}
+        self.unavailable: dict[str, str] = {}
+        self._notes: dict[str, str] = {}
+
+    # --- bookkeeping --------------------------------------------------------------------------
+
+    def get(self, name: str) -> Callable[..., Any] | None:
+        if name in self._overrides:
+            function = self._overrides[name]
+            if function is None:
+                self.unavailable[name] = "disabled"
+            return function
+        if name not in self._cache:
+            self._cache[name] = self._import(name)
+        return self._cache[name]
+
+    def _import(self, name: str) -> Callable[..., Any] | None:
+        module_name, attribute = self._registry[name]
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError as error:
+            self.unavailable[name] = f"cannot import {module_name}: {error}"
+            return None
+        function = getattr(module, attribute, None)
+        if function is None:
+            self.unavailable[name] = f"{module_name} has no function {attribute}"
+        return function
+
+    def placeholder_notes(self) -> dict[str, str]:
+        """Function name -> what stood in for it. Empty when every lane function was real."""
+        return dict(self._notes)
+
+    def _fallback(self, name: str, used: str) -> None:
+        self._notes[name] = f"lane {_LANE[name]} function not available, used {used}"
+
+    # --- lane B -------------------------------------------------------------------------------
+
+    def flight(self, n_frames: int, seed: int = 7) -> Flight:
+        function = self.get("simulate_flight")
+        if function is None:
+            self._fallback("simulate_flight", "the placeholder flight path")
+            return Flight(
+                geometry.placeholder_flight(n_frames, DEFAULT_LKP), DEFAULT_LKP, DEFAULT_AREA_NAME
+            )
+        result = function(n_frames, seed)
+        poses_raw = result if isinstance(result, (list, tuple)) else _field(result, "poses")
+        poses = [
+            p if isinstance(p, Pose) else Pose.model_validate(p, from_attributes=True)
+            for p in poses_raw
+        ]
+        if len(poses) != n_frames:
+            raise ValueError(f"simulate_flight returned {len(poses)} poses for {n_frames} frames")
+        lkp_raw = None if isinstance(result, (list, tuple)) else _field(result, "lkp")
+        lkp = (
+            DEFAULT_LKP if lkp_raw is None else LatLon.model_validate(lkp_raw, from_attributes=True)
+        )
+        area_name = (
+            None if isinstance(result, (list, tuple)) else _field(result, "area_name")
+        ) or DEFAULT_AREA_NAME
+        return Flight(poses, lkp, area_name)
+
+    def footprint(
+        self, pose: Pose, width_px: int = FRAME_W_PX, height_px: int = FRAME_H_PX
+    ) -> Footprint:
+        function = self.get("footprint")
+        if function is None:
+            self._fallback("footprint", "the placeholder footprint math")
+            return geometry.footprint(pose, width_px, height_px)  # type: ignore[return-value]
+        corners = [(float(c[0]), float(c[1])) for c in function(pose, width_px, height_px)]
+        if len(corners) != 4:
+            raise ValueError(f"footprint returned {len(corners)} corners, expected 4 corners")
+        return tuple(corners)  # type: ignore[return-value]
+
+    def georef(
+        self,
+        pose: Pose,
+        box_px: tuple[int, int, int, int],
+        width_px: int = FRAME_W_PX,
+        height_px: int = FRAME_H_PX,
+    ) -> tuple[float, float, float]:
+        """(lat, lon, radius_m) of a detection box centre."""
+        function = self.get("georef_detection")
+        if function is None:
+            self._fallback("georef_detection", "pixel geometry with a 10 m radius")
+            cx, cy = (box_px[0] + box_px[2]) / 2, (box_px[1] + box_px[3]) / 2
+            lat, lon = geometry.pixel_to_latlon(pose, cx, cy, width_px, height_px)
+            return lat, lon, PLACEHOLDER_RADIUS_M
+        result = function(pose, box_px, width_px, height_px)
+        if isinstance(result, (list, tuple)):
+            lat, lon, radius = result[:3]
+        else:
+            lat, lon = _field(result, "lat"), _field(result, "lon")
+            radius = _field(result, "radius_m", _field(result, "radius"))
+        return float(lat), float(lon), float(radius)
+
+    # --- lane A -------------------------------------------------------------------------------
+
+    def detect(
+        self,
+        frames_dir: Path,
+        frame_ids: Sequence[str],
+        out_dir: Path,
+        weights: Path | None,
+        candidate_threshold: float,
+        model_name: str,
+        save_threshold: float = 0.05,
+    ) -> None:
+        function = self.get("run_survey")
+        if function is not None and weights is not None:
+            function(frames_dir, weights, out_dir, candidate_threshold, model_name, save_threshold)
+            return
+        if function is None:
+            self._fallback("run_survey", "empty placeholder detections")
+        else:
+            self._notes["run_survey"] = (
+                "lane A run_survey skipped: no weights given, used empty placeholder detections"
+            )
+        raw, config = placeholder_detections(frame_ids, candidate_threshold, save_threshold)
+        (out_dir / "crops").mkdir(parents=True, exist_ok=True)
+        write_json(out_dir / "detections_raw.json", raw)
+        write_json(out_dir / "config.json", config)
+
+    def test_images(self, split_dir: Path) -> list[Any]:
+        """The HERIDAL test photos with their boxes. Lane A's `load_split("test")` reads its own
+        default folder; the fallback reads `split_dir` (`images/` and `labels/`, YOLO format)."""
+        function = self.get("load_split")
+        if function is not None:
+            return list(function("test"))
+        self._fallback("load_split", "the built-in YOLO reader")
+        return list(read_yolo_split(split_dir))
+
+    # --- lane C -------------------------------------------------------------------------------
+
+    def build_map(
+        self, frames: Sequence[MapFrame], lkp: LatLon, recall: float
+    ) -> tuple[MapFile, FrameCells]:
+        function = self.get("build_map")
+        if function is None:
+            self._fallback("build_map", "a uniform prior with empty steps")
+            return placeholder_map([f.id for f in frames], lkp, recall)
+        result = function(list(frames), lkp, recall)
+        if isinstance(result, tuple):
+            raw_map, raw_cells = result
+        elif isinstance(result, MapFile):
+            raw_map, raw_cells = result, None
+        else:
+            raw_map, raw_cells = _field(result, "map"), _field(result, "frame_cells")
+        map_file = raw_map if isinstance(raw_map, MapFile) else MapFile.model_validate(raw_map)
+        if raw_cells is None:
+            cells: FrameCells = {s.frame_id: list(s.cells) for s in map_file.steps}
+        else:
+            cells = {
+                fid: [(int(i), float(p)) for i, p in pairs] for fid, pairs in raw_cells.items()
+            }
+        return map_file, cells
+
+    def simulate(self, map_file: MapFile, frame_cells: FrameCells) -> SearchSim:
+        function = self.get("simulate")
+        if function is None:
+            self._fallback("simulate", "a labelled placeholder (zeros, 0 trials)")
+            return placeholder_search_sim()
+        result = function(map_file, frame_cells)
+        return result if isinstance(result, SearchSim) else SearchSim.model_validate(result)

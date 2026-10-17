@@ -20,21 +20,15 @@ from sightline.contract import (
     Area,
     Detection,
     Detections,
-    Distribution,
     Frame,
-    Grid,
     LatLon,
     Manifest,
-    MapFile,
     Metrics,
-    Params,
     Pose,
     Source,
     StageResult,
     Stages,
-    Step,
     Survey,
-    TopCell,
     dump_json,
 )
 from sightline.pipeline.export import HUMAN_BASELINE
@@ -45,12 +39,11 @@ from sightline.pipeline.geometry import (
     FRAME_W_PX as FRAME_W,
 )
 from sightline.pipeline.geometry import (
-    M_PER_DEG_LAT,
     footprint,
-    offset,
     pixel_to_latlon,
     placeholder_flight,
 )
+from sightline.pipeline.placeholders import placeholder_map
 
 SURVEY_ID = "sample"
 N_FRAMES = 20
@@ -126,7 +119,7 @@ def write_sample(
         frames=detections,
     )
     metrics = _metrics(rank)
-    map_file = _placeholder_map(metrics.detector.recall)
+    map_file, _ = placeholder_map([_fid(k) for k in range(N_FRAMES)], LKP, metrics.detector.recall)
     manifest = Manifest(
         contract_version=CONTRACT_VERSION,
         survey_id=SURVEY_ID,
@@ -226,47 +219,6 @@ def _write_crop(frame_path: Path, box: tuple[int, int, int, int], crop_path: Pat
             (256, 256), Image.Resampling.BICUBIC
         )
     window.save(crop_path, quality=90)
-
-
-def _cell_center(grid: Grid, idx: int) -> tuple[float, float]:
-    row, col = divmod(idx, grid.cols)
-    lat = grid.origin_nw.lat - (row + 0.5) * grid.cell_m / M_PER_DEG_LAT
-    lon = grid.origin_nw.lon + (col + 0.5) * grid.cell_m / (
-        M_PER_DEG_LAT * math.cos(math.radians(grid.origin_nw.lat))
-    )
-    return lat, lon
-
-
-def _placeholder_map(recall: float) -> MapFile:
-    """Uniform prior, no coverage yet: one empty step per frame, so final == prior."""
-    half = GRID_ROWS * CELL_M / 2
-    nw_lat, _ = offset(LKP.lat, LKP.lon, 0, half)
-    _, nw_lon = offset(nw_lat, LKP.lon, -half, 0)
-    # The contract's grid longitude uses cos(origin_nw.lat), so recompute with that latitude.
-    nw_lon = LKP.lon - half / (M_PER_DEG_LAT * math.cos(math.radians(nw_lat)))
-    grid = Grid(
-        origin_nw=LatLon(lat=nw_lat, lon=nw_lon), cell_m=CELL_M, rows=GRID_ROWS, cols=GRID_COLS
-    )
-    n = GRID_ROWS * GRID_COLS
-    p = (1 - PRIOR_OUTSIDE) / n
-    top = [
-        TopCell(idx=i, lat=lat, lon=lon, p=p, canopy=None)
-        for i in range(5)
-        for lat, lon in [_cell_center(grid, i)]
-    ]
-    return MapFile(
-        contract_version=CONTRACT_VERSION,
-        grid=grid,
-        lkp=LKP,
-        params=Params(
-            recall=recall, recall_source="metrics.detector.recall", pod_cap=0.95, review_pod=0.90
-        ),
-        prior=Distribution(p=[p] * n, outside=PRIOR_OUTSIDE),
-        canopy=[None] * n,
-        steps=[Step(frame_id=_fid(k), cells=[]) for k in range(N_FRAMES)],
-        final=Distribution(p=[p] * n, outside=PRIOR_OUTSIDE),
-        top_cells=top,
-    )
 
 
 def _metrics(rank: dict[int, int]) -> Metrics:

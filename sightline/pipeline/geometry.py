@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 
-from sightline.contract import LatLon, Pose
+from sightline.contract import Grid, LatLon, Pose
 
 M_PER_DEG_LAT = 111320.0
 FRAME_W_PX, FRAME_H_PX = 1000, 750
@@ -87,3 +87,26 @@ def placeholder_flight(n_frames: int, lkp: LatLon) -> list[Pose]:
             )
         )
     return poses
+
+
+GRID_ROWS = GRID_COLS = 50
+CELL_M = 20.0
+
+
+def grid_origin_nw(
+    lkp: LatLon, rows: int = GRID_ROWS, cols: int = GRID_COLS, cell_m: float = CELL_M
+) -> LatLon:
+    """North-west corner of a grid centred on the LKP (contract section 8)."""
+    lat = lkp.lat + (rows * cell_m / 2) / M_PER_DEG_LAT
+    lon = lkp.lon - (cols * cell_m / 2) / (M_PER_DEG_LAT * math.cos(math.radians(lat)))
+    return LatLon(lat=lat, lon=lon)
+
+
+def cell_center(grid: Grid, idx: int) -> tuple[float, float]:
+    """(lat, lon) of a cell centre. Row 0 is the northernmost row, column 0 the westernmost."""
+    row, col = divmod(idx, grid.cols)
+    lat = grid.origin_nw.lat - (row + 0.5) * grid.cell_m / M_PER_DEG_LAT
+    lon = grid.origin_nw.lon + (col + 0.5) * grid.cell_m / (
+        M_PER_DEG_LAT * math.cos(math.radians(grid.origin_nw.lat))
+    )
+    return lat, lon
