@@ -95,9 +95,13 @@ class GeoFile(_File):
 
 
 class FrameCellsFile(_File):
-    """`work/map/frame_cells.json`: frame id -> [idx, pod] for every covered cell, pod unrounded."""
+    """`work/map/frame_cells.json`: frame id -> [idx, canopy, overlap] for every cell the frame covers.
 
-    frames: dict[FrameId, list[tuple[int, Probability]]]
+    `canopy` is the canopy fraction seen by that frame (null if unknown) and `overlap` how much the
+    cell is covered by frames (lane C defines the unit; 1.0 = one look). Values are unrounded.
+    """
+
+    frames: dict[FrameId, list[tuple[int, Probability | None, Annotated[float, Field(ge=0)]]]]
 
 
 # --- lane A (written on the GPU desktop by `run_survey`) --------------------------------------

@@ -269,22 +269,22 @@ def test_map_from_lane_c_may_be_a_map_file_alone_with_cells_taken_from_its_steps
 
 def test_map_from_lane_c_may_be_a_map_file_and_frame_cells_pair():
     placeholder, _ = placeholder_map(["f0001"], LKP, 0.8)
-    pair = (placeholder, {"f0001": [(5, 0.31234)]})
+    pair = (placeholder, {"f0001": [(5, 0.31234, 2.0)]})
     lanes = Lanes(overrides={"build_map": lambda frames, lkp, recall: pair})
 
     _, cells = lanes.build_map(map_frames(), LKP, recall=0.8)
 
-    assert cells == {"f0001": [(5, 0.31234)]}
+    assert cells == {"f0001": [(5, 0.31234, 2.0)]}
 
 
 def test_map_from_lane_c_may_be_an_object_with_map_and_frame_cells():
     placeholder, _ = placeholder_map(["f0001"], LKP, 0.8)
-    result = type("R", (), {"map": placeholder, "frame_cells": {"f0001": [(1, 0.5)]}})()
+    result = type("R", (), {"map": placeholder, "frame_cells": {"f0001": [(1, 0.5, 1.0)]}})()
     lanes = Lanes(overrides={"build_map": lambda frames, lkp, recall: result})
 
     map_file, cells = lanes.build_map(map_frames(), LKP, recall=0.8)
 
-    assert cells == {"f0001": [(1, 0.5)]} and map_file is placeholder
+    assert cells == {"f0001": [(1, 0.5, 1.0)]} and map_file is placeholder
 
 
 def test_without_lane_c_the_search_simulation_is_the_labelled_placeholder():

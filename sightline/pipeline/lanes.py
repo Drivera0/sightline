@@ -64,7 +64,8 @@ PLACEHOLDER_RADIUS_M = 10.0  # the stated position-uncertainty assumption on the
 Footprint = tuple[
     tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]
 ]
-FrameCells = dict[str, list[tuple[int, float]]]
+# frame id -> [(cell idx, canopy fraction or None, overlap)] for every cell the frame covers
+FrameCells = dict[str, list[tuple[int, float | None, float]]]
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,22 @@ class MapFrame:
     # (lat, lon, radius_m) of each candidate detection in the frame (conf >= candidate_threshold),
     # so lane C can hold those cells for review (pod = 0 near a detection).
     candidates: tuple[tuple[float, float, float], ...] = ()
+
+
+def _as_cells(raw_cells: Mapping[str, Sequence[Sequence[Any]]]) -> FrameCells:
+    """Frame cells from lane C as (idx, canopy, overlap) triples; anything else is an error."""
+    cells: FrameCells = {}
+    for frame_id, frame_cells in raw_cells.items():
+        converted = []
+        for cell in frame_cells:
+            if len(cell) != 3:
+                raise ValueError(
+                    f"{frame_id}: frame cells must be (idx, canopy, overlap), got {tuple(cell)}"
+                )
+            idx, canopy, overlap = cell
+            converted.append((int(idx), None if canopy is None else float(canopy), float(overlap)))
+        cells[frame_id] = converted
+    return cells
 
 
 def _field(obj: Any, name: str, default: Any = None) -> Any:
@@ -260,12 +277,24 @@ class Lanes:
             raw_map, raw_cells = _field(result, "map"), _field(result, "frame_cells")
         map_file = raw_map if isinstance(raw_map, MapFile) else MapFile.model_validate(raw_map)
         if raw_cells is None:
-            cells: FrameCells = {s.frame_id: list(s.cells) for s in map_file.steps}
+            cells = self._cells_from_steps(map_file)
         else:
-            cells = {
-                fid: [(int(i), float(p)) for i, p in pairs] for fid, pairs in raw_cells.items()
-            }
+            cells = _as_cells(raw_cells)
         return map_file, cells
+
+    def _cells_from_steps(self, map_file: MapFile) -> FrameCells:
+        """When lane C returns only a MapFile: the cells each step covered, with the map's canopy and
+        an overlap of 1.0 (a single look). Real overlap needs lane C's own `frame_cells`."""
+        cells: FrameCells = {
+            step.frame_id: [(idx, map_file.canopy[idx], 1.0) for idx, _pod in step.cells]
+            for step in map_file.steps
+        }
+        if any(cells.values()):
+            self.note_placeholder(
+                "frame_cells",
+                "lane C gave no frame_cells, derived them from the steps (overlap 1.0)",
+            )
+        return cells
 
     def simulate(self, map_file: MapFile, frame_cells: FrameCells) -> SearchSim:
         function = self.get("simulate")
