@@ -40,6 +40,31 @@ describe("findExternalUrls", () => {
   });
 });
 
+describe("allowed exact URLs", () => {
+  it("ignores a URL that is listed exactly, even on an otherwise unlisted host", () => {
+    const text = '// see https://github.com/mapbox/mapbox-gl-js/issues/2907 and https://github.com/other/repo';
+
+    expect(findExternalUrls(text, ALLOWED, ["https://github.com/mapbox/mapbox-gl-js/issues/2907"])).toEqual([
+      "https://github.com/other/repo",
+    ]);
+  });
+
+  it("treats an entry ending in * as a prefix, for URLs that contain a version number", () => {
+    const text = "see https://github.com/maplibre/maplibre-gl-js/blob/v6.14.0/LICENSE.txt and https://github.com/evil/x";
+
+    expect(findExternalUrls(text, ALLOWED, ["https://github.com/maplibre/maplibre-gl-js/*"])).toEqual([
+      "https://github.com/evil/x",
+    ]);
+  });
+
+  it("scanDirectory passes the exact URL list on", () => {
+    const dir = mkdtempSync(join(tmpdir(), "offline-"));
+    writeFileSync(join(dir, "a.js"), '"https://github.com/mapbox/mapbox-gl-js/issues/2907"');
+
+    expect(scanDirectory(dir, ALLOWED, ["https://github.com/mapbox/mapbox-gl-js/issues/2907"])).toEqual({});
+  });
+});
+
 describe("scanDirectory", () => {
   it("reports external URLs per file, looking into sub folders and skipping fonts and images", () => {
     const dir = mkdtempSync(join(tmpdir(), "offline-"));

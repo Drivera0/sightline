@@ -12,11 +12,16 @@ import {
   seconds,
   speedup,
 } from "./format";
+import { useCountUp } from "./motion";
 
 /**
  * Lane A's screen (LANE_A_ML.md §9): detector vs. the human baseline, the ablation table,
  * D's ranking result and C's search simulation. Reads `metrics.json` only. Every number
  * carries its source as a tooltip, and the panel footer repeats it.
+ *
+ * Look: D's tokens only. The panels get a one-pixel lit top edge (the "rim" of glass kits such
+ * as Space UI), numbers are tabular mono, colour is always paired with a word (HIG), and the
+ * headline numbers count up once unless the viewer prefers reduced motion.
  */
 export function MetricsView({ metrics }: { metrics?: Metrics }) {
   const loaded = useCache((s) => s.data);
@@ -31,8 +36,17 @@ export function MetricsView({ metrics }: { metrics?: Metrics }) {
   return <MetricsBody m={m} />;
 }
 
+/** Lit top edge on a glass panel, from the surface-strong token. */
+const RIM = "[box-shadow:inset_0_1px_0_0_var(--surface-strong)]";
+
 function MetricsBody({ m }: { m: Metrics }) {
-  const { detector, baseline_human: human, ablations, ranking, search_sim: sim } = m;
+  const {
+    detector,
+    baseline_human: human,
+    ablations,
+    ranking,
+    search_sim: sim,
+  } = m;
 
   const detectorSource = `HERIDAL test set, ${detector.test_images} images, ${
     detector.tiled ? "tiled" : "untiled"
@@ -41,62 +55,95 @@ function MetricsBody({ m }: { m: Metrics }) {
   const isSample = detector.model === "SAMPLE";
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto" data-testid="metrics">
+    <div
+      className="flex h-full flex-col gap-4 overflow-y-auto"
+      data-testid="metrics"
+    >
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-title font-medium">Detector vs. the human baseline</h2>
+        <h2 className="text-title font-medium">
+          Detector vs. the human baseline
+        </h2>
         {isSample && <Badge kind="placeholder">Sample numbers</Badge>}
         <span className="text-small text-text-3">
           model <span className="font-mono text-text-2">{detector.model}</span>
         </span>
       </div>
 
-      {/* Headline row: recall, precision, speed. */}
-      <Panel>
-        <div className="grid gap-6 sm:grid-cols-3">
+      {/* Headline row: recall, precision, speed. Each tile: value, label, comparison, bars. */}
+      <Panel className={RIM}>
+        <div className="grid gap-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border">
           <Headline
-            value={<Num source={detectorSource}>{pct(detector.voc.recall)}</Num>}
+            value={pct(detector.voc.recall)}
+            animate={detector.voc.recall}
+            format={(v) => pct(v)}
             label="Recall"
+            source={detectorSource}
             compare={
               <>
                 <Num source={humanSource}>{pct(human.recall)}</Num> human ·{" "}
                 <Delta value={detector.voc.recall} baseline={human.recall} />
               </>
             }
+            bars={{ ours: detector.voc.recall, human: human.recall }}
           />
           <Headline
-            value={<Num source={detectorSource}>{pct(detector.voc.precision)}</Num>}
+            value={pct(detector.voc.precision)}
+            animate={detector.voc.precision}
+            format={(v) => pct(v)}
             label="Precision"
+            source={detectorSource}
             compare={
               <>
                 <Num source={humanSource}>{pct(human.precision)}</Num> human ·{" "}
-                <Delta value={detector.voc.precision} baseline={human.precision} />
+                <Delta
+                  value={detector.voc.precision}
+                  baseline={human.precision}
+                />
               </>
             }
+            bars={{ ours: detector.voc.precision, human: human.precision }}
           />
           <Headline
-            value={<Num source={detectorSource}>{seconds(detector.seconds_per_image)}</Num>}
+            value={seconds(detector.seconds_per_image)}
+            animate={detector.seconds_per_image}
+            format={seconds}
             label="Per photo"
+            source={detectorSource}
             compare={
               <>
-                <Num source={humanSource}>{seconds(human.seconds_per_image)}</Num> human ·{" "}
+                <Num source={humanSource}>
+                  {seconds(human.seconds_per_image)}
+                </Num>{" "}
+                human ·{" "}
                 <span className="text-accent-soft">
                   {speedup(detector.seconds_per_image, human.seconds_per_image)}
                 </span>
               </>
             }
+            bars={{
+              ours:
+                detector.seconds_per_image /
+                Math.max(human.seconds_per_image, 1e-9),
+              human: 1,
+              lowerIsBetter: true,
+            }}
           />
         </div>
-        <div className="mt-4 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-small text-text-3">
+        <div className="mt-5 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-small text-text-3">
           <span>
             AP50 <Num source={detectorSource}>{pct(detector.voc.ap50)}</Num>
           </span>
           <span>
             SAR-style (approx. AIR): precision{" "}
-            <Num source={`${detectorSource}, loose matching from the AIR paper`}>
+            <Num
+              source={`${detectorSource}, loose matching from the AIR paper`}
+            >
               {pct(detector.sar.precision)}
             </Num>{" "}
             · recall{" "}
-            <Num source={`${detectorSource}, loose matching from the AIR paper`}>
+            <Num
+              source={`${detectorSource}, loose matching from the AIR paper`}
+            >
               {pct(detector.sar.recall)}
             </Num>
           </span>
@@ -106,14 +153,14 @@ function MetricsBody({ m }: { m: Metrics }) {
         </Source>
       </Panel>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {/* Ablation table. */}
-        <Panel>
+        <Panel className={RIM}>
           <AblationTable rows={ablations} source={detectorSource} />
         </Panel>
 
         {/* Ranking block (D's numbers). */}
-        <Panel>
+        <Panel className={RIM}>
           <Label>Frames reviewed before the first person</Label>
           <table className="mt-3 w-full text-body" aria-label="Ranking">
             <thead>
@@ -146,7 +193,11 @@ function MetricsBody({ m }: { m: Metrics }) {
               />
               <Row
                 label="Random order, expected"
-                cells={[count(ranking.expected_first_hit_random_order), "—", "—"]}
+                cells={[
+                  count(ranking.expected_first_hit_random_order),
+                  "—",
+                  "—",
+                ]}
                 source={`(N + 1) / (k + 1) for ${ranking.n_frames} frames and ${ranking.n_positive} with people (metrics.ranking)`}
               />
             </tbody>
@@ -155,40 +206,45 @@ function MetricsBody({ m }: { m: Metrics }) {
             {rankingSource(ranking)}. {ranking.note}
           </Source>
         </Panel>
-      </div>
 
-      {/* Search simulation (C's numbers). */}
-      <Panel>
-        <div className="flex flex-wrap items-center gap-3">
-          <Label>Cells a ground team checks before reaching the person</Label>
-          {sim.simulated && <Badge kind="simulated">Simulated evaluation</Badge>}
-        </div>
-        <table className="mt-3 w-full text-body" aria-label="Search simulation">
-          <thead>
-            <tr className="text-left text-small text-text-3">
-              <th className="py-1 font-normal">Method</th>
-              <th className="py-1 text-right font-normal">Median</th>
-              <th className="py-1 text-right font-normal">90th percentile</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sim.methods.map((method, i) => (
-              <Row
-                key={method.name}
-                label={method.name}
-                cells={[count(method.median_cells), count(method.p90_cells)]}
-                source={simSource(sim)}
-                highlight={i === sim.methods.length - 1}
-              />
-            ))}
-          </tbody>
-        </table>
-        <Source>
-          {simSource(sim)}. The drone itself found the person in{" "}
-          <Num source={simSource(sim)}>{pct(sim.found_by_drone_rate)}</Num> of trials; the rows count
-          the remaining trials. Lower is better.
-        </Source>
-      </Panel>
+        {/* Search simulation (C's numbers). */}
+        <Panel className={`${RIM} lg:col-span-2 xl:col-span-1`}>
+          <div className="flex flex-wrap items-center gap-3">
+            <Label>Cells a ground team checks before reaching the person</Label>
+            {sim.simulated && (
+              <Badge kind="simulated">Simulated evaluation</Badge>
+            )}
+          </div>
+          <table
+            className="mt-3 w-full text-body"
+            aria-label="Search simulation"
+          >
+            <thead>
+              <tr className="text-left text-small text-text-3">
+                <th className="py-1 font-normal">Method</th>
+                <th className="py-1 text-right font-normal">Median</th>
+                <th className="py-1 text-right font-normal">90th percentile</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sim.methods.map((method, i) => (
+                <Row
+                  key={method.name}
+                  label={method.name}
+                  cells={[count(method.median_cells), count(method.p90_cells)]}
+                  source={simSource(sim)}
+                  highlight={i === sim.methods.length - 1}
+                />
+              ))}
+            </tbody>
+          </table>
+          <Source>
+            {simSource(sim)}. The drone itself found the person in{" "}
+            <Num source={simSource(sim)}>{pct(sim.found_by_drone_rate)}</Num> of
+            trials; the rows count the remaining trials. Lower is better.
+          </Source>
+        </Panel>
+      </div>
     </div>
   );
 }
@@ -219,19 +275,108 @@ function Delta({ value, baseline }: { value: number; baseline: number }) {
   );
 }
 
+/** Counting headline number; the final string is also the accessible value. */
+function CountingNum({
+  target,
+  final,
+  format,
+  source,
+}: {
+  target: number;
+  final: string;
+  format: (v: number) => string;
+  source: string;
+}) {
+  const shown = useCountUp(target);
+  const done = shown === target;
+  return (
+    <span
+      title={source}
+      className="font-mono tabular-nums text-text"
+      aria-label={final}
+    >
+      <span aria-hidden={!done}>{done ? final : format(shown)}</span>
+    </span>
+  );
+}
+
+/**
+ * Two thin bars: ours in the accent, human in the muted text colour. A comparison you can read
+ * from across the room; the exact figures sit right above (HIG: charts for patterns, text for
+ * exact values).
+ */
+function CompareBars({
+  ours,
+  human,
+  lowerIsBetter = false,
+}: {
+  ours: number;
+  human: number;
+  lowerIsBetter?: boolean;
+}) {
+  const max = Math.max(ours, human, 1e-9);
+  const width = (v: number) =>
+    `${Math.max(2, Math.min(100, (v / max) * 100))}%`;
+  return (
+    <div
+      className="mt-1 flex flex-col gap-1"
+      role="img"
+      aria-label={`Ours ${lowerIsBetter ? "lower" : "higher"} is better; bars compare ours to human`}
+    >
+      <div className="h-1 w-full rounded-full bg-surface-strong">
+        <div
+          className="h-1 rounded-full bg-accent"
+          style={{ width: width(ours) }}
+        />
+      </div>
+      <div className="h-1 w-full rounded-full bg-surface-strong">
+        <div
+          className="h-1 rounded-full bg-text-3"
+          style={{ width: width(human) }}
+        />
+      </div>
+      <div className="flex justify-between font-mono text-label uppercase tracking-label text-text-3">
+        <span>
+          <span className="text-accent-soft">■</span> ours
+        </span>
+        <span>human ■</span>
+      </div>
+    </div>
+  );
+}
+
 function Headline({
   value,
+  animate,
+  format,
   label,
+  source,
   compare,
+  bars,
 }: {
-  value: ReactNode;
+  value: string;
+  animate: number;
+  format: (v: number) => string;
   label: string;
+  source: string;
   compare: ReactNode;
+  bars: { ours: number; human: number; lowerIsBetter?: boolean };
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      <Stat value={value} label={label} />
+    <div className="flex flex-col gap-2 sm:px-6 sm:first:pl-0 sm:last:pr-0">
+      <Stat
+        value={
+          <CountingNum
+            target={animate}
+            final={value}
+            format={format}
+            source={source}
+          />
+        }
+        label={label}
+      />
       <span className="text-small text-text-2">{compare}</span>
+      <CompareBars {...bars} />
     </div>
   );
 }
@@ -268,7 +413,13 @@ function Row({
   );
 }
 
-function AblationTable({ rows, source }: { rows: Metrics["ablations"]; source: string }) {
+function AblationTable({
+  rows,
+  source,
+}: {
+  rows: Metrics["ablations"];
+  source: string;
+}) {
   const best = bestByAp50(rows);
   return (
     <>
@@ -290,7 +441,9 @@ function AblationTable({ rows, source }: { rows: Metrics["ablations"]; source: s
                 <>
                   {row.name}
                   {isResizedRow(row.name) && (
-                    <span className="text-small text-text-3"> (resized to 1024)</span>
+                    <span className="block text-small text-text-3">
+                      resized to 1024
+                    </span>
                   )}
                   {i === best && (
                     <span className="ml-2 font-mono text-label uppercase tracking-label text-accent">
@@ -299,7 +452,11 @@ function AblationTable({ rows, source }: { rows: Metrics["ablations"]; source: s
                   )}
                 </>
               }
-              cells={[pct(row.voc.precision, 1), pct(row.voc.recall, 1), pct(row.voc.ap50, 1)]}
+              cells={[
+                pct(row.voc.precision, 1),
+                pct(row.voc.recall, 1),
+                pct(row.voc.ap50, 1),
+              ]}
               source={`${source}; same threshold rule for every row (metrics.ablations)`}
               highlight={i === best}
             />

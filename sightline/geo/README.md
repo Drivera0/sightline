@@ -30,7 +30,7 @@ Status: implemented against `docs/LANE_INTERFACES.md` and
 
 | Function | Purpose | Output |
 |---|---|---|
-| `simulate_flight(n_frames, seed)` | Adapts Lane D's frame-count call to Lane B's `FlightPlan` API and centres the generated sector on the LKP until `SECTOR_NW` is agreed. | `SimulatedFlight` with exactly `n_frames` poses, LKP and area name |
+| `simulate_flight(n_frames, seed)` | Uses the fixed demo sector for 500 frames and centres differently sized uploaded surveys on the LKP. | `SimulatedFlight` with exactly `n_frames` poses, LKP and area name |
 | `georef_detection(pose, box_px, width_px, height_px)` | Converts Lane D's tuple box and pose-first argument order to Lane B's typed `Box` API. | `(lat, lon, radius_m)` |
 
 Lane B's native functions in `flight.py` and `detections.py` retain their typed,
@@ -58,7 +58,20 @@ Status: implemented and smoke-tested against contract examples.
 
 ### `flight.py`
 
-Status: implemented and smoke-tested. Final `SECTOR_NW` remains undecided.
+Status: implemented and tested with the fixed 500-frame demo sector.
+
+Selected demo coordinates:
+
+| Constant | Latitude | Longitude | Purpose |
+|---|---:|---:|---|
+| `LKP` | `49.370000000` | `-122.945000000` | Centre of the 1 km search grid and last-known-point marker |
+| `SECTOR_NW` | `49.371455264` | `-122.947089989` | Northwest corner of the 303 × 324 m simulated survey |
+
+The demo sector is centred on the LKP. It leaves approximately 348.5 m on its
+west/east sides and 338 m on its north/south sides inside the search grid.
+`SECTOR_NW` applies only to the 500-frame demo; other frame counts remain
+dynamically centred so larger uploaded surveys are not shifted outside the
+grid.
 
 | Function or property | Purpose | Output |
 |---|---|---|
@@ -118,7 +131,7 @@ Status: cache-backed base layers implemented.
 |---|---|
 | `MapProvider(props)` | Creates and owns the single MapLibre instance and exposes it through React context. |
 | `useMap()` | Returns the shared map plus `flyTo`; raises an error outside `MapProvider`. |
-| `BaseMapLayers()` | Synchronizes the sample/demo cache, map clicks, shared selection and uncertainty label. |
+| `BaseMapLayers()` | Synchronizes the sample/demo cache, map clicks, shared selection, review answers and uncertainty label. |
 | `MapView(props)` | Renders the cache-backed base layers plus optional caller-supplied layers. |
 
 ### `web/src/map/base/features.ts`
@@ -127,16 +140,20 @@ Status: cache-backed base layers implemented.
 |---|---|
 | `buildFootprintFeatures(survey)` | Converts contract footprints into closed GeoJSON polygons. |
 | `buildFlightPathFeature(survey)` | Joins frame centres in `flight_index` order. |
-| `buildDetectionFeatures(detections)` | Converts candidate detections into uncertainty-circle polygons. |
+| `buildFlightDirectionFeatures(survey, everyFrames=5)` | Builds offline-safe line chevrons from sampled frame headings. |
+| `buildGridOutlineFeature(grid)` | Converts `map.json`'s north-west origin and metre dimensions into a closed GeoJSON outline. |
+| `gridBounds(grid)` | Returns the search-grid corners used for the initial map camera. |
+| `buildDetectionFeatures(detections, answers)` | Converts candidate detections into uncertainty-circle polygons with browser-only review state and labels. |
 | `buildLkpFeature(survey)` | Creates the last-known-point GeoJSON feature. |
-| `surveyBounds(survey)` | Calculates the initial map bounds from every footprint. |
+| `surveyBounds(survey)` | Calculates optional survey-focused bounds from every footprint. |
 
 ### `web/src/map/base/layers.ts`
 
 | Function | Purpose |
 |---|---|
 | `readMapColors(root)` | Resolves shared CSS colour tokens for MapLibre canvas paint. |
-| `syncBaseLayers(map, bundle)` | Adds or refreshes the footprint, flight-path, detection and LKP sources/layers. |
+| `syncDetectionSource(map, bundle, answers)` | Refreshes pin features when Lane D's review answers change. |
+| `syncBaseLayers(map, bundle, answers)` | Adds or refreshes the grid, footprints, path arrows, review-aware detections and labelled LKP in display order. |
 | `setSelectedFootprint(map, frameId)` | Highlights the frame selected from either the map or review queue. |
 
 ### `web/src/map/base/basemap.ts`
@@ -144,6 +161,11 @@ Status: cache-backed base layers implemented.
 | Function | Purpose |
 |---|---|
 | `chooseBasemapMode(mapTilerKey, online)` | Selects satellite mode only when a key and connectivity are available; otherwise selects offline mode. |
+| `mapTilerSatelliteStyle(mapTilerKey)` | Builds the authenticated Satellite V4 style URL without storing a key in source. |
+| `readBasemapColors(root)` | Resolves shared CSS tokens for the offline MapLibre style. |
+| `offlineBasemapStyle(colors)` | Builds the local PMTiles vector style with bundled glyphs and attribution. |
+| `basemapStyle(mode, mapTilerKey, colors)` | Returns the selected online or offline style. |
+| `ensurePmtilesProtocol()` | Registers the PMTiles protocol once per browser lifetime. |
 
 ### `web/src/map/base/circle.ts`
 
@@ -172,8 +194,9 @@ Status: cache-backed base layers implemented.
   `sightline.contract.Pose` and `LatLon` models.
 - [x] Run Geo pytest and Ruff after
   Lane D adds the project configuration and dependencies.
-- [ ] Agree on `LKP` and `SECTOR_NW` with Lane C, then set `SECTOR_NW` in
-  `constants.py`.
+- [x] Select and set the demo `LKP` and `SECTOR_NW` values in `constants.py`.
+- [ ] Notify Lane C of the locked coordinates and confirm its grid uses the
+  same LKP.
 - [x] Consume Lane A's in-process `sightline.ml.types.Box` directly.
 - [x] Review Lane D's draft interfaces and provide compatible root adapters for
   `simulate_flight`, `footprint` and `georef_detection`.
@@ -184,17 +207,17 @@ Status: cache-backed base layers implemented.
 ### Required map implementation
 
 - [x] Connect `MapView` to Lane D's cache loader and selection store.
-- [ ] Add MapTiler satellite style construction using
+- [x] Add MapTiler satellite style construction using
   `VITE_MAPTILER_KEY` without committing the key.
-- [ ] Add the offline North Shore PMTiles source and style.
-- [ ] Implement the grid-outline layer.
+- [x] Add the offline North Shore PMTiles source, local label glyphs and style.
+- [x] Implement the grid-outline layer from the frozen `map.grid` contract.
 - [x] Implement the frame-footprint layer.
-- [x] Implement the flight-path line. Direction arrows remain optional. This layer may be
-  omitted later without affecting the Python projection code.
-- [x] Implement basic detection uncertainty circles. Review-state styling waits
-  for Lane D's `useReview` store.
+- [x] Implement the flight-path line and offline-safe direction chevrons every five frames.
+  These layers may be omitted later without affecting the Python projection code.
+- [x] Implement detection uncertainty circles and Lane D `useReview` styling:
+  unreviewed, person, not-person and unsure.
 - [x] Implement the selected-footprint highlight and queue/map selection sync.
-- [x] Implement the last-known-point marker. Its text label remains TODO.
+- [x] Implement the last-known-point marker and text label.
 - [x] Add the required simulated-flight-path and contract-provided uncertainty badges.
 - [x] Type-check and build the web project; the map unit tests pass in Node mode.
 - [ ] Run the complete jsdom suite once Lane D aligns its bleeding-edge web
@@ -203,7 +226,29 @@ Status: cache-backed base layers implemented.
 
 ### Final validation
 
-- [ ] Verify all 500 footprints against the final search grid coordinates.
+- [x] Verify all 500 footprint corners remain inside the selected LKP-centred
+  1 km search grid.
 - [ ] Exercise the complete queue-to-map `flyTo` interaction.
 - [ ] Verify satellite and offline modes at the target screen sizes.
-- [ ] Confirm attribution is always visible.
+- [x] Add the git-ignored `web/.env.local` MapTiler key and verify that MapTiler
+  authorizes the Satellite V4 style request.
+- [ ] Visually confirm satellite imagery and the online/offline toggle in a browser.
+- [x] Keep attribution expanded and include Protomaps/OpenStreetMap attribution
+  on the offline source; confirm its final placement during screen-size QA.
+
+### Map validation notes
+
+- The initial camera fits the complete contract grid, not only the smaller
+  surveyed footprint area. Queue selection still flies to a detection at zoom
+  18.
+- The local PMTiles archive passes the PMTiles verifier, contains the source
+  layers used by the style, and is emitted by the production build with its
+  local Latin glyph range.
+- Pure map, shared-selection and review-item tests pass in Node mode, and the
+  TypeScript production build succeeds.
+- Live responsive and queue-to-map visual QA remains pending because no browser
+  session was available in this workspace. Satellite visual QA also requires
+  the deferred `VITE_MAPTILER_KEY`.
+- The complete jsdom suite currently stops before loading tests under Node
+  20.17 because of the existing jsdom transitive ESM mismatch. Use Node 20.19+
+  or 22.12+ when completing browser-level QA.

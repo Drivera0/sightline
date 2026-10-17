@@ -44,6 +44,7 @@ from sightline.pipeline.geometry import (
     placeholder_flight,
 )
 from sightline.pipeline.placeholders import placeholder_map
+from sightline.pipeline.rank import rank_frames
 
 SURVEY_ID = "sample"
 N_FRAMES = 20
@@ -82,12 +83,10 @@ def write_sample(
     poses = placeholder_flight(N_FRAMES, LKP)
     sources = _write_frames(out, images)
     detections = _detections(out, poses)
-    scores = [max((d.conf for d in detections[_fid(k)]), default=0.0) for k in range(N_FRAMES)]
-    n_candidates = [
-        sum(d.conf >= CANDIDATE_THRESHOLD for d in detections[_fid(k)]) for k in range(N_FRAMES)
-    ]
-    order = sorted(range(N_FRAMES), key=lambda k: (-scores[k], -n_candidates[k], k))
-    rank = {k: i + 1 for i, k in enumerate(order)}
+    ranked = rank_frames(
+        detections, {_fid(k): k for k in range(N_FRAMES)}, CANDIDATE_THRESHOLD
+    )  # id -> (score, rank, n_candidates)
+    rank = {k: ranked[_fid(k)][1] for k in range(N_FRAMES)}
 
     survey = Survey(
         contract_version=CONTRACT_VERSION,
@@ -104,9 +103,9 @@ def write_sample(
                 source=sources[k],
                 pose=poses[k],
                 footprint=footprint(poses[k]),
-                score=scores[k],
-                rank=rank[k],
-                n_candidates=n_candidates[k],
+                score=ranked[_fid(k)][0],
+                rank=ranked[_fid(k)][1],
+                n_candidates=ranked[_fid(k)][2],
             )
             for k in range(N_FRAMES)
         ],
