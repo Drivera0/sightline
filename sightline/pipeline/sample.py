@@ -37,7 +37,7 @@ from sightline.contract import (
     TopCell,
     dump_json,
 )
-from sightline.contract import BaselineHuman as _Baseline
+from sightline.pipeline.export import HUMAN_BASELINE
 
 SURVEY_ID = "sample"
 N_FRAMES = 20
@@ -320,12 +320,7 @@ def _metrics(rank: dict[int, int]) -> Metrics:
                 "recall": voc["recall"],
                 "seconds_per_image": 0.9,
             },
-            "baseline_human": _Baseline(
-                precision=0.59,
-                recall=0.68,
-                seconds_per_image=33,
-                source="Pyrrö, Naseri & Jung 2021, arXiv:2111.09406",
-            ).model_dump(),
+            "baseline_human": HUMAN_BASELINE.model_dump(),
             "ablations": [
                 {
                     "name": "Stock model, no tiling",
