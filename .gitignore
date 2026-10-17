@@ -2,6 +2,7 @@
 .venv/
 __pycache__/
 *.pyc
+*.py[cod]
 .pytest_cache/
 .ruff_cache/
 
@@ -9,10 +10,13 @@ __pycache__/
 data/
 data/runs/
 cache/demo/
-weights/
+web/public/cache/demo/
 *.pt
+weights/
 runs/
 datasets/
+
+# Secrets and environment
 .env
 .env*
 
@@ -21,14 +25,18 @@ bus.jpg
 test.txt
 requirements.txt
 
+# Local planning copies and event documents
+/lane-b/
+/docs/*.pdf
+/docs/*.docx
+
 # Web
 node_modules/
 web/node_modules/
 web/dist/
 dist/
-web/public/cache/demo/
 
-# OS / editors
+# OS and editors
 .DS_Store
 Thumbs.db
 .vscode/
