@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
-const TEXT_FILES = /\.(html|js|mjs|css|json|svg|webmanifest|txt)$/i;
+const TEXT_FILES = /\.(html|js|mjs|css|json|svg|webmanifest)$/i;
 const URL_PATTERN = /https?:\/\/[^\s"'`<>)\\]+/g;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
