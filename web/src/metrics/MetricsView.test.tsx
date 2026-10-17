@@ -65,8 +65,8 @@ describe("MetricsView", () => {
     const rows = within(table).getAllByRole("row").slice(1); // skip the header
     expect(rows).toHaveLength(4);
     expect(rows[0]).toHaveTextContent("Stock model, no tiling");
-    expect(rows[0]).toHaveTextContent("(resized to 1024)");
-    expect(rows[2]).not.toHaveTextContent("(resized to 1024)");
+    expect(rows[0]).toHaveTextContent("resized to 1024");
+    expect(rows[2]).not.toHaveTextContent("resized to 1024");
     expect(rows[3]).toHaveTextContent("+ hard negatives");
     expect(rows[3]).toHaveTextContent("best");
     expect(rows[3]).toHaveAttribute("data-highlight", "true");
