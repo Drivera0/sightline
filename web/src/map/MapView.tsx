@@ -19,9 +19,17 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useBundle } from "../lib/cache";
 import { useSelection } from "../lib/selection";
 import { Badge } from "../shell/components";
-import { surveyBounds } from "./base/features";
+import { useReview } from "../review/store";
+import { gridBounds } from "./base/features";
+import {
+  basemapStyle,
+  chooseBasemapMode,
+  ensurePmtilesProtocol,
+  readBasemapColors,
+  type BasemapMode,
+} from "./base/basemap";
 import { MAP_LAYER_IDS } from "./base/layerIds";
-import { setSelectedFootprint, syncBaseLayers } from "./base/layers";
+import { setSelectedFootprint, syncBaseLayers, syncDetectionSource } from "./base/layers";
 
 const DEFAULT_CENTER: [number, number] = [-122.945, 49.37];
 const EMPTY_STYLE: StyleSpecification = {
@@ -58,11 +66,13 @@ export function MapProvider({
   useEffect(() => {
     if (!containerRef.current) return undefined;
 
+    ensurePmtilesProtocol();
     const instance = new MapLibreMap({
       container: containerRef.current,
       center: initialCenter,
       zoom: initialZoom,
       style: mapStyle,
+      attributionControl: { compact: false },
     });
     setMap(instance);
 
@@ -101,6 +111,60 @@ export interface MapViewProps extends Omit<MapProviderProps, "children"> {
   layers?: ReactNode;
 }
 
+interface BasemapToggleProps {
+  mode: BasemapMode;
+  satelliteAvailable: boolean;
+  onChange: (mode: BasemapMode) => void;
+}
+
+// Report browser connectivity without assuming navigator exists during non-browser rendering.
+function browserIsOnline(): boolean {
+  return typeof navigator === "undefined" ? false : navigator.onLine;
+}
+
+// Let the operator switch between satellite imagery and the bundled offline map.
+function BasemapToggle({
+  mode,
+  satelliteAvailable,
+  onChange,
+}: BasemapToggleProps): ReactNode {
+  const baseClass =
+    "rounded-[var(--radius-sm)] px-3 py-2 font-mono text-xs transition-colors";
+  const activeClass = "bg-[var(--surface-strong)] text-[var(--text)]";
+  const inactiveClass = "text-[var(--text-2)] hover:bg-[var(--surface)]";
+
+  return (
+    <div
+      aria-label="Basemap"
+      className="pointer-events-auto absolute right-3 top-3 flex rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg)]/85 p-1 shadow-lg backdrop-blur-md"
+      role="group"
+    >
+      <button
+        aria-pressed={mode === "satellite"}
+        className={`${baseClass} ${mode === "satellite" ? activeClass : inactiveClass}`}
+        disabled={!satelliteAvailable}
+        onClick={() => onChange("satellite")}
+        title={
+          satelliteAvailable
+            ? "Use MapTiler satellite imagery"
+            : "Requires a MapTiler key and network connection"
+        }
+        type="button"
+      >
+        Satellite
+      </button>
+      <button
+        aria-pressed={mode === "offline"}
+        className={`${baseClass} ${mode === "offline" ? activeClass : inactiveClass}`}
+        onClick={() => onChange("offline")}
+        type="button"
+      >
+        Offline
+      </button>
+    </div>
+  );
+}
+
 // Keep the rendered map layers synchronized with cache and shared selection state.
 function BaseMapLayers(): ReactNode {
   const bundle = useBundle();
@@ -108,16 +172,16 @@ function BaseMapLayers(): ReactNode {
   const selectedDetectionId = useSelection((state) => state.selectedDetectionId);
   const selectedFrameId = useSelection((state) => state.selectedFrameId);
   const selectDetection = useSelection((state) => state.selectDetection);
+  const reviewAnswers = useReview((state) => state.answers);
 
   useEffect(() => {
     if (!map) return undefined;
 
-    // Add cache features after the style is ready and frame the complete survey.
+    // Add cache features after the style is ready and frame the complete search grid.
     const renderLayers = () => {
-      syncBaseLayers(map, bundle);
+      syncBaseLayers(map, bundle, useReview.getState().answers);
       setSelectedFootprint(map, useSelection.getState().selectedFrameId);
-      const bounds = surveyBounds(bundle.survey);
-      if (bounds) map.fitBounds(bounds, { padding: 48, duration: 0 });
+      map.fitBounds(gridBounds(bundle.map.grid), { padding: 48, duration: 0 });
       map.on("click", MAP_LAYER_IDS.pins, selectPin);
       map.on("mouseenter", MAP_LAYER_IDS.pins, showPointer);
       map.on("mouseleave", MAP_LAYER_IDS.pins, hidePointer);
@@ -148,6 +212,10 @@ function BaseMapLayers(): ReactNode {
   }, [bundle, map, selectDetection]);
 
   useEffect(() => {
+    if (map) syncDetectionSource(map, bundle, reviewAnswers);
+  }, [bundle, map, reviewAnswers]);
+
+  useEffect(() => {
     if (map) setSelectedFootprint(map, selectedFrameId);
   }, [map, selectedFrameId]);
 
@@ -174,14 +242,46 @@ function BaseMapLayers(): ReactNode {
 
 // Render the cache-backed base layers, with an optional caller-supplied layer overlay.
 export function MapView({ layers, className, ...providerProps }: MapViewProps): ReactNode {
+  const mapTilerKey = import.meta.env.VITE_MAPTILER_KEY?.trim() || undefined;
+  const [online, setOnline] = useState(browserIsOnline);
+  const [mode, setMode] = useState<BasemapMode>(() => chooseBasemapMode(mapTilerKey, online));
+  const managedBasemap = providerProps.mapStyle === undefined;
+  const resolvedStyle = useMemo(() => {
+    if (providerProps.mapStyle !== undefined) return providerProps.mapStyle;
+    return basemapStyle(mode, mapTilerKey, readBasemapColors());
+  }, [mapTilerKey, mode, providerProps.mapStyle]);
+
+  useEffect(() => {
+    // Mirror network changes so a lost connection immediately selects the local archive.
+    const updateConnectivity = () => setOnline(browserIsOnline());
+    window.addEventListener("online", updateConnectivity);
+    window.addEventListener("offline", updateConnectivity);
+    return () => {
+      window.removeEventListener("online", updateConnectivity);
+      window.removeEventListener("offline", updateConnectivity);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!online || !mapTilerKey) setMode("offline");
+  }, [mapTilerKey, online]);
+
   return (
     <div className="relative h-full min-h-0 w-full">
       <MapProvider
         {...providerProps}
         className={`h-full min-h-0 w-full ${className ?? ""}`.trim()}
+        mapStyle={resolvedStyle}
       >
         <BaseMapLayers />
         {layers}
+        {managedBasemap ? (
+          <BasemapToggle
+            mode={mode}
+            satelliteAvailable={Boolean(mapTilerKey && online)}
+            onChange={setMode}
+          />
+        ) : null}
       </MapProvider>
     </div>
   );
