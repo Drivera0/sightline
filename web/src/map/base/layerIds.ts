@@ -13,6 +13,13 @@ export const MAP_LAYER_IDS = {
   lkpLabel: "last-known-point-label",
 } as const;
 
+export const MAP_SOURCE_IDS = {
+  footprints: "survey-footprints",
+  flightPath: "survey-flight-path",
+  pins: "candidate-detections",
+  lkp: "survey-lkp",
+} as const;
+
 export const MAP_LAYER_ORDER = [
   MAP_LAYER_IDS.gridOutline,
   MAP_LAYER_IDS.footprints,

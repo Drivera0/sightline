@@ -28,9 +28,7 @@ def pixel_to_latlon(
     east_m = x_m * math.cos(theta) + y_m * math.sin(theta)
     north_m = -x_m * math.sin(theta) + y_m * math.cos(theta)
     latitude = pose.lat + north_m / METRES_PER_DEGREE
-    longitude = pose.lon + east_m / (
-        METRES_PER_DEGREE * math.cos(math.radians(pose.lat))
-    )
+    longitude = pose.lon + east_m / (METRES_PER_DEGREE * math.cos(math.radians(pose.lat)))
 
     from sightline.contract import LatLon
 
@@ -46,11 +44,7 @@ def latlon_to_pixel(
 ) -> tuple[float, float]:
     """Invert :func:`pixel_to_latlon` for the same local flat-ground model."""
     _validate_dimensions(width_px, height_px)
-    east_m = (
-        (p.lon - pose.lon)
-        * METRES_PER_DEGREE
-        * math.cos(math.radians(pose.lat))
-    )
+    east_m = (p.lon - pose.lon) * METRES_PER_DEGREE * math.cos(math.radians(pose.lat))
     north_m = (p.lat - pose.lat) * METRES_PER_DEGREE
     theta = math.radians(pose.heading_deg)
 
@@ -76,10 +70,7 @@ def footprint(
     )
     return [
         (point.lon, point.lat)
-        for point in (
-            pixel_to_latlon(u, v, pose, width_px, height_px)
-            for u, v in corners_px
-        )
+        for point in (pixel_to_latlon(u, v, pose, width_px, height_px) for u, v in corners_px)
     ]
 
 

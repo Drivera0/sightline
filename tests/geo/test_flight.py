@@ -6,8 +6,7 @@ import math
 
 import pytest
 
-contract = pytest.importorskip("sightline.contract")
-
+from sightline import contract
 from sightline.geo.flight import FlightPlan, simulate_flight
 from sightline.geo.project import footprint
 
