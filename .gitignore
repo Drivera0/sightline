@@ -1,12 +1,14 @@
 # Python
 .venv/
 __pycache__/
+*.pyc
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
 
-# Data, weights, and runs: never committed (CLAUDE.md)
+# Data, weights, runs, caches: never committed (CLAUDE.md)
 data/
+data/runs/
 cache/demo/
 web/public/cache/demo/
 *.pt
@@ -15,6 +17,7 @@ runs/
 datasets/
 
 # Secrets and environment
+.env
 .env*
 
 # Local YOLO smoke-test leftovers
@@ -30,9 +33,9 @@ requirements.txt
 
 # Web
 node_modules/
-dist/
 web/node_modules/
 web/dist/
+dist/
 
 # OS and editors
 .DS_Store

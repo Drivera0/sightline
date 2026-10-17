@@ -41,8 +41,11 @@ SEARCH_METHOD_NAMES = ("Prior only", "Naive: photographed = cleared", "Sightline
 
 
 def placeholder_map(
-    frame_ids: Sequence[str], lkp: LatLon, recall: float
-) -> tuple[MapFile, dict[str, list[tuple[int, float]]]]:
+    frame_ids: Sequence[str],
+    lkp: LatLon,
+    recall: float,
+    recall_source: str = "metrics.detector.recall",
+) -> tuple[MapFile, dict[str, list[tuple[int, float | None, float]]]]:
     """Uniform prior and one empty step per frame (so `final == prior`), plus empty frame cells."""
     grid = Grid(origin_nw=grid_origin_nw(lkp), cell_m=CELL_M, rows=GRID_ROWS, cols=GRID_COLS)
     n = grid.rows * grid.cols
@@ -57,7 +60,7 @@ def placeholder_map(
         lkp=lkp,
         params=Params(
             recall=recall,
-            recall_source="metrics.detector.recall",
+            recall_source=recall_source,
             pod_cap=POD_CAP,
             review_pod=REVIEW_POD,
         ),

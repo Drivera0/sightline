@@ -269,22 +269,22 @@ def test_map_from_lane_c_may_be_a_map_file_alone_with_cells_taken_from_its_steps
 
 def test_map_from_lane_c_may_be_a_map_file_and_frame_cells_pair():
     placeholder, _ = placeholder_map(["f0001"], LKP, 0.8)
-    pair = (placeholder, {"f0001": [(5, 0.31234)]})
+    pair = (placeholder, {"f0001": [(5, 0.31234, 2.0)]})
     lanes = Lanes(overrides={"build_map": lambda frames, lkp, recall: pair})
 
     _, cells = lanes.build_map(map_frames(), LKP, recall=0.8)
 
-    assert cells == {"f0001": [(5, 0.31234)]}
+    assert cells == {"f0001": [(5, 0.31234, 2.0)]}
 
 
 def test_map_from_lane_c_may_be_an_object_with_map_and_frame_cells():
     placeholder, _ = placeholder_map(["f0001"], LKP, 0.8)
-    result = type("R", (), {"map": placeholder, "frame_cells": {"f0001": [(1, 0.5)]}})()
+    result = type("R", (), {"map": placeholder, "frame_cells": {"f0001": [(1, 0.5, 1.0)]}})()
     lanes = Lanes(overrides={"build_map": lambda frames, lkp, recall: result})
 
     map_file, cells = lanes.build_map(map_frames(), LKP, recall=0.8)
 
-    assert cells == {"f0001": [(1, 0.5)]} and map_file is placeholder
+    assert cells == {"f0001": [(1, 0.5, 1.0)]} and map_file is placeholder
 
 
 def test_without_lane_c_the_search_simulation_is_the_labelled_placeholder():
@@ -336,3 +336,44 @@ def test_stages_can_record_their_own_placeholders():
     assert lanes.placeholder_notes() == {
         "detector_metrics": "lane A detector_metrics.json is missing, used zeros"
     }
+
+
+# ---------------------------------------------------------------- lane A load_split reads the folder we give it
+
+
+def test_load_split_from_lane_a_is_told_which_folder_to_read(tmp_path):
+    calls = []
+
+    def load_split(split, root=Path("data/heridal/yolo_full")):
+        calls.append((split, root))
+        return []
+
+    lanes = Lanes(overrides={"load_split": load_split})
+
+    lanes.test_images(tmp_path / "somewhere" / "yolo_full" / "test")
+
+    assert calls == [("test", tmp_path / "somewhere" / "yolo_full")]
+    assert lanes.placeholder_notes() == {}
+
+
+def test_a_load_split_that_takes_no_root_is_called_with_the_split_only(tmp_path):
+    calls = []
+    lanes = Lanes(overrides={"load_split": lambda split: calls.append(split) or []})
+
+    lanes.test_images(tmp_path / "yolo_full" / "test")
+
+    assert calls == ["test"]
+
+
+def test_lane_a_reads_exactly_the_folder_given_even_when_it_is_not_called_test(tmp_path):
+    calls = []
+
+    def load_split(split, root=None):
+        calls.append((split, root))
+        return []
+
+    lanes = Lanes(overrides={"load_split": load_split})
+
+    lanes.test_images(tmp_path / "my_photos")
+
+    assert calls == [("my_photos", tmp_path)]

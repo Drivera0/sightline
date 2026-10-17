@@ -1,3 +1,4 @@
+import { createContext, useContext } from "react";
 import { create } from "zustand";
 import type { CacheBundle } from "../contract";
 
@@ -100,9 +101,14 @@ export const useCache = create<CacheState>((set) => ({
   },
 }));
 
-/** The loaded cache. Only call under a component that renders once status is "ready". */
+/** Lets a component tree (the Shell) hand its cache to every screen, so screens work with or without the store. */
+export const CacheContext = createContext<CacheBundle | null>(null);
+
+/** The loaded cache: from the nearest CacheContext provider, else from the store once it is ready. */
 export function useBundle(): CacheBundle {
-  const data = useCache((s) => s.data);
+  const provided = useContext(CacheContext);
+  const stored = useCache((s) => s.data);
+  const data = provided ?? stored;
   if (!data) throw new Error("useBundle() called before the cache finished loading");
   return data;
 }
