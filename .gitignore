@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Data, weights, runs: never committed (CLAUDE.md)
+data/
+cache/demo/
+weights/
+*.pt
+runs/
+datasets/
+.env
+
+# Local YOLO smoke-test leftovers
+bus.jpg
+test.txt
+requirements.txt
+
+# Web
+web/node_modules/
+web/dist/
+web/public/cache/demo/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
