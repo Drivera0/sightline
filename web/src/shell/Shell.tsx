@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import type { CacheBundle } from "../contract";
+import { CacheContext } from "../lib/cache";
 import { HeatLayer } from "../map/heat/HeatLayer";
 import { MapView } from "../map/MapView";
 import { MetricsView } from "../metrics/MetricsView";
 import { ReviewView } from "../review/ReviewView";
 import { Badge, KeyHint } from "./components";
+import { ScreenBoundary } from "./ScreenBoundary";
 import { ShortcutOverlay } from "./ShortcutOverlay";
 import { TabPanel, Tabs, type TabItem } from "./Tabs";
 
@@ -40,6 +42,7 @@ export function Shell({ cache }: { cache: CacheBundle }) {
   const { manifest, survey, detections } = cache;
 
   return (
+    <CacheContext.Provider value={cache}>
     <div className="flex h-full flex-col gap-4 p-4">
       <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -66,23 +69,31 @@ export function Shell({ cache }: { cache: CacheBundle }) {
       <main className="flex min-h-0 flex-1 flex-col">
         {tab === "review" && (
           <TabPanel id="review" idPrefix="shell">
-            <ReviewView cache={cache} onShowMap={() => setTab("map")} />
+            <ScreenBoundary name="Review">
+              <ReviewView cache={cache} onShowMap={() => setTab("map")} />
+            </ScreenBoundary>
           </TabPanel>
         )}
         {tab === "map" && (
           <TabPanel id="map" idPrefix="shell">
             <div className="relative h-full" data-testid="mount-map">
-              <MapView />
+              <ScreenBoundary name="Map">
+                <MapView />
+              </ScreenBoundary>
             </div>
             <div data-testid="mount-heat">
-              <HeatLayer />
+              <ScreenBoundary name="Heat layer">
+                <HeatLayer />
+              </ScreenBoundary>
             </div>
           </TabPanel>
         )}
         {tab === "metrics" && (
           <TabPanel id="metrics" idPrefix="shell">
             <div className="h-full" data-testid="mount-metrics">
-              <MetricsView />
+              <ScreenBoundary name="Metrics">
+                <MetricsView />
+              </ScreenBoundary>
             </div>
           </TabPanel>
         )}
@@ -90,5 +101,6 @@ export function Shell({ cache }: { cache: CacheBundle }) {
 
       {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}
     </div>
+    </CacheContext.Provider>
   );
 }
