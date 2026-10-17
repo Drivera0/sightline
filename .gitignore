@@ -1,13 +1,35 @@
-data/
-cache/demo/
-web/public/cache/demo/
-*.pt
-.env*
-node_modules/
-__pycache__/
-data/runs/
+# Python
 .venv/
+__pycache__/
+*.pyc
 .pytest_cache/
 .ruff_cache/
-.DS_Store
+
+# Data, weights, runs, caches: never committed (CLAUDE.md)
+data/
+data/runs/
+cache/demo/
+weights/
+*.pt
+runs/
+datasets/
+.env
+.env*
+
+# Local YOLO smoke-test leftovers
+bus.jpg
+test.txt
+requirements.txt
+
+# Web
+node_modules/
+web/node_modules/
+web/dist/
 dist/
+web/public/cache/demo/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

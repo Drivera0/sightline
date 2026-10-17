@@ -1,0 +1,294 @@
+# Lane A · ML: the person detector
+
+> **Owner:** Dan · **Folders:** `sightline/ml/`, `scripts/` (data prep), `tests/ml/`, `web/src/metrics/`
+> **Read first:** `00_OVERVIEW.md`, `01_CONTRACT.md` (§7 `detections.json`, §9 `metrics.json`)
+
+---
+
+## 1. Mission
+
+Build a detector that finds 60-pixel people in drone photos, prove how good it is on the HERIDAL test set, and run it over the 500 demo frames. Everything else in Sightline (ranking, pins, the search map) starts from your detections, and your recall number feeds C's search map.
+
+### Definition of done
+
+- [ ] A fine-tuned YOLO model trained on **tiled** HERIDAL training images, plus a hard-negative fine-tune.
+- [ ] `metrics.detector` and all four `metrics.ablations` rows computed on the **full 101-image test set**, with the same scoring for every row.
+- [ ] `candidate_threshold` chosen on the **validation** set (never the test set).
+- [ ] Raw detections for all 500 demo frames, saved as the intermediate file D's pipeline reads (§6.4), plus a 256×256 crop per detection.
+- [ ] The metrics screen in the web app (§9).
+
+---
+
+## 2. Inputs and outputs
+
+| Direction | What | Format |
+|---|---|---|
+| In | HERIDAL (Zenodo, VOC format, CC BY 3.0) | JPEG images + VOC XML boxes |
+| In | Demo frames (from D, around hour 8) | `data/survey/frames/f0001.jpg` … 1000×750 |
+| Out | Detector functions | `sightline/ml/` (signatures in §5) |
+| Out | Detections on demo frames | `data/work/detect/detections_raw.json` (§6.4) |
+| Out | Crops | `data/work/detect/crops/<frame_id>-dNN.jpg` |
+| Out | Detect config | `data/work/detect/config.json`: weights path, model name, `candidate_threshold` |
+| Out | Metrics | `data/work/detect/detector_metrics.json`: contract `DetectorMetrics` + the 4 `Ablation` rows, written on the desktop (§6.3 step 7) |
+| Out | Shared test split for teammates | `data/heridal/test/` zipped to the team drive (before the event) |
+
+You don't write cache files. Detection and evaluation need the GPU and the full dataset, so you run them on the desktop and write the files under `data/work/detect/`. D's pipeline reads those files and writes the cache. Share `data/work/detect/` on the team drive after each run.
+
+---
+
+## 3. Background you need
+
+**The data.** HERIDAL: 1,647 photos of Croatian and Bosnian wilderness from 40–65 m, mostly 4000×3000 (a few 4000×2250), 3,229 labelled people. Official split: **1,546 train (2,892 people), 101 test (337 people)**. Every image contains at least one person. People average about **60×60 px**, about 0.03% of the image. Single class: person.
+
+**Why tiling.** Resizing a 4000×3000 image to the model's input (640 px by default, 1024 for us) shrinks a 60 px person to 10–15 px, and the detector misses them. So train and infer on **1024×1024 tiles at native resolution**. The SAHI library does sliced inference and merges boxes back. In a quick test, a stock COCO YOLO11m found 2 of about 12 people on 5 test photos without tiling and 4 with tiling: tiling helps, but fine-tuning is what makes it work.
+
+**What the published work got** (AIR, RetinaNet, Pyrrö et al. 2021): untuned baseline 4.5% recall; full method about 90% precision / 86% recall (VOC scoring). We don't need to beat AIR. **We need to beat the human baseline (59% P / 68% R) and report honestly.**
+
+**Hard negatives.** Bags, white objects, rocks and stumps fire as people. Collect your model's false positives on training images and train on those tiles with no labels, so it learns they're background.
+
+---
+
+## 4. Before the event (setup and data prep only)
+
+Data prep code is allowed before the event, app code isn't. All of this is data prep.
+
+- [ ] **Download** `heridal_keras_retinanet_voc.zip` (8.3 GB) from https://zenodo.org/records/5662351 to the desktop. Unzip to `data/heridal/raw/`. Inspect the structure and confirm the counts: 1,546 / 101 images, 2,892 / 337 boxes. If counts differ, write down why before going further.
+- [ ] **`scripts/convert_heridal.py`:** VOC XML → YOLO txt (`0 cx cy w h`, normalised). Output `data/heridal/yolo_full/{train,val,test}/{images,labels}`. Val = 10% of train, seeded (`seed=7`), split **by image**.
+- [ ] **`scripts/tile_dataset.py`:** cut train and val images into 1024×1024 tiles, 20% overlap (§6.1). Output `data/heridal/yolo_tiles/{train,val}` + `dataset.yaml`.
+- [ ] **Timing run:** train `yolo11s.pt` for 2 epochs on the tiles. Write down seconds per epoch. Use it to set the real epoch count so run 1 finishes in about 4 hours.
+- [ ] **Remote access** (details in §12): Tailscale on the desktop and the MacBook, Windows OpenSSH Server with key login, remote desktop for starting long runs. Test everything from a phone hotspot.
+- [ ] **Backup GPU:** upload `yolo_tiles` to Google Drive or Kaggle so a Colab/Kaggle notebook can train if the desktop is unreachable.
+- [ ] **Share the test split** (101 images + labels, about 500 MB) with B, C and D. They need it for frames, canopy tuning and real-pose tests.
+
+---
+
+## 5. Code to build (signatures)
+
+```python
+# sightline/ml/types.py
+@dataclass(frozen=True)
+class Box:            # pixels, x2 > x1, y2 > y1
+    x1: int; y1: int; x2: int; y2: int
+
+@dataclass(frozen=True)
+class LabeledImage:
+    path: Path
+    width: int
+    height: int
+    boxes: list[Box]
+
+@dataclass(frozen=True)
+class RawDetection:   # what D's pipeline consumes
+    box: Box
+    conf: float
+
+# sightline/ml/data.py
+def load_split(split: Literal["train", "val", "test"]) -> list[LabeledImage]
+    """Reads data/heridal/yolo_full/<split>. Used by D's survey builder (test split) and by eval."""
+
+# sightline/ml/detect.py
+class Detector:
+    def __init__(self, weights: Path, device: str = "cuda:0", imgsz: int = 1024) -> None: ...
+    def detect_frame(self, image: Path, conf: float = 0.05) -> list[RawDetection]:
+        """One pass at native size. For demo frames (1000×750), which fit in one 1024 tile."""
+    def detect_tiled(self, image: Path, conf: float = 0.05,
+                     slice_px: int = 1024, overlap: float = 0.2) -> list[RawDetection]:
+        """SAHI sliced inference for full 4000×3000 images."""
+    def detect_resized(self, image: Path, conf: float = 0.05) -> list[RawDetection]:
+        """Whole 4000×3000 image resized to imgsz (1024) in one pass, so a 60 px person becomes ~15 px.
+        Only for the 'no tiling' ablation rows; the metrics screen labels those rows '(resized to 1024)'."""
+
+# sightline/ml/crops.py
+def make_crop(image: Path, box: Box, out: Path, window_px: int = 128, out_px: int = 256) -> None:
+    """128×128 window centred on the box centre (padded with black at edges), upscaled to 256×256, JPEG q90."""
+
+# sightline/ml/evaluate.py  (contract models: VocScores{precision, recall, ap50},
+#                            SarScores{precision, recall, ap}, DetectorMetrics, Ablation)
+def score_voc(preds: dict[str, list[RawDetection]], truth: dict[str, list[Box]], threshold: float) -> VocScores
+def score_sar(preds: dict[str, list[RawDetection]], truth: dict[str, list[Box]], threshold: float) -> SarScores
+def choose_threshold(detector: Detector, val: list[LabeledImage]) -> float
+def evaluate(detector: Detector, images: list[LabeledImage], mode: Literal["tiled", "resized"],
+             threshold: float) -> tuple[VocScores, SarScores, float]   # (voc, sar, seconds_per_image)
+def write_detector_metrics(detector: DetectorMetrics, ablations: list[Ablation],
+                           out: Path = Path("data/work/detect/detector_metrics.json")) -> None
+
+# sightline/ml/survey.py: the ONE entry point D's `detect` stage calls
+def run_survey(frames_dir: Path, weights: Path, out_dir: Path, candidate_threshold: float,
+               model_name: str, save_threshold: float = 0.05) -> None:
+    """detect_frame on every frame → out_dir/detections_raw.json; make_crop for every detection with
+    conf ≥ candidate_threshold → out_dir/crops/; writes out_dir/config.json
+    {"weights": ..., "model": ..., "candidate_threshold": ..., "save_threshold": ...}."""
+
+# sightline/ml/hard_negatives.py
+def mine(detector: Detector, train: list[LabeledImage], conf: float = 0.25,
+         max_tiles: int = 2000, seed: int = 7) -> list[Path]   # writes extra tiles + empty label files
+```
+
+`sightline/ml/__init__.py` exports `Detector`, `RawDetection`, `Box`, `LabeledImage`, `load_split`, `make_crop`, `run_survey`. `Box`, `RawDetection` and `LabeledImage` are plain frozen dataclasses (in-process arguments); everything that ends up in the cache uses contract models.
+
+---
+
+## 6. Step by step
+
+### 6.1 Tiling (data prep, before the event)
+
+- Tile 1024×1024, overlap 0.2 → stride 819. Last tile in each row/column snaps to the image edge. 4000×3000 gives 5×4 = 20 tiles per image.
+- Box → tile: clip the box to the tile; keep it if **≥ 50%** of its original area is inside; drop slivers under 8 px on a side.
+- Keep **every tile with at least one box**, plus a random **25% of empty tiles** (seeded) as background. YOLO treats an image with an empty label file as background.
+- Write `dataset.yaml`: one class `person`, paths to tile folders.
+
+### 6.2 Training run 1 (start in hour 0)
+
+Starting values. Adjust from the timing run.
+
+```bash
+yolo detect train model=yolo11s.pt data=data/heridal/yolo_tiles/dataset.yaml \
+  imgsz=1024 epochs=<from timing run> batch=-1 patience=15 seed=7 single_cls=True \
+  degrees=180 flipud=0.5 fliplr=0.5 close_mosaic=10 project=data/runs name=tiles_s
+```
+
+- Nadir photos have no "up", so full rotation and vertical flips are valid augmentations.
+- Start it in a terminal on the desktop's own session (via remote desktop, §12), not over SSH, so a dropped connection doesn't kill it. Check `results.csv` for tile-level val mAP50 every hour or two over SSH.
+- If time allows after run 1, try `yolo11m.pt`. Keep whichever scores better on **val**.
+
+### 6.3 Evaluate (hour 3–10, while D builds frames)
+
+1. `choose_threshold` on **val**, on full images with tiled inference. Pick the threshold that maximises **F2** (recall weighted twice precision; missing a person costs more than a false alarm). This is `candidate_threshold`.
+2. Run the four ablation variants on the **test** set, same threshold rule per variant:
+   | Row name (exact) | Weights | Inference |
+   |---|---|---|
+   | Stock model, no tiling | `yolo11s.pt` (COCO, class person only) | `detect_resized` |
+   | Fine-tuned, no tiling | your best tiled-trained weights | `detect_resized` |
+   | Fine-tuned + tiling | your best tiled-trained weights | `detect_tiled` |
+   | + hard negatives | after §6.5 | `detect_tiled` |
+3. **VOC scoring:** greedy one-to-one matching in descending confidence, IoU ≥ 0.5. Precision and recall at the threshold; AP50 = all-point interpolated area under the PR curve over all confidences.
+4. **SAR scoring** (the loose scheme from the AIR paper, our implementation): a prediction is correct if its IoU with any true box is ≥ 0.0025, and one prediction may cover several people. Precision = correct predictions / all predictions; recall = true boxes matched by at least one prediction. Label it "SAR-style (approx. AIR)" in the UI.
+5. `seconds_per_image` = mean wall time of `detect_tiled` on the test images, on the 4080 SUPER.
+6. `metrics.detector.recall` = the VOC recall of the final model. **Tell C the number as soon as you have it**, because it's their POD input.
+7. `write_detector_metrics` → `data/work/detect/detector_metrics.json`: the contract `DetectorMetrics` (with `threshold` = `candidate_threshold`) and the 4 `Ablation` rows. D's `map` stage reads `recall` from it (0.80 placeholder if the file doesn't exist yet), and the `metrics` stage copies the rest into `metrics.json`. Re-write it whenever the model changes.
+
+### 6.4 Run on the demo frames (as soon as D has frames, around hour 8–10)
+
+Run `run_survey(Path("data/survey/frames"), <best weights>, Path("data/work/detect"), <candidate_threshold>, <model name>)`. D's `detect` stage is a thin wrapper that calls exactly this. It:
+
+- runs `detect_frame` on every frame in `data/survey/frames/`, `conf=0.05`;
+- writes `data/work/detect/config.json` (weights path, model name, thresholds), which D's pipeline reads for `detections.json`'s header;
+- writes `data/work/detect/detections_raw.json`:
+  ```json
+  {"model": "yolo11s-heridal-tiled", "save_threshold": 0.05, "candidate_threshold": 0.31,
+   "frames": {"f0001": [{"box": [512, 300, 560, 362], "conf": 0.874}], "f0002": []}}
+  ```
+  Every frame id is present; detections are sorted by descending conf. This is an internal file, not a contract file. D's pipeline turns it into `detections.json`.
+- runs `make_crop` for every detection with `conf ≥ candidate_threshold` into `data/work/detect/crops/<frame_id>-dNN.jpg` (NN = 01, 02… by descending conf). Below the threshold there's no crop, and the contract's `crop` field is `null`.
+- Re-run this step after §6.5 with the final model.
+
+The detect stage needs the GPU, so it runs on the desktop. Copy `data/work/detect/` to the team drive so B, C and D can run the downstream stages on laptops.
+
+### 6.5 Hard-negative mining + fine-tune (hour 10–18, overnight)
+
+1. `mine`: tiled inference over **training** images. A false positive is a prediction with `conf ≥ 0.25` and IoU < 0.1 to every true box.
+2. For each false positive, cut the 1024 tile centred on it (clamped to the image), with that tile's true labels (often none). Cap at 2,000 tiles, seeded.
+3. Add them to the training tiles; fine-tune from best weights about 20 epochs with `lr0=0.002`.
+4. Re-run §6.3 for the "+ hard negatives" row. **Keep the model only if test-set F2 doesn't drop**; report the row either way.
+
+### 6.6 Stretch: re-check classifier (only if ahead at hour 18)
+
+ResNet-18 on 128×128 crops: positives = crops of true boxes, negatives = mined false positives. Re-score each detection as `conf × p_person`. Report it as a fifth ablation row (needs a contract bump to 1.1, so agree with D first). First on the cut list.
+
+---
+
+## 7. Tests and acceptance checks
+
+- `tests/ml/test_convert.py`: a VOC XML fixture converts to the exact YOLO line expected.
+- `tests/ml/test_tiling.py`: a 4000×3000 image gives 20 tiles; a box straddling two tiles lands in both only where ≥ 50% inside; edge tiles snap to the border.
+- `tests/ml/test_scoring.py`: hand-built cases: perfect match → P=R=1; one miss; one false positive; SAR scoring accepts a large box covering two people as 2 recalled.
+- `tests/ml/test_crops.py`: a box at the image corner produces a 256×256 crop without error.
+- Acceptance: the counts in §4 match; val and test never overlap (assert no shared filenames); the ablation table has 4 rows from the same threshold rule.
+
+Tests must run on CPU without weights; use tiny fixtures.
+
+---
+
+## 8. Fallbacks
+
+| Problem | Fallback |
+|---|---|
+| Desktop unreachable | Train on Colab/Kaggle from the uploaded tiles (yolo11s, fewer epochs). |
+| Training underperforms | Ship the best checkpoint; report the real numbers against the human baseline. Never tune on test. |
+| Hard negatives hurt | Keep the previous model; still report the row. |
+| Out of time for SAR scoring | Report VOC only; hide the SAR column. |
+
+---
+
+## 9. Your screen: Metrics (hours 18–26)
+
+`web/src/metrics/MetricsView.tsx`, reading `metrics.json` only. See `05_FRONTEND_SHARED.md` for the shell and look.
+
+- **Headline row:** three stat tiles: our recall vs. human 68%; our precision vs. human 59%; seconds per image, ours vs. 33 s.
+- **Ablation table:** the 4 rows, VOC precision / recall / AP50, best row highlighted.
+- **Ranking block** (D's numbers): frames reviewed before the first hit, ranked vs. flight order, and the random-order expectation.
+- **Search block** (C's numbers): median and 90th-percentile cells to find, three methods, with a **"Simulated"** badge.
+- Every number shows its source on hover (e.g. "HERIDAL test set, 101 images").
+
+---
+
+## 10. Your part of the pitch
+
+About 30 seconds: why tiling (the 10-pixel smudge), the stock-vs-ours jump from the ablation table, and our numbers vs. the human baseline. Have the "is it just CV?" answer ready: the stock model misses most people, and the tricks are the project.
+
+---
+
+## 11. For Claude (instructions when this file is given to Claude Code)
+
+- You are working on **lane A** only. Edit `sightline/ml/`, `scripts/`, `tests/ml/`, `web/src/metrics/`. Don't touch other lanes' folders, `sightline/contract.py` or `web/src/contract.ts`.
+- **Never evaluate or tune on the test split** except in `evaluate` for final reporting. Thresholds come from val.
+- Keep all randomness seeded (`seed=7` default).
+- Large data lives under `data/`; never commit it. Tests use tiny fixtures in `tests/ml/fixtures/`.
+- GPU code must also import and fail clearly on a CPU machine (B, C and D run `uv sync` without the `ml` extra). Import torch/ultralytics/sahi lazily inside functions, not at module top level.
+- Before finishing: `uv run pytest tests/ml`, `uv run ruff check sightline/ml`.
+- Good first prompts:
+  1. "Read docs/LANE_A_ML.md §5–6.1. Write `scripts/convert_heridal.py` and `scripts/tile_dataset.py` with tests first."
+  2. "Implement `sightline/ml/evaluate.py` per §6.3 with the tests in §7. No GPU needed for tests."
+  3. "Implement `Detector` per §5, lazily importing ultralytics and sahi."
+
+---
+
+## 12. Remote access to the GPU desktop (Windows) from the MacBook
+
+Set this up before the event and test it from a phone hotspot.
+
+**Network: Tailscale.** Install on both machines, same account. On the PC, enable "Run unattended". Turn on MagicDNS and note the PC's machine name (e.g. `desktop-dan`); it works from any network.
+
+**SSH server on the PC** (PowerShell as Administrator):
+
+```powershell
+Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+Start-Service sshd
+Set-Service -Name sshd -StartupType Automatic
+New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell `
+  -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
+```
+
+Key login from the Mac: `ssh-keygen -t ed25519`, then paste `~/.ssh/id_ed25519.pub` into the PC file. For an **administrator** account that's `C:\ProgramData\ssh\administrators_authorized_keys`, then:
+
+```powershell
+icacls.exe "C:\ProgramData\ssh\administrators_authorized_keys" /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
+```
+
+(A standard account uses `C:\Users\<you>\.ssh\authorized_keys` instead.) Add to the Mac's `~/.ssh/config`:
+
+```
+Host pc
+  HostName desktop-dan
+  User <windows username>
+```
+
+Now `ssh pc`, `scp pc:"C:/path" .`, and VS Code Remote-SSH to `pc` all work.
+
+**Remote desktop, for starting training.** Processes started over SSH on Windows can die with the connection. Start long runs in a terminal on the PC's own desktop: Windows Pro → Settings › System › Remote Desktop + the "Windows App" on the Mac; Windows Home → Chrome Remote Desktop or RustDesk. Start the run, disconnect, check later over SSH (`nvidia-smi`, `results.csv`).
+
+**Keep it alive for 36 hours.** Sleep: Never. Pause Windows Update for the week. Tailscale and sshd start automatically; consider BIOS "power on after power loss".
+
+**Python on the PC.** Native Windows Python with the CUDA build of PyTorch (exact command from pytorch.org), then `ultralytics` and `sahi`. Check: `python -c "import torch; print(torch.cuda.get_device_name(0))"` prints the 4080 SUPER.
+
+**Pre-event test from a hotspot:** `ssh pc` works; remote desktop works; a 2-epoch run survives disconnecting for 10 minutes; `scp` both ways; the Colab/Kaggle backup has the tiles.
