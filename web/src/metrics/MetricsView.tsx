@@ -12,11 +12,16 @@ import {
   seconds,
   speedup,
 } from "./format";
+import { useCountUp } from "./motion";
 
 /**
  * Lane A's screen (LANE_A_ML.md §9): detector vs. the human baseline, the ablation table,
  * D's ranking result and C's search simulation. Reads `metrics.json` only. Every number
  * carries its source as a tooltip, and the panel footer repeats it.
+ *
+ * Look: D's tokens only. The panels get a one-pixel lit top edge (the "rim" of glass kits such
+ * as Space UI), numbers are tabular mono, colour is always paired with a word (HIG), and the
+ * headline numbers count up once unless the viewer prefers reduced motion.
  */
 export function MetricsView({ metrics }: { metrics?: Metrics }) {
   const loaded = useCache((s) => s.data);
@@ -30,6 +35,9 @@ export function MetricsView({ metrics }: { metrics?: Metrics }) {
   }
   return <MetricsBody m={m} />;
 }
+
+/** Lit top edge on a glass panel, from the surface-strong token. */
+const RIM = "[box-shadow:inset_0_1px_0_0_var(--surface-strong)]";
 
 function MetricsBody({ m }: { m: Metrics }) {
   const {
@@ -61,26 +69,29 @@ function MetricsBody({ m }: { m: Metrics }) {
         </span>
       </div>
 
-      {/* Headline row: recall, precision, speed. */}
-      <Panel>
+      {/* Headline row: recall, precision, speed. Each tile: value, label, comparison, bars. */}
+      <Panel className={RIM}>
         <div className="grid gap-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border">
           <Headline
-            value={
-              <Num source={detectorSource}>{pct(detector.voc.recall)}</Num>
-            }
+            value={pct(detector.voc.recall)}
+            animate={detector.voc.recall}
+            format={(v) => pct(v)}
             label="Recall"
+            source={detectorSource}
             compare={
               <>
                 <Num source={humanSource}>{pct(human.recall)}</Num> human ·{" "}
                 <Delta value={detector.voc.recall} baseline={human.recall} />
               </>
             }
+            bars={{ ours: detector.voc.recall, human: human.recall }}
           />
           <Headline
-            value={
-              <Num source={detectorSource}>{pct(detector.voc.precision)}</Num>
-            }
+            value={pct(detector.voc.precision)}
+            animate={detector.voc.precision}
+            format={(v) => pct(v)}
             label="Precision"
+            source={detectorSource}
             compare={
               <>
                 <Num source={humanSource}>{pct(human.precision)}</Num> human ·{" "}
@@ -90,14 +101,14 @@ function MetricsBody({ m }: { m: Metrics }) {
                 />
               </>
             }
+            bars={{ ours: detector.voc.precision, human: human.precision }}
           />
           <Headline
-            value={
-              <Num source={detectorSource}>
-                {seconds(detector.seconds_per_image)}
-              </Num>
-            }
+            value={seconds(detector.seconds_per_image)}
+            animate={detector.seconds_per_image}
+            format={seconds}
             label="Per photo"
+            source={detectorSource}
             compare={
               <>
                 <Num source={humanSource}>
@@ -109,9 +120,16 @@ function MetricsBody({ m }: { m: Metrics }) {
                 </span>
               </>
             }
+            bars={{
+              ours:
+                detector.seconds_per_image /
+                Math.max(human.seconds_per_image, 1e-9),
+              human: 1,
+              lowerIsBetter: true,
+            }}
           />
         </div>
-        <div className="mt-4 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-small text-text-3">
+        <div className="mt-5 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-small text-text-3">
           <span>
             AP50 <Num source={detectorSource}>{pct(detector.voc.ap50)}</Num>
           </span>
@@ -137,12 +155,12 @@ function MetricsBody({ m }: { m: Metrics }) {
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {/* Ablation table. */}
-        <Panel>
+        <Panel className={RIM}>
           <AblationTable rows={ablations} source={detectorSource} />
         </Panel>
 
         {/* Ranking block (D's numbers). */}
-        <Panel>
+        <Panel className={RIM}>
           <Label>Frames reviewed before the first person</Label>
           <table className="mt-3 w-full text-body" aria-label="Ranking">
             <thead>
@@ -190,7 +208,7 @@ function MetricsBody({ m }: { m: Metrics }) {
         </Panel>
 
         {/* Search simulation (C's numbers). */}
-        <Panel className="lg:col-span-2 xl:col-span-1">
+        <Panel className={`${RIM} lg:col-span-2 xl:col-span-1`}>
           <div className="flex flex-wrap items-center gap-3">
             <Label>Cells a ground team checks before reaching the person</Label>
             {sim.simulated && (
@@ -257,19 +275,108 @@ function Delta({ value, baseline }: { value: number; baseline: number }) {
   );
 }
 
+/** Counting headline number; the final string is also the accessible value. */
+function CountingNum({
+  target,
+  final,
+  format,
+  source,
+}: {
+  target: number;
+  final: string;
+  format: (v: number) => string;
+  source: string;
+}) {
+  const shown = useCountUp(target);
+  const done = shown === target;
+  return (
+    <span
+      title={source}
+      className="font-mono tabular-nums text-text"
+      aria-label={final}
+    >
+      <span aria-hidden={!done}>{done ? final : format(shown)}</span>
+    </span>
+  );
+}
+
+/**
+ * Two thin bars: ours in the accent, human in the muted text colour. A comparison you can read
+ * from across the room; the exact figures sit right above (HIG: charts for patterns, text for
+ * exact values).
+ */
+function CompareBars({
+  ours,
+  human,
+  lowerIsBetter = false,
+}: {
+  ours: number;
+  human: number;
+  lowerIsBetter?: boolean;
+}) {
+  const max = Math.max(ours, human, 1e-9);
+  const width = (v: number) =>
+    `${Math.max(2, Math.min(100, (v / max) * 100))}%`;
+  return (
+    <div
+      className="mt-1 flex flex-col gap-1"
+      role="img"
+      aria-label={`Ours ${lowerIsBetter ? "lower" : "higher"} is better; bars compare ours to human`}
+    >
+      <div className="h-1 w-full rounded-full bg-surface-strong">
+        <div
+          className="h-1 rounded-full bg-accent"
+          style={{ width: width(ours) }}
+        />
+      </div>
+      <div className="h-1 w-full rounded-full bg-surface-strong">
+        <div
+          className="h-1 rounded-full bg-text-3"
+          style={{ width: width(human) }}
+        />
+      </div>
+      <div className="flex justify-between font-mono text-label uppercase tracking-label text-text-3">
+        <span>
+          <span className="text-accent-soft">■</span> ours
+        </span>
+        <span>human ■</span>
+      </div>
+    </div>
+  );
+}
+
 function Headline({
   value,
+  animate,
+  format,
   label,
+  source,
   compare,
+  bars,
 }: {
-  value: ReactNode;
+  value: string;
+  animate: number;
+  format: (v: number) => string;
   label: string;
+  source: string;
   compare: ReactNode;
+  bars: { ours: number; human: number; lowerIsBetter?: boolean };
 }) {
   return (
     <div className="flex flex-col gap-2 sm:px-6 sm:first:pl-0 sm:last:pr-0">
-      <Stat value={value} label={label} />
+      <Stat
+        value={
+          <CountingNum
+            target={animate}
+            final={value}
+            format={format}
+            source={source}
+          />
+        }
+        label={label}
+      />
       <span className="text-small text-text-2">{compare}</span>
+      <CompareBars {...bars} />
     </div>
   );
 }
