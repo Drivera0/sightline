@@ -1,6 +1,6 @@
 # CLAUDE.md: Sightline
 
-Sightline is a hackathon project (BCS Hackathon 2026, 36 hours, 4 people). It finds people in search-and-rescue drone photos, ranks the photos for human review, pins detections on a map, and keeps a Bayesian probability map of where the missing person could still be.
+Sightline is a hackathon project (BCS Hackathon 2026, 24 hours, 4 people). It finds people in search-and-rescue drone photos, ranks the photos for human review, pins detections on a map, and keeps a Bayesian probability map of where the missing person could still be.
 
 ## Read before working
 

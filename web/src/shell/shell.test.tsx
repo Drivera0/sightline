@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import type { CacheBundle } from "../contract";
-import { Badge, EmptyState, KeyHint, Panel, Stat } from "./components";
+import { Annotation, Badge, EmptyState, KeyHint, Panel, Stat } from "./components";
 import { Shell } from "./Shell";
 
 async function sample(change?: (c: CacheBundle) => void): Promise<CacheBundle> {
@@ -192,5 +192,13 @@ describe("Shell placeholder badge", () => {
 
     expect(screen.getByText("Placeholder detections")).toBeInTheDocument();
     expect(screen.queryByText("Sample data")).not.toBeInTheDocument();
+  });
+});
+
+describe("Annotation", () => {
+  it("uses the handwriting font, for one-off notes only", () => {
+    render(<Annotation>this is where the team goes next</Annotation>);
+
+    expect(screen.getByText("this is where the team goes next")).toHaveClass("font-hand");
   });
 });
