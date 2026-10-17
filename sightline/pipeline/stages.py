@@ -29,13 +29,14 @@ from sightline.pipeline.formats import (
     read_json,
     write_json,
 )
-from sightline.pipeline.lanes import Lanes, MapFrame
+from sightline.pipeline.lanes import RECALL_FROM_DETECTOR, Lanes, MapFrame
 from sightline.pipeline.mapmath import normalise_map
 from sightline.pipeline.placeholders import placeholder_detector_metrics
 from sightline.pipeline.rank import rank_frames, ranking_metrics
 from sightline.pipeline.survey import build_survey, write_survey
 
 PLACEHOLDER_RECALL = 0.80  # used by `map` until lane A has written detector_metrics.json
+RECALL_FROM_PLACEHOLDER = "placeholder"
 DEFAULT_NOTES = "Real HERIDAL test imagery on a simulated flight path over Mount Seymour."
 
 
@@ -58,7 +59,7 @@ class Context:
 
     def __post_init__(self) -> None:
         if self.test_dir is None:
-            self.test_dir = self.data / "heridal" / "yolo_full" / "test"
+            self.test_dir = _default_test_dir(self.data)
 
     @property
     def survey_dir(self) -> Path:
@@ -69,6 +70,10 @@ class Context:
         return self.data / "work"
 
 
+def _default_test_dir(data: Path) -> Path:
+    return data / "heridal" / "yolo_full" / "test"
+
+
 def _frame_ids(ctx: Context) -> list[str]:
     """Frame ids in flight order, from the `frames` stage."""
     entries = read_json(ctx.survey_dir / "frames.json", SurveyFrameFile, produced_by="frames").root
@@ -77,8 +82,7 @@ def _frame_ids(ctx: Context) -> list[str]:
 
 def frames_stage(ctx: Context) -> None:
     """Cut frames from the HERIDAL test photos; write the JPEGs, `frames.json` and `truth.json`."""
-    assert ctx.test_dir is not None
-    images = ctx.lanes.test_images(ctx.test_dir)
+    images = ctx.lanes.test_images(ctx.test_dir or _default_test_dir(ctx.data))
     frames, truth = build_survey(
         images, ctx.n_frames, ctx.n_positive, ctx.seed, survey_dir=ctx.survey_dir
     )
@@ -152,14 +156,44 @@ def rank_stage(ctx: Context) -> None:
     )
 
 
+def _candidates(
+    ctx: Context, raw: RawDetectionsFile, threshold: float
+) -> dict[str, tuple[tuple[float, float, float], ...]]:
+    """frame id -> (lat, lon, radius_m) of each detection with conf >= threshold."""
+    frames_with_detections = [f for f, dets in raw.frames.items() if dets]
+    if not any(d.conf >= threshold for f in frames_with_detections for d in raw.frames[f]):
+        return {}  # nothing to hold for review, so the georef stage is not needed
+    geo = read_json(ctx.work / "georef" / "detections_geo.json", GeoFile, produced_by="georef")
+    result: dict[str, tuple[tuple[float, float, float], ...]] = {}
+    for frame_id in frames_with_detections:
+        detections, positions = raw.frames[frame_id], geo.frames.get(frame_id, [])
+        if len(detections) != len(positions):
+            raise ValueError(
+                f"{frame_id}: {len(detections)} raw detections but {len(positions)} positions "
+                "in detections_geo.json"
+            )
+        result[frame_id] = tuple(
+            (p.lat, p.lon, p.radius_m)
+            for d, p in zip(detections, positions, strict=True)
+            if d.conf >= threshold
+        )
+    return result
+
+
 def map_stage(ctx: Context) -> None:
     """Build the search map (lane C, or a placeholder) and make it obey the contract's rules."""
     place = read_json(ctx.work / "place" / "poses.json", PlaceFile, produced_by="place")
     flight_index = _flight_index(ctx)
     metrics_path = ctx.work / "detect" / "detector_metrics.json"
-    recall = PLACEHOLDER_RECALL
+    recall, recall_source = PLACEHOLDER_RECALL, RECALL_FROM_PLACEHOLDER
     if metrics_path.is_file():
         recall = read_json(metrics_path, DetectorMetricsFile).detector.recall
+        recall_source = RECALL_FROM_DETECTOR
+    config = read_json(ctx.work / "detect" / "config.json", DetectConfig, produced_by="detect")
+    raw = read_json(
+        ctx.work / "detect" / "detections_raw.json", RawDetectionsFile, produced_by="detect"
+    )
+    candidates = _candidates(ctx, raw, config.candidate_threshold)
     frames = [
         MapFrame(
             id=frame_id,
@@ -167,10 +201,11 @@ def map_stage(ctx: Context) -> None:
             pose=place.frames[frame_id].pose,
             footprint=place.frames[frame_id].footprint,
             flight_index=index,
+            candidates=candidates.get(frame_id, ()),
         )
         for frame_id, index in sorted(flight_index.items(), key=lambda item: item[1])
     ]
-    map_file, cells = ctx.lanes.build_map(frames, place.lkp, recall)
+    map_file, cells = ctx.lanes.build_map(frames, place.lkp, recall, recall_source)
     write_json(ctx.work / "map" / "map.json", normalise_map(map_file))
     write_json(ctx.work / "map" / "frame_cells.json", FrameCellsFile(frames=cells))
 

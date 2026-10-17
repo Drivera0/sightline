@@ -16,6 +16,7 @@ from .flight import simulate_flight as _simulate_flight
 from .project import METRES_PER_DEGREE, footprint, latlon_to_pixel, pixel_to_latlon
 
 AREA_NAME = "Mount Seymour, North Vancouver (simulated flight path)"
+DEMO_FRAME_COUNT = 500
 
 
 @dataclass(frozen=True)
@@ -41,7 +42,7 @@ def _flight_shape(n_frames: int) -> tuple[int, int]:
     return lines, frames_per_line
 
 
-# Centre a generated survey sector on the shared LKP when no fixed sector was agreed.
+# Centre a generated survey sector on the shared LKP.
 def _centred_sector_nw(plan: FlightPlan) -> LatLon:
     latitude = LKP.lat + plan.sector_height_m / (2.0 * METRES_PER_DEGREE)
     longitude_scale = METRES_PER_DEGREE * math.cos(math.radians(LKP.lat))
@@ -58,7 +59,7 @@ def simulate_flight(n_frames: int, seed: int = 7) -> SimulatedFlight:
         lines=lines,
         frames_per_line=frames_per_line,
     )
-    sector_nw = SECTOR_NW or _centred_sector_nw(initial_plan)
+    sector_nw = SECTOR_NW if n_frames == DEMO_FRAME_COUNT else _centred_sector_nw(initial_plan)
     plan = FlightPlan(
         sector_nw=sector_nw,
         lines=lines,

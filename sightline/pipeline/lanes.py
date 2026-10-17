@@ -21,6 +21,7 @@ accepted in several shapes on purpose (object with attributes, dict, tuple, plai
 from __future__ import annotations
 
 import importlib
+import inspect
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,12 +59,14 @@ _LANE = {
 
 DEFAULT_LKP = LatLon(lat=49.37, lon=-122.945)
 DEFAULT_AREA_NAME = "Mount Seymour, North Vancouver (simulated flight path)"
+RECALL_FROM_DETECTOR = "metrics.detector.recall"
 PLACEHOLDER_RADIUS_M = 10.0  # the stated position-uncertainty assumption on the simulated path
 
 Footprint = tuple[
     tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]
 ]
-FrameCells = dict[str, list[tuple[int, float]]]
+# frame id -> [(cell idx, canopy fraction or None, overlap)] for every cell the frame covers
+FrameCells = dict[str, list[tuple[int, float | None, float]]]
 
 
 @dataclass(frozen=True)
@@ -82,6 +85,37 @@ class MapFrame:
     pose: Pose
     footprint: Footprint
     flight_index: int
+    # (lat, lon, radius_m) of each candidate detection in the frame (conf >= candidate_threshold),
+    # so lane C can hold those cells for review (pod = 0 near a detection).
+    candidates: tuple[tuple[float, float, float], ...] = ()
+
+
+def _accepts_positional(function: Callable[..., Any], count: int) -> bool:
+    """True if `function` can be called with `count` positional arguments."""
+    try:
+        parameters = inspect.signature(function).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    if any(p.kind is inspect.Parameter.VAR_POSITIONAL for p in parameters):
+        return True
+    positional = [p for p in parameters if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+    return len(positional) >= count
+
+
+def _as_cells(raw_cells: Mapping[str, Sequence[Sequence[Any]]]) -> FrameCells:
+    """Frame cells from lane C as (idx, canopy, overlap) triples; anything else is an error."""
+    cells: FrameCells = {}
+    for frame_id, frame_cells in raw_cells.items():
+        converted = []
+        for cell in frame_cells:
+            if len(cell) != 3:
+                raise ValueError(
+                    f"{frame_id}: frame cells must be (idx, canopy, overlap), got {tuple(cell)}"
+                )
+            idx, canopy, overlap = cell
+            converted.append((int(idx), None if canopy is None else float(canopy), float(overlap)))
+        cells[frame_id] = converted
+    return cells
 
 
 def _field(obj: Any, name: str, default: Any = None) -> Any:
@@ -227,24 +261,35 @@ class Lanes:
         write_json(out_dir / "config.json", config)
 
     def test_images(self, split_dir: Path) -> list[Any]:
-        """The HERIDAL test photos with their boxes. Lane A's `load_split("test")` reads its own
-        default folder; the fallback reads `split_dir` (`images/` and `labels/`, YOLO format)."""
+        """The HERIDAL test photos with their boxes, read from `split_dir` (`images/` and `labels/`,
+        YOLO format). Lane A's `load_split(<folder name>, root=<parent>)` reads exactly that folder;
+        a `load_split` without `root` reads its own default folder."""
         function = self.get("load_split")
-        if function is not None:
-            return list(function("test"))
-        self._fallback("load_split", "the built-in YOLO reader")
-        return list(read_yolo_split(split_dir))
+        if function is None:
+            self._fallback("load_split", "the built-in YOLO reader")
+            return list(read_yolo_split(split_dir))
+        if "root" in inspect.signature(function).parameters:
+            return list(function(split_dir.name, root=split_dir.parent))
+        return list(function("test"))
 
     # --- lane C -------------------------------------------------------------------------------
 
     def build_map(
-        self, frames: Sequence[MapFrame], lkp: LatLon, recall: float
+        self,
+        frames: Sequence[MapFrame],
+        lkp: LatLon,
+        recall: float,
+        recall_source: str = RECALL_FROM_DETECTOR,
     ) -> tuple[MapFile, FrameCells]:
+        """`recall_source` says where `recall` comes from (the detector metrics or the placeholder)."""
         function = self.get("build_map")
         if function is None:
             self._fallback("build_map", "a uniform prior with empty steps")
-            return placeholder_map([f.id for f in frames], lkp, recall)
-        result = function(list(frames), lkp, recall)
+            return placeholder_map([f.id for f in frames], lkp, recall, recall_source)
+        if _accepts_positional(function, 4):
+            result = function(list(frames), lkp, recall, recall_source)
+        else:
+            result = function(list(frames), lkp, recall)  # an older build_map without recall_source
         if isinstance(result, tuple):
             raw_map, raw_cells = result
         elif isinstance(result, MapFile):
@@ -253,12 +298,24 @@ class Lanes:
             raw_map, raw_cells = _field(result, "map"), _field(result, "frame_cells")
         map_file = raw_map if isinstance(raw_map, MapFile) else MapFile.model_validate(raw_map)
         if raw_cells is None:
-            cells: FrameCells = {s.frame_id: list(s.cells) for s in map_file.steps}
+            cells = self._cells_from_steps(map_file)
         else:
-            cells = {
-                fid: [(int(i), float(p)) for i, p in pairs] for fid, pairs in raw_cells.items()
-            }
+            cells = _as_cells(raw_cells)
         return map_file, cells
+
+    def _cells_from_steps(self, map_file: MapFile) -> FrameCells:
+        """When lane C returns only a MapFile: the cells each step covered, with the map's canopy and
+        an overlap of 1.0 (a single look). Real overlap needs lane C's own `frame_cells`."""
+        cells: FrameCells = {
+            step.frame_id: [(idx, map_file.canopy[idx], 1.0) for idx, _pod in step.cells]
+            for step in map_file.steps
+        }
+        if any(cells.values()):
+            self.note_placeholder(
+                "frame_cells",
+                "lane C gave no frame_cells, derived them from the steps (overlap 1.0)",
+            )
+        return cells
 
     def simulate(self, map_file: MapFile, frame_cells: FrameCells) -> SearchSim:
         function = self.get("simulate")
