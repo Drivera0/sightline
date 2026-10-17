@@ -26,6 +26,7 @@ requirements.txt
 /lane-b/
 /docs/*.pdf
 /docs/*.docx
+/sightline/geo/LOCAL_PROGRESS_README.md
 
 # Web
 node_modules/

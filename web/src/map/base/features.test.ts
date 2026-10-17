@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { Detections, Survey } from "../../contract";
 import {
   buildDetectionFeatures,
+  buildFlightDirectionFeatures,
   buildFlightPathFeature,
   buildFootprintFeatures,
+  buildGridOutlineFeature,
   buildLkpFeature,
+  gridBounds,
   surveyBounds,
 } from "./features";
 
@@ -103,12 +106,82 @@ describe("base map GeoJSON", () => {
     ]);
   });
 
+  it("builds flight-direction chevrons from each sampled frame heading", () => {
+    const collection = buildFlightDirectionFeatures(survey, 1);
+
+    expect(collection.features).toHaveLength(2);
+    expect(collection.features[0]?.geometry.coordinates).toHaveLength(2);
+    const firstArrow = collection.features[0]?.geometry.coordinates;
+    const tipLon = firstArrow?.[0]?.[1]?.[0];
+    const leftTailLon = firstArrow?.[0]?.[0]?.[0];
+    const rightTailLon = firstArrow?.[1]?.[0]?.[0];
+    if (tipLon === undefined || leftTailLon === undefined || rightTailLon === undefined) {
+      throw new Error("Direction chevron coordinates are incomplete");
+    }
+    expect(tipLon).toBeGreaterThan(Math.max(leftTailLon, rightTailLon));
+  });
+
+  it("converts the contract grid dimensions into a closed outline", () => {
+    const grid = {
+      origin_nw: { lat: 49, lon: -123 },
+      cell_m: 20,
+      rows: 2,
+      cols: 3,
+    };
+    const feature = buildGridOutlineFeature(grid);
+
+    expect(feature.geometry.coordinates).toHaveLength(5);
+    expect(feature.geometry.coordinates.at(-1)).toEqual(feature.geometry.coordinates[0]);
+    expect(feature.geometry.coordinates[1]?.[0]).toBeCloseTo(
+      -123 + 60 / (111_320 * Math.cos((49 * Math.PI) / 180)),
+    );
+    expect(feature.geometry.coordinates[2]?.[1]).toBeCloseTo(49 - 40 / 111_320);
+    expect(gridBounds(grid)).toEqual([
+      feature.geometry.coordinates[3],
+      feature.geometry.coordinates[1],
+    ]);
+  });
+
   it("only maps detections at or above the candidate threshold", () => {
     const collection = buildDetectionFeatures(detections);
 
     expect(collection.features).toHaveLength(1);
     expect(collection.features[0]?.properties.detectionId).toBe("f0001-d01");
+    expect(collection.features[0]?.properties.reviewState).toBe("unreviewed");
     expect(collection.features[0]?.geometry.coordinates[0]).toHaveLength(65);
+  });
+
+  it("adds every review state and its visible label to detection features", () => {
+    const reviewedDetections: Detections = {
+      ...detections,
+      frames: {
+        f0001: [
+          detections.frames.f0001![0]!,
+          { ...detections.frames.f0001![0]!, id: "f0001-d02" },
+          { ...detections.frames.f0001![0]!, id: "f0001-d03" },
+          { ...detections.frames.f0001![0]!, id: "f0001-d04" },
+        ],
+      },
+    };
+
+    const collection = buildDetectionFeatures(reviewedDetections, {
+      "f0001-d02": "person",
+      "f0001-d03": "not_person",
+      "f0001-d04": "unsure",
+    });
+
+    expect(collection.features.map((feature) => feature.properties.reviewState)).toEqual([
+      "unreviewed",
+      "person",
+      "not_person",
+      "unsure",
+    ]);
+    expect(collection.features.map((feature) => feature.properties.reviewLabel)).toEqual([
+      "",
+      "Person",
+      "",
+      "?",
+    ]);
   });
 
   it("uses the survey last-known point", () => {
