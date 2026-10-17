@@ -83,6 +83,9 @@ class MapFrame:
     pose: Pose
     footprint: Footprint
     flight_index: int
+    # (lat, lon, radius_m) of each candidate detection in the frame (conf >= candidate_threshold),
+    # so lane C can hold those cells for review (pod = 0 near a detection).
+    candidates: tuple[tuple[float, float, float], ...] = ()
 
 
 def _field(obj: Any, name: str, default: Any = None) -> Any:

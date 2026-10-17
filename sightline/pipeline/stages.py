@@ -155,6 +155,30 @@ def rank_stage(ctx: Context) -> None:
     )
 
 
+def _candidates(
+    ctx: Context, raw: RawDetectionsFile, threshold: float
+) -> dict[str, tuple[tuple[float, float, float], ...]]:
+    """frame id -> (lat, lon, radius_m) of each detection with conf >= threshold."""
+    frames_with_detections = [f for f, dets in raw.frames.items() if dets]
+    if not any(d.conf >= threshold for f in frames_with_detections for d in raw.frames[f]):
+        return {}  # nothing to hold for review, so the georef stage is not needed
+    geo = read_json(ctx.work / "georef" / "detections_geo.json", GeoFile, produced_by="georef")
+    result: dict[str, tuple[tuple[float, float, float], ...]] = {}
+    for frame_id in frames_with_detections:
+        detections, positions = raw.frames[frame_id], geo.frames.get(frame_id, [])
+        if len(detections) != len(positions):
+            raise ValueError(
+                f"{frame_id}: {len(detections)} raw detections but {len(positions)} positions "
+                "in detections_geo.json"
+            )
+        result[frame_id] = tuple(
+            (p.lat, p.lon, p.radius_m)
+            for d, p in zip(detections, positions, strict=True)
+            if d.conf >= threshold
+        )
+    return result
+
+
 def map_stage(ctx: Context) -> None:
     """Build the search map (lane C, or a placeholder) and make it obey the contract's rules."""
     place = read_json(ctx.work / "place" / "poses.json", PlaceFile, produced_by="place")
@@ -163,6 +187,11 @@ def map_stage(ctx: Context) -> None:
     recall = PLACEHOLDER_RECALL
     if metrics_path.is_file():
         recall = read_json(metrics_path, DetectorMetricsFile).detector.recall
+    config = read_json(ctx.work / "detect" / "config.json", DetectConfig, produced_by="detect")
+    raw = read_json(
+        ctx.work / "detect" / "detections_raw.json", RawDetectionsFile, produced_by="detect"
+    )
+    candidates = _candidates(ctx, raw, config.candidate_threshold)
     frames = [
         MapFrame(
             id=frame_id,
@@ -170,6 +199,7 @@ def map_stage(ctx: Context) -> None:
             pose=place.frames[frame_id].pose,
             footprint=place.frames[frame_id].footprint,
             flight_index=index,
+            candidates=candidates.get(frame_id, ()),
         )
         for frame_id, index in sorted(flight_index.items(), key=lambda item: item[1])
     ]
