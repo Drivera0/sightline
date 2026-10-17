@@ -1,8 +1,7 @@
 # Python
 .venv/
 __pycache__/
-<<<<<<< HEAD
-*.pyc
+*.py[cod]
 .pytest_cache/
 .ruff_cache/
 
@@ -10,26 +9,14 @@ __pycache__/
 data/
 data/runs/
 cache/demo/
-=======
-*.py[cod]
-.pytest_cache/
-.ruff_cache/
-
-# Data, weights, and runs: never committed (CLAUDE.md)
-data/
-cache/demo/
 web/public/cache/demo/
-*.pt
->>>>>>> origin/lane-b
 weights/
+*.pt
 runs/
 datasets/
-<<<<<<< HEAD
-.env
-=======
 
 # Secrets and environment
->>>>>>> origin/lane-b
+.env
 .env*
 
 # Local YOLO smoke-test leftovers
@@ -44,25 +31,15 @@ requirements.txt
 
 # Web
 node_modules/
-<<<<<<< HEAD
-web/node_modules/
-web/dist/
-dist/
-web/public/cache/demo/
-=======
 dist/
 web/node_modules/
 web/dist/
->>>>>>> origin/lane-b
 
 # OS and editors
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-<<<<<<< HEAD
 
 # Personal Claude Code rules
 CLAUDE.local.md
-=======
->>>>>>> origin/lane-b
