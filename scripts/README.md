@@ -36,6 +36,18 @@ The raw archive also contains 37 JPEGs and 3 XMLs that are in no official list; 
 
 Logic lives in `sightline/ml/voc.py` and `sightline/ml/tiling.py`; tests in `tests/ml/`.
 
+## Event-time scripts (GPU)
+
+| Script | What it does | Output |
+|---|---|---|
+| `evaluate_model.py` | Chooses `candidate_threshold` on **val** (max F2, tiled inference), then scores the 4 ablation rows on the full **test** set with VOC and SAR-style matching. | `data/work/detect/detector_metrics.json` (contract `DetectorMetrics` + `Ablation` rows), `evaluate_details.json` |
+| `mine_hard_negatives.py` | Tiled inference over training images; cuts a 1024 tile around every false positive (conf ≥ 0.25, IoU < 0.1 to all truth), capped at 2,000, seeded. Writes a YAML that trains on tiles + hard negatives. | `data/heridal/hard_negatives/{images,labels}`, `data/heridal/dataset_hn.yaml` |
+
+Detection on the demo frames is one call, `sightline.ml.run_survey(...)` (see `sightline/ml/survey.py`); D's
+`detect` stage wraps it. The library code: `detect.py` (`Detector`: `detect_frame`, `detect_tiled` via SAHI,
+`detect_resized`), `evaluate.py` (scoring, threshold choice), `crops.py`, `hard_negatives.py`, `data.py`.
+Until lane D lands `sightline/contract.py`, the metrics models come from `sightline/ml/_contract_shim.py`.
+
 ## Training (timing run, then run 1)
 
 ```bash
