@@ -180,3 +180,23 @@ def test_cell_zero_is_in_the_north_west_corner():
     first, last = cell_center(grid, 0), cell_center(grid, 2499)
 
     assert first[0] > LKP.lat > last[0] and first[1] < LKP.lon < last[1]
+
+
+# ---------------------------------------------------------------- placeholder flight for any frame count
+
+
+def test_41_frames_make_two_lines_of_25_and_16():
+    poses = placeholder_flight(41, LKP)
+
+    assert [p.heading_deg for p in poses[:25]] == [90.0] * 25
+    assert [p.heading_deg for p in poses[25:]] == [270.0] * 16
+
+
+@pytest.mark.parametrize("n_frames", [41, 95, 250, 255, 995, 1000, 1200])
+def test_every_frame_count_up_to_1200_fits_inside_the_grid(n_frames):
+    poses = placeholder_flight(n_frames, LKP)
+
+    offsets = [metres((LKP.lon, LKP.lat), (p.lon, p.lat)) for p in poses]
+    assert len(poses) == n_frames
+    assert max(abs(e) for e, _ in offsets) <= 500
+    assert max(abs(n) for _, n in offsets) <= 500
