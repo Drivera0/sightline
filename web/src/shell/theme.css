@@ -18,6 +18,7 @@
   --radius-sm: 12px;
   --font: "Geist Variable", system-ui, sans-serif;
   --mono: "Geist Mono Variable", ui-monospace, monospace;
+  --hand: "Caveat Variable", cursive; /* annotations only */
   color-scheme: dark;
 }
 
@@ -39,6 +40,7 @@
   --radius-sm: var(--radius-sm);
   --font-sans: var(--font);
   --font-mono: var(--mono);
+  --font-hand: var(--hand);
 }
 
 /* Type scale: 32 / 20 / 15 / 13 px, plus the 12 px uppercase mono label. */
