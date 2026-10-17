@@ -38,6 +38,7 @@ from sightline.pipeline.formats import (
     SurveyFrameFile,
     read_json,
 )
+from sightline.pipeline.mapmath import replay_steps
 from sightline.pipeline.survey import FRAME_H, FRAME_W
 
 # Published numbers (contract section 9). Never change them.
@@ -396,16 +397,10 @@ def _check_footprints_touch_grid(survey: Survey, map_file: MapFile) -> list[str]
 
 def _check_replay(map_file: MapFile) -> list[str]:
     """Replay `steps` (pods as written) on the prior; it must reproduce `final` (contract 8)."""
-    p = list(map_file.prior.p)
-    outside = map_file.prior.outside
-    for step in map_file.steps:
-        denominator = 1 - math.fsum(p[idx] * pod for idx, pod in step.cells)
-        if denominator <= 0:
-            return [f"map.json: replay of {step.frame_id} leaves no probability mass"]
-        for idx, pod in step.cells:
-            p[idx] *= 1 - pod
-        p = [x / denominator for x in p]
-        outside /= denominator
+    try:
+        p, outside = replay_steps(map_file.prior.p, map_file.prior.outside, map_file.steps)
+    except ValueError as error:
+        return [f"map.json: replay failed: {error}"]
     worst = max(abs(a - b) for a, b in zip(p, map_file.final.p, strict=True))
     worst = max(worst, abs(outside - map_file.final.outside))
     if worst > REPLAY_TOLERANCE:
