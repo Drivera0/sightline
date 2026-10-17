@@ -59,6 +59,11 @@ export function Badge({ kind, children }: { kind: BadgeKind; children: ReactNode
   );
 }
 
+/** A one-off handwritten note, like the pitch deck's. Never for data or labels. */
+export function Annotation({ children }: { children: ReactNode }) {
+  return <span className="font-hand text-title text-accent-soft">{children}</span>;
+}
+
 export function KeyHint({ children }: { children: ReactNode }) {
   return (
     <kbd className="inline-flex min-w-6 items-center justify-center rounded-sm border border-border bg-surface-strong px-1.5 py-0.5 font-mono text-label text-text-2">
