@@ -132,8 +132,12 @@ class Lanes:
         """Function name -> what stood in for it. Empty when every lane function was real."""
         return dict(self._notes)
 
+    def note_placeholder(self, key: str, text: str) -> None:
+        """Let a stage record a placeholder of its own (for example a missing lane A file)."""
+        self._notes[key] = text
+
     def _fallback(self, name: str, used: str) -> None:
-        self._notes[name] = f"lane {_LANE[name]} function not available, used {used}"
+        self.note_placeholder(name, f"lane {_LANE[name]} function not available, used {used}")
 
     # --- lane B -------------------------------------------------------------------------------
 
