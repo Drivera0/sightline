@@ -1,31 +1,25 @@
-# Python
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-.ruff_cache/
-
-# Data, weights, runs: never committed (CLAUDE.md)
 data/
 cache/demo/
-weights/
+web/public/cache/demo/
 *.pt
+.env*
+node_modules/
+__pycache__/
+data/runs/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+dist/
+
+# Local-only leftovers on the GPU desktop (lane A)
+weights/
 runs/
 datasets/
-.env
-
-# Local YOLO smoke-test leftovers
 bus.jpg
 test.txt
 requirements.txt
-
-# Web
-web/node_modules/
-web/dist/
-web/public/cache/demo/
-
-# OS / editors
-.DS_Store
+*.pyc
 Thumbs.db
 .vscode/
 .idea/
