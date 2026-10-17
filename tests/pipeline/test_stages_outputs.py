@@ -419,3 +419,50 @@ def test_export_stage_copies_to_the_web_folder_when_asked(ctx, tmp_path):
     export_stage(ctx, out, survey_id="demo", web_out=web)
 
     assert validate_cache(web) == []
+
+
+# ---------------------------------------------------------------- metrics without ground truth (uploads)
+
+
+def test_metrics_stage_needs_truth_by_default_and_names_the_stage_that_writes_it(ctx):
+    prepare_for_metrics(ctx)
+    (ctx.survey_dir / "truth.json").unlink()
+
+    with pytest.raises(FileNotFoundError, match="`frames`"):
+        metrics_stage(ctx)
+
+
+def test_metrics_stage_without_truth_says_ranking_was_not_measured(tmp_path):
+    ctx = make_context(tmp_path)
+    ctx.require_truth = False
+    prepare_for_metrics(ctx)
+    (ctx.survey_dir / "truth.json").unlink()
+
+    metrics_stage(ctx)
+
+    ranking = json.loads((ctx.work / "metrics" / "ranking.json").read_text())
+    assert (ranking["n_frames"], ranking["n_positive"]) == (N_FRAMES, 0)
+    assert "not measured" in ranking["note"]
+    assert "ranking" in ctx.lanes.placeholder_notes()
+
+
+def test_the_cache_built_without_truth_is_still_valid(tmp_path):
+    ctx = make_context(tmp_path)
+    ctx.require_truth = False
+    run_chain_without_truth = (
+        frames_stage,
+        place_stage,
+        detect_stage,
+        georef_stage,
+        rank_stage,
+        map_stage,
+    )
+    for stage in run_chain_without_truth:
+        stage(ctx)
+    (ctx.survey_dir / "truth.json").unlink()
+    metrics_stage(ctx)
+    out = tmp_path / "cache" / "up"
+
+    export_stage(ctx, out, survey_id="up")
+
+    assert validate_cache(out) == []
