@@ -210,3 +210,13 @@ def test_schema_is_shaped_for_json_schema_to_typescript(tmp_path):
     assert len(footprint["items"]) == 4 and footprint["minItems"] == footprint["maxItems"] == 4
     assert all("title" not in p for d in schema["$defs"].values() for p in d["properties"].values())
     assert {"Frame", "Pose", "MapFile"} <= set(schema["$defs"])
+
+
+def test_committed_json_schema_is_up_to_date_with_the_models(tmp_path):
+    """web/src/contract.ts is generated from this schema. If this fails, run `pnpm gen:contract`."""
+    committed = Path(__file__).resolve().parents[2] / "web" / "src" / "contract.schema.json"
+    fresh = tmp_path / "contract.schema.json"
+
+    export_json_schema(fresh)
+
+    assert json.loads(committed.read_text()) == json.loads(fresh.read_text())
