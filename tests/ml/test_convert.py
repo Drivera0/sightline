@@ -47,7 +47,9 @@ def test_parse_ignores_non_person_objects() -> None:
 
 def test_yolo_line_exact() -> None:
     # cx = (2795+2843)/2/4000, cy = (122+191)/2/3000, w = 48/4000, h = 69/3000
-    assert yolo_line(Box(2795, 122, 2843, 191), 4000, 3000) == "0 0.704750 0.052167 0.012000 0.023000"
+    assert (
+        yolo_line(Box(2795, 122, 2843, 191), 4000, 3000) == "0 0.704750 0.052167 0.012000 0.023000"
+    )
 
 
 def test_yolo_line_round_trips_to_box() -> None:

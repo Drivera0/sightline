@@ -103,3 +103,21 @@ describe("useCache", () => {
     expect(useCache.getState().status).toBe("error");
   });
 });
+
+describe("useCache folder", () => {
+  beforeEach(() => useCache.getState().reset());
+
+  it("remembers which folder it loaded, for building image URLs", async () => {
+    await useCache.getState().load("sample", diskFetch());
+
+    expect(useCache.getState().dir).toBe("sample");
+  });
+
+  it("forgets the folder on reset", async () => {
+    await useCache.getState().load("sample", diskFetch());
+
+    useCache.getState().reset();
+
+    expect(useCache.getState().dir).toBeNull();
+  });
+});

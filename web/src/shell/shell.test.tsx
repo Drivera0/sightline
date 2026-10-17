@@ -168,3 +168,29 @@ describe("shared components", () => {
     expect(screen.getByText("inside")).toBeInTheDocument();
   });
 });
+
+describe("Shell review tab", () => {
+  it("shows the candidate list from the cache", async () => {
+    render(<Shell cache={await sample()} />);
+
+    expect(within(screen.getByRole("list", { name: "Candidates" })).getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  it("M in the review tab switches to the Map tab", async () => {
+    render(<Shell cache={await sample()} />);
+
+    await userEvent.keyboard("m");
+
+    expect(screen.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("mount-map")).toBeInTheDocument();
+  });
+});
+
+describe("Shell placeholder badge", () => {
+  it("flags placeholder detections from a pipeline run without a real detector", async () => {
+    render(<Shell cache={await sample((c) => (c.detections.model = "PLACEHOLDER"))} />);
+
+    expect(screen.getByText("Placeholder detections")).toBeInTheDocument();
+    expect(screen.queryByText("Sample data")).not.toBeInTheDocument();
+  });
+});

@@ -1,15 +1,53 @@
-"""Cache validation: the checklist in contract section 11."""
+"""Writing the cache (`export_cache`) and checking it (`validate_cache`, contract section 11)."""
 
 from __future__ import annotations
 
 import json
 import math
+import shutil
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from sightline.contract import Detections, Manifest, MapFile, Metrics, Survey
+from sightline.contract import (
+    CONTRACT_VERSION,
+    Area,
+    BaselineHuman,
+    Detection,
+    Detections,
+    Frame,
+    Manifest,
+    MapFile,
+    Metrics,
+    Ranking,
+    SearchSim,
+    StageResult,
+    Stages,
+    Survey,
+    dump_json,
+)
+from sightline.pipeline.formats import (
+    DetectConfig,
+    DetectorMetricsFile,
+    GeoFile,
+    PlaceFile,
+    RankFile,
+    RawDetectionsFile,
+    SurveyFrameFile,
+    read_json,
+)
+from sightline.pipeline.mapmath import replay_steps
+from sightline.pipeline.survey import FRAME_H, FRAME_W
+
+# Published numbers (contract section 9). Never change them.
+HUMAN_BASELINE = BaselineHuman(
+    precision=0.59,
+    recall=0.68,
+    seconds_per_image=33,
+    source="Pyrrö, Naseri & Jung 2021, arXiv:2111.09406",
+)
 
 M_PER_DEG_LAT = 111320.0
 REPLAY_TOLERANCE = 1e-9
@@ -25,6 +63,222 @@ _FILES: dict[str, type[BaseModel]] = {
 
 # Ground truth must never reach the cache (contract section 3).
 _TRUTH_KEYS = {"truth", "ground_truth", "gt", "gt_boxes", "true_boxes", "is_positive", "has_person"}
+
+
+class CacheValidationError(ValueError):
+    """The cache built by `export_cache` failed `validate_cache`; nothing was written."""
+
+    def __init__(self, errors: list[str]) -> None:
+        self.errors = errors
+        shown = "; ".join(errors[:10])
+        more = f" (and {len(errors) - 10} more)" if len(errors) > 10 else ""
+        super().__init__(f"the cache failed validation: {shown}{more}")
+
+
+def export_cache(
+    work: Path,
+    out: Path,
+    survey_id: str = "seymour-demo",
+    *,
+    survey_dir: Path | None = None,
+    web_out: Path | None = None,
+    stages: Stages | None = None,
+    notes: str = "",
+    git_sha: str | None = None,
+    generated_at: datetime | None = None,
+) -> None:
+    """Build the contract files from `work` (data/work) and `survey_dir` (default data/survey).
+
+    The cache is built in a staging folder, checked with `validate_cache`, and only then moved to
+    `out` (and copied to `web_out`). A cache that fails validation is never written. Ground truth is
+    never read, so it cannot reach the cache.
+    """
+    survey_dir = survey_dir or work.parent / "survey"
+    specs = read_json(survey_dir / "frames.json", SurveyFrameFile, "frames").root
+    place = read_json(work / "place" / "poses.json", PlaceFile, "place")
+    config = read_json(work / "detect" / "config.json", DetectConfig, "detect")
+    raw = read_json(work / "detect" / "detections_raw.json", RawDetectionsFile, "detect")
+    geo = read_json(work / "georef" / "detections_geo.json", GeoFile, "georef")
+    rank = read_json(work / "rank" / "rank.json", RankFile, "rank")
+    map_file = read_json(work / "map" / "map.json", MapFile, "map")
+    detector = read_json(work / "metrics" / "detector_metrics.json", DetectorMetricsFile, "metrics")
+    ranking = read_json(work / "metrics" / "ranking.json", Ranking, "metrics")
+    search_sim = read_json(work / "metrics" / "search_sim.json", SearchSim, "metrics")
+
+    _check_same_frames(
+        {
+            "frames.json": {s.id for s in specs},
+            "poses.json": set(place.frames),
+            "detections_raw.json": set(raw.frames),
+            "detections_geo.json": set(geo.frames),
+            "rank.json": set(rank.frames),
+        }
+    )
+    for field in ("model", "candidate_threshold", "save_threshold"):
+        if getattr(config, field) != getattr(raw, field):
+            raise ValueError(
+                f"config.json and detections_raw.json disagree on {field}: "
+                f"{getattr(config, field)!r} vs {getattr(raw, field)!r}"
+            )
+
+    ordered = sorted(specs, key=lambda s: s.flight_index)
+    survey = Survey(
+        contract_version=CONTRACT_VERSION,
+        survey_id=survey_id,
+        simulated_path=place.simulated_path,
+        area=Area(name=place.area_name, lkp=place.lkp),
+        frames=[
+            Frame(
+                id=s.id,
+                file=f"frames/{s.id}.jpg",
+                width_px=FRAME_W,
+                height_px=FRAME_H,
+                flight_index=s.flight_index,
+                source={"image": s.source_image, "x0": s.x0, "y0": s.y0},
+                pose=place.frames[s.id].pose,
+                footprint=place.frames[s.id].footprint,
+                score=rank.frames[s.id].score,
+                rank=rank.frames[s.id].rank,
+                n_candidates=rank.frames[s.id].n_candidates,
+            )
+            for s in ordered
+        ],
+    )
+    detections = Detections(
+        contract_version=CONTRACT_VERSION,
+        model=config.model,
+        save_threshold=config.save_threshold,
+        candidate_threshold=config.candidate_threshold,
+        frames={
+            s.id: _frame_detections(s.id, raw, geo, config.candidate_threshold) for s in ordered
+        },
+    )
+    metrics = Metrics(
+        contract_version=CONTRACT_VERSION,
+        detector=detector.detector,
+        baseline_human=HUMAN_BASELINE,
+        ablations=detector.ablations,
+        ranking=ranking,
+        search_sim=search_sim,
+    )
+    manifest = Manifest(
+        contract_version=CONTRACT_VERSION,
+        survey_id=survey_id,
+        generated_at=generated_at or datetime.now(UTC).replace(microsecond=0),
+        git_sha=git_sha,
+        simulated_path=place.simulated_path,
+        n_frames=len(ordered),
+        stages=stages
+        or Stages(**{n: StageResult(ok=True, seconds=0.0) for n in Stages.model_fields}),
+        notes=notes,
+    )
+
+    staging = out.parent / f".{out.name}.staging"
+    shutil.rmtree(staging, ignore_errors=True)
+    try:
+        _write_staged(
+            staging,
+            work,
+            survey_dir,
+            ordered,
+            detections,
+            (survey, detections, map_file, metrics, manifest),
+        )
+        errors = validate_cache(staging)
+        if errors:
+            raise CacheValidationError(errors)
+        _replace(staging, out, move=True)
+        if web_out is not None:
+            _replace(out, web_out, move=False)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+def _check_same_frames(sources: dict[str, set[str]]) -> None:
+    reference = sources["frames.json"]
+    for name, ids in sources.items():
+        if name == "frames.json" or ids == reference:
+            continue
+        missing, extra = sorted(reference - ids), sorted(ids - reference)
+        detail = []
+        if missing:
+            detail.append(f"{', '.join(missing[:5])} in frames.json but missing from {name}")
+        if extra:
+            detail.append(f"{', '.join(extra[:5])} in {name} but not in frames.json")
+        raise ValueError("; ".join(detail))
+
+
+def _frame_detections(
+    frame_id: str, raw: RawDetectionsFile, geo: GeoFile, candidate_threshold: float
+) -> list[Detection]:
+    raw_dets, geo_dets = raw.frames[frame_id], geo.frames[frame_id]
+    if len(raw_dets) != len(geo_dets):
+        raise ValueError(
+            f"{frame_id}: {len(raw_dets)} raw detections but {len(geo_dets)} positions in detections_geo.json"
+        )
+    result = []
+    for n, (r, g) in enumerate(zip(raw_dets, geo_dets, strict=True), start=1):
+        if r.box != g.box:
+            raise ValueError(
+                f"{frame_id}: box of detection {n} in detections_geo.json {g.box} differs "
+                f"from detections_raw.json {r.box}"
+            )
+        detection_id = f"{frame_id}-d{n:02d}"
+        result.append(
+            Detection(
+                id=detection_id,
+                box_px=r.box,
+                conf=r.conf,
+                crop=f"crops/{detection_id}.jpg" if r.conf >= candidate_threshold else None,
+                lat=g.lat,
+                lon=g.lon,
+                radius_m=g.radius_m,
+            )
+        )
+    return result
+
+
+def _write_staged(
+    staging: Path,
+    work: Path,
+    survey_dir: Path,
+    frames: list[Any],
+    detections: Detections,
+    files: tuple[BaseModel, ...],
+) -> None:
+    (staging / "frames").mkdir(parents=True)
+    (staging / "crops").mkdir()
+    for spec in frames:
+        _copy_if_exists(
+            survey_dir / "frames" / f"{spec.id}.jpg", staging / "frames" / f"{spec.id}.jpg"
+        )
+    for dets in detections.frames.values():
+        for d in dets:
+            if d.crop:
+                _copy_if_exists(work / "detect" / d.crop, staging / d.crop)
+    names = ("survey", "detections", "map", "metrics", "manifest")  # manifest last
+    for name, model in zip(names, files, strict=True):
+        (staging / f"{name}.json").write_text(dump_json(model))
+
+
+def _copy_if_exists(source: Path, target: Path) -> None:
+    if source.is_file():  # a missing file is reported by validate_cache, with its cache path
+        shutil.copyfile(source, target)
+
+
+def _replace(source: Path, dest: Path, *, move: bool) -> None:
+    """Put `source` at `dest`, replacing an old cache. Refuses a non-empty folder that is no cache."""
+    if dest.exists():
+        if any(dest.iterdir()) and not (dest / "manifest.json").exists():
+            raise ValueError(
+                f"{dest} is not empty and is not a cache folder; refusing to replace it"
+            )
+        shutil.rmtree(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if move:
+        source.rename(dest)
+    else:
+        shutil.copytree(source, dest)
 
 
 def validate_cache(path: Path) -> list[str]:
@@ -143,16 +397,10 @@ def _check_footprints_touch_grid(survey: Survey, map_file: MapFile) -> list[str]
 
 def _check_replay(map_file: MapFile) -> list[str]:
     """Replay `steps` (pods as written) on the prior; it must reproduce `final` (contract 8)."""
-    p = list(map_file.prior.p)
-    outside = map_file.prior.outside
-    for step in map_file.steps:
-        denominator = 1 - math.fsum(p[idx] * pod for idx, pod in step.cells)
-        if denominator <= 0:
-            return [f"map.json: replay of {step.frame_id} leaves no probability mass"]
-        for idx, pod in step.cells:
-            p[idx] *= 1 - pod
-        p = [x / denominator for x in p]
-        outside /= denominator
+    try:
+        p, outside = replay_steps(map_file.prior.p, map_file.prior.outside, map_file.steps)
+    except ValueError as error:
+        return [f"map.json: replay failed: {error}"]
     worst = max(abs(a - b) for a, b in zip(p, map_file.final.p, strict=True))
     worst = max(worst, abs(outside - map_file.final.outside))
     if worst > REPLAY_TOLERANCE:

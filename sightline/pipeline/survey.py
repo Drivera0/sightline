@@ -177,3 +177,52 @@ def write_survey(
     (survey_dir / "frames.json").write_text(json.dumps(listing, indent=2) + "\n")
     serialisable = {k: [[b.x1, b.y1, b.x2, b.y2] for b in v] for k, v in truth.items()}
     (survey_dir / "truth.json").write_text(json.dumps(serialisable, indent=2) + "\n")
+
+
+# --- reading the HERIDAL test split without lane A (fallback for lane A's `load_split`) --------
+
+
+@dataclass(frozen=True)
+class PixelBox:
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+
+    def shifted(self, dx: int, dy: int) -> PixelBox:
+        return PixelBox(self.x1 + dx, self.y1 + dy, self.x2 + dx, self.y2 + dy)
+
+
+@dataclass(frozen=True)
+class PhotoRecord:
+    """Same shape as lane A's `LabeledImage`."""
+
+    path: Path
+    width: int
+    height: int
+    boxes: list[PixelBox]
+
+
+def read_yolo_split(split_dir: Path) -> list[PhotoRecord]:
+    """Read `<split_dir>/images/*.jpg` and `<split_dir>/labels/*.txt` (`0 cx cy w h`, normalised)."""
+    photos = []
+    for image_path in sorted((split_dir / "images").glob("*.jpg")):
+        with Image.open(image_path) as image:
+            width, height = image.size
+        label = split_dir / "labels" / f"{image_path.stem}.txt"
+        boxes = []
+        for line in label.read_text().splitlines() if label.is_file() else []:
+            parts = line.split()
+            if len(parts) != 5:
+                continue
+            cx, cy, w, h = (float(v) for v in parts[1:])
+            boxes.append(
+                PixelBox(
+                    round((cx - w / 2) * width),
+                    round((cy - h / 2) * height),
+                    round((cx + w / 2) * width),
+                    round((cy + h / 2) * height),
+                )
+            )
+        photos.append(PhotoRecord(image_path, width, height, boxes))
+    return photos

@@ -20,29 +20,33 @@ from sightline.contract import (
     Area,
     Detection,
     Detections,
-    Distribution,
     Frame,
-    Grid,
     LatLon,
     Manifest,
-    MapFile,
     Metrics,
-    Params,
     Pose,
     Source,
     StageResult,
     Stages,
-    Step,
     Survey,
-    TopCell,
     dump_json,
 )
-from sightline.contract import BaselineHuman as _Baseline
+from sightline.pipeline.export import HUMAN_BASELINE
+from sightline.pipeline.geometry import (
+    FRAME_H_PX as FRAME_H,
+)
+from sightline.pipeline.geometry import (
+    FRAME_W_PX as FRAME_W,
+)
+from sightline.pipeline.geometry import (
+    footprint,
+    pixel_to_latlon,
+    placeholder_flight,
+)
+from sightline.pipeline.placeholders import placeholder_map
 
 SURVEY_ID = "sample"
 N_FRAMES = 20
-FRAME_W, FRAME_H, GSD_M = 1000, 750, 0.02
-M_PER_DEG_LAT = 111320.0
 LKP = LatLon(lat=49.37, lon=-122.945)
 CANDIDATE_THRESHOLD = 0.25
 GRID_ROWS = GRID_COLS = 50
@@ -75,7 +79,7 @@ def write_sample(
     (out / "frames").mkdir(parents=True, exist_ok=True)
     (out / "crops").mkdir(parents=True, exist_ok=True)
 
-    poses = [_pose(k) for k in range(N_FRAMES)]
+    poses = placeholder_flight(N_FRAMES, LKP)
     sources = _write_frames(out, images)
     detections = _detections(out, poses)
     scores = [max((d.conf for d in detections[_fid(k)]), default=0.0) for k in range(N_FRAMES)]
@@ -99,7 +103,7 @@ def write_sample(
                 flight_index=k,
                 source=sources[k],
                 pose=poses[k],
-                footprint=_footprint(poses[k]),
+                footprint=footprint(poses[k]),
                 score=scores[k],
                 rank=rank[k],
                 n_candidates=n_candidates[k],
@@ -115,7 +119,7 @@ def write_sample(
         frames=detections,
     )
     metrics = _metrics(rank)
-    map_file = _placeholder_map(metrics.detector.recall)
+    map_file, _ = placeholder_map([_fid(k) for k in range(N_FRAMES)], LKP, metrics.detector.recall)
     manifest = Manifest(
         contract_version=CONTRACT_VERSION,
         survey_id=SURVEY_ID,
@@ -143,50 +147,6 @@ def write_sample(
 
 def _fid(k: int) -> str:
     return f"f{k + 1:04d}"
-
-
-def _offset(lat: float, lon: float, east_m: float, north_m: float) -> tuple[float, float]:
-    return (
-        lat + north_m / M_PER_DEG_LAT,
-        lon + east_m / (M_PER_DEG_LAT * math.cos(math.radians(lat))),
-    )
-
-
-def _axes(heading_deg: float) -> tuple[tuple[float, float], tuple[float, float]]:
-    """(east, north) unit vectors for the image's up and right directions."""
-    h = math.radians(heading_deg)
-    return (math.sin(h), math.cos(h)), (math.cos(h), -math.sin(h))
-
-
-def _pose(k: int) -> Pose:
-    """Lawnmower over 4 lines x 5 frames: lines 20 m apart going south, frames 15 m apart."""
-    line, i = divmod(k, 5)
-    eastward = line % 2 == 0
-    east = -30.0 + 15.0 * (i if eastward else 4 - i)
-    north = 30.0 - 20.0 * line
-    lat, lon = _offset(LKP.lat, LKP.lon, east, north)
-    return Pose(
-        lat=lat, lon=lon, alt_agl_m=None, heading_deg=90.0 if eastward else 270.0, gsd_m=GSD_M
-    )
-
-
-def _footprint(pose: Pose) -> tuple[tuple[float, float], ...]:
-    """Corners as [lon, lat]: top-left, top-right, bottom-right, bottom-left (image order)."""
-    up, right = _axes(pose.heading_deg)
-    half_w, half_h = FRAME_W * GSD_M / 2, FRAME_H * GSD_M / 2
-    corners = []
-    for sign_up, sign_right in ((1, -1), (1, 1), (-1, 1), (-1, -1)):
-        east = sign_up * half_h * up[0] + sign_right * half_w * right[0]
-        north = sign_up * half_h * up[1] + sign_right * half_w * right[1]
-        lat, lon = _offset(pose.lat, pose.lon, east, north)
-        corners.append((lon, lat))
-    return tuple(corners)  # type: ignore[return-value]
-
-
-def _pixel_to_latlon(pose: Pose, cx: float, cy: float) -> tuple[float, float]:
-    up, right = _axes(pose.heading_deg)
-    dx, dy = (cx - FRAME_W / 2) * GSD_M, (cy - FRAME_H / 2) * GSD_M  # right, down
-    return _offset(pose.lat, pose.lon, dx * right[0] - dy * up[0], dx * right[1] - dy * up[1])
 
 
 def _write_frames(out: Path, images: Sequence[Path]) -> list[Source]:
@@ -230,7 +190,7 @@ def _detections(out: Path, poses: list[Pose]) -> dict[str, list[Detection]]:
         fid = _fid(k)
         result[fid] = []
         for n, (conf, box) in enumerate(sorted(_FAKE_DETECTIONS.get(k, []), reverse=True), start=1):
-            lat, lon = _pixel_to_latlon(poses[k], (box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
+            lat, lon = pixel_to_latlon(poses[k], (box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
             crop = None
             if conf >= CANDIDATE_THRESHOLD:
                 crop = f"crops/{fid}-d{n:02d}.jpg"
@@ -261,47 +221,6 @@ def _write_crop(frame_path: Path, box: tuple[int, int, int, int], crop_path: Pat
     window.save(crop_path, quality=90)
 
 
-def _cell_center(grid: Grid, idx: int) -> tuple[float, float]:
-    row, col = divmod(idx, grid.cols)
-    lat = grid.origin_nw.lat - (row + 0.5) * grid.cell_m / M_PER_DEG_LAT
-    lon = grid.origin_nw.lon + (col + 0.5) * grid.cell_m / (
-        M_PER_DEG_LAT * math.cos(math.radians(grid.origin_nw.lat))
-    )
-    return lat, lon
-
-
-def _placeholder_map(recall: float) -> MapFile:
-    """Uniform prior, no coverage yet: one empty step per frame, so final == prior."""
-    half = GRID_ROWS * CELL_M / 2
-    nw_lat, _ = _offset(LKP.lat, LKP.lon, 0, half)
-    _, nw_lon = _offset(nw_lat, LKP.lon, -half, 0)
-    # The contract's grid longitude uses cos(origin_nw.lat), so recompute with that latitude.
-    nw_lon = LKP.lon - half / (M_PER_DEG_LAT * math.cos(math.radians(nw_lat)))
-    grid = Grid(
-        origin_nw=LatLon(lat=nw_lat, lon=nw_lon), cell_m=CELL_M, rows=GRID_ROWS, cols=GRID_COLS
-    )
-    n = GRID_ROWS * GRID_COLS
-    p = (1 - PRIOR_OUTSIDE) / n
-    top = [
-        TopCell(idx=i, lat=lat, lon=lon, p=p, canopy=None)
-        for i in range(5)
-        for lat, lon in [_cell_center(grid, i)]
-    ]
-    return MapFile(
-        contract_version=CONTRACT_VERSION,
-        grid=grid,
-        lkp=LKP,
-        params=Params(
-            recall=recall, recall_source="metrics.detector.recall", pod_cap=0.95, review_pod=0.90
-        ),
-        prior=Distribution(p=[p] * n, outside=PRIOR_OUTSIDE),
-        canopy=[None] * n,
-        steps=[Step(frame_id=_fid(k), cells=[]) for k in range(N_FRAMES)],
-        final=Distribution(p=[p] * n, outside=PRIOR_OUTSIDE),
-        top_cells=top,
-    )
-
-
 def _metrics(rank: dict[int, int]) -> Metrics:
     positives = _FAKE_POSITIVE_INDEXES
     ranked_positions = sorted(rank[k] for k in positives)
@@ -320,12 +239,7 @@ def _metrics(rank: dict[int, int]) -> Metrics:
                 "recall": voc["recall"],
                 "seconds_per_image": 0.9,
             },
-            "baseline_human": _Baseline(
-                precision=0.59,
-                recall=0.68,
-                seconds_per_image=33,
-                source="Pyrrö, Naseri & Jung 2021, arXiv:2111.09406",
-            ).model_dump(),
+            "baseline_human": HUMAN_BASELINE.model_dump(),
             "ablations": [
                 {
                     "name": "Stock model, no tiling",

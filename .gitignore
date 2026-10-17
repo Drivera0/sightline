@@ -8,10 +8,13 @@ __pycache__/
 # Data, weights, and runs: never committed (CLAUDE.md)
 data/
 cache/demo/
-weights/
+web/public/cache/demo/
 *.pt
+weights/
 runs/
 datasets/
+
+# Secrets and environment
 .env*
 
 # Local YOLO smoke-test leftovers
@@ -29,7 +32,6 @@ node_modules/
 dist/
 web/node_modules/
 web/dist/
-web/public/cache/demo/
 
 # OS and editors
 .DS_Store
