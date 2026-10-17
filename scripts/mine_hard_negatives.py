@@ -20,7 +20,9 @@ if str(ROOT) not in sys.path:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--weights", type=Path, required=True)
     ap.add_argument("--conf", type=float, default=0.25)
     ap.add_argument("--max-tiles", type=int, default=2000)
@@ -39,10 +41,16 @@ def main(argv: list[str] | None = None) -> int:
 
     train = load_split("train", args.data_root)[: args.limit]
     det = Detector(args.weights, device=args.device)
-    written = mine(det, train, conf=args.conf, max_tiles=args.max_tiles, seed=args.seed, out_dir=args.out)
+    written = mine(
+        det, train, conf=args.conf, max_tiles=args.max_tiles, seed=args.seed, out_dir=args.out
+    )
     write_dataset_yaml(args.tiles, args.out, args.yaml)
-    n_empty = sum(1 for p in written if not (args.out / "labels" / f"{p.stem}.txt").read_text().strip())
-    print(f"{len(written)} hard-negative tiles written to {args.out} ({n_empty} with no people); yaml: {args.yaml}")
+    n_empty = sum(
+        1 for p in written if not (args.out / "labels" / f"{p.stem}.txt").read_text().strip()
+    )
+    print(
+        f"{len(written)} hard-negative tiles written to {args.out} ({n_empty} with no people); yaml: {args.yaml}"
+    )
     return 0
 
 

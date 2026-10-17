@@ -44,9 +44,12 @@ def run_survey(
     per_frame: dict[str, list[dict[str, object]]] = {}
     n_dets = n_crops = 0
     for frame in frames:
-        dets = sorted(detector.detect_frame(frame, conf=save_threshold), key=lambda d: d.conf, reverse=True)
+        dets = sorted(
+            detector.detect_frame(frame, conf=save_threshold), key=lambda d: d.conf, reverse=True
+        )
         per_frame[frame.stem] = [
-            {"box": [d.box.x1, d.box.y1, d.box.x2, d.box.y2], "conf": round(d.conf, 3)} for d in dets
+            {"box": [d.box.x1, d.box.y1, d.box.x2, d.box.y2], "conf": round(d.conf, 3)}
+            for d in dets
         ]
         n_dets += len(dets)
         for i, d in enumerate(dets, 1):
@@ -67,6 +70,7 @@ def run_survey(
         + "\n",
         encoding="utf-8",
     )
+    # Exactly the keys lane D's DetectConfig allows (extra keys are rejected).
     (out_dir / "config.json").write_text(
         json.dumps(
             {
@@ -74,12 +78,10 @@ def run_survey(
                 "model": model_name,
                 "candidate_threshold": candidate_threshold,
                 "save_threshold": save_threshold,
-                "n_frames": len(frames),
-                "n_detections": n_dets,
-                "n_crops": n_crops,
             },
             indent=2,
         )
         + "\n",
         encoding="utf-8",
     )
+    print(f"run_survey: {len(frames)} frames, {n_dets} detections, {n_crops} crops -> {out_dir}")

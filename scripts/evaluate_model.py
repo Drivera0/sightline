@@ -26,15 +26,23 @@ if str(ROOT) not in sys.path:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--weights", type=Path, required=True, help="best tiled-trained weights")
-    ap.add_argument("--hn-weights", type=Path, default=None, help="weights after hard-negative fine-tune")
-    ap.add_argument("--stock", type=Path, default=ROOT / "data/weights/yolo11s.pt", help="COCO weights")
+    ap.add_argument(
+        "--hn-weights", type=Path, default=None, help="weights after hard-negative fine-tune"
+    )
+    ap.add_argument(
+        "--stock", type=Path, default=ROOT / "data/weights/yolo11s.pt", help="COCO weights"
+    )
     ap.add_argument("--model-name", default=None)
     ap.add_argument("--data-root", type=Path, default=ROOT / "data/heridal/yolo_full")
     ap.add_argument("--out", type=Path, default=ROOT / "data/work/detect/detector_metrics.json")
     ap.add_argument("--device", default="cuda:0")
-    ap.add_argument("--limit", type=int, default=None, help="debug: only the first N images per split")
+    ap.add_argument(
+        "--limit", type=int, default=None, help="debug: only the first N images per split"
+    )
     args = ap.parse_args(argv)
 
     from sightline.ml.data import load_split
@@ -75,7 +83,12 @@ def main(argv: list[str] | None = None) -> int:
         thr = choose_threshold(det, val, mode)
         voc, sar, spi = evaluate(det, test, mode, thr)
         rows.append(Ablation(name=name, voc=voc))
-        results[name] = {"threshold": thr, "voc": voc.model_dump(), "sar": sar.model_dump(), "seconds_per_image": spi}
+        results[name] = {
+            "threshold": thr,
+            "voc": voc.model_dump(),
+            "sar": sar.model_dump(),
+            "seconds_per_image": spi,
+        }
         print(
             f"[{name}] thr={thr:.2f} P={voc.precision:.3f} R={voc.recall:.3f} AP50={voc.ap50:.3f} "
             f"SAR P={sar.precision:.3f} R={sar.recall:.3f} {spi:.2f}s/img ({time.time() - t0:.0f}s)"
@@ -95,9 +108,13 @@ def main(argv: list[str] | None = None) -> int:
         seconds_per_image=float(final["seconds_per_image"]),  # type: ignore[arg-type]
     )
     write_detector_metrics(detector, rows, args.out)
-    (args.out.parent / "evaluate_details.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    (args.out.parent / "evaluate_details.json").write_text(
+        json.dumps(results, indent=2), encoding="utf-8"
+    )
     print(f"wrote {args.out}")
-    print(f"candidate_threshold = {detector.threshold:.2f}; tell lane C: recall = {detector.recall:.3f}")
+    print(
+        f"candidate_threshold = {detector.threshold:.2f}; tell lane C: recall = {detector.recall:.3f}"
+    )
     return 0
 
 

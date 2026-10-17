@@ -52,14 +52,18 @@ def tile_one(
         im = im.convert("RGB")
         width, height = im.size
         boxes = read_yolo_labels(label_path, width, height)
-        chosen = tiles_for_image(width, height, boxes, image_path.stem, tile_px, overlap, empty_frac, seed)
+        chosen = tiles_for_image(
+            width, height, boxes, image_path.stem, tile_px, overlap, empty_frac, seed
+        )
         n_boxes = 0
         for tile, tile_boxes in chosen:
             name = tile.name(image_path.stem)
             crop = im.crop((tile.x0, tile.y0, tile.x1, tile.y1))
             crop.save(out_images / f"{name}.jpg", "JPEG", quality=quality)
             lines = [yolo_line(b, tile.width_px, tile.height_px) for b in tile_boxes]
-            (out_labels / f"{name}.txt").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+            (out_labels / f"{name}.txt").write_text(
+                "\n".join(lines) + ("\n" if lines else ""), encoding="utf-8"
+            )
             n_boxes += len(tile_boxes)
     n_pos = sum(1 for _, b in chosen if b)
     return {
@@ -99,7 +103,10 @@ def tile_split(name: str, src: Path, out: Path, args: argparse.Namespace) -> dic
             for k, v in fut.result().items():
                 totals[k] = totals.get(k, 0) + v
             if i % 100 == 0 or i == len(futures):
-                print(f"  {name}: {i}/{len(futures)} images, {totals.get('tiles', 0)} tiles", flush=True)
+                print(
+                    f"  {name}: {i}/{len(futures)} images, {totals.get('tiles', 0)} tiles",
+                    flush=True,
+                )
     return totals
 
 
@@ -116,7 +123,9 @@ def write_dataset_yaml(out: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--src", type=Path, default=ROOT / "data/heridal/yolo_full")
     ap.add_argument("--out", type=Path, default=ROOT / "data/heridal/yolo_tiles")
     ap.add_argument("--tile", type=int, default=1024)
@@ -130,7 +139,8 @@ def main(argv: list[str] | None = None) -> int:
     for name in SPLITS:
         if not (args.src / name / "images").exists():
             print(
-                f"error: {args.src / name / 'images'} not found; run scripts/convert_heridal.py first", file=sys.stderr
+                f"error: {args.src / name / 'images'} not found; run scripts/convert_heridal.py first",
+                file=sys.stderr,
             )
             return 2
 

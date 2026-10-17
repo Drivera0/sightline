@@ -51,7 +51,9 @@ def place_image(src: Path, dst: Path, copy: bool) -> str:
     return "copy"
 
 
-def convert_split(name: str, ids: list[str], raw: Path, out: Path, copy: bool) -> tuple[dict[str, object], list[str]]:
+def convert_split(
+    name: str, ids: list[str], raw: Path, out: Path, copy: bool
+) -> tuple[dict[str, object], list[str]]:
     from sightline.ml.types import LabeledImage
     from sightline.ml.voc import clip_box, image_size, parse_voc, yolo_lines
 
@@ -77,7 +79,9 @@ def convert_split(name: str, ids: list[str], raw: Path, out: Path, copy: bool) -
         n_clipped += sum(1 for b in raw_boxes if clip_box(b, width, height) != b)
         labeled = LabeledImage(path=jpg, width=width, height=height, boxes=boxes)
         n_boxes += len(boxes)
-        (labels_dir / f"{image_id}.txt").write_text("\n".join(yolo_lines(labeled)) + "\n", encoding="utf-8")
+        (labels_dir / f"{image_id}.txt").write_text(
+            "\n".join(yolo_lines(labeled)) + "\n", encoding="utf-8"
+        )
         methods.add(place_image(jpg, images_dir / f"{image_id}.jpg", copy))
         if i % 200 == 0 or i == len(ids):
             print(f"  {name}: {i}/{len(ids)}", flush=True)
@@ -93,8 +97,12 @@ def convert_split(name: str, ids: list[str], raw: Path, out: Path, copy: bool) -
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--raw", type=Path, default=ROOT / "data/heridal/raw/heridal_keras_retinanet_voc")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--raw", type=Path, default=ROOT / "data/heridal/raw/heridal_keras_retinanet_voc"
+    )
     ap.add_argument("--out", type=Path, default=ROOT / "data/heridal/yolo_full")
     ap.add_argument("--val-frac", type=float, default=0.1)
     ap.add_argument("--seed", type=int, default=7)
@@ -106,7 +114,10 @@ def main(argv: list[str] | None = None) -> int:
     raw: Path = args.raw
     sets = raw / "ImageSets" / "Main"
     if not sets.exists():
-        print(f"error: {sets} not found. Unzip heridal_keras_retinanet_voc.zip under {raw.parent}", file=sys.stderr)
+        print(
+            f"error: {sets} not found. Unzip heridal_keras_retinanet_voc.zip under {raw.parent}",
+            file=sys.stderr,
+        )
         return 2
 
     t0 = time.time()
@@ -134,7 +145,12 @@ def main(argv: list[str] | None = None) -> int:
         "seed": args.seed,
         "val_frac": args.val_frac,
         "official_counts": {"trainval": len(trainval_ids), "test": len(test_ids)},
-        "expected_from_docs": {"train_images": 1546, "test_images": 101, "train_boxes": 2892, "test_boxes": 337},
+        "expected_from_docs": {
+            "train_images": 1546,
+            "test_images": 101,
+            "train_boxes": 2892,
+            "test_boxes": 337,
+        },
         "raw_folder_extras": extras,
         "splits": {},
     }

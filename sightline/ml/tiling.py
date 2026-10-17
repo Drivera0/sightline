@@ -52,7 +52,9 @@ def tile_positions(size_px: int, tile_px: int, stride_px: int) -> list[int]:
     return starts
 
 
-def tile_grid(width: int, height: int, tile_px: int = TILE_PX, overlap: float = OVERLAP) -> list[Tile]:
+def tile_grid(
+    width: int, height: int, tile_px: int = TILE_PX, overlap: float = OVERLAP
+) -> list[Tile]:
     """Row-major list of tiles covering the image."""
     stride = max(1, round(tile_px * (1 - overlap)))
     return [
