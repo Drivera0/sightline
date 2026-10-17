@@ -4,13 +4,25 @@ import type { CacheBundle } from "../contract";
 import { loadCache, useCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import { MetricsView } from "./MetricsView";
-import { bestByAp50, deltaPts, isResizedRow, pct, seconds, speedup } from "./format";
+import {
+  bestByAp50,
+  deltaPts,
+  isResizedRow,
+  pct,
+  seconds,
+  speedup,
+} from "./format";
 
 let cache: CacheBundle;
 
 beforeEach(async () => {
   cache = await loadCache("sample", diskFetch());
-  useCache.setState({ status: "ready", data: cache, error: null, dir: "sample" });
+  useCache.setState({
+    status: "ready",
+    data: cache,
+    error: null,
+    dir: "sample",
+  });
 });
 
 describe("format helpers", () => {
@@ -32,7 +44,13 @@ describe("format helpers", () => {
   });
 
   it("picks the best ablation row by AP50 and flags no-tiling rows", () => {
-    expect(bestByAp50([{ voc: { ap50: 0.2 } }, { voc: { ap50: 0.7 } }, { voc: { ap50: 0.7 } }])).toBe(1);
+    expect(
+      bestByAp50([
+        { voc: { ap50: 0.2 } },
+        { voc: { ap50: 0.7 } },
+        { voc: { ap50: 0.7 } },
+      ]),
+    ).toBe(1);
     expect(bestByAp50([])).toBe(-1);
     expect(isResizedRow("Stock model, no tiling")).toBe(true);
     expect(isResizedRow("Fine-tuned + tiling")).toBe(false);
@@ -43,7 +61,9 @@ describe("MetricsView", () => {
   it("shows our recall, precision and speed against the human baseline", () => {
     render(<MetricsView />);
 
-    expect(screen.getByRole("heading", { name: /human baseline/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /human baseline/i }),
+    ).toBeInTheDocument();
     // sample metrics.json: recall 0.80 vs 0.68, precision 0.812 vs 0.59, 0.9 s vs 33 s
     expect(screen.getByText("80%")).toBeInTheDocument();
     expect(screen.getByText("+12 pts better")).toBeInTheDocument();
@@ -65,8 +85,8 @@ describe("MetricsView", () => {
     const rows = within(table).getAllByRole("row").slice(1); // skip the header
     expect(rows).toHaveLength(4);
     expect(rows[0]).toHaveTextContent("Stock model, no tiling");
-    expect(rows[0]).toHaveTextContent("(resized to 1024)");
-    expect(rows[2]).not.toHaveTextContent("(resized to 1024)");
+    expect(rows[0]).toHaveTextContent("resized to 1024");
+    expect(rows[2]).not.toHaveTextContent("resized to 1024");
     expect(rows[3]).toHaveTextContent("+ hard negatives");
     expect(rows[3]).toHaveTextContent("best");
     expect(rows[3]).toHaveAttribute("data-highlight", "true");
@@ -108,13 +128,35 @@ describe("MetricsView", () => {
     for (const el of numbers) {
       expect(el.getAttribute("title")).toMatch(/metrics\.|arXiv/);
     }
-    expect(screen.getAllByText(/HERIDAL test set, 101 images/).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/HERIDAL test set, 101 images/).length,
+    ).toBeGreaterThan(0);
   });
 
   it("renders from an explicit metrics prop too", () => {
-    const custom = { ...cache.metrics, detector: { ...cache.metrics.detector, model: "yolo11s-x" } };
+    const custom = {
+      ...cache.metrics,
+      detector: { ...cache.metrics.detector, model: "yolo11s-x" },
+    };
     render(<MetricsView metrics={custom} />);
     expect(screen.getByText("yolo11s-x")).toBeInTheDocument();
     expect(screen.queryByText("Sample numbers")).not.toBeInTheDocument();
+  });
+});
+
+describe("motion", () => {
+  it("renders the final numbers at once when reduced motion is preferred (as in jsdom)", async () => {
+    const { prefersReducedMotion } = await import("./motion");
+    expect(prefersReducedMotion()).toBe(true); // jsdom has no matchMedia
+    render(<MetricsView />);
+    expect(screen.getByText("80%")).toBeInTheDocument();
+    expect(screen.getByLabelText("80%")).toBeInTheDocument();
+  });
+
+  it("shows comparison bars for each headline tile", () => {
+    render(<MetricsView />);
+    expect(
+      screen.getAllByRole("img", { name: /bars compare ours to human/ }),
+    ).toHaveLength(3);
   });
 });
