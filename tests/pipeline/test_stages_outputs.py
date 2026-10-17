@@ -219,7 +219,7 @@ def test_map_stage_makes_whatever_lane_c_returns_obey_the_contract(ctx):
 def test_map_stage_also_writes_the_covered_cells_for_the_simulation(ctx):
     prepare_for_map(ctx)
     base, _ = placeholder_map(IDS, LatLon(lat=49.37, lon=-122.945), 0.8)
-    pair = (base, {f: [(10, 0.123456)] for f in IDS})
+    pair = (base, {f: [(10, 0.123456, 1.0)] for f in IDS})
     lane_ctx = make_context(
         ctx.data.parent, Lanes(overrides={"build_map": lambda frames, lkp, recall: pair})
     )
@@ -227,7 +227,7 @@ def test_map_stage_also_writes_the_covered_cells_for_the_simulation(ctx):
     map_stage(lane_ctx)
 
     cells = read_json(ctx.work / "map" / "frame_cells.json", FrameCellsFile)
-    assert cells.frames["f0001"] == [(10, 0.123456)]
+    assert cells.frames["f0001"] == [(10, 0.123456, 1.0)]
 
 
 def test_map_stage_needs_the_place_stage(ctx):

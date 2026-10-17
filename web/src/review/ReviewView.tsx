@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CacheBundle } from "../contract";
 import { CACHE_DIR, cacheUrl, useCache } from "../lib/cache";
+import { isTyping } from "../lib/keys";
 import { useSelection } from "../lib/selection";
 import { EmptyState, KeyHint, Label, Panel } from "../shell/components";
 import { reviewItems, reviewProgress, type ReviewItem } from "./items";
@@ -12,11 +13,6 @@ const STATUS: Record<Answer | "unreviewed", { label: string; className: string }
   not_person: { label: "Not a person", className: "text-text-2" },
   unsure: { label: "Unsure", className: "text-warn" },
 };
-
-function isTyping(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null;
-  return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
-}
 
 function firstUnreviewed(items: ReviewItem[], answers: Record<string, Answer>): ReviewItem | undefined {
   return items.find((item) => answers[item.id] === undefined);
