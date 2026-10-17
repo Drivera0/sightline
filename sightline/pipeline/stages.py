@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from sightline.contract import MapFile, Stages
+from sightline.contract import HitPositions, MapFile, MinutesAtHumanPace, Ranking, Stages
 from sightline.pipeline.export import export_cache
 from sightline.pipeline.formats import (
     DetectConfig,
@@ -53,6 +53,8 @@ class Context:
     model_name: str = "yolo11s-heridal-tiled"
     # HERIDAL test split in YOLO format. Default: data/heridal/yolo_full/test
     test_dir: Path | None = None
+    # Demo surveys have hidden ground truth. Uploaded photos do not, so ranking is not measured.
+    require_truth: bool = True
 
     def __post_init__(self) -> None:
         if self.test_dir is None:
@@ -190,13 +192,25 @@ def metrics_stage(ctx: Context) -> None:
     flight_index = _flight_index(ctx)
     rank = read_json(ctx.work / "rank" / "rank.json", RankFile, produced_by="rank")
     truth_path = ctx.survey_dir / "truth.json"
-    if not truth_path.is_file():
+    if truth_path.is_file():
+        truth = {
+            frame_id: [tuple(box) for box in boxes]
+            for frame_id, boxes in json.loads(truth_path.read_text()).items()
+        }
+        ranking = ranking_metrics({f: e.rank for f, e in rank.frames.items()}, flight_index, truth)
+    elif ctx.require_truth:
         raise FileNotFoundError(f"{truth_path} is missing (written by the `frames` stage)")
-    truth = {
-        frame_id: [tuple(box) for box in boxes]
-        for frame_id, boxes in json.loads(truth_path.read_text()).items()
-    }
-    ranking = ranking_metrics({f: e.rank for f, e in rank.frames.items()}, flight_index, truth)
+    else:
+        ranking = Ranking(
+            n_frames=len(flight_index),
+            n_positive=0,
+            flight_order=HitPositions(frames_to_first_hit=0, frames_to_all_hits=0),
+            ranked=HitPositions(frames_to_first_hit=0, frames_to_all_hits=0),
+            expected_first_hit_random_order=0.0,
+            minutes_at_human_pace=MinutesAtHumanPace(flight_order_first=0.0, ranked_first=0.0),
+            note="Ranking not measured: these photos have no ground truth.",
+        )
+        ctx.lanes.note_placeholder("ranking", "no ground truth, ranking not measured (zeros)")
     write_json(ctx.work / "metrics" / "ranking.json", ranking)
 
     map_file = read_json(ctx.work / "map" / "map.json", MapFile, produced_by="map")
