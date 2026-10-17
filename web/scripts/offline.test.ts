@@ -82,6 +82,15 @@ describe("scanDirectory", () => {
     });
   });
 
+  it("ignores plain text files such as licences, which the page never fetches", () => {
+    const dir = mkdtempSync(join(tmpdir(), "offline-"));
+    mkdirSync(join(dir, "basemap"));
+    writeFileSync(join(dir, "basemap", "OFL.txt"), "see https://scripts.sil.org/OFL and https://github.com/notofonts");
+    writeFileSync(join(dir, "index.html"), '<script src="/assets/app.js"></script>');
+
+    expect(scanDirectory(dir, ALLOWED)).toEqual({});
+  });
+
   it("is empty when nothing external is referenced", () => {
     const dir = mkdtempSync(join(tmpdir(), "offline-"));
     writeFileSync(join(dir, "index.html"), '<script src="/assets/app.js"></script>');
