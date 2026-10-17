@@ -34,6 +34,7 @@ node_modules/
 dist/
 web/node_modules/
 web/dist/
+.pnpm-store/
 
 # OS and editors
 .DS_Store
