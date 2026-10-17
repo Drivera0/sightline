@@ -188,3 +188,25 @@ def test_json_schema_export(tmp_path):
     export_json_schema(out)
     schema = json.loads(out.read_text())
     assert set(schema["properties"]) == {"manifest", "survey", "detections", "map", "metrics"}
+
+
+def _walk(node):
+    yield node
+    if isinstance(node, dict):
+        for value in node.values():
+            yield from _walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _walk(value)
+
+
+def test_schema_is_shaped_for_json_schema_to_typescript(tmp_path):
+    out = tmp_path / "contract.schema.json"
+    export_json_schema(out)
+    schema = json.loads(out.read_text())
+
+    assert not any("prefixItems" in n for n in _walk(schema) if isinstance(n, dict))
+    footprint = schema["$defs"]["Frame"]["properties"]["footprint"]
+    assert len(footprint["items"]) == 4 and footprint["minItems"] == footprint["maxItems"] == 4
+    assert all("title" not in p for d in schema["$defs"].values() for p in d["properties"].values())
+    assert {"Frame", "Pose", "MapFile"} <= set(schema["$defs"])

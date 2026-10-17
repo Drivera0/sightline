@@ -361,9 +361,34 @@ class CacheBundle(_Model):
     metrics: Metrics
 
 
+def _for_json2ts(node: Any, named: bool = False) -> Any:
+    """Reshape Pydantic's JSON Schema so json-schema-to-typescript emits clean types.
+
+    Tuples use `prefixItems`, which json2ts ignores (it wants an `items` list), and per-field
+    `title`s make it invent aliases like `Lat1`; only named definitions keep their title.
+    """
+    if isinstance(node, list):
+        return [_for_json2ts(v) for v in node]
+    if not isinstance(node, dict):
+        return node
+    out: dict[str, Any] = {}
+    for key, value in node.items():
+        if key == "title" and not named:
+            continue
+        if key == "prefixItems":
+            out["items"] = [_for_json2ts(v) for v in value]
+            out["additionalItems"] = False
+        elif key == "$defs":
+            out[key] = {name: _for_json2ts(d, named=True) for name, d in value.items()}
+        else:
+            out[key] = _for_json2ts(value)
+    return out
+
+
 def export_json_schema(out: Path) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(CacheBundle.model_json_schema(), indent=2) + "\n")
+    schema = _for_json2ts(CacheBundle.model_json_schema(), named=True)
+    out.write_text(json.dumps(schema, indent=2) + "\n")
 
 
 def _decimals(path: tuple[str, ...]) -> int | None:
