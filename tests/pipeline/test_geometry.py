@@ -147,3 +147,36 @@ def test_a_frame_count_with_no_nice_layout_becomes_a_single_line():
     poses = placeholder_flight(7, LKP)
 
     assert len(poses) == 7 and {p.heading_deg for p in poses} == {90.0}
+
+
+# ---------------------------------------------------------------- search grid (contract section 8)
+
+
+def test_grid_corner_matches_the_contract_example():
+    from sightline.pipeline.geometry import grid_origin_nw
+
+    origin = grid_origin_nw(LKP)
+
+    assert (origin.lat, origin.lon) == pytest.approx((49.374492, -122.951898), abs=2e-6)
+
+
+def test_cell_centre_matches_the_contract_example_cell_1288():
+    from sightline.contract import Grid
+    from sightline.pipeline.geometry import cell_center, grid_origin_nw
+
+    grid = Grid(origin_nw=grid_origin_nw(LKP), cell_m=20, rows=50, cols=50)
+
+    lat, lon = cell_center(grid, 1288)  # row 25, col 38
+
+    assert (lat, lon) == pytest.approx((49.369911, -122.941275), abs=2e-6)
+
+
+def test_cell_zero_is_in_the_north_west_corner():
+    from sightline.contract import Grid
+    from sightline.pipeline.geometry import cell_center, grid_origin_nw
+
+    grid = Grid(origin_nw=grid_origin_nw(LKP), cell_m=20, rows=50, cols=50)
+
+    first, last = cell_center(grid, 0), cell_center(grid, 2499)
+
+    assert first[0] > LKP.lat > last[0] and first[1] < LKP.lon < last[1]
