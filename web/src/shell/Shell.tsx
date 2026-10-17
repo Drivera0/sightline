@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CacheBundle } from "../contract";
 import { CacheContext } from "../lib/cache";
+import { isTyping } from "../lib/keys";
 import { HeatLayer } from "../map/heat/HeatLayer";
 import { MapView } from "../map/MapView";
 import { MetricsView } from "../metrics/MetricsView";
@@ -17,11 +18,6 @@ const TABS: readonly TabItem<TabId>[] = [
   { id: "map", label: "Map" },
   { id: "metrics", label: "Metrics" },
 ];
-
-function isTyping(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null;
-  return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
-}
 
 export function Shell({ cache }: { cache: CacheBundle }) {
   const [tab, setTab] = useState<TabId>("review");
