@@ -324,3 +324,15 @@ def test_without_lane_a_test_images_are_read_from_the_yolo_folder(tmp_path):
     box = images[0].boxes[0]
     assert (box.x1, box.y1, box.x2, box.y2) == (1800, 1200, 2200, 1800)
     assert len(images[0].boxes) == 2
+
+
+def test_stages_can_record_their_own_placeholders():
+    lanes = none_available()
+
+    lanes.note_placeholder(
+        "detector_metrics", "lane A detector_metrics.json is missing, used zeros"
+    )
+
+    assert lanes.placeholder_notes() == {
+        "detector_metrics": "lane A detector_metrics.json is missing, used zeros"
+    }
