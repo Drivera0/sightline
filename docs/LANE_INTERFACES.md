@@ -25,7 +25,10 @@ The pipeline looks for each function by name. If it is missing, the stage writes
 | `simulate` | `simulate(map_file, frame_cells)` | A contract `SearchSim` (or a dict with its fields). |
 
 `frames` is a list of `MapFrame` (`sightline.pipeline.lanes.MapFrame`): `id`, `image_path`, `pose`,
-`footprint`, `flight_index`. If you need other inputs (a canopy mask, for example), say so.
+`footprint`, `flight_index` and `candidates`. `candidates` is a tuple of `(lat, lon, radius_m)`, one
+for each detection in the frame with `conf >= candidate_threshold` (the same detections as the review
+queue), so you can hold those cells for review (pod = 0 near a detection). It is empty when the frame
+has none. If you need other inputs (a canopy mask, for example), say so.
 
 The pipeline rounds each `pod` to 4 decimals and recomputes `final` and `top_cells` from the
 prior, so the contract's replay check (section 11) always holds. You may return unrounded pods.
