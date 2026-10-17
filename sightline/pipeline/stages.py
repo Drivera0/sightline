@@ -58,7 +58,7 @@ class Context:
 
     def __post_init__(self) -> None:
         if self.test_dir is None:
-            self.test_dir = self.data / "heridal" / "yolo_full" / "test"
+            self.test_dir = _default_test_dir(self.data)
 
     @property
     def survey_dir(self) -> Path:
@@ -69,6 +69,10 @@ class Context:
         return self.data / "work"
 
 
+def _default_test_dir(data: Path) -> Path:
+    return data / "heridal" / "yolo_full" / "test"
+
+
 def _frame_ids(ctx: Context) -> list[str]:
     """Frame ids in flight order, from the `frames` stage."""
     entries = read_json(ctx.survey_dir / "frames.json", SurveyFrameFile, produced_by="frames").root
@@ -77,8 +81,7 @@ def _frame_ids(ctx: Context) -> list[str]:
 
 def frames_stage(ctx: Context) -> None:
     """Cut frames from the HERIDAL test photos; write the JPEGs, `frames.json` and `truth.json`."""
-    assert ctx.test_dir is not None
-    images = ctx.lanes.test_images(ctx.test_dir)
+    images = ctx.lanes.test_images(ctx.test_dir or _default_test_dir(ctx.data))
     frames, truth = build_survey(
         images, ctx.n_frames, ctx.n_positive, ctx.seed, survey_dir=ctx.survey_dir
     )
