@@ -10,4 +10,12 @@ from sightline.ml.detect import Detector
 from sightline.ml.survey import run_survey
 from sightline.ml.types import Box, LabeledImage, RawDetection
 
-__all__ = ["Box", "Detector", "LabeledImage", "RawDetection", "load_split", "make_crop", "run_survey"]
+__all__ = [
+    "Box",
+    "Detector",
+    "LabeledImage",
+    "RawDetection",
+    "load_split",
+    "make_crop",
+    "run_survey",
+]

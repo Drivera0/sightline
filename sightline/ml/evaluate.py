@@ -133,7 +133,9 @@ def score_voc(preds: Preds, truth: Truth, threshold: float) -> VocScores:
     tp = sum(kept)
     precision = tp / len(kept) if kept else 0.0
     recall = tp / n_truth if n_truth else 0.0
-    return VocScores(precision=precision, recall=recall, ap50=_average_precision([h for _, h in hits], n_truth))
+    return VocScores(
+        precision=precision, recall=recall, ap50=_average_precision([h for _, h in hits], n_truth)
+    )
 
 
 def _sar_pairs(preds: Preds, truth: Truth) -> list[tuple[float, bool, set[tuple[str, int]]]]:
@@ -191,7 +193,11 @@ def choose_threshold_from_preds(
 
     Candidates default to 0.05 … 0.95 in steps of 0.01.
     """
-    cands = sorted(candidates) if candidates is not None else [round(0.05 + 0.01 * i, 2) for i in range(91)]
+    cands = (
+        sorted(candidates)
+        if candidates is not None
+        else [round(0.05 + 0.01 * i, 2) for i in range(91)]
+    )
     best_t, best_f = cands[0], -1.0
     hits = _voc_hits(preds, truth)
     n_truth = sum(len(b) for b in truth.values())
@@ -206,8 +212,12 @@ def choose_threshold_from_preds(
     return best_t
 
 
-def _run(detector: object, images: Sequence[LabeledImage], mode: Mode, conf: float) -> tuple[Preds, Truth, float]:
-    fn: Callable[..., list[RawDetection]] = getattr(detector, "detect_tiled" if mode == "tiled" else "detect_resized")
+def _run(
+    detector: object, images: Sequence[LabeledImage], mode: Mode, conf: float
+) -> tuple[Preds, Truth, float]:
+    fn: Callable[..., list[RawDetection]] = getattr(
+        detector, "detect_tiled" if mode == "tiled" else "detect_resized"
+    )
     preds: Preds = {}
     truth: Truth = {}
     t0 = time.perf_counter()
@@ -256,8 +266,7 @@ def write_detector_metrics(
     D's ``map`` stage reads ``detector.recall``; the ``metrics`` stage copies the rest."""
     if len(ablations) != len(ABLATION_NAMES) or [a.name for a in ablations] != list(ABLATION_NAMES):
         raise ValueError(f"ablation rows must be exactly {list(ABLATION_NAMES)} in order")
-    payload = {
-        "contract_version": "1.0",
+    payload = {  # exactly lane D's DetectorMetricsFile: no extra keys
         "detector": _round(detector.model_dump()),
         "ablations": _round([a.model_dump() for a in ablations]),
     }

@@ -114,7 +114,9 @@ def test_images_with_no_predictions_still_count_their_truth() -> None:
 
 def test_empty_inputs() -> None:
     assert score_voc({}, {}, 0.5) == VocScores(precision=0.0, recall=0.0, ap50=0.0)
-    assert score_sar({"a": []}, {"a": [Box(0, 0, 1, 1)]}, 0.5) == SarScores(precision=0.0, recall=0.0, ap=0.0)
+    assert score_sar({"a": []}, {"a": [Box(0, 0, 1, 1)]}, 0.5) == SarScores(
+        precision=0.0, recall=0.0, ap=0.0
+    )
 
 
 def test_choose_threshold_maximises_f2() -> None:
@@ -151,12 +153,17 @@ def test_write_detector_metrics_shape(tmp_path: Path) -> None:
     )
     rows = [
         Ablation(name=n, voc=voc)
-        for n in ("Stock model, no tiling", "Fine-tuned, no tiling", "Fine-tuned + tiling", "+ hard negatives")
+        for n in (
+            "Stock model, no tiling",
+            "Fine-tuned, no tiling",
+            "Fine-tuned + tiling",
+            "+ hard negatives",
+        )
     ]
     out = tmp_path / "m.json"
     write_detector_metrics(d, rows, out)
     data = json.loads(out.read_text())
-    assert data["contract_version"] == "1.0"
+    assert set(data) == {"detector", "ablations"}
     assert data["detector"]["voc"]["precision"] == 0.812
     assert data["detector"]["seconds_per_image"] == 1.235
     assert [r["name"] for r in data["ablations"]] == [r.name for r in rows]

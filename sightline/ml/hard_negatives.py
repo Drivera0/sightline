@@ -30,7 +30,9 @@ class TiledDetector(Protocol):
     ) -> list[RawDetection]: ...
 
 
-def false_positives(dets: Sequence[RawDetection], truth: Sequence[Box], conf: float = 0.25) -> list[Box]:
+def false_positives(
+    dets: Sequence[RawDetection], truth: Sequence[Box], conf: float = 0.25
+) -> list[Box]:
     return [d.box for d in dets if d.conf >= conf and all(iou(d.box, t) < FP_IOU for t in truth)]
 
 
@@ -83,8 +85,12 @@ def mine(
             src.convert("RGB").crop((tile.x0, tile.y0, tile.x1, tile.y1)).save(
                 images_dir / f"{name}.jpg", "JPEG", quality=quality
             )
-        lines = [yolo_line(b, tile.width_px, tile.height_px) for b in boxes_in_tile(list(im.boxes), tile)]
-        (labels_dir / f"{name}.txt").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        lines = [
+            yolo_line(b, tile.width_px, tile.height_px) for b in boxes_in_tile(list(im.boxes), tile)
+        ]
+        (labels_dir / f"{name}.txt").write_text(
+            "\n".join(lines) + ("\n" if lines else ""), encoding="utf-8"
+        )
         written.append(images_dir / f"{name}.jpg")
     return written
 

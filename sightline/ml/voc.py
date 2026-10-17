@@ -89,7 +89,9 @@ def read_yolo_labels(label_path: Path, width: int, height: int) -> list[Box]:
     return [yolo_line_to_box(ln, width, height) for ln in lines]
 
 
-def split_train_val(ids: Sequence[str], val_frac: float = 0.1, seed: int = 7) -> tuple[list[str], list[str]]:
+def split_train_val(
+    ids: Sequence[str], val_frac: float = 0.1, seed: int = 7
+) -> tuple[list[str], list[str]]:
     """Seeded split **by image**. Independent of the input order; both halves sorted."""
     pool = sorted(ids)
     rng = random.Random(seed)

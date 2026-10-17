@@ -44,7 +44,10 @@ def test_run_survey_writes_contract_shaped_files(tmp_path: Path) -> None:
     frames = _frames(tmp_path)
     fake = FakeDetector(
         {
-            "f0001": [RawDetection(Box(10, 10, 60, 70), 0.2), RawDetection(Box(500, 300, 560, 360), 0.9)],
+            "f0001": [
+                RawDetection(Box(10, 10, 60, 70), 0.2),
+                RawDetection(Box(500, 300, 560, 360), 0.9),
+            ],
             "f0003": [RawDetection(Box(1, 1, 30, 30), 0.07)],
         }
     )
@@ -65,7 +68,12 @@ def test_run_survey_writes_contract_shaped_files(tmp_path: Path) -> None:
         assert c.size == (256, 256)
 
     cfg = json.loads((out / "config.json").read_text())
-    assert cfg["candidate_threshold"] == 0.5 and cfg["n_frames"] == 3 and cfg["n_crops"] == 1
+    assert cfg == {
+        "weights": "w.pt",
+        "model": "fake",
+        "candidate_threshold": 0.5,
+        "save_threshold": 0.05,
+    }
     assert all(conf == 0.05 for _, conf in fake.calls)
 
 
@@ -96,7 +104,9 @@ def test_mine_writes_tiles_with_true_labels_and_caps(tmp_path: Path) -> None:
         {
             "train_X_0001": [
                 RawDetection(Box(1700, 1300, 1760, 1360), 0.95),  # TP, not mined
-                RawDetection(Box(2000, 1500, 2060, 1560), 0.8),  # FP near the person: tile includes the person label
+                RawDetection(
+                    Box(2000, 1500, 2060, 1560), 0.8
+                ),  # FP near the person: tile includes the person label
                 RawDetection(Box(300, 300, 360, 360), 0.5),  # FP far away: empty label
                 RawDetection(Box(302, 301, 362, 361), 0.4),  # same tile → deduped
             ]
@@ -104,7 +114,10 @@ def test_mine_writes_tiles_with_true_labels_and_caps(tmp_path: Path) -> None:
     )
     out = tmp_path / "hn"
     written = mine(fake, train, conf=0.25, max_tiles=10, seed=7, out_dir=out)
-    assert sorted(p.name for p in written) == ["train_X_0001_hn_0_0.jpg", "train_X_0001_hn_1518_1018.jpg"]
+    assert sorted(p.name for p in written) == [
+        "train_X_0001_hn_0_0.jpg",
+        "train_X_0001_hn_1518_1018.jpg",
+    ]
     with Image.open(out / "images" / "train_X_0001_hn_1518_1018.jpg") as t:
         assert t.size == (1024, 1024)
     assert (out / "labels" / "train_X_0001_hn_0_0.txt").read_text() == ""
