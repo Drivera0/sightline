@@ -194,5 +194,7 @@ def _decode(name: str, data: bytes) -> Image.Image:
                 raise HTTPException(400, f"{name} has too many pixels")
             image = ImageOps.exif_transpose(image)
             return ImageOps.fit(image.convert("RGB"), (FRAME_W_PX, FRAME_H_PX))
+    except Image.DecompressionBombError as error:  # Pillow's own limit, hit when the header is read
+        raise HTTPException(400, f"{name} has too many pixels") from error
     except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as error:
         raise HTTPException(400, f"{name} is not a valid JPEG image") from error
