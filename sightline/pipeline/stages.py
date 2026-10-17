@@ -29,13 +29,14 @@ from sightline.pipeline.formats import (
     read_json,
     write_json,
 )
-from sightline.pipeline.lanes import Lanes, MapFrame
+from sightline.pipeline.lanes import RECALL_FROM_DETECTOR, Lanes, MapFrame
 from sightline.pipeline.mapmath import normalise_map
 from sightline.pipeline.placeholders import placeholder_detector_metrics
 from sightline.pipeline.rank import rank_frames, ranking_metrics
 from sightline.pipeline.survey import build_survey, write_survey
 
 PLACEHOLDER_RECALL = 0.80  # used by `map` until lane A has written detector_metrics.json
+RECALL_FROM_PLACEHOLDER = "placeholder"
 DEFAULT_NOTES = "Real HERIDAL test imagery on a simulated flight path over Mount Seymour."
 
 
@@ -184,9 +185,10 @@ def map_stage(ctx: Context) -> None:
     place = read_json(ctx.work / "place" / "poses.json", PlaceFile, produced_by="place")
     flight_index = _flight_index(ctx)
     metrics_path = ctx.work / "detect" / "detector_metrics.json"
-    recall = PLACEHOLDER_RECALL
+    recall, recall_source = PLACEHOLDER_RECALL, RECALL_FROM_PLACEHOLDER
     if metrics_path.is_file():
         recall = read_json(metrics_path, DetectorMetricsFile).detector.recall
+        recall_source = RECALL_FROM_DETECTOR
     config = read_json(ctx.work / "detect" / "config.json", DetectConfig, produced_by="detect")
     raw = read_json(
         ctx.work / "detect" / "detections_raw.json", RawDetectionsFile, produced_by="detect"
@@ -203,7 +205,7 @@ def map_stage(ctx: Context) -> None:
         )
         for frame_id, index in sorted(flight_index.items(), key=lambda item: item[1])
     ]
-    map_file, cells = ctx.lanes.build_map(frames, place.lkp, recall)
+    map_file, cells = ctx.lanes.build_map(frames, place.lkp, recall, recall_source)
     write_json(ctx.work / "map" / "map.json", normalise_map(map_file))
     write_json(ctx.work / "map" / "frame_cells.json", FrameCellsFile(frames=cells))
 

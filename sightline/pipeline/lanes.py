@@ -59,6 +59,7 @@ _LANE = {
 
 DEFAULT_LKP = LatLon(lat=49.37, lon=-122.945)
 DEFAULT_AREA_NAME = "Mount Seymour, North Vancouver (simulated flight path)"
+RECALL_FROM_DETECTOR = "metrics.detector.recall"
 PLACEHOLDER_RADIUS_M = 10.0  # the stated position-uncertainty assumption on the simulated path
 
 Footprint = tuple[
@@ -87,6 +88,18 @@ class MapFrame:
     # (lat, lon, radius_m) of each candidate detection in the frame (conf >= candidate_threshold),
     # so lane C can hold those cells for review (pod = 0 near a detection).
     candidates: tuple[tuple[float, float, float], ...] = ()
+
+
+def _accepts_positional(function: Callable[..., Any], count: int) -> bool:
+    """True if `function` can be called with `count` positional arguments."""
+    try:
+        parameters = inspect.signature(function).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    if any(p.kind is inspect.Parameter.VAR_POSITIONAL for p in parameters):
+        return True
+    positional = [p for p in parameters if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+    return len(positional) >= count
 
 
 def _as_cells(raw_cells: Mapping[str, Sequence[Sequence[Any]]]) -> FrameCells:
@@ -262,13 +275,21 @@ class Lanes:
     # --- lane C -------------------------------------------------------------------------------
 
     def build_map(
-        self, frames: Sequence[MapFrame], lkp: LatLon, recall: float
+        self,
+        frames: Sequence[MapFrame],
+        lkp: LatLon,
+        recall: float,
+        recall_source: str = RECALL_FROM_DETECTOR,
     ) -> tuple[MapFile, FrameCells]:
+        """`recall_source` says where `recall` comes from (the detector metrics or the placeholder)."""
         function = self.get("build_map")
         if function is None:
             self._fallback("build_map", "a uniform prior with empty steps")
-            return placeholder_map([f.id for f in frames], lkp, recall)
-        result = function(list(frames), lkp, recall)
+            return placeholder_map([f.id for f in frames], lkp, recall, recall_source)
+        if _accepts_positional(function, 4):
+            result = function(list(frames), lkp, recall, recall_source)
+        else:
+            result = function(list(frames), lkp, recall)  # an older build_map without recall_source
         if isinstance(result, tuple):
             raw_map, raw_cells = result
         elif isinstance(result, MapFile):
