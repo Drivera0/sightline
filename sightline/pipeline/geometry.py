@@ -63,11 +63,17 @@ def pixel_to_latlon(
 def placeholder_flight(n_frames: int, lkp: LatLon) -> list[Pose]:
     """A lawnmower path centred on the LKP: lines 20 m apart going south, frames 15 m apart.
 
-    500 frames make 20 lines of 25, 20 make 4 of 5; other counts fly one line. Lines alternate
-    between heading 90 (east) and 270 (west). Simulated, like the real demo path.
+    500 frames make 20 lines of 25, 20 make 4 of 5, 41 make lines of 25 and 16. Up to 1200 frames
+    fit inside the 1 km grid. Lines alternate between heading 90 (east) and 270 (west).
+    Simulated, like the real demo path.
     """
-    per_line = 25 if n_frames % 25 == 0 else 5 if n_frames % 5 == 0 else n_frames
-    lines = n_frames // per_line
+    if n_frames % 25 == 0:
+        per_line = 25
+    elif n_frames % 5 == 0 and n_frames <= 250:
+        per_line = 5
+    else:
+        per_line = min(25, n_frames)
+    lines = -(-n_frames // per_line)  # ceiling division; the last line may be shorter
     poses = []
     for k in range(n_frames):
         line, i = divmod(k, per_line)
