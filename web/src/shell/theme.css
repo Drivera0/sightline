@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/* Tokens from docs/05_FRONTEND_SHARED.md section 5. Never hard-code colours or sizes elsewhere. */
+:root {
+  --bg: #0a0b0d; /* app background */
+  --surface: rgba(255, 255, 255, 0.05); /* glass panels */
+  --surface-strong: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.12);
+  --text: #f2f2f0;
+  --text-2: #a1a1aa; /* secondary */
+  --text-3: #8a8a93; /* captions, sources */
+  --accent: #ff7a1a; /* the one accent: selection, pins, heat */
+  --accent-soft: #ffb27a;
+  --ok: #7ee2a0; /* "Person" */
+  --warn: #ffc48f; /* "Unsure" */
+  --radius-lg: 28px;
+  --radius-md: 20px;
+  --radius-sm: 12px;
+  --font: "Geist Variable", system-ui, sans-serif;
+  --mono: "Geist Mono Variable", ui-monospace, monospace;
+  --hand: "Caveat Variable", cursive; /* annotations only */
+  color-scheme: dark;
+}
+
+/* Expose the tokens as Tailwind utilities (bg-surface, text-text-2, rounded-lg, font-mono, ...). */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --radius-lg: var(--radius-lg);
+  --radius-md: var(--radius-md);
+  --radius-sm: var(--radius-sm);
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+  --font-hand: var(--hand);
+}
+
+/* Type scale: 32 / 20 / 15 / 13 px, plus the 12 px uppercase mono label. */
+@theme {
+  --text-display: 32px;
+  --text-title: 20px;
+  --text-body: 15px;
+  --text-small: 13px;
+  --text-label: 12px;
+  --tracking-label: 0.08em;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
