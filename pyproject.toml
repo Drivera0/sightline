@@ -12,13 +12,14 @@ dependencies = [
     "typer",
     "fastapi",
     "uvicorn",
+    "python-multipart",
 ]
 
 [project.optional-dependencies]
 ml = ["torch", "torchvision", "ultralytics", "sahi"]
 
 [dependency-groups]
-dev = ["pytest", "ruff", "matplotlib"]
+dev = ["pytest", "ruff", "matplotlib", "httpx"]
 
 [build-system]
 requires = ["hatchling"]
