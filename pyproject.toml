@@ -1,0 +1,36 @@
+[project]
+name = "sightline"
+version = "0.1.0"
+description = "Finds people in search-and-rescue drone photos and keeps a Bayesian search map."
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pillow",
+    "opencv-python-headless",
+    "shapely",
+    "pydantic>=2",
+    "typer",
+    "fastapi",
+    "uvicorn",
+]
+
+[project.optional-dependencies]
+ml = ["torch", "torchvision", "ultralytics", "sahi"]
+
+[dependency-groups]
+dev = ["pytest", "ruff", "matplotlib"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sightline"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

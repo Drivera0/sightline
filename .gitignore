@@ -1,0 +1,12 @@
+data/
+cache/demo/
+web/public/cache/demo/
+*.pt
+.env*
+node_modules/
+__pycache__/
+data/runs/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
