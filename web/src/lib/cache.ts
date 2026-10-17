@@ -69,6 +69,8 @@ interface CacheState {
   status: Status;
   data: CacheBundle | null;
   error: string | null;
+  /** Folder under public/cache/ that was last loaded, for building image URLs. */
+  dir: string | null;
   load: (dir: string, fetchImpl?: typeof fetch) => Promise<void>;
   reset: () => void;
 }
@@ -79,9 +81,10 @@ export const useCache = create<CacheState>((set) => ({
   status: "idle",
   data: null,
   error: null,
+  dir: null,
   load: async (dir, fetchImpl = fetch) => {
     const mine = ++latestLoad;
-    set({ status: "loading", data: null, error: null });
+    set({ status: "loading", data: null, error: null, dir });
     try {
       const data = await loadCache(dir, fetchImpl);
       if (mine === latestLoad) set({ status: "ready", data, error: null });
@@ -93,7 +96,7 @@ export const useCache = create<CacheState>((set) => ({
   },
   reset: () => {
     latestLoad++;
-    set({ status: "idle", data: null, error: null });
+    set({ status: "idle", data: null, error: null, dir: null });
   },
 }));
 
