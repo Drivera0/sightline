@@ -182,15 +182,17 @@ def test_rank_file_ranks_must_be_one_to_n():
         )
 
 
-def test_frame_cells_file_lists_covered_cells_with_unrounded_pod():
-    cells = FrameCellsFile.model_validate({"frames": {"f0001": [[1234, 0.21044], [1235, 0.0004]]}})
+def test_frame_cells_file_lists_covered_cells_with_unrounded_canopy_and_overlap():
+    cells = FrameCellsFile.model_validate(
+        {"frames": {"f0001": [[1234, 0.21044, 2.0], [1235, 0.0004, 1.0]]}}
+    )
 
-    assert cells.frames["f0001"][1] == (1235, 0.0004)
+    assert cells.frames["f0001"][1] == (1235, 0.0004, 1.0)
 
 
-def test_frame_cells_pod_must_be_a_probability():
+def test_frame_cells_canopy_must_be_a_fraction():
     with pytest.raises(ValidationError):
-        FrameCellsFile.model_validate({"frames": {"f0001": [[1, 1.5]]}})
+        FrameCellsFile.model_validate({"frames": {"f0001": [[1, 1.5, 1.0]]}})
 
 
 def test_survey_frame_file_matches_what_write_survey_writes():

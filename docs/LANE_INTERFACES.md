@@ -21,7 +21,7 @@ The pipeline looks for each function by name. If it is missing, the stage writes
 
 | Function | Called as | Should return |
 |---|---|---|
-| `build_map` | `build_map(frames, lkp, recall)` | A contract `MapFile`. Optionally also the covered cells per frame: a pair `(map_file, frame_cells)`, or an object with `.map` and `.frame_cells`. `frame_cells` is `{frame_id: [(cell_idx, pod), ...]}` with unrounded `pod`. |
+| `build_map` | `build_map(frames, lkp, recall)` | A contract `MapFile`. Optionally also the covered cells per frame: a pair `(map_file, frame_cells)`, or an object with `.map` and `.frame_cells`. `frame_cells` is `{frame_id: [(cell_idx, canopy, overlap), ...]}` for every cell the frame covers: `canopy` is a fraction 0–1 (or `None` if unknown) and `overlap` is a number ≥ 0 (you define the unit; 1.0 = one look). Values are unrounded. If you return only a `MapFile`, the pipeline derives cells from the steps with overlap 1.0 and notes it in the manifest. |
 | `simulate` | `simulate(map_file, frame_cells)` | A contract `SearchSim` (or a dict with its fields). |
 
 `frames` is a list of `MapFrame` (`sightline.pipeline.lanes.MapFrame`): `id`, `image_path`, `pose`,
