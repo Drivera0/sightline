@@ -21,6 +21,7 @@ accepted in several shapes on purpose (object with attributes, dict, tuple, plai
 from __future__ import annotations
 
 import importlib
+import inspect
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -227,13 +228,16 @@ class Lanes:
         write_json(out_dir / "config.json", config)
 
     def test_images(self, split_dir: Path) -> list[Any]:
-        """The HERIDAL test photos with their boxes. Lane A's `load_split("test")` reads its own
-        default folder; the fallback reads `split_dir` (`images/` and `labels/`, YOLO format)."""
+        """The HERIDAL test photos with their boxes, read from `split_dir` (`images/` and `labels/`,
+        YOLO format). Lane A's `load_split(<folder name>, root=<parent>)` reads exactly that folder;
+        a `load_split` without `root` reads its own default folder."""
         function = self.get("load_split")
-        if function is not None:
-            return list(function("test"))
-        self._fallback("load_split", "the built-in YOLO reader")
-        return list(read_yolo_split(split_dir))
+        if function is None:
+            self._fallback("load_split", "the built-in YOLO reader")
+            return list(read_yolo_split(split_dir))
+        if "root" in inspect.signature(function).parameters:
+            return list(function(split_dir.name, root=split_dir.parent))
+        return list(function("test"))
 
     # --- lane C -------------------------------------------------------------------------------
 

@@ -336,3 +336,44 @@ def test_stages_can_record_their_own_placeholders():
     assert lanes.placeholder_notes() == {
         "detector_metrics": "lane A detector_metrics.json is missing, used zeros"
     }
+
+
+# ---------------------------------------------------------------- lane A load_split reads the folder we give it
+
+
+def test_load_split_from_lane_a_is_told_which_folder_to_read(tmp_path):
+    calls = []
+
+    def load_split(split, root=Path("data/heridal/yolo_full")):
+        calls.append((split, root))
+        return []
+
+    lanes = Lanes(overrides={"load_split": load_split})
+
+    lanes.test_images(tmp_path / "somewhere" / "yolo_full" / "test")
+
+    assert calls == [("test", tmp_path / "somewhere" / "yolo_full")]
+    assert lanes.placeholder_notes() == {}
+
+
+def test_a_load_split_that_takes_no_root_is_called_with_the_split_only(tmp_path):
+    calls = []
+    lanes = Lanes(overrides={"load_split": lambda split: calls.append(split) or []})
+
+    lanes.test_images(tmp_path / "yolo_full" / "test")
+
+    assert calls == ["test"]
+
+
+def test_lane_a_reads_exactly_the_folder_given_even_when_it_is_not_called_test(tmp_path):
+    calls = []
+
+    def load_split(split, root=None):
+        calls.append((split, root))
+        return []
+
+    lanes = Lanes(overrides={"load_split": load_split})
+
+    lanes.test_images(tmp_path / "my_photos")
+
+    assert calls == [("my_photos", tmp_path)]
