@@ -7,6 +7,7 @@ missing lane functions are recorded in `ctx.lanes` (see `lanes.py`).
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -211,6 +212,7 @@ def export_stage(
     stages: Stages | None = None,
     git_sha: str | None = None,
     generated_at: datetime | None = None,
+    extra_notes: Sequence[str] = (),
 ) -> None:
     """Build, validate and write the cache. The manifest names every placeholder that was used."""
     placeholders = ctx.lanes.placeholder_notes()
@@ -219,6 +221,8 @@ def export_stage(
         notes += (
             " Placeholders used: " + "; ".join(f"{k}: {v}" for k, v in placeholders.items()) + "."
         )
+    if extra_notes:
+        notes += " " + " ".join(extra_notes)
     export_cache(
         ctx.work,
         out,
