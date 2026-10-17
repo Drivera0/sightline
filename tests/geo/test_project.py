@@ -5,13 +5,12 @@ These become active as soon as Lane D lands ``sightline.contract``.
 
 from __future__ import annotations
 
-import random
 import math
+import random
 
 import pytest
 
-contract = pytest.importorskip("sightline.contract")
-
+from sightline import contract
 from sightline.geo.project import footprint, latlon_to_pixel, pixel_to_latlon
 
 
@@ -95,15 +94,11 @@ def test_contract_footprint_example(pose) -> None:
         (-122.946233, 49.369722),
         (-122.946233, 49.369902),
     ]
-    for actual_corner, expected_corner in zip(
-        footprint(pose, 1000, 750), expected, strict=True
-    ):
+    for actual_corner, expected_corner in zip(footprint(pose, 1000, 750), expected, strict=True):
         assert actual_corner == pytest.approx(expected_corner, abs=1e-6)
 
 
-def _distance_m(
-    first: tuple[float, float], second: tuple[float, float], latitude: float
-) -> float:
+def _distance_m(first: tuple[float, float], second: tuple[float, float], latitude: float) -> float:
     east_m = (second[0] - first[0]) * 111_320 * math.cos(math.radians(latitude))
     north_m = (second[1] - first[1]) * 111_320
     return math.hypot(east_m, north_m)

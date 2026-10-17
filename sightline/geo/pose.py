@@ -40,12 +40,18 @@ def read_pose(image: Path) -> RealPoseInfo | None:
         gps = exif.get_ifd(ExifTags.IFD.GPSInfo)
     except (AttributeError, KeyError):
         gps = exif.get(34853)
+    try:
+        exif_details = exif.get_ifd(ExifTags.IFD.Exif)
+    except (AttributeError, KeyError):
+        exif_details = {}
 
     lat = _gps_decimal(gps, 2, 1)
     lon = _gps_decimal(gps, 4, 3)
-    f35_mm = _as_float(exif.get(41989))
+    f35_mm = _as_float(exif_details.get(41989, exif.get(41989)))
     camera_model_value = exif.get(272)
-    camera_model = str(camera_model_value).strip() if camera_model_value else None
+    camera_model = (
+        str(camera_model_value).strip("\x00 ") if camera_model_value else None
+    )
 
     raw = image.read_bytes()
     relative_altitude_m = _xmp_number(raw, "RelativeAltitude")
@@ -108,7 +114,7 @@ def _xmp_number(raw: bytes, name: str) -> float | None:
     escaped = re.escape(name)
     patterns = (
         rf'drone-dji:{escaped}=["\']\s*([+-]?[0-9]+(?:\.[0-9]+)?)',
-        rf'<drone-dji:{escaped}>\s*([+-]?[0-9]+(?:\.[0-9]+)?)',
+        rf"<drone-dji:{escaped}>\s*([+-]?[0-9]+(?:\.[0-9]+)?)",
     )
     for pattern in patterns:
         match = re.search(pattern, text)

@@ -15,9 +15,7 @@ def hfov_from_f35(f35_mm: float, width_px: int, height_px: int) -> float:
     if width_px <= 0 or height_px <= 0:
         raise ValueError("image dimensions must be positive")
 
-    equivalent_width_mm = (
-        FULL_FRAME_DIAGONAL_MM * width_px / math.hypot(width_px, height_px)
-    )
+    equivalent_width_mm = FULL_FRAME_DIAGONAL_MM * width_px / math.hypot(width_px, height_px)
     return math.degrees(2.0 * math.atan(equivalent_width_mm / (2.0 * f35_mm)))
 
 

@@ -8,4 +8,3 @@ from sightline.contract import LatLon
 
 LKP = LatLon(lat=49.370000, lon=-122.945000)
 SECTOR_NW: LatLon | None = None
-

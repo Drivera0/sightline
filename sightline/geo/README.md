@@ -17,9 +17,24 @@ Lane A box_px ──> detections.py ─────────────┤
                                  LatLon, footprints, map data
 
 FlightPlan ──> flight.py ──> 500 simulated Pose objects ──> project.py
+                         │
+                         └──> __init__.py adapters ──> Lane D pipeline
 ```
 
 ## Python functions
+
+### `__init__.py` pipeline adapters
+
+Status: implemented against `docs/LANE_INTERFACES.md` and
+`sightline/pipeline/formats.py`.
+
+| Function | Purpose | Output |
+|---|---|---|
+| `simulate_flight(n_frames, seed)` | Adapts Lane D's frame-count call to Lane B's `FlightPlan` API and centres the generated sector on the LKP until `SECTOR_NW` is agreed. | `SimulatedFlight` with exactly `n_frames` poses, LKP and area name |
+| `georef_detection(pose, box_px, width_px, height_px)` | Converts Lane D's tuple box and pose-first argument order to Lane B's typed `Box` API. | `(lat, lon, radius_m)` |
+
+Lane B's native functions in `flight.py` and `detections.py` retain their typed,
+math-focused signatures. The root adapters are the stable pipeline seam.
 
 ### `camera.py`
 
@@ -72,15 +87,17 @@ Status: implemented and smoke-tested with contract-shaped objects.
 
 | Function | Purpose | Main inputs | Output |
 |---|---|---|---|
-| `georef_detection(box, pose, width_px, height_px, radius_m=10.0)` | Finds the Lane A box centre and projects it to GPS. | `[x1, y1, x2, y2]`, frame pose and dimensions | `(LatLon, radius_m)` |
+| `georef_detection(box, pose, width_px, height_px, radius_m=10.0)` | Finds the Lane A box centre and projects it to GPS. | Lane A `Box`, frame pose and dimensions | `(LatLon, radius_m)` |
 
-The local `Box` alias is currently `Sequence[float]`. It should be reconciled
-with Lane A's final in-process detection type without changing the JSON
-`box_px` contract.
+The function consumes Lane A's frozen `sightline.ml.types.Box` dataclass. Lane
+D remains responsible for serializing it as the JSON `box_px` tuple.
 
 ### `pose.py`
 
-Status: implemented, but not yet tested with an original HERIDAL JPEG.
+Status: implemented and validated against the official 101-image HERIDAL test
+split. The reader finds 47 complete DJI poses; 28 satisfy the documented nadir
+rule (`abs(pitch_deg + 90) <= 10`). Oblique images retain their metadata but
+must not be passed to the flat-ground projection model.
 
 | Function | Purpose | Output |
 |---|---|---|
@@ -95,13 +112,32 @@ Status: implemented, but not yet tested with an original HERIDAL JPEG.
 
 ### `web/src/map/MapView.tsx`
 
-Status: basic map lifecycle implemented; data layers remain TODO.
+Status: cache-backed base layers implemented.
 
 | Function | Purpose |
 |---|---|
 | `MapProvider(props)` | Creates and owns the single MapLibre instance and exposes it through React context. |
 | `useMap()` | Returns the shared map plus `flyTo`; raises an error outside `MapProvider`. |
-| `MapView(props)` | Convenience wrapper that renders `MapProvider` with supplied layer components. |
+| `BaseMapLayers()` | Synchronizes the sample/demo cache, map clicks, shared selection and uncertainty label. |
+| `MapView(props)` | Renders the cache-backed base layers plus optional caller-supplied layers. |
+
+### `web/src/map/base/features.ts`
+
+| Function | Purpose |
+|---|---|
+| `buildFootprintFeatures(survey)` | Converts contract footprints into closed GeoJSON polygons. |
+| `buildFlightPathFeature(survey)` | Joins frame centres in `flight_index` order. |
+| `buildDetectionFeatures(detections)` | Converts candidate detections into uncertainty-circle polygons. |
+| `buildLkpFeature(survey)` | Creates the last-known-point GeoJSON feature. |
+| `surveyBounds(survey)` | Calculates the initial map bounds from every footprint. |
+
+### `web/src/map/base/layers.ts`
+
+| Function | Purpose |
+|---|---|
+| `readMapColors(root)` | Resolves shared CSS colour tokens for MapLibre canvas paint. |
+| `syncBaseLayers(map, bundle)` | Adds or refreshes the footprint, flight-path, detection and LKP sources/layers. |
+| `setSelectedFootprint(map, frameId)` | Highlights the frame selected from either the map or review queue. |
 
 ### `web/src/map/base/basemap.ts`
 
@@ -125,37 +161,45 @@ Status: basic map lifecycle implemented; data layers remain TODO.
 | `tests/geo/test_project.py` | Centre pixel, headings, round trips, footprint size/order and contract example |
 | `tests/geo/test_flight.py` | Pose count, ordering, spacing, survey dimensions and footprint containment |
 | `tests/geo/test_detections.py` | Box-centre projection and default uncertainty radius |
-| `tests/geo/test_pose.py` | Real DJI metadata and footprint check; skipped when the fixture is absent |
+| `tests/geo/test_pose.py` | Real nadir metadata/footprint and oblique-frame flag checks; skipped when the test split is absent |
+| `tests/geo/test_pipeline_interface.py` | Lane D flight/georef calls resolve to real Lane B functions without placeholder notes |
 
 ## TODO
 
 ### Required backend integration
 
-- [ ] Replace the temporary contract-shaped smoke objects with Lane D's real
+- [x] Replace the temporary contract-shaped smoke objects with Lane D's real
   `sightline.contract.Pose` and `LatLon` models.
-- [ ] Run `uv run pytest tests/geo` and `uv run ruff check sightline/geo` after
+- [x] Run Geo pytest and Ruff after
   Lane D adds the project configuration and dependencies.
 - [ ] Agree on `LKP` and `SECTOR_NW` with Lane C, then set `SECTOR_NW` in
   `constants.py`.
-- [ ] Confirm Lane A's in-process `Box` type and update the local alias if
-  necessary.
-- [ ] Validate `read_pose()` with the original `test_SB_0007.jpg` fixture near
-  the end of Lane B work.
+- [x] Consume Lane A's in-process `sightline.ml.types.Box` directly.
+- [x] Review Lane D's draft interfaces and provide compatible root adapters for
+  `simulate_flight`, `footprint` and `georef_detection`.
+- [x] Validate `read_pose()` with the original `test_SB_0009.JPG` image.
+- [x] Audit all 101 release images and validate nadir/oblique examples from
+  `data/heridal/yolo_full/test/images/`.
 
 ### Required map implementation
 
-- [ ] Connect `MapView` to Lane D's cache loader and selection store.
+- [x] Connect `MapView` to Lane D's cache loader and selection store.
 - [ ] Add MapTiler satellite style construction using
   `VITE_MAPTILER_KEY` without committing the key.
 - [ ] Add the offline North Shore PMTiles source and style.
-- [ ] Implement grid-outline and frame-footprint layers.
-- [ ] Implement the flight-path line and direction arrows. This layer may be
+- [ ] Implement the grid-outline layer.
+- [x] Implement the frame-footprint layer.
+- [x] Implement the flight-path line. Direction arrows remain optional. This layer may be
   omitted later without affecting the Python projection code.
-- [ ] Implement detection uncertainty circles and review-state styling.
-- [ ] Implement the selected-footprint highlight and queue/map selection sync.
-- [ ] Implement the labelled last-known-point marker.
-- [ ] Add the required simulated-flight-path and 10 m uncertainty badges.
-- [ ] Run `pnpm test` and `pnpm build` once Lane D supplies the web project.
+- [x] Implement basic detection uncertainty circles. Review-state styling waits
+  for Lane D's `useReview` store.
+- [x] Implement the selected-footprint highlight and queue/map selection sync.
+- [x] Implement the last-known-point marker. Its text label remains TODO.
+- [x] Add the required simulated-flight-path and contract-provided uncertainty badges.
+- [x] Type-check and build the web project; the map unit tests pass in Node mode.
+- [ ] Run the complete jsdom suite once Lane D aligns its bleeding-edge web
+  dependency/runtime versions; workers currently fail inside transitive jsdom
+  dependencies before loading any tests.
 
 ### Final validation
 
@@ -163,4 +207,3 @@ Status: basic map lifecycle implemented; data layers remain TODO.
 - [ ] Exercise the complete queue-to-map `flyTo` interaction.
 - [ ] Verify satellite and offline modes at the target screen sizes.
 - [ ] Confirm attribution is always visible.
-

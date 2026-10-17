@@ -21,9 +21,6 @@ def test_dji_fov_and_gsd_match_documented_example() -> None:
         ((20.0, 0, 750), "dimensions"),
     ],
 )
-def test_hfov_rejects_invalid_inputs(
-    args: tuple[float, int, int], message: str
-) -> None:
+def test_hfov_rejects_invalid_inputs(args: tuple[float, int, int], message: str) -> None:
     with pytest.raises(ValueError, match=message):
         hfov_from_f35(*args)
-

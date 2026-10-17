@@ -77,9 +77,7 @@ def simulate_flight(plan: FlightPlan) -> list[Pose]:
 
         for frame_index in range(plan.frames_per_line):
             ordered_index = (
-                frame_index
-                if line_index % 2 == 0
-                else plan.frames_per_line - 1 - frame_index
+                frame_index if line_index % 2 == 0 else plan.frames_per_line - 1 - frame_index
             )
             east_m = along_half_m + plan.along_m * ordered_index
             longitude = plan.sector_nw.lon + east_m / longitude_scale
