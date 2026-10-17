@@ -46,6 +46,7 @@ export function Shell({ cache }: { cache: CacheBundle }) {
           <h1 className="text-title font-medium">Sightline · Mount Seymour survey</h1>
           {survey.simulated_path && <Badge kind="simulated">Simulated flight path</Badge>}
           {detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
+          {detections.model === "PLACEHOLDER" && <Badge kind="placeholder">Placeholder detections</Badge>}
         </div>
         <Tabs tabs={TABS} value={tab} onChange={setTab} label="Screens" idPrefix="shell" />
         <div className="flex items-center gap-4 text-small text-text-3">
@@ -65,7 +66,7 @@ export function Shell({ cache }: { cache: CacheBundle }) {
       <main className="flex min-h-0 flex-1 flex-col">
         {tab === "review" && (
           <TabPanel id="review" idPrefix="shell">
-            <ReviewView />
+            <ReviewView cache={cache} onShowMap={() => setTab("map")} />
           </TabPanel>
         )}
         {tab === "map" && (
