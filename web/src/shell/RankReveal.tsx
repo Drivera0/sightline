@@ -4,7 +4,7 @@ import { cacheUrl } from "../lib/cache";
 import { prefersReducedMotion } from "../metrics/motion";
 import { reviewItems, type ReviewItem } from "../review/items";
 import { Badge, Label } from "./components";
-import { CLEAR_MS, HIT_MS, framesInFlightOrder, scanStops } from "./scan";
+import { framesInFlightOrder, scanStops, stopMs } from "./scan";
 
 /** Queue rows shown before "+N more". */
 const QUEUE_ROWS = 6;
@@ -68,61 +68,77 @@ function useFlip(order: string) {
   );
 }
 
-/** A photo with its candidate boxes drawn on, each labelled with the detector's confidence. */
+/**
+ * One box on a photo, in percent of the frame so it stays put at any size. The tag is fixed-size
+ * text (not scaled with the photo), above the box, below it near the top edge, and right-aligned
+ * near the right edge, so it never leaves the photo.
+ */
+function BoxOverlay({ frame, detection, kind, threshold }: { frame: Frame; detection: Detection; kind: "hit" | "rejected"; threshold: number }) {
+  const [x1, y1, x2, y2] = detection.box_px;
+  const pad = Math.max(10, (x2 - x1) * 0.3);
+  const left = (Math.max(0, x1 - pad) / frame.width_px) * 100;
+  const top = (Math.max(0, y1 - pad) / frame.height_px) * 100;
+  const right = (Math.min(frame.width_px, x2 + pad) / frame.width_px) * 100;
+  const bottom = (Math.min(frame.height_px, y2 + pad) / frame.height_px) * 100;
+  const tagBelow = top < 12;
+  const tagRight = left > 68;
+  const hit = kind === "hit";
+  return (
+    <div
+      className={"sl-box absolute rounded-[8px] " + (hit ? "border-2 border-accent shadow-[0_0_0_4px_color-mix(in_srgb,var(--accent)_18%,transparent),0_0_28px_color-mix(in_srgb,var(--accent)_45%,transparent)]" : "border border-dashed border-text/70")}
+      style={{ left: `${left}%`, top: `${top}%`, width: `${right - left}%`, height: `${bottom - top}%` }}
+    >
+      <span
+        className={
+          "sl-tag absolute flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[12px] font-medium leading-none shadow-[0_6px_16px_-6px_rgba(0,0,0,0.8)] " +
+          (hit ? "bg-accent text-bg" : "bg-bg/85 text-text-2 ring-1 ring-border backdrop-blur") +
+          (tagBelow ? " top-[calc(100%+6px)]" : " bottom-[calc(100%+6px)]") +
+          (tagRight ? " right-0" : " left-0")
+        }
+      >
+        {hit ? (
+          <>
+            <span className="size-1.5 rounded-full bg-bg/70" aria-hidden="true" />
+            Person
+            <span className="font-mono opacity-80">{detection.conf.toFixed(2)}</span>
+          </>
+        ) : (
+          <>
+            <span className="font-mono">{detection.conf.toFixed(2)}</span>
+            <span className="text-text-3">below {threshold}</span>
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** A photo with the detector's boxes on it: candidates in orange, rejected look-alikes dashed grey. */
 function ScanFrame({
   frame,
   hits,
+  rejected,
+  threshold,
   dir,
   scanMs,
 }: {
   frame: Frame;
   hits: Detection[];
+  rejected: Detection[];
+  threshold: number;
   dir: string;
   /** Length of the scan-line sweep; 0 for none. */
   scanMs: number;
 }) {
-  const w = frame.width_px;
-  const h = frame.height_px;
   return (
     <div className="relative h-full w-full overflow-hidden rounded-md bg-surface-strong">
       <img src={cacheUrl(dir, frame.file)} alt={`Frame ${frame.id}`} className="absolute inset-0 h-full w-full object-cover" />
-      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid slice" className="absolute inset-0 h-full w-full" aria-hidden="true">
-        {hits.map((d) => {
-          const [x1, y1, x2, y2] = d.box_px;
-          const pad = Math.max(8, (x2 - x1) * 0.25);
-          // The tag sits above the box, or below it when the person is near the top edge.
-          const tagH = w / 32;
-          const tagY = y1 - pad - tagH - 4 >= 0 ? y1 - pad - tagH - 4 : y2 + pad + 4;
-          return (
-            <g key={d.id}>
-              <rect
-                className="sl-draw"
-                pathLength={1}
-                x={x1 - pad}
-                y={y1 - pad}
-                width={x2 - x1 + 2 * pad}
-                height={y2 - y1 + 2 * pad}
-                rx={6}
-                fill="none"
-                stroke="var(--accent)"
-                strokeWidth={Math.max(3, w / 300)}
-              />
-              <g className="sl-fade" style={{ animationDelay: "450ms" }}>
-                <rect x={x1 - pad} y={tagY} width={w / 7.5} height={tagH} rx={4} fill="var(--accent)" />
-                <text
-                  x={x1 - pad + w / 120}
-                  y={tagY + tagH * 0.72}
-                  fill="var(--bg)"
-                  fontSize={w / 48}
-                  fontFamily="var(--mono)"
-                >
-                  person {d.conf.toFixed(2)}
-                </text>
-              </g>
-            </g>
-          );
-        })}
-      </svg>
+      {rejected.map((d) => (
+        <BoxOverlay key={d.id} frame={frame} detection={d} kind="rejected" threshold={threshold} />
+      ))}
+      {hits.map((d) => (
+        <BoxOverlay key={d.id} frame={frame} detection={d} kind="hit" threshold={threshold} />
+      ))}
       {scanMs > 0 && (
         <span
           aria-hidden="true"
@@ -170,7 +186,7 @@ export function RankReveal({
 
   useEffect(() => {
     if (done || !current) return;
-    const timer = window.setTimeout(() => setStop((s) => s + 1), current.hits.length > 0 ? HIT_MS : CLEAR_MS);
+    const timer = window.setTimeout(() => setStop((s) => s + 1), stopMs(current));
     return () => window.clearTimeout(timer);
   }, [stop, done, current]);
 
@@ -192,7 +208,9 @@ export function RankReveal({
   const firstHit = ranking.ranked.frames_to_first_hit;
   const lead = items[0];
   const source = `Demo survey, ${ranking.n_frames} frames (metrics.ranking)`;
-  const viewer = done ? (lead ? { frame: lead.frame, hits: [lead.detection] } : undefined) : current;
+  const viewer = done ? (lead ? { frame: lead.frame, hits: [lead.detection], rejected: [] } : undefined) : current;
+  const threshold = cache.detections.candidate_threshold;
+  const aspect = viewer ? viewer.frame.width_px / viewer.frame.height_px : 4 / 3;
 
   return (
     <div className="grid h-full min-h-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
@@ -212,15 +230,15 @@ export function RankReveal({
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <div
             className={
-              "relative aspect-[4/3] max-h-full w-full overflow-hidden rounded-md " +
+              "relative max-h-full w-full rounded-md " +
               (viewer && viewer.hits.length > 0 ? "sl-glow" : "")
             }
             key={viewer && viewer.hits.length > 0 ? `glow-${viewer.frame.id}` : "viewer"}
-            style={{ maxWidth: "calc((100vh - 15rem) * 4 / 3)" }}
+            style={{ aspectRatio: aspect, maxWidth: `calc((100vh - 15rem) * ${aspect})` }}
           >
             {previous && (
               <div className="absolute inset-0" aria-hidden="true">
-                <ScanFrame frame={previous.frame} hits={[]} dir={dir} scanMs={0} />
+                <ScanFrame frame={previous.frame} hits={[]} rejected={[]} threshold={threshold} dir={dir} scanMs={0} />
               </div>
             )}
             {viewer && (
@@ -228,8 +246,10 @@ export function RankReveal({
                 <ScanFrame
                   frame={viewer.frame}
                   hits={viewer.hits}
+                  rejected={viewer.rejected}
+                  threshold={threshold}
                   dir={dir}
-                  scanMs={done || !current ? 0 : current.hits.length > 0 ? HIT_MS * 0.6 : CLEAR_MS}
+                  scanMs={done || !current ? 0 : Math.min(900, stopMs(current))}
                 />
               </div>
             )}
@@ -238,11 +258,13 @@ export function RankReveal({
                 {viewer?.frame.id} · photo {(viewer ? (positionOf.get(viewer.frame.id) ?? 0) : 0) + 1}
               </span>
               {viewer && viewer.hits.length > 0 ? (
-                <span className="rounded-full bg-accent px-2.5 py-1 text-bg">
-                  Candidate · {Math.max(...viewer.hits.map((d) => d.conf)).toFixed(2)}
+                <span className="rounded-full bg-accent px-2.5 py-1 text-bg">Flagged for review</span>
+              ) : viewer && viewer.rejected.length > 0 ? (
+                <span className="rounded-full bg-bg/80 px-2.5 py-1 text-text-2 backdrop-blur">
+                  Looked closer, scored below {threshold}: not flagged
                 </span>
               ) : (
-                <span className="rounded-full bg-bg/75 px-2.5 py-1 text-text-3 backdrop-blur">No person found</span>
+                <span className="rounded-full bg-bg/75 px-2.5 py-1 text-text-3 backdrop-blur">Nothing flagged</span>
               )}
             </div>
           </div>
