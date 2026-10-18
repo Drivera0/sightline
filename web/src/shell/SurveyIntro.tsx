@@ -5,6 +5,7 @@ import type { CacheBundle, Detection, Frame } from "../contract";
 import { cacheUrl } from "../lib/cache";
 import { Label } from "./components";
 import { Sourced } from "./Popover";
+import { SpeckReveal } from "./SpeckReveal";
 
 /** "Mount Seymour, North Vancouver (simulated flight path)" -> "Mount Seymour, North Vancouver". */
 export function placeName(areaName: string): string {
@@ -188,6 +189,7 @@ export function SurveyIntro({
   onReview,
   onTour,
   modelBackground = true,
+  touring = false,
 }: {
   cache: CacheBundle;
   dir: string;
@@ -198,6 +200,8 @@ export function SurveyIntro({
   onTour?: () => void;
   /** Show the faded detector graph in the background. */
   modelBackground?: boolean;
+  /** The guided tour is running: the opening animation stops and stays quiet. */
+  touring?: boolean;
 }) {
   const { survey, manifest, metrics } = cache;
   const human = metrics.baseline_human;
@@ -283,6 +287,8 @@ export function SurveyIntro({
           )}
         </div>
       </div>
+      {/* One real photo comes forward, right of the text, and the detector finds the person in it. */}
+      <SpeckReveal cache={cache} dir={dir} quiet={touring} />
     </div>
   );
 }
