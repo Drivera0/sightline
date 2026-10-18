@@ -29,7 +29,7 @@ Build a detector that finds 60-pixel people in drone photos, prove how good it i
 | Out | Detections on demo frames | `data/work/detect/detections_raw.json` (§6.4) |
 | Out | Crops | `data/work/detect/crops/<frame_id>-dNN.jpg` |
 | Out | Detect config | `data/work/detect/config.json`: weights path, model name, `candidate_threshold` |
-| Out | Metrics | `data/work/detect/detector_metrics.json`: contract `DetectorMetrics` + the 4 `Ablation` rows, written on the desktop (§6.3 step 7) |
+| Out | Metrics | `data/work/detect/detector_metrics.json`: contract `DetectorMetrics` + the `Ablation` rows (§6.3 step 2), written on the desktop (§6.3 step 7) |
 | Out | Shared test split for teammates | `data/heridal/test/` zipped to the team drive (before the event) |
 
 You don't write cache files. Detection and evaluation need the GPU and the full dataset, so you run them on the desktop and write the files under `data/work/detect/`. D's pipeline reads those files and writes the cache. Share `data/work/detect/` on the team drive after each run.
@@ -40,7 +40,7 @@ You don't write cache files. Detection and evaluation need the GPU and the full 
 
 **The data.** HERIDAL: 1,647 photos of Croatian and Bosnian wilderness from 40–65 m, mostly 4000×3000 (a few 4000×2250), 3,229 labelled people. Official split: **1,546 train (2,892 people), 101 test (337 people)**. Every image contains at least one person. People average about **60×60 px**, about 0.03% of the image. Single class: person.
 
-**Why tiling.** Resizing a 4000×3000 image to the model's input (640 px by default, 1024 for us) shrinks a 60 px person to 10–15 px, and the detector misses them. So train and infer on **1024×1024 tiles at native resolution**. The SAHI library does sliced inference and merges boxes back. In a quick test, a stock COCO YOLO11m found 2 of about 12 people on 5 test photos without tiling and 4 with tiling: tiling helps, but fine-tuning is what makes it work.
+**Why tiling.** Resizing a 4000×3000 image to the model's input (640 px by default, 1024 for us) shrinks a 60 px person to 10–15 px, and the detector misses them. So train and infer on **1024×1024 tiles at native resolution**. The SAHI library does sliced inference and merges boxes back. In a quick test, a stock COCO YOLO11m found 2 of about 12 people on 5 test photos without tiling and 4 with tiling: tiling helps, but fine-tuning is what makes it work. **Measured later (2026-10-18, §6.3):** what matters is native resolution, not slicing as such. Training on 1024 px tiles beats training on whole photos shrunk to 1920 px (test AP50 0.868 vs 0.776), but the tile-trained weights run on the *whole* photo at native scale in one pass (imgsz 4000, no slicing) do as well as tiled inference (test AP50 0.887 vs 0.868), in about a third of the time and with about 20× the GPU memory (5.7 GB vs 0.28 GB).
 
 **What the published work got** (AIR, RetinaNet, Pyrrö et al. 2021): untuned baseline 4.5% recall; full method about 90% precision / 86% recall (VOC scoring). We don't need to beat AIR. **We need to beat the human baseline (59% P / 68% R) and report honestly.**
 
@@ -96,7 +96,8 @@ class Detector:
         """SAHI sliced inference for full 4000×3000 images."""
     def detect_resized(self, image: Path, conf: float = 0.05) -> list[RawDetection]:
         """Whole 4000×3000 image resized to imgsz (1024) in one pass, so a 60 px person becomes ~15 px.
-        Only for the 'no tiling' ablation rows; the metrics screen labels those rows '(resized to 1024)'."""
+        Only for the 'no tiling' ablation rows; the metrics screen labels those rows '(resized to 1024)'.
+        Detector(..., imgsz=4000) runs the whole photo at native scale instead (§6.3, fair baseline)."""
 
 # sightline/ml/crops.py
 def make_crop(image: Path, box: Box, out: Path, window_px: int = 128, out_px: int = 256) -> None:
@@ -161,6 +162,16 @@ yolo detect train model=yolo11s.pt data=data/heridal/yolo_tiles/dataset.yaml \
    | Fine-tuned, no tiling | your best tiled-trained weights | `detect_resized` |
    | Fine-tuned + tiling | your best tiled-trained weights | `detect_tiled` |
    | + hard negatives | after §6.5 | `detect_tiled` |
+
+   Since 2026-10-18 the second row is named **"Fine-tuned on tiles, run on shrunk photos"** (old files say "Fine-tuned, no tiling"; `LEGACY_ABLATION_RENAMES`): tile-trained weights on a photo shrunk to 1024 px see people at a quarter of their training scale, so the row shows a scale mismatch, not the value of tiling. Three fair no-tiling rows sit between it and "Fine-tuned + tiling" (`scripts/evaluate_no_tiling.py`, same threshold rule and scoring; full table and conclusion in `scripts/README.md`):
+
+   | Row name (exact) | Weights | Inference | Val thr | Test P / R / AP50 | s / photo, GPU memory |
+   |---|---|---|---|---|---|
+   | Stock model, full-resolution photo | `yolo11s.pt` | whole photo at imgsz 4000, one pass | 0.06 | 0.678 / 0.181 / 0.165 | 0.14 s, 5.7 GB |
+   | Fine-tuned on tiles, full-resolution photo | run 2 | whole photo at imgsz 4000, one pass | 0.13 | 0.723 / 0.905 / 0.887 | 0.14 s, 5.7 GB |
+   | Trained and run on whole photos | run 2 recipe on the same 890 photos resized to 1920 px, 80 epochs (`scripts/train_whole_photos.py`) | whole photo at imgsz 1920 | 0.30 | 0.727 / 0.804 / 0.776 | 0.08 s, 0.7 GB |
+
+   For comparison, tiled run 2: threshold 0.29, 0.802 / 0.864 / 0.868, 0.25 to 0.38 s and 0.28 GB. On val the full-resolution single pass beat tiling by ΔF2 +0.032 (95 % CI [+0.0005, +0.064]); the whole-photo model lost by ΔF2 −0.054 (CI [−0.081, −0.029]). The reported model is unchanged; adopting full-resolution inference is open (its test score has now been seen).
 3. **VOC scoring:** greedy one-to-one matching in descending confidence, IoU ≥ 0.5. Precision and recall at the threshold; AP50 = all-point interpolated area under the PR curve over all confidences.
 4. **SAR scoring** (the loose scheme from the AIR paper, our implementation): a prediction is correct if its IoU with any true box is ≥ 0.0025, and one prediction may cover several people. Precision = correct predictions / all predictions; recall = true boxes matched by at least one prediction. Label it "SAR-style (approx. AIR)" in the UI.
 5. `seconds_per_image` = mean wall time of `detect_tiled` on the test images, on the 4080 SUPER.
@@ -232,7 +243,7 @@ ResNet-18 on 128×128 crops: positives = crops of true boxes, negatives = mined 
 - `tests/ml/test_tiling.py`: a 4000×3000 image gives 20 tiles; a box straddling two tiles lands in both only where ≥ 50% inside; edge tiles snap to the border.
 - `tests/ml/test_scoring.py`: hand-built cases: perfect match → P=R=1; one miss; one false positive; SAR scoring accepts a large box covering two people as 2 recalled.
 - `tests/ml/test_crops.py`: a box at the image corner produces a 256×256 crop without error.
-- Acceptance: the counts in §4 match; val and test never overlap (assert no shared filenames); the ablation table has 4 rows from the same threshold rule.
+- Acceptance: the counts in §4 match; val and test never overlap (assert no shared filenames); every ablation row (4 core rows plus the 3 no-tiling baselines) uses the same threshold rule.
 
 Tests must run on CPU without weights; use tiny fixtures.
 

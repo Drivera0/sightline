@@ -60,7 +60,10 @@ def main(argv: list[str] | None = None) -> int:
     from sightline.ml.data import load_split
     from sightline.ml.detect import Detector
     from sightline.ml.evaluate import (
-        ABLATION_NAMES,
+        HN_ROW,
+        STOCK_ROW,
+        TILED_ROW,
+        TUNED_SHRUNK_ROW,
         Ablation,
         DetectorMetrics,
         SarScores,
@@ -82,16 +85,16 @@ def main(argv: list[str] | None = None) -> int:
     hn = Detector(args.hn_weights, device=args.device) if args.hn_weights else None
 
     use_hn = hn is not None if args.final == "auto" else args.final == "hn"
-    final_name = ABLATION_NAMES[3] if use_hn else ABLATION_NAMES[2]
+    final_name = HN_ROW if use_hn else TILED_ROW
 
     rows = []
     results: dict[str, dict[str, object]] = {}
     final_preds: dict[str, object] = {}
     plan = [
-        (ABLATION_NAMES[0], stock, "resized"),
-        (ABLATION_NAMES[1], tuned, "resized"),
-        (ABLATION_NAMES[2], tuned, "tiled"),
-        (ABLATION_NAMES[3], hn, "tiled"),
+        (STOCK_ROW, stock, "resized"),
+        (TUNED_SHRUNK_ROW, tuned, "resized"),
+        (TILED_ROW, tuned, "tiled"),
+        (HN_ROW, hn, "tiled"),
     ]
     for name, det, mode in plan:
         if det is None:
