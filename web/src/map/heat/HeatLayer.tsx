@@ -134,12 +134,13 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
 
   return (
     <Overlay>
-      {foundDetection && (
-        <Panel className="pointer-events-auto absolute left-1/2 top-3 -translate-x-1/2 px-5 py-3">
-          <FoundBanner detection={foundDetection} />
-        </Panel>
-      )}
       <Panel className="pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-5rem)] w-72 overflow-y-auto p-4">
+        {/* In the side panel rather than over the map, so it never hides the grid. */}
+        {foundDetection && (
+          <div className="mb-4 border-b border-border pb-4">
+            <FoundBanner detection={foundDetection} />
+          </div>
+        )}
         {ready && state ? (
           <NextSearch
             map={mapFile}

@@ -9,7 +9,24 @@ import {
   topCellIndices,
 } from "./geometry";
 
-const pct = (fraction: number) => `${(fraction * 100).toFixed(2)}%`;
+/** Two decimals, but 3 significant figures below 0.1% so tiny cell values stay distinguishable. */
+const pct = (fraction: number) => {
+  const percent = fraction * 100;
+  return `${percent > 0 && percent < 0.1 ? percent.toPrecision(3) : percent.toFixed(2)}%`;
+};
+
+/** Mean probability over the photographed cells (0 when none are photographed). */
+function surveyedMean(p: ArrayLike<number>, covered: Uint8Array): number {
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < covered.length; i++) {
+    if (covered[i]) {
+      sum += p[i] ?? 0;
+      n++;
+    }
+  }
+  return n ? sum / n : 0;
+}
 
 interface Props {
   map: Pick<MapFile, "grid" | "lkp" | "canopy">;
@@ -29,6 +46,7 @@ interface Props {
 export function NextSearch({ map, state, covered, onSelect }: Props) {
   const top = topCellIndices(state.p, 5, covered);
   const shares = probabilityShares(state, covered);
+  const mean = surveyedMean(state.p, covered);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
@@ -54,8 +72,15 @@ export function NextSearch({ map, state, covered, onSelect }: Props) {
                       {Math.round(dist)} m from LKP
                     </span>
                   </span>
-                  <span className="font-mono text-small text-accent-soft">
-                    {pct(state.p[idx] as number)}
+                  <span className="flex flex-col items-end">
+                    <span className="font-mono text-small text-accent-soft">
+                      {pct(state.p[idx] as number)}
+                    </span>
+                    {mean > 0 && (
+                      <span className="font-mono text-label text-text-3" title="Compared with the average photographed cell">
+                        {((state.p[idx] as number) / mean).toFixed(1)}× avg
+                      </span>
+                    )}
                   </span>
                 </button>
               </li>
