@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CacheBundle } from "../contract";
-import { CLEAR_MS, HIT_MS, scanDurationMs, scanStops } from "./scan";
+import { CLEAR_MS, HIT_MS, REJECT_MS, scanDurationMs, scanStops } from "./scan";
 
 function cache(nFrames: number, hitFrames: Record<number, number[]>): Pick<CacheBundle, "survey" | "detections"> {
   // Frames listed out of flight order on purpose: the scan must sort them.
@@ -27,8 +27,21 @@ describe("scanStops", () => {
     expect(stops[0]!.hits.map((d) => d.id)).toEqual(["f7-d0"]);
   });
 
-  it("does not count a frame whose detections are all below the threshold as a hit", () => {
-    expect(scanStops(cache(10, { 3: [0.1] }), 0)).toEqual([]);
+  it("shows a frame whose detections are all below the threshold as rejected, not as a hit", () => {
+    const stops = scanStops(cache(10, { 3: [0.1] }), 0);
+    expect(stops).toHaveLength(1);
+    expect(stops[0]!.hits).toEqual([]);
+    expect(stops[0]!.rejected.map((d) => d.conf)).toEqual([0.1]);
+  });
+
+  it("never shows a rejected box on a frame that has a candidate", () => {
+    const stops = scanStops(cache(10, { 4: [0.9, 0.1] }), 0);
+    expect(stops[0]!.rejected).toEqual([]);
+  });
+
+  it("keeps the highest-scoring rejected frames", () => {
+    const stops = scanStops(cache(10, { 2: [0.05], 5: [0.2], 8: [0.12] }), 0, 8, 2);
+    expect(stops.map((s) => s.frame.id)).toEqual(["f5", "f8"]);
   });
 
   it("spreads the clear frames over the whole flight", () => {
@@ -49,7 +62,7 @@ describe("scanStops", () => {
 
 describe("scanDurationMs", () => {
   it("rests longer on hits than on clear photos", () => {
-    const stops = scanStops(cache(10, { 2: [0.8] }), 2);
-    expect(scanDurationMs(stops)).toBe(HIT_MS + 2 * CLEAR_MS);
+    const stops = scanStops(cache(10, { 2: [0.8], 6: [0.1] }), 2);
+    expect(scanDurationMs(stops)).toBe(HIT_MS + REJECT_MS + 2 * CLEAR_MS);
   });
 });

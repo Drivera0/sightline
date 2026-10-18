@@ -24,6 +24,17 @@ const REVIEW_KEYS: [string, string][] = [
   ["Enter", "Full frame"],
 ];
 
+/** A viewfinder ring with a centre dot: what the product does, in one glyph. */
+function Logo() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-6" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" fill="none" stroke="var(--accent)" strokeWidth="1.75" />
+      <path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4" stroke="var(--accent)" strokeWidth="1.75" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="2.25" fill="var(--text)" />
+    </svg>
+  );
+}
+
 function readStep(): StepId {
   return typeof window === "undefined" ? "survey" : stepFromHash(window.location.hash);
 }
@@ -100,7 +111,10 @@ export function Shell({ cache }: { cache: CacheBundle }) {
       <div className="flex h-full flex-col gap-3 p-4">
         <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-title font-medium">Sightline</h1>
+            <h1 className="flex items-center gap-2 text-title font-medium">
+              <Logo />
+              Sightline
+            </h1>
             <span className="text-small text-text-3">Mount Seymour survey</span>
             {survey.simulated_path && <Badge kind="simulated">Simulated flight path</Badge>}
             {detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
@@ -121,7 +135,7 @@ export function Shell({ cache }: { cache: CacheBundle }) {
           </div>
         </header>
 
-        <main key={step} className="sl-fade flex min-h-0 flex-1 flex-col gap-3" aria-label={stepInfo.label}>
+        <main key={step} className="sl-step flex min-h-0 flex-1 flex-col gap-3" aria-label={stepInfo.label}>
           {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} />}
 
           {step === "rank" && <RankReveal cache={cache} dir={dir} onStart={() => setStep("review")} />}
@@ -163,6 +177,10 @@ export function Shell({ cache }: { cache: CacheBundle }) {
           {step === "results" && (
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
               <ResultsSummary metrics={cache.metrics} />
+              <div className="mt-4 flex items-center gap-4">
+                <Label>The details</Label>
+                <span className="h-px flex-1 bg-border" aria-hidden="true" />
+              </div>
               <div data-testid="mount-metrics">
                 <ScreenBoundary name="Metrics">
                   <MetricsView />

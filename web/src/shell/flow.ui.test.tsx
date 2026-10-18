@@ -30,8 +30,8 @@ describe("guided flow", () => {
     render(<Shell cache={cache} />);
     expect(current()).toHaveTextContent("Survey");
     expect(screen.getByRole("heading", { name: /20 drone photos/ })).toBeInTheDocument();
-    // 20 photos at the published 33 s each = 11 min
-    expect(screen.getByText(/11 min/)).toBeInTheDocument();
+    // The human miss rate comes from metrics.baseline_human.recall.
+    expect(screen.getByText(/of people missed by eye/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rank with Sightline" })).toBeInTheDocument();
   });
 
