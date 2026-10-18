@@ -4,19 +4,13 @@ import { ResetReview } from "../review/ResetReview";
 import { useReview, type Answer } from "../review/store";
 import { Badge, Label } from "../shell/components";
 import { Sourced } from "../shell/Popover";
-import { ablationDisplayRows, count, IN_USE_ROW, pct, seconds, speedup } from "./format";
+import { ablationDisplayRows, count, duration, IN_USE_ROW, pct, seconds, speedup } from "./format";
 import { useCountUp } from "./motion";
 import { randomOrderBaseline } from "./randomOrder";
+import { ResultsCharts } from "./ResultsCharts";
 
-/** "4 min", "3 h 5 min": a span of time a person would spend. */
-export function duration(totalSeconds: number): string {
-  const mins = Math.round(totalSeconds / 60);
-  if (mins < 1) return `${Math.round(totalSeconds)} s`;
-  if (mins < 90) return `${mins} min`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m === 0 ? `${h} h` : `${h} h ${m} min`;
-}
+// `duration` lives in format.ts (the charts use it too); re-exported here for existing callers.
+export { duration };
 
 /**
  * The finale: the one result to say out loud (how soon the ranked queue reaches every person),
@@ -199,6 +193,8 @@ export function ResultsSummary({
           </div>
         )}
       </div>
+
+      <ResultsCharts metrics={metrics} surveyId={surveyId} cellM={cellM} />
 
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
         <YourReview candidateIds={candidateIds} />

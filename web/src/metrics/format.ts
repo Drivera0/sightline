@@ -138,3 +138,13 @@ export function uniqueMinIndex(values: readonly number[]): number {
   const at = values.flatMap((v, i) => (v === min ? [i] : []));
   return at.length === 1 ? (at[0] ?? -1) : -1;
 }
+
+/** "4 min", "3 h 5 min": a span of time a person would spend. */
+export function duration(totalSeconds: number): string {
+  const mins = Math.round(totalSeconds / 60);
+  if (mins < 1) return `${Math.round(totalSeconds)} s`;
+  if (mins < 90) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
