@@ -138,8 +138,8 @@ describe("fewer", () => {
 
 describe("seedNote", () => {
   it("names the seed, and 'best of 3' only for the run the docs describe", () => {
-    expect(seedNote(7, "seymour-demo", 98, 123)).toBe("Seed 7, the best of 3 seeds tried (docs/LANE_C_SEARCH.md)");
-    expect(seedNote(7, "seymour-demo", 99, 123)).toBe("Seed 7");
+    expect(seedNote(7, "seymour-demo", 1213, 1743)).toBe("Seed 7, the best of 3 seeds tried (docs/LANE_C_SEARCH.md)");
+    expect(seedNote(7, "seymour-demo", 98, 123)).toBe("Seed 7");
     expect(seedNote(7, "heridal-sb", 11, 13)).toBe("Seed 7");
     expect(seedNote(7, undefined, 98, 123)).toBe("Seed 7");
   });

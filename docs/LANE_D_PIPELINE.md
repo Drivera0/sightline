@@ -156,6 +156,8 @@ def write_sample(out: Path = Path("cache/sample")) -> None   # also copies to we
 
 `run --stages all` runs them in order and writes `manifest.json` with timings and the git SHA (all 8 stages, including `export`). `detect` and A's detector metrics run on the desktop; `run --skip detect` picks up a copied `work/detect/`, and the manifest records `detect` as `{"ok": true, "seconds": 0.0}` with a note.
 
+The search grid's cell size is `--cell-m` (default **5 m** since 2026-10-18: 200 × 200 = 40,000 cells over the 1 km grid; `DEFAULT_CELL_M` in `stages.py`, also used by single stages, the upload API and `real`). The website draws the cells as one canvas raster, so the cell count does not affect frame rate. The 5 m demo cache was rebuilt from `data/blocks` with `run --data data/blocks --skip frames,detect --layout blocks --seed 7 --out cache/demo` (map.json 2.9 MB raw, 119 KB gzip; map stage 24 s).
+
 ### 6.3 Hours 10–18: ranking + full run on real data
 
 - **Score** = max `conf` in the frame (0 if none). **Rank** by score descending; ties: more candidates first, then lower `flight_index` first. `n_candidates` = detections with `conf ≥ candidate_threshold`.

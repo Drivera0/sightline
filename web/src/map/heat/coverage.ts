@@ -97,15 +97,46 @@ export function summedOverlap(grid: Grid, footprints: readonly (readonly LonLat[
   return out;
 }
 
-/** Per frame, the cells its footprint touches as [idx, overlap] (overlap in cell areas). Flight order. */
+/**
+ * Per frame, the cells its footprint touches as [idx, overlap] (overlap in cell areas). Flight order.
+ * Only each footprint's bounding window is read, so this stays cheap on fine grids (40,000 cells).
+ */
 export function frameOverlaps(grid: Grid, footprints: readonly (readonly LonLat[])[]): [number, number][][] {
+  const scratch = new Float64Array(grid.rows * grid.cols);
   return footprints.map((fp) => {
     const cells: [number, number][] = [];
-    summedOverlap(grid, [fp]).forEach((v, idx) => {
+    const touched = summedInto(scratch, grid, fp);
+    for (const idx of touched) {
+      const v = scratch[idx] as number;
       if (v > 0) cells.push([idx, v]);
-    });
+      scratch[idx] = 0;
+    }
     return cells;
   });
+}
+
+/** Add one footprint's overlaps into `out`; returns the visited cell indices in row-major order. */
+function summedInto(out: Float64Array, grid: Grid, fp: readonly LonLat[]): number[] {
+  const { rows, cols, cell_m } = grid;
+  const visited: number[] = [];
+  const poly = fp.map((c) => toLocalM(grid, c));
+  if (poly.length < 3) return visited;
+  const cellArea = cell_m * cell_m;
+  const xs = poly.map((p) => p[0]);
+  const ys = poly.map((p) => p[1]);
+  const colLo = Math.max(0, Math.floor(Math.min(...xs) / cell_m));
+  const colHi = Math.min(cols - 1, Math.floor(Math.max(...xs) / cell_m));
+  const rowLo = Math.max(0, Math.floor(Math.min(...ys) / cell_m));
+  const rowHi = Math.min(rows - 1, Math.floor(Math.max(...ys) / cell_m));
+  for (let row = rowLo; row <= rowHi; row++) {
+    for (let col = colLo; col <= colHi; col++) {
+      const clipped = clipConvex(poly, col * cell_m, row * cell_m, (col + 1) * cell_m, (row + 1) * cell_m);
+      const idx = row * cols + col;
+      visited.push(idx);
+      if (clipped.length >= 3) out[idx] = (out[idx] as number) + polygonArea(clipped) / cellArea;
+    }
+  }
+  return visited;
 }
 
 /** Save the running total every this many frames, so scrubbing adds at most CHECKPOINT_EVERY - 1 frames. */
@@ -154,6 +185,24 @@ export function overlapAtStep(index: OverlapIndex, k: number): Float64Array {
 export function photographedCells(overlap: Float64Array): Uint8Array {
   return Uint8Array.from(overlap, (v) => (v >= MIN_OVERLAP ? 1 : 0));
 }
+
+/**
+ * Per cell, the number of frames after which it first counts as photographed (summed overlap reaches
+ * MIN_OVERLAP), 1-based; 0 for a cell the survey never photographs well enough. The Search next
+ * build-up reveals cells in this order, so the heat sweeps in along the flight.
+ */
+export function firstPhotographedStep(index: OverlapIndex): Int32Array {
+  const first = new Int32Array(index.cellCount);
+  const running = new Float64Array(index.cellCount);
+  index.frames.forEach((cells, k) => {
+    for (const [idx, v] of cells) {
+      running[idx] = (running[idx] as number) + v;
+      if (first[idx] === 0 && (running[idx] as number) >= MIN_OVERLAP) first[idx] = k + 1;
+    }
+  });
+  return first;
+}
+
 
 /** 1 where "Search next" may rank the cell: summed overlap >= MIN_OVERLAP and not awaiting review. */
 export function eligibleCells(overlap: Float64Array, held?: Uint8Array): Uint8Array {

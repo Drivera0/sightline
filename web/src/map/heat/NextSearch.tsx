@@ -37,6 +37,8 @@ interface Props {
   overlap: Float64Array;
   /** 1 for cells awaiting review: left out of the ranking and the average. */
   held?: Uint8Array;
+  /** A person is confirmed: the list is for the remaining search if that is not the missing person. */
+  found?: boolean;
   onSelect: (lon: number, lat: number) => void;
 }
 
@@ -54,7 +56,7 @@ interface Props {
  * photographed one and the list would show the grid corners. Ranking the surveyed area shows where
  * the drone could not see well; the rest of the grid is the "Not yet searched" share below.
  */
-export function NextSearch({ map, state, covered, overlap, held, onSelect }: Props) {
+export function NextSearch({ map, state, covered, overlap, held, found = false, onSelect }: Props) {
   const eligible = eligibleCells(overlap, held);
   const top = topCellIndices(state.p, 5, eligible);
   const shares = probabilityShares(state, covered);
@@ -65,7 +67,11 @@ export function NextSearch({ map, state, covered, overlap, held, onSelect }: Pro
       <div className="flex flex-col gap-2">
         <div className="flex flex-col gap-0.5">
           <Label>Search next in the surveyed area</Label>
-          <span className="text-small text-text-3">Most likely spots on ground the drone photographed well</span>
+          <span className="text-small text-text-3">
+            {found
+              ? "If the confirmed find is not your missing person, search here next"
+              : "Most likely spots on ground the drone photographed well"}
+          </span>
         </div>
         {top.length === 0 && <p className="text-small text-text-2">No cell photographed well enough yet</p>}
         {top.length > 0 && (
@@ -101,12 +107,18 @@ export function NextSearch({ map, state, covered, overlap, held, onSelect }: Pro
                       </span>
                       <span className="font-mono text-label text-text-3">{Math.round(dist)} m from LKP</span>
                     </span>
-                    <span className="flex flex-col items-end">
-                      <span className="font-mono text-small text-text">{pct(p)}</span>
-                      {mean > 0 && (
-                        <span className="font-mono text-label text-text-3" title="Compared with the average well-photographed cell">
-                          {(p / mean).toFixed(1)}× avg
-                        </span>
+                    <span
+                      className="flex flex-col items-end"
+                      title={`Probability in this cell: ${pct(p)} of the total`}
+                      data-p={pct(p)}
+                    >
+                      {mean > 0 ? (
+                        <>
+                          <span className="font-mono text-small text-text">{(p / mean).toFixed(1)}×</span>
+                          <span className="font-mono text-label text-text-3">avg photographed cell</span>
+                        </>
+                      ) : (
+                        <span className="font-mono text-small text-text">{pct(p)}</span>
                       )}
                     </span>
                   </button>
