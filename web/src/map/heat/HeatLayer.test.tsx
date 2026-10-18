@@ -173,4 +173,18 @@ describe("HeatLayer", () => {
     );
     expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
   });
+  it("shows the found banner inside the side panel, not over the map", () => {
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    act(() => useReview.getState().answer("f0003-d01", "person", 1));
+    const banner = screen.getByText("Person confirmed: dispatch ground team");
+    const sidePanel = screen.getByText("Search next in the surveyed area").closest(".w-72");
+    expect(sidePanel).not.toBeNull();
+    expect(sidePanel!.contains(banner)).toBe(true);
+  });
 });
