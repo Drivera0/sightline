@@ -19,6 +19,7 @@ from sightline.pipeline.lanes import Lanes
 from sightline.pipeline.runner import STAGE_ORDER, StageFailed, run_pipeline
 from sightline.pipeline.sample import write_sample
 from sightline.pipeline.stages import (
+    DEFAULT_CELL_M,
     Context,
     detect_stage,
     export_stage,
@@ -76,7 +77,7 @@ def _context(
     model_name: str,
     test_dir: Path | None,
     layout: str = "auto",
-    cell_m: float = 20.0,
+    cell_m: float = DEFAULT_CELL_M,
 ) -> Context:
     return Context(
         data=data,
@@ -191,7 +192,7 @@ def run(
     layout: LayoutOption = "auto",
     cell_m: Annotated[
         float, typer.Option(help="Search-grid cell size in metres (the grid covers 1 km).")
-    ] = 20.0,
+    ] = DEFAULT_CELL_M,
 ) -> None:
     """Run the chosen stages in order and write the cache and its manifest."""
     ctx = _context(
