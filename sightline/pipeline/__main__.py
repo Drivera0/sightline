@@ -76,6 +76,7 @@ def _context(
     model_name: str,
     test_dir: Path | None,
     layout: str = "auto",
+    cell_m: float = 20.0,
 ) -> Context:
     return Context(
         data=data,
@@ -88,6 +89,7 @@ def _context(
         model_name=model_name,
         test_dir=test_dir,
         layout=layout,
+        cell_m=cell_m,
     )
 
 
@@ -187,10 +189,22 @@ def run(
     model_name: ModelNameOption = "yolo11s-heridal-tiled",
     test_dir: TestDirOption = None,
     layout: LayoutOption = "auto",
+    cell_m: Annotated[
+        float, typer.Option(help="Search-grid cell size in metres (the grid covers 1 km).")
+    ] = 20.0,
 ) -> None:
     """Run the chosen stages in order and write the cache and its manifest."""
     ctx = _context(
-        data, n_frames, n_positive, seed, weights, candidate_threshold, model_name, test_dir, layout
+        data,
+        n_frames,
+        n_positive,
+        seed,
+        weights,
+        candidate_threshold,
+        model_name,
+        test_dir,
+        layout,
+        cell_m,
     )
     chosen = "all" if stages == "all" else [s.strip() for s in stages.split(",") if s.strip()]
     skipped = [s.strip() for s in skip.split(",") if s.strip()]
