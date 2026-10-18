@@ -21,9 +21,10 @@ import { useSelection } from "../lib/selection";
 import { Badge } from "../shell/components";
 import { SimulatedLine, simulatedLineFor } from "./base/SimulatedLine";
 import { useReview } from "../review/store";
+import { useSearch } from "../search/store";
 import { prefersReducedMotion } from "../metrics/motion";
 import type { CacheBundle } from "../contract";
-import { gridBounds, surveyBounds, viewBounds } from "./base/features";
+import { type FlownFrames, flownFrames, gridBounds, surveyBounds, viewBounds } from "./base/features";
 import { EASE_MS, insidePaddedViewport, measuredPadding, OVERLAY_ATTR, paddingOffset, surveyPadding } from "./base/camera";
 import {
   basemapStyle,
@@ -227,13 +228,23 @@ function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean })
   const selectedDetectionId = useSelection((state) => state.selectedDetectionId);
   const selectDetection = useSelection((state) => state.selectDetection);
   const reviewAnswers = useReview((state) => state.answers);
+  // Search next replays the flight: a pin appears only once the drone has taken its photo. Review
+  // (focusSelection) shows the whole flight.
+  const stepIndex = useSearch((state) => state.stepIndex);
+  const replayMap = useSearch((state) => state.data?.map);
+  const flown = useMemo<FlownFrames>(
+    () => (focusSelection || replayMap !== bundle.map ? null : flownFrames(bundle.map.steps, stepIndex)),
+    [bundle.map, focusSelection, replayMap, stepIndex],
+  );
+  const flownRef = useRef(flown);
+  flownRef.current = flown;
 
   useEffect(() => {
     if (!map) return undefined;
 
     // Add cache features after the style is ready and frame the complete search grid.
     const renderLayers = () => {
-      syncBaseLayers(map, bundle, useReview.getState().answers);
+      syncBaseLayers(map, bundle, useReview.getState().answers, undefined, flownRef.current);
       setSelectedPin(map, useSelection.getState().selectedDetectionId);
       // Review opens on the overview, then eases in to the candidate under review. Search next opens
       // on the photographed area, clear of its panels.
@@ -293,8 +304,8 @@ function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean })
   }, [bundle, focusSelection, map, selectDetection]);
 
   useEffect(() => {
-    if (map) syncDetectionSource(map, bundle, reviewAnswers);
-  }, [bundle, map, reviewAnswers]);
+    if (map) syncDetectionSource(map, bundle, reviewAnswers, flown);
+  }, [bundle, map, reviewAnswers, flown]);
 
   useEffect(() => {
     if (map) setSelectedPin(map, selectedDetectionId);

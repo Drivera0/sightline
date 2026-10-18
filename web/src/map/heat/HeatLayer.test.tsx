@@ -202,6 +202,9 @@ describe("HeatLayer", () => {
 
     // A confirmed person shows the banner; the slider keeps working.
     act(() => useReview.getState().answer("f0001-d01", "person", 1));
+    // ...but only once the replay has flown its photo (frame f0001 is step 1).
+    expect(screen.queryByText("Person confirmed: dispatch ground team")).not.toBeInTheDocument();
+    act(() => useSearch.getState().setStepIndex(1));
     expect(screen.getByText("Person confirmed: dispatch ground team")).toBeInTheDocument();
     // Answering "Not a person" releases the held cell into the normal map and clears its outline.
     act(() => useSearch.getState().setStepIndex(2));
