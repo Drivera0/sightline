@@ -76,7 +76,10 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
   return (
     <section
       aria-label="Inside the detector"
-      className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-4 [box-shadow:inset_0_1px_0_0_var(--surface-strong)]"
+      className={
+        "flex min-h-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4 [box-shadow:inset_0_1px_0_0_var(--surface-strong)] " +
+        (size === "large" ? "h-full overflow-hidden" : "overflow-y-auto")
+      }
     >
       {/* Header */}
       <div className="flex shrink-0 flex-col gap-2">
@@ -98,7 +101,7 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
       </div>
 
       {/* Architecture */}
-      <div className="flex flex-col gap-1.5 xl:flex-1">
+      <div className={size === "large" ? "flex min-h-0 flex-1 flex-col gap-1.5" : "flex flex-col gap-1.5 xl:flex-1"}>
         <div className="flex items-center justify-between gap-2">
           <Label>Architecture</Label>
           <div className="flex rounded-full border border-border p-0.5 text-[11px]" role="group" aria-label="Architecture view">
@@ -122,7 +125,7 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
         <div
           className={
             size === "large"
-              ? "relative h-[min(62vh,820px)] w-full shrink-0"
+              ? "relative min-h-[160px] w-full flex-1"
               : "relative h-[min(250px,52vw)] w-full shrink-0 xl:h-auto xl:min-h-[140px] xl:flex-1 xl:shrink"
           }
         >
@@ -162,7 +165,8 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
 
       {/* Prediction grids */}
       {frame && (
-        <div className="shrink-0">
+        // In the dialog the grids are capped (about 14% of the screen tall) so everything fits without scrolling.
+        <div className={size === "large" ? "w-full max-w-[min(100%,70vh)] shrink-0" : "shrink-0"}>
           <ModelGrids
             frame={frame}
             photo={photo}
