@@ -17,7 +17,7 @@ from sightline.contract import (
     Step,
 )
 from sightline.search.grid import make_grid
-from sightline.search.sim import _canopy_aware_steps, simulate
+from sightline.search.sim import MIN_OVERLAP, _canopy_aware_steps, simulate
 from sightline.search.update import replay
 
 DEMO_LKP = LatLon(lat=49.37, lon=-122.945)
@@ -279,6 +279,46 @@ def test_in_survey_rank_is_rank_among_photographed_cells() -> None:
         summary([rank_canopy_aware[c] for c in inside]),
     ]
     assert [(m.median_cells, m.p90_cells) for m in sim.in_survey.methods] == expected
+
+
+def test_min_overlap_is_the_panel_threshold() -> None:
+    assert MIN_OVERLAP == 0.5
+
+
+def test_sliver_cell_is_not_in_survey_and_not_ranked() -> None:
+    # Recall 0: nobody is found. Cells 1 and 4 are seen once (overlap 1.0); cell 7 only by a
+    # sliver (0.3 < 0.5), so it is not in the survey, even though its overlap is > 0.
+    frames: list[FrameCells] = [{1: (0.0, 1.0), 4: (0.0, 1.0), 7: (0.0, 0.3)}]
+    map_file = _make_map(3, frames, recall=0.0)
+    sim = simulate(map_file, frames, trials=400, seed=11)
+    true_cells = np.random.default_rng(11).choice(9, size=400, p=np.full(9, 1 / 9))
+    assert sim.in_survey is not None
+    assert sim.in_survey.trials == int(np.sum((true_cells == 1) | (true_cells == 4)))
+    # Ranked among cells 1 and 4 only: ranks are 1 or 2, never 3.
+    for m in sim.in_survey.methods:
+        assert 1 <= m.median_cells <= m.p90_cells <= 2
+
+
+def test_overlap_is_summed_over_frames_for_the_threshold() -> None:
+    # Cell 7 is touched by two slivers of 0.3: 0.6 >= 0.5, so it is in the survey.
+    # Cell 4 is touched by 0.3 + 0.1 = 0.4 < 0.5, so it is not.
+    frames: list[FrameCells] = [{7: (0.0, 0.3), 4: (0.0, 0.3)}, {7: (0.0, 0.3), 4: (0.0, 0.1)}]
+    map_file = _make_map(3, frames, recall=0.0)
+    sim = simulate(map_file, frames, trials=400, seed=11)
+    true_cells = np.random.default_rng(11).choice(9, size=400, p=np.full(9, 1 / 9))
+    assert sim.in_survey is not None
+    assert sim.in_survey.trials == int(np.sum(true_cells == 7))
+    for m in sim.in_survey.methods:
+        assert m.median_cells == m.p90_cells == 1
+
+
+def test_overlap_exactly_at_the_threshold_counts() -> None:
+    frames: list[FrameCells] = [{4: (0.0, MIN_OVERLAP)}]
+    map_file = _make_map(3, frames, recall=0.0)
+    sim = simulate(map_file, frames, trials=400, seed=11)
+    true_cells = np.random.default_rng(11).choice(9, size=400, p=np.full(9, 1 / 9))
+    assert sim.in_survey is not None
+    assert sim.in_survey.trials == int(np.sum(true_cells == 4))
 
 
 # --- canopy-aware map from frame_cells; held cells do not matter (lane C fix) ---------------

@@ -9,6 +9,7 @@ import {
   applyReview,
   deriveSearch,
   effectiveAnswers,
+  heldCells,
   priorOf,
   stateAtStep,
   useSearch,
@@ -212,5 +213,49 @@ describe("useSearch store", () => {
     useReview.getState().reset();
     useSearch.getState().setStepIndex(60);
     expect(Array.from(useSearch.getState().state!.p)).toEqual(Array.from(before.p));
+  });
+});
+
+describe("heldCells (awaiting review)", () => {
+  const map = syntheticMap();
+  const cand = (id: string, lat: number, lon: number): Detection => ({ ...detection(id, lat, lon), crop: `crops/${id}.jpg` });
+  const latOf = (row: number) => map.grid.origin_nw.lat - ((row + 0.5) * 20) / 111320;
+  const lonOf = (col: number) =>
+    map.grid.origin_nw.lon + ((col + 0.5) * 20) / (111320 * Math.cos((map.grid.origin_nw.lat * Math.PI) / 180));
+  const detections: Detections = {
+    contract_version: "1.0",
+    model: "test",
+    save_threshold: 0.05,
+    candidate_threshold: 0.25,
+    frames: {
+      f0001: [cand("f0001-d01", latOf(4), lonOf(4)), detection("f0001-d02", latOf(1), lonOf(1))],
+      f0002: [cand("f0002-d01", latOf(7), lonOf(2))],
+    },
+  };
+  const data: SearchData = { map, detections };
+  const near4 = cellsWithinRadius(map.grid, latOf(4), lonOf(4), 10);
+  const near7 = cellsWithinRadius(map.grid, latOf(7), lonOf(2), 10);
+  const idxOf = (held: Uint8Array) => Array.from(held.keys()).filter((i) => held[i] === 1);
+
+  it("holds the cells of every candidate (crop set) when nothing is answered, and ignores non-candidates", () => {
+    expect(idxOf(heldCells(data, []))).toEqual([...near4, ...near7].sort((a, b) => a - b));
+  });
+
+  it("keeps cells held after unsure or person, releases them after not a person", () => {
+    expect(idxOf(heldCells(data, [h("f0001-d01", "unsure", 1)]))).toEqual([...near4, ...near7].sort((a, b) => a - b));
+    expect(idxOf(heldCells(data, [h("f0001-d01", "person", 1)]))).toEqual([...near4, ...near7].sort((a, b) => a - b));
+    expect(idxOf(heldCells(data, [h("f0001-d01", "not_person", 1)]))).toEqual(near7);
+  });
+
+  it("uses the latest answer per detection (changed or undone answers count)", () => {
+    expect(idxOf(heldCells(data, [h("f0001-d01", "not_person", 1), h("f0001-d01", "unsure", 2)]))).toEqual(
+      [...near4, ...near7].sort((a, b) => a - b),
+    );
+    const all = [h("f0001-d01", "not_person", 1), h("f0002-d01", "not_person", 2)];
+    expect(idxOf(heldCells(data, all))).toEqual([]);
+  });
+
+  it("ignores answers for ids that are not in detections.json", () => {
+    expect(idxOf(heldCells(data, [h("nope", "not_person", 1)]))).toEqual([...near4, ...near7].sort((a, b) => a - b));
   });
 });

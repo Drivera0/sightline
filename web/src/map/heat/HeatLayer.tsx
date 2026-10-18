@@ -3,11 +3,12 @@
 import { type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { CacheBundle } from "../../contract";
 import { CacheContext, useCache } from "../../lib/cache";
-import { detectionById, useSearch } from "../../search/store";
+import { useReview } from "../../review/store";
+import { detectionById, heldCells, useSearch } from "../../search/store";
 import { Panel } from "../../shell/components";
 import { useMap, type MapContextValue } from "../MapView";
 import { FoundBanner } from "./FoundBanner";
-import { coveredCells } from "./geometry";
+import { buildOverlapIndex, frameOverlaps, overlapAtStep, photographedCells } from "./coverage";
 import {
   cellFeaturesFor,
   ensureHeatLayers,
@@ -16,6 +17,7 @@ import {
   pushReplay,
   readHeatColors,
   setFlightPathVisible,
+  setSurveyedBoundary,
 } from "./layers";
 import { Legend } from "./Legend";
 import { NextSearch } from "./NextSearch";
@@ -83,7 +85,22 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
     bind({ map: bundle.map, detections: bundle.detections });
   }, [bind, bundle.map, bundle.detections]);
 
-  const covered = useMemo(() => coveredCells(mapFile), [mapFile]);
+  // Summed overlap of the first `stepIndex` frames: precomputed once per survey, then cheap per step.
+  const overlapIndex = useMemo(
+    () =>
+      buildOverlapIndex(
+        frameOverlaps(mapFile.grid, bundle.survey.frames.map((f) => f.footprint)),
+        mapFile.grid.rows * mapFile.grid.cols,
+      ),
+    [mapFile.grid, bundle.survey.frames],
+  );
+  const overlap = useMemo(() => overlapAtStep(overlapIndex, stepIndex), [overlapIndex, stepIndex]);
+  const covered = useMemo(() => photographedCells(overlap), [overlap]);
+  const history = useReview((s) => s.history);
+  const held = useMemo(
+    () => heldCells({ map: mapFile, detections: bundle.detections }, history),
+    [mapFile, bundle.detections, history],
+  );
   const hasSurveyed = useMemo(() => covered.some((c) => c === 1), [covered]);
   // The drone's position after each step, in step order (one point per applied frame).
   const path = useMemo(() => {
@@ -95,6 +112,8 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
   }, [bundle.survey.frames, mapFile.steps]);
   const stepRef = useRef(stepIndex);
   stepRef.current = stepIndex;
+  const pathRef = useRef(path);
+  pathRef.current = path;
   const [showPath, setShowPath] = useState(true);
   const showPathRef = useRef(showPath);
   showPathRef.current = showPath;
@@ -104,6 +123,10 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
   const ready = boundMap === mapFile && state !== null;
   const stateRef = useRef(state);
   stateRef.current = ready ? state : null;
+  const coveredRef = useRef(covered);
+  coveredRef.current = covered;
+  const heldRef = useRef(held);
+  heldRef.current = held;
 
   // Install the layers once the style is ready, and again whenever a style reload drops them.
   useEffect(() => {
@@ -116,13 +139,13 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
           map,
           cellFeaturesFor(mapFile.grid),
           mapFile.grid,
-          covered,
+          coveredRef.current,
           readHeatColors(),
         );
         if (added) lastRef.current = new Float64Array(n).fill(Number.NaN);
         const current = stateRef.current;
-        if (current) pushHeatState(map, current, lastRef.current, covered);
-        pushReplay(map, path, stepRef.current);
+        if (current) pushHeatState(map, current, lastRef.current, coveredRef.current, heldRef.current);
+        pushReplay(map, pathRef.current, stepRef.current);
         setFlightPathVisible(map, showPathRef.current);
       } catch {
         // Style not ready yet; the next 'styledata' or 'load' event tries again.
@@ -138,17 +161,27 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
       map.off("load", install);
       map.off("styledata", onStyleData);
     };
-  }, [map, mapFile, covered, path]);
+  }, [map, mapFile]);
 
   // Recolour via feature state when the derived state changes. Never touches the GeoJSON.
   useEffect(() => {
     if (!map || !ready || !state) return;
     try {
-      if (map.getSource(HEAT_SOURCE_ID)) pushHeatState(map, state, lastRef.current, covered);
+      if (map.getSource(HEAT_SOURCE_ID)) pushHeatState(map, state, lastRef.current, covered, held);
     } catch {
       /* style reloading; install() pushes again */
     }
-  }, [map, ready, state, covered]);
+  }, [map, ready, state, covered, held]);
+
+  // The outline follows the photographed cells (small GeoJSON, 2,500 cells at most).
+  useEffect(() => {
+    if (!map) return;
+    try {
+      setSurveyedBoundary(map, mapFile.grid, covered);
+    } catch {
+      /* style reloading; install() draws it */
+    }
+  }, [map, mapFile.grid, covered]);
 
   // The legend switch; re-applied by install() after a basemap switch rebuilds lane B's layers.
   useEffect(() => {
@@ -186,6 +219,8 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
             map={mapFile}
             state={state}
             covered={covered}
+            overlap={overlap}
+            held={held}
             onSelect={(lon, lat) => flyTo(lon, lat, 17)}
           />
         ) : (

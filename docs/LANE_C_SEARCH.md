@@ -182,17 +182,32 @@ def write_test_vectors(out: Path = Path("web/src/search/__fixtures__/update_vect
 
 - **(a) Fix A, survey-wide review holds.** A cell within the radius of ANY candidate gets pod 0 in every frame, because in this simulation overlapping frames are unrelated photos.
 - **(b) Fix B, one true visibility per cell.** `simulate` draws one true visibility for each cell, from the cell's overlap-weighted mean canopy.
-- **(c) `in_survey` (contract 1.1).** It ranks the true cell only among photographed cells, the same rule as the Search next panel. It is quoted as "cells checked inside the surveyed area".
+- **(c) `in_survey` (contract 1.1).** A cell is in the survey when its overlap, summed over all frames, is at least 0.5 (`MIN_OVERLAP` in `sim.py` and in `web/src/map/heat/coverage.ts`). A cell touched only by slivers is not in the survey and is not ranked. `in_survey` ranks the true cell only among those cells, the same rule as the Search next panel (before this change the test was overlap > 0). It is quoted as "cells checked inside the surveyed area".
 - **(d) 30,000 trials.** 1,000 trials left about 70 in-survey trials, which is too noisy. `simulate` computes the Sightline map from `frame_cells` and treats candidates as reviewed false alarms.
 - **(e) Search next ranks only photographed cells.** Inside a 1 km grid a hiker prior is flat (Koester, ICAR 2025 Lost Person Behavior, slide 28, hiker / mountainous / temperate, ISRID 2.0: 25% found within 1.0; the slide does not state the units, but either km or miles is larger than the 500 m grid radius). The placeholder prior is kept and labelled as a placeholder. We state no share for outside the grid.
+- **(f) Search next needs overlap >= 0.5.** A cell is ranked only if the frame footprints covered at least half of it, summed over frames (`web/src/map/heat/coverage.ts`, `MIN_OVERLAP`). The test is on overlap, not pod, because dense forest has low pod. On the demo cache the 32 edge slivers are below 0.25 and every interior cell is 1.38 to 1.70.
 - **(f) Survey layout.** The demo uses blocks (neighbouring crops of a photo stay neighbours). The flight-order baseline is `expected_first_hit_random_order`.
 - **(g) Radius tolerance.** `RADIUS_TOLERANCE_M = 1e-6` in `grid.py` and `update.ts`. A cell counts when its distance is at most `radius_m + 1e-6`. Without it, float error dropped edge neighbours that are exactly 10 m away (for example, r = 10 m at the centre of cell 1275 gave 3 cells, not 5).
 
 ## Known limits
 
 - Repeated looks at a cell are treated as independent.
-- The canopy classifier misses autumn (non-green) trees. It is not yet tuned against hand labels: `tests/search/fixtures/canopy_labels.json` is still unscored.
+- The canopy classifier has MAE 0.34 against the 20 hand-scored crops (`tests/search/fixtures/canopy_report.md`; the best of 180 threshold sets gives 0.32 on the same crops, so the defaults were kept). It finds green forest well, but misses pale, autumn and dry trees (it looks for green texture), reads dark lawn as shadow, and reads bright textured rock as canopy.
 - "Not a person" applies `review_pod` (0.9) within the radius. This over-clears, because a rejected crop covers only about 2.6 m (a 128 × 128 px window at 0.02 m/px, contract §7). The correct rule would release the frame's normal pod, but that needs the held pods in `map.json` (a contract change). Not done.
+
+## Robustness: does the gain survive the canopy error?
+
+`simulate` draws the person's true visibility from our own canopy estimate plus noise `vis_noise` (default 0.15). The measured canopy error is MAE 0.34, which for Gaussian noise is σ ≈ 0.34 / 0.80 ≈ 0.43. So we re-ran `simulate` (30,000 trials, seeds 7, 8, 9, in_survey with overlap ≥ 0.5) at higher noise. Maps: the 500-frame scratch runs without detections (blocks and shuffle layouts), not the demo cache.
+
+| Layout | `vis_noise` | Naive median (seeds 7 / 8 / 9) | Sightline median (seeds 7 / 8 / 9) | Mean gain |
+|---|---|---|---|---|
+| blocks | 0.15 | 121 / 114 / 120 | 97 / 102 / 103 | about 15% |
+| blocks | 0.43 | 123 / 115 / 120 | 105 / 111 / 108 | about 10% |
+| blocks | 0.55 | 124 / 116 / 118 | 108 / 113 / 110 | about 7% |
+| shuffle | 0.15 | 120 / 111 / 116 | 109 / 104 / 105 | about 8% |
+| shuffle | 0.43 | 120 / 114 / 117 | 115 / 108 / 109 | about 5% |
+
+Sightline beat Naive on the in-survey median and p90 in all 30 runs (2 layouts × 5 noise levels from 0.15 to 0.55 × 3 seeds), but the gain shrinks as the noise grows and varies with the seed (blocks at 0.43: 4 to 18 cells). Limit of this test: the noise is random, while the classifier's real errors are systematic (it always misses pale and autumn trees), so even the 0.43 result is somewhat optimistic.
 
 ---
 
@@ -295,11 +310,18 @@ You own `web/src/map/heat/` and `web/src/search/`. B owns the map itself; you ad
   interface ReviewHistoryEntry { detectionId: string; answer: "person" | "not_person" | "unsure"; at: string }
   interface ReviewState { history: ReviewHistoryEntry[] }   // useReview.getState().history
   ```
-- **Heat layer** (`HeatLayer.tsx`): GeoJSON of all 2,500 cell polygons, built once, with layer ids prefixed `heat-`. Fill colour = accent orange; opacity ∝ `p / max(p)` from 0 to 0.75; cells below 2% of the max fully transparent. Re-colour via feature state when the state changes; don't rebuild the GeoJSON.
-- **Surveyed area:** a thin outline of the union of footprints, labelled "Surveyed".
+- **Heat layer** (`HeatLayer.tsx`): GeoJSON of all 2,500 cell polygons, built once, with layer ids prefixed `heat-`. Re-colour via feature state when the state or the step changes; don't rebuild the cell GeoJSON.
+  - **Photographed set (step-aware).** For a slider position k, a cell is photographed when the summed footprint overlap of frames 0 to k-1 is at least 0.5 (`MIN_OVERLAP`, the same rule as Search next). Slivers the footprints only touched (overlap above 0 but below 0.5) count as not yet searched: no heat, not in the stretch bounds, not in the outline. At k = 0 nothing is photographed; at k = N it is the whole flight. The per-frame overlaps are computed once per survey from `survey.json` footprints, with a running total saved every 25 frames, so scrubbing only adds a few frames.
+  - **Opacity and colour.** Relative stretch over the photographed cells: p between its 5th and 95th percentile over those cells maps to `o` = 0.08 to 0.85 (values outside are clamped). The fill colour runs from `--warn` (low `o`) to `--accent` (high `o`), at fill-opacity `o × 0.75` so the basemap shows through. Unphotographed cells have no heat.
+  - **"Not yet searched".** Cells not photographed at this step get a dark veil (`--bg` at opacity 0.62, own layer `heat-unsearched`, below the heat).
+  - **"Awaiting review".** Cells within `radius_m` of a candidate detection (`crop` set) whose latest review answer is not "Not a person" (no answer, "Unsure" or "Person") have pod 0 in the map. They are left out of the stretch bounds and drawn in their own layer `heat-review` (token `--warn` at 0.5, between `heat-unsearched` and `heat-cells`) plus a dashed `--warn` outline `heat-review-outline` above the heat, so they never look like a faint warm heat cell. When a searcher answers "Not a person" the cells join the normal map. The set comes from D's `useReview` history (same latest-answer rule as the search store, `heldCells` in `store.ts`); no second copy of the answers.
+  - **Surveyed outline:** the outline of the photographed cells at this step.
+  - **Replay trail and drone:** during the replay, a line along the flight path flown so far and a drone marker at the current frame (`heat-trail`, `heat-drone`, on top of all layers).
+  - **Flight path switch:** the legend has a "Flight path (simulated)" switch that hides or shows lane B's path layers; lane B shows the direction chevrons only when zoomed out.
+- **Search next** ranks a cell only if its summed overlap so far is at least 0.5 (`MIN_OVERLAP`) and it is not awaiting review. The "× avg" average uses the same cells. A cell confirmed "Person" stays out of the ranking (the found banner covers it).
 - **Step slider** (`StepSlider.tsx`): 0…N frames, with play/pause. Shows "After frame 212 of 500".
-- **Search next panel** (`NextSearch.tsx`): the top 5 cells now, each with its probability as a percentage, canopy ("dense forest" / "open"), and distance from the LKP. Plus three shares: inside the surveyed area, rest of grid, outside the grid. Clicking a cell flies the map there.
-- **Legend:** "Less likely → More likely" with the colour ramp, plus "Placeholder prior" if applicable.
+- **Search next panel** (`NextSearch.tsx`): the top 5 cells now, each with its probability as a percentage, canopy ("dense forest" / "open"), and distance from the LKP. Plus three shares: inside the surveyed area (photographed so far), rest of grid, outside the grid. Clicking a cell flies the map there.
+- **Legend:** "Less likely → More likely" with the colour ramp, "Not yet searched", "Awaiting review", the surveyed outline, plus "Simulated flight path" and "Placeholder prior" if applicable.
 - **Found state:** when a "Person" answer exists in the history, show a "Person confirmed: dispatch ground team" banner with coordinates and highlight that pin. Don't freeze the slider or block later answers; the demo scrubs the map after the first confirmation.
 
 ---

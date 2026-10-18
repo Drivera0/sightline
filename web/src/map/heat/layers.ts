@@ -2,7 +2,7 @@
 import type { GeoJSONSource, Map } from "maplibre-gl";
 import type { MapFile } from "../../contract";
 import { HEAT_LAYER_PREFIX, MAP_LAYER_IDS } from "../base/layerIds";
-import { buildCellFeatures, heatOpacity, MAX_OPACITY, surveyedBoundary, type CellFeatureCollection } from "./geometry";
+import { buildCellFeatures, HEAT_CEIL, HEAT_FLOOR, relativeHeatOpacities, surveyedBoundary } from "./geometry";
 import type { MapState } from "../../search/update";
 
 type Grid = MapFile["grid"];
@@ -11,11 +11,12 @@ type LonLat = [number, number];
 
 export const HEAT_SOURCE_ID = `${HEAT_LAYER_PREFIX}cells`;
 export const HEAT_SURVEYED_SOURCE_ID = `${HEAT_LAYER_PREFIX}surveyed`;
-export const HEAT_UNSEEN_SOURCE_ID = `${HEAT_LAYER_PREFIX}unseen`;
 export const HEAT_TRAIL_SOURCE_ID = `${HEAT_LAYER_PREFIX}trail`;
 export const HEAT_DRONE_SOURCE_ID = `${HEAT_LAYER_PREFIX}drone`;
 export const HEAT_LAYER_IDS = {
-  unseen: `${HEAT_LAYER_PREFIX}unseen`,
+  unsearched: `${HEAT_LAYER_PREFIX}unsearched`,
+  review: `${HEAT_LAYER_PREFIX}review`,
+  reviewOutline: `${HEAT_LAYER_PREFIX}review-outline`,
   cells: `${HEAT_LAYER_PREFIX}cells`,
   surveyed: `${HEAT_LAYER_PREFIX}surveyed`,
   trail: `${HEAT_LAYER_PREFIX}trail`,
@@ -23,7 +24,7 @@ export const HEAT_LAYER_IDS = {
   drone: `${HEAT_LAYER_PREFIX}drone`,
 } as const;
 
-/** How strongly the "not photographed" veil darkens the basemap. */
+/** How strongly the "not yet searched" veil darkens the basemap (cells not photographed at this step). */
 export const UNSEEN_OPACITY = 0.62;
 
 export interface HeatColors {
@@ -31,9 +32,19 @@ export interface HeatColors {
   /** Low end of the heat ramp: warm, so a faint cell still reads as "some chance". */
   warm: string;
   outline: string;
-  /** The veil over ground the drone never photographed. */
+  /** The veil over ground not yet photographed at this step (the app background). */
   veil: string;
+  /** Tone for cells awaiting review (the shell's "Unsure" token). */
+  review: string;
 }
+
+/** Opacity of the "awaiting review" fill. Strong enough to read next to the heat, low enough to see the basemap. */
+export const REVIEW_OPACITY = 0.5;
+/**
+ * The heat ramp also starts at --warn, so a held cell gets a dashed --warn outline as well:
+ * a faint warm heat cell has no outline, a held cell always has one.
+ */
+export const REVIEW_OUTLINE_DASH = [2, 1.5];
 
 /** MapLibre cannot read CSS variables, so read the tokens at runtime. */
 export function readHeatColors(root: Element = document.documentElement): HeatColors {
@@ -43,18 +54,13 @@ export function readHeatColors(root: Element = document.documentElement): HeatCo
     warm: styles.getPropertyValue("--warn").trim(),
     outline: styles.getPropertyValue("--text").trim(),
     veil: styles.getPropertyValue("--bg").trim(),
+    review: styles.getPropertyValue("--warn").trim(),
   };
 }
 
 /** Heat layers sit below every lane B layer: before grid-outline, or on top if B has not drawn yet. */
 function beforeId(map: Map): string | undefined {
   return map.getLayer(MAP_LAYER_IDS.gridOutline) ? MAP_LAYER_IDS.gridOutline : undefined;
-}
-
-/** The cells nobody photographed, as one static collection (drawn as a flat veil). */
-export function unseenCellFeatures(grid: Grid, covered: Uint8Array): CellFeatureCollection {
-  const all = cellFeaturesFor(grid) as unknown as CellFeatureCollection;
-  return { type: "FeatureCollection", features: all.features.filter((f) => covered[f.properties.idx] !== 1) };
 }
 
 const EMPTY: GeoJsonData = { type: "FeatureCollection", features: [] };
@@ -76,12 +82,6 @@ export function ensureHeatLayers(
     map.addSource(HEAT_SOURCE_ID, { type: "geojson", data: cells, promoteId: "idx" });
     added = true;
   }
-  if (!map.getSource(HEAT_UNSEEN_SOURCE_ID)) {
-    map.addSource(HEAT_UNSEEN_SOURCE_ID, {
-      type: "geojson",
-      data: unseenCellFeatures(grid, covered) as unknown as GeoJsonData,
-    });
-  }
   if (!map.getSource(HEAT_SURVEYED_SOURCE_ID)) {
     map.addSource(HEAT_SURVEYED_SOURCE_ID, {
       type: "geojson",
@@ -95,13 +95,34 @@ export function ensureHeatLayers(
   if (!map.getSource(HEAT_TRAIL_SOURCE_ID)) map.addSource(HEAT_TRAIL_SOURCE_ID, { type: "geojson", data: EMPTY });
   if (!map.getSource(HEAT_DRONE_SOURCE_ID)) map.addSource(HEAT_DRONE_SOURCE_ID, { type: "geojson", data: EMPTY });
 
-  if (!map.getLayer(HEAT_LAYER_IDS.unseen)) {
+  // Below heat-cells: a dark veil over cells not photographed at this step ("u" feature state = 1).
+  if (!map.getLayer(HEAT_LAYER_IDS.unsearched)) {
     map.addLayer(
       {
-        id: HEAT_LAYER_IDS.unseen,
+        id: HEAT_LAYER_IDS.unsearched,
         type: "fill",
-        source: HEAT_UNSEEN_SOURCE_ID,
-        paint: { "fill-color": colors.veil, "fill-opacity": UNSEEN_OPACITY, "fill-antialias": false },
+        source: HEAT_SOURCE_ID,
+        paint: {
+          "fill-color": colors.veil,
+          "fill-opacity": ["case", ["==", ["coalesce", ["feature-state", "u"], 0], 1], UNSEEN_OPACITY, 0],
+          "fill-antialias": false,
+        },
+      },
+      beforeId(map),
+    );
+  }
+  // Between unsearched and cells: photographed cells held for review ("h" feature state = 1).
+  if (!map.getLayer(HEAT_LAYER_IDS.review)) {
+    map.addLayer(
+      {
+        id: HEAT_LAYER_IDS.review,
+        type: "fill",
+        source: HEAT_SOURCE_ID,
+        paint: {
+          "fill-color": colors.review,
+          "fill-opacity": ["case", ["==", ["coalesce", ["feature-state", "h"], 0], 1], REVIEW_OPACITY, 0],
+          "fill-antialias": false,
+        },
       },
       beforeId(map),
     );
@@ -114,12 +135,30 @@ export function ensureHeatLayers(
         type: "fill",
         source: HEAT_SOURCE_ID,
         paint: {
-          "fill-color": ["interpolate", ["linear"], o, 0, colors.warm, MAX_OPACITY, colors.accent],
+          // Warm at the floor of the stretch, the accent at its ceiling.
+          "fill-color": ["interpolate", ["linear"], o, HEAT_FLOOR, colors.warm, HEAT_CEIL, colors.accent],
           // Softer than the raw share so the basemap still reads through the hottest cells.
           "fill-opacity": ["*", o, 0.75],
           "fill-antialias": false,
         },
       } as unknown as Parameters<Map["addLayer"]>[0],
+      beforeId(map),
+    );
+  }
+  // Above heat-cells: the dashed outline that tells a held cell from a faint warm heat cell.
+  if (!map.getLayer(HEAT_LAYER_IDS.reviewOutline)) {
+    map.addLayer(
+      {
+        id: HEAT_LAYER_IDS.reviewOutline,
+        type: "line",
+        source: HEAT_SOURCE_ID,
+        paint: {
+          "line-color": colors.review,
+          "line-opacity": ["case", ["==", ["coalesce", ["feature-state", "h"], 0], 1], 0.9, 0],
+          "line-width": 1.5,
+          "line-dasharray": REVIEW_OUTLINE_DASH,
+        },
+      },
       beforeId(map),
     );
   }
@@ -179,26 +218,39 @@ export function cellFeaturesFor(grid: Grid): GeoJsonData {
   return data;
 }
 
-/** Highest p among photographed cells: the heat is scaled to the ground the drone actually saw. */
-export function maxCovered(p: Float64Array, covered: Uint8Array): number {
-  let max = 0;
-  for (let i = 0; i < p.length; i++) if (covered[i] === 1 && (p[i] as number) > max) max = p[i] as number;
-  return max;
+/** Redraw the outline of the cells photographed so far. */
+export function setSurveyedBoundary(map: Map, grid: Grid, photographed: Uint8Array): void {
+  const source = map.getSource(HEAT_SURVEYED_SOURCE_ID) as GeoJSONSource | undefined;
+  source?.setData({
+    type: "Feature",
+    properties: {},
+    geometry: { type: "MultiLineString", coordinates: surveyedBoundary(grid, photographed) },
+  });
 }
 
 /**
- * Push opacities as feature state. Only photographed cells get heat, scaled to the most likely
- * photographed cell; the rest sit under the veil at 0. `last` holds what the map already has
- * (NaN = unknown); only cells whose opacity changed are sent. Mutates and returns `last`.
+ * Push feature state: "o" = heat opacity (relative to the photographed cells that are not held),
+ * "u" = 1 for a cell not photographed yet, "h" = 1 for a photographed cell awaiting review.
+ * `last` holds what the map already has per cell (NaN = unknown) as o + 10 * u + 20 * h; only
+ * cells whose value changed are sent. Mutates and returns `last`.
  */
-export function pushHeatState(map: Map, state: MapState, last: Float64Array, covered: Uint8Array): Float64Array {
-  const maxP = maxCovered(state.p, covered);
-  for (let i = 0; i < state.p.length; i++) {
-    const o = covered[i] === 1 ? heatOpacity(state.p[i] as number, maxP) : 0;
+export function pushHeatState(
+  map: Map,
+  state: MapState,
+  last: Float64Array,
+  covered: Uint8Array,
+  held: Uint8Array,
+): Float64Array {
+  const opacities = relativeHeatOpacities(state.p, covered, held);
+  for (let i = 0; i < opacities.length; i++) {
+    const o = opacities[i] as number;
+    const u = covered[i] === 1 ? 0 : 1;
+    const h = covered[i] === 1 && held[i] === 1 ? 1 : 0;
+    const sig = o + 10 * u + 20 * h;
     const prev = last[i] as number;
-    if (Number.isNaN(prev) || Math.abs(prev - o) > 1e-4) {
-      map.setFeatureState({ source: HEAT_SOURCE_ID, id: i }, { o });
-      last[i] = o;
+    if (Number.isNaN(prev) || Math.abs(prev - sig) > 1e-4) {
+      map.setFeatureState({ source: HEAT_SOURCE_ID, id: i }, { o, u, h });
+      last[i] = sig;
     }
   }
   return last;
