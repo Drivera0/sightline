@@ -36,7 +36,7 @@ From `metrics.json` (the HERIDAL test set: 101 photos, 337 people, never used fo
 Human baseline: Pyrrö, Naseri & Jung 2021, arXiv:2111.09406.
 
 - **Ranking (demo survey):** all 6 photos with a person were in the first 7 photos of the review queue; the first one is photo 1.
-- **Search map (simulated, 1,536 trials with the person in a photographed cell):** a ground team needs a median of 98 cells with Sightline's map, against 123 for a naive "photographed = cleared" map (seed 7, the best of the three seeds tried). In lane C's robustness check it was better in all 15 runs: 12–20% fewer cells at the default noise, 9–12% with noise matching the canopy estimate's measured error (docs/LANE_C_SEARCH.md).
+- **Search map (simulated, 1,341 trials with the person in a photographed cell, 5 m cells):** a ground team checks a median of 1,213 cells with Sightline's map, against 1,743 for a naive "photographed = cleared" map (seed 7, the best of the three seeds tried). In the robustness check on the same 5 m map it was better in all 15 runs (3 seeds × 5 noise levels): 28–30% fewer cells at the default noise, 19–23% with noise matching the canopy estimate's measured error (docs/LANE_C_SEARCH.md).
 - **Where it fails:** groups of people, clothing that matches pale or dark rock, people sitting or lying down. While analysing the misses we found 42 test labels squashed by a size bug in four photos; fixing it moved recall from 0.769 to 0.864. Details: [docs/DETECTOR_LIMITS.md](docs/DETECTOR_LIMITS.md).
 
 ## How the detector works

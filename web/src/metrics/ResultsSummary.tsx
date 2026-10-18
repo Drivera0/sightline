@@ -225,12 +225,13 @@ export function fewer(ours: number, theirs: number): string | undefined {
 }
 
 /**
- * Which seed the headline search run is, where the docs say so. docs/LANE_C_SEARCH.md (live-cache
- * re-run): "The demo's 98 vs 123 is seed 7 at the default noise, the best of the three seeds."
+ * Which seed the headline search run is, where the docs say so. docs/LANE_C_SEARCH.md (5 m
+ * re-run): "The demo's 1,213 vs 1,743 is seed 7 at the default noise, again the best of the three
+ * seeds."
  */
 const SEED_NOTES: Record<string, { ours: number; theirs: number; note: string }> = {
   // Only for that exact run: a regenerated cache with other numbers gets no note.
-  "seymour-demo": { ours: 98, theirs: 123, note: "the best of 3 seeds tried (docs/LANE_C_SEARCH.md)" },
+  "seymour-demo": { ours: 1213, theirs: 1743, note: "the best of 3 seeds tried (docs/LANE_C_SEARCH.md)" },
 };
 
 /** "Seed 7, the best of 3 seeds tried (...)" when the docs describe this run, else "Seed 7". */
