@@ -10,6 +10,7 @@ import { HEAT_LAYER_PREFIX, MAP_LAYER_IDS } from "../base/layerIds";
 import { DRONE_IMAGE_ID, DRONE_ICON_SIZE } from "./droneImage";
 import { cellCenter, surveyedBoundary } from "./geometry";
 import { gridCorners, type HeatRaster } from "./raster";
+import type { LabelCandidate } from "./labelPlacement";
 import { sectorName, sectorRing, SECTOR_STATE_LABEL, type SectorStatus } from "./sectors";
 
 type Grid = MapFile["grid"];
@@ -328,44 +329,81 @@ export function setHeldBoundary(map: Map, grid: Grid, covered: Uint8Array, held:
 }
 
 /**
+ * Where a sector's label may go, best first (see labelPlacement.ts). Flight sectors are thin strips
+ * under the heat: just outside their west edge, like row labels, else just inside it. Outer sectors:
+ * next to the photographed area they surround (their corners are often far off screen), else their
+ * north-west corner. Lattice sectors: inside the north-west corner, else the south-east one.
+ */
+export function labelCandidates(grid: Grid, s: SectorStatus, all: readonly SectorStatus[]): LabelCandidate[] {
+  const ring = sectorRing(grid, s.sector);
+  const [nw, ne, se, sw] = ring as [LonLat, LonLat, LonLat, LonLat];
+  const nwCorner: LabelCandidate = { at: nw, anchor: "top-left", offset: [0.45, 0.35] };
+  const midLat = (nw[1] + sw[1]) / 2;
+  if (s.sector.kind === "flight") {
+    return [
+      { at: [nw[0], midLat], anchor: "right", offset: [-0.7, 0] },
+      { at: [nw[0], midLat], anchor: "left", offset: [0.7, 0] },
+    ];
+  }
+  if (s.sector.kind === "lattice") return [nwCorner, { at: se, anchor: "bottom-right", offset: [-0.45, -0.35] }];
+  const flights = all.filter((x) => x.sector.kind === "flight");
+  const surveyWestLon = flights.length > 0 ? Math.min(...flights.map((x) => sectorRing(grid, x.sector)[0]![0])) : nw[0];
+  switch (s.sector.id) {
+    case "N":
+      return [{ at: [surveyWestLon, sw[1]], anchor: "bottom-left", offset: [0.45, -0.35] }, nwCorner];
+    case "S":
+      return [{ at: [surveyWestLon, nw[1]], anchor: "top-left", offset: [0.45, 0.35] }, nwCorner];
+    case "W":
+      return [{ at: ne, anchor: "top-right", offset: [-0.45, 0.35] }, nwCorner];
+    default:
+      return [nwCorner];
+  }
+}
+
+/** Picks one of a label's candidates, or null to hide it (labelPlacement.placeLabel on the live map). */
+export type PlaceLabel = (candidates: readonly LabelCandidate[], text: string) => LabelCandidate | null;
+
+/**
  * Sector outlines and labels, with the current / hovered sector marked. A resting label is just the
  * sector's name (the Sectors list has every state); the current and the hovered sector add their state.
+ * Without `place` each label takes its first candidate; with it, a label no candidate fits is left out.
  */
 export function sectorFeatures(
   grid: Grid,
   statuses: readonly SectorStatus[],
   currentId: string | null,
   hoverId: string | null,
+  place?: PlaceLabel,
 ): { areas: GeoJsonData; labels: GeoJsonData } {
   const areas = statuses.map((s) => ({
     type: "Feature" as const,
     properties: { id: s.sector.id, current: s.sector.id === currentId, hover: s.sector.id === hoverId },
     geometry: { type: "Polygon" as const, coordinates: [sectorRing(grid, s.sector)] },
   }));
-  const labels = statuses.map((s) => {
-    const ring = sectorRing(grid, s.sector);
-    // Flight sectors are thin strips under the heat: label them just outside, west of the strip,
-    // like row labels. Other sectors: inside their north-west corner.
-    const flight = s.sector.kind === "flight";
-    const at: LonLat = flight
-      ? [(ring[0] as LonLat)[0], ((ring[0] as LonLat)[1] + (ring[3] as LonLat)[1]) / 2]
-      : (ring[0] as LonLat);
+  const labels = statuses.flatMap((s) => {
     const active = s.sector.id === currentId || s.sector.id === hoverId;
     const state = s.sector.id === currentId ? "Drone here" : SECTOR_STATE_LABEL[s.state];
     const name = sectorName(s.sector).toUpperCase();
-    return {
-      type: "Feature" as const,
-      properties: {
-        id: s.sector.id,
-        text: active ? `${name}\n${state}` : name,
-        current: s.sector.id === currentId,
-        hover: s.sector.id === hoverId,
-        anchor: flight ? "right" : "top-left",
-        justify: flight ? "right" : "left",
-        offset: flight ? [-0.7, 0] : [0.45, 0.35],
+    const text = active ? `${name}\n${state}` : name;
+    const candidates = labelCandidates(grid, s, statuses);
+    const chosen = place ? place(candidates, text) : (candidates[0] ?? null);
+    if (!chosen) return [];
+    const right = chosen.anchor.endsWith("right");
+    return [
+      {
+        type: "Feature" as const,
+        properties: {
+          id: s.sector.id,
+          text,
+          current: s.sector.id === currentId,
+          hover: s.sector.id === hoverId,
+          anchor: chosen.anchor,
+          justify: right ? "right" : "left",
+          offset: chosen.offset,
+        },
+        geometry: { type: "Point" as const, coordinates: chosen.at },
       },
-      geometry: { type: "Point" as const, coordinates: at },
-    };
+    ];
   });
   return { areas: { type: "FeatureCollection", features: areas }, labels: { type: "FeatureCollection", features: labels } };
 }
@@ -376,9 +414,23 @@ export function pushSectors(
   statuses: readonly SectorStatus[],
   currentId: string | null,
   hoverId: string | null,
+  place?: PlaceLabel,
 ): void {
-  const { areas, labels } = sectorFeatures(grid, statuses, currentId, hoverId);
+  const { areas, labels } = sectorFeatures(grid, statuses, currentId, hoverId, place);
   (map.getSource(HEAT_SECTOR_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(areas);
+  (map.getSource(HEAT_SECTOR_LABEL_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(labels);
+}
+
+/** Only the label layer: on every camera move the labels are re-placed, the outlines stay. */
+export function pushSectorLabels(
+  map: Map,
+  grid: Grid,
+  statuses: readonly SectorStatus[],
+  currentId: string | null,
+  hoverId: string | null,
+  place?: PlaceLabel,
+): void {
+  const { labels } = sectorFeatures(grid, statuses, currentId, hoverId, place);
   (map.getSource(HEAT_SECTOR_LABEL_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(labels);
 }
 

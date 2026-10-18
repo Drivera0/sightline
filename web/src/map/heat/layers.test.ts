@@ -167,9 +167,31 @@ describe("sectorFeatures", () => {
     expect(l[0]!.properties.text).toBe(["SECTOR 1", "Drone here"].join(String.fromCharCode(10)));
     expect(l[1]!.properties.text).toBe(["SECTOR N", "Not yet searched"].join(String.fromCharCode(10)));
     expect(l[2]!.properties.text).toBe("SECTOR S");
-    // A flight strip is labelled outside its west edge; other sectors inside the north-west corner.
+    // A flight strip is labelled outside its west edge; N just above the photographed area's
+    // north-west corner, S just below its south-west corner.
     expect(l[0]!.properties.anchor).toBe("right");
-    expect(l[1]!.properties.anchor).toBe("top-left");
+    expect(l[1]!.properties.anchor).toBe("bottom-left");
+    expect(l[2]!.properties.anchor).toBe("top-left");
+  });
+
+  it("uses the next candidate when the first does not fit, and leaves out a label none fits", () => {
+    const grid = { origin_nw: { lat: 49.37, lon: -122.95 }, cell_m: 250, rows: 4, cols: 4 };
+    const flight = {
+      sector: { id: "S1", label: "1", kind: "flight" as const, rect: { west: 250, east: 750, north: 250, south: 500 } },
+      poa: 0.1,
+      coverage: 1,
+      cells: 2,
+      state: "searched" as const,
+    };
+    const outer = { ...flight, sector: { ...flight.sector, id: "E", label: "E", kind: "outer" as const } };
+    // The outside-west spot is "covered" (e.g. by the sectors panel): fall back inside the strip.
+    const { labels } = sectorFeatures(grid, [flight, outer], null, null, (candidates) =>
+      candidates[0]!.anchor === "right" ? (candidates[1] ?? null) : null,
+    );
+    const l = (labels as { features: { properties: Record<string, unknown> }[] }).features;
+    expect(l).toHaveLength(1);
+    expect(l[0]!.properties.anchor).toBe("left");
+    expect(l[0]!.properties.justify).toBe("left");
   });
 });
 

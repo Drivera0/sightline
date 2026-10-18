@@ -24,7 +24,7 @@ import { useReview } from "../review/store";
 import { prefersReducedMotion } from "../metrics/motion";
 import type { CacheBundle } from "../contract";
 import { gridBounds, surveyBounds, viewBounds } from "./base/features";
-import { EASE_MS, insidePaddedViewport, surveyPadding } from "./base/camera";
+import { EASE_MS, insidePaddedViewport, measuredPadding, OVERLAY_ATTR, paddingOffset, surveyPadding } from "./base/camera";
 import {
   basemapStyle,
   chooseBasemapMode,
@@ -172,17 +172,25 @@ function BasemapToggle({
 }
 
 /**
- * Frame the photographed area (not the outer sectors), clear of the panels drawn over the map:
- * Search next's panels overlay the map on wide screens.
+ * Frame the photographed area (not the outer sectors), clear of the panels drawn over the map: the
+ * padding is measured from the panels on screen (marked with OVERLAY_ATTR), so the survey sits in the
+ * visible gap at any width. Search next's panels overlay the map on wide screens.
  */
 function fitSurvey(map: Map, bundle: CacheBundle, panelsOverMap: boolean, duration: number): void {
   const container = map.getContainer();
   const overlay =
     panelsOverMap && typeof window !== "undefined" && (window.matchMedia?.("(min-width: 1024px)").matches ?? false);
+  const measured = measuredPadding(container) ?? undefined;
   map.fitBounds(surveyBounds(bundle.survey) ?? gridBounds(bundle.map.grid), {
-    padding: surveyPadding(container.clientWidth, container.clientHeight, overlay),
+    padding: surveyPadding(container.clientWidth, container.clientHeight, overlay, measured),
     duration,
   });
+}
+
+/** Padding clear of the panels over the map (Review's readout card), for its overview and eases. */
+function reviewPadding(map: Map) {
+  const container = map.getContainer();
+  return surveyPadding(container.clientWidth, container.clientHeight, false, measuredPadding(container) ?? undefined);
 }
 
 // "Fit to survey": back to the whole photographed area after panning or zooming around.
@@ -229,7 +237,7 @@ function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean })
       setSelectedPin(map, useSelection.getState().selectedDetectionId);
       // Review opens on the overview, then eases in to the candidate under review. Search next opens
       // on the photographed area, clear of its panels.
-      if (focusSelection) map.fitBounds(viewBounds(bundle.survey, bundle.map.grid), { padding: 48, duration: 0 });
+      if (focusSelection) map.fitBounds(viewBounds(bundle.survey, bundle.map.grid), { padding: reviewPadding(map), duration: 0 });
       else fitSurvey(map, bundle, true, 0);
       const selected = useSelection.getState().selectedDetectionId;
       const detection = selected
@@ -238,7 +246,12 @@ function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean })
             .find((candidate) => candidate.id === selected)
         : undefined;
       if (focusSelection && detection) {
-        map.easeTo({ center: [detection.lon, detection.lat], zoom: 17, duration: prefersReducedMotion() ? 0 : EASE_MS });
+        map.easeTo({
+          center: [detection.lon, detection.lat],
+          zoom: 17,
+          offset: paddingOffset(reviewPadding(map)),
+          duration: prefersReducedMotion() ? 0 : EASE_MS,
+        });
       }
       map.on("click", MAP_LAYER_IDS.pins, selectPin);
       map.on("mousemove", MAP_LAYER_IDS.pins, showPointer);
@@ -297,13 +310,17 @@ function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean })
     const container = map.getContainer();
     const point = map.project([detection.lon, detection.lat]);
     if (insidePaddedViewport(point, container.clientWidth, container.clientHeight)) return;
-    map.easeTo({ center: [detection.lon, detection.lat], duration: prefersReducedMotion() ? 0 : EASE_MS });
-  }, [bundle.detections.frames, map, selectedDetectionId]);
+    map.easeTo({
+      center: [detection.lon, detection.lat],
+      offset: focusSelection ? paddingOffset(reviewPadding(map)) : [0, 0],
+      duration: prefersReducedMotion() ? 0 : EASE_MS,
+    });
+  }, [bundle.detections.frames, focusSelection, map, selectedDetectionId]);
 
   // Bottom-left, above the attribution row. On Review the line sits in the legend card instead
   // (HeatLayer), which covers this corner on a narrow map.
   return (
-    <div className="pointer-events-none absolute bottom-7 left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
+    <div {...{ [OVERLAY_ATTR]: "bottom" }} className="pointer-events-none absolute bottom-7 left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
       {!bundle.survey.simulated_path && <Badge kind="info">Real EXIF positions</Badge>}
       {!focusSelection && <SimulatedLine {...simulatedLineFor(bundle)} />}
     </div>
@@ -345,7 +362,7 @@ export function MapView({ layers, className, focusSelection, ...providerProps }:
       >
         <BaseMapLayers focusSelection={focusSelection} />
         {layers}
-        <div className="pointer-events-none absolute right-3 top-3 flex items-start gap-2">
+        <div {...{ [OVERLAY_ATTR]: "top" }} className="pointer-events-none absolute right-3 top-3 flex items-start gap-2">
           <FitSurveyButton panelsOverMap={!focusSelection} />
           {managedBasemap ? (
             <BasemapToggle

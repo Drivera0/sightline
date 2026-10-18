@@ -10,6 +10,9 @@ export const PanelSlotContext = createContext<HTMLElement | null>(null);
 /** Tailwind's lg breakpoint: from here up the panels float over the map. */
 export const WIDE_LAYOUT_QUERY = "(min-width: 1024px)";
 
+/** From here up the Search next legend stays open over the map; below it folds into a pill. */
+export const ROOMY_LAYOUT_QUERY = "(min-width: 1280px)";
+
 /** A CSS media query as React state. Without matchMedia (tests, old browsers) it is `fallback`. */
 export function useMediaQuery(query: string, fallback: boolean): boolean {
   const read = () =>

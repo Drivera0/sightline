@@ -11,6 +11,8 @@ import { prefersReducedMotion } from "../../metrics/motion";
 import { detectionById, effectiveAnswers, heldCells, stateAtStep, useSearch } from "../../search/store";
 import { Panel } from "../../shell/components";
 import { useMap, type MapContextValue } from "../MapView";
+import { OVERLAY_ATTR, readOverlays } from "../base/camera";
+import { placeLabel } from "./labelPlacement";
 import { FoundBanner } from "./FoundBanner";
 import { probabilityShares, topCellIndices } from "./geometry";
 import {
@@ -31,7 +33,9 @@ import {
   pushDrone,
   pushHotspots,
   pushRipple,
+  pushSectorLabels,
   pushSectors,
+  type PlaceLabel,
   readHeatColors,
   refreshHeatSource,
   RIPPLE_MS,
@@ -41,10 +45,10 @@ import {
   setRippleFrame,
   setSurveyedBoundary,
 } from "./layers";
-import { Legend } from "./Legend";
+import { Legend, rampSwatches } from "./Legend";
 import { SimulatedLine, simulatedLineFor } from "../base/SimulatedLine";
 import { NextSearch } from "./NextSearch";
-import { PanelSlotContext, useMediaQuery, WIDE_LAYOUT_QUERY } from "./panelSlot";
+import { PanelSlotContext, ROOMY_LAYOUT_QUERY, useMediaQuery, WIDE_LAYOUT_QUERY } from "./panelSlot";
 import { HeatRaster, heatPixels, paletteFromTokens, readRasterTokens, sweepDelays } from "./raster";
 import { SectorList } from "./SectorList";
 import { buildSectors, currentSector, sectorBounds, sectorStatuses } from "./sectors";
@@ -113,6 +117,32 @@ export function HeatLayer({ variant = "search" }: { variant?: HeatVariant }) {
   }
   return <HeatOverlay bundle={bundle} mapCtx={mapCtx} variant={variant} />;
 }
+
+/**
+ * Sector label placement on the live map: a label goes where its text box is fully inside the map and
+ * clear of every panel drawn over it (marked with OVERLAY_ATTR), or is hidden (labelPlacement.ts).
+ */
+function livePlacement(map: MapContextValue["map"]): PlaceLabel | undefined {
+  if (!map) return undefined;
+  try {
+    const container = map.getContainer();
+    const c = container.getBoundingClientRect();
+    if (!(c.width > 0 && c.height > 0)) return undefined;
+    const view = { left: 0, top: 0, right: c.width, bottom: c.height };
+    const blockers = readOverlays(container.parentElement).map(({ rect }) => ({
+      left: rect.left - c.left,
+      top: rect.top - c.top,
+      right: rect.right - c.left,
+      bottom: rect.bottom - c.top,
+    }));
+    return (candidates, text) => placeLabel(candidates, text, (at) => map.project(at), view, blockers);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Mark a panel drawn over the map, so the camera frames around it and labels avoid it (camera.ts). */
+const overlay = (side: "left" | "right" | "top" | "bottom" | "corner") => ({ [OVERLAY_ATTR]: side });
 
 function Overlay({ children }: { children: ReactNode }) {
   return <div className="pointer-events-none absolute inset-0 z-10">{children}</div>;
@@ -190,6 +220,10 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const wide = useMediaQuery(WIDE_LAYOUT_QUERY, true);
   const panelSlot = isSearch && !wide ? slot : null;
   const [panelTab, setPanelTab] = useState<PanelTab>("legend");
+  // Below 1280 px the floating legend folds into a pill, so it does not cover the photographed area.
+  const roomy = useMediaQuery(ROOMY_LAYOUT_QUERY, true);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const legendPillRef = useRef<HTMLButtonElement>(null);
 
   // The Search next cells (same rule as the panel), ringed on the map.
   const hotspots = useMemo(
@@ -249,7 +283,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         if (isSearch) ensureDroneImage(map, colors.outline);
         refreshHeatSource(map, raster.animating);
         setHeldBoundary(map, grid, now.covered, now.held);
-        pushSectors(map, grid, now.statuses, now.currentId, now.hoverId);
+        pushSectors(map, grid, now.statuses, now.currentId, now.hoverId, livePlacement(map));
         if (isSearch) {
           setSurveyedBoundary(map, grid, now.covered);
           setFlightPathVisible(map, showPathRef.current);
@@ -379,11 +413,37 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   useEffect(() => {
     if (!map) return;
     try {
-      pushSectors(map, grid, statuses, currentId, hoverId);
+      pushSectors(map, grid, statuses, currentId, hoverId, livePlacement(map));
     } catch {
       /* style reloading */
     }
   }, [map, grid, statuses, currentId, hoverId]);
+
+  // Re-place the sector labels as the camera moves (once per frame at most), so none is drawn
+  // half off the map or under a panel.
+  useEffect(() => {
+    if (!map) return undefined;
+    let frame = 0;
+    const replace = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const now = latest.current;
+        try {
+          pushSectorLabels(map, grid, now.statuses, now.currentId, now.hoverId, livePlacement(map));
+        } catch {
+          /* style reloading */
+        }
+      });
+    };
+    map.on?.("move", replace);
+    map.on?.("resize", replace);
+    return () => {
+      cancelAnimationFrame(frame);
+      map.off?.("move", replace);
+      map.off?.("resize", replace);
+    };
+  }, [map, grid]);
 
   // The legend switch; re-applied by install() after a basemap switch rebuilds lane B's layers.
   useEffect(() => {
@@ -496,7 +556,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     const answered = shares !== null && baseShares !== null && Math.abs(baseShares.surveyed - shares.surveyed) > 1e-12;
     return (
       <Overlay>
-        <Panel className={`sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
+        <Panel {...overlay("corner")} className={`sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
           <div className="flex flex-col gap-3">
             {shares && baseShares ? (
               <div className="flex flex-col gap-1" aria-live="polite">
@@ -560,12 +620,21 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         onSelect={flyToPoint}
       />
     ) : null;
+  const legendFolds = !panelSlot && !roomy;
   const legend = (
     <Legend
       simulatedPath={bundle.survey.simulated_path}
       hasSurveyed={hasSurveyed}
       showPath={showPath}
       onShowPathChange={setShowPath}
+      onCollapse={
+        legendFolds
+          ? () => {
+              setLegendOpen(false);
+              requestAnimationFrame(() => legendPillRef.current?.focus());
+            }
+          : undefined
+      }
     />
   );
   const slider = stepCount > 0 ? <StepSlider value={stepIndex} max={stepCount} onChange={setStepIndex} /> : null;
@@ -630,7 +699,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
 
   return (
     <Overlay>
-      <Panel className={`sl-rise pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
+      <Panel {...overlay("left")} className={`sl-rise pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
         {/* In the side panel rather than over the map, so it never hides the grid. */}
         {foundBanner && <div className="mb-4 border-b border-border pb-4">{foundBanner}</div>}
         {sectorList && nextSearch ? (
@@ -642,15 +711,36 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
           computing
         )}
       </Panel>
-      <Panel
-        // Capped below the basemap switch (top right), so the two never overlap on short screens.
-        className={`sl-rise pointer-events-auto absolute bottom-3 right-3 max-h-[calc(100%-4.5rem)] w-64 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}
-        style={{ animationDelay: "80ms" }}
-      >
-        {legend}
-      </Panel>
+      {legendFolds && !legendOpen ? (
+        <button
+          type="button"
+          ref={legendPillRef}
+          {...overlay("corner")}
+          aria-expanded={false}
+          aria-controls="search-legend"
+          onClick={() => setLegendOpen(true)}
+          className={`pointer-events-auto absolute bottom-3 right-3 inline-flex h-8 items-center gap-2 rounded-full border border-border px-3 font-mono text-label uppercase tracking-wider text-text-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md transition-colors hover:text-text ${OVER_MAP}`}
+        >
+          <span aria-hidden="true" className="flex h-1.5 w-6 overflow-hidden rounded-full">
+            {rampSwatches().map((c) => (
+              <span key={c} className="h-full flex-1" style={{ background: c }} />
+            ))}
+          </span>
+          Reading the map
+        </button>
+      ) : (
+        <Panel
+          {...overlay("corner")}
+          id="search-legend"
+          // Capped below the basemap switch (top right), so the two never overlap on short screens.
+          className={`sl-rise pointer-events-auto absolute bottom-3 right-3 max-h-[calc(100%-4.5rem)] w-64 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}
+          style={{ animationDelay: legendFolds ? undefined : "80ms" }}
+        >
+          {legend}
+        </Panel>
+      )}
       {slider && (
-        <Panel className={`pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-38rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
+        <Panel {...overlay("bottom")} className={`pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-38rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
           {slider}
         </Panel>
       )}
