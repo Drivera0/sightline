@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CacheBundle } from "../contract";
 import { loadCache } from "../lib/cache";
@@ -38,7 +38,7 @@ describe("ResultsSummary", () => {
 });
 
 describe("ResultsSummary in time and in your own answers", () => {
-  beforeEach(() => useReview.setState({ history: [], answers: {} }));
+  beforeEach(() => useReview.setState({ history: [], answers: {}, cleared: null }));
 
   it("says the saving in photos and as a share of the survey, never in minutes at 33 s per section", () => {
     const m = structuredClone(cache.metrics);
@@ -82,6 +82,19 @@ describe("ResultsSummary in time and in your own answers", () => {
     // "x" is not one of this survey's candidates, so it is not counted.
     expect(screen.getByText(/2 of 3 candidates answered/)).toHaveTextContent("a median of 30 s per answer");
     expect(screen.getByText("Not answered").nextSibling).toHaveTextContent("1");
+  });
+
+  it("lets a new reviewer on a shared machine reset the saved answers from the summary", async () => {
+    useReview.setState({
+      surveyId: null,
+      cleared: null,
+      history: [{ detectionId: "a", answer: "person", at: 0 }],
+      answers: { a: "person" },
+    });
+    render(<ResultsSummary metrics={cache.metrics} candidateIds={["a"]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reset review" }));
+    expect(screen.getByText(/haven't answered any of the 1 candidates/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
   });
 
   it("asks for a review before there are answers", () => {

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Metrics } from "../contract";
+import { ResetReview } from "../review/ResetReview";
 import { useReview, type Answer } from "../review/store";
 import { Badge, Label } from "../shell/components";
 import { ablationDisplayRows, count, pct, seconds, speedup } from "./format";
@@ -247,7 +248,10 @@ function YourReview({ candidateIds }: { candidateIds: readonly string[] }) {
     >
       <div className="flex items-baseline justify-between gap-3">
         <Label>Your review</Label>
-        <span className="text-label text-text-3">answers saved in this browser</span>
+        <span className="flex items-center gap-2 text-label text-text-3">
+          answers saved in this browser
+          <ResetReview />
+        </span>
       </div>
       {total === 0 ? (
         <p className="text-small text-text-3">This survey has no candidates to review.</p>

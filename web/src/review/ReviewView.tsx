@@ -6,6 +6,7 @@ import { prefersReducedMotion } from "../metrics/motion";
 import { useSelection } from "../lib/selection";
 import { Badge, EmptyState, KeyHint, Label, Panel } from "../shell/components";
 import { reviewItems, reviewProgress, type ReviewItem } from "./items";
+import { ResetReview } from "./ResetReview";
 import { useReview, type Answer } from "./store";
 
 const STATUS: Record<Answer | "unreviewed", { label: string; className: string; dot: string }> = {
@@ -280,7 +281,10 @@ export function ReviewView({
           <p className="font-mono text-small text-text-2">
             {`${progress.reviewed} of ${progress.total} reviewed · ${progress.persons} ${people} confirmed`}
           </p>
-          {allDone && <p className="sl-fade text-small text-ok">All candidates reviewed</p>}
+          <div className="flex items-center gap-3">
+            {allDone && <p className="sl-fade text-small text-ok">All candidates reviewed</p>}
+            <ResetReview />
+          </div>
         </div>
         <div
           className="h-1 overflow-hidden rounded-full bg-surface-strong"

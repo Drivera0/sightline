@@ -3,7 +3,7 @@ import { answersOf, useReview } from "./store";
 
 function fresh() {
   localStorage.clear();
-  useReview.setState({ surveyId: null, history: [], answers: {}, demoSaved: null });
+  useReview.setState({ surveyId: null, history: [], answers: {}, demoSaved: null, cleared: null });
 }
 
 describe("useReview history", () => {
@@ -195,5 +195,46 @@ describe("useReview demo answers (the guided tour)", () => {
     useReview.getState().beginDemo();
     useReview.getState().endDemo();
     expect(useReview.getState().history.map((h) => h.detectionId)).toEqual(["a"]);
+  });
+});
+
+describe("useReview reset (a shared machine)", () => {
+  beforeEach(fresh);
+
+  it("clears this survey's saved answers, and undoReset brings them back", () => {
+    useReview.getState().bind("sample");
+    useReview.getState().answer("a", "person", 1);
+    useReview.getState().answer("b", "not_person", 2);
+
+    useReview.getState().reset();
+    expect(useReview.getState().history).toEqual([]);
+    expect(JSON.parse(localStorage.getItem("sightline.review.sample") as string)).toEqual([]);
+    expect(useReview.getState().cleared).toHaveLength(2);
+
+    useReview.getState().undoReset();
+    expect(useReview.getState().answers).toEqual({ a: "person", b: "not_person" });
+    expect(JSON.parse(localStorage.getItem("sightline.review.sample") as string)).toHaveLength(2);
+    expect(useReview.getState().cleared).toBeNull();
+  });
+
+  it("forgets the undo once a new answer is given, and has nothing to undo after an empty reset", () => {
+    useReview.getState().bind("sample");
+    useReview.getState().reset();
+    expect(useReview.getState().cleared).toBeNull();
+    useReview.getState().answer("a", "person", 1);
+    useReview.getState().reset();
+    useReview.getState().answer("b", "unsure", 2);
+    expect(useReview.getState().cleared).toBeNull();
+    useReview.getState().undoReset();
+    expect(useReview.getState().answers).toEqual({ b: "unsure" });
+  });
+
+  it("leaves other surveys' answers alone", () => {
+    useReview.getState().bind("seymour-demo");
+    useReview.getState().answer("x", "person", 1);
+    useReview.getState().bind("sample");
+    useReview.getState().answer("a", "person", 1);
+    useReview.getState().reset();
+    expect(JSON.parse(localStorage.getItem("sightline.review.seymour-demo") as string)).toHaveLength(1);
   });
 });
