@@ -170,3 +170,11 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .sl-step, .sl-drift { animation: none; }
 }
+
+/* Survey photo wall: columns scroll forever, alternate columns the other way. Very slow. */
+@keyframes sl-wall { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, -50%, 0); } }
+.sl-wall { animation: sl-wall 140s linear infinite; will-change: transform; }
+.sl-wall-down { animation-direction: reverse; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-wall { animation: none; }
+}
