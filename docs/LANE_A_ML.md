@@ -96,7 +96,7 @@ class Detector:
         """SAHI sliced inference for full 4000×3000 images."""
     def detect_resized(self, image: Path, conf: float = 0.05) -> list[RawDetection]:
         """Whole 4000×3000 image resized to imgsz (1024) in one pass, so a 60 px person becomes ~15 px.
-        Only for the 'no tiling' ablation rows; the metrics screen labels those rows '(resized to 1024)'.
+        Only for the two shrunk-photo ablation rows; the metrics screen labels them 'whole photo shrunk to 1024 px'.
         Detector(..., imgsz=4000) runs the whole photo at native scale instead (§6.3, fair baseline)."""
 
 # sightline/ml/crops.py
@@ -265,7 +265,7 @@ Tests must run on CPU without weights; use tiny fixtures.
 `web/src/metrics/MetricsView.tsx`, reading `metrics.json` only. See `05_FRONTEND_SHARED.md` for the shell and look.
 
 - **Headline row:** three stat tiles: our recall vs. human 68%; our precision vs. human 59%; seconds per image, ours vs. 33 s.
-- **Ablation table:** the 4 rows, VOC precision / recall / AP50, best row highlighted.
+- **Ablation table:** the 7 rows in `ABLATION_NAMES` order (an old 4-row file shows its 4, the old name mapped), VOC precision / recall / AP50, the row in use ("Fine-tuned + tiling") highlighted by name, not the best AP50. Results shows five of them as bars ("Why resolution matters").
 - **Ranking block** (D's numbers): frames reviewed before the first hit, ranked vs. flight order, and the random-order expectation.
 - **Search block** (C's numbers): median and 90th-percentile cells to find, three methods, with a **"Simulated"** badge.
 - Every number shows its source on hover (e.g. "HERIDAL test set, 101 images").
