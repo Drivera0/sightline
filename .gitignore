@@ -1,6 +1,7 @@
 # Python
 .venv/
 __pycache__/
+*.pyc
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
@@ -10,8 +11,8 @@ data/
 data/runs/
 cache/demo/
 web/public/cache/demo/
-weights/
 *.pt
+weights/
 runs/
 datasets/
 
@@ -32,10 +33,10 @@ requirements.txt
 
 # Web
 node_modules/
-dist/
 web/node_modules/
 web/dist/
 .pnpm-store/
+dist/
 
 # OS and editors
 .DS_Store
@@ -43,5 +44,5 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Personal Claude Code rules
+# Personal Claude Code rules (each person keeps their own)
 CLAUDE.local.md

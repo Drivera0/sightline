@@ -152,3 +152,16 @@ def test_mine_skips_photos_with_no_annotations(tmp_path: Path) -> None:
     unlabelled = [LabeledImage(img, 2000, 1500, [])]
     assert mine(fake, unlabelled, out_dir=tmp_path / "a") == []
     assert len(mine(fake, unlabelled, out_dir=tmp_path / "b", skip_unlabelled=False)) == 1
+
+
+def test_load_split_annotated_only(tmp_path: Path) -> None:
+    root = tmp_path / "yolo_full"
+    (root / "val" / "images").mkdir(parents=True)
+    (root / "val" / "labels").mkdir(parents=True)
+    for stem in ("a", "b"):
+        Image.new("RGB", (400, 300)).save(root / "val" / "images" / f"{stem}.jpg")
+    label = yolo_line(Box(10, 20, 50, 60), 400, 300)
+    (root / "val" / "labels" / "a.txt").write_text(label + "\n")
+    (root / "val" / "labels" / "b.txt").write_text("")
+    assert [i.path.stem for i in load_split("val", root)] == ["a", "b"]
+    assert [i.path.stem for i in load_split("val", root, annotated_only=True)] == ["a"]
