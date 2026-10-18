@@ -54,6 +54,7 @@ def mine(
     seed: int = 7,
     out_dir: Path = DEFAULT_OUT,
     quality: int = 95,
+    skip_unlabelled: bool = True,
 ) -> list[Path]:
     """Tiled inference over **training** images, cut a tile around every false positive,
     cap at ``max_tiles`` (seeded sample), write ``<out_dir>/{images,labels}``. Returns the tile paths."""
@@ -62,6 +63,11 @@ def mine(
     candidates: list[tuple[LabeledImage, Tile]] = []
     seen: set[tuple[str, int, int]] = set()
     for im in train:
+        # HERIDAL's Zenodo copy has ~560 trainval photos whose annotation is an empty stub. Most are
+        # background, but some show people nobody labelled; an "empty" tile from them can teach the
+        # model that a person is background. Only mine photos that were actually annotated.
+        if skip_unlabelled and not im.boxes:
+            continue
         dets = detector.detect_tiled(im.path, conf=conf)
         for fp in false_positives(dets, im.boxes, conf):
             tile = tile_around(fp, im.width, im.height)
