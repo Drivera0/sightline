@@ -97,3 +97,11 @@ export function ablationDisplayRows(
       : { name, measured: false };
   });
 }
+
+/** Index of the single smallest value; -1 when the smallest is shared (a tie) or the list is empty. */
+export function uniqueMinIndex(values: readonly number[]): number {
+  if (values.length === 0) return -1;
+  const min = Math.min(...values);
+  const at = values.flatMap((v, i) => (v === min ? [i] : []));
+  return at.length === 1 ? (at[0] ?? -1) : -1;
+}

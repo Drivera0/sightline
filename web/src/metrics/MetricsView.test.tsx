@@ -94,18 +94,20 @@ describe("MetricsView", () => {
     expect(within(rows[3]!).getByText("76.6%")).toBeInTheDocument();
   });
 
-  it("shows the ranking result: flight order vs ranked vs random expectation", () => {
+  it("shows the ranking result: ranked vs the random-order expectation, this flight's order last", () => {
     render(<MetricsView />);
 
     const table = screen.getByRole("table", { name: "Ranking" });
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows[0]).toHaveTextContent("Flight order");
-    expect(within(rows[0]!).getByText("5")).toBeInTheDocument();
-    expect(within(rows[0]!).getByText("2.8 min")).toBeInTheDocument();
-    expect(rows[1]).toHaveTextContent("Ranked by detector");
-    expect(within(rows[1]!).getByText("1")).toBeInTheDocument();
-    expect(rows[2]).toHaveTextContent("Random order, expected");
-    expect(within(rows[2]!).getByText("7")).toBeInTheDocument();
+    expect(rows[0]).toHaveTextContent("Ranked by detector");
+    expect(rows[0]).toHaveAttribute("data-highlight", "true");
+    expect(within(rows[0]!).getByText("1")).toBeInTheDocument();
+    expect(rows[1]).toHaveTextContent("Random order, expected");
+    expect(within(rows[1]!).getByText("7")).toBeInTheDocument();
+    // 7 photos at the published 33 s each, in minutes
+    expect(within(rows[1]!).getByText(/^3\.\d min$/)).toBeInTheDocument();
+    expect(rows[2]).toHaveTextContent("This flight's order (one layout)");
+    expect(rows[2]).not.toHaveAttribute("data-highlight");
   });
 
   it("shows the search simulation with its simulated badge", () => {
@@ -251,5 +253,69 @@ describe("search simulation highlighting", () => {
       .slice(1);
     expect(rows[1]).toHaveAttribute("data-highlight", "true");
     expect(rows[2]).not.toHaveAttribute("data-highlight");
+  });
+});
+
+describe("search simulation: inside the surveyed area, and ties", () => {
+  const methods = (prior: number, naive: number, sightline: number) => [
+    { name: "Prior only", median_cells: prior, p90_cells: prior + 100 },
+    {
+      name: "Naive: photographed = cleared",
+      median_cells: naive,
+      p90_cells: naive + 120,
+    },
+    {
+      name: "Sightline: canopy-aware",
+      median_cells: sightline,
+      p90_cells: sightline + 130,
+    },
+  ];
+  const withSim = (search_sim: CacheBundle["metrics"]["search_sim"]) => ({
+    ...cache.metrics,
+    search_sim,
+  });
+
+  it("highlights nothing when the fewest cells is a tie", () => {
+    const sim = {
+      ...cache.metrics.search_sim,
+      methods: methods(1260, 1201, 1201),
+      in_survey: null,
+    };
+    render(<MetricsView metrics={withSim(sim)} />);
+    const table = screen.getByRole("table", { name: "Search simulation" });
+    expect(table.querySelector('[data-highlight="true"]')).toBeNull();
+  });
+
+  it("shows the inside-the-survey numbers when present, highlighting the real winner", () => {
+    const sim = {
+      ...cache.metrics.search_sim,
+      methods: methods(1260, 1201, 1201),
+      in_survey: { trials: 2000, methods: methods(147, 121, 110) },
+    };
+    render(<MetricsView metrics={withSim(sim)} />);
+    const inside = screen.getByRole("table", {
+      name: "Search simulation inside the surveyed area",
+    });
+    const rows = within(inside).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(3);
+    expect(rows[2]).toHaveTextContent("Sightline: canopy-aware");
+    expect(rows[2]).toHaveAttribute("data-highlight", "true");
+    expect(within(rows[2]!).getByText("110")).toBeInTheDocument();
+    expect(
+      screen.getByText(/2,000 trials whose person was in a photographed cell/),
+    ).toBeInTheDocument();
+  });
+
+  it("says plainly when the inside-the-survey numbers are not measured", () => {
+    const sim = { ...cache.metrics.search_sim, in_survey: null };
+    render(<MetricsView metrics={withSim(sim)} />);
+    expect(
+      screen.queryByRole("table", {
+        name: "Search simulation inside the surveyed area",
+      }),
+    ).toBeNull();
+    expect(
+      screen.getByText(/Inside-the-survey numbers: not yet measured/),
+    ).toBeInTheDocument();
   });
 });

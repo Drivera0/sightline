@@ -12,6 +12,7 @@ import {
   pct,
   seconds,
   speedup,
+  uniqueMinIndex,
 } from "./format";
 import { useCountUp } from "./motion";
 
@@ -54,12 +55,6 @@ function MetricsBody({ m }: { m: Metrics }) {
   } inference at threshold ${detector.threshold} (metrics.detector)`;
   const humanSource = `Human baseline: ${human.source}`;
   const isSample = detector.model === "SAMPLE";
-  // Highlight whichever method really needs the fewest cells; never assume it's Sightline's row.
-  const fewestCells = sim.methods.reduce(
-    (best, m, i, all) =>
-      m.median_cells < (all[best]?.median_cells ?? Infinity) ? i : best,
-    0,
-  );
 
   return (
     <div
@@ -180,15 +175,6 @@ function MetricsBody({ m }: { m: Metrics }) {
             </thead>
             <tbody>
               <Row
-                label="Flight order"
-                cells={[
-                  count(ranking.flight_order.frames_to_first_hit),
-                  count(ranking.flight_order.frames_to_all_hits),
-                  minutes(ranking.minutes_at_human_pace.flight_order_first),
-                ]}
-                source={rankingSource(ranking)}
-              />
-              <Row
                 label="Ranked by detector"
                 cells={[
                   count(ranking.ranked.frames_to_first_hit),
@@ -203,9 +189,27 @@ function MetricsBody({ m }: { m: Metrics }) {
                 cells={[
                   count(ranking.expected_first_hit_random_order),
                   "—",
-                  "—",
+                  minutes(
+                    (ranking.expected_first_hit_random_order *
+                      HUMAN_SECONDS_PER_PHOTO) /
+                      60,
+                  ),
                 ]}
-                source={`(N + 1) / (k + 1) for ${ranking.n_frames} frames and ${ranking.n_positive} with people (metrics.ranking)`}
+                source={`(N + 1) / (k + 1) for ${ranking.n_frames} frames and ${ranking.n_positive} with people (metrics.ranking); minutes at the published ${HUMAN_SECONDS_PER_PHOTO} s per photo (Pyrrö et al. 2021)`}
+              />
+              <Row
+                label={
+                  <span className="text-text-3">
+                    This flight&apos;s order{" "}
+                    <span className="text-small">(one layout)</span>
+                  </span>
+                }
+                cells={[
+                  count(ranking.flight_order.frames_to_first_hit),
+                  count(ranking.flight_order.frames_to_all_hits),
+                  minutes(ranking.minutes_at_human_pace.flight_order_first),
+                ]}
+                source={`${rankingSource(ranking)}; one seeded layout, not a baseline`}
               />
             </tbody>
           </table>
@@ -222,37 +226,89 @@ function MetricsBody({ m }: { m: Metrics }) {
               <Badge kind="simulated">Simulated evaluation</Badge>
             )}
           </div>
-          <table
-            className="mt-3 w-full text-body"
-            aria-label="Search simulation"
-          >
-            <thead>
-              <tr className="text-left text-small text-text-3">
-                <th className="py-1 font-normal">Method</th>
-                <th className="py-1 text-right font-normal">Median</th>
-                <th className="py-1 text-right font-normal">90th percentile</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sim.methods.map((method, i) => (
-                <Row
-                  key={method.name}
-                  label={method.name}
-                  cells={[count(method.median_cells), count(method.p90_cells)]}
-                  source={simSource(sim)}
-                  highlight={i === fewestCells}
-                />
-              ))}
-            </tbody>
-          </table>
+          {sim.in_survey ? (
+            <>
+              <SearchTable
+                label="Search simulation inside the surveyed area"
+                caption="Cells checked inside the surveyed area"
+                methods={sim.in_survey.methods}
+                source={`${simSource(sim)}; ${sim.in_survey.trials} trials with the person in a photographed cell (metrics.search_sim.in_survey)`}
+              />
+              <p className="mt-2 text-small text-text-3">
+                {count(sim.in_survey.trials)} trials whose person was in a
+                photographed cell and the drone missed them. Lower is better.
+              </p>
+            </>
+          ) : (
+            <p className="mt-3 text-small text-text-3">
+              Inside-the-survey numbers: not yet measured (this cache predates
+              contract 1.1).
+            </p>
+          )}
+          <SearchTable
+            label="Search simulation"
+            caption="Whole 1 km grid"
+            methods={sim.methods}
+            source={simSource(sim)}
+            secondary={Boolean(sim.in_survey)}
+          />
           <Source>
             {simSource(sim)}. The drone itself found the person in{" "}
             <Num source={simSource(sim)}>{pct(sim.found_by_drone_rate)}</Num> of
-            trials; the rows count the remaining trials. Lower is better.
+            trials. Across the whole grid the methods nearly tie: most of the
+            grid was never photographed and the prior is flat, so only the
+            surveyed area can separate them.
           </Source>
         </Panel>
       </div>
     </div>
+  );
+}
+
+const HUMAN_SECONDS_PER_PHOTO = 33; // Pyrrö et al. 2021, the published human baseline
+
+/** One method table. Highlights the row with the fewest median cells, and nothing on a tie. */
+function SearchTable({
+  label,
+  caption,
+  methods,
+  source,
+  secondary = false,
+}: {
+  label: string;
+  caption: string;
+  methods: Metrics["search_sim"]["methods"];
+  source: string;
+  secondary?: boolean;
+}) {
+  const best = uniqueMinIndex(methods.map((m) => m.median_cells));
+  return (
+    <table
+      className={`mt-3 w-full ${secondary ? "text-small opacity-80" : "text-body"}`}
+      aria-label={label}
+    >
+      <caption className="pb-1 text-left text-small text-text-3">
+        {caption}
+      </caption>
+      <thead>
+        <tr className="text-left text-small text-text-3">
+          <th className="py-1 font-normal">Method</th>
+          <th className="py-1 text-right font-normal">Median</th>
+          <th className="py-1 text-right font-normal">90th percentile</th>
+        </tr>
+      </thead>
+      <tbody>
+        {methods.map((method, i) => (
+          <Row
+            key={method.name}
+            label={method.name}
+            cells={[count(method.median_cells), count(method.p90_cells)]}
+            source={source}
+            highlight={i === best}
+          />
+        ))}
+      </tbody>
+    </table>
   );
 }
 
