@@ -26,6 +26,16 @@ MERGE_TYPE = "NMS"
 MERGE_METRIC = "IOU"
 MERGE_THRESHOLD = 0.5
 
+# Test-time augmentation for tiled inference, adopted on val (scripts/tta_on_val.py,
+# docs/LANE_A_ML.md §6.3a): the photo and its left-right mirror, each tiled and merged as above,
+# then fused with weighted box fusion (IoU 0.55). Val F2 0.857 (P 0.797, R 0.874, AP50 0.889 at
+# threshold 0.32) vs 0.831 without TTA; paired bootstrap dF2 +0.027, 95 % CI [+0.004, +0.048];
+# 0.62 s per photo vs 0.32 s in the same measurement. Pooled NMS instead of WBF was not clearly
+# better (dF2 +0.003); 4 and 8 views with WBF were clearly better but not better than 2 views, and
+# 8 views took 2.4 s per photo. ("id",) turns TTA off.
+TTA_VIEWS: tuple[str, ...] = ("id", "hflip")
+TTA_WBF_IOU = 0.55
+
 
 def _require(module: str) -> Any:
     try:
@@ -159,10 +169,42 @@ class Detector:
         merge: str = MERGE_TYPE,
         match_metric: str = MERGE_METRIC,
         match_threshold: float = MERGE_THRESHOLD,
+        tta: tuple[str, ...] = TTA_VIEWS,
     ) -> list[RawDetection]:
-        """SAHI sliced inference for full 4000×3000 images, slices merged with ``merge_slices``."""
-        raw, width, height = self.slice_predictions(image, conf, slice_px, overlap)
-        return merge_slices(raw, width, height, merge, match_metric, match_threshold)
+        """SAHI sliced inference for full 4000×3000 images, slices merged with ``merge_slices``.
+
+        With more than one ``tta`` view (names from ``sightline.ml.tta.TRANSFORMS``), each view
+        of the photo is tiled and merged on its own, mapped back, and the views are fused with
+        weighted box fusion; a box seen in one view of two keeps half its confidence.
+        """
+        if tuple(tta) == ("id",):
+            raw, width, height = self.slice_predictions(image, conf, slice_px, overlap)
+            return merge_slices(raw, width, height, merge, match_metric, match_threshold)
+
+        import numpy as np
+        from PIL import Image
+
+        from sightline.ml.tta import boxes_back, to_float_boxes, transform_image
+        from sightline.ml.tta import weighted_box_fusion as wbf
+
+        with Image.open(image) as src:
+            pixels = np.asarray(src.convert("RGB"))
+        height, width = pixels.shape[:2]
+        views = []
+        for name in tta:
+            raw, vw, vh = self.slice_predictions(
+                transform_image(pixels, name), conf, slice_px, overlap
+            )
+            merged = merge_slices(raw, vw, vh, merge, match_metric, match_threshold)
+            views.append(boxes_back(to_float_boxes(merged), name, width, height))
+        dets: list[RawDetection] = []
+        for x1, y1, x2, y2, c in wbf(views, TTA_WBF_IOU):
+            if c < conf:  # fused confidence below the save threshold: dropped, as in one view
+                continue
+            box = _int_box(x1, y1, x2, y2, width, height)
+            if box is not None:
+                dets.append(RawDetection(box=box, conf=float(c)))
+        return _sorted(dets)
 
 
 _NO_MERGE = "SIGHTLINE_NO_MERGE"
