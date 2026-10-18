@@ -11,6 +11,8 @@ export interface MapState {
 
 const M_PER_DEG_LAT = 111_320;
 const DEG_TO_RAD = Math.PI / 180; // same constant as Python's math.radians
+// Float error can put an edge neighbour at 10.0000001 m; this keeps it in a 10 m radius.
+const RADIUS_TOLERANCE_M = 1e-6; // same as RADIUS_TOLERANCE_M in grid.py
 
 /** One look at some cells that found nobody: cells = [idx, pod][]. Never mutates s. */
 export function applyStep(s: MapState, cells: [number, number][]): MapState {
@@ -52,17 +54,18 @@ export function cellsWithinRadius(grid: Grid, lat: number, lon: number, radiusM:
   const eastM = (lon - grid.origin_nw.lon) * mPerDegLon;
   const southM = (grid.origin_nw.lat - lat) * M_PER_DEG_LAT;
   const c = grid.cell_m;
-  const rowLo = Math.max(0, Math.floor((southM - radiusM) / c));
-  const rowHi = Math.min(grid.rows - 1, Math.floor((southM + radiusM) / c));
-  const colLo = Math.max(0, Math.floor((eastM - radiusM) / c));
-  const colHi = Math.min(grid.cols - 1, Math.floor((eastM + radiusM) / c));
+  const reachM = radiusM + RADIUS_TOLERANCE_M;
+  const rowLo = Math.max(0, Math.floor((southM - reachM) / c));
+  const rowHi = Math.min(grid.rows - 1, Math.floor((southM + reachM) / c));
+  const colLo = Math.max(0, Math.floor((eastM - reachM) / c));
+  const colHi = Math.min(grid.cols - 1, Math.floor((eastM + reachM) / c));
 
   const found = new Set<number>();
   for (let row = rowLo; row <= rowHi; row++) {
     const dSouthM = Math.max(row * c - southM, 0, southM - (row + 1) * c);
     for (let col = colLo; col <= colHi; col++) {
       const dEastM = Math.max(col * c - eastM, 0, eastM - (col + 1) * c);
-      if (Math.hypot(dEastM, dSouthM) <= radiusM) found.add(row * grid.cols + col);
+      if (Math.hypot(dEastM, dSouthM) <= reachM) found.add(row * grid.cols + col);
     }
   }
 
