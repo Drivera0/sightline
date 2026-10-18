@@ -43,10 +43,10 @@ interface DetectionProperties {
 }
 
 /** Words, not a bare "?": the hover chip says what the answer means for the search. */
-export type ReviewLabel = "Person confirmed" | "Unsure · check again" | "Not a person" | "Not answered";
+export type ReviewLabel = "Person sighted" | "Unsure · check again" | "Not a person" | "Not answered";
 
 export function reviewLabelFor(state: Answer | "unreviewed"): ReviewLabel {
-  if (state === "person") return "Person confirmed";
+  if (state === "person") return "Person sighted";
   if (state === "unsure") return "Unsure · check again";
   if (state === "not_person") return "Not a person";
   return "Not answered";
@@ -57,7 +57,7 @@ interface PinMarkerProperties {
   frameId: string;
   reviewState: Answer | "unreviewed";
   reviewLabel: ReviewLabel;
-  /** The hover chip's text: the answer and the photo, e.g. "Person confirmed · f0336". */
+  /** The hover chip's text: the answer and the photo, e.g. "Person sighted · f0336". */
   chipText: string;
   /** Person first, then unsure: which label wins when two would collide. */
   labelRank: number;

@@ -101,7 +101,7 @@ The forest becomes the most likely cell even though the drone flew over it.
 |---|---|
 | **Not a person** | Cells within the detection's `radius_m` (same rule as §3.3 step 5) get `pod = review_pod` (0.90, capped by `pod_cap`), then run the update. |
 | **Unsure** | No change. |
-| **Person** | Map shows **found**: pin highlighted and a "Person confirmed" banner. The slider and later answers still work (the demo scrubs the map after the first "Person"), but the banner stays until undone. |
+| **Person** | A **candidate sighting**: a person is there, but maybe not the missing person (a searcher, another hiker). The map still tracks one missing person. (1) Once the replay has flown the detection's photo, that photo's "nobody here" look at the cells within `radius_m` is undone (`applyReviewPerson` in `update.ts`: divide by 1 − pod, renormalise; in the demo cache each sighting's own photo already has pod 0 there, because candidates are held, so nothing changes). (2) Sightings whose cells overlap merge into one candidate area S_i. (3) Each area's share is P(S_i) / Σ_j P(S_j) on the same map state the heat shows: its chance *if the missing person is one of the sightings* (100% with one). (4) The rest of the map is the plan *if none of the sightings is them*, drawn as usual. Candidate cells are drawn as the darkest class with a green ring; hover or tap gives the reading ("if this is the missing person, the search ends here (100%)" or "X% of the chance among N sightings", plus "this area held Y% of the map"). Sectors with a sighting go first ("Candidate sighting · send ground team to check"); the banner says "Person sighted: send ground team to check". Review's readout leaves candidate cells out of "photographed ground". Undo restores everything. Nothing is invented for which case is true. Browser only: the Python simulation never reads review answers, so no pitch number changes. |
 
 ---
 
@@ -193,6 +193,7 @@ def write_test_vectors(out: Path = Path("web/src/search/__fixtures__/update_vect
 
 - Repeated looks at a cell are treated as independent.
 - The canopy classifier has MAE 0.34 against the 20 hand-scored crops (`tests/search/fixtures/canopy_report.md`; the best of 180 threshold sets gives 0.32 on the same crops, so the defaults were kept). It finds green forest well, but misses pale, autumn and dry trees (it looks for green texture), reads dark lawn as shadow, and reads bright textured rock as canopy.
+- A "Person" answer is a candidate sighting, not a find of the missing person. Next steps, not built: a "matches the subject description?" question, which would make a candidate the main one or rule it out; excluding searchers by the teams' GPS tracks; several missing people, as an expected count per cell instead of one probability map.
 - "Not a person" applies `review_pod` (0.9) within the radius. This over-clears, because a rejected crop covers only about 2.6 m (a 128 × 128 px window at 0.02 m/px, contract §7). The correct rule would release the frame's normal pod, but that needs the held pods in `map.json` (a contract change). Not done.
 
 ## Robustness: does the gain survive the canopy error?

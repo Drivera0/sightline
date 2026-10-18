@@ -4,7 +4,9 @@
 // the pins), the review ripple and a small readout, without the replay and the side panel.
 import { type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { MapMouseEvent } from "maplibre-gl";
 import type { CacheBundle } from "../../contract";
+import type { CandidateShare } from "../../search/update";
 import { CacheContext, useCache } from "../../lib/cache";
 import { useReview, type HistoryEntry } from "../../review/store";
 import { prefersReducedMotion } from "../../metrics/motion";
@@ -42,6 +44,7 @@ import {
   RIPPLE_MS,
   setBreath,
   setFlightPathVisible,
+  setCandidateBoundary,
   setHeldBoundary,
   setRippleFrame,
   setSurveyedBoundary,
@@ -52,6 +55,16 @@ import { NextSearch } from "./NextSearch";
 import { PanelSlotContext, ROOMY_LAYOUT_QUERY, useMediaQuery, WIDE_LAYOUT_QUERY } from "./panelSlot";
 import { HeatRaster, heatPixels, paletteFromTokens, readRasterTokens, sweepDelays } from "./raster";
 import { SectorList } from "./SectorList";
+import {
+  candidateMask,
+  cellAt,
+  sectorsWithSightings,
+  sightingAreaText,
+  sightingAtCell,
+  sightingOf,
+  sightingReading,
+  withoutCandidates,
+} from "./sightings";
 import { buildSectors, currentSector, sectorBounds, sectorStatuses } from "./sectors";
 import { StepSlider } from "./StepSlider";
 
@@ -184,6 +197,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const stepCount = useSearch((s) => s.stepCount);
   const setStepIndex = useSearch((s) => s.setStepIndex);
   const foundDetectionId = useSearch((s) => s.foundDetectionId);
+  const sightings = useSearch((s) => s.sightings);
   // Follows the system setting live, so the build-up (and its Skip pill) never runs under reduced motion.
   const reduced = useMediaQuery(REDUCED_MOTION_QUERY, prefersReducedMotion());
 
@@ -225,8 +239,50 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const path = useMemo(() => stepFrames.map((f) => [f.pose.lon, f.pose.lat] as [number, number]), [stepFrames]);
   const ready = data?.map === mapFile && state !== null;
 
+  // Hover (or tap) a candidate sighting's area or pin: its reading in a small card by the pointer.
+  const [hoverSighting, setHoverSighting] = useState<{ sighting: CandidateShare; x: number; y: number; flip: boolean } | null>(
+    null,
+  );
+  const sightingsRef = useRef(sightings);
+  sightingsRef.current = ready ? sightings : [];
+  useEffect(() => {
+    if (!map) return undefined;
+    const at = (e: MapMouseEvent) => {
+      const s = sightingAtCell(sightingsRef.current, cellAt(grid, [e.lngLat.lng, e.lngLat.lat]));
+      if (!s) return setHoverSighting(null);
+      let width = 0;
+      try {
+        width = map.getContainer().clientWidth;
+      } catch {
+        /* map gone */
+      }
+      setHoverSighting({ sighting: s, x: e.point.x, y: e.point.y, flip: width > 0 && e.point.x > width - 300 });
+    };
+    const leave = () => setHoverSighting(null);
+    map.on?.("mousemove", at);
+    map.on?.("click", at);
+    map.on?.("mouseout", leave);
+    return () => {
+      map.off?.("mousemove", at);
+      map.off?.("click", at);
+      map.off?.("mouseout", leave);
+    };
+  }, [map, grid]);
+  useEffect(() => {
+    // An undone or not-yet-flown sighting closes its card.
+    setHoverSighting((h) => (h && !sightings.some((s) => s.cells.includes(h.sighting.cells[0] ?? -1)) ? null : h));
+  }, [sightings]);
+
+  // Candidate sightings (flown "Person" answers): drawn darkest and ringed, not as awaiting review.
+  const candidate = useMemo(() => candidateMask(grid.rows * grid.cols, ready ? sightings : []), [grid, ready, sightings]);
+  const heldShown = useMemo(() => withoutCandidates(held, candidate), [held, candidate]);
+
   // Sectors (computed in the browser; see sectors.ts).
   const sectorLayout = useMemo(() => buildSectors(grid, frames), [grid, frames]);
+  const sightedSectors = useMemo(
+    () => sectorsWithSightings(sectorLayout.cellSector, sectorLayout.sectors.map((s) => s.id), candidate),
+    [sectorLayout, candidate],
+  );
   const statuses = useMemo(
     () => (ready && state ? sectorStatuses(sectorLayout, state, covered) : []),
     [ready, state, sectorLayout, covered],
@@ -255,14 +311,14 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   // One colour scale for the whole replay: the top is the prior's likeliest cell (geometry.ts).
   const scaleMax = useMemo(() => heatScaleMax(mapFile.prior.p), [mapFile.prior.p]);
   const pixels = useMemo(
-    () => (ready && state ? heatPixels(state, covered, held, palette, scaleMax) : null),
-    [ready, state, covered, held, palette, scaleMax],
+    () => (ready && state ? heatPixels(state, covered, heldShown, palette, scaleMax, candidate) : null),
+    [ready, state, covered, heldShown, palette, scaleMax, candidate],
   );
   const [building, setBuilding] = useState(false);
 
   // The latest values, for the style-reload installer.
-  const latest = useRef({ covered, held, hotspots, statuses, currentId, hoverId });
-  latest.current = { covered, held, hotspots, statuses, currentId, hoverId };
+  const latest = useRef({ covered, heldShown, candidate, hotspots, statuses, currentId, hoverId });
+  latest.current = { covered, heldShown, candidate, hotspots, statuses, currentId, hoverId };
   const [showPath, setShowPath] = useState(true);
   const showPathRef = useRef(showPath);
   showPathRef.current = showPath;
@@ -302,7 +358,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         ensureHeatLayers(map, raster, grid, now.covered, colors, variant);
         if (isSearch) ensureDroneImage(map, colors.outline);
         refreshHeatSource(map, raster.animating);
-        setHeldBoundary(map, grid, now.covered, now.held);
+        setHeldBoundary(map, grid, now.covered, now.heldShown);
+        setCandidateBoundary(map, grid, now.candidate);
         pushSectors(map, grid, now.statuses, now.currentId, now.hoverId, livePlacement(map));
         if (isSearch) {
           setSurveyedBoundary(map, grid, now.covered);
@@ -342,7 +399,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         raster.show(pixels);
       } else if (isSearch) {
         // Cells sweep in from "not yet searched" in the order the flight photographed them.
-        const from = heatPixels(state, new Uint8Array(covered.length), held, palette, scaleMax);
+        const from = heatPixels(state, new Uint8Array(covered.length), heldShown, palette, scaleMax, candidate);
         setBuilding(true);
         raster.animate(pixels, { durationMs: BUILD_UP_MS, delays: sweepDelays(firstStep, stepCount), fade: BUILD_UP_FADE }, from);
       } else {
@@ -420,11 +477,12 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   useEffect(() => {
     if (!map) return;
     try {
-      setHeldBoundary(map, grid, covered, held);
+      setHeldBoundary(map, grid, covered, heldShown);
+      setCandidateBoundary(map, grid, candidate);
     } catch {
       /* style reloading */
     }
-  }, [map, grid, covered, held]);
+  }, [map, grid, covered, heldShown, candidate]);
 
   // The outline follows the photographed cells.
   useEffect(() => {
@@ -536,11 +594,16 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     };
   }, [map, isSearch, reduced]);
 
-  const shares = useMemo(() => (ready && state ? probabilityShares(state, covered) : null), [ready, state, covered]);
+  // Candidate sighting cells are not "photographed and cleared": the readout leaves them out.
+  const coveredClear = useMemo(() => withoutCandidates(covered, candidate), [covered, candidate]);
+  const shares = useMemo(
+    () => (ready && state ? probabilityShares(state, coveredClear) : null),
+    [ready, state, coveredClear],
+  );
   // Before any review answer: the same step with no answers (from the store's own inputs).
   const baseShares = useMemo(
-    () => (ready && data ? probabilityShares(stateAtStep(data.map, stepIndex), covered) : null),
-    [ready, data, stepIndex, covered],
+    () => (ready && data ? probabilityShares(stateAtStep(data.map, stepIndex), coveredClear) : null),
+    [ready, data, stepIndex, coveredClear],
   );
   // Every detection whose latest answer is "Person" and whose photo the replay has flown, newest first.
   const flown = useMemo(() => flownFrames(mapFile.steps, stepIndex), [mapFile.steps, stepIndex]);
@@ -580,6 +643,22 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     }
   };
 
+  const sightingCard = hoverSighting && (
+    <div
+      role="tooltip"
+      data-testid="sighting-card"
+      className={`pointer-events-none absolute z-20 w-64 rounded-[var(--radius-sm)] border border-ok/60 p-3 text-small shadow-lg backdrop-blur-md ${OVER_MAP}`}
+      style={{
+        left: hoverSighting.x,
+        top: hoverSighting.y,
+        transform: `translate(${hoverSighting.flip ? "calc(-100% - 14px)" : "14px"}, 14px)`,
+      }}
+    >
+      <p className="text-text">{sightingReading(hoverSighting.sighting, sightings.length)}</p>
+      <p className="mt-1 text-label text-text-2">{sightingAreaText(hoverSighting.sighting)}</p>
+    </div>
+  );
+
   if (!isSearch) {
     const answered = shares !== null && baseShares !== null && Math.abs(baseShares.surveyed - shares.surveyed) > 1e-12;
     return (
@@ -597,6 +676,12 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
                 <span className="text-label text-text-2">
                   {answered ? "Before review → now. " : ""}Each &ldquo;Not a person&rdquo; lowers it around that pin.
                 </span>
+                {sightings.length > 0 && (
+                  <span className="text-label text-ok" data-testid="review-sightings">
+                    {sightings.length === 1 ? "1 candidate sighting" : `${sightings.length} candidate sightings`}, not counted
+                    as cleared: send a ground team to check.
+                  </span>
+                )}
               </div>
             ) : (
               <span className="text-small text-text-2" role="status">
@@ -607,17 +692,27 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
               compact
               simulatedPath={bundle.survey.simulated_path}
               hasSurveyed={hasSurveyed}
+              hasSightings={sightings.length > 0}
             />
             {/* Review's map is narrow: its one simulated line lives here, not in a corner the card covers. */}
             <SimulatedLine {...simulatedLineFor(bundle)} plain />
           </div>
         </Panel>
+        {sightingCard}
       </Overlay>
     );
   }
 
   const foundBanner = finds.length > 0 && (
-    <FoundBanner finds={finds} simulatedRadius={bundle.survey.simulated_path} onFlyTo={(f) => flyToPoint(f.lon, f.lat)} />
+    <FoundBanner
+      finds={finds}
+      simulatedRadius={bundle.survey.simulated_path}
+      onFlyTo={(f) => flyToPoint(f.lon, f.lat)}
+      readingFor={(id) => {
+        const s = sightingOf(sightings, id);
+        return s ? `${sightingReading(s, sightings.length)}. ${sightingAreaText(s)}.` : undefined;
+      }}
+    />
   );
   const computing = (
     <span className="text-small text-text-2" role="status">
@@ -634,6 +729,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         onHover={setHoverId}
         onSelect={(s) => flyToSector(s.id)}
         layout={sectorLayout.kind}
+        sighted={sightedSectors}
       />
     ) : null;
   const nextSearch =
@@ -653,6 +749,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     <Legend
       simulatedPath={bundle.survey.simulated_path}
       hasSurveyed={hasSurveyed}
+      hasSightings={sightings.length > 0}
       showPath={showPath}
       onShowPathChange={setShowPath}
       onCollapse={
@@ -688,7 +785,10 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       panelTab === "legend" ? legend : panelTab === "sectors" ? (sectorList ?? computing) : (nextSearch ?? computing);
     return (
       <>
-        <Overlay>{buildingToast}</Overlay>
+        <Overlay>
+          {buildingToast}
+          {sightingCard}
+        </Overlay>
         {createPortal(
           <div className="flex flex-col gap-3" data-testid="search-panels-below">
             {slider && <Panel className="rounded-full px-3 py-2">{slider}</Panel>}
@@ -773,6 +873,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         </Panel>
       )}
       {buildingToast}
+      {sightingCard}
     </Overlay>
   );
 }

@@ -2,7 +2,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { MapFile } from "../contract";
-import { applyReviewNotPerson, applyStep, cellsWithinRadius, replay, type MapState } from "./update";
+import {
+  applyReviewNotPerson,
+  applyReviewPerson,
+  applyStep,
+  candidateShares,
+  cellsWithinRadius,
+  mergeSightings,
+  replay,
+  type MapState,
+} from "./update";
 
 type Grid = MapFile["grid"];
 interface StateJson {
@@ -138,5 +147,73 @@ describe("sample map.json", () => {
     const prior: MapState = { p: Float64Array.from(map.prior.p), outside: map.prior.outside };
     const out = replay(prior, map.steps, map.steps.length);
     expectClose(out, map.final, 1e-6, "sample final");
+  });
+});
+
+describe("candidate sightings", () => {
+  // 3 × 3 grid of 20 m cells; the point is the centre of cell 4 (the middle), radius 1 m: just cell 4.
+  const grid: Grid = { origin_nw: { lat: 49.37, lon: -122.95 }, cell_m: 20, rows: 3, cols: 3 };
+  const lat = 49.37 - 30 / 111_320;
+  const lon = -122.95 + 30 / (111_320 * Math.cos((49.37 * Math.PI) / 180));
+  const prior: MapState = { p: Float64Array.from([0.1, 0.05, 0.1, 0.05, 0.1, 0.05, 0.1, 0.05, 0.1]), outside: 0.3 };
+  const photo = { cells: [[0, 0.5], [3, 0.6], [4, 0.8], [5, 0.4]] as [number, number][] };
+  const later = { cells: [[1, 0.7], [4, 0.3], [8, 0.9]] as [number, number][] };
+
+  it("applyReviewPerson undoes exactly that photo's look at the cells in the radius", () => {
+    expect(cellsWithinRadius(grid, lat, lon, 1)).toEqual([4]);
+    const flown = replay(prior, [photo, later], 2);
+    const undone = applyReviewPerson(flown, grid, lat, lon, 1, photo);
+    // The same as flying without that photo's look at cell 4 (updates commute).
+    const without = replay(prior, [{ cells: photo.cells.filter(([i]) => i !== 4) }, later], 2);
+    undone.p.forEach((v, i) => expect(v).toBeCloseTo(without.p[i] as number, 12));
+    expect(undone.outside).toBeCloseTo(without.outside, 12);
+    expect(undone.p.reduce((a, b) => a + b, 0) + undone.outside).toBeCloseTo(1, 12);
+    // The sighted cell goes up; the later photo's look at it stays.
+    expect(undone.p[4]!).toBeGreaterThan(flown.p[4]!);
+  });
+
+  it("applyReviewPerson changes nothing before the photo is flown, or where the photo had pod 0", () => {
+    const flown = replay(prior, [photo], 1);
+    const notYet = applyReviewPerson(flown, grid, lat, lon, 1, null);
+    expect(Array.from(notYet.p)).toEqual(Array.from(flown.p));
+    expect(notYet.p).not.toBe(flown.p);
+    const held = applyReviewPerson(flown, grid, lat, lon, 1, { cells: [[0, 0.5]] });
+    expect(Array.from(held.p)).toEqual(Array.from(flown.p));
+  });
+
+  it("mergeSightings joins sightings whose cells overlap and keeps the rest apart", () => {
+    const areas = mergeSightings([
+      { detectionId: "a", cells: [1, 2] },
+      { detectionId: "b", cells: [7] },
+      { detectionId: "c", cells: [2, 3] },
+    ]);
+    expect(areas).toEqual([
+      { detectionIds: ["a", "c"], cells: [1, 2, 3] },
+      { detectionIds: ["b"], cells: [7] },
+    ]);
+    // A chain a–c–d merges into one even when a and d do not touch.
+    const chain = mergeSightings([
+      { detectionId: "a", cells: [1] },
+      { detectionId: "d", cells: [3] },
+      { detectionId: "c", cells: [1, 3] },
+    ]);
+    expect(chain).toHaveLength(1);
+  });
+
+  it("candidateShares: P(S_i) / sum P(S_j); one area gets 100 %", () => {
+    const one = candidateShares(prior, [{ detectionIds: ["a"], cells: [0, 1] }]);
+    expect(one[0]!.share).toBe(1);
+    expect(one[0]!.poa).toBeCloseTo(0.15, 12);
+    const two = candidateShares(prior, [
+      { detectionIds: ["a"], cells: [0] },
+      { detectionIds: ["b"], cells: [1, 3, 5] },
+    ]);
+    expect(two[0]!.share).toBeCloseTo(0.1 / 0.25, 12);
+    expect(two[1]!.share).toBeCloseTo(0.15 / 0.25, 12);
+    const zero = candidateShares({ p: new Float64Array(9), outside: 1 }, [
+      { detectionIds: ["a"], cells: [0] },
+      { detectionIds: ["b"], cells: [1] },
+    ]);
+    expect(zero.map((z) => z.share)).toEqual([0.5, 0.5]);
   });
 });

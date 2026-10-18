@@ -9,6 +9,7 @@ import type { MapContextValue } from "../MapView";
 import { MAP_LAYER_IDS } from "../base/layerIds";
 import { HeatLayer } from "./HeatLayer";
 import {
+  HEAT_CANDIDATE_SOURCE_ID,
   HEAT_DRONE_SOURCE_ID,
   HEAT_HELD_SOURCE_ID,
   HEAT_LAYER_IDS,
@@ -18,7 +19,7 @@ import {
   HEAT_TRAIL_SOURCE_ID,
 } from "./layers";
 import { PanelSlotContext } from "./panelSlot";
-import { HELD_ALPHA, rasterForCanvas, VEIL_ALPHA } from "./raster";
+import { HEAT_ALPHA_MAX, HELD_ALPHA, rasterForCanvas, VEIL_ALPHA } from "./raster";
 
 const ctx: { value: MapContextValue | null } = { value: null };
 vi.mock("../MapView", () => ({
@@ -203,9 +204,9 @@ describe("HeatLayer", () => {
     // A confirmed person shows the banner; the slider keeps working.
     act(() => useReview.getState().answer("f0001-d01", "person", 1));
     // ...but only once the replay has flown its photo (frame f0001 is step 1).
-    expect(screen.queryByText("Person confirmed: dispatch ground team")).not.toBeInTheDocument();
+    expect(screen.queryByText("Person sighted: send ground team to check")).not.toBeInTheDocument();
     act(() => useSearch.getState().setStepIndex(1));
-    expect(screen.getByText("Person confirmed: dispatch ground team")).toBeInTheDocument();
+    expect(screen.getByText("Person sighted: send ground team to check")).toBeInTheDocument();
     // Answering "Not a person" releases the held cell into the normal map and clears its outline.
     act(() => useSearch.getState().setStepIndex(2));
     act(() => useReview.getState().answer("f0001-d01", "not_person", 2));
@@ -349,6 +350,31 @@ describe("HeatLayer", () => {
     expect(m.layers.find((l) => l.id === HEAT_LAYER_IDS.cells)?.before).toBeUndefined();
   });
 
+  it("draws a flown 'Person' answer as a candidate sighting: darkest, ringed, with its reading", () => {
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    act(() => useSearch.getState().setStepIndex(2));
+    expect(m.kind(1275)).toBe("held");
+    act(() => useReview.getState().answer("f0001-d01", "person", 1));
+    // Not "awaiting review" any more: the darkest class, ringed in the Person colour.
+    expect(m.alpha(1275)).toBe(Math.round(HEAT_ALPHA_MAX * 255));
+    const ring = m.replayDrawn.get(HEAT_CANDIDATE_SOURCE_ID) as { geometry: { coordinates: unknown[] } };
+    expect(ring.geometry.coordinates.length).toBeGreaterThan(0);
+    expect(screen.getByText(/if this is the missing person, the search ends here \(100%\)/)).toBeInTheDocument();
+    expect(screen.getByText("Candidate sighting")).toBeInTheDocument();
+    expect(useSearch.getState().sightings).toHaveLength(1);
+    // Undo restores everything.
+    act(() => useReview.getState().undo());
+    expect(m.kind(1275)).toBe("held");
+    expect(useSearch.getState().sightings).toHaveLength(0);
+    expect(screen.queryByText("Candidate sighting")).toBeNull();
+  });
+
   it("shows the found banner inside the side panel, not over the map", () => {
     const m = mockMap(true);
     ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
@@ -358,7 +384,7 @@ describe("HeatLayer", () => {
       </CacheContext.Provider>,
     );
     act(() => useReview.getState().answer("f0001-d01", "person", 1));
-    const banner = screen.getByText("Person confirmed: dispatch ground team");
+    const banner = screen.getByText("Person sighted: send ground team to check");
     const sidePanel = screen.getByText("Search next in the surveyed area").closest(".w-80");
     expect(sidePanel).not.toBeNull();
     expect(sidePanel!.contains(banner)).toBe(true);

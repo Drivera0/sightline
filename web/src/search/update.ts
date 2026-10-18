@@ -91,3 +91,101 @@ export function applyReviewNotPerson(
   const cells = cellsWithinRadius(grid, lat, lon, radiusM).map((i): [number, number] => [i, pod]);
   return applyStep(s, cells);
 }
+
+/**
+ * A searcher marked a detection "Person": undo the "nobody here" evidence its own photo put on the
+ * cells within radiusM, as if that photo had not covered them. `step` is that photo's step from
+ * map.json (pass null when the replay has not flown it yet: nothing to undo). Each cell's p is divided
+ * by (1 − pod) of that step, then the whole map (outside included) is renormalised to 1. Updates
+ * commute, so this is exactly the map that every other step and answer give without that photo's look
+ * at those cells. Cells held for review have pod 0 in the step and do not change. Never mutates s.
+ */
+export function applyReviewPerson(
+  s: MapState,
+  grid: Grid,
+  lat: number,
+  lon: number,
+  radiusM: number,
+  step: { cells: [number, number][] } | null,
+): MapState {
+  const p = Float64Array.from(s.p);
+  if (!step) return { p, outside: s.outside };
+  const inRadius = new Set(cellsWithinRadius(grid, lat, lon, radiusM));
+  let changed = false;
+  for (const [idx, pod] of step.cells) {
+    if (!inRadius.has(idx) || !(pod > 0)) continue;
+    if (!(pod < 1)) throw new Error("cannot undo a step with pod 1");
+    p[idx] = (p[idx] as number) / (1 - pod);
+    changed = true;
+  }
+  if (!changed) return { p, outside: s.outside };
+  let total = s.outside;
+  for (let i = 0; i < p.length; i++) total += p[i] as number;
+  for (let i = 0; i < p.length; i++) p[i] = (p[i] as number) / total;
+  return { p, outside: s.outside / total };
+}
+
+/** One candidate area: the union of overlapping sightings' cells (sorted), with their detections. */
+export interface CandidateArea {
+  detectionIds: string[];
+  cells: number[];
+}
+
+/**
+ * Merge sightings whose cell sets overlap (for example two boxes on one person, or two people side by
+ * side) into one candidate area each. Order: by the first sighting of each area in the input order.
+ */
+export function mergeSightings(sightings: readonly { detectionId: string; cells: readonly number[] }[]): CandidateArea[] {
+  const parent = sightings.map((_, i) => i);
+  const find = (i: number): number => {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i] as number] as number;
+      i = parent[i] as number;
+    }
+    return i;
+  };
+  const owner = new Map<number, number>();
+  sightings.forEach((s, i) => {
+    for (const c of s.cells) {
+      const j = owner.get(c);
+      if (j === undefined) owner.set(c, i);
+      else parent[find(i)] = find(j);
+    }
+  });
+  const areas = new Map<number, { detectionIds: string[]; cells: Set<number> }>();
+  sightings.forEach((s, i) => {
+    const root = find(i);
+    let area = areas.get(root);
+    if (!area) {
+      area = { detectionIds: [], cells: new Set() };
+      areas.set(root, area);
+    }
+    area.detectionIds.push(s.detectionId);
+    for (const c of s.cells) area.cells.add(c);
+  });
+  return [...areas.values()].map((a) => ({ detectionIds: a.detectionIds, cells: [...a.cells].sort((x, y) => x - y) }));
+}
+
+export interface CandidateShare extends CandidateArea {
+  /** P(S): the area's probability in the map (a share of the total, outside included). */
+  poa: number;
+  /** P(S) / Σ P(S_j): its chance if the missing person is one of the sightings. 1 with one area. */
+  share: number;
+}
+
+/**
+ * Each area's share of the chance, conditional on "the missing person is one of these sightings":
+ * P(S_i) / Σ_j P(S_j) on the given map state (textbook Bayes; nothing is assumed about which case is
+ * true). If every area has probability 0, they share equally.
+ */
+export function candidateShares(s: MapState, areas: readonly CandidateArea[]): CandidateShare[] {
+  let total = s.outside;
+  for (let i = 0; i < s.p.length; i++) total += s.p[i] as number;
+  const poas = areas.map((a) => a.cells.reduce((sum, c) => sum + (s.p[c] as number), 0) / (total > 0 ? total : 1));
+  const sum = poas.reduce((a, b) => a + b, 0);
+  return areas.map((a, i) => ({
+    ...a,
+    poa: poas[i] as number,
+    share: sum > 0 ? (poas[i] as number) / sum : 1 / areas.length,
+  }));
+}

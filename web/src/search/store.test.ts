@@ -165,6 +165,41 @@ describe("applyReview", () => {
     ).toBe("f0001-d01");
   });
 
+  it("a 'person' answer is a candidate sighting once its photo is flown, and undoing it restores the map", () => {
+    // Give f0001-d01's own photo (step 1) a look at its cell, as a cache without held cells would.
+    const looked: MapFile = {
+      ...map,
+      steps: map.steps.map((s, k) => (k === 0 ? { ...s, cells: [...s.cells, [44, 0.7] as [number, number]] } : s)),
+    };
+    const d = { ...data, map: looked };
+    const flown = stateAtStep(looked, 10);
+    const r = applyReview(flown, d, [h("f0001-d01", "person", 1)], 10);
+    expect(r.sightings).toHaveLength(1);
+    expect(r.sightings[0]!.detectionIds).toEqual(["f0001-d01"]);
+    expect(r.sightings[0]!.share).toBe(1);
+    // The photo's "nobody here" at cell 44 is undone: the cell goes back up.
+    expect(r.state.p[44]!).toBeGreaterThan(flown.p[44]!);
+    expect(sum(r.state.p) + r.state.outside).toBeCloseTo(1, 12);
+    // Before the photo is flown: no sighting and no change.
+    const early = applyReview(stateAtStep(looked, 0), d, [h("f0001-d01", "person", 1)], 0);
+    expect(early.sightings).toEqual([]);
+    expect(Array.from(early.state.p)).toEqual(Array.from(stateAtStep(looked, 0).p));
+    // Changing the answer (or undo) leaves the map exactly as without it.
+    const changed = applyReview(flown, d, [h("f0001-d01", "person", 1), h("f0001-d01", "unsure", 2)], 10);
+    expect(Array.from(changed.state.p)).toEqual(Array.from(flown.p));
+    expect(changed.sightings).toEqual([]);
+  });
+
+  it("several sightings split the chance by their areas' probability", () => {
+    const r = applyReview(base, data, [h("f0001-d01", "person", 1), h("f0002-d01", "person", 2)], 10);
+    expect(r.sightings).toHaveLength(2);
+    expect(r.sightings.reduce((a, s) => a + s.share, 0)).toBeCloseTo(1, 12);
+    for (const s of r.sightings) {
+      const poa = s.cells.reduce((a, c) => a + r.state.p[c]!, 0);
+      expect(s.poa).toBeCloseTo(poa, 12);
+    }
+  });
+
   it("deriveSearch = stateAtStep then the answers", () => {
     const r = deriveSearch(data, 10, [h("f0001-d01", "not_person", 1)]);
     const s = applyReview(base, data, [h("f0001-d01", "not_person", 1)]);
