@@ -730,7 +730,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     const answered = shares !== null && baseShares !== null && Math.abs(baseShares.surveyed - shares.surveyed) > 1e-12;
     return (
       <Overlay>
-        <Panel {...overlay("corner")} className={`sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
+        <Panel {...overlay("corner")} className={`sl-rise pointer-events-auto absolute bottom-7 right-3 w-64 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
           <div className="flex flex-col gap-3">
             {shares && baseShares ? (
               <div className="flex flex-col gap-1" aria-live="polite">
@@ -954,7 +954,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
           aria-expanded={false}
           aria-controls="search-legend"
           onClick={() => setLegendOpen(true)}
-          className={`pointer-events-auto absolute bottom-3 right-3 inline-flex h-8 items-center gap-2 rounded-full border border-border px-3 font-mono text-label uppercase tracking-wider text-text-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md transition-colors hover:text-text ${OVER_MAP}`}
+          className={`pointer-events-auto absolute bottom-7 right-3 inline-flex h-8 items-center gap-2 rounded-full border border-border px-3 font-mono text-label uppercase tracking-wider text-text-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md transition-colors hover:text-text ${OVER_MAP}`}
         >
           <span aria-hidden="true" className="flex h-1.5 w-6 overflow-hidden rounded-full">
             {rampSwatches().map((c) => (
@@ -968,7 +968,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
           {...overlay("corner")}
           id="search-legend"
           // Capped below the basemap switch (top right), so the two never overlap on short screens.
-          className={`sl-rise pointer-events-auto absolute bottom-3 right-3 max-h-[calc(100%-4.5rem)] w-64 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}
+          className={`sl-rise pointer-events-auto absolute bottom-7 right-3 max-h-[calc(100%-5.5rem)] w-64 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}
           style={{ animationDelay: legendFolds ? undefined : "80ms" }}
         >
           {legend}
