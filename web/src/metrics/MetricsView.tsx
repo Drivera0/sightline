@@ -15,6 +15,7 @@ import {
   uniqueMinIndex,
 } from "./format";
 import { useCountUp } from "./motion";
+import { randomOrderBaseline } from "./randomOrder";
 
 /**
  * Lane A's screen (LANE_A_ML.md §9): detector vs. the human baseline, the ablation table,
@@ -54,6 +55,7 @@ function MetricsBody({ m }: { m: Metrics }) {
     detector.tiled ? "tiled" : "untiled"
   } inference at threshold ${detector.threshold} (metrics.detector)`;
   const humanSource = `Human baseline: ${human.source}`;
+  const random = randomOrderBaseline(ranking.n_frames, ranking.n_positive);
   const isSample = detector.model === "SAMPLE";
 
   return (
@@ -188,14 +190,14 @@ function MetricsBody({ m }: { m: Metrics }) {
                 label="Random order, expected"
                 cells={[
                   count(ranking.expected_first_hit_random_order),
-                  "—",
+                  random ? `≈${count(random.expectedAll)}` : "—",
                   minutes(
                     (ranking.expected_first_hit_random_order *
                       HUMAN_SECONDS_PER_PHOTO) /
                       60,
                   ),
                 ]}
-                source={`(N + 1) / (k + 1) for ${ranking.n_frames} frames and ${ranking.n_positive} with people (metrics.ranking); minutes at the published ${HUMAN_SECONDS_PER_PHOTO} s per photo (Pyrrö et al. 2021)`}
+                source={`First hit (N + 1) / (k + 1), all hits k(N + 1) / (k + 1), for N = ${ranking.n_frames} frames and k = ${ranking.n_positive} with people (metrics.ranking); minutes at the published ${HUMAN_SECONDS_PER_PHOTO} s per photo (Pyrrö et al. 2021)`}
               />
               <Row
                 label={
@@ -213,6 +215,20 @@ function MetricsBody({ m }: { m: Metrics }) {
               />
             </tbody>
           </table>
+          {random && (
+            <p className="mt-2 text-small text-text-3">
+              Random order: expected values for a uniformly random shuffle of the same photos. In 8 of 10
+              shuffles the last photo with a person is between photo{" "}
+              <Num source={`Exact 10th and 90th percentile of the last positive's position for N = ${ranking.n_frames}, k = ${ranking.n_positive} (metrics.ranking)`}>
+                {count(random.p10All)}
+              </Num>{" "}
+              and{" "}
+              <Num source={`Exact 10th and 90th percentile of the last positive's position for N = ${ranking.n_frames}, k = ${ranking.n_positive} (metrics.ranking)`}>
+                {count(random.p90All)}
+              </Num>
+              .
+            </p>
+          )}
           <Source>
             {rankingSource(ranking)}. {ranking.note}
           </Source>
