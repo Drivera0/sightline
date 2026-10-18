@@ -167,8 +167,8 @@ export function Shell({ cache }: { cache: CacheBundle }) {
             <>
               <p className="rounded-full border border-border bg-surface px-4 py-2 text-small text-text-2">
                 <span className="text-text">Where the person could still be.</span> Orange is more likely, on
-                ground the drone photographed. Grey was never photographed, so it is still unsearched. Press
-                play to watch the flight: ground the drone saw clearly fades.
+                ground the drone photographed. Dark ground is not yet searched (less than half of it
+                photographed). Press play to watch the flight: ground the drone saw clearly fades.
               </p>
               <div className="min-h-0 flex-1">{map(true)}</div>
             </>
