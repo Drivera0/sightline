@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CacheBundle } from "../contract";
 import { CACHE_DIR, cacheUrl, useCache } from "../lib/cache";
 import { isTyping } from "../lib/keys";
 import { prefersReducedMotion } from "../metrics/motion";
 import { useSelection } from "../lib/selection";
-import { EmptyState, KeyHint, Label, Panel } from "../shell/components";
+import { Badge, EmptyState, KeyHint, Label, Panel } from "../shell/components";
 import { reviewItems, reviewProgress, type ReviewItem } from "./items";
 import { useReview, type Answer } from "./store";
 
@@ -70,14 +70,21 @@ function FrameWithBox({
   const [x1, y1, x2, y2] = box as [number, number, number, number];
   // At least ~8% of the photo across, so a 15 px person is still findable in a thumbnail.
   const pad = Math.max(width * 0.04, (x2 - x1) * 0.6);
+  const maskId = `ring-${useId().replace(/:/g, "")}`;
   const ring = { x: x1 - pad, y: y1 - pad, width: x2 - x1 + 2 * pad, height: y2 - y1 + 2 * pad, rx: pad };
   return (
     <div className="relative w-full overflow-hidden rounded-sm">
       <img src={src} alt={alt} className="block w-full" />
       <svg viewBox={`0 0 ${width} ${height}`} className="absolute inset-0 h-full w-full" aria-hidden="true">
         {/* A soft ring so the box is easy to find in a small photo, then the box itself. */}
-        <rect {...ring} fill="none" stroke="black" strokeOpacity={0.5} strokeWidth={Math.max(4, width / 160)} />
-        <rect {...ring} fill="none" stroke="var(--accent)" strokeOpacity={0.9} strokeWidth={Math.max(2, width / 400)} />
+        {/* Dim everything outside the ring, so the eye lands on the candidate. */}
+        <mask id={maskId}>
+          <rect width={width} height={height} fill="white" />
+          <rect {...ring} fill="black" />
+        </mask>
+        <rect width={width} height={height} fill="black" fillOpacity={0.4} mask={`url(#${maskId})`} />
+        <rect {...ring} fill="none" stroke="black" strokeOpacity={0.45} strokeWidth={Math.max(4, width / 200)} />
+        <rect {...ring} fill="none" stroke="var(--accent)" strokeWidth={Math.max(2, width / 450)} />
         <rect
           data-testid={testId}
           x={x1}
@@ -86,7 +93,8 @@ function FrameWithBox({
           height={y2 - y1}
           fill="none"
           stroke="var(--accent)"
-          strokeWidth={Math.max(3, width / 250)}
+          strokeOpacity={0.85}
+          strokeWidth={Math.max(1.5, width / 700)}
         />
       </svg>
     </div>
@@ -321,7 +329,7 @@ export function ReviewView({
               </span>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_16rem] gap-5">
+            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_18rem] gap-6">
               {/* The crop, as large as the panel allows up to 1.5x its 256 px (any larger just blurs). */}
               <div className="flex min-h-0 min-w-0 items-center justify-center p-2">
                 {current.detection.crop && (
@@ -337,13 +345,16 @@ export function ReviewView({
               </div>
 
               {/* Where it sits, and the facts a searcher weighs. */}
-              <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+              <div className="flex min-h-0 flex-col gap-5 overflow-y-auto">
                 <div className="flex flex-col gap-2">
-                  <Label>In the photo</Label>
+                  <div className="flex items-baseline justify-between">
+                    <Label>In the photo</Label>
+                    <span className="font-mono text-label text-text-3">{current.frame.id}</span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setFullFrame(true)}
-                    className="block rounded-sm ring-1 ring-border transition-shadow hover:ring-accent/60"
+                    className="group relative block overflow-hidden rounded-md ring-1 ring-border transition-shadow hover:ring-accent/70 focus-visible:ring-accent"
                     title="Open the full frame (Enter)"
                   >
                     <FrameWithBox
@@ -354,46 +365,62 @@ export function ReviewView({
                       width={current.frame.width_px}
                       height={current.frame.height_px}
                     />
+                    <span className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-full bg-bg/80 px-2.5 py-1 text-label text-text-2 backdrop-blur transition-colors group-hover:text-text">
+                      Full frame <KeyHint>Enter</KeyHint>
+                    </span>
                   </button>
                 </div>
-                <dl className="flex flex-col gap-3 text-small">
-                  <div className="flex flex-col gap-1.5">
+
+                <dl className="flex flex-col divide-y divide-border border-y border-border">
+                  <div className="flex flex-col gap-2.5 py-3">
                     <div className="flex items-baseline justify-between">
-                      <dt className="text-text-3">Detector confidence</dt>
-                      <dd className="font-mono text-text">{current.detection.conf.toFixed(2)}</dd>
+                      <dt>
+                        <Label>Confidence</Label>
+                      </dt>
+                      <dd className="font-mono text-title leading-none text-text">{current.detection.conf.toFixed(2)}</dd>
                     </div>
-                    <div className="relative h-1.5 rounded-full bg-surface-strong">
+                    <div className="relative h-2 rounded-full bg-surface-strong">
                       <span
                         className="absolute inset-y-0 left-0 rounded-full bg-accent transition-[width] duration-300"
                         style={{ width: `${Math.round(current.detection.conf * 100)}%` }}
                       />
                       <span
                         aria-hidden="true"
-                        className="absolute -inset-y-1 w-px bg-text-2"
+                        className="absolute -inset-y-1 w-0.5 rounded-full bg-text"
                         style={{ left: `${cache.detections.candidate_threshold * 100}%` }}
-                        title={`Flag threshold ${cache.detections.candidate_threshold}`}
                       />
                     </div>
+                    <div className="relative h-4 text-label text-text-3">
+                      <span
+                        className="absolute -translate-x-1/2 whitespace-nowrap font-mono"
+                        style={{ left: `${cache.detections.candidate_threshold * 100}%` }}
+                      >
+                        flag {cache.detections.candidate_threshold.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-baseline justify-between">
-                    <dt className="text-text-3">Photo rank</dt>
-                    <dd className="font-mono text-text">
-                      {current.frame.rank} of {cache.survey.frames.length}
+                  <div className="flex items-baseline justify-between py-3">
+                    <dt>
+                      <Label>Photo rank</Label>
+                    </dt>
+                    <dd className="font-mono text-body text-text">
+                      {current.frame.rank}
+                      <span className="text-text-3"> / {cache.survey.frames.length}</span>
                     </dd>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <dt className="text-text-3">Position</dt>
-                    <dd className="font-mono text-text-2">
+                  <div className="flex flex-col gap-2 py-3">
+                    <dt>
+                      <Label>Position</Label>
+                    </dt>
+                    <dd className="font-mono text-body text-text">
                       {current.detection.lat.toFixed(5)}, {current.detection.lon.toFixed(5)}
                     </dd>
-                    <dd className="text-label text-text-3">
-                      ±{current.detection.radius_m} m{cache.survey.simulated_path ? " · simulated flight path" : ""}
+                    <dd className="flex flex-wrap gap-1.5">
+                      <Badge kind="info">±{current.detection.radius_m} m</Badge>
+                      {cache.survey.simulated_path && <Badge kind="simulated">Simulated path</Badge>}
                     </dd>
                   </div>
                 </dl>
-                <p data-testid="detail" className="mt-auto font-mono text-label text-text-3">
-                  Frame {current.frame.id} · Rank {current.frame.rank} · Confidence {current.detection.conf.toFixed(3)}
-                </p>
               </div>
             </div>
 
