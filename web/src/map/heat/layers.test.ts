@@ -143,7 +143,7 @@ describe("ripple and heading", () => {
 });
 
 describe("sectorFeatures", () => {
-  it("marks the current and hovered sectors and puts the state in each label", () => {
+  it("marks the current and hovered sectors and puts the state in their labels only", () => {
     const grid = { origin_nw: { lat: 49.37, lon: -122.95 }, cell_m: 250, rows: 4, cols: 4 };
     const sector = (id: string, kind: "flight" | "outer") => ({
       id,
@@ -154,16 +154,19 @@ describe("sectorFeatures", () => {
     const statuses = [
       { sector: sector("1", "flight"), poa: 0.1, coverage: 1, cells: 2, state: "searched" as const },
       { sector: sector("N", "outer"), poa: 0.2, coverage: 0, cells: 2, state: "not_searched" as const },
+      { sector: sector("S", "outer"), poa: 0.2, coverage: 0, cells: 2, state: "not_searched" as const },
     ];
     const { areas, labels } = sectorFeatures(grid, statuses, "1", "N");
     const a = (areas as { features: { properties: Record<string, unknown> }[] }).features;
     expect(a.map((f) => [f.properties.current, f.properties.hover])).toEqual([
       [true, false],
       [false, true],
+      [false, false],
     ]);
     const l = (labels as { features: { properties: Record<string, unknown> }[] }).features;
     expect(l[0]!.properties.text).toBe(["SECTOR 1", "Drone here"].join(String.fromCharCode(10)));
     expect(l[1]!.properties.text).toBe(["SECTOR N", "Not yet searched"].join(String.fromCharCode(10)));
+    expect(l[2]!.properties.text).toBe("SECTOR S");
     // A flight strip is labelled outside its west edge; other sectors inside the north-west corner.
     expect(l[0]!.properties.anchor).toBe("right");
     expect(l[1]!.properties.anchor).toBe("top-left");

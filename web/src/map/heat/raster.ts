@@ -31,7 +31,7 @@ export const RAMP_STEPS = 256;
  * Rounding each cell's level to a class turns the cell-to-cell speckle into a few clear bands; it
  * only removes precision, it adds no detail. 1 would mean a continuous ramp.
  */
-export const HEAT_CLASSES = 1;
+export const HEAT_CLASSES = 7;
 
 /** A heat level in [0, 1] rounded down to its class: class k of n is shown at k / (n − 1). */
 export function classLevel(t: number, classes = HEAT_CLASSES): number {

@@ -182,8 +182,9 @@ export function ensureHeatLayers(
         source: HEAT_SECTOR_SOURCE_ID,
         paint: {
           "line-color": ["case", ["get", "current"], colors.accent, colors.outline],
-          "line-opacity": ["case", ["get", "current"], 0.95, ["get", "hover"], 0.9, 0.3],
-          "line-width": ["case", ["any", ["get", "current"], ["get", "hover"]], 1.75, 0.75],
+          // Resting sector lines stay faint so they do not rule lines across the heat.
+          "line-opacity": ["case", ["get", "current"], 0.95, ["get", "hover"], 0.9, 0.16],
+          "line-width": ["case", ["any", ["get", "current"], ["get", "hover"]], 1.75, 0.5],
         },
       },
       beforeId(map),
@@ -207,7 +208,7 @@ export function ensureHeatLayers(
         },
         paint: {
           "text-color": ["case", ["get", "current"], colors.accent, colors.outline],
-          "text-opacity": ["case", ["any", ["get", "current"], ["get", "hover"]], 1, 0.8],
+          "text-opacity": ["case", ["any", ["get", "current"], ["get", "hover"]], 1, 0.7],
           "text-halo-color": colors.veil,
           "text-halo-width": 1.4,
         },
@@ -326,7 +327,10 @@ export function setHeldBoundary(map: Map, grid: Grid, covered: Uint8Array, held:
   (map.getSource(HEAT_HELD_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(lines(surveyedBoundary(grid, shown)));
 }
 
-/** Sector outlines and labels, with the state in each label and the current / hovered sector marked. */
+/**
+ * Sector outlines and labels, with the current / hovered sector marked. A resting label is just the
+ * sector's name (the Sectors list has every state); the current and the hovered sector add their state.
+ */
 export function sectorFeatures(
   grid: Grid,
   statuses: readonly SectorStatus[],
@@ -346,12 +350,14 @@ export function sectorFeatures(
     const at: LonLat = flight
       ? [(ring[0] as LonLat)[0], ((ring[0] as LonLat)[1] + (ring[3] as LonLat)[1]) / 2]
       : (ring[0] as LonLat);
+    const active = s.sector.id === currentId || s.sector.id === hoverId;
     const state = s.sector.id === currentId ? "Drone here" : SECTOR_STATE_LABEL[s.state];
+    const name = sectorName(s.sector).toUpperCase();
     return {
       type: "Feature" as const,
       properties: {
         id: s.sector.id,
-        text: `${sectorName(s.sector).toUpperCase()}\n${state}`,
+        text: active ? `${name}\n${state}` : name,
         current: s.sector.id === currentId,
         hover: s.sector.id === hoverId,
         anchor: flight ? "right" : "top-left",
