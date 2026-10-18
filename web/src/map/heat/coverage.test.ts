@@ -121,9 +121,9 @@ describe("step-aware overlap", () => {
     expect(Array.from(a)).toEqual(copy);
   });
 
-  it("photographed means overlap above 0; eligible means at least MIN_OVERLAP and not held", () => {
+  it("photographed means overlap of at least MIN_OVERLAP (slivers do not count); eligible also drops held cells", () => {
     const overlap = Float64Array.from([0, 0.1, MIN_OVERLAP, 1.4]);
-    expect(Array.from(photographedCells(overlap))).toEqual([0, 1, 1, 1]);
+    expect(Array.from(photographedCells(overlap))).toEqual([0, 0, 1, 1]);
     expect(Array.from(eligibleCells(overlap))).toEqual([0, 0, 1, 1]);
     expect(Array.from(eligibleCells(overlap, Uint8Array.from([0, 0, 0, 1])))).toEqual([0, 0, 1, 0]);
   });
