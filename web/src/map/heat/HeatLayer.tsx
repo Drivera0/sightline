@@ -7,6 +7,7 @@ import { detectionById, useSearch } from "../../search/store";
 import { Panel } from "../../shell/components";
 import { useMap, type MapContextValue } from "../MapView";
 import { FoundBanner } from "./FoundBanner";
+import { summedOverlap } from "./coverage";
 import { coveredCells } from "./geometry";
 import {
   cellFeaturesFor,
@@ -79,6 +80,10 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
   }, [bind, bundle.map, bundle.detections]);
 
   const covered = useMemo(() => coveredCells(mapFile), [mapFile]);
+  const overlap = useMemo(
+    () => summedOverlap(mapFile.grid, bundle.survey.frames.map((f) => f.footprint)),
+    [mapFile.grid, bundle.survey.frames],
+  );
   const hasSurveyed = useMemo(() => covered.some((c) => c === 1), [covered]);
 
   // What the map already shows per cell; NaN = unknown, push everything.
@@ -146,6 +151,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
             map={mapFile}
             state={state}
             covered={covered}
+            overlap={overlap}
             onSelect={(lon, lat) => flyTo(lon, lat, 17)}
           />
         ) : (
