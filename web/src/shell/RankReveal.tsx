@@ -4,10 +4,14 @@ import { cacheUrl } from "../lib/cache";
 import { prefersReducedMotion } from "../metrics/motion";
 import { reviewItems, type ReviewItem } from "../review/items";
 import { Badge, Label } from "./components";
+import { ModelPanel, ScoreStrip } from "./ModelPanel";
 import { framesInFlightOrder, scanStops, stopMs } from "./scan";
 
-/** Queue rows shown before "+N more". */
+/** Queue rows shown before "+N more": all of them on wide screens (three columns), fewer below. */
 const QUEUE_ROWS = 6;
+const QUEUE_ROWS_NARROW = 4;
+/** No boxes: one shared empty list, so the memoised detector panel is not re-rendered for nothing. */
+const NO_BOXES: Detection[] = [];
 
 function ordinal(n: number): string {
   return n === 1 ? "first" : `#${n}`;
@@ -213,7 +217,7 @@ export function RankReveal({
   const aspect = viewer ? viewer.frame.width_px / viewer.frame.height_px : 4 / 3;
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+    <div className="grid h-full min-h-0 grid-cols-1 gap-5 overflow-y-auto lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.1fr)_minmax(0,0.75fr)]">
       {/* The scanner. */}
       <div className="flex min-h-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4">
         <div className="flex items-center justify-between gap-3">
@@ -221,7 +225,7 @@ export function RankReveal({
             <span aria-hidden="true" className={"size-2 rounded-full " + (done ? "bg-ok" : "sl-blink bg-accent")} />
             <Label>{done ? "Every photo scored" : "Detector scanning photos in flight order"}</Label>
           </span>
-          <span className="font-mono text-small text-text-2">
+          <span className="whitespace-nowrap font-mono text-small text-text-2">
             <span className="text-text">{scannedTo + 1}</span> / {nFrames} ·{" "}
             <span className="text-accent-soft">{flaggedSoFar} flagged</span>
           </span>
@@ -270,6 +274,14 @@ export function RankReveal({
           </div>
         </div>
 
+        {/* The detector's score strip sits under the photo when the detector has its own column. */}
+        <ScoreStrip
+          cache={cache}
+          boxes={viewer ? (cache.detections.frames[viewer.frame.id] ?? NO_BOXES) : NO_BOXES}
+          done={done}
+          className="hidden xl:flex"
+        />
+
         {/* The whole flight as a barcode: one bar per photo, flagged ones tall and orange. */}
         <div className="flex h-7 items-end gap-px" aria-hidden="true">
           {Array.from({ length: nFrames }, (_, i) => {
@@ -288,96 +300,117 @@ export function RankReveal({
         </div>
       </div>
 
-      {/* The queue, building as the detector finds candidates, then the answer. */}
-      <div className="flex min-h-0 flex-col gap-4">
-        {done ? (
-          <div className="sl-rise flex flex-col gap-2">
-            <Label>Ranked review queue</Label>
-            <h2 className="text-[34px] font-semibold leading-[1.08]" title={source}>
-              {firstHit === 1 ? "Person in the first photo you see" : `First person at photo ${ordinal(firstHit)}`}
-            </h2>
-            <p className="text-body text-text-2" title={source}>
-              {flaggedPositions.size} of {nFrames} photos flagged for review. In random order you would expect to
-              look at about{" "}
-              <span className="font-mono text-text">{Math.round(ranking.expected_first_hit_random_order)}</span>{" "}
-              before the first person.
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <Label>Ranked review queue</Label>
-            <h2 className="text-[34px] font-semibold leading-[1.08] text-text-2">Most likely people first</h2>
-            <p className="text-body text-text-3">Each candidate is placed by the detector&apos;s confidence.</p>
-          </div>
-        )}
+      {/* The detector: its own column on wide screens, above the queue below that. */}
+      <div className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto xl:contents">
+        <ModelPanel
+          cache={cache}
+          dir={dir}
+          frame={viewer?.frame}
+          boxes={viewer ? (cache.detections.frames[viewer.frame.id] ?? NO_BOXES) : NO_BOXES}
+          pulseKey={done ? "done" : `${stop}-${viewer?.frame.id ?? ""}`}
+          stopMs={current ? stopMs(current) : 0}
+          done={done}
+        />
 
-        <ol className="flex flex-col gap-1.5" aria-label="Ranked candidates">
-          {shown.map((item, i) => (
-            <li
-              key={item.id}
-              ref={flip(item.id)}
-              className={
-                "sl-pop flex items-center gap-3 rounded-sm border p-2 transition-colors duration-300 " +
-                (i === 0 ? "border-accent/60 bg-accent/10" : "border-border bg-surface")
-              }
-            >
-              <span className="w-5 text-right font-mono text-small text-text-3">{i + 1}</span>
-              {item.detection.crop && (
-                <img
-                  src={cacheUrl(dir, item.detection.crop)}
-                  alt={`Candidate ${i + 1}, frame ${item.frame.id}`}
-                  className="size-12 rounded-[8px] object-cover"
-                />
-              )}
-              <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="font-mono text-small text-text">{item.frame.id}</span>
-                <span className="h-1 w-full overflow-hidden rounded-full bg-surface-strong">
-                  <span
-                    className="block h-full rounded-full bg-accent"
-                    style={{ width: `${Math.round(item.detection.conf * 100)}%` }}
-                  />
-                </span>
-              </span>
-              <span className="font-mono text-small text-accent-soft">{item.detection.conf.toFixed(2)}</span>
-            </li>
-          ))}
-          {found.length > QUEUE_ROWS && (
-            <li className="px-2 font-mono text-label text-text-3">+ {found.length - QUEUE_ROWS} more in the queue</li>
-          )}
-          {found.length === 0 && <li className="px-2 text-small text-text-3">Waiting for the first candidate…</li>}
-        </ol>
-
-        <div className="mt-auto flex flex-wrap items-center gap-3">
+        {/* The queue, building as the detector finds candidates, then the answer. */}
+        <div className="flex min-h-0 flex-col gap-4 xl:overflow-y-auto">
           {done ? (
-            <>
-              <button
-                type="button"
-                onClick={onStart}
-                autoFocus
-                className="sl-rise rounded-full bg-accent px-6 py-3 text-body font-medium text-bg transition-transform hover:scale-[1.03]"
+            <div className="sl-rise flex flex-col gap-2">
+              <Label>Ranked review queue</Label>
+              <h2 className="text-[28px] font-semibold leading-[1.1]" title={source}>
+                {firstHit === 1 ? "Person in the first photo you see" : `First person at photo ${ordinal(firstHit)}`}
+              </h2>
+              <p className="text-body text-text-2" title={source}>
+                {flaggedPositions.size} of {nFrames} photos flagged for review. In random order you would expect to
+                look at about{" "}
+                <span className="font-mono text-text">{Math.round(ranking.expected_first_hit_random_order)}</span>{" "}
+                before the first person.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <Label>Ranked review queue</Label>
+              <h2 className="text-[28px] font-semibold leading-[1.1] text-text-2">Most likely people first</h2>
+              <p className="text-body text-text-3">Each candidate is placed by the detector&apos;s confidence.</p>
+            </div>
+          )}
+
+          <ol className="flex flex-col gap-1.5" aria-label="Ranked candidates">
+            {shown.map((item, i) => (
+              <li
+                key={item.id}
+                ref={flip(item.id)}
+                className={
+                  "sl-pop items-center gap-3 rounded-sm border p-2 transition-colors duration-300 " +
+                  (i >= QUEUE_ROWS_NARROW ? "hidden xl:flex " : "flex ") +
+                  (i === 0 ? "border-accent/60 bg-accent/10" : "border-border bg-surface")
+                }
               >
-                Start review
-              </button>
-              {stops.length > 0 && (
+                <span className="w-5 text-right font-mono text-small text-text-3">{i + 1}</span>
+                {item.detection.crop && (
+                  <img
+                    src={cacheUrl(dir, item.detection.crop)}
+                    alt={`Candidate ${i + 1}, frame ${item.frame.id}`}
+                    className="size-12 rounded-[8px] object-cover"
+                  />
+                )}
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="font-mono text-small text-text">{item.frame.id}</span>
+                  <span className="h-1 w-full overflow-hidden rounded-full bg-surface-strong">
+                    <span
+                      className="block h-full rounded-full bg-accent"
+                      style={{ width: `${Math.round(item.detection.conf * 100)}%` }}
+                    />
+                  </span>
+                </span>
+                <span className="font-mono text-small text-accent-soft">{item.detection.conf.toFixed(2)}</span>
+              </li>
+            ))}
+            {found.length > QUEUE_ROWS_NARROW && (
+              <li className="px-2 font-mono text-label text-text-3 xl:hidden">
+                + {found.length - QUEUE_ROWS_NARROW} more in the queue
+              </li>
+            )}
+            {found.length > QUEUE_ROWS && (
+              <li className="hidden px-2 font-mono text-label text-text-3 xl:block">
+                + {found.length - QUEUE_ROWS} more in the queue
+              </li>
+            )}
+            {found.length === 0 && <li className="px-2 text-small text-text-3">Waiting for the first candidate…</li>}
+          </ol>
+
+          <div className="mt-auto flex flex-wrap items-center gap-3">
+            {done ? (
+              <>
                 <button
                   type="button"
-                  onClick={() => setStop(0)}
-                  className="rounded-full px-4 py-3 text-small text-text-2 transition-colors hover:bg-surface-strong hover:text-text"
+                  onClick={onStart}
+                  autoFocus
+                  className="sl-rise rounded-full bg-accent px-6 py-3 text-body font-medium text-bg transition-transform hover:scale-[1.03]"
                 >
-                  Replay scan
+                  Start review
                 </button>
-              )}
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setStop(stops.length)}
-              className="rounded-full border border-border px-4 py-2 text-small text-text-2 transition-colors hover:text-text"
-            >
-              Skip to the result
-            </button>
-          )}
-          {cache.detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
+                {stops.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStop(0)}
+                    className="rounded-full px-4 py-3 text-small text-text-2 transition-colors hover:bg-surface-strong hover:text-text"
+                  >
+                    Replay scan
+                  </button>
+                )}
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setStop(stops.length)}
+                className="rounded-full border border-border px-4 py-2 text-small text-text-2 transition-colors hover:text-text"
+              >
+                Skip to the result
+              </button>
+            )}
+            {cache.detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
+          </div>
         </div>
       </div>
     </div>
