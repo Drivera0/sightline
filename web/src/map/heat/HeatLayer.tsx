@@ -4,18 +4,23 @@ import { type ReactNode, useContext, useEffect, useMemo, useRef, useState } from
 import type { CacheBundle } from "../../contract";
 import { CacheContext, useCache } from "../../lib/cache";
 import { useReview } from "../../review/store";
+import { prefersReducedMotion } from "../../metrics/motion";
 import { detectionById, heldCells, useSearch } from "../../search/store";
 import { Panel } from "../../shell/components";
 import { useMap, type MapContextValue } from "../MapView";
 import { FoundBanner } from "./FoundBanner";
-import { buildOverlapIndex, frameOverlaps, overlapAtStep, photographedCells } from "./coverage";
+import { topCellIndices } from "./geometry";
+import { buildOverlapIndex, eligibleCells, frameOverlaps, overlapAtStep, photographedCells } from "./coverage";
 import {
+  breathFactor,
   cellFeaturesFor,
   ensureHeatLayers,
   HEAT_SOURCE_ID,
   pushHeatState,
+  pushHotspots,
   pushReplay,
   readHeatColors,
+  setBreath,
   setFlightPathVisible,
   setSurveyedBoundary,
 } from "./layers";
@@ -121,6 +126,13 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
   // What the map already shows per cell; NaN = unknown, push everything.
   const lastRef = useRef<Float64Array>(new Float64Array(0));
   const ready = boundMap === mapFile && state !== null;
+  // The Search next cells (same rule as the panel), ringed on the map.
+  const hotspots = useMemo(
+    () => (ready && state ? topCellIndices(state.p, 5, eligibleCells(overlap, held)) : []),
+    [ready, state, overlap, held],
+  );
+  const hotspotsRef = useRef(hotspots);
+  hotspotsRef.current = hotspots;
   const stateRef = useRef(state);
   stateRef.current = ready ? state : null;
   const coveredRef = useRef(covered);
@@ -147,6 +159,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
         if (current) pushHeatState(map, current, lastRef.current, coveredRef.current, heldRef.current);
         pushReplay(map, pathRef.current, stepRef.current);
         setFlightPathVisible(map, showPathRef.current);
+        pushHotspots(map, mapFile.grid, hotspotsRef.current);
       } catch {
         // Style not ready yet; the next 'styledata' or 'load' event tries again.
       }
@@ -202,6 +215,42 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
       /* style reloading; install() pushes again */
     }
   }, [map, path, stepIndex]);
+
+  useEffect(() => {
+    if (!map) return;
+    try {
+      pushHotspots(map, mapFile.grid, hotspots);
+    } catch {
+      /* style reloading; the next push redraws it */
+    }
+  }, [map, mapFile.grid, hotspots]);
+
+  // Breathing: a slow, small pulse of the heat and the hotspots. Off for reduced motion, paused
+  // while the tab is hidden, about 20 updates a second.
+  useEffect(() => {
+    if (!map || prefersReducedMotion()) return undefined;
+    let frame = 0;
+    let last = 0;
+    const tick = (now: number) => {
+      frame = requestAnimationFrame(tick);
+      if (document.hidden || now - last < 50) return;
+      last = now;
+      try {
+        setBreath(map, breathFactor(now));
+      } catch {
+        /* style reloading */
+      }
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      try {
+        setBreath(map, 1);
+      } catch {
+        /* map gone */
+      }
+    };
+  }, [map]);
 
   const foundDetection = foundDetectionId ? detectionById(bundle.detections, foundDetectionId) : undefined;
 
