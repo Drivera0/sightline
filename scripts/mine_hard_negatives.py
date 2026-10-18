@@ -31,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tiles", type=Path, default=ROOT / "data/heridal/yolo_tiles")
     ap.add_argument("--out", type=Path, default=ROOT / "data/heridal/hard_negatives")
     ap.add_argument("--yaml", type=Path, default=ROOT / "data/heridal/dataset_hn.yaml")
-    ap.add_argument("--device", default="cuda:0")
+    ap.add_argument("--device", default="auto", help="auto = cuda, then mps, then cpu")
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args(argv)
 
