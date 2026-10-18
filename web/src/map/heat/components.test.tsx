@@ -213,6 +213,12 @@ describe("Legend", () => {
     expect(screen.getByText("Awaiting review")).toBeInTheDocument();
   });
 
+  it("describes the search-next circles without promising a pulse (there is none under reduced motion)", () => {
+    render(<Legend simulatedPath hasSurveyed />);
+    expect(screen.getByText("Numbered as in the list; 1 is the likeliest")).toBeInTheDocument();
+    expect(screen.queryByText(/pulses/)).toBeNull();
+  });
+
 });
 
 describe("FoundBanner", () => {

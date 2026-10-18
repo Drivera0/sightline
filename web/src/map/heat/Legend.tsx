@@ -142,7 +142,7 @@ export function Legend({
             <SearchNextGlyph />
             <span className="flex flex-col">
               <span>Search next</span>
-              <span className="text-label text-text-2">Numbered as in the list; 1 pulses</span>
+              <span className="text-label text-text-2">Numbered as in the list; 1 is the likeliest</span>
             </span>
           </li>
         )}
