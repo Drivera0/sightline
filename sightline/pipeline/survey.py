@@ -173,10 +173,15 @@ def write_survey(
                 photo.crop((f.x0, f.y0, f.x0 + FRAME_W, f.y0 + FRAME_H)).convert("RGB").save(
                     f.path, quality=85
                 )
-    listing = [{**asdict(f), "path": str(f.path)} for f in frames]
-    (survey_dir / "frames.json").write_text(json.dumps(listing, indent=2) + "\n")
+    # Forward slashes and \n line endings, so these files hash the same on every OS.
+    listing = [{**asdict(f), "path": f.path.as_posix()} for f in frames]
+    _write_lf(survey_dir / "frames.json", json.dumps(listing, indent=2) + "\n")
     serialisable = {k: [[b.x1, b.y1, b.x2, b.y2] for b in v] for k, v in truth.items()}
-    (survey_dir / "truth.json").write_text(json.dumps(serialisable, indent=2) + "\n")
+    _write_lf(survey_dir / "truth.json", json.dumps(serialisable, indent=2) + "\n")
+
+
+def _write_lf(path: Path, text: str) -> None:
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 # --- reading the HERIDAL test split without lane A (fallback for lane A's `load_split`) --------
