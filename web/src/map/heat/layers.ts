@@ -79,8 +79,13 @@ function beforeId(map: Map): string | undefined {
 
 const EMPTY: GeoJsonData = { type: "FeatureCollection", features: [] };
 
-/** Heat raster opacity at rest: full on Search next, a little fainter beside the review queue so pins stay first (lower than 0.8 turns the pale low end muddy over the dark basemap). */
-export const HEAT_BASE_OPACITY = { search: 0.95, review: 0.8 } as const;
+/**
+ * Heat raster opacity at rest: nearly full on Search next, fainter beside the review queue so pins
+ * stay first. With the cells' own alpha (raster.ts) the palest class shows at about 0.62 (Search next)
+ * and 0.53 (Review), so roads and terrain show through; below about 0.5 the pale end turns muddy
+ * olive over the dark basemap (compared at 1440 px over the offline basemap).
+ */
+export const HEAT_BASE_OPACITY = { search: 0.88, review: 0.75 } as const;
 
 function lines(segments: LonLat[][]): GeoJsonData {
   return { type: "Feature", properties: {}, geometry: { type: "MultiLineString", coordinates: segments } };
