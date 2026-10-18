@@ -107,8 +107,12 @@ class Detector:
         return self._predict(image, conf, self.imgsz)
 
     def detect_resized(self, image: Path, conf: float = 0.05) -> list[RawDetection]:
-        """Whole image resized so its long side is ``imgsz`` (1024), one pass: a 60 px person
-        in a 4000 px photo becomes about 15 px. Only for the 'no tiling' ablation rows."""
+        """Whole image resized so its long side is ``imgsz``, one pass, no slicing.
+
+        At the default 1024 a 60 px person in a 4000 px photo becomes about 15 px (the
+        "shrunk photo" ablation rows). ``Detector(..., imgsz=4000)`` runs the photo at native
+        scale instead (letterboxed to 4000x3008), the fair no-tiling baseline for weights trained
+        on full-resolution tiles (scripts/evaluate_no_tiling.py)."""
         return self._predict(image, conf, self.imgsz)
 
     # ------------------------------------------------------------------ tiled
