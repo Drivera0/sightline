@@ -230,3 +230,13 @@ describe("base map GeoJSON", () => {
     );
   });
 });
+
+describe("replay step", () => {
+  it("draws a pin only once its frame has been flown; null means every frame", () => {
+    const answers = { "f0001-d01": "person" as const };
+    expect(buildDetectionFeatures(detections, answers, new Set(["f0002"])).features).toHaveLength(0);
+    expect(buildPinMarkerFeatures(detections, answers, new Set(["f0002"])).features).toHaveLength(0);
+    expect(buildPinMarkerFeatures(detections, answers, new Set(["f0001"])).features).toHaveLength(1);
+    expect(buildPinMarkerFeatures(detections, answers, null).features).toHaveLength(1);
+  });
+});

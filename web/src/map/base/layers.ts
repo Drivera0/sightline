@@ -9,6 +9,7 @@ import {
   buildFootprintFeatures,
   buildGridOutlineFeature,
   buildLkpFeature,
+  type FlownFrames,
 } from "./features";
 import { MAP_LAYER_IDS, MAP_SOURCE_IDS } from "./layerIds";
 import { ensurePinImages, PIN_IMAGES } from "./pinImages";
@@ -48,10 +49,11 @@ export function syncDetectionSource(
   map: Map,
   bundle: Pick<CacheBundle, "detections">,
   answers: Readonly<Record<string, Answer>>,
+  flown: FlownFrames = null,
 ): void {
   const source = (id: string) => map.getSource(id) as GeoJSONSource | undefined;
-  source(MAP_SOURCE_IDS.pins)?.setData(buildDetectionFeatures(bundle.detections, answers));
-  source(MAP_SOURCE_IDS.pinMarkers)?.setData(buildPinMarkerFeatures(bundle.detections, answers));
+  source(MAP_SOURCE_IDS.pins)?.setData(buildDetectionFeatures(bundle.detections, answers, flown));
+  source(MAP_SOURCE_IDS.pinMarkers)?.setData(buildPinMarkerFeatures(bundle.detections, answers, flown));
 }
 
 // Replace an existing GeoJSON source or add it on the first render.
@@ -72,6 +74,7 @@ export function syncBaseLayers(
   },
   answers: Readonly<Record<string, Answer>> = {},
   colors = readMapColors(),
+  flown: FlownFrames = null,
 ): void {
   setGeoJsonSource(map, MAP_SOURCE_IDS.grid, buildGridOutlineFeature(bundle.map.grid));
   setGeoJsonSource(map, MAP_SOURCE_IDS.footprints, buildFootprintFeatures(bundle.survey));
@@ -81,8 +84,8 @@ export function syncBaseLayers(
     MAP_SOURCE_IDS.flightDirection,
     buildFlightDirectionFeatures(bundle.survey),
   );
-  setGeoJsonSource(map, MAP_SOURCE_IDS.pins, buildDetectionFeatures(bundle.detections, answers));
-  setGeoJsonSource(map, MAP_SOURCE_IDS.pinMarkers, buildPinMarkerFeatures(bundle.detections, answers));
+  setGeoJsonSource(map, MAP_SOURCE_IDS.pins, buildDetectionFeatures(bundle.detections, answers, flown));
+  setGeoJsonSource(map, MAP_SOURCE_IDS.pinMarkers, buildPinMarkerFeatures(bundle.detections, answers, flown));
   ensurePinImages(map, colors);
   setGeoJsonSource(map, MAP_SOURCE_IDS.lkp, buildLkpFeature(bundle.survey));
 

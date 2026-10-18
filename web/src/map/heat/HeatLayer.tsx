@@ -11,6 +11,7 @@ import { prefersReducedMotion } from "../../metrics/motion";
 import { detectionById, effectiveAnswers, heldCells, stateAtStep, useSearch } from "../../search/store";
 import { Panel } from "../../shell/components";
 import { useMap, type MapContextValue } from "../MapView";
+import { flownFrames } from "../base/features";
 import { OVERLAY_ATTR, readOverlays } from "../base/camera";
 import { placeLabel } from "./labelPlacement";
 import { FoundBanner } from "./FoundBanner";
@@ -82,6 +83,19 @@ function useOptionalMap(): MapContextValue | null {
   } catch {
     return null;
   }
+}
+
+const frameIndexes = new WeakMap<CacheBundle["detections"], Map<string, string>>();
+
+/** The frame a detection was found in (detections.json is keyed by frame). */
+export function frameOfDetection(detections: CacheBundle["detections"], detectionId: string): string | undefined {
+  let index = frameIndexes.get(detections);
+  if (!index) {
+    index = new Map();
+    for (const [frameId, list] of Object.entries(detections.frames)) for (const d of list) index.set(d.id, frameId);
+    frameIndexes.set(detections, index);
+  }
+  return index.get(detectionId);
 }
 
 function isUsableMapFile(bundle: CacheBundle): boolean {
@@ -520,7 +534,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     () => (ready && data ? probabilityShares(stateAtStep(data.map, stepIndex), covered) : null),
     [ready, data, stepIndex, covered],
   );
-  // Every detection whose latest answer is "Person", newest first.
+  // Every detection whose latest answer is "Person" and whose photo the replay has flown, newest first.
+  const flown = useMemo(() => flownFrames(mapFile.steps, stepIndex), [mapFile.steps, stepIndex]);
   const finds = useMemo(
     () =>
       foundDetectionId
@@ -529,10 +544,11 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
             .reverse()
             .flatMap((e) => {
               const d = detectionById(bundle.detections, e.detectionId);
-              return d ? [d] : [];
+              const frameId = d ? frameOfDetection(bundle.detections, d.id) : undefined;
+              return d && (!flown || (frameId !== undefined && flown.has(frameId))) ? [d] : [];
             })
         : [],
-    [foundDetectionId, history, bundle.detections],
+    [foundDetectionId, history, bundle.detections, flown],
   );
   // Below the map (narrow screens) a list click also brings the map back into view.
   const flyToPoint = (lon: number, lat: number) => {
