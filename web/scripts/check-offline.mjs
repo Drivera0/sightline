@@ -8,6 +8,13 @@ const ALLOWED_HOSTS = ["www.w3.org", "react.dev", "maplibre.org", "maplibre.inva
 const ALLOWED_URLS = [
   "https://github.com/mapbox/mapbox-gl-js/issues/2907",
   "https://github.com/maplibre/maplibre-gl-js/*", // licence comment in the worker
+  // Lane B's basemap (web/src/map/base/basemap.ts). The MapTiler style is only fetched when
+  // VITE_MAPTILER_KEY is set AND the browser is online; otherwise the map reads the local
+  // /basemap/northshore.pmtiles. The other three are an attribution text and a library comment.
+  "https://api.maptiler.com/maps/satellite-v4/style.json",
+  "https://github.com/protomaps/PMTiles/tree/main/js",
+  "https://protomaps.com",
+  "https://www.openstreetmap.org/copyright",
 ];
 const dir = process.argv[2] ?? "dist";
 const found = scanDirectory(dir, ALLOWED_HOSTS, ALLOWED_URLS);

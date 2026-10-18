@@ -12,8 +12,12 @@ accepted in several shapes on purpose (object with attributes, dict, tuple, plai
     lane B   simulate_flight(n_frames: int, seed: int) -> poses [+ lkp, area_name]
              footprint(pose: Pose, width_px: int, height_px: int) -> 4 corners [lon, lat]
              georef_detection(pose: Pose, box_px, width_px: int, height_px: int) -> (lat, lon, radius_m)
-    lane C   build_map(frames: list[MapFrame], lkp: LatLon, recall: float) -> MapFile [+ frame cells]
+    lane C   build_map(frames: list[MapFrame], lkp: LatLon, recall: float, recall_source: str)
+                 -> MapFile [+ frame cells]
              simulate(map_file: MapFile, frame_cells) -> SearchSim
+             ...or lane C's own signatures from docs/LANE_C_SEARCH.md (build_map(grid, lkp, prior,
+             frames, recall, recall_source), simulate(map_file, frame_cells, trials, ...)),
+             recognised by parameter names (see docs/LANE_INTERFACES.md).
     lane A   run_survey(frames_dir, weights, out_dir, candidate_threshold, model_name, save_threshold)
              load_split(split) -> list[LabeledImage]            (documented in LANE_A_ML.md)
 """
@@ -27,25 +31,35 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sightline.contract import LatLon, MapFile, Pose, SearchSim
+from sightline.contract import Grid, LatLon, MapFile, Pose, SearchSim
 from sightline.pipeline import geometry
 from sightline.pipeline.formats import write_json
 from sightline.pipeline.geometry import FRAME_H_PX, FRAME_W_PX
 from sightline.pipeline.placeholders import (
+    PRIOR_OUTSIDE,
     placeholder_detections,
     placeholder_map,
     placeholder_search_sim,
 )
 from sightline.pipeline.survey import read_yolo_split
 
-REGISTRY: dict[str, tuple[str, str]] = {
+# Where to find each lane function: one (module, name), or several to try in order (lane C may
+# export from the package or from its submodules).
+Place = tuple[str, str]
+REGISTRY: dict[str, Place | list[Place]] = {
     "simulate_flight": ("sightline.geo", "simulate_flight"),
     "footprint": ("sightline.geo", "footprint"),
     "georef_detection": ("sightline.geo", "georef_detection"),
     "run_survey": ("sightline.ml", "run_survey"),
     "load_split": ("sightline.ml", "load_split"),
-    "build_map": ("sightline.search", "build_map"),
-    "simulate": ("sightline.search", "simulate"),
+    "build_map": [("sightline.search", "build_map"), ("sightline.search.build", "build_map")],
+    "simulate": [("sightline.search", "simulate"), ("sightline.search.sim", "simulate")],
+    "make_grid": [("sightline.search", "make_grid"), ("sightline.search.grid", "make_grid")],
+    "placeholder_prior": [
+        ("sightline.search", "placeholder_prior"),
+        ("sightline.search.prior", "placeholder_prior"),
+    ],
+    "frame_input": [("sightline.search", "FrameInput"), ("sightline.search.pod", "FrameInput")],
 }
 _LANE = {
     "simulate_flight": "B",
@@ -55,6 +69,9 @@ _LANE = {
     "load_split": "A",
     "build_map": "C",
     "simulate": "C",
+    "make_grid": "C",
+    "placeholder_prior": "C",
+    "frame_input": "C",
 }
 
 DEFAULT_LKP = LatLon(lat=49.37, lon=-122.945)
@@ -88,6 +105,36 @@ class MapFrame:
     # (lat, lon, radius_m) of each candidate detection in the frame (conf >= candidate_threshold),
     # so lane C can hold those cells for review (pod = 0 near a detection).
     candidates: tuple[tuple[float, float, float], ...] = ()
+
+
+@dataclass(frozen=True)
+class NativeFrameInput:
+    """Same fields as lane C's `FrameInput` (docs/LANE_C_SEARCH.md), used when lane C's own class
+    is not importable. Lane C's code only reads these attributes."""
+
+    frame_id: str
+    pose: Pose
+    width_px: int
+    height_px: int
+    image: Path
+    candidates: list[tuple[LatLon, float]]
+
+
+def _first_parameter(function: Callable[..., Any]) -> str | None:
+    try:
+        names = list(inspect.signature(function).parameters)
+    except (TypeError, ValueError):
+        return None
+    return names[0] if names else None
+
+
+def _is_native_simulate(function: Callable[..., Any]) -> bool:
+    """Lane C's native `simulate(map_file, frame_cells, trials, seed, vis_noise)` has these extras."""
+    try:
+        names = inspect.signature(function).parameters
+    except (TypeError, ValueError):
+        return False
+    return "trials" in names or "vis_noise" in names
 
 
 def _accepts_positional(function: Callable[..., Any], count: int) -> bool:
@@ -129,7 +176,7 @@ class Lanes:
 
     def __init__(
         self,
-        registry: Mapping[str, tuple[str, str]] | None = None,
+        registry: Mapping[str, Place | Sequence[Place]] | None = None,
         overrides: Mapping[str, Callable[..., Any] | None] | None = None,
     ) -> None:
         self._registry = dict(REGISTRY if registry is None else registry)
@@ -151,16 +198,21 @@ class Lanes:
         return self._cache[name]
 
     def _import(self, name: str) -> Callable[..., Any] | None:
-        module_name, attribute = self._registry[name]
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError as error:
-            self.unavailable[name] = f"cannot import {module_name}: {error}"
-            return None
-        function = getattr(module, attribute, None)
-        if function is None:
-            self.unavailable[name] = f"{module_name} has no function {attribute}"
-        return function
+        entry = self._registry[name]
+        places: Sequence[Place] = [entry] if isinstance(entry[0], str) else entry  # type: ignore[list-item]
+        reasons = []
+        for module_name, attribute in places:
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError as error:
+                reasons.append(f"cannot import {module_name}: {error}")
+                continue
+            function = getattr(module, attribute, None)
+            if function is not None:
+                return function
+            reasons.append(f"{module_name} has no function {attribute}")
+        self.unavailable[name] = "; ".join(reasons)
+        return None
 
     def placeholder_notes(self) -> dict[str, str]:
         """Function name -> what stood in for it. Empty when every lane function was real."""
@@ -286,7 +338,9 @@ class Lanes:
         if function is None:
             self._fallback("build_map", "a uniform prior with empty steps")
             return placeholder_map([f.id for f in frames], lkp, recall, recall_source)
-        if _accepts_positional(function, 4):
+        if _first_parameter(function) == "grid":  # lane C's native signature
+            result = self._native_build_map(function, frames, lkp, recall, recall_source)
+        elif _accepts_positional(function, 4):
             result = function(list(frames), lkp, recall, recall_source)
         else:
             result = function(list(frames), lkp, recall)  # an older build_map without recall_source
@@ -302,6 +356,73 @@ class Lanes:
         else:
             cells = _as_cells(raw_cells)
         return map_file, cells
+
+    def _native_build_map(
+        self,
+        function: Callable[..., Any],
+        frames: Sequence[MapFrame],
+        lkp: LatLon,
+        recall: float,
+        recall_source: str,
+    ) -> tuple[Any, FrameCells | None]:
+        """Call lane C's `build_map(grid, lkp, prior, frames, recall, recall_source)` and turn its
+        per-frame `{idx: (canopy, overlap)}` lists into cells keyed by frame id."""
+        grid = self._grid(lkp)
+        prior = self._prior(grid)
+        frame_class = self.get("frame_input") or NativeFrameInput
+        inputs = [
+            frame_class(
+                frame_id=f.id,
+                pose=f.pose,
+                width_px=FRAME_W_PX,
+                height_px=FRAME_H_PX,
+                image=f.image_path,
+                candidates=[
+                    (LatLon(lat=lat, lon=lon), radius) for lat, lon, radius in f.candidates
+                ],
+            )
+            for f in frames
+        ]
+        result = function(grid, lkp, prior, inputs, recall, recall_source)
+        if not isinstance(result, tuple):
+            return result, None  # a map only; the cells are derived from its steps
+        raw_map, per_frame = result
+        if len(per_frame) != len(frames):
+            raise ValueError(
+                f"build_map returned {len(per_frame)} frame-cell lists for {len(frames)} frames"
+            )
+        cells: FrameCells = {
+            frame.id: [
+                (int(idx), float(canopy), float(overlap))
+                for idx, (canopy, overlap) in sorted(cells_of_frame.items())
+            ]
+            for frame, cells_of_frame in zip(frames, per_frame, strict=True)
+        }
+        return raw_map, cells
+
+    def _grid(self, lkp: LatLon) -> Grid:
+        """Lane C's `make_grid(lkp)`, or the same 1 km / 20 m grid built here."""
+        make_grid = self.get("make_grid")
+        if make_grid is not None:
+            return make_grid(lkp)
+        return Grid(
+            origin_nw=geometry.grid_origin_nw(lkp),
+            cell_m=geometry.CELL_M,
+            rows=geometry.GRID_ROWS,
+            cols=geometry.GRID_COLS,
+        )
+
+    def _prior(self, grid: Grid) -> tuple[Any, float]:
+        """A placeholder prior (probabilities per cell, probability outside the grid). The real
+        prior needs the distance statistics for a lost hiker, which we do not have yet."""
+        import numpy as np
+
+        self.note_placeholder("prior", "no real search prior yet, used a uniform placeholder prior")
+        placeholder_prior = self.get("placeholder_prior")
+        if placeholder_prior is not None:
+            return placeholder_prior(grid)
+        cells = grid.rows * grid.cols
+        return np.full(cells, (1 - PRIOR_OUTSIDE) / cells), PRIOR_OUTSIDE
 
     def _cells_from_steps(self, map_file: MapFile) -> FrameCells:
         """When lane C returns only a MapFile: the cells each step covered, with the map's canopy and
@@ -322,5 +443,18 @@ class Lanes:
         if function is None:
             self._fallback("simulate", "a labelled placeholder (zeros, 0 trials)")
             return placeholder_search_sim()
-        result = function(map_file, frame_cells)
+        if _is_native_simulate(function):
+            ordered = [frame_cells[frame_id] for frame_id in sorted(frame_cells)]
+            result = function(
+                map_file,
+                [
+                    {
+                        idx: (0.0 if canopy is None else canopy, overlap)
+                        for idx, canopy, overlap in cells
+                    }
+                    for cells in ordered
+                ],
+            )
+        else:
+            result = function(map_file, frame_cells)
         return result if isinstance(result, SearchSim) else SearchSim.model_validate(result)
