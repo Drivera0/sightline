@@ -24,10 +24,12 @@ From `metrics.json` (the HERIDAL test set: 101 photos, 337 people, never used fo
 
 | | Sightline detector | Human baseline |
 |---|---|---|
-| Recall | **0.864** | 0.68 |
-| Precision | **0.802** | 0.59 |
-| AP50 | 0.868 | |
-| Time per full 4000×3000 photo | 0.25 s (GPU) | 33 s |
+| Recall | **0.858** | 0.68 |
+| Precision | **0.835** | 0.59 |
+| AP50 | 0.872 | |
+| Time per full 4000×3000 photo | 0.50 s (GPU) | 33 s |
+
+Measured 2026-10-18 with the photo-plus-mirror TTA chosen on validation (below); before it, the same weights scored recall 0.864, precision 0.802, AP50 0.868 at 0.25 s. The difference is within noise (±3.7 points on recall). Counting a loose box (IoU ≥ 0.1) as finding the person, recall is 0.881. A second, high-recall threshold chosen on validation (0.16) gives test recall 0.893 at precision 0.727 (`data/work/detect/operating_points.json`; not yet in `metrics.json`).
 
 Human baseline: Pyrrö, Naseri & Jung 2021, arXiv:2111.09406.
 
@@ -35,13 +37,13 @@ Human baseline: Pyrrö, Naseri & Jung 2021, arXiv:2111.09406.
 
 - **Ranking (demo survey):** all 6 photos with a person were in the first 7 photos of the review queue; the first one is photo 1.
 - **Search map (simulated, 1,536 trials with the person in a photographed cell):** a ground team needs a median of 98 cells with Sightline's map, against 123 for a naive "photographed = cleared" map (seed 7, the best of the three seeds tried). In lane C's robustness check it was better in all 15 runs: 12–20% fewer cells at the default noise, 9–12% with noise matching the canopy estimate's measured error (docs/LANE_C_SEARCH.md).
-- **Where it fails:** groups of people, clothing that matches pale or dark rock, people sitting or lying down. While analysing the misses we found 42 test labels squashed by a size bug in four photos; fixing it moved recall from 0.769 to 0.864. Details: [docs/DETECTOR_LIMITS.md](docs/DETECTOR_LIMITS.md).
+- **Where it fails:** groups of people, clothing that matches pale or dark rock, people sitting or lying down. While analysing the misses we found 42 test labels squashed by a size bug in four photos; fixing it moved recall from 0.769 to 0.864 (single-view model, before TTA). Details: [docs/DETECTOR_LIMITS.md](docs/DETECTOR_LIMITS.md).
 
 ## How the detector works
 
 ![Sightline ML pipeline](docs/architecture/ml-pipeline.png)
 
-A person is about 70 px wide in a 4000×3000 photo, so shrinking the photo to the model's input loses them. YOLO11s (9.43 M parameters) is fine-tuned for 80 epochs on overlapping 1024 px tiles from 890 labelled HERIDAL photos, and runs the same way: SAHI slices each photo into 1024 px tiles and merges the boxes. The 0.29 threshold is chosen on validation by maximising F2, because a missed person costs more than a false alarm a searcher dismisses in seconds. Tiling is what makes fine-tuning pay off: without it the fine-tuned model's test recall is 0.234.
+A person is about 70 px wide in a 4000×3000 photo, so shrinking the photo to the model's input loses them. YOLO11s (9.43 M parameters) is fine-tuned for 80 epochs on overlapping 1024 px tiles from 890 labelled HERIDAL photos, and runs the same way: SAHI slices each photo into 1024 px tiles and merges the boxes, and the photo and its mirror image are both run and fused with weighted box fusion. The merge settings, the TTA and the 0.32 threshold were all chosen on validation (the threshold by maximising F2), because a missed person costs more than a false alarm a searcher dismisses in seconds. Tiling is what makes fine-tuning pay off: without it the fine-tuned model's test recall is 0.234.
 
 Both diagrams, with notes: [docs/architecture/sightline-architecture.html](docs/architecture/sightline-architecture.html). They are drawn to the [Diagram Design](https://github.com/cathrynlavery/diagram-design) rules by `docs/architecture/build_architecture.py`.
 

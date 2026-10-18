@@ -45,6 +45,7 @@ Logic lives in `sightline/ml/voc.py` and `sightline/ml/tiling.py`; tests in `tes
 | `evaluate_model.py` | Chooses `candidate_threshold` on **val** (max F2, tiled inference), then scores the 4 ablation rows on the full **test** set with VOC and SAR-style matching. | `data/work/detect/detector_metrics.json` (contract `DetectorMetrics` + `Ablation` rows), `evaluate_details.json` |
 | `tune_on_val.py` | Validation-only sweep of SAHI merge settings (overlap 0.1/0.2/0.3 × NMS/NMM/GREEDYNMM × IOU/IOS × match 0.3–0.7), threshold re-chosen by max F2 for each; paired bootstrap (2,000 resamples over val photos, seed 7) against the current default; the secondary high-recall threshold. Never reads test. | `data/work/tune/val_tuning.json` |
 | `tta_on_val.py` | Validation-only test of test-time augmentation: 1, 2, 4 or 8 flip/rotation views fused by pooled NMS or weighted box fusion, with seconds per photo and a paired bootstrap against no TTA. | `data/work/tune/val_tta.json` |
+| `make_site_holdout.py`, `train_site_holdout.py`, `compare_on_holdout.py` | Site-held-out split from trainval (GOR + RAK out; never touches test), run-2-recipe retrain on it, and a paired-bootstrap comparison of models on the held-out sites. | `data/heridal/yolo_site/`, `data/runs/site_*`, `data/work/tune/holdout_compare.json` |
 | `mine_hard_negatives.py` | Tiled inference over training images; cuts a 1024 tile around every false positive (conf ≥ 0.25, IoU < 0.1 to all truth), capped at 2,000, seeded. Writes a YAML that trains on tiles + hard negatives. | `data/heridal/hard_negatives/{images,labels}`, `data/heridal/dataset_hn.yaml` |
 
 Detection on the demo frames is one call, `sightline.ml.run_survey(...)` (see `sightline/ml/survey.py`); D's
@@ -52,19 +53,28 @@ Detection on the demo frames is one call, `sightline.ml.run_survey(...)` (see `s
 `detect_resized`), `evaluate.py` (scoring, threshold choice), `crops.py`, `hard_negatives.py`, `data.py`.
 Until lane D lands `sightline/contract.py`, the metrics models come from `sightline/ml/_contract_shim.py`.
 
-## Results (released as `weights-v2`; `detector_metrics.json` re-measured 2026-10-18 on the corrected test labels)
+## Results (weights `weights-v2`; `detector_metrics.json` re-measured 2026-10-18 with photo + mirror TTA)
 
 Final model: **run 2**, yolo11s, 80 epochs on 1024 px tiles from the 890 *annotated* training photos only
 (the Zenodo copy has ~560 train/val photos with empty annotation stubs, some showing unlabelled people).
-Threshold **0.29**, chosen on annotated **val** photos by max F2. Full 101-image HERIDAL test set, VOC scoring
-(greedy one-to-one, IoU ≥ 0.5); precision/recall at the threshold, AP50 over all confidences.
+Tiled rows use the val-chosen photo + mirror TTA (weighted box fusion, `docs/LANE_A_ML.md` §6.3a); the resized rows
+are single-view. Threshold **0.32**, chosen on annotated **val** photos by max F2. Full 101-image HERIDAL test set,
+VOC scoring (greedy one-to-one, IoU ≥ 0.5); precision/recall at the threshold, AP50 over all confidences. This test
+pass was run once, after every setting had been fixed on val.
 
 | Row | Precision | Recall | AP50 | s / image |
 |---|---|---|---|---|
 | Stock model, no tiling (COCO yolo11s, resized to 1024) | 0.420 | 0.196 | 0.142 | 0.06 |
 | Fine-tuned, no tiling (run 2 weights, resized to 1024) | 0.380 | 0.234 | 0.144 | 0.06 |
-| Fine-tuned + tiling | **0.802** | **0.864** | **0.868** | 0.25 |
-| + hard negatives (484 mined tiles, 20-epoch fine-tune) | 0.738 | 0.869 | 0.851 | 0.24 |
+| Fine-tuned + tiling | **0.835** | **0.858** | **0.872** | 0.50 |
+| + hard negatives (484 mined tiles, 20-epoch fine-tune) | 0.771 | 0.887 | 0.879 | 0.50 |
+
+Test F2 0.853 for the final row (single-view before TTA: 0.802 / 0.864 / 0.868, F2 0.850, 0.25 s; kept in
+`data/work/detect/detector_metrics.run2-single-view.json`). The hard-negative row now has the higher test F2
+(0.861), but it is **not** adopted: models are chosen on val only, and on val it was not clearly better.
+Secondary high-recall threshold (val recall ≥ 0.90 → **0.16**): test precision 0.727, recall 0.893, F2 0.854.
+"Found the person" recall, counting a loose box (IoU ≥ 0.1, one box per person): 0.881 at 0.32, 0.920 at 0.16
+(the single-view model also had 0.881 at 0.29). All in `data/work/detect/operating_points.json`.
 
 The hard-negative model was measured but not kept: test F2 0.840 vs 0.850 for run 2.
 
@@ -82,11 +92,11 @@ choice is made on val with a paired bootstrap (`tune_on_val.py`, `tta_on_val.py`
 trusted the XML and squashed their 42 boxes to 0.75 of their height. `read_voc` now takes the size from the JPEG.
 No training or validation label changed, so the weights and the threshold are the same; only the test score moved
 (it was 0.713 / 0.769 / 0.723). See `docs/DETECTOR_LIMITS.md`. Reproduce with
-`python scripts/evaluate_model.py --weights data/runs/tiles_s_v2/weights/best.pt --hn-weights data/runs/tiles_s_v2_hn/weights/best.pt --final tiled --model-name yolo11s-heridal-tiled-run2`.
+`python scripts/evaluate_model.py --weights data/runs/tiles_s_v2/weights/best.pt --hn-weights data/runs/tiles_s_v2_hn/weights/best.pt --final tiled --model-name yolo11s-heridal-tiled-run2-tta` (TTA is the `detect_tiled` default; the single-view numbers used `tta=("id",)`).
 Run 1 (trained on all 1,391 train photos, incl. the unannotated ones) scored 0.681 / 0.754 / 0.711 at threshold 0.21 (`weights-v1`).
 Human baseline (Pyrrö et al. 2021): precision 0.59, recall 0.68, 33 s per photo.
-SAR-style loose matching (approx. AIR) for the final model: precision 0.898, recall 0.896.
-`metrics.detector.recall` for lane C's POD: **0.864**. Demo survey (500 frames, seed 7): 15 review-queue crops, all 6
+SAR-style loose matching (approx. AIR) for the final model: precision 0.916, recall 0.896.
+`metrics.detector.recall` for lane C's POD: **0.858** (was 0.864 single-view). Demo survey (500 frames, seed 7, built with threshold 0.29 before TTA; `detect_frame` has no TTA): 15 review-queue crops, all 6
 frames with a person in the queue, first hit ranked 1 vs 73 in flight order (71.6 expected at random).
 
 **Why "Fine-tuned, no tiling" scores below the stock model:** trained only on full-resolution 1024 px tiles, where a person is about 50 px tall, the fine-tuned model still finds people in a whole photo shrunk to 1024 px (a person becomes about 13 px) but draws boxes about twice too big, so they fail the IoU 0.5 test; tiling is what makes fine-tuning pay off.

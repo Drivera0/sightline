@@ -1,9 +1,11 @@
 # Detector limits: where Sightline's detector fails
 
-Analysis of the final detector (weights-v2, `yolo11s-heridal-tiled`, tiled inference) on the
+Analysis of the weights-v2 detector (`yolo11s-heridal-tiled`, single-view tiled inference) on the
 HERIDAL **test** split: 101 photos, 337 people. Analysis only: nothing here was tuned on the
 test set. The threshold, 0.29, is the one recorded in the weights-v2 release
-(`detector_metrics.json`, chosen on validation).
+(`detector_metrics.json`, chosen on validation). Since 2026-10-18 the reported detector adds
+photo + mirror TTA at threshold 0.32 (test P 0.835 / R 0.858 / AP50 0.872, `scripts/README.md`);
+§§1–4 below still describe the single-view model at 0.29.
 
 Every number below is in `data/work/analysis/limits.json` and reproduces with:
 
@@ -103,6 +105,25 @@ published (dotted), with 0.29 marked. Lowering the threshold to 0.10 would raise
 recall to 0.911 at precision 0.663; raising it to 0.50 drops recall to 0.792 at precision 0.873.
 For search and rescue a miss costs more than a false alarm a person dismisses in seconds, which
 is why the validation set chose an F2-optimal threshold.
+
+## 5. Validation and test come from different sites
+
+Our validation split is a seeded 10 % of the HERIDAL trainval photos, split by photo, so its 13
+sites (BLA, BRA, BRK, BRS, CAP, GOR, JAS, MED, RAK, SB, TRS, VRD, ZRI) are exactly the training
+sites. The official test split has four sites that appear in neither training nor validation:
+**BLI, CAB, GRO and MOB, 32 of the 101 test photos and 114 of the 337 people**. So every
+threshold and setting is chosen on terrain the model has trained on, then scored partly on
+terrain it has never seen. Validation numbers are therefore an optimistic guide to new sites:
+on the test photos, recall is 0.883 on the 223 people at trained sites and 0.825 on the 114
+people at the four new sites (single-view model, threshold 0.29); with the TTA adopted on
+2026-10-18 it is 0.879 and 0.816 (threshold 0.32). The final model's val F2 is 0.857 and its
+test F2 0.853; the gap is small overall, but the new sites alone are clearly harder.
+
+A site-held-out validation split (whole sites kept out of training) would fix this, but it
+needs a retrain without those sites. `scripts/make_site_holdout.py` builds one (GOR and RAK held
+out: 186 photos, 331 people, neither site in test); the retrain on it was started on 2026-10-18
+but not finished (see `docs/LANE_A_ML.md` §6.3a), so weights-v2 is still validated on its
+original, site-shared split.
 
 ## Honest limits: one page for the deck
 
