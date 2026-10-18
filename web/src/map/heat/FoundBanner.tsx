@@ -55,7 +55,8 @@ export function FoundBanner({
               <button
                 type="button"
                 onClick={() => onFlyTo(f)}
-                className="rounded-full border border-border px-3 py-0.5 text-label text-text-2 hover:text-text"
+                // 44 px tall on phones (Apple HIG), 24 px with a mouse (WCAG 2.5.8).
+                className="inline-flex min-h-11 items-center rounded-full border border-border px-3 text-label text-text-2 hover:text-text lg:min-h-6"
               >
                 Fly to it
               </button>
