@@ -48,10 +48,11 @@ export function StepSlider({ value, max, playing = false, onTogglePlay, onScrub,
         )}
       </button>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 pr-2">
-        <div className="flex items-baseline justify-between gap-3">
-          <Label>Flight replay</Label>
+        {/* Each part stays on one line; on a narrow bar the step text drops below the label. */}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <Label className="whitespace-nowrap">Flight replay</Label>
           {/* Announced at rest only: during play it changes several times a second. */}
-          <span className="font-mono text-label text-text-2" aria-live={playing ? "off" : "polite"}>
+          <span className="whitespace-nowrap font-mono text-label text-text-2" aria-live={playing ? "off" : "polite"}>
             {stepText(value, max)}
           </span>
         </div>

@@ -129,7 +129,9 @@ describe("StepSlider", () => {
   it("shows the text and moves with the range input, in whole frames", () => {
     const onScrub = vi.fn();
     render(<StepSlider value={212} max={500} onScrub={onScrub} />);
-    expect(screen.getByText("After frame 212 of 500")).toBeInTheDocument();
+    // Never broken mid-phrase on a narrow bar ("After frame 500 of / 500"): the parts wrap whole.
+    expect(screen.getByText("After frame 212 of 500")).toHaveClass("whitespace-nowrap");
+    expect(screen.getByText("Flight replay")).toHaveClass("whitespace-nowrap");
     fireEvent.change(screen.getByRole("slider"), { target: { value: "13" } });
     expect(onScrub).toHaveBeenCalledWith(13);
     // A label that changes (Play / Pause) and no toggle state, so it is never read "Pause, not pressed".
