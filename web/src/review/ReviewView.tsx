@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CacheBundle } from "../contract";
 import { CACHE_DIR, cacheUrl, useCache } from "../lib/cache";
 import { isTyping } from "../lib/keys";
 import { prefersReducedMotion } from "../metrics/motion";
 import { useSelection } from "../lib/selection";
+import { useMediaQuery } from "../map/heat/panelSlot";
 import { EmptyState, KeyHint, Label, Panel } from "../shell/components";
 import { reviewItems, reviewProgress, type ReviewItem } from "./items";
 import { ResetReview } from "./ResetReview";
@@ -177,6 +179,9 @@ export function ReviewView({
   // After an answer, focus moves here: never left on the answer button, where the next Enter would
   // re-click it and record the same answer for the next candidate.
   const candidateRef = useRef<HTMLDivElement>(null);
+  const queueRef = useRef<HTMLDivElement>(null);
+  // Phones: the three answers sit in a bar fixed to the bottom of the screen, always in reach.
+  const phoneBar = useMediaQuery("(max-width: 767px)", false) && compact;
   // The last decision, shown as a short-lived toast; `n` re-keys it so each answer animates.
   const [lastDecision, setLastDecision] = useState<{ frameId: string; value: Answer; n: number } | null>(null);
 
@@ -194,13 +199,19 @@ export function ReviewView({
     selectedByQueue.current = selectedDetectionId;
   }, [selectedDetectionId, items]);
 
-  // Keep the current candidate visible in the queue as the cursor moves.
+  // Keep the current candidate visible in the queue as the cursor moves. Only the queue scrolls:
+  // scrollIntoView would also scroll the page (on a phone it jumped past the candidate on load).
   useEffect(() => {
-    if (!current) return;
-    rowRefs.current.get(current.id)?.scrollIntoView?.({
-      block: "nearest",
-      behavior: prefersReducedMotion() ? "auto" : "smooth",
-    });
+    const list = queueRef.current;
+    const row = current ? rowRefs.current.get(current.id) : undefined;
+    if (!list || !row || typeof list.scrollTo !== "function") return;
+    const top = row.offsetTop;
+    const bottom = top + row.offsetHeight;
+    const pad = 8;
+    let to: number | null = null;
+    if (top - pad < list.scrollTop) to = top - pad;
+    else if (bottom + pad > list.scrollTop + list.clientHeight) to = bottom + pad - list.clientHeight;
+    if (to !== null) list.scrollTo({ top: Math.max(0, to), behavior: prefersReducedMotion() ? "auto" : "smooth" });
   }, [current]);
 
   const select = useCallback((id: string) => {
@@ -302,11 +313,38 @@ export function ReviewView({
   const people = progress.persons === 1 ? "person" : "people";
 
   const percent = Math.round((progress.reviewed / progress.total) * 100);
+  const answerGrid = current ? (
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)] gap-2">
+      {DECISIONS.map(([value, label, key, tone, selectedTone]) => {
+        const selected = answers[current.id] === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => answer(value)}
+            data-answer={value}
+            aria-pressed={selected}
+            className={
+              "inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-2 text-body md:px-3 transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +
+              tone +
+              (selected ? " " + selectedTone : "")
+            }
+          >
+            {selected && <Check />}
+            {label}
+            <span className="hidden md:contents">
+              <KeyHint>{key}</KeyHint>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
   const secondary =
     "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-small text-text-2 transition-colors hover:bg-surface-strong hover:text-text";
 
   return (
-    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
+    <div className={"flex flex-col gap-4 lg:h-full lg:min-h-0" + (phoneBar ? " pb-24" : "")}>
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-4">
           <p className="font-mono text-small text-text-2">
@@ -338,7 +376,7 @@ export function ReviewView({
           (compact ? "md:grid-cols-[14rem_minmax(0,1fr)] lg:grid-cols-[12rem_minmax(0,1fr)] 2xl:grid-cols-[14rem_minmax(0,1fr)]" : "lg:grid-cols-[18rem_1fr_20rem]")
         }
       >
-        <Panel className="max-h-64 overflow-y-auto overflow-x-hidden p-2 md:max-h-[70vh] lg:max-h-none lg:min-h-0">
+        <Panel ref={queueRef} className="relative max-h-64 overflow-y-auto overflow-x-hidden p-2 md:max-h-[70vh] lg:max-h-none lg:min-h-0">
           <ul aria-label="Candidates" className="flex flex-col gap-1">
             {items.map((item, index) => {
               const state = answers[item.id] ?? "unreviewed";
@@ -525,31 +563,20 @@ export function ReviewView({
             </div>
 
             <section aria-label="Review keys" className="flex flex-col gap-2">
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)] gap-2">
-                {DECISIONS.map(([value, label, key, tone, selectedTone]) => {
-                  const selected = answers[current.id] === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => answer(value)}
-                      data-answer={value}
-                      aria-pressed={selected}
-                      className={
-                        "inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-3 text-body transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +
-                        tone +
-                        (selected ? " " + selectedTone : "")
-                      }
+              {phoneBar
+                ? createPortal(
+                    <div
+                      role="group"
+                      aria-label="Answer"
+                      data-testid="phone-answer-bar"
+                      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg/90 px-4 pt-3 backdrop-blur-[16px]"
+                      style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
                     >
-                      {selected && <Check />}
-                      {label}
-                      <span className="hidden md:contents">
-                        <KeyHint>{key}</KeyHint>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                      {answerGrid}
+                    </div>,
+                    document.body,
+                  )
+                : answerGrid}
               <div className="flex flex-wrap items-center justify-center gap-1 text-small text-text-3">
                 <button type="button" onClick={undo} className={secondary}>
                   Undo <KeyHint>Z</KeyHint>
@@ -651,7 +678,7 @@ export function ReviewView({
                       data-answer={value}
                       aria-pressed={selected}
                       className={
-                        "inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-3 text-body transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +
+                        "inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-2 text-body md:px-3 transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +
                         tone +
                         (selected ? " " + selectedTone : "")
                       }

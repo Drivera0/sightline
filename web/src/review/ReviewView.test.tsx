@@ -323,6 +323,30 @@ describe("ReviewView answer states", () => {
   });
 });
 
+describe("ReviewView on phones", () => {
+  it("puts the three answers in a bar fixed to the bottom of the screen", async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === "(max-width: 767px)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+      const bar = screen.getByTestId("phone-answer-bar");
+      expect(bar.parentElement).toBe(document.body);
+      expect(bar).toHaveClass("fixed", "bottom-0");
+      expect(within(bar).getAllByRole("button").map((b) => b.textContent)).toEqual(["PersonP", "Not a personN", "UnsureU"]);
+      for (const b of within(bar).getAllByRole("button")) expect(b).toHaveClass("h-12", "whitespace-nowrap");
+      await userEvent.click(within(bar).getByRole("button", { name: /not a person/i }));
+      expect(status(queue()[0]!)).toBe("Not a person");
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+});
+
 describe("ReviewView compact layout", () => {
   it("drops the frame panel so the queue fits beside the map, keeping the full frame on Enter", async () => {
     render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);

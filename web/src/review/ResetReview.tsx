@@ -11,7 +11,7 @@ export function ResetReview({ className = "" }: { className?: string }) {
   const reset = useReview((s) => s.reset);
   const undoReset = useReview((s) => s.undoReset);
   const base =
-    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-small transition-colors hover:bg-surface-strong ";
+    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-small transition-colors hover:bg-surface-strong ";
 
   if (cleared !== null) {
     return (
