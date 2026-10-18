@@ -30,6 +30,7 @@ requirements.txt
 /docs/*.pdf
 /docs/*.docx
 /sightline/geo/LOCAL_PROGRESS_README.md
+/sightline/geo/DEMO_TALKING_POINTS_README.md
 
 # Web
 node_modules/
