@@ -236,6 +236,8 @@ describe("FoundBanner", () => {
     expect(screen.getAllByText("±10 m radius · simulated")).toHaveLength(2);
     screen.getAllByRole("button", { name: "Fly to it" })[1]!.click();
     expect(onFlyTo).toHaveBeenCalledWith(finds[1]);
+    // A touch target on phones (44 px), at least 24 px with a mouse.
+    expect(screen.getAllByRole("button", { name: "Fly to it" })[0]).toHaveClass("min-h-11", "lg:min-h-6");
   });
 
   it("renders nothing without a find", () => {
