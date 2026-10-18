@@ -243,28 +243,52 @@ describe("breathing", () => {
     expect(setPaintProperty).not.toHaveBeenCalled();
   });
 
-  it("puts a ring at the centre of each Search next cell, in rank order", () => {
+  it("puts a ring at each Search next patch centroid, in rank order", () => {
     const grid = { origin_nw: { lat: 49.37, lon: -122.95 }, cell_m: 10, rows: 100, cols: 100 };
-    const data = hotspotFeatures(grid, [0, 5050]) as {
-      features: { properties: { rank: number }; geometry: { type: string; coordinates: number[] } }[];
+    const patch = (id: number, lat: number, lon: number) => ({
+      id,
+      cells: [id],
+      centroid: { lat, lon },
+      probability: 0.1,
+      share: 0.5,
+      density: 1,
+      areaHa: 0.01,
+      canopy: 0.5,
+      sectorIndex: 0,
+    });
+    const patches = [patch(0, 49.3699, -122.9499), patch(5050, 49.365, -122.945)];
+    const data = hotspotFeatures(grid, patches) as {
+      features: { properties: { rank: number; kind: string }; geometry: { type: string; coordinates: number[] } }[];
     };
-    expect(data.features.map((f) => f.properties.rank)).toEqual([1, 2]);
-    const [lon, lat] = data.features[0]!.geometry.coordinates as [number, number];
-    expect(data.features[0]!.geometry.type).toBe("Point");
-    // Cell 0 is the north-west cell: its centre is just south-east of the grid origin.
-    expect(lat).toBeLessThan(grid.origin_nw.lat);
-    expect(lon).toBeGreaterThan(grid.origin_nw.lon);
+    const markers = data.features.filter((feature) => feature.properties.kind === "marker");
+    expect(markers.map((f) => f.properties.rank)).toEqual([1, 2]);
+    const [lon, lat] = markers[0]!.geometry.coordinates as [number, number];
+    expect(markers[0]!.geometry.type).toBe("Point");
+    expect(lat).toBe(49.3699);
+    expect(lon).toBe(-122.9499);
   });
 
-  it("draws however many cells exist (a small survey can have fewer than 5, or none)", () => {
+  it("draws however many patches exist (a small survey can have fewer than 5, or none)", () => {
     const grid = { origin_nw: { lat: 49.37, lon: -122.95 }, cell_m: 20, rows: 50, cols: 50 };
-    const few = hotspotFeatures(grid, [7, 3]) as { features: unknown[] };
-    expect(few.features).toHaveLength(2);
+    const patch = (id: number, lat: number, lon: number) => ({
+      id,
+      cells: [id],
+      centroid: { lat, lon },
+      probability: 0.1,
+      share: 0.5,
+      density: 1,
+      areaHa: 0.01,
+      canopy: 0.5,
+      sectorIndex: 0,
+    });
+    const patches = [patch(7, 49.37, -122.95), patch(3, 49.36, -122.94)];
+    const few = hotspotFeatures(grid, patches) as { features: unknown[] };
+    expect(few.features).toHaveLength(4);
     const none = hotspotFeatures(grid, []) as { type: string; features: unknown[] };
     expect(none).toEqual({ type: "FeatureCollection", features: [] });
     // Before the layers are installed there is no source: pushing does nothing and does not throw.
     const map = { getSource: () => undefined } as unknown as Map;
-    expect(() => pushHotspots(map, grid, [1, 2, 3])).not.toThrow();
+    expect(() => pushHotspots(map, grid, patches)).not.toThrow();
   });
 });
 
@@ -301,7 +325,11 @@ describe("search-next circles", () => {
     expect(halo["circle-stroke-width"] as number).toBeGreaterThan((ring["circle-stroke-width"] as number) + 3);
     expect(ring["circle-radius"]).toBe(HOTSPOT_RADIUS_PX);
     expect(layer(HEAT_LAYER_IDS.hotspotActive).paint!["circle-stroke-color"]).toBe("#acc");
-    expect(layer(HEAT_LAYER_IDS.hotspotPulse).filter).toEqual(["==", ["get", "rank"], 1]);
+    expect(layer(HEAT_LAYER_IDS.hotspotPulse).filter).toEqual([
+      "all",
+      ["==", ["get", "kind"], "marker"],
+      ["==", ["get", "rank"], 1],
+    ]);
     const badge = layer(HEAT_LAYER_IDS.hotspotBadge);
     expect(badge.type).toBe("symbol");
     expect(JSON.stringify(badge.layout!["icon-image"])).toContain("rank");
@@ -322,18 +350,30 @@ describe("search-next circles", () => {
     expect(setPaintProperty).toHaveBeenCalledWith(HEAT_LAYER_IDS.hotspotPulse, "circle-stroke-opacity", 0);
   });
 
-  it("rings the active circle by cell, and quiets the circles while the drone flies", () => {
+  it("highlights the active patch, and quiets its marker and outline while the drone flies", () => {
     const setFilter = vi.fn();
     const setPaintProperty = vi.fn();
     const setLayoutProperty = vi.fn();
     const map = { getLayer: () => ({}), setFilter, setPaintProperty, setLayoutProperty } as unknown as Map;
     setActiveHotspot(map, 42);
-    expect(setFilter).toHaveBeenLastCalledWith(HEAT_LAYER_IDS.hotspotActive, ["==", ["get", "idx"], 42]);
+    expect(setFilter).toHaveBeenCalledWith(HEAT_LAYER_IDS.hotspotActive, [
+      "all",
+      ["==", ["get", "kind"], "marker"],
+      ["==", ["get", "idx"], 42],
+    ]);
     setActiveHotspot(map, null);
-    expect(setFilter).toHaveBeenLastCalledWith(HEAT_LAYER_IDS.hotspotActive, ["==", ["get", "idx"], -1]);
+    expect(setFilter).toHaveBeenCalledWith(HEAT_LAYER_IDS.hotspotActive, [
+      "all",
+      ["==", ["get", "kind"], "marker"],
+      ["==", ["get", "idx"], -1],
+    ]);
     setReplayEmphasis(map, { playing: true, highlight: true }, false);
     const ring = setPaintProperty.mock.calls.filter((c) => c[0] === HEAT_LAYER_IDS.hotspots && c[1] === "circle-stroke-opacity").at(-1)!;
     expect(ring[2]).toBe(HOTSPOT_STYLE.replayOpacity);
+    const outline = setPaintProperty.mock.calls
+      .filter((c) => c[0] === HEAT_LAYER_IDS.hotspotPatchOutline && c[1] === "line-opacity")
+      .at(-1)!;
+    expect(outline[2]).toBe(0.8 * HOTSPOT_STYLE.replayOpacity);
     expect(setLayoutProperty).toHaveBeenLastCalledWith(HEAT_LAYER_IDS.hotspotPulse, "visibility", "none");
     setReplayEmphasis(map, { playing: false, highlight: false }, false);
     const rest = setPaintProperty.mock.calls.filter((c) => c[0] === HEAT_LAYER_IDS.hotspots && c[1] === "circle-stroke-opacity").at(-1)!;

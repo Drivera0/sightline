@@ -17,7 +17,7 @@ import { flownFrames } from "../base/features";
 import { OVERLAY_ATTR, readOverlays } from "../base/camera";
 import { placeLabel } from "./labelPlacement";
 import { FoundBanner } from "./FoundBanner";
-import { heatScaleMax, probabilityShares, topCellIndices } from "./geometry";
+import { heatScaleMax, likelyPatches, probabilityShares } from "./geometry";
 import {
   buildOverlapIndex,
   eligibleCells,
@@ -322,17 +322,24 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const [legendOpen, setLegendOpen] = useState(false);
   const legendPillRef = useRef<HTMLButtonElement>(null);
 
-  // The Search next cells (same rule as the panel), ringed on the map.
-  const hotspots = useMemo(
-    () => (isSearch && ready && panelState ? topCellIndices(panelState.p, 5, eligibleCells(panelOverlap, held)) : []),
-    [isSearch, ready, panelState, panelOverlap, held],
+  // Search patches are calculated once and shared by the map and panel, so their ranks cannot drift.
+  const patchSet = useMemo(
+    () =>
+      isSearch && ready && panelState
+        ? likelyPatches(grid, panelState.p, eligibleCells(panelOverlap, held), {
+            canopy: mapFile.canopy,
+            cellSector: sectorLayout.cellSector,
+          })
+        : { patches: [], surveyedProbability: 0, meanProbability: 0, otherShare: 0 },
+    [isSearch, ready, panelState, panelOverlap, held, grid, mapFile.canopy, sectorLayout.cellSector],
   );
+  const hotspots = patchSet.patches;
 
   // A search-next circle hovered (map or list) or picked (click on either): ringed on the map and
   // highlighted in the list. Hover wins while it lasts.
   const [hoverHot, setHoverHot] = useState<number | null>(null);
   const [pickedHot, setPickedHot] = useState<number | null>(null);
-  const activeHot = [hoverHot, pickedHot].find((i) => i !== null && hotspots.includes(i)) ?? null;
+  const activeHot = [hoverHot, pickedHot].find((i) => i !== null && hotspots.some((patch) => patch.id === i)) ?? null;
   const activeHotRef = useRef(activeHot);
   activeHotRef.current = activeHot;
 
@@ -814,6 +821,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         covered={panelCovered}
         overlap={panelOverlap}
         held={held}
+        patchResult={patchSet}
+        sectorNames={sectorLayout.sectors.map((sector) => sectorName(sector))}
         found={finds.length > 0}
         onSelect={(lon, lat, idx) => {
           setPickedHot(idx);

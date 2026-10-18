@@ -4,10 +4,9 @@ import { Label } from "../../shell/components";
 import { eligibleCells } from "./coverage";
 import {
   canopyLabel,
-  cellCenter,
-  distanceM,
+  likelyPatches,
+  type LikelyPatchResult,
   probabilityShares,
-  topCellIndices,
 } from "./geometry";
 import { unsureListText } from "./unsure";
 
@@ -17,17 +16,9 @@ const pct = (fraction: number) => {
   return `${percent > 0 && percent < 0.1 ? percent.toPrecision(3) : percent.toFixed(2)}%`;
 };
 
-/** Mean probability over the eligible cells (0 when there are none). */
-function eligibleMean(p: ArrayLike<number>, eligible: Uint8Array): number {
-  let sum = 0;
-  let n = 0;
-  for (let i = 0; i < eligible.length; i++) {
-    if (eligible[i]) {
-      sum += p[i] ?? 0;
-      n++;
-    }
-  }
-  return n ? sum / n : 0;
+/** Compact hectares without implying more precision than a 5 m cell provides. */
+function hectares(areaHa: number): string {
+  return areaHa < 0.1 ? areaHa.toFixed(2) : areaHa.toFixed(1);
 }
 
 interface Props {
@@ -38,6 +29,10 @@ interface Props {
   overlap: Float64Array;
   /** 1 for cells awaiting review: left out of the ranking and the average. */
   held?: Uint8Array;
+  /** The exact patch result also drawn on the map; omitted only by isolated component tests. */
+  patchResult?: LikelyPatchResult;
+  /** Sector display names indexed by the patch's `sectorIndex`. */
+  sectorNames?: readonly string[];
   /** A person is confirmed: the list is for the remaining search if that is not the missing person. */
   found?: boolean;
   /** Click on a spot: fly there (`idx` is its cell, the same as the circle on the map). */
@@ -54,7 +49,8 @@ interface Props {
 }
 
 /**
- * "Search next": the 5 most likely WELL-PHOTOGRAPHED cells now, and where the probability sits.
+ * "Search next": connected patches of the likeliest WELL-PHOTOGRAPHED ground, and where the
+ * probability sits.
  *
  * Only cells the footprints covered at least MIN_OVERLAP times are ranked ("eligible"), so edge
  * slivers the camera barely touched do not fill the list. The "× avg" average is over the same
@@ -67,12 +63,23 @@ interface Props {
  * photographed one and the list would show the grid corners. Ranking the surveyed area shows where
  * the drone could not see well; the rest of the grid is the "Not yet searched" share below.
  */
-export function NextSearch({ map, state, covered, overlap, held, found = false, onSelect, activeIdx = null, onHover, unsure }: Props) {
+export function NextSearch({
+  map,
+  state,
+  covered,
+  overlap,
+  held,
+  patchResult,
+  sectorNames = [],
+  found = false,
+  onSelect,
+  activeIdx = null,
+  onHover,
+  unsure,
+}: Props) {
   const eligible = eligibleCells(overlap, held);
-  const top = topCellIndices(state.p, 5, eligible);
+  const patchSet = patchResult ?? likelyPatches(map.grid, state.p, eligible, { canopy: map.canopy });
   const shares = probabilityShares(state, covered);
-  const mean = eligibleMean(state.p, eligible);
-  const topP = top.length > 0 ? (state.p[top[0] as number] as number) : 0;
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
@@ -104,32 +111,30 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
             </span>
           </button>
         )}
-        {top.length === 0 && <p className="text-small text-text-2">No cell photographed well enough yet</p>}
-        {top.length > 0 && mean > 0 && (
+        {patchSet.patches.length === 0 && <p className="text-small text-text-2">No ground photographed well enough yet</p>}
+        {patchSet.patches.length > 0 && (
           <span className="px-2 text-label text-text-2" aria-hidden="true" data-testid="avg-key">
-            × avg: how many times as likely as the average photographed cell
+            Share of the chance left in the surveyed area. Density compares each patch cell with the average photographed cell.
           </span>
         )}
-        {top.length > 0 && (
-          <ol className="flex flex-col gap-0.5" aria-label="Most likely cells" onMouseLeave={() => onHover?.(null)}>
-            {top.map((idx, rank) => {
-              const c = cellCenter(map.grid, idx);
-              const dist = distanceM(map.lkp.lat, map.lkp.lon, c.lat, c.lon);
-              const p = state.p[idx] as number;
+        {patchSet.patches.length > 0 && (
+          <ol className="flex flex-col gap-0.5" aria-label="Most likely patches" onMouseLeave={() => onHover?.(null)}>
+            {patchSet.patches.map((patch, rank) => {
+              const sector = patch.sectorIndex === null ? "surveyed area" : (sectorNames[patch.sectorIndex] ?? "surveyed area");
               return (
-                <li key={idx}>
+                <li key={patch.id}>
                   <button
                     type="button"
-                    data-idx={idx}
-                    data-active={idx === activeIdx ? "true" : undefined}
-                    aria-current={idx === activeIdx ? "true" : undefined}
-                    onClick={() => onSelect(c.lon, c.lat, idx)}
-                    onMouseEnter={() => onHover?.(idx)}
-                    onFocus={() => onHover?.(idx)}
+                    data-patch-id={patch.id}
+                    data-active={patch.id === activeIdx ? "true" : undefined}
+                    aria-current={patch.id === activeIdx ? "true" : undefined}
+                    onClick={() => onSelect(patch.centroid.lon, patch.centroid.lat, patch.id)}
+                    onMouseEnter={() => onHover?.(patch.id)}
+                    onFocus={() => onHover?.(patch.id)}
                     onBlur={() => onHover?.(null)}
-                    title={`Fly to this cell (circle ${rank + 1} on the map)`}
+                    title={`Fly to this patch (marker ${rank + 1} on the map)`}
                     className={`grid w-full grid-cols-[1.25rem_1fr_auto] items-center gap-3 rounded-sm px-2 py-2 text-left transition-colors hover:bg-surface-strong ${
-                      idx === activeIdx ? "bg-surface-strong ring-1 ring-accent/70" : ""
+                      patch.id === activeIdx ? "bg-surface-strong ring-1 ring-accent/70" : ""
                     }`}
                   >
                     {/* The same number and fill as the circle's badge on the map. */}
@@ -137,37 +142,30 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
                       {rank + 1}
                     </span>
                     <span className="flex min-w-0 flex-col gap-1">
-                      <span className="text-small text-text first-letter:uppercase">{canopyLabel(map.canopy[idx])}</span>
-                      <span className="h-0.5 w-full overflow-hidden rounded-full bg-surface-strong">
-                        <span
-                          className="block h-full rounded-full bg-accent transition-[width] duration-300"
-                          style={{ width: `${topP > 0 ? Math.round((p / topP) * 100) : 0}%` }}
-                        />
+                      <span className="text-small text-text">Area in {sector}</span>
+                      <span className="text-label text-text-2 first-letter:uppercase">
+                        {hectares(patch.areaHa)} ha · {canopyLabel(patch.canopy)}
                       </span>
-                      <span className="font-mono text-label text-text-2">{Math.round(dist)} m from LKP</span>
+                      <span className="font-mono text-label text-text-2">{patch.density.toFixed(1)}× avg per cell</span>
                     </span>
                     <span
                       className="flex flex-col items-end"
-                      title={`Probability in this cell: ${pct(p)} of the total`}
-                      data-p={pct(p)}
+                      title={`This patch holds ${pct(patch.share)} of the probability left on eligible surveyed ground`}
+                      data-patch-share={pct(patch.share)}
                     >
-                      {mean > 0 ? (
-                        <>
-                          <span className="font-mono text-small text-text">{(p / mean).toFixed(1)}×</span>
-                          {/* Short on screen (the key above the list says the rest), whole for screen readers. */}
-                          <span className="font-mono text-label text-text-2">
-                            avg<span className="sr-only"> photographed cell</span>
-                          </span>
-                        </>
-                      ) : (
-                        <span className="font-mono text-small text-text">{pct(p)}</span>
-                      )}
+                      <span className="font-mono text-small text-text">{pct(patch.share)}</span>
+                      <span className="text-label text-text-2">of surveyed chance</span>
                     </span>
                   </button>
                 </li>
               );
             })}
           </ol>
+        )}
+        {patchSet.patches.length > 0 && (
+          <span className="px-2 text-label text-text-2" data-testid="patch-remainder">
+            Other surveyed ground: {pct(patchSet.otherShare)}
+          </span>
         )}
       </div>
       <div className="flex flex-col gap-2.5" aria-label="Where the probability is">
