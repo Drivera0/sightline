@@ -33,6 +33,10 @@ export interface IntroCopy {
   provenance: string;
   /** What is in them and what Sightline does with them. */
   body: string;
+  /** Every photo has a person (the real-GPS survey): no ranking to watch, so the action goes to Review. */
+  nothingToRank: boolean;
+  /** The primary button's words. */
+  action: string;
 }
 
 /**
@@ -60,11 +64,13 @@ export function introCopy(cache: Pick<CacheBundle, "manifest" | "survey" | "metr
     ? `HERIDAL search-and-rescue photos from Croatia${cut}. Only the flight path over ${place} is simulated.`
     : `HERIDAL search-and-rescue photos from Croatia${cut}, placed at their recorded EXIF positions.`;
   const { n_positive: k, n_frames: nRanked } = cache.metrics.ranking;
+  const nothingToRank = k >= nRanked;
   const body =
-    k >= nRanked
+    nothingToRank
       ? "Every photo in this survey contains a person, so there is nothing to rank: it shows the detector's pins and the search map on real positions."
       : "Somewhere in them are a few people, each a speck a few dozen pixels wide. Sightline's detector reads every photo, puts the likeliest people first, and keeps a live map of where else to look.";
-  return { headline, provenance, body };
+  const action = nothingToRank ? "See the pins at real positions" : `Start: rank ${n} photos`;
+  return { headline, provenance, body, nothingToRank, action };
 }
 
 function Fact({ value, label, source }: { value: string; label: string; source: string }) {
@@ -103,10 +109,17 @@ export function wallColumns(cache: Pick<CacheBundle, "survey" | "detections">): 
   const hits = frames.filter((f) => best(f) !== undefined);
   const rest = frames.filter((f) => best(f) === undefined);
   const fill = Math.max(0, want - hits.length);
-  const spread = rest.filter((_, i) => rest.length <= fill || i % Math.ceil(rest.length / fill) === 0).slice(0, fill);
+  // Evenly spaced over the flight (every photo when there are too few).
+  const take = Math.min(fill, rest.length);
+  const spread = Array.from({ length: take }, (_, k) => rest[Math.floor((k * rest.length) / take)]!);
   const chosen = [...hits, ...spread].sort((x, y) => x.flight_index - y.flight_index).slice(0, want);
   const columns: WallTileData[][] = Array.from({ length: WALL_COLUMNS }, () => []);
-  chosen.forEach((frame, i) => columns[i % WALL_COLUMNS]!.push({ frame, hit: best(frame) }));
+  if (chosen.length === 0) return [];
+  // A small survey still fills the wall: the photos repeat, dealt on so neighbours differ.
+  for (let i = 0; i < want; i++) {
+    const frame = chosen[i % chosen.length]!;
+    columns[i % WALL_COLUMNS]!.push({ frame, hit: best(frame) });
+  }
   return columns.filter((c) => c.length > 0);
 }
 
@@ -140,11 +153,14 @@ export function SurveyIntro({
   cache,
   dir,
   onRank,
+  onReview,
   onTour,
 }: {
   cache: CacheBundle;
   dir: string;
   onRank: () => void;
+  /** Where the action goes when there is nothing to rank (every photo has a person). */
+  onReview?: () => void;
   /** Starts the guided tour, for a viewer who doesn't know the keys. */
   onTour?: () => void;
 }) {
@@ -174,6 +190,8 @@ export function SurveyIntro({
         </div>
       </div>
       <div className="absolute inset-0 bg-gradient-to-r from-bg from-30% via-bg/80 via-55% to-bg/10" aria-hidden="true" />
+      {/* Phones: the text runs over the whole wall, so dim it all. */}
+      <div className="absolute inset-0 bg-bg/75 sm:hidden" aria-hidden="true" />
 
       <div className="relative flex max-h-full w-full max-w-[46rem] flex-col gap-6 overflow-y-auto p-6 sm:p-10 xl:p-14">
         <Label className="sl-rise">Search and rescue · drone survey</Label>
@@ -203,11 +221,11 @@ export function SurveyIntro({
         <div className="sl-rise flex flex-wrap items-center gap-3" style={{ animationDelay: "300ms" }}>
           <button
             type="button"
-            onClick={onRank}
+            onClick={copy.nothingToRank && onReview ? onReview : onRank}
             autoFocus
             className="group inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 text-body font-medium text-bg shadow-[0_0_32px_-8px_var(--accent)] transition-[filter] hover:brightness-110"
           >
-            Start: rank {manifest.n_frames} photos
+            {copy.nothingToRank && onReview ? copy.action : `Start: rank ${manifest.n_frames} photos`}
             <svg viewBox="0 0 16 16" className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true">
               <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
