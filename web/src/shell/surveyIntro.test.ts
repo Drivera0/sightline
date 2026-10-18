@@ -12,10 +12,10 @@ beforeAll(async () => {
 describe("introCopy", () => {
   it("says the photos are sections of real HERIDAL photos from Croatia and only the path is simulated", () => {
     const copy = introCopy(cache);
-    expect(copy.headline).toBe("20 sections of real drone photos, on a simulated search over Mount Seymour");
+    expect(copy.headline).toBe("20 photos from a simulated drone search over Mount Seymour");
     // sample frames are 1000×750: 16 per 4000×3000 photo
     expect(copy.provenance).toBe(
-      "HERIDAL search-and-rescue photos from Croatia, each 4000×3000 photo cut into 16 sections of 1000×750. Only the flight path over Mount Seymour, North Vancouver is simulated.",
+      "HERIDAL search-and-rescue photos from Croatia, each a 1000×750 section of a 4000×3000 original (16 per original). Only the flight path over Mount Seymour, North Vancouver is simulated.",
     );
     expect(copy.body).toMatch(/Somewhere in them are a few people/);
   });
@@ -28,7 +28,7 @@ describe("introCopy", () => {
     c.metrics.ranking.n_frames = 10;
     c.metrics.ranking.n_positive = 10;
     const copy = introCopy(c);
-    expect(copy.headline).toBe("10 sections of real drone photos from HERIDAL SB site, at their recorded positions");
+    expect(copy.headline).toBe("10 photos from HERIDAL SB site, at their recorded positions");
     expect(copy.provenance).toMatch(/placed at their recorded EXIF positions\.$/);
     expect(copy.body).toMatch(/^Every photo in this survey contains a person/);
     expect(copy.body).not.toMatch(/a few people/);
@@ -40,7 +40,7 @@ describe("introCopy", () => {
       f.width_px = 4000;
       f.height_px = 3000;
     }
-    expect(introCopy(c).headline).toMatch(/^20 real drone photos/);
+    expect(introCopy(c).headline).toMatch(/^20 photos/);
     expect(introCopy(c).provenance).not.toMatch(/sections/);
   });
 });

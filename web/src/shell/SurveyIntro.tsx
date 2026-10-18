@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { CacheBundle, Detection, Frame } from "../contract";
 import { cacheUrl } from "../lib/cache";
 import { Label } from "./components";
+import { Sourced } from "./Popover";
 
 /** "Mount Seymour, North Vancouver (simulated flight path)" -> "Mount Seymour, North Vancouver". */
 export function placeName(areaName: string): string {
@@ -47,13 +48,13 @@ export function introCopy(cache: Pick<CacheBundle, "manifest" | "survey" | "metr
   const h = first?.height_px ?? FULL_PHOTO_PX.h;
   const isSection = w < FULL_PHOTO_PX.w || h < FULL_PHOTO_PX.h;
   const perPhoto = Math.round((FULL_PHOTO_PX.w / w) * (FULL_PHOTO_PX.h / h));
-  const units = isSection ? "sections of real drone photos" : "real drone photos";
+  // One noun on screen: "photos". Where they are sections of bigger photos, the provenance says so.
   const shortPlace = place.split(",")[0] ?? place;
   const headline = cache.survey.simulated_path
-    ? `${n} ${units}, on a simulated search over ${shortPlace}`
-    : `${n} ${units} from ${place}, at their recorded positions`;
+    ? `${n} photos from a simulated drone search over ${shortPlace}`
+    : `${n} photos from ${place}, at their recorded positions`;
   const cut = isSection
-    ? `, each ${FULL_PHOTO_PX.w}×${FULL_PHOTO_PX.h} photo cut into ${perPhoto} sections of ${w}×${h}`
+    ? `, each a ${w}×${h} section of a ${FULL_PHOTO_PX.w}×${FULL_PHOTO_PX.h} original (${perPhoto} per original)`
     : "";
   const provenance = cache.survey.simulated_path
     ? `HERIDAL search-and-rescue photos from Croatia${cut}. Only the flight path over ${place} is simulated.`
@@ -66,18 +67,13 @@ export function introCopy(cache: Pick<CacheBundle, "manifest" | "survey" | "metr
   return { headline, provenance, body };
 }
 
-const HOW: [string, string][] = [
-  ["Detect", "A detector trained on drone photos scores every photo"],
-  ["Rank", "Likeliest people first in the review queue"],
-  ["Review", "A person confirms; confirmed finds are pinned"],
-  ["Search", "The map shows where else to look"],
-];
-
 function Fact({ value, label, source }: { value: string; label: string; source: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-border bg-bg/50 px-3 py-3 backdrop-blur sm:px-4" title={source}>
-      <dd className="font-mono text-[22px] leading-none text-text sm:text-[30px]">{value}</dd>
-      <dt className="text-label text-text-3">{label}</dt>
+    <div className="flex flex-col gap-1">
+      <dd className="font-mono text-headline text-text sm:text-display">
+        <Sourced source={source}>{value}</Sourced>
+      </dd>
+      <dt className="text-small text-text-2">{label}</dt>
     </div>
   );
 }
@@ -139,21 +135,18 @@ function WallTile({ tile, dir }: { tile: WallTileData; dir: string }) {
   );
 }
 
-/** Step 1: the job. A wall of the real frames, the size of the job, and one action. */
+/** Step 1: the job. A wall of the real photos, the size of the job, and one action. */
 export function SurveyIntro({
   cache,
   dir,
   onRank,
   onTour,
-  onTryPhoto,
 }: {
   cache: CacheBundle;
   dir: string;
   onRank: () => void;
   /** Starts the guided tour, for a viewer who doesn't know the keys. */
   onTour?: () => void;
-  /** Opens "Try your own photo" (the detector in the browser). */
-  onTryPhoto?: () => void;
 }) {
   const { survey, manifest, metrics } = cache;
   const human = metrics.baseline_human;
@@ -182,24 +175,17 @@ export function SurveyIntro({
       </div>
       <div className="absolute inset-0 bg-gradient-to-r from-bg from-30% via-bg/80 via-55% to-bg/10" aria-hidden="true" />
 
-      <div className="relative flex max-h-full w-full max-w-[52rem] flex-col gap-5 overflow-y-auto p-6 sm:p-10 xl:gap-6 xl:p-12">
+      <div className="relative flex max-h-full w-full max-w-[46rem] flex-col gap-6 overflow-y-auto p-6 sm:p-10 xl:p-14">
         <Label className="sl-rise">Search and rescue · drone survey</Label>
-        <h2
-          className="sl-rise text-[34px] font-semibold leading-[1.04] tracking-[-0.02em] sm:text-[42px] xl:text-[48px]"
-          style={{ animationDelay: "80ms" }}
-        >
+        <h2 className="sl-rise text-headline font-semibold tracking-[-0.02em] sm:text-display" style={{ animationDelay: "80ms" }}>
           {copy.headline}
         </h2>
-        <div className="sl-rise flex max-w-[40rem] flex-col gap-2" style={{ animationDelay: "160ms" }}>
-          <p className="flex items-start gap-2 text-small text-text-2">
-            <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent-soft" aria-hidden="true" />
-            {copy.provenance}
-          </p>
-          <p className="text-lead text-text-2">{copy.body}</p>
-        </div>
+        <p className="sl-rise max-w-[38rem] text-body text-text-2 sm:text-lead" style={{ animationDelay: "160ms" }}>
+          {copy.body} <span className="text-text-3">{copy.provenance}</span>
+        </p>
 
-        <dl className="sl-rise grid grid-cols-3 gap-3" style={{ animationDelay: "220ms" }}>
-          <Fact value={String(manifest.n_frames)} label="photos to check" source={`manifest.n_frames`} />
+        <dl className="sl-rise grid max-w-[38rem] grid-cols-3 gap-6" style={{ animationDelay: "220ms" }}>
+          <Fact value={String(manifest.n_frames)} label="photos to check" source="manifest.n_frames" />
           {personPx !== null && (
             <Fact
               value={`${personPx} px`}
@@ -214,14 +200,14 @@ export function SurveyIntro({
           />
         </dl>
 
-        <div className="sl-rise flex flex-wrap items-center gap-4" style={{ animationDelay: "300ms" }}>
+        <div className="sl-rise flex flex-wrap items-center gap-3" style={{ animationDelay: "300ms" }}>
           <button
             type="button"
             onClick={onRank}
             autoFocus
-            className="group inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-body font-medium text-bg shadow-[0_0_32px_-8px_var(--accent)] transition-transform hover:scale-[1.03]"
+            className="group inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 text-body font-medium text-bg shadow-[0_0_32px_-8px_var(--accent)] transition-[filter] hover:brightness-110"
           >
-            Rank with Sightline
+            Start: rank {manifest.n_frames} photos
             <svg viewBox="0 0 16 16" className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true">
               <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -230,46 +216,17 @@ export function SurveyIntro({
             <button
               type="button"
               onClick={onTour}
-              className="group inline-flex items-center gap-2.5 rounded-full border border-border bg-surface px-5 py-3 text-body text-text backdrop-blur transition-colors hover:border-accent/60 hover:bg-surface-strong"
+              className="group inline-flex h-12 items-center gap-2.5 rounded-full border border-border bg-surface px-5 text-body text-text backdrop-blur transition-colors hover:border-text-2 hover:bg-surface-strong"
             >
               <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent/20 text-accent-soft" aria-hidden="true">
                 <svg viewBox="0 0 16 16" className="size-2.5">
                   <path d="M5 3.5v9l7-4.5z" fill="currentColor" />
                 </svg>
               </span>
-              Watch the 60-second tour
+              Watch 60-second tour
             </button>
           )}
-          <span className="text-small text-text-3">
-            or press <span className="font-mono">2</span>
-            {onTour && (
-              <>
-                {" "}to rank, <span className="font-mono">T</span> for the tour
-              </>
-            )}
-          </span>
         </div>
-
-        {onTryPhoto && (
-          <button
-            type="button"
-            onClick={onTryPhoto}
-            className="sl-rise -mt-2 inline-flex w-fit items-center gap-2 text-small text-text-2 underline decoration-border underline-offset-4 hover:text-text hover:decoration-accent"
-            style={{ animationDelay: "340ms" }}
-          >
-            Try the detector on your own photo (runs in your browser)
-          </button>
-        )}
-
-        <ol className="sl-rise grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-5 sm:grid-cols-4 [@media(max-height:860px)]:hidden" style={{ animationDelay: "380ms" }}>
-          {HOW.map(([title, body], i) => (
-            <li key={title} className="flex flex-col gap-1">
-              <span className="font-mono text-label text-accent-soft">0{i + 1}</span>
-              <span className="text-body text-text">{title}</span>
-              <span className="text-small text-text-3">{body}</span>
-            </li>
-          ))}
-        </ol>
       </div>
     </div>
   );
