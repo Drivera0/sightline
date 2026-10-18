@@ -44,12 +44,12 @@ export function SectorList({ statuses, outside, currentId, hoverId, onHover, onS
                 onFocus={() => onHover(id)}
                 onBlur={() => onHover(null)}
                 onClick={() => onSelect(s.sector)}
-                className={`grid w-full grid-cols-[auto_1fr_auto] items-baseline gap-x-3 rounded-sm px-2 py-3 text-left transition-colors lg:py-1.5 hover:bg-surface-strong ${
+                className={`grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-baseline gap-x-3 rounded-sm px-2 py-3 text-left transition-colors lg:py-1.5 hover:bg-surface-strong ${
                   active ? "bg-surface-strong" : ""
                 }`}
               >
                 <span className={`font-mono text-small ${id === currentId ? "text-accent" : "text-text"}`}>{sectorName(s.sector)}</span>
-                <span className="truncate text-label text-text-3">
+                <span className="text-label text-text-3">
                   {id === currentId ? "Drone here" : SECTOR_STATE_LABEL[s.state]} · {pct(s.coverage, 0)} photographed
                 </span>
                 <span className="font-mono text-small text-text-2" title="Probability of area: this sector's share of the total probability">

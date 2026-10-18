@@ -61,7 +61,7 @@ export function Popover({
         aria-label={label}
         aria-expanded={open}
         aria-describedby={open ? id : undefined}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setOpen(true)}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         className={triggerClassName}
@@ -82,6 +82,34 @@ export function Popover({
         </span>
       )}
     </span>
+  );
+}
+
+/**
+ * A number with its source, reachable without a mouse: a dotted underline that opens the source on
+ * hover, keyboard focus or tap. Replaces `title=` tooltips, which touch screens never show.
+ */
+export function Sourced({
+  source,
+  children,
+  side = "top",
+  align = "start",
+}: {
+  source: string;
+  children: ReactNode;
+  side?: Side;
+  align?: Align;
+}) {
+  return (
+    <Popover
+      side={side}
+      align={align}
+      trigger={children}
+      triggerClassName="cursor-help text-left [font:inherit] [color:inherit] underline decoration-text-3 decoration-dotted decoration-1 underline-offset-[0.2em] hover:decoration-text-2"
+    >
+      <span className="block font-mono text-[11px] uppercase tracking-label text-text-3">Source</span>
+      {source}
+    </Popover>
   );
 }
 
