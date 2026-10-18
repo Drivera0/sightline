@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     from sightline.ml.detect import Detector
     from sightline.ml.hard_negatives import mine, write_dataset_yaml
 
-    train = load_split("train", args.data_root)[: args.limit]
+    train = load_split("train", args.data_root, annotated_only=True)[: args.limit]
     det = Detector(args.weights, device=args.device)
     written = mine(
         det, train, conf=args.conf, max_tiles=args.max_tiles, seed=args.seed, out_dir=args.out

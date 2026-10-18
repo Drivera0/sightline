@@ -58,7 +58,8 @@ def main(argv: list[str] | None = None) -> int:
         write_detector_metrics,
     )
 
-    val = load_split("val", args.data_root)[: args.limit]
+    # Threshold on annotated val photos only: unlabelled people would count as false positives.
+    val = load_split("val", args.data_root, annotated_only=True)[: args.limit]
     test = load_split("test", args.data_root)[: args.limit]
     print(f"val {len(val)} images, test {len(test)} images")
 
