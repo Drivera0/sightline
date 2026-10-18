@@ -27,7 +27,7 @@ N_CELLS = 50 * 50
 
 def _doc_examples() -> dict[str, dict]:
     """The five ```json blocks of the contract, in document order."""
-    blocks = re.findall(r"```json\n(.*?)```", DOC.read_text(), flags=re.DOTALL)
+    blocks = re.findall(r"```json\n(.*?)```", DOC.read_text(encoding="utf-8"), flags=re.DOTALL)
     names = ["manifest", "survey", "detections", "map", "metrics"]
     assert len(blocks) == len(names)
     # Only the map example has elided arrays ("... 2500 values ..."); stub them, tests fill them.
