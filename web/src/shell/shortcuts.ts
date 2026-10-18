@@ -15,7 +15,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["U"], description: "Unsure" },
       { keys: ["Z"], description: "Undo" },
       { keys: ["Enter"], description: "Full frame view" },
-      { keys: ["M"], description: "Go to the search map" },
+      { keys: ["M"], description: "Show on map" },
     ],
   },
   {

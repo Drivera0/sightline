@@ -41,7 +41,7 @@ describe("guided flow", () => {
     expect(current()).toHaveTextContent("Rank");
     // sample metrics: ranked.frames_to_first_hit = 1
     expect(await screen.findByText(/first photo you see/)).toBeInTheDocument();
-    expect(screen.getByText(/3 of 20 photos flagged/)).toBeInTheDocument();
+    expect(screen.getByTestId("rank-counts")).toHaveTextContent("3 of 20 photos flagged for review · 3 boxes");
     // The queue opens on #1, and the architecture waits behind a disclosure.
     const queue = screen.getByRole("list", { name: "Ranked candidates" });
     expect(queue.querySelector("li")).toHaveTextContent("1");
@@ -180,5 +180,13 @@ describe("guided flow", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: /Watch the 60-second tour/ }));
     expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
     expect(screen.getByRole("dialog", { name: "Guided tour" })).toBeInTheDocument();
+  });
+});
+
+describe("one name for M", () => {
+  it("calls it Show on map in the shortcuts list", async () => {
+    const { SHORTCUT_GROUPS } = await import("./shortcuts");
+    const m = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts).find((s) => s.keys.includes("M"));
+    expect(m?.description).toBe("Show on map");
   });
 });
