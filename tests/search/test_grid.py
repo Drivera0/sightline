@@ -127,3 +127,15 @@ def test_cells_within_radius_zero_radius_keeps_containing_cell(grid: Grid) -> No
 def test_cells_within_radius_rejects_negative_radius(grid: Grid) -> None:
     with pytest.raises(ValueError):
         cells_within_radius(grid, DEMO_LKP, -1.0)
+
+
+@pytest.mark.parametrize("idx", [0, 1, 51, 1275, 1260, 1274, 1300, 2449, 2499, 777, 1234])
+def test_cells_within_radius_exact_ten_m_at_cell_centre(grid: Grid, idx: int) -> None:
+    # The edge neighbours are exactly 10 m from the centre; float error must not drop them.
+    got = set(cells_within_radius(grid, cell_center(grid, idx), 10.0))
+    row, col = divmod(idx, grid.cols)
+    expected = {idx}
+    for d_row, d_col in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        if 0 <= row + d_row < grid.rows and 0 <= col + d_col < grid.cols:
+            expected.add((row + d_row) * grid.cols + col + d_col)
+    assert got == expected

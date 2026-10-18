@@ -117,19 +117,13 @@ The forest becomes the most likely cell even though the drone flew over it.
 ## 5. Code to build (signatures)
 
 ```python
-# sightline/search/grid.py
-@dataclass(frozen=True)
-class Grid:
-    origin_nw: LatLon
-    cell_m: float = 20.0
-    rows: int = 50
-    cols: int = 50
-
+# sightline/search/grid.py      (uses the contract Grid model from sightline.contract; no local Grid class)
+RADIUS_TOLERANCE_M = 1e-6                                                    # same constant in web/src/search/update.ts
 def make_grid(lkp: LatLon, size_m: float = 1000.0, cell_m: float = 20.0) -> Grid
 def cell_center(grid: Grid, idx: int) -> LatLon
 def cell_polygon(grid: Grid, idx: int) -> list[tuple[float, float]]          # [[lon, lat] × 4]
 def cells_within_radius(grid: Grid, p: LatLon, radius_m: float) -> list[int]
-    """Cells whose square lies within radius_m of p (point-to-square distance); always includes the cell containing p."""
+    """Cells whose square lies within radius_m + RADIUS_TOLERANCE_M of p (point-to-square distance); always includes the cell containing p."""
 
 # sightline/search/prior.py
 def ring_prior(grid: Grid, lkp: LatLon, rings: list[tuple[float, float]]) -> tuple[np.ndarray, float]
@@ -140,7 +134,7 @@ def canopy_mask(rgb: np.ndarray, exg_thr=0.04, std_thr=12.0, shadow_thr=60) -> n
 def canopy_fraction(rgb: np.ndarray, mask: np.ndarray | None = None, **thr) -> float
 
 # sightline/search/pod.py
-@dataclass
+@dataclass(frozen=True)
 class FrameInput:
     frame_id: str
     pose: Pose
@@ -149,9 +143,11 @@ class FrameInput:
     image: Path
     candidates: list[tuple[LatLon, float]]     # (position, radius_m) of detections ≥ candidate_threshold
 
-def frame_step(grid: Grid, f: FrameInput, recall: float, pod_cap: float = 0.95
-               ) -> tuple[list[tuple[int, float]], dict[int, tuple[float, float]]]:
-    """Returns ([(idx, pod)...] with pod ≥ 0.001, {idx: (canopy, overlap)}) for one frame."""
+def frame_step(grid: Grid, f: FrameInput, recall: float, pod_cap: float = 0.95,
+               held: Sequence[tuple[LatLon, float]] | None = None, rgb: np.ndarray | None = None,
+               **canopy_thr: float) -> tuple[list[tuple[int, float]], dict[int, tuple[float, float]]]:
+    """Returns ([(idx, pod)...] with pod ≥ 0.001, {idx: (canopy, overlap)}) for one frame.
+    held = (position, radius_m) pairs whose cells get pod 0; rgb = the image already loaded (else read from f.image)."""""
 
 # sightline/search/update.py
 def apply_step(p: np.ndarray, outside: float, cells: list[tuple[int, float]]) -> tuple[np.ndarray, float]
@@ -161,16 +157,42 @@ def apply_review_not_person(p, outside, grid, at: LatLon, radius_m: float,
 # sightline/search/build.py
 FrameCells = dict[int, tuple[float, float]]          # idx -> (canopy, overlap) for one frame
 def build_map(grid: Grid, lkp: LatLon, prior: tuple[np.ndarray, float], frames: list[FrameInput],
-              recall: float, recall_source: str) -> tuple[MapFile, list[FrameCells]]
+              recall: float, recall_source: str, pod_cap: float = 0.95, review_pod: float = 0.90,
+              *, prior_source: str | None = None, **canopy_thr: float) -> tuple[MapFile, list[FrameCells]]
     """MapFile (contract) + the per-frame (canopy, overlap) lists in flight order, which simulate() needs."""
 
 # sightline/search/sim.py
-def simulate(map_file: MapFile, frame_cells: list[FrameCells], trials: int = 1000, seed: int = 7,
+def simulate(map_file: MapFile, frame_cells: list[FrameCells], trials: int = 30_000, seed: int = 7,
              vis_noise: float = 0.15) -> SearchSim
 
 # sightline/search/vectors.py   (CLI: python -m sightline.search.vectors)
 def write_test_vectors(out: Path = Path("web/src/search/__fixtures__/update_vectors.json")) -> None
+
+# sightline/search/label_canopy.py   (CLI: python -m sightline.search.label_canopy)
+# Picks varied HERIDAL crops, writes an empty tests/search/fixtures/canopy_labels.json and a contact sheet.
+# A person fills in the canopy scores by eye; the code never does. Flags: --images --labels --out --work
+# --count (20) --max-per-image (2) --seed (7) --force (overwrite filled-in labels).
+
+# sightline/search/tune_canopy.py    (CLI: python -m sightline.search.tune_canopy)
+# Reads the filled-in labels, tries threshold combinations, prints the best and the default
+# thresholds with their mean absolute error. Flags: --labels --repo-root --write-report.
 ```
+
+## Decisions made during the build
+
+- **(a) Fix A, survey-wide review holds.** A cell within the radius of ANY candidate gets pod 0 in every frame, because in this simulation overlapping frames are unrelated photos.
+- **(b) Fix B, one true visibility per cell.** `simulate` draws one true visibility for each cell, from the cell's overlap-weighted mean canopy.
+- **(c) `in_survey` (contract 1.1).** It ranks the true cell only among photographed cells, the same rule as the Search next panel. It is quoted as "cells checked inside the surveyed area".
+- **(d) 30,000 trials.** 1,000 trials left about 70 in-survey trials, which is too noisy. `simulate` computes the Sightline map from `frame_cells` and treats candidates as reviewed false alarms.
+- **(e) Search next ranks only photographed cells.** Inside a 1 km grid a hiker prior is flat (Koester, ICAR 2025 Lost Person Behavior, slide 28, hiker / mountainous / temperate, ISRID 2.0: 25% found within 1.0; the slide does not state the units, but either km or miles is larger than the 500 m grid radius). The placeholder prior is kept and labelled as a placeholder. We state no share for outside the grid.
+- **(f) Survey layout.** The demo uses blocks (neighbouring crops of a photo stay neighbours). The flight-order baseline is `expected_first_hit_random_order`.
+- **(g) Radius tolerance.** `RADIUS_TOLERANCE_M = 1e-6` in `grid.py` and `update.ts`. A cell counts when its distance is at most `radius_m + 1e-6`. Without it, float error dropped edge neighbours that are exactly 10 m away (for example, r = 10 m at the centre of cell 1275 gave 3 cells, not 5).
+
+## Known limits
+
+- Repeated looks at a cell are treated as independent.
+- The canopy classifier misses autumn (non-green) trees. It is not yet tuned against hand labels: `tests/search/fixtures/canopy_labels.json` is still unscored.
+- "Not a person" applies `review_pod` (0.9) within the radius. This over-clears, because a rejected crop covers only about 2.6 m (a 128 × 128 px window at 0.02 m/px, contract §7). The correct rule would release the frame's normal pod, but that needs the held pods in `map.json` (a contract change). Not done.
 
 ---
 
@@ -245,7 +267,7 @@ See §9.
 2. **Conservation:** after any step or review, `sum(p) + outside == 1` (±1e-9).
 3. **No zeros:** a cell with POD at the cap still has p > 0.
 4. **Untouched cells rise** by exactly the factor 1/D.
-5. **Grid geometry:** cell 0's centre is 10 m south and 10 m east of `origin_nw`; cell 2,499 is in the south-east corner. `cells_within_radius`: at the LKP (the corner shared by 4 cells), r = 1 m returns those 4 cells; at a cell's centre, r = 9 m returns 1 cell, r = 12 m returns 5 (the 4 edge neighbours are 10 m away), r = 15 m returns 9 (diagonal neighbours are 14.1 m away).
+5. **Grid geometry:** cell 0's centre is 10 m south and 10 m east of `origin_nw`; cell 2,499 is in the south-east corner. `cells_within_radius`: at the LKP (the corner shared by 4 cells), r = 1 m returns those 4 cells; at a cell's centre, r = 9 m returns 1 cell, r = 10 m returns 5 (the tolerance keeps the 4 edge neighbours), r = 12 m returns 5 (the 4 edge neighbours are 10 m away), r = 15 m returns 9 (diagonal neighbours are 14.1 m away).
 6. **Prior:** ring prior sums to 1 with `outside`; mass decreases with distance on average.
 7. **Canopy:** a solid-green flat image → low canopy (no texture); a black image → canopy 1 (shadow); a noisy green image → high canopy.
 8. **Held for review:** cells within a candidate's radius get pod 0 in `frame_step`.

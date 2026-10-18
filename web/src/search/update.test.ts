@@ -88,6 +88,29 @@ describe("update.ts matches the Python vectors", () => {
   });
 });
 
+describe("cellsWithinRadius tolerance", () => {
+  // The 50x50 1 km grid of the fixture. At a cell centre, radius exactly 10 m must give the
+  // cell and its 4 edge neighbours, as in Python.
+  const grid = (vectors.radius_cases.find((c) => c.name.startsWith("50x50")) as { grid: Grid }).grid;
+  const centreOf = (idx: number): [number, number] => {
+    const row = Math.floor(idx / grid.cols);
+    const col = idx % grid.cols;
+    const mPerDegLon = 111_320 * Math.cos((grid.origin_nw.lat * Math.PI) / 180);
+    return [
+      grid.origin_nw.lat - ((row + 0.5) * grid.cell_m) / 111_320,
+      grid.origin_nw.lon + ((col + 0.5) * grid.cell_m) / mPerDegLon,
+    ];
+  };
+
+  it.each([51, 777, 1234, 1275, 1301])("r = 10 m at the centre of cell %i gives 5 cells", (idx) => {
+    const [lat, lon] = centreOf(idx);
+    const cols = grid.cols;
+    expect(cellsWithinRadius(grid, lat, lon, 10)).toEqual(
+      [idx - cols, idx - 1, idx, idx + 1, idx + cols].sort((a, b) => a - b),
+    );
+  });
+});
+
 describe("applyStep guards", () => {
   const s: MapState = { p: Float64Array.from([0.5, 0.5]), outside: 0 };
 
