@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from sightline.contract import Grid, LatLon, MapFile, Pose
+from sightline.contract import CONTRACT_VERSION, Grid, LatLon, MapFile, Pose
 from sightline.pipeline.mapmath import normalise_map
 from sightline.search import build_map
 from sightline.search.build import FrameCells
@@ -209,13 +209,29 @@ def test_map_file_validates_and_passes_params_through(grid: Grid, survey: list[F
     )
     again = MapFile.model_validate(map_file.model_dump(mode="json"))
     assert again == map_file
-    assert map_file.contract_version == "1.0"
+    assert map_file.contract_version == CONTRACT_VERSION
     assert map_file.grid == grid
     assert map_file.lkp == DEMO_LKP
     assert map_file.params.recall == 0.71
     assert map_file.params.recall_source == "metrics.detector.recall"
     assert map_file.params.pod_cap == 0.95
     assert map_file.params.review_pod == 0.90
+    assert map_file.params.prior_source is None
+
+
+def test_prior_source_passes_through(grid: Grid, survey: list[FrameInput]) -> None:
+    citation = "test citation: lost-person distance table"
+    map_file, _ = build_map(
+        grid,
+        DEMO_LKP,
+        placeholder_prior(grid),
+        survey,
+        RECALL,
+        "placeholder",
+        prior_source=citation,
+    )
+    assert map_file.params.prior_source == citation
+    assert MapFile.model_validate(map_file.model_dump(mode="json")) == map_file
 
 
 def test_build_is_deterministic(grid: Grid, survey: list[FrameInput]) -> None:
@@ -267,6 +283,9 @@ def test_pipeline_adapter_accepts_native_build_map(tmp_path: Path) -> None:
     assert "build_map" not in lanes.unavailable
     assert [s.frame_id for s in map_file.steps] == ["f0001", "f0002"]
     assert map_file.params.recall_source == "placeholder"
+    # Lane D gave build_map its placeholder prior, so the adapter stamps prior_source.
+    assert map_file.params.prior_source == "placeholder"
+    assert map_file.contract_version == CONTRACT_VERSION
     assert set(cells) == {"f0001", "f0002"}
     assert all(cells[fid] for fid in cells)
     held = _idx(grid, 20, 21)

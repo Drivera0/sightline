@@ -152,4 +152,25 @@ describe("HeatLayer", () => {
     );
     expect(m.layers.find((l) => l.id === HEAT_LAYER_IDS.cells)?.before).toBeUndefined();
   });
+
+  it("passes map.params.prior_source to the legend", () => {
+    ctx.value = { map: mockMap(true).map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    // The sample says "placeholder" in both prior_source and the notes.
+    const { unmount } = render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    expect(screen.getByText("Placeholder prior")).toBeInTheDocument();
+    unmount();
+
+    // A cited prior wins over notes that still mention a placeholder.
+    const cited = { ...cache, map: { ...cache.map, params: { ...cache.map.params, prior_source: "test citation" } } };
+    render(
+      <CacheContext.Provider value={cited}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
+  });
 });

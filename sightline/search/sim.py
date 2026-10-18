@@ -1,6 +1,13 @@
 """Simulated evaluation of the search map (LANE_C_SEARCH section 6.4, contract section 9).
 
 The result is a simulation, not a field test: label it "Simulated" everywhere it is shown.
+
+Why `in_survey` exists (contract 1.1): with a flat prior most simulated lost persons stand
+outside the photographed area. No frame looked at those cells, so the naive and the
+canopy-aware maps change them in the same way and rank them the same. The overall median
+over all not-found trials is then mostly those cells, and it hides the difference between
+the two methods. `in_survey` gives the same statistics over only the not-found trials whose
+true cell was photographed, which is where the canopy-aware map differs from the naive one.
 """
 
 from __future__ import annotations
@@ -9,7 +16,7 @@ from collections.abc import Mapping, Sequence
 
 import numpy as np
 
-from sightline.contract import MapFile, SearchMethod, SearchSim
+from sightline.contract import InSurvey, MapFile, SearchMethod, SearchSim
 from sightline.search.update import replay
 
 # Method names exactly as in contract section 9, in this order.
@@ -71,10 +78,17 @@ def simulate(
        the trial counts toward found_by_drone_rate and stops.
     4. Not found -> record the true cell's 1-based rank under each method.
 
+    in_survey (contract 1.1) has the same three methods, names and order, but its median and
+    p90 use only the not-found trials whose true cell was photographed: at least one frame in
+    frame_cells covers it with overlap > 0. in_survey.trials is the number of those trials.
+    If there are none, in_survey is None: a median over zero trials has no meaning, and 0
+    would read as "found at once". (The contract model would accept trials = 0, so this is
+    our choice, not a model rule.)
+
     median_cells and p90_cells use np.percentile (linear interpolation) over the not-found
     trials, then round to the nearest whole number (halves to even), because they are cell
-    counts. If every trial is found there are no ranks to report, and both are 0 for every
-    method. found_by_drone_rate = found / trials, rounded to 3 decimals (contract section 2).
+    counts; in_survey uses the same rule. If every trial is found there are no ranks to
+    report, and both are 0 for every method. found_by_drone_rate = found / trials, rounded to 3 decimals (contract section 2).
     """
     if len(frame_cells) != len(map_file.steps):
         raise ValueError(
@@ -142,11 +156,33 @@ def simulate(
         found[t] = bool(np.any(rng.random(a.size) < recall * visibility[t] * a))
 
     not_found = true_cells[~found]
-    methods = []
-    for name, ranks in zip(names, ranks_by_method, strict=True):
-        median, p90 = _summary(ranks[not_found])
-        methods.append(SearchMethod(name=name, median_cells=median, p90_cells=p90))
+    methods = _methods(names, ranks_by_method, not_found)
+    # Not-found trials whose true cell was photographed (overlap > 0 in some frame).
+    photographed = overlap_sum > 0
+    in_survey_cells = not_found[photographed[not_found]]
+    in_survey = None
+    if in_survey_cells.size > 0:
+        in_survey = InSurvey(
+            trials=int(in_survey_cells.size),
+            methods=_methods(names, ranks_by_method, in_survey_cells),
+        )
     rate = round(float(found.sum()) / trials, 3) if trials > 0 else 0.0
     return SearchSim(
-        simulated=True, trials=trials, seed=seed, found_by_drone_rate=rate, methods=methods
+        simulated=True,
+        trials=trials,
+        seed=seed,
+        found_by_drone_rate=rate,
+        methods=methods,
+        in_survey=in_survey,
     )
+
+
+# One SearchMethod per method: median and p90 of the true cells' ranks under it.
+def _methods(
+    names: Sequence[str], ranks_by_method: np.ndarray, true_cells: np.ndarray
+) -> list[SearchMethod]:
+    methods = []
+    for name, ranks in zip(names, ranks_by_method, strict=True):
+        median, p90 = _summary(ranks[true_cells])
+        methods.append(SearchMethod(name=name, median_cells=median, p90_cells=p90))
+    return methods
