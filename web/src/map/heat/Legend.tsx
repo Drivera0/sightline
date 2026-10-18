@@ -25,7 +25,8 @@ export function showsPlaceholderPrior(priorSource: Params["prior_source"], notes
   return isPlaceholderPrior(notes);
 }
 
-const RAMP = `linear-gradient(to right, transparent, color-mix(in srgb, var(--accent) ${Math.round(
+// Matches the map: warm and faint for "some chance", full accent for the most likely cell.
+const RAMP = `linear-gradient(to right, color-mix(in srgb, var(--warn) 8%, transparent), color-mix(in srgb, var(--accent) ${Math.round(
   MAX_OPACITY * 100,
 )}%, transparent))`;
 
@@ -40,19 +41,31 @@ export function Legend({ simulatedPath, params, manifest, hasSurveyed }: Props) 
   const placeholder = showsPlaceholderPrior(params.prior_source, manifest.notes);
   return (
     <div className="flex flex-col gap-3">
-      <Label>Where the person could be</Label>
-      <div className="flex flex-col gap-1">
-        <div className="h-3 w-full rounded-sm border border-border" style={{ background: RAMP }} />
+      <Label>Reading the map</Label>
+      <div className="flex flex-col gap-1.5">
+        <div className="h-2 w-full rounded-full" style={{ background: RAMP }} />
         <div className="flex justify-between text-label text-text-2">
           <span>Less likely</span>
-          <span aria-hidden="true">→</span>
           <span>More likely</span>
         </div>
       </div>
-      <div className="flex items-center gap-2 text-small text-text-2">
-        <span className="inline-block h-0 w-6 border-t-2 border-text" aria-hidden="true" />
-        {hasSurveyed ? "Surveyed area (outline)" : "No cell photographed yet"}
-      </div>
+      <ul className="flex flex-col gap-2 text-small text-text-2">
+        <li className="flex items-center gap-2.5">
+          <span className="inline-block h-0 w-5 border-t border-text/60" aria-hidden="true" />
+          {hasSurveyed ? "Photographed area" : "No cell photographed yet"}
+        </li>
+        <li className="flex items-center gap-2.5">
+          <span className="inline-block size-3 rounded-[3px] bg-bg/80 ring-1 ring-border" aria-hidden="true" />
+          Not photographed: unsearched
+        </li>
+        <li className="flex items-center gap-2.5">
+          <span className="relative inline-flex w-5 items-center" aria-hidden="true">
+            <span className="h-0.5 w-full rounded-full bg-text/80" />
+            <span className="absolute right-0 size-2 rounded-full bg-text ring-2 ring-bg" />
+          </span>
+          Drone, during replay
+        </li>
+      </ul>
       {(simulatedPath || placeholder) && (
         <div className="flex flex-wrap gap-2">
           {simulatedPath && <Badge kind="simulated">Simulated flight path</Badge>}

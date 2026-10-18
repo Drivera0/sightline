@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { Label } from "../../shell/components";
 
 /** Ticks per full play-through: the whole flight plays in about PLAY_TICKS × TICK_MS. */
@@ -41,20 +41,31 @@ export function StepSlider({ value, max, onChange }: Props) {
     setPlaying((p) => !p);
   };
 
+  const percent = (value / max) * 100;
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-3">
       <button
         type="button"
         onClick={togglePlay}
         aria-pressed={playing}
-        className="shrink-0 rounded-sm border border-border bg-surface-strong px-3 py-1.5 font-mono text-small text-text hover:border-accent"
+        aria-label={playing ? "Pause" : "Play"}
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-text text-bg transition-transform duration-150 hover:scale-105 active:scale-95"
       >
-        {playing ? "Pause" : "Play"}
+        {playing ? (
+          <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden="true">
+            <rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="currentColor" />
+            <rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="currentColor" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 16 16" className="ml-0.5 size-3.5" aria-hidden="true">
+            <path d="M4.5 2.8v10.4a.8.8 0 0 0 1.2.7l8.3-5.2a.8.8 0 0 0 0-1.4L5.7 2.1a.8.8 0 0 0-1.2.7Z" fill="currentColor" />
+          </svg>
+        )}
       </button>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 pr-2">
         <div className="flex items-baseline justify-between gap-3">
           <Label>Flight replay</Label>
-          <span className="font-mono text-small text-text" aria-live="polite">
+          <span className="font-mono text-label text-text-2" aria-live="polite">
             {stepText(value, max)}
           </span>
         </div>
@@ -70,7 +81,8 @@ export function StepSlider({ value, max, onChange }: Props) {
             setPlaying(false);
             onChange(Number(e.target.value));
           }}
-          className="w-full accent-[var(--accent)]"
+          className="sl-range w-full"
+          style={{ "--sl-range-fill": `${percent}%` } as CSSProperties}
         />
       </div>
     </div>
