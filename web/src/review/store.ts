@@ -61,7 +61,11 @@ interface ReviewState {
   bind: (surveyId: string) => void;
   answer: (detectionId: string, answer: Answer, at?: number) => void;
   undo: () => void;
+  /** Clear every answer for this survey (a shared machine: start fresh). `undoReset` brings them back. */
   reset: () => void;
+  /** The answers the last reset cleared, until the next answer; null when there is nothing to undo. */
+  cleared: HistoryEntry[] | null;
+  undoReset: () => void;
   /**
    * The answers saved before a demo began (the guided tour's sample answer), or null outside a
    * demo. While a demo runs, answers change the live state (pins, search map, toast) but are never
@@ -73,9 +77,9 @@ interface ReviewState {
 }
 
 export const useReview = create<ReviewState>((set, get) => {
-  const change = (history: HistoryEntry[]) => {
+  const change = (history: HistoryEntry[], cleared: HistoryEntry[] | null = null) => {
     if (get().demoSaved === null) writeSaved(get().surveyId, history);
-    set({ history, answers: answersOf(history) });
+    set({ history, answers: answersOf(history), cleared });
   };
   return {
     surveyId: null,
@@ -87,7 +91,7 @@ export const useReview = create<ReviewState>((set, get) => {
       // survey ends the demo, and storage never saw the demo's answers.
       if (get().demoSaved !== null && get().surveyId === surveyId) return;
       const history = readSaved(surveyId);
-      set({ surveyId, history, answers: answersOf(history), demoSaved: null });
+      set({ surveyId, history, answers: answersOf(history), demoSaved: null, cleared: null });
     },
     answer: (detectionId, answer, at = Date.now()) => {
       change([...get().history, { detectionId, answer, at }]);
@@ -96,14 +100,22 @@ export const useReview = create<ReviewState>((set, get) => {
       const { history } = get();
       if (history.length > 0) change(history.slice(0, -1));
     },
-    reset: () => change([]),
+    cleared: null,
+    reset: () => {
+      const { history } = get();
+      change([], history.length > 0 ? history : null);
+    },
+    undoReset: () => {
+      const { cleared } = get();
+      if (cleared !== null) change(cleared);
+    },
     beginDemo: () => {
       if (get().demoSaved === null) set({ demoSaved: get().history });
     },
     endDemo: () => {
       const saved = get().demoSaved;
       if (saved === null) return;
-      set({ history: saved, answers: answersOf(saved), demoSaved: null });
+      set({ history: saved, answers: answersOf(saved), demoSaved: null, cleared: null });
     },
   };
 });
