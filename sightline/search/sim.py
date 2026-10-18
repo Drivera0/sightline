@@ -6,8 +6,16 @@ Why `in_survey` exists (contract 1.1): with a flat prior most simulated lost per
 outside the photographed area. No frame looked at those cells, so the naive and the
 canopy-aware maps change them in the same way and rank them the same. The overall median
 over all not-found trials is then mostly those cells, and it hides the difference between
-the two methods. `in_survey` gives the same statistics over only the not-found trials whose
-true cell was photographed, which is where the canopy-aware map differs from the naive one.
+the two methods.
+
+`in_survey` is "cells checked inside the surveyed area before reaching the person". It uses
+only the not-found trials whose true cell was photographed, and it ranks the true cell only
+among the photographed cells. This is the same rule as the "Search next" panel on the map,
+which ranks only photographed cells. The reason: inside a 1 km grid a hiker prior is flat
+(hiker distances are larger than the grid). Every update lowers p in photographed cells, so
+every photographed cell falls below every unphotographed cell. A whole-grid rank of a person
+in the survey is then about the number of unphotographed cells for every update method, and
+it says nothing about which cell inside the survey a team checks first.
 """
 
 from __future__ import annotations
@@ -78,9 +86,15 @@ def simulate(
        the trial counts toward found_by_drone_rate and stops.
     4. Not found -> record the true cell's 1-based rank under each method.
 
-    in_survey (contract 1.1) has the same three methods, names and order, but its median and
-    p90 use only the not-found trials whose true cell was photographed: at least one frame in
-    frame_cells covers it with overlap > 0. in_survey.trials is the number of those trials.
+    in_survey (contract 1.1) has the same three methods, names and order. It counts the cells
+    checked inside the surveyed area before reaching the person, the same rule as the "Search
+    next" panel. A cell is photographed when at least one frame in frame_cells covers it with
+    overlap > 0. Its median and p90 use only the not-found trials whose true cell was
+    photographed, and the rank is the true cell's 1-based rank among the photographed cells
+    only (same order: descending final p, ties to lower idx), so it is 1..n_photographed.
+    With a flat prior the whole-grid rank would put every photographed cell below every
+    unphotographed one, so it would measure the size of the unsurveyed area, not the order
+    inside the survey. in_survey.trials is the number of those trials.
     If there are none, in_survey is None: a median over zero trials has no meaning, and 0
     would read as "found at once". (The contract model would accept trials = 0, so this is
     our choice, not a model rule.)
@@ -162,9 +176,15 @@ def simulate(
     in_survey_cells = not_found[photographed[not_found]]
     in_survey = None
     if in_survey_cells.size > 0:
+        # Rank among photographed cells only, once per method; unphotographed cells get 0
+        # (never read, because every in_survey true cell is photographed).
+        photo_idx = np.flatnonzero(photographed)
+        survey_ranks = np.zeros_like(ranks_by_method)
+        for m, final_p in enumerate((prior_p, naive_p, sightline_p)):
+            survey_ranks[m, photo_idx] = _rank_of_cell(final_p[photo_idx])
         in_survey = InSurvey(
             trials=int(in_survey_cells.size),
-            methods=_methods(names, ranks_by_method, in_survey_cells),
+            methods=_methods(names, survey_ranks, in_survey_cells),
         )
     rate = round(float(found.sum()) / trials, 3) if trials > 0 else 0.0
     return SearchSim(
