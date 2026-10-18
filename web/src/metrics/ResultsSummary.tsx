@@ -6,7 +6,8 @@ import { useCountUp } from "./motion";
 
 /**
  * The finale: the one result to say out loud (how soon the ranked queue reaches every person),
- * drawn as a race against flight order, then three cards with their comparisons. Every number is
+ * drawn as a race against this flight's own order (one layout, not a baseline average), then three
+ * cards with their comparisons. Every number is
  * from metrics.json and carries its source as a tooltip; the full tables follow below this.
  */
 export function ResultsSummary({ metrics }: { metrics: Metrics }) {
@@ -28,9 +29,8 @@ export function ResultsSummary({ metrics }: { metrics: Metrics }) {
           All {ranking.n_positive} {people} were in the first {ranked} photos of the queue.
         </h2>
         <p className="max-w-3xl text-title text-text-2" title={rankingSource}>
-          Looking in flight order, a searcher reaches the last one at photo {flight}. That is{" "}
-          <span className="text-text">{Math.round(flight / ranked)}× fewer photos</span> to look at before
-          everyone is found.
+          The first person is photo {ranking.ranked.frames_to_first_hit}. Paging through this flight in the
+          order it was flown (one layout, not an average) reaches the last person at photo {flight}.
         </p>
       </div>
 
@@ -38,7 +38,7 @@ export function ResultsSummary({ metrics }: { metrics: Metrics }) {
         n={ranking.n_frames}
         source={rankingSource}
         rows={[
-          { label: "Flight order", first: ranking.flight_order.frames_to_first_hit, all: flight, tone: "muted" },
+          { label: "This flight's order", first: ranking.flight_order.frames_to_first_hit, all: flight, tone: "muted" },
           { label: "Sightline ranked queue", first: ranking.ranked.frames_to_first_hit, all: ranked, tone: "accent" },
         ]}
       />
