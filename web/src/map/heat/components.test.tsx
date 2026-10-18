@@ -97,6 +97,17 @@ describe("StepSlider", () => {
 });
 
 describe("Legend", () => {
+  it("offers a labelled flight path switch when given a handler", () => {
+    const onChange = vi.fn();
+    render(
+      <Legend simulatedPath params={{ prior_source: "cited" }} manifest={{ notes: "" }} hasSurveyed showPath onShowPathChange={onChange} />,
+    );
+    const toggle = screen.getByRole("switch", { name: "Flight path (simulated)" });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
+
   it("detects a placeholder prior in the manifest notes", () => {
     expect(isPlaceholderPrior("SAMPLE: fake detections, placeholder uniform prior, ...")).toBe(true);
     expect(isPlaceholderPrior("Placeholder Prior")).toBe(true);

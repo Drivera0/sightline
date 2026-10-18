@@ -1,6 +1,6 @@
 // Lane C's map overlay: heat cells, surveyed outline, step slider, "search next", legend, found banner.
 // Mount it through B's MapView: <MapView layers={<HeatLayer />} />.
-import { type ReactNode, useContext, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { CacheBundle } from "../../contract";
 import { CacheContext, useCache } from "../../lib/cache";
 import { detectionById, useSearch } from "../../search/store";
@@ -15,6 +15,7 @@ import {
   pushHeatState,
   pushReplay,
   readHeatColors,
+  setFlightPathVisible,
 } from "./layers";
 import { Legend } from "./Legend";
 import { NextSearch } from "./NextSearch";
@@ -94,6 +95,9 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
   }, [bundle.survey.frames, mapFile.steps]);
   const stepRef = useRef(stepIndex);
   stepRef.current = stepIndex;
+  const [showPath, setShowPath] = useState(true);
+  const showPathRef = useRef(showPath);
+  showPathRef.current = showPath;
 
   // What the map already shows per cell; NaN = unknown, push everything.
   const lastRef = useRef<Float64Array>(new Float64Array(0));
@@ -119,6 +123,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
         const current = stateRef.current;
         if (current) pushHeatState(map, current, lastRef.current, covered);
         pushReplay(map, path, stepRef.current);
+        setFlightPathVisible(map, showPathRef.current);
       } catch {
         // Style not ready yet; the next 'styledata' or 'load' event tries again.
       }
@@ -144,6 +149,16 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
       /* style reloading; install() pushes again */
     }
   }, [map, ready, state, covered]);
+
+  // The legend switch; re-applied by install() after a basemap switch rebuilds lane B's layers.
+  useEffect(() => {
+    if (!map) return;
+    try {
+      setFlightPathVisible(map, showPath);
+    } catch {
+      /* style reloading; install() applies it again */
+    }
+  }, [map, showPath]);
 
   // Move the drone and its trail with the replay slider.
   useEffect(() => {
@@ -185,6 +200,8 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
           params={mapFile.params}
           manifest={bundle.manifest}
           hasSurveyed={hasSurveyed}
+          showPath={showPath}
+          onShowPathChange={setShowPath}
         />
       </Panel>
       {stepCount > 0 && (

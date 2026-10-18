@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { maxCovered, replayFeatures } from "./layers";
+import { vi } from "vitest";
+import type { Map } from "maplibre-gl";
+import { MAP_LAYER_IDS } from "../base/layerIds";
+import { maxCovered, replayFeatures, setFlightPathVisible } from "./layers";
 
 const path: [number, number][] = [
   [0, 0],
@@ -34,5 +37,19 @@ describe("replayFeatures", () => {
 describe("maxCovered", () => {
   it("ignores unphotographed cells, so they cannot wash out the heat", () => {
     expect(maxCovered(Float64Array.from([0.9, 0.2, 0.3]), Uint8Array.from([0, 1, 1]))).toBe(0.3);
+  });
+});
+
+describe("setFlightPathVisible", () => {
+  it("hides and shows lane B's path and chevrons, and skips layers not drawn yet", () => {
+    const setLayoutProperty = vi.fn();
+    const drawn = new Set<string>([MAP_LAYER_IDS.flightPath]);
+    const map = { getLayer: (id: string) => (drawn.has(id) ? {} : undefined), setLayoutProperty } as unknown as Map;
+    setFlightPathVisible(map, false);
+    expect(setLayoutProperty).toHaveBeenCalledTimes(1);
+    expect(setLayoutProperty).toHaveBeenCalledWith(MAP_LAYER_IDS.flightPath, "visibility", "none");
+    drawn.add(MAP_LAYER_IDS.flightDirection);
+    setFlightPathVisible(map, true);
+    expect(setLayoutProperty).toHaveBeenCalledWith(MAP_LAYER_IDS.flightDirection, "visibility", "visible");
   });
 });

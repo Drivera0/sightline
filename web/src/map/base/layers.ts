@@ -22,6 +22,9 @@ interface MapColors {
 
 type GeoJsonData = Parameters<GeoJSONSource["setData"]>[0];
 
+/** Chevrons hide at and above this zoom; the 1 km grid fits at about zoom 15 on a laptop screen. */
+export const FLIGHT_DIRECTION_MAX_ZOOM = 14.5;
+
 // Read the shared design tokens because MapLibre canvas paint cannot resolve CSS variables.
 export function readMapColors(root: Element = document.documentElement): MapColors {
   const styles = getComputedStyle(root);
@@ -119,15 +122,18 @@ export function syncBaseLayers(
     });
   }
   if (!map.getLayer(MAP_LAYER_IDS.flightDirection)) {
+    // Direction chevrons only when zoomed out beyond the whole grid (they clutter the cells at
+    // survey zoom); the replay's moving drone shows direction up close.
     map.addLayer({
       id: MAP_LAYER_IDS.flightDirection,
       type: "line",
       source: MAP_SOURCE_IDS.flightDirection,
-      layout: { visibility: "none" },
+      maxzoom: FLIGHT_DIRECTION_MAX_ZOOM,
+      layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": colors.accentSoft,
-        "line-opacity": 0.9,
-        "line-width": 2,
+        "line-color": colors.text,
+        "line-opacity": 0.35,
+        "line-width": 1.25,
       },
     });
   }

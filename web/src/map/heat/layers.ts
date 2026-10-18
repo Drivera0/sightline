@@ -220,6 +220,16 @@ export function replayFeatures(
   };
 }
 
+/** Lane B's flight layers that the legend's "Flight path (simulated)" switch shows and hides. */
+export const FLIGHT_LAYER_IDS = [MAP_LAYER_IDS.flightPath, MAP_LAYER_IDS.flightDirection] as const;
+
+/** Show or hide the flight path and its chevrons. Safe before lane B has drawn them. */
+export function setFlightPathVisible(map: Map, visible: boolean): void {
+  for (const id of FLIGHT_LAYER_IDS) {
+    if (map.getLayer(id)) map.setLayoutProperty?.(id, "visibility", visible ? "visible" : "none");
+  }
+}
+
 /** Move the trail and the drone. Safe before the sources exist (does nothing). */
 export function pushReplay(map: Map, path: LonLat[], stepIndex: number): void {
   const { trail, drone } = replayFeatures(path, stepIndex);
