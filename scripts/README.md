@@ -42,10 +42,11 @@ Logic lives in `sightline/ml/voc.py` and `sightline/ml/tiling.py`; tests in `tes
 
 | Script | What it does | Output |
 |---|---|---|
-| `evaluate_model.py` | Chooses `candidate_threshold` on **val** (max F2, tiled inference), then scores the 4 ablation rows on the full **test** set with VOC and SAR-style matching. | `data/work/detect/detector_metrics.json` (contract `DetectorMetrics` + `Ablation` rows), `evaluate_details.json` |
+| `evaluate_model.py` | Chooses `candidate_threshold` on **val** (max F2, tiled inference), then scores the 4 ablation rows on the full **test** set with VOC and SAR-style matching. | `data/work/detect/detector_metrics.json` (contract `DetectorMetrics` + the 4 core `Ablation` rows), `evaluate_details.json` |
 | `tune_on_val.py` | Validation-only sweep of SAHI merge settings (overlap 0.1/0.2/0.3 × NMS/NMM/GREEDYNMM × IOU/IOS × match 0.3–0.7), threshold re-chosen by max F2 for each; paired bootstrap (2,000 resamples over val photos, seed 7) against the current default; the secondary high-recall threshold. Never reads test. | `data/work/tune/val_tuning.json` |
 | `tta_on_val.py` | Validation-only test of test-time augmentation: 1, 2, 4 or 8 flip/rotation views fused by pooled NMS or weighted box fusion, with seconds per photo and a paired bootstrap against no TTA. | `data/work/tune/val_tta.json` |
 | `make_site_holdout.py`, `train_site_holdout.py`, `compare_on_holdout.py` | Site-held-out split from trainval (GOR + RAK out; never touches test), run-2-recipe retrain on it, and a paired-bootstrap comparison of models on the held-out sites. | `data/heridal/yolo_site/`, `data/runs/site_*`, `data/work/tune/holdout_compare.json` |
+| `evaluate_no_tiling.py`, `train_whole_photos.py` | Fair no-tiling baselines: whole photos in one pass at native scale (imgsz 4000), and the run 2 recipe trained on whole photos resized to 1920 px; threshold on val, test once. `--write-metrics` adds the rows to `detector_metrics.json` without touching its `detector` block. | `data/work/detect/no_tiling_baselines.json`, `data/runs/whole_s_1920_e80/` |
 | `mine_hard_negatives.py` | Tiled inference over training images; cuts a 1024 tile around every false positive (conf ≥ 0.25, IoU < 0.1 to all truth), capped at 2,000, seeded. Writes a YAML that trains on tiles + hard negatives. | `data/heridal/hard_negatives/{images,labels}`, `data/heridal/dataset_hn.yaml` |
 
 Detection on the demo frames is one call, `sightline.ml.run_survey(...)` (see `sightline/ml/survey.py`); D's
@@ -60,12 +61,22 @@ Final model: **run 2**, yolo11s, 80 epochs on 1024 px tiles from the 890 *annota
 Threshold **0.29**, chosen on annotated **val** photos by max F2, single-view tiled inference. Full 101-image HERIDAL
 test set, VOC scoring (greedy one-to-one, IoU ≥ 0.5); precision/recall at the threshold, AP50 over all confidences.
 
-| Row | Precision | Recall | AP50 | s / image |
-|---|---|---|---|---|
-| Stock model, no tiling (COCO yolo11s, resized to 1024) | 0.420 | 0.196 | 0.142 | 0.06 |
-| Fine-tuned, no tiling (run 2 weights, resized to 1024) | 0.380 | 0.234 | 0.144 | 0.06 |
-| Fine-tuned + tiling | **0.802** | **0.864** | **0.868** | 0.25 |
-| + hard negatives (484 mined tiles, 20-epoch fine-tune) | 0.738 | 0.869 | 0.851 | 0.24 |
+| Row | Threshold (val) | Precision | Recall | AP50 | F2 | SAR P / R | s / image |
+|---|---|---|---|---|---|---|---|
+| Stock model, no tiling (COCO yolo11s, photo shrunk to 1024) | 0.06 | 0.420 | 0.196 | 0.142 | 0.219 | 0.752 / 0.252 | 0.06 |
+| Fine-tuned on tiles, run on shrunk photos (run 2 weights, photo shrunk to 1024; was "Fine-tuned, no tiling") | 0.05 | 0.380 | 0.234 | 0.144 | 0.254 | 0.745 / 0.442 | 0.06 |
+| Stock model, full-resolution photo (COCO yolo11s, imgsz 4000, no slicing) | 0.06 | 0.678 | 0.181 | 0.165 | 0.212 | 0.844 / 0.193 | 0.14 |
+| Fine-tuned on tiles, full-resolution photo (run 2 weights, imgsz 4000, no slicing) | 0.13 | 0.723 | **0.905** | **0.887** | **0.862** | 0.874 / 0.920 | 0.14 |
+| Trained and run on whole photos (run 2 recipe on whole photos at 1920 px, 80 epochs) | 0.30 | 0.727 | 0.804 | 0.776 | 0.787 | 0.845 / 0.887 | 0.08 |
+| Fine-tuned + tiling (the reported model) | 0.29 | **0.802** | 0.864 | 0.868 | 0.850 | 0.898 / 0.896 | 0.25 |
+| + hard negatives (484 mined tiles, 20-epoch fine-tune) | 0.15 | 0.738 | 0.869 | 0.851 | 0.840 | 0.884 / 0.917 | 0.24 |
+
+Every threshold was chosen on the annotated val photos by max F2 with that row's own inference; test was scored
+once. The three middle rows were added on 2026-10-18 (`scripts/evaluate_no_tiling.py`,
+`data/work/detect/no_tiling_baselines.json`) after a reviewer pointed out that the old "Fine-tuned, no tiling" row was
+a strawman. Seconds come from each row's own evaluation run and wander with machine load: timed back to back on the
+same 101 test photos (`data/work/detect/inference_cost.json`), tiled inference took 0.38 s per photo at 0.28 GB of
+GPU memory, the 4000 px single pass 0.14 s at 5.7 GB, and the 1920 px whole-photo model 0.08 s at 0.7 GB.
 
 **Mirror TTA (tried, not the reported model).** Photo + mirror, weighted box fusion, threshold 0.32, all chosen on val
 (`docs/LANE_A_ML.md` §6.3a). Scored once on test: precision 0.835, recall 0.858, AP50 0.872, F2 0.853, 0.50 s, within
@@ -99,8 +110,33 @@ SAR-style loose matching (approx. AIR, the scoring of the human baseline) for th
 `metrics.detector.recall` for lane C's POD: **0.864**. Demo survey (500 frames, seed 7, threshold 0.29; `detect_frame` has no TTA): 15 review-queue crops, all 6
 frames with a person in the queue, first hit ranked 1 vs 73 in flight order (71.6 expected at random).
 
-**Why "Fine-tuned, no tiling" scores below the stock model:** trained only on full-resolution 1024 px tiles, where a person is about 50 px tall, the fine-tuned model still finds people in a whole photo shrunk to 1024 px (a person becomes about 13 px) but draws boxes about twice too big, so they fail the IoU 0.5 test; tiling is what makes fine-tuning pay off.
-(Checked with run 1 weights, before the label fix: both rows use the same 1024 px input, the same F2 threshold rule and the same scoring. The fine-tuned weights are run 1 `best.pt`, MD5 2f38d69c… Median predicted box height on test: 115 px fine-tuned vs 73 px stock vs 52 px true. People found with a sloppy box, IoU 0.1–0.5: 70 fine-tuned vs 34 stock.)
+**What the no-tiling rows show (fair comparison, 2026-10-18).** The old "Fine-tuned, no tiling" row fed run 2 weights,
+trained on full-resolution 1024 px tiles where a person is about 50 px tall, a whole photo shrunk to 1024 px, where
+the person is about 13 px. The model still finds many of them but draws boxes about twice too big, so they fail
+IoU 0.5 (checked with run 1 weights before the label fix: median predicted box height on test 115 px fine-tuned vs
+73 px stock vs 52 px true; people found with a sloppy box, IoU 0.1 to 0.5: 70 fine-tuned vs 34 stock). That row
+shows a scale mismatch, not the value of tiling, so it is now named "Fine-tuned on tiles, run on shrunk photos".
+Two fair baselines were added:
+
+- **Same weights, whole photo at native scale, no slicing** (`Detector(..., imgsz=4000)`, letterboxed to 4000x3008,
+  one forward pass). It is as good as tiling and faster. On val it was slightly better: F2 0.863 vs 0.831 for
+  tiled, ΔF2 +0.032, 95 % CI [+0.0005, +0.064] (paired bootstrap, 2,000 resamples, seed 7,
+  `scripts/analysis/no_tiling_val_bootstrap.py`, `data/work/tune/no_tiling_val.json`), which just clears the §6.3a
+  adoption rule. On test: recall 0.905 vs 0.864, AP50 0.887 vs 0.868, F2 0.862 vs 0.850, precision 0.723 vs 0.802
+  (its val threshold, 0.13, is low). The cost is GPU memory: 5.7 GB against 0.28 GB for 1024 px slices, so it needs a
+  desktop GPU, and memory grows with photo size, where slicing does not.
+- **A model trained on whole photos** (`scripts/train_whole_photos.py`): the run 2 recipe and the same 890 annotated
+  photos, each resized to 1920 px (a person is about 24 px), trained and run at 1920. With run 2's early-stopping rule
+  (patience 15) it stopped at epoch 35 with val F2 0.683; trained the full 80 epochs, like run 2, it reached val F2
+  0.777 (ΔF2 vs tiled −0.054, CI [−0.081, −0.029]) and test P 0.727 / R 0.804 / AP50 0.776. The 80-epoch model was
+  chosen on val. 0.9 h of training on the 4080 SUPER (run 2: 1.6 h) with batch 3 (AutoBatch runs out of memory at 1920 px).
+
+So the honest claim is narrower than "tiling makes fine-tuning pay off". **What pays off is training at native
+resolution** (1024 px tiles from full-size photos): the same budget spent on shrunk whole photos loses about 0.06
+recall and 0.09 AP50 on test. **At inference, slicing is one way to keep native scale, not the only one**: one pass
+over the full 4000 px photo did as well or better here, at about a third of the time and twenty times the GPU
+memory. The reported model and the demo are unchanged (single-view tiled, threshold 0.29); switching to full-resolution
+inference is lane A's call. Its test score has been seen, so if it is adopted, say so.
 
 **Rows that weren't run are omitted, never zero-filled.** `write_detector_metrics` refuses an all-zero row, and the metrics screen shows any missing or all-zero row as "Not yet measured". Trained and evaluated 2026-10-17 on an RTX 4080 SUPER.
 

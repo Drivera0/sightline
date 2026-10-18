@@ -156,7 +156,7 @@ def test_write_detector_metrics_shape(tmp_path: Path) -> None:
         Ablation(name=n, voc=voc)
         for n in (
             "Stock model, no tiling",
-            "Fine-tuned, no tiling",
+            "Fine-tuned on tiles, run on shrunk photos",
             "Fine-tuned + tiling",
             "+ hard negatives",
         )
@@ -196,7 +196,7 @@ def test_all_zero_ablation_row_is_refused_as_a_placeholder(tmp_path: Path) -> No
     )
     rows = [
         Ablation(name="Stock model, no tiling", voc=voc),
-        Ablation(name="Fine-tuned, no tiling", voc=voc),
+        Ablation(name="Fine-tuned on tiles, run on shrunk photos", voc=voc),
         Ablation(name="Fine-tuned + tiling", voc=voc),
         Ablation(name="+ hard negatives", voc=zero),
     ]
@@ -213,3 +213,30 @@ def test_published_detector_metrics_has_no_placeholder_rows() -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     rows = [Ablation(**r) for r in data["ablations"]]
     check_ablation_rows(rows)
+
+
+def test_no_tiling_baseline_rows_are_accepted_in_order(tmp_path: Path) -> None:
+    """The 3 fair no-tiling rows sit between the shrunk-photo rows and tiling; old name is mapped."""
+    from sightline.ml.evaluate import ABLATION_NAMES, LEGACY_ABLATION_RENAMES
+
+    voc = VocScores(precision=0.7, recall=0.7, ap50=0.7)
+    d = DetectorMetrics(
+        model="m",
+        test_images=101,
+        tiled=True,
+        threshold=0.2,
+        voc=voc,
+        sar=SarScores(precision=0.8, recall=0.8, ap=0.8),
+        recall=0.7,
+        seconds_per_image=0.25,
+    )
+    assert len(ABLATION_NAMES) == 7
+    assert ABLATION_NAMES.index(
+        "Fine-tuned on tiles, full-resolution photo"
+    ) < ABLATION_NAMES.index("Fine-tuned + tiling")
+    assert LEGACY_ABLATION_RENAMES["Fine-tuned, no tiling"] in ABLATION_NAMES
+    out = tmp_path / "m.json"
+    write_detector_metrics(d, [Ablation(name=n, voc=voc) for n in ABLATION_NAMES], out)
+    assert [r["name"] for r in json.loads(out.read_text())["ablations"]] == list(ABLATION_NAMES)
+    with pytest.raises(ValueError):
+        write_detector_metrics(d, [Ablation(name="Fine-tuned, no tiling", voc=voc)], out)

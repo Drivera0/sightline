@@ -44,11 +44,19 @@ SAVE_THRESHOLD = 0.05  # lowest confidence kept anywhere (contract §7 save_thre
 VOC_IOU = 0.5
 SAR_IOU = 0.0025
 ABLATION_NAMES = (
-    "Stock model, no tiling",
-    "Fine-tuned, no tiling",
+    "Stock model, no tiling",  # COCO weights, whole photo shrunk to 1024 px
+    "Fine-tuned on tiles, run on shrunk photos",  # run 2 weights, whole photo shrunk to 1024 px
+    "Stock model, full-resolution photo",  # COCO weights, whole photo at imgsz 4000, no slicing
+    "Fine-tuned on tiles, full-resolution photo",  # run 2 weights, imgsz 4000, no slicing
+    "Trained and run on whole photos",  # trained on whole resized photos, run the same way
     "Fine-tuned + tiling",
     "+ hard negatives",
 )
+STOCK_ROW, TUNED_SHRUNK_ROW, _, _, _, TILED_ROW, HN_ROW = ABLATION_NAMES
+
+# Old row names still found in files written before 2026-10-18 (evening). "Fine-tuned, no tiling"
+# ran the tile-trained weights on photos shrunk to 1024 px, where a person is about 13 px.
+LEGACY_ABLATION_RENAMES = {"Fine-tuned, no tiling": TUNED_SHRUNK_ROW}
 
 
 # ---------------------------------------------------------------------------- geometry
