@@ -72,6 +72,18 @@ describe("guided flow", () => {
     expect(screen.getByTestId("mount-metrics")).toBeInTheDocument();
   });
 
+  it("loads saved review answers on the results step after a reload, without visiting Review", () => {
+    useReview.setState({ surveyId: null, history: [], answers: {} });
+    localStorage.setItem(
+      `sightline.review.${cache.survey.survey_id}`,
+      JSON.stringify([{ detectionId: "f0005-d01", answer: "person", at: 1 }]),
+    );
+    window.location.hash = "#results";
+    render(<Shell cache={cache} />);
+    expect(useReview.getState().answers).toEqual({ "f0005-d01": "person" });
+    localStorage.removeItem(`sightline.review.${cache.survey.survey_id}`);
+  });
+
   it("moves between steps with the number keys and the step bar, and keeps the hash in sync", async () => {
     render(<Shell cache={cache} />);
     await userEvent.keyboard("3");

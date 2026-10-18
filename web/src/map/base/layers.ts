@@ -222,31 +222,46 @@ export function syncBaseLayers(
       },
     });
   }
-  // A label chip beside the icon, only for answers a searcher acts on. It moves above, below or
-  // to either side, whichever is free, so a nearby label never hides it.
+  // A label chip for the pin under the pointer only (setHoveredPin), so the map stays clean. It
+  // moves above, below or to either side, whichever is free.
   if (!map.getLayer(MAP_LAYER_IDS.pinLabels)) {
     map.addLayer({
       id: MAP_LAYER_IDS.pinLabels,
       type: "symbol",
       source: MAP_SOURCE_IDS.pinMarkers,
-      filter: ["!=", ["get", "reviewLabel"], ""],
-      minzoom: 14,
+      filter: ["==", ["get", "detectionId"], ""],
       layout: {
-        "text-field": ["get", "reviewLabel"],
+        "text-field": ["get", "chipText"],
         "text-font": ["Noto Sans Regular"],
         "text-size": 11.5,
         "text-letter-spacing": 0.02,
+        "text-max-width": 24,
         "text-variable-anchor": ["bottom", "top", "left", "right"],
         "text-radial-offset": 1.35,
-        "icon-image": ["match", ["get", "reviewState"], "unsure", PIN_IMAGES.chipUnsure, PIN_IMAGES.chipPerson],
+        "icon-image": [
+          "match",
+          ["get", "reviewState"],
+          "unsure",
+          PIN_IMAGES.chipUnsure,
+          "not_person",
+          PIN_IMAGES.chipNeutral,
+          PIN_IMAGES.chipPerson,
+        ],
         "icon-text-fit": "both",
         "icon-text-fit-padding": [3, 9, 3, 9],
-        "symbol-sort-key": ["get", "labelRank"],
-        "text-allow-overlap": false,
-        "icon-allow-overlap": false,
+        "text-allow-overlap": true,
+        "icon-allow-overlap": true,
       },
       paint: {
-        "text-color": ["match", ["get", "reviewState"], "unsure", colors.warning, colors.text],
+        "text-color": [
+          "match",
+          ["get", "reviewState"],
+          "unsure",
+          colors.warning,
+          "not_person",
+          colors.textSecondary,
+          colors.text,
+        ],
       },
     });
   }
@@ -283,6 +298,12 @@ export function syncBaseLayers(
       },
     });
   }
+}
+
+// Show the label chip of the pin under the pointer; null hides it.
+export function setHoveredPin(map: Map, detectionId: string | null): void {
+  if (!map.getLayer(MAP_LAYER_IDS.pinLabels)) return;
+  map.setFilter(MAP_LAYER_IDS.pinLabels, ["==", ["get", "detectionId"], detectionId ?? ""]);
 }
 
 // Ring the candidate selected in the review queue or by a click on its pin.
