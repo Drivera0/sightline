@@ -13,6 +13,8 @@ import math
 from sightline.contract import Grid, LatLon
 
 M_PER_DEG_LAT = 111_320.0
+# Float error can put an edge neighbour at 10.0000001 m; this keeps it in a 10 m radius.
+RADIUS_TOLERANCE_M = 1e-6
 
 
 # Metres per degree of longitude for the whole grid (fixed at origin_nw's latitude).
@@ -104,6 +106,8 @@ def cell_containing(grid: Grid, p: LatLon) -> tuple[int, int] | None:
 def cells_within_radius(grid: Grid, p: LatLon, radius_m: float) -> list[int]:
     """Cells whose square lies within radius_m of p (point-to-square distance).
 
+    A cell counts when the distance is at most radius_m + RADIUS_TOLERANCE_M (1e-6 m).
+
     Always includes the cell containing p when p is inside the grid. Never returns cells
     outside the grid. Returns sorted flat indices. Only the bounding window of rows and
     columns around p is checked.
@@ -112,10 +116,11 @@ def cells_within_radius(grid: Grid, p: LatLon, radius_m: float) -> list[int]:
         raise ValueError(f"radius_m must be >= 0, got {radius_m}")
     east_m, south_m = latlon_to_local_m(grid, p)
     c = grid.cell_m
-    row_lo = max(0, math.floor((south_m - radius_m) / c))
-    row_hi = min(grid.rows - 1, math.floor((south_m + radius_m) / c))
-    col_lo = max(0, math.floor((east_m - radius_m) / c))
-    col_hi = min(grid.cols - 1, math.floor((east_m + radius_m) / c))
+    reach_m = radius_m + RADIUS_TOLERANCE_M
+    row_lo = max(0, math.floor((south_m - reach_m) / c))
+    row_hi = min(grid.rows - 1, math.floor((south_m + reach_m) / c))
+    col_lo = max(0, math.floor((east_m - reach_m) / c))
+    col_hi = min(grid.cols - 1, math.floor((east_m + reach_m) / c))
 
     found: set[int] = set()
     for row in range(row_lo, row_hi + 1):
@@ -123,7 +128,7 @@ def cells_within_radius(grid: Grid, p: LatLon, radius_m: float) -> list[int]:
         d_south_m = max(row * c - south_m, 0.0, south_m - (row + 1) * c)
         for col in range(col_lo, col_hi + 1):
             d_east_m = max(col * c - east_m, 0.0, east_m - (col + 1) * c)
-            if math.hypot(d_east_m, d_south_m) <= radius_m:
+            if math.hypot(d_east_m, d_south_m) <= reach_m:
                 found.add(row * grid.cols + col)
 
     home = cell_containing(grid, p)
