@@ -141,3 +141,45 @@ describe("why resolution matters", () => {
     expect(screen.queryByText(/grey figure is precision/)).toBeNull();
   });
 });
+
+describe("design critique fixes", () => {
+  it("keeps each glance card to one plain line, with the measuring detail one click away", () => {
+    render(<ResultsSummary metrics={demo()} cellM={5} />);
+    for (const name of ["People found", "Time per full photo", "Ground to search"]) {
+      const more = within(card(name)).getByText("How it's measured").closest("details")!;
+      expect(more).not.toHaveAttribute("open");
+    }
+    // The scoring and simulation notes live inside the fold, not on the card face.
+    const people = within(card("People found")).getByText(/Strict VOC/);
+    expect(people.closest("details")).not.toBeNull();
+    const ground = within(card("Ground to search")).getByText(/1,213 vs 1,743 cells/);
+    expect(ground.closest("details")).not.toBeNull();
+  });
+
+  it("leads the race with Sightline, labels its result beside the dot, and drops the unlabelled % column", () => {
+    render(<ResultsSummary metrics={demo()} />);
+    const rows = [...document.querySelectorAll("[data-race-row]")].map((r) => r.getAttribute("data-race-row"));
+    expect(rows).toEqual(["Sightline ranked queue", "This flight's order", "Random order"]);
+    expect(screen.getByText("7 photos")).toBeInTheDocument();
+    expect(screen.queryByText("85.9%")).toBeNull();
+  });
+
+  it("keeps the race's exact figures in a fold under the chart", () => {
+    render(<ResultsSummary metrics={demo()} />);
+    expect(screen.getByText("expected value; 10–90%: 342–492").closest("details")).not.toBeNull();
+  });
+
+  it("names the comparison 'People (by eye)' on the cards", () => {
+    render(<ResultsSummary metrics={demo()} cellM={5} />);
+    expect(within(card("People found")).getByText("People (by eye)")).toBeInTheDocument();
+    expect(within(card("Time per full photo")).getByText("People (by eye)")).toBeInTheDocument();
+    expect(screen.queryByText("Human")).toBeNull();
+  });
+
+  it("drops the small labels that repeated each section's title", () => {
+    render(<ResultsSummary metrics={demo()} candidateIds={["a"]} />);
+    expect(screen.queryByText("Where it still misses")).toBeNull();
+    expect(screen.queryByText("Answers so far")).toBeNull();
+    expect(screen.queryByText("Photos looked at before every person is found")).toBeNull();
+  });
+});

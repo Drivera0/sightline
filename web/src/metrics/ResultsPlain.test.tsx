@@ -53,11 +53,11 @@ const ownText = (el: Element) =>
 const writing = (term: string) => [...region().querySelectorAll("*")].filter((el) => ownText(el).includes(term));
 
 describe("the race, in plain words", () => {
-  it("says what a bar counts before the bars", () => {
+  it("says what a bar counts once, in the section's plain line above the chart", () => {
     render(<ResultsSummary metrics={demo()} />);
-    expect(
-      screen.getByText(/counts the photos a searcher looks at, in that order, before every person in them is found/),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "How much looking it saves" })).toHaveTextContent(
+      /Photos a searcher looks at before every person in them is found/,
+    );
   });
 
   it("puts plain words under the statistics of the random order and the flight's order", () => {
