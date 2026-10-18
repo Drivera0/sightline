@@ -12,6 +12,7 @@ export const HEAT_SOURCE_ID = `${HEAT_LAYER_PREFIX}cells`;
 export const HEAT_SURVEYED_SOURCE_ID = `${HEAT_LAYER_PREFIX}surveyed`;
 export const HEAT_LAYER_IDS = {
   unsearched: `${HEAT_LAYER_PREFIX}unsearched`,
+  review: `${HEAT_LAYER_PREFIX}review`,
   cells: `${HEAT_LAYER_PREFIX}cells`,
   surveyed: `${HEAT_LAYER_PREFIX}surveyed`,
 } as const;
@@ -21,10 +22,14 @@ export interface HeatColors {
   outline: string;
   /** Neutral tone for "not yet searched" cells. */
   unsearched: string;
+  /** Tone for cells awaiting review (the shell's "Unsure" token). */
+  review: string;
 }
 
 /** Opacity of the neutral "not yet searched" fill. Low, so the basemap shows through. */
 export const UNSEARCHED_OPACITY = 0.22;
+/** Opacity of the "awaiting review" fill. Strong enough to read next to the heat, low enough to see the basemap. */
+export const REVIEW_OPACITY = 0.5;
 
 /** MapLibre cannot read CSS variables, so read the tokens at runtime. */
 export function readHeatColors(root: Element = document.documentElement): HeatColors {
@@ -33,6 +38,7 @@ export function readHeatColors(root: Element = document.documentElement): HeatCo
     accent: styles.getPropertyValue("--accent").trim(),
     outline: styles.getPropertyValue("--text").trim(),
     unsearched: styles.getPropertyValue("--text-3").trim(),
+    review: styles.getPropertyValue("--warn").trim(),
   };
 }
 
@@ -84,6 +90,22 @@ export function ensureHeatLayers(
       beforeId(map),
     );
   }
+  // Between unsearched and cells: photographed cells held for review ("h" feature state = 1).
+  if (!map.getLayer(HEAT_LAYER_IDS.review)) {
+    map.addLayer(
+      {
+        id: HEAT_LAYER_IDS.review,
+        type: "fill",
+        source: HEAT_SOURCE_ID,
+        paint: {
+          "fill-color": colors.review,
+          "fill-opacity": ["case", ["==", ["coalesce", ["feature-state", "h"], 0], 1], REVIEW_OPACITY, 0],
+          "fill-antialias": false,
+        },
+      },
+      beforeId(map),
+    );
+  }
   if (!map.getLayer(HEAT_LAYER_IDS.cells)) {
     map.addLayer(
       {
@@ -124,19 +146,39 @@ export function cellFeaturesFor(grid: Grid): GeoJsonData {
   return data;
 }
 
+/** Redraw the outline of the cells photographed so far. */
+export function setSurveyedBoundary(map: Map, grid: Grid, photographed: Uint8Array): void {
+  const source = map.getSource(HEAT_SURVEYED_SOURCE_ID) as GeoJSONSource | undefined;
+  source?.setData({
+    type: "Feature",
+    properties: {},
+    geometry: { type: "MultiLineString", coordinates: surveyedBoundary(grid, photographed) },
+  });
+}
+
 /**
- * Push feature state: "o" = heat opacity (relative to the photographed cells), "u" = 1 for a
- * cell that is not photographed. `last` holds the opacity the map already has (NaN = unknown);
- * only cells whose opacity changed are sent. Mutates and returns `last`.
+ * Push feature state: "o" = heat opacity (relative to the photographed cells that are not held),
+ * "u" = 1 for a cell not photographed yet, "h" = 1 for a photographed cell awaiting review.
+ * `last` holds what the map already has per cell (NaN = unknown) as o + 10 * u + 20 * h; only
+ * cells whose value changed are sent. Mutates and returns `last`.
  */
-export function pushHeatState(map: Map, state: MapState, last: Float64Array, covered: Uint8Array): Float64Array {
-  const opacities = relativeHeatOpacities(state.p, covered);
+export function pushHeatState(
+  map: Map,
+  state: MapState,
+  last: Float64Array,
+  covered: Uint8Array,
+  held: Uint8Array,
+): Float64Array {
+  const opacities = relativeHeatOpacities(state.p, covered, held);
   for (let i = 0; i < opacities.length; i++) {
     const o = opacities[i] as number;
+    const u = covered[i] === 1 ? 0 : 1;
+    const h = covered[i] === 1 && held[i] === 1 ? 1 : 0;
+    const sig = o + 10 * u + 20 * h;
     const prev = last[i] as number;
-    if (Number.isNaN(prev) || Math.abs(prev - o) > 1e-4) {
-      map.setFeatureState({ source: HEAT_SOURCE_ID, id: i }, { o, u: covered[i] === 1 ? 0 : 1 });
-      last[i] = o;
+    if (Number.isNaN(prev) || Math.abs(prev - sig) > 1e-4) {
+      map.setFeatureState({ source: HEAT_SOURCE_ID, id: i }, { o, u, h });
+      last[i] = sig;
     }
   }
   return last;

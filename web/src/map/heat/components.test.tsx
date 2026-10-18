@@ -97,6 +97,15 @@ describe("NextSearch", () => {
     expect(document.querySelector('[data-share="Inside surveyed area"]')).toHaveTextContent("55.00%");
   });
 
+  it("leaves cells awaiting review out of the ranking and out of the average", () => {
+    // Cell 1 has the top p but is held; cell 4 comes first. Average over cells 3, 4, 7 = (0.1 + 0.15 + 0.1) / 3.
+    const held = Uint8Array.from([0, 1, 0, 0, 0, 0, 0, 0]);
+    render(<NextSearch map={map} state={state} covered={covered} overlap={seenOnce} held={held} onSelect={vi.fn()} />);
+    const rows = within(screen.getByRole("list", { name: "Most likely cells" })).getAllByRole("button");
+    expect(rows.map((r) => r.getAttribute("data-idx"))).toEqual(["4", "3", "7"]);
+    expect(rows[0]).toHaveTextContent("1.3× avg");
+  });
+
   it("says so when no cell has been photographed", () => {
     render(<NextSearch map={map} state={state} covered={new Uint8Array(8)} overlap={new Float64Array(8)} onSelect={vi.fn()} />);
     expect(screen.queryByRole("list", { name: "Most likely cells" })).toBeNull();
@@ -176,6 +185,11 @@ describe("Legend", () => {
     expect(screen.getByText("Surveyed area (outline)")).toBeInTheDocument();
     expect(screen.getByText(/Inside the surveyed area/)).toBeInTheDocument();
     expect(screen.getByText("Not yet searched")).toBeInTheDocument();
+  });
+
+  it("has a swatch for cells awaiting review", () => {
+    render(<Legend simulatedPath={false} params={{}} manifest={{ notes: "" }} hasSurveyed />);
+    expect(screen.getByText("Awaiting review")).toBeInTheDocument();
   });
 
   it("hides badges that do not apply", () => {

@@ -141,16 +141,17 @@ export function percentile(values: ArrayLike<number>, q: number): number {
  * forest-versus-open difference visible, and the percentile bounds stop one outlier cell from
  * squashing the rest. If all photographed cells share one p, they get the mid value.
  */
-export function relativeHeatOpacities(p: Float64Array, covered: Uint8Array): Float64Array {
+export function relativeHeatOpacities(p: Float64Array, covered: Uint8Array, held?: Uint8Array): Float64Array {
   const out = new Float64Array(p.length);
+  const shown = (i: number) => covered[i] === 1 && held?.[i] !== 1;
   const seen: number[] = [];
-  for (let i = 0; i < p.length; i++) if (covered[i] === 1) seen.push(p[i] as number);
+  for (let i = 0; i < p.length; i++) if (shown(i)) seen.push(p[i] as number);
   if (seen.length === 0) return out;
   const lo = percentile(seen, STRETCH_LOW_PERCENTILE);
   const hi = percentile(seen, STRETCH_HIGH_PERCENTILE);
   const span = hi - lo;
   for (let i = 0; i < p.length; i++) {
-    if (covered[i] !== 1) continue;
+    if (!shown(i)) continue;
     const t = span > 0 ? Math.min(1, Math.max(0, ((p[i] as number) - lo) / span)) : 0.5;
     out[i] = HEAT_FLOOR + t * (HEAT_CEIL - HEAT_FLOOR);
   }

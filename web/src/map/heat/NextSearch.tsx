@@ -1,7 +1,7 @@
 import type { MapFile } from "../../contract";
 import type { MapState } from "../../search/update";
 import { Label } from "../../shell/components";
-import { MIN_OVERLAP } from "./coverage";
+import { eligibleCells } from "./coverage";
 import {
   canopyLabel,
   cellCenter,
@@ -35,6 +35,8 @@ interface Props {
   covered: Uint8Array;
   /** Per cell, summed footprint overlap in cell areas (coverage.ts). */
   overlap: Float64Array;
+  /** 1 for cells awaiting review: left out of the ranking and the average. */
+  held?: Uint8Array;
   onSelect: (lon: number, lat: number) => void;
 }
 
@@ -43,15 +45,17 @@ interface Props {
  *
  * Only cells the footprints covered at least MIN_OVERLAP times are ranked ("eligible"), so edge
  * slivers the camera barely touched do not fill the list. The "× avg" average is over the same
- * eligible cells. The shares below still use `covered` (the whole surveyed area).
+ * eligible cells. Cells awaiting review (a candidate detection not yet answered "Not a person") are
+ * left out of both: they have pod 0 until a searcher decides. The shares below still use `covered`
+ * (the area photographed so far).
  *
  * Only photographed cells are ranked. Inside a 1 km grid a hiker prior is flat (Koester's hiker
  * distances are larger than the grid), so every unphotographed cell would outrank every
  * photographed one and the list would show the grid corners. Ranking the surveyed area shows where
  * the drone could not see well; the rest of the grid is the "Rest of grid" share below.
  */
-export function NextSearch({ map, state, covered, overlap, onSelect }: Props) {
-  const eligible = Uint8Array.from(overlap, (v) => (v >= MIN_OVERLAP ? 1 : 0));
+export function NextSearch({ map, state, covered, overlap, held, onSelect }: Props) {
+  const eligible = eligibleCells(overlap, held);
   const top = topCellIndices(state.p, 5, eligible);
   const shares = probabilityShares(state, covered);
   const mean = eligibleMean(state.p, eligible);

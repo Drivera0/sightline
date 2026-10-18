@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CacheBundle } from "../../contract";
+import type { CacheBundle, Frame } from "../../contract";
 import { CacheContext, loadCache } from "../../lib/cache";
 import { diskFetch } from "../../lib/diskFetch";
 import { useReview } from "../../review/store";
@@ -27,11 +27,15 @@ interface Recorded {
 function mockMap(withGridOutline: boolean) {
   const sources = new Map<string, unknown>();
   const layers: Recorded[] = withGridOutline ? [{ id: MAP_LAYER_IDS.gridOutline, before: undefined }] : [];
-  const featureState = new Map<number, { o: number; u: number }>();
+  const featureState = new Map<number, { o: number; u: number; h: number }>();
+  const boundaryDrawn: unknown[] = [];
   const handlers = new Map<string, Set<() => void>>();
   const map = {
     isStyleLoaded: () => true,
-    getSource: (id: string) => sources.get(id),
+    getSource: (id: string) => {
+      const spec = sources.get(id);
+      return spec ? { ...(spec as object), setData: (data: unknown) => boundaryDrawn.push(data) } : undefined;
+    },
     addSource: vi.fn((id: string, spec: unknown) => {
       sources.set(id, spec);
     }),
@@ -42,7 +46,7 @@ function mockMap(withGridOutline: boolean) {
       if (at >= 0) layers.splice(at, 0, entry);
       else layers.push(entry);
     }),
-    setFeatureState: vi.fn((target: { source: string; id: number }, value: { o: number; u: number }) => {
+    setFeatureState: vi.fn((target: { source: string; id: number }, value: { o: number; u: number; h: number }) => {
       featureState.set(target.id, value);
     }),
     on: (event: string, fn: () => void) => {
@@ -62,7 +66,7 @@ function mockMap(withGridOutline: boolean) {
       handlers.get("styledata")?.forEach((fn) => fn());
     },
   };
-  return { map, sources, layers, featureState };
+  return { map, sources, layers, featureState, boundaryDrawn };
 }
 
 let cache: CacheBundle;
@@ -77,6 +81,28 @@ async function sampleWithSteps(): Promise<CacheBundle> {
       { frame_id: "f0002", cells: [[1277, 0.5]] },
     ],
   };
+  // Footprints that match the steps: frame 1 covers cells 1275 and 1276, frame 2 covers cell 1277
+  // (row 25, columns 25 to 27; each footprint is 1 m inside its cells).
+  const g = c.map.grid;
+  const mLon = 111_320 * Math.cos((g.origin_nw.lat * Math.PI) / 180);
+  const lat = (m: number) => g.origin_nw.lat - (25 * 20 + m) / 111_320;
+  const lon = (col: number, m: number) => g.origin_nw.lon + (col * 20 + m) / mLon;
+  const box = (c0: number, c1: number): Frame["footprint"] => [
+    [lon(c0, 1), lat(1)],
+    [lon(c1, 19), lat(1)],
+    [lon(c1, 19), lat(19)],
+    [lon(c0, 1), lat(19)],
+  ];
+  c.survey = {
+    ...c.survey,
+    frames: [
+      { ...(c.survey.frames[0] as Frame), footprint: box(25, 26) },
+      { ...(c.survey.frames[1] as Frame), footprint: box(27, 27) },
+    ],
+  };
+  // One candidate at the centre of cell 1275, to be held until answered.
+  const candidate = { id: "f0001-d01", box_px: [0, 0, 10, 10] as [number, number, number, number], conf: 0.9, crop: "crops/f0001-d01.jpg", lat: lat(10), lon: lon(25, 10), radius_m: 1 };
+  c.detections = { ...c.detections, frames: { f0001: [candidate] } };
   return c;
 }
 
@@ -120,19 +146,40 @@ describe("HeatLayer", () => {
     const addSourceCalls = m.map.addSource.mock.calls.length;
 
     // Final map: cell 1275 was photographed (heat, not flagged), cell 0 was not (no heat, flagged).
-    expect(m.featureState.get(1275)).toMatchObject({ u: 0 });
-    expect(m.featureState.get(1275)!.o).toBeGreaterThan(0);
-    expect(m.featureState.get(0)).toEqual({ o: 0, u: 1 });
+    expect(m.featureState.get(1276)).toMatchObject({ u: 0, h: 0 });
+    expect(m.featureState.get(1276)!.o).toBeGreaterThan(0);
+    expect(m.featureState.get(0)).toEqual({ o: 0, u: 1, h: 0 });
     expect(screen.getByText("After frame 2 of 2")).toBeInTheDocument();
+    // The candidate at cell 1275 is awaiting review: its own category, no heat.
+    expect(m.featureState.get(1275)).toEqual({ o: 0, u: 0, h: 1 });
+    expect(m.featureState.get(1277)!.h).toBe(0);
+    expect(m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.review)).toBeGreaterThan(
+      m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.unsearched),
+    );
+    expect(m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.review)).toBeLessThan(
+      m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.cells),
+    );
+
+    // Only what the first frame photographed is photographed at step 1.
+    act(() => useSearch.getState().setStepIndex(1));
+    expect(m.featureState.get(1276)).toMatchObject({ u: 0 });
+    expect(m.featureState.get(1277)).toEqual({ o: 0, u: 1, h: 0 });
+    expect(m.boundaryDrawn.length).toBeGreaterThan(0);
 
     act(() => useSearch.getState().setStepIndex(0));
     expect(screen.getByText("Before the first frame")).toBeInTheDocument();
-    expect(m.featureState.get(0)).toEqual({ o: 0, u: 1 });
+    expect(m.featureState.get(1275)).toEqual({ o: 0, u: 1, h: 0 });
+    expect(m.featureState.get(0)).toEqual({ o: 0, u: 1, h: 0 });
     expect(m.map.addSource.mock.calls.length).toBe(addSourceCalls);
 
     // A confirmed person shows the banner; the slider keeps working.
-    act(() => useReview.getState().answer("f0003-d01", "person", 1));
+    act(() => useReview.getState().answer("f0001-d01", "person", 1));
     expect(screen.getByText("Person confirmed: dispatch ground team")).toBeInTheDocument();
+    // Answering "Not a person" releases the held cell into the normal map.
+    act(() => useSearch.getState().setStepIndex(2));
+    act(() => useReview.getState().answer("f0001-d01", "not_person", 2));
+    expect(m.featureState.get(1275)).toMatchObject({ u: 0, h: 0 });
+    expect(m.featureState.get(1275)!.o).toBeGreaterThan(0);
     act(() => useSearch.getState().setStepIndex(2));
     expect(screen.getByText("After frame 2 of 2")).toBeInTheDocument();
 
@@ -185,7 +232,7 @@ describe("HeatLayer", () => {
         <HeatLayer />
       </CacheContext.Provider>,
     );
-    act(() => useReview.getState().answer("f0003-d01", "person", 1));
+    act(() => useReview.getState().answer("f0001-d01", "person", 1));
     const banner = screen.getByText("Person confirmed: dispatch ground team");
     const sidePanel = screen.getByText("Search next in the surveyed area").closest(".w-72");
     expect(sidePanel).not.toBeNull();

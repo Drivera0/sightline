@@ -4,7 +4,7 @@ import { create } from "zustand";
 import type { Detection, Detections, MapFile } from "../contract";
 import { useCache } from "../lib/cache";
 import { useReview, type HistoryEntry } from "../review/store";
-import { applyReviewNotPerson, replay, type MapState } from "./update";
+import { applyReviewNotPerson, cellsWithinRadius, replay, type MapState } from "./update";
 
 export interface SearchData {
   map: MapFile;
@@ -103,6 +103,29 @@ export function applyReview(
     }
   }
   return { state, found: foundDetectionId !== null, foundDetectionId };
+}
+
+/**
+ * Cells "awaiting review": 1 for every cell within radius_m of a candidate detection (crop set)
+ * whose latest answer is not "not_person" (no answer, "unsure" or "person"). Those cells have
+ * pod 0 in the map until a searcher says "Not a person". Same latest-answer rule as
+ * effectiveAnswers; nothing is stored. Detections can sit in any frame, so this is survey-wide.
+ */
+export function heldCells(data: SearchData, history: readonly HistoryEntry[]): Uint8Array {
+  const { grid } = data.map;
+  const held = new Uint8Array(grid.rows * grid.cols);
+  const rejected = new Set(
+    effectiveAnswers(history)
+      .filter((e) => e.answer === "not_person")
+      .map((e) => e.detectionId),
+  );
+  for (const list of Object.values(data.detections.frames)) {
+    for (const d of list) {
+      if (d.crop === null || rejected.has(d.id)) continue;
+      for (const idx of cellsWithinRadius(grid, d.lat, d.lon, d.radius_m)) held[idx] = 1;
+    }
+  }
+  return held;
 }
 
 /** Full derivation: replay to stepIndex, then the review answers. */
