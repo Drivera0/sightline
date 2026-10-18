@@ -398,4 +398,70 @@ describe("HeatLayer", () => {
       window.matchMedia = original;
     }
   });
+
+  /** matchMedia with fixed answers per query and a reduced-motion flag that can flip live. */
+  function fakeMedia(answers: { wide: boolean; roomy: boolean; reduced: boolean }) {
+    const listeners = new Set<() => void>();
+    const state = { ...answers };
+    const matches = (q: string) =>
+      q.includes("reduced-motion") ? state.reduced : q.includes("1280") ? state.roomy : q.includes("1024") ? state.wide : false;
+    const media = ((query: string) => ({
+      get matches() {
+        return matches(query);
+      },
+      media: query,
+      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    })) as unknown as typeof window.matchMedia;
+    const setReduced = (v: boolean) => {
+      state.reduced = v;
+      listeners.forEach((fn) => fn());
+    };
+    return { media, setReduced };
+  }
+
+  it("shows the Skip pill only while the map builds up, and never under reduced motion", () => {
+    const original = window.matchMedia;
+    const fake = fakeMedia({ wide: true, roomy: true, reduced: false });
+    window.matchMedia = fake.media;
+    try {
+      const m = mockMap(true);
+      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+      render(
+        <CacheContext.Provider value={cache}>
+          <HeatLayer />
+        </CacheContext.Provider>,
+      );
+      expect(screen.getByRole("button", { name: /Building the map/ })).toBeInTheDocument();
+      // Reduced motion switched on mid build-up: the (invisible-by-CSS) pill must not stay focusable.
+      act(() => fake.setReduced(true));
+      expect(screen.queryByRole("button", { name: /Building the map/ })).toBeNull();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it("folds the legend into a pill below 1280 px and opens it on click", () => {
+    const original = window.matchMedia;
+    window.matchMedia = fakeMedia({ wide: true, roomy: false, reduced: true }).media;
+    try {
+      const m = mockMap(true);
+      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+      render(
+        <CacheContext.Provider value={cache}>
+          <HeatLayer />
+        </CacheContext.Provider>,
+      );
+      expect(screen.queryByText("Lower probability")).toBeNull();
+      const pill = screen.getByRole("button", { name: "Reading the map" });
+      expect(pill).toHaveAttribute("aria-expanded", "false");
+      expect(pill).toHaveAttribute("data-map-overlay", "corner");
+      act(() => pill.click());
+      expect(screen.getByText("Lower probability")).toBeInTheDocument();
+      act(() => screen.getByRole("button", { name: "Hide" }).click());
+      expect(screen.queryByText("Lower probability")).toBeNull();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
 });

@@ -75,6 +75,7 @@ export const ANSWER_TWEEN_MS = 650;
 export const BUILD_UP_MS = 1500;
 /** Share of the build-up timeline each cell takes to fade in (the rest is its place in the flight). */
 export const BUILD_UP_FADE = 0.2;
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 /** useMap() without throwing, so a mount outside MapProvider renders nothing instead of crashing. */
 function useOptionalMap(): MapContextValue | null {
@@ -183,7 +184,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const stepCount = useSearch((s) => s.stepCount);
   const setStepIndex = useSearch((s) => s.setStepIndex);
   const foundDetectionId = useSearch((s) => s.foundDetectionId);
-  const reduced = useMemo(() => prefersReducedMotion(), []);
+  // Follows the system setting live, so the build-up (and its Skip pill) never runs under reduced motion.
+  const reduced = useMediaQuery(REDUCED_MOTION_QUERY, prefersReducedMotion());
 
   useEffect(() => {
     bind({ map: bundle.map, detections: bundle.detections });
@@ -355,9 +357,15 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pixels]);
 
-  // The build-up ends by itself; any interaction with the map finishes it at once.
+  // The build-up ends by itself; any interaction with the map finishes it at once, and so does
+  // switching reduced motion on.
   useEffect(() => {
     if (!building) return undefined;
+    if (reduced) {
+      raster.finish();
+      setBuilding(false);
+      return undefined;
+    }
     const end = window.setTimeout(() => setBuilding(false), BUILD_UP_MS + 50);
     const skip = () => {
       raster.finish();
@@ -371,7 +379,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       for (const e of events) map?.off?.(e, skip);
       window.removeEventListener("keydown", skip);
     };
-  }, [building, map, raster]);
+  }, [building, map, raster, reduced]);
 
   // A ripple at the pin that was just answered (or undone).
   useEffect(() => {
@@ -658,7 +666,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     />
   );
   const slider = stepCount > 0 ? <StepSlider value={stepIndex} max={stepCount} onChange={setStepIndex} /> : null;
-  const buildingToast = building && (
+  const buildingToast = building && !reduced && (
     <div className="pointer-events-auto absolute left-1/2 top-3 -translate-x-1/2">
       <button
         type="button"

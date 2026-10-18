@@ -115,15 +115,17 @@ body {
   .sl-rise, .sl-fade, .sl-dim, .sl-flag, .sl-pop { animation-duration: 1ms; animation-delay: 0ms !important; }
 }
 
-/* Review: a decision toast that rises in, holds, and fades out on its own. */
+/* Search next's "Building the map… Skip" pill: rises in, holds, and fades out on its own. Its
+   wrapper centres it, so the keyframes move it vertically only. With reduced motion it is shown
+   still (never invisible: it holds a button), and the map does not build up anyway. */
 @keyframes sl-toast {
-  0% { opacity: 0; transform: translate(-50%, 6px); }
-  12%, 75% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, -4px); }
+  0% { opacity: 0; transform: translateY(6px); }
+  12%, 75% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-4px); }
 }
 .sl-toast { animation: sl-toast 1800ms ease-out both; }
 @media (prefers-reduced-motion: reduce) {
-  .sl-toast { animation: none; opacity: 0; }
+  .sl-toast { animation: none; opacity: 1; }
 }
 /* Review's "Marked ... Undo" toast: rises in and stays (it holds a button); the component removes it. */
 @keyframes sl-toast-in {
