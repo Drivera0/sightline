@@ -130,30 +130,49 @@ export function percentile(values: ArrayLike<number>, q: number): number {
 }
 
 /**
- * Heat opacity per cell, relative to the photographed cells only.
+ * Heat level per cell in [0, 1], relative to the photographed cells only.
  *
- * Unphotographed cells get 0 (they are drawn by the separate "not yet searched" layer).
+ * Unphotographed and held cells get 0 (they are drawn as "not yet searched" / "awaiting review").
  * Photographed cells get a min–max stretch of p between the 5th and 95th percentile of p over
- * photographed cells (values outside are clamped), mapped to HEAT_FLOOR … HEAT_CEIL.
- * Why not p / max: unphotographed cells keep the flat prior, so the global max is far above
- * every photographed cell, and all photographed values are tiny and close together. p / max
- * would make them all look the same. Stretching inside the photographed set keeps the
- * forest-versus-open difference visible, and the percentile bounds stop one outlier cell from
- * squashing the rest. If all photographed cells share one p, they get the mid value.
+ * photographed cells (values outside are clamped). Why not p / max: unphotographed cells keep the
+ * flat prior, so the global max is far above every photographed cell, and all photographed values
+ * are tiny and close together. p / max would make them all look the same. Stretching inside the
+ * photographed set keeps the forest-versus-open difference visible, and the percentile bounds stop
+ * one outlier cell from squashing the rest. If all photographed cells share one p, they get 0.5.
  */
-export function relativeHeatOpacities(p: Float64Array, covered: Uint8Array, held?: Uint8Array): Float64Array {
+export function relativeHeatLevels(p: Float64Array, covered: Uint8Array, held?: Uint8Array): Float64Array {
   const out = new Float64Array(p.length);
   const shown = (i: number) => covered[i] === 1 && held?.[i] !== 1;
   const seen: number[] = [];
   for (let i = 0; i < p.length; i++) if (shown(i)) seen.push(p[i] as number);
   if (seen.length === 0) return out;
-  const lo = percentile(seen, STRETCH_LOW_PERCENTILE);
-  const hi = percentile(seen, STRETCH_HIGH_PERCENTILE);
+  seen.sort((a, b) => a - b);
+  const lo = sortedPercentile(seen, STRETCH_LOW_PERCENTILE);
+  const hi = sortedPercentile(seen, STRETCH_HIGH_PERCENTILE);
   const span = hi - lo;
   for (let i = 0; i < p.length; i++) {
     if (!shown(i)) continue;
-    const t = span > 0 ? Math.min(1, Math.max(0, ((p[i] as number) - lo) / span)) : 0.5;
-    out[i] = HEAT_FLOOR + t * (HEAT_CEIL - HEAT_FLOOR);
+    out[i] = span > 0 ? Math.min(1, Math.max(0, ((p[i] as number) - lo) / span)) : 0.5;
+  }
+  return out;
+}
+
+function sortedPercentile(sorted: readonly number[], q: number): number {
+  const pos = Math.min(1, Math.max(0, q)) * (sorted.length - 1);
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return (sorted[lo] as number) + ((sorted[hi] as number) - (sorted[lo] as number)) * (pos - lo);
+}
+
+/**
+ * Heat opacity per cell: relativeHeatLevels mapped to HEAT_FLOOR … HEAT_CEIL for photographed
+ * cells that are not held; 0 elsewhere.
+ */
+export function relativeHeatOpacities(p: Float64Array, covered: Uint8Array, held?: Uint8Array): Float64Array {
+  const levels = relativeHeatLevels(p, covered, held);
+  const out = new Float64Array(p.length);
+  for (let i = 0; i < p.length; i++) {
+    if (covered[i] === 1 && held?.[i] !== 1) out[i] = HEAT_FLOOR + (levels[i] as number) * (HEAT_CEIL - HEAT_FLOOR);
   }
   return out;
 }

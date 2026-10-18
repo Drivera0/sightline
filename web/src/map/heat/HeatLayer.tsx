@@ -1,32 +1,57 @@
-// Lane C's map overlay: heat cells, surveyed outline, step slider, "search next", legend, found banner.
-// Mount it through B's MapView: <MapView layers={<HeatLayer />} />.
+// Lane C's map overlay: heat cells, sectors, surveyed outline, step slider, "search next", legend,
+// found banner. Mount it through B's MapView: <MapView layers={<HeatLayer />} />.
+// variant="review" is the quiet version beside the review queue: the same live heat (fainter, under
+// the pins), the review ripple and a small readout, without the replay and the side panel.
 import { type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { CacheBundle } from "../../contract";
 import { CacheContext, useCache } from "../../lib/cache";
-import { useReview } from "../../review/store";
+import { useReview, type HistoryEntry } from "../../review/store";
 import { prefersReducedMotion } from "../../metrics/motion";
-import { detectionById, heldCells, useSearch } from "../../search/store";
+import { detectionById, effectiveAnswers, heldCells, stateAtStep, useSearch } from "../../search/store";
 import { Panel } from "../../shell/components";
 import { useMap, type MapContextValue } from "../MapView";
 import { FoundBanner } from "./FoundBanner";
-import { topCellIndices } from "./geometry";
-import { buildOverlapIndex, eligibleCells, frameOverlaps, overlapAtStep, photographedCells } from "./coverage";
+import { probabilityShares, topCellIndices } from "./geometry";
+import {
+  buildOverlapIndex,
+  eligibleCells,
+  firstPhotographedStep,
+  frameOverlaps,
+  overlapAtStep,
+  photographedCells,
+} from "./coverage";
+import { ensureDroneImage } from "./droneImage";
+import { lerpAngle, pointAtStep, stepDrone, trailAtStep, type DroneState } from "./droneMotion";
 import {
   breathFactor,
-  cellFeaturesFor,
   ensureHeatLayers,
-  HEAT_SOURCE_ID,
-  pushHeatState,
+  HEAT_BASE_OPACITY,
+  type HeatVariant,
+  pushDrone,
   pushHotspots,
-  pushReplay,
+  pushRipple,
+  pushSectors,
   readHeatColors,
+  refreshHeatSource,
+  RIPPLE_MS,
   setBreath,
   setFlightPathVisible,
+  setHeldBoundary,
+  setRippleFrame,
   setSurveyedBoundary,
 } from "./layers";
 import { Legend } from "./Legend";
 import { NextSearch } from "./NextSearch";
+import { HeatRaster, heatPixels, paletteFromTokens, readRasterTokens, sweepDelays } from "./raster";
+import { SectorList } from "./SectorList";
+import { buildSectors, currentSector, sectorBounds, sectorStatuses } from "./sectors";
 import { StepSlider } from "./StepSlider";
+
+/** How long an answer's change to the map takes to settle, and the Search next build-up. */
+export const ANSWER_TWEEN_MS = 650;
+export const BUILD_UP_MS = 1500;
+/** Share of the build-up timeline each cell takes to fade in (the rest is its place in the flight). */
+export const BUILD_UP_FADE = 0.2;
 
 /** useMap() without throwing, so a mount outside MapProvider renders nothing instead of crashing. */
 function useOptionalMap(): MapContextValue | null {
@@ -42,7 +67,7 @@ function isUsableMapFile(bundle: CacheBundle): boolean {
   return Boolean(m?.grid && m.prior?.p && m.prior.p.length === m.grid.rows * m.grid.cols && m.steps);
 }
 
-export function HeatLayer() {
+export function HeatLayer({ variant = "search" }: { variant?: HeatVariant }) {
   const provided = useContext(CacheContext);
   const stored = useCache((s) => s.data);
   const status = useCache((s) => s.status);
@@ -68,37 +93,61 @@ export function HeatLayer() {
       </Overlay>
     );
   }
-  return <HeatOverlay bundle={bundle} mapCtx={mapCtx} />;
+  return <HeatOverlay bundle={bundle} mapCtx={mapCtx} variant={variant} />;
 }
 
 function Overlay({ children }: { children: ReactNode }) {
   return <div className="pointer-events-none absolute inset-0 z-10">{children}</div>;
 }
 
-function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapContextValue }) {
+/** The answer that changed between two histories (appended, or removed by undo), or null (reset, reload). */
+export function changedEntry(prev: readonly HistoryEntry[], next: readonly HistoryEntry[]): HistoryEntry | null {
+  if (next.length === prev.length + 1) return next.at(-1) ?? null;
+  if (next.length === prev.length - 1) return prev.at(-1) ?? null;
+  return null;
+}
+
+const pct2 = (x: number) => `${(x * 100).toFixed(2)}%`;
+
+function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx: MapContextValue; variant: HeatVariant }) {
   const { map, flyTo } = mapCtx;
+  const isSearch = variant === "search";
   const mapFile = bundle.map;
+  const grid = mapFile.grid;
   const bind = useSearch((s) => s.bind);
-  const boundMap = useSearch((s) => s.data?.map);
+  const data = useSearch((s) => s.data);
   const state = useSearch((s) => s.state);
   const stepIndex = useSearch((s) => s.stepIndex);
   const stepCount = useSearch((s) => s.stepCount);
   const setStepIndex = useSearch((s) => s.setStepIndex);
   const foundDetectionId = useSearch((s) => s.foundDetectionId);
+  const reduced = useMemo(() => prefersReducedMotion(), []);
 
   useEffect(() => {
     bind({ map: bundle.map, detections: bundle.detections });
-  }, [bind, bundle.map, bundle.detections]);
+    // Review happens after the whole flight: show every frame, whatever the replay was left at.
+    if (!isSearch) setStepIndex(bundle.map.steps.length);
+  }, [bind, bundle.map, bundle.detections, isSearch, setStepIndex]);
+
+  const frames = useMemo(
+    () => [...bundle.survey.frames].sort((a, b) => a.flight_index - b.flight_index),
+    [bundle.survey.frames],
+  );
+  // Frames in step order (map.json steps are in flight order; matched by id).
+  const stepFrames = useMemo(() => {
+    const byId = new Map(bundle.survey.frames.map((f) => [f.id, f]));
+    return mapFile.steps.flatMap((s) => {
+      const f = byId.get(s.frame_id);
+      return f ? [f] : [];
+    });
+  }, [bundle.survey.frames, mapFile.steps]);
 
   // Summed overlap of the first `stepIndex` frames: precomputed once per survey, then cheap per step.
   const overlapIndex = useMemo(
-    () =>
-      buildOverlapIndex(
-        frameOverlaps(mapFile.grid, bundle.survey.frames.map((f) => f.footprint)),
-        mapFile.grid.rows * mapFile.grid.cols,
-      ),
-    [mapFile.grid, bundle.survey.frames],
+    () => buildOverlapIndex(frameOverlaps(grid, bundle.survey.frames.map((f) => f.footprint)), grid.rows * grid.cols),
+    [grid, bundle.survey.frames],
   );
+  const firstStep = useMemo(() => firstPhotographedStep(overlapIndex), [overlapIndex]);
   const overlap = useMemo(() => overlapAtStep(overlapIndex, stepIndex), [overlapIndex, stepIndex]);
   const covered = useMemo(() => photographedCells(overlap), [overlap]);
   const history = useReview((s) => s.history);
@@ -107,59 +156,83 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
     [mapFile, bundle.detections, history],
   );
   const hasSurveyed = useMemo(() => covered.some((c) => c === 1), [covered]);
-  // The drone's position after each step, in step order (one point per applied frame).
-  const path = useMemo(() => {
-    const poses = new Map(bundle.survey.frames.map((f) => [f.id, [f.pose.lon, f.pose.lat] as [number, number]]));
-    return mapFile.steps.flatMap((s) => {
-      const at = poses.get(s.frame_id);
-      return at ? [at] : [];
-    });
-  }, [bundle.survey.frames, mapFile.steps]);
-  const stepRef = useRef(stepIndex);
-  stepRef.current = stepIndex;
-  const pathRef = useRef(path);
-  pathRef.current = path;
+  const path = useMemo(() => stepFrames.map((f) => [f.pose.lon, f.pose.lat] as [number, number]), [stepFrames]);
+  const ready = data?.map === mapFile && state !== null;
+
+  // Sectors (computed in the browser; see sectors.ts).
+  const sectorLayout = useMemo(() => buildSectors(grid, frames), [grid, frames]);
+  const statuses = useMemo(
+    () => (ready && state ? sectorStatuses(sectorLayout, state, covered) : []),
+    [ready, state, sectorLayout, covered],
+  );
+  const currentId = isSearch ? (currentSector(sectorLayout, stepIndex, stepCount)?.id ?? null) : null;
+  const [hoverId, setHoverId] = useState<string | null>(null);
+
+  // The Search next cells (same rule as the panel), ringed on the map.
+  const hotspots = useMemo(
+    () => (isSearch && ready && state ? topCellIndices(state.p, 5, eligibleCells(overlap, held)) : []),
+    [isSearch, ready, state, overlap, held],
+  );
+
+  // --- the raster ---------------------------------------------------------------------------
+  const palette = useMemo(() => paletteFromTokens(readRasterTokens()), []);
+  const raster = useMemo(() => new HeatRaster(grid), [grid]);
+  const pixels = useMemo(
+    () => (ready && state ? heatPixels(state, covered, held, palette) : null),
+    [ready, state, covered, held, palette],
+  );
+  const [building, setBuilding] = useState(false);
+
+  // The latest values, for the style-reload installer.
+  const latest = useRef({ covered, held, hotspots, statuses, currentId, hoverId });
+  latest.current = { covered, held, hotspots, statuses, currentId, hoverId };
   const [showPath, setShowPath] = useState(true);
   const showPathRef = useRef(showPath);
   showPathRef.current = showPath;
+  const droneRef = useRef<DroneState>({ s: stepIndex, bearing: pointAtStep(path, stepIndex)?.bearing ?? 0 });
+  const drawDroneRef = useRef<() => void>(() => {});
+  drawDroneRef.current = () => {
+    if (!map || !isSearch) return;
+    const d = droneRef.current;
+    const p = pointAtStep(path, d.s);
+    const frame = p ? stepFrames[p.frame] : undefined;
+    try {
+      pushDrone(map, p ? p.at : null, d.bearing, trailAtStep(path, d.s), frame ? frame.footprint : null);
+    } catch {
+      /* style reloading */
+    }
+  };
 
-  // What the map already shows per cell; NaN = unknown, push everything.
-  const lastRef = useRef<Float64Array>(new Float64Array(0));
-  const ready = boundMap === mapFile && state !== null;
-  // The Search next cells (same rule as the panel), ringed on the map.
-  const hotspots = useMemo(
-    () => (ready && state ? topCellIndices(state.p, 5, eligibleCells(overlap, held)) : []),
-    [ready, state, overlap, held],
-  );
-  const hotspotsRef = useRef(hotspots);
-  hotspotsRef.current = hotspots;
-  const stateRef = useRef(state);
-  stateRef.current = ready ? state : null;
-  const coveredRef = useRef(covered);
-  coveredRef.current = covered;
-  const heldRef = useRef(held);
-  heldRef.current = held;
+  useEffect(() => {
+    if (!map) return undefined;
+    raster.setOnDraw((playing) => {
+      try {
+        refreshHeatSource(map, playing);
+      } catch {
+        /* style reloading; install() pushes again */
+      }
+    });
+    return () => raster.stop();
+  }, [map, raster]);
 
   // Install the layers once the style is ready, and again whenever a style reload drops them.
   useEffect(() => {
     if (!map) return undefined;
-    const n = mapFile.grid.rows * mapFile.grid.cols;
-    lastRef.current = new Float64Array(n).fill(Number.NaN);
     const install = () => {
       try {
-        const added = ensureHeatLayers(
-          map,
-          cellFeaturesFor(mapFile.grid),
-          mapFile.grid,
-          coveredRef.current,
-          readHeatColors(),
-        );
-        if (added) lastRef.current = new Float64Array(n).fill(Number.NaN);
-        const current = stateRef.current;
-        if (current) pushHeatState(map, current, lastRef.current, coveredRef.current, heldRef.current);
-        pushReplay(map, pathRef.current, stepRef.current);
-        setFlightPathVisible(map, showPathRef.current);
-        pushHotspots(map, mapFile.grid, hotspotsRef.current);
+        const colors = readHeatColors();
+        const now = latest.current;
+        ensureHeatLayers(map, raster, grid, now.covered, colors, variant);
+        if (isSearch) ensureDroneImage(map, colors.outline);
+        refreshHeatSource(map, raster.animating);
+        setHeldBoundary(map, grid, now.covered, now.held);
+        pushSectors(map, grid, now.statuses, now.currentId, now.hoverId);
+        if (isSearch) {
+          setSurveyedBoundary(map, grid, now.covered);
+          setFlightPathVisible(map, showPathRef.current);
+          pushHotspots(map, grid, now.hotspots);
+          drawDroneRef.current();
+        }
       } catch {
         // Style not ready yet; the next 'styledata' or 'load' event tries again.
       }
@@ -174,61 +247,163 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
       map.off("load", install);
       map.off("styledata", onStyleData);
     };
-  }, [map, mapFile]);
+  }, [map, raster, grid, variant, isSearch]);
 
-  // Recolour via feature state when the derived state changes. Never touches the GeoJSON.
+  // Recolour: build up on first show (Search next), tween after an answer, jump when scrubbing.
+  const shownOnce = useRef(false);
+  const prevHistory = useRef(history);
+  const prevStep = useRef(stepIndex);
   useEffect(() => {
-    if (!map || !ready || !state) return;
-    try {
-      if (map.getSource(HEAT_SOURCE_ID)) pushHeatState(map, state, lastRef.current, covered, held);
-    } catch {
-      /* style reloading; install() pushes again */
+    if (!pixels || !state) return;
+    const historyChanged = prevHistory.current !== history;
+    const stepChanged = prevStep.current !== stepIndex;
+    prevHistory.current = history;
+    prevStep.current = stepIndex;
+    if (!shownOnce.current) {
+      shownOnce.current = true;
+      if (reduced) {
+        raster.show(pixels);
+      } else if (isSearch) {
+        // Cells sweep in from "not yet searched" in the order the flight photographed them.
+        const from = heatPixels(state, new Uint8Array(covered.length), held, palette);
+        setBuilding(true);
+        raster.animate(pixels, { durationMs: BUILD_UP_MS, delays: sweepDelays(firstStep, stepCount), fade: BUILD_UP_FADE }, from);
+      } else {
+        raster.animate(pixels, { durationMs: ANSWER_TWEEN_MS }, new Uint8ClampedArray(pixels.length));
+      }
+      return;
     }
-  }, [map, ready, state, covered, held]);
+    setBuilding(false);
+    if (historyChanged && !stepChanged && !reduced) raster.animate(pixels, { durationMs: ANSWER_TWEEN_MS });
+    else raster.show(pixels);
+    // Only a new picture starts an animation; the refs above say why it changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pixels]);
 
-  // The outline follows the photographed cells (small GeoJSON, 2,500 cells at most).
+  // The build-up ends by itself; any interaction with the map finishes it at once.
+  useEffect(() => {
+    if (!building) return undefined;
+    const end = window.setTimeout(() => setBuilding(false), BUILD_UP_MS + 50);
+    const skip = () => {
+      raster.finish();
+      setBuilding(false);
+    };
+    const events = ["mousedown", "wheel", "touchstart"] as const;
+    for (const e of events) map?.on?.(e, skip);
+    window.addEventListener("keydown", skip);
+    return () => {
+      window.clearTimeout(end);
+      for (const e of events) map?.off?.(e, skip);
+      window.removeEventListener("keydown", skip);
+    };
+  }, [building, map, raster]);
+
+  // A ripple at the pin that was just answered (or undone).
+  useEffect(() => {
+    return useReview.subscribe((next, prev) => {
+      if (!map || next.history === prev.history || reduced) return;
+      const entry = changedEntry(prev.history, next.history);
+      const detection = entry ? detectionById(bundle.detections, entry.detectionId) : undefined;
+      if (!entry || !detection) return;
+      const colors = readHeatColors();
+      const undone = next.history.length < prev.history.length;
+      const color = undone
+        ? colors.outline
+        : entry.answer === "person"
+          ? colors.ok
+          : entry.answer === "unsure"
+            ? colors.review
+            : colors.outline;
+      try {
+        pushRipple(map, [detection.lon, detection.lat], color);
+      } catch {
+        return;
+      }
+      const start = performance.now();
+      const tick = (now: number) => {
+        const t = (now - start) / RIPPLE_MS;
+        try {
+          setRippleFrame(map, t);
+          if (t < 1) requestAnimationFrame(tick);
+          else pushRipple(map, null, color);
+        } catch {
+          /* map gone */
+        }
+      };
+      requestAnimationFrame(tick);
+    });
+  }, [map, bundle.detections, reduced]);
+
   useEffect(() => {
     if (!map) return;
     try {
-      setSurveyedBoundary(map, mapFile.grid, covered);
+      setHeldBoundary(map, grid, covered, held);
+    } catch {
+      /* style reloading */
+    }
+  }, [map, grid, covered, held]);
+
+  // The outline follows the photographed cells.
+  useEffect(() => {
+    if (!map || !isSearch) return;
+    try {
+      setSurveyedBoundary(map, grid, covered);
     } catch {
       /* style reloading; install() draws it */
     }
-  }, [map, mapFile.grid, covered]);
+  }, [map, grid, covered, isSearch]);
+
+  useEffect(() => {
+    if (!map) return;
+    try {
+      pushSectors(map, grid, statuses, currentId, hoverId);
+    } catch {
+      /* style reloading */
+    }
+  }, [map, grid, statuses, currentId, hoverId]);
 
   // The legend switch; re-applied by install() after a basemap switch rebuilds lane B's layers.
   useEffect(() => {
-    if (!map) return;
+    if (!map || !isSearch) return;
     try {
       setFlightPathVisible(map, showPath);
     } catch {
       /* style reloading; install() applies it again */
     }
-  }, [map, showPath]);
+  }, [map, showPath, isSearch]);
 
-  // Move the drone and its trail with the replay slider.
+  // The drone glides towards the slider's step and turns smoothly; it jumps with reduced motion.
   useEffect(() => {
-    if (!map) return;
-    try {
-      pushReplay(map, path, stepIndex);
-    } catch {
-      /* style reloading; install() pushes again */
-    }
-  }, [map, path, stepIndex]);
+    if (!map || !isSearch) return undefined;
+    let frame = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(64, Math.max(0, now - last));
+      last = now;
+      const next = stepDrone(droneRef.current, path, stepIndex, dt, reduced);
+      droneRef.current = next;
+      drawDroneRef.current();
+      const heading = pointAtStep(path, next.s)?.bearing ?? next.bearing;
+      const settled = next.s === stepIndex && Math.abs(lerpAngle(next.bearing, heading, 1) - next.bearing) < 0.5;
+      if (!settled && !reduced) frame = requestAnimationFrame(tick);
+    };
+    tick(performance.now());
+    return () => cancelAnimationFrame(frame);
+  }, [map, isSearch, path, stepIndex, reduced]);
 
   useEffect(() => {
-    if (!map) return;
+    if (!map || !isSearch) return;
     try {
-      pushHotspots(map, mapFile.grid, hotspots);
+      pushHotspots(map, grid, hotspots);
     } catch {
       /* style reloading; the next push redraws it */
     }
-  }, [map, mapFile.grid, hotspots]);
+  }, [map, grid, hotspots, isSearch]);
 
-  // Breathing: a slow, small pulse of the heat and the hotspots. Off for reduced motion, paused
-  // while the tab is hidden, about 20 updates a second.
+  // Breathing: a slow, small pulse of the heat and the hotspots (Search next only). Off for reduced
+  // motion, paused while the tab is hidden, about 20 updates a second; only raster-opacity changes.
   useEffect(() => {
-    if (!map || prefersReducedMotion()) return undefined;
+    if (!map || !isSearch || reduced) return undefined;
     let frame = 0;
     let last = 0;
     const tick = (now: number) => {
@@ -236,7 +411,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
       if (document.hidden || now - last < 50) return;
       last = now;
       try {
-        setBreath(map, breathFactor(now));
+        setBreath(map, breathFactor(now), HEAT_BASE_OPACITY.search);
       } catch {
         /* style reloading */
       }
@@ -245,40 +420,125 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
     return () => {
       cancelAnimationFrame(frame);
       try {
-        setBreath(map, 1);
+        setBreath(map, 1, HEAT_BASE_OPACITY.search);
       } catch {
         /* map gone */
       }
     };
-  }, [map]);
+  }, [map, isSearch, reduced]);
 
-  const foundDetection = foundDetectionId ? detectionById(bundle.detections, foundDetectionId) : undefined;
+  const shares = useMemo(() => (ready && state ? probabilityShares(state, covered) : null), [ready, state, covered]);
+  // Before any review answer: the same step with no answers (from the store's own inputs).
+  const baseShares = useMemo(
+    () => (ready && data ? probabilityShares(stateAtStep(data.map, stepIndex), covered) : null),
+    [ready, data, stepIndex, covered],
+  );
+  // Every detection whose latest answer is "Person", newest first.
+  const finds = useMemo(
+    () =>
+      foundDetectionId
+        ? effectiveAnswers(history)
+            .filter((e) => e.answer === "person")
+            .reverse()
+            .flatMap((e) => {
+              const d = detectionById(bundle.detections, e.detectionId);
+              return d ? [d] : [];
+            })
+        : [],
+    [foundDetectionId, history, bundle.detections],
+  );
+  const flyToSector = (sectorId: string) => {
+    const s = sectorLayout.sectors.find((x) => x.id === sectorId);
+    if (!s || !map) return;
+    try {
+      map.fitBounds(sectorBounds(grid, s), { padding: 64, duration: reduced ? 0 : 800 });
+    } catch {
+      /* map gone */
+    }
+  };
+
+  if (!isSearch) {
+    const answered = shares !== null && baseShares !== null && Math.abs(baseShares.surveyed - shares.surveyed) > 1e-12;
+    return (
+      <Overlay>
+        <Panel className="sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]">
+          <div className="flex flex-col gap-3">
+            {shares && baseShares ? (
+              <div className="flex flex-col gap-1" aria-live="polite">
+                <span className="text-small text-text-2">Probability on photographed ground</span>
+                <span className="font-mono text-body text-text" data-testid="review-readout">
+                  {answered
+                    ? `${pct2(baseShares.surveyed)} → ${pct2(shares.surveyed)}`
+                    : pct2(shares.surveyed)}
+                </span>
+                <span className="text-label text-text-3">
+                  {answered ? "Before review → now. " : ""}Each &ldquo;Not a person&rdquo; lowers it around that pin.
+                </span>
+              </div>
+            ) : (
+              <span className="text-small text-text-2" role="status">
+                Computing search map…
+              </span>
+            )}
+            <Legend
+              compact
+              simulatedPath={bundle.survey.simulated_path}
+              params={mapFile.params}
+              manifest={bundle.manifest}
+              hasSurveyed={hasSurveyed}
+            />
+          </div>
+        </Panel>
+      </Overlay>
+    );
+  }
 
   return (
     <Overlay>
-      <Panel className="sl-rise pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-6.5rem)] w-72 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]">
+      <Panel className="sl-rise pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]">
         {/* In the side panel rather than over the map, so it never hides the grid. */}
-        {foundDetection && (
+        {finds.length > 0 && (
           <div className="mb-4 border-b border-border pb-4">
-            <FoundBanner detection={foundDetection} />
+            <FoundBanner
+              finds={finds}
+              simulatedRadius={bundle.survey.simulated_path}
+              onFlyTo={(f) => flyTo(f.lon, f.lat, 18)}
+            />
           </div>
         )}
-        {ready && state ? (
-          <NextSearch
-            map={mapFile}
-            state={state}
-            covered={covered}
-            overlap={overlap}
-            held={held}
-            onSelect={(lon, lat) => flyTo(lon, lat, 17)}
-          />
+        {ready && state && shares ? (
+          <div className="flex flex-col gap-5">
+            <SectorList
+              statuses={statuses}
+              outside={shares.outside}
+              currentId={currentId}
+              hoverId={hoverId}
+              onHover={setHoverId}
+              onSelect={(s) => flyToSector(s.id)}
+              layout={sectorLayout.kind}
+            />
+            <div className="border-t border-border pt-4">
+              <NextSearch
+                map={mapFile}
+                state={state}
+                covered={covered}
+                overlap={overlap}
+                held={held}
+                found={finds.length > 0}
+                onSelect={(lon, lat) => flyTo(lon, lat, 18)}
+              />
+            </div>
+          </div>
         ) : (
           <span className="text-small text-text-2" role="status">
             Computing search map…
           </span>
         )}
       </Panel>
-      <Panel className="sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]" style={{ animationDelay: "80ms" }}>
+      <Panel
+        className="sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]"
+        style={{ animationDelay: "80ms" }}
+      >
         <Legend
           simulatedPath={bundle.survey.simulated_path}
           params={mapFile.params}
@@ -289,9 +549,23 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
         />
       </Panel>
       {stepCount > 0 && (
-        <Panel className="pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-36rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]">
+        <Panel className="pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-38rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]">
           <StepSlider value={stepIndex} max={stepCount} onChange={setStepIndex} />
         </Panel>
+      )}
+      {building && (
+        <div className="pointer-events-auto absolute left-1/2 top-3 -translate-x-1/2">
+          <button
+            type="button"
+            onClick={() => {
+              raster.finish();
+              setBuilding(false);
+            }}
+            className="sl-toast rounded-full border border-border bg-bg/85 px-4 py-1.5 text-small text-text-2 backdrop-blur hover:text-text"
+          >
+            Building the map along the flight… <span className="text-text">Skip</span>
+          </button>
+        </div>
       )}
     </Overlay>
   );
