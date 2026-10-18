@@ -152,9 +152,9 @@ export function Shell({ cache }: { cache: CacheBundle }) {
           {step === "search" && (
             <>
               <p className="rounded-full border border-border bg-surface px-4 py-2 text-small text-text-2">
-                <span className="text-text">Where the person could still be.</span> Ground the drone saw
-                clearly fades; forest it couldn&apos;t see into stays bright. Your &quot;Not a person&quot;
-                answers update it live. Drag the slider to replay the flight.
+                <span className="text-text">Where the person could still be.</span> Orange is more likely, on
+                ground the drone photographed. Grey was never photographed, so it is still unsearched. Press
+                play to watch the flight: ground the drone saw clearly fades.
               </p>
               <div className="min-h-0 flex-1">{map(true)}</div>
             </>
