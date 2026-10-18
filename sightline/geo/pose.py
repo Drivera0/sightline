@@ -49,9 +49,7 @@ def read_pose(image: Path) -> RealPoseInfo | None:
     lon = _gps_decimal(gps, 4, 3)
     f35_mm = _as_float(exif_details.get(41989, exif.get(41989)))
     camera_model_value = exif.get(272)
-    camera_model = (
-        str(camera_model_value).strip("\x00 ") if camera_model_value else None
-    )
+    camera_model = str(camera_model_value).strip("\x00 ") if camera_model_value else None
 
     raw = image.read_bytes()
     relative_altitude_m = _xmp_number(raw, "RelativeAltitude")
