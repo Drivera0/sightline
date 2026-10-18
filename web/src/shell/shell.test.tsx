@@ -203,7 +203,7 @@ describe("Shell review step", () => {
   it("shows the candidate list from the cache", async () => {
     render(<Shell cache={await sample()} />);
     await userEvent.keyboard("3");
-    expect(within(screen.getByRole("list", { name: "Candidates" })).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(screen.getByRole("listbox", { name: "Candidates" })).getAllByRole("option")).toHaveLength(3);
     await userEvent.keyboard("1");
   });
 });
