@@ -142,8 +142,9 @@ Status: implemented and run with weights-v2 at threshold 0.29.
 | `measure_pin_errors(detections, truth, pose, threshold)` | Greedily matches VOC true positives and converts box-centre offsets into metres. | `PinErrorSummary` |
 | `summarize_pin_errors(errors_m)` | Computes mean, median, p90, and maximum without inventing values for empty input. | `PinErrorSummary` |
 
-Across all 28 nadir images, 61 strict true-positive matches gave a median
-label-relative offset of 0.037 m and a p90 of 0.079 m. These values do not
+Across all 28 nadir images, 92 strict true-positive matches gave a median
+label-relative offset of 0.046 m and a p90 of 0.126 m (on the corrected test labels). The
+real-position cache reports this offset but uses the standard 10 m radius for its pins. These values do not
 include absolute EXIF GPS, altitude, or terrain error; see
 `docs/LANE_B_GEO.md` before quoting them.
 

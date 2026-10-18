@@ -133,15 +133,20 @@ Results:
 |---|---:|
 | Nadir photos evaluated | 28 |
 | Labelled people in those photos | 101 |
-| Strict true-positive matches measured | 61 |
-| Mean centre offset | 0.045 m |
-| Median centre offset | 0.037 m |
-| 90th-percentile centre offset | **0.079 m** |
-| Maximum centre offset | 0.262 m |
+| Strict true-positive matches measured | 92 |
+| Mean centre offset | 0.065 m |
+| Median centre offset | 0.046 m |
+| 90th-percentile centre offset | **0.126 m** |
+| Maximum centre offset | 0.337 m |
 
-The real-position cache uses the measured 0.079 m p90 value for its detection
-circles. The UI calls it a “measured label-relative offset,” not an unqualified
-GPS accuracy number.
+Measured 2026-10-18 on the corrected test labels (lane A's MED label fix; the first run,
+on squashed labels, matched 61 people with a p90 of 0.079 m).
+
+The real-position cache does **not** use this offset as its detection radius. It is only the
+detector-box part of the position error after projection: it leaves out the absolute EXIF GPS,
+altitude and terrain error, so as a radius it would claim centimetre accuracy we have not shown
+(the found banner would read "±0.13 m"). Pins use the same standard 10 m position radius as the
+demo (`SIMULATED_RADIUS_M`), and the measured offset is reported in the cache notes.
 
 ### Accuracy limitation judges should hear
 

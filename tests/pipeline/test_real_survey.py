@@ -9,6 +9,7 @@ import pytest
 from PIL import Image
 
 from sightline.contract import Pose, Survey
+from sightline.geo.detections import SIMULATED_RADIUS_M
 from sightline.geo.pose import RealPoseInfo
 from sightline.ml.types import Box, RawDetection
 from sightline.pipeline.export import validate_cache
@@ -80,3 +81,8 @@ def test_build_real_position_survey_uses_pipeline_export(tmp_path: Path) -> None
     manifest = json.loads((out / "manifest.json").read_text())
     assert "recorded EXIF positions" in manifest["notes"]
     assert "not absolute surveyed GPS error" in manifest["notes"]
+    # Pins use the standard radius; the tiny measured box offset is reported, never used as one.
+    detections = json.loads((out / "detections.json").read_text())
+    radii = {d["radius_m"] for frame in detections["frames"].values() for d in frame}
+    assert radii <= {SIMULATED_RADIUS_M}
+    assert detections["model"] == "yolo11s-heridal-tiled-run2"

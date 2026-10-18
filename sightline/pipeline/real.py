@@ -12,6 +12,7 @@ from typing import Protocol
 from PIL import Image
 
 from sightline.contract import LatLon, Pose
+from sightline.geo.detections import SIMULATED_RADIUS_M
 from sightline.geo.pose import RealPoseInfo, read_pose
 from sightline.geo.position_error import PinErrorSummary, measure_pin_errors, summarize_pin_errors
 from sightline.geo.project import footprint, pixel_to_latlon
@@ -73,7 +74,7 @@ def build_real_position_survey(
     out: Path,
     web_out: Path | None = None,
     candidate_threshold: float = 0.29,
-    model_name: str = "yolo11s-heridal-tiled",
+    model_name: str = "yolo11s-heridal-tiled-run2",
     max_site_separation_m: float = 500.0,
     pose_reader: Callable[[Path], RealPoseInfo | None] = read_pose,
     detector_factory: Callable[[Path], TiledDetector] = Detector,
@@ -131,7 +132,10 @@ def build_real_position_survey(
         weights,
         candidate_threshold,
         model_name,
-        pin_error.p90_m,
+        # Pins use the standard position radius, as in the demo. The measured offset below is only
+        # the detector-box part of the error (no EXIF GPS, altitude or terrain error), far too small
+        # to stand for where the person actually is, so it is reported, not used as a radius.
+        SIMULATED_RADIUS_M,
     )
     ctx = Context(
         data=data,
@@ -153,9 +157,10 @@ def build_real_position_survey(
         extra_notes=(
             (
                 f"Largest coherent metadata cluster: {len(site)} photos. "
-                f"Detection radius is the {pin_error.p90_m:.3f} m p90 label-relative box-centre "
-                f"offset over {pin_error.n_matches} strict VOC matches; it is not absolute "
-                "surveyed GPS error."
+                f"Pins use the standard {SIMULATED_RADIUS_M:g} m position radius. The measured "
+                f"p90 label-relative box-centre offset is {pin_error.p90_m:.3f} m over "
+                f"{pin_error.n_matches} strict VOC matches; it is one component of the error, "
+                "not absolute surveyed GPS error."
             ),
         ),
     )
