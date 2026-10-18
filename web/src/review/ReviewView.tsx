@@ -51,12 +51,33 @@ function nextUnreviewed(
   return undefined;
 }
 
-function FrameWithBox({ src, alt, box, testId }: { src: string; alt: string; box: number[]; testId: string }) {
+function FrameWithBox({
+  src,
+  alt,
+  box,
+  testId,
+  width = 1000,
+  height = 750,
+}: {
+  src: string;
+  alt: string;
+  box: number[];
+  testId: string;
+  /** The photo's pixel size, so the box lands where the detector put it (not every survey is 1000x750). */
+  width?: number;
+  height?: number;
+}) {
   const [x1, y1, x2, y2] = box as [number, number, number, number];
+  // At least ~8% of the photo across, so a 15 px person is still findable in a thumbnail.
+  const pad = Math.max(width * 0.04, (x2 - x1) * 0.6);
+  const ring = { x: x1 - pad, y: y1 - pad, width: x2 - x1 + 2 * pad, height: y2 - y1 + 2 * pad, rx: pad };
   return (
-    <div className="relative w-full">
-      <img src={src} alt={alt} className="block w-full rounded-sm" />
-      <svg viewBox="0 0 1000 750" className="absolute inset-0 h-full w-full" aria-hidden="true">
+    <div className="relative w-full overflow-hidden rounded-sm">
+      <img src={src} alt={alt} className="block w-full" />
+      <svg viewBox={`0 0 ${width} ${height}`} className="absolute inset-0 h-full w-full" aria-hidden="true">
+        {/* A soft ring so the box is easy to find in a small photo, then the box itself. */}
+        <rect {...ring} fill="none" stroke="black" strokeOpacity={0.5} strokeWidth={Math.max(4, width / 160)} />
+        <rect {...ring} fill="none" stroke="var(--accent)" strokeOpacity={0.9} strokeWidth={Math.max(2, width / 400)} />
         <rect
           data-testid={testId}
           x={x1}
@@ -65,7 +86,7 @@ function FrameWithBox({ src, alt, box, testId }: { src: string; alt: string; box
           height={y2 - y1}
           fill="none"
           stroke="var(--accent)"
-          strokeWidth={4}
+          strokeWidth={Math.max(3, width / 250)}
         />
       </svg>
     </div>
@@ -288,7 +309,145 @@ export function ReviewView({
           </ul>
         </Panel>
 
-        {current && (
+        {current && compact && (
+          <Panel className="relative flex min-h-0 flex-col gap-4 overflow-hidden">
+            <div className="flex items-center justify-between gap-3">
+              <Label>
+                Candidate {currentIndex + 1} of {items.length}
+              </Label>
+              <span className={`inline-flex items-center gap-1.5 text-label ${STATUS[answers[current.id] ?? "unreviewed"].className}`}>
+                <span aria-hidden="true" className={`size-1.5 rounded-full ${STATUS[answers[current.id] ?? "unreviewed"].dot}`} />
+                {STATUS[answers[current.id] ?? "unreviewed"].label}
+              </span>
+            </div>
+
+            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_16rem] gap-5">
+              {/* The crop, as large as the panel allows up to 1.5x its 256 px (any larger just blurs). */}
+              <div className="flex min-h-0 min-w-0 items-center justify-center p-2">
+                {current.detection.crop && (
+                  <div key={current.id} className="sl-pop relative aspect-square max-h-full w-full max-w-[24rem]">
+                    <img
+                      src={cacheUrl(folder, current.detection.crop)}
+                      alt={`Crop of detection ${current.id}`}
+                      className="h-full w-full rounded-md object-cover shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]"
+                    />
+                    <Viewfinder />
+                  </div>
+                )}
+              </div>
+
+              {/* Where it sits, and the facts a searcher weighs. */}
+              <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+                <div className="flex flex-col gap-2">
+                  <Label>In the photo</Label>
+                  <button
+                    type="button"
+                    onClick={() => setFullFrame(true)}
+                    className="block rounded-sm ring-1 ring-border transition-shadow hover:ring-accent/60"
+                    title="Open the full frame (Enter)"
+                  >
+                    <FrameWithBox
+                      src={cacheUrl(folder, current.frame.file)}
+                      alt={`Frame ${current.frame.id} with the candidate boxed`}
+                      box={current.detection.box_px}
+                      testId="frame-context-box"
+                      width={current.frame.width_px}
+                      height={current.frame.height_px}
+                    />
+                  </button>
+                </div>
+                <dl className="flex flex-col gap-3 text-small">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-baseline justify-between">
+                      <dt className="text-text-3">Detector confidence</dt>
+                      <dd className="font-mono text-text">{current.detection.conf.toFixed(2)}</dd>
+                    </div>
+                    <div className="relative h-1.5 rounded-full bg-surface-strong">
+                      <span
+                        className="absolute inset-y-0 left-0 rounded-full bg-accent transition-[width] duration-300"
+                        style={{ width: `${Math.round(current.detection.conf * 100)}%` }}
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="absolute -inset-y-1 w-px bg-text-2"
+                        style={{ left: `${cache.detections.candidate_threshold * 100}%` }}
+                        title={`Flag threshold ${cache.detections.candidate_threshold}`}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <dt className="text-text-3">Photo rank</dt>
+                    <dd className="font-mono text-text">
+                      {current.frame.rank} of {cache.survey.frames.length}
+                    </dd>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <dt className="text-text-3">Position</dt>
+                    <dd className="font-mono text-text-2">
+                      {current.detection.lat.toFixed(5)}, {current.detection.lon.toFixed(5)}
+                    </dd>
+                    <dd className="text-label text-text-3">
+                      ±{current.detection.radius_m} m{cache.survey.simulated_path ? " · simulated flight path" : ""}
+                    </dd>
+                  </div>
+                </dl>
+                <p data-testid="detail" className="mt-auto font-mono text-label text-text-3">
+                  Frame {current.frame.id} · Rank {current.frame.rank} · Confidence {current.detection.conf.toFixed(3)}
+                </p>
+              </div>
+            </div>
+
+            <section aria-label="Review keys" className="flex flex-col gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                {DECISIONS.map(([value, label, key, tone]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => answer(value)}
+                    aria-pressed={answers[current.id] === value}
+                    className={
+                      "inline-flex h-12 items-center justify-center gap-2.5 rounded-full border text-title transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +
+                      tone +
+                      (answers[current.id] === value ? " bg-surface-strong" : "")
+                    }
+                  >
+                    {label} <KeyHint>{key}</KeyHint>
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-1 text-small text-text-3">
+                <button type="button" onClick={undo} className={secondary}>
+                  Undo <KeyHint>Z</KeyHint>
+                </button>
+                <button type="button" onClick={() => setFullFrame(true)} className={secondary}>
+                  Full frame <KeyHint>Enter</KeyHint>
+                </button>
+                <button type="button" onClick={showOnMap} className={secondary}>
+                  Where to search next <KeyHint>M</KeyHint>
+                </button>
+                <span className="inline-flex items-center gap-1.5 px-3">
+                  <KeyHint>J</KeyHint>
+                  <KeyHint>K</KeyHint> next / previous
+                </span>
+              </div>
+            </section>
+
+            {lastDecision && (
+              <p
+                key={lastDecision.n}
+                role="status"
+                className="sl-toast pointer-events-none absolute left-1/2 top-12 rounded-full border border-border bg-bg/90 px-4 py-1.5 text-small text-text-2 backdrop-blur"
+              >
+                {lastDecision.frameId} marked{" "}
+                <span className={STATUS[lastDecision.value].className}>
+                  {STATUS[lastDecision.value].label.toLowerCase()}
+                </span>
+              </p>
+            )}
+          </Panel>
+        )}
+
+        {current && !compact && (
           <Panel className="relative flex min-h-0 flex-col gap-5 overflow-y-auto">
             <div className="flex items-center justify-between gap-3">
               <Label>
@@ -380,6 +539,8 @@ export function ReviewView({
               alt={`Frame ${current.frame.id}`}
               box={current.detection.box_px}
               testId="frame-box"
+              width={current.frame.width_px}
+              height={current.frame.height_px}
             />
             <div className="flex flex-wrap gap-2 text-small text-text-2">
               <button type="button" onClick={undo} className="inline-flex items-center gap-2 hover:text-text">
@@ -417,6 +578,8 @@ export function ReviewView({
               alt={`Full frame ${current.frame.id}`}
               box={current.detection.box_px}
               testId="frame-box-large"
+              width={current.frame.width_px}
+              height={current.frame.height_px}
             />
           </Panel>
         </div>

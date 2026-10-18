@@ -15,15 +15,6 @@ import { ShortcutOverlay } from "./ShortcutOverlay";
 import { StepBar } from "./StepBar";
 import { SurveyIntro } from "./SurveyIntro";
 
-const REVIEW_KEYS: [string, string][] = [
-  ["P", "Person"],
-  ["N", "Not a person"],
-  ["U", "Unsure"],
-  ["Z", "Undo"],
-  ["J / K", "Next / previous"],
-  ["Enter", "Full frame"],
-];
-
 export interface SurveyOption {
   dir: string;
   label: string;
@@ -203,18 +194,13 @@ export function Shell({
 
           {step === "review" && (
             <>
-              <section
-                aria-label="Review keys"
-                className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-full border border-border bg-surface px-4 py-2 text-small text-text-2"
-              >
-                <span className="text-text">Is this a person? Confirmed people are pinned on the map.</span>
-                {REVIEW_KEYS.map(([key, label]) => (
-                  <span key={key} className="inline-flex items-center gap-1.5">
-                    <KeyHint>{key}</KeyHint>
-                    <span>{label}</span>
-                  </span>
-                ))}
-              </section>
+              <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-full border border-border bg-surface px-4 py-2 text-small text-text-2">
+                <span className="text-text">Is this a person?</span>
+                <span>
+                  Confirmed people are pinned on the map; &ldquo;Not a person&rdquo; tells the search map the
+                  drone looked there.
+                </span>
+              </p>
               <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
                 <ScreenBoundary name="Review">
                   <ReviewView cache={cache} onShowMap={() => setStep("search")} compact />

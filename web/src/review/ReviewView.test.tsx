@@ -264,6 +264,10 @@ describe("ReviewView compact layout", () => {
     render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
     expect(screen.getByRole("list", { name: "Candidates" })).toBeInTheDocument();
     expect(screen.queryByTestId("frame-box")).toBeNull();
+    // Instead, the frame sits beside the crop as context, with the candidate boxed where the detector put it.
+    const context = screen.getByTestId("frame-context-box");
+    expect(context).toHaveAttribute("x", "512");
+    expect(screen.getByRole("region", { name: "Review keys" })).toBeInTheDocument();
     await userEvent.keyboard("{Enter}");
     expect(screen.getByRole("dialog", { name: "Full frame" })).toBeInTheDocument();
   });
