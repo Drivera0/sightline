@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "note": "Hand labels: fraction of each crop that is tree canopy or deep shadow, scored by eye as 0, 0.25, 0.5, 0.75 or 1. Fill in canopy; null = not labelled yet. Crops from HERIDAL test images (CC BY 3.0).",
+  "frames": [
+    {
+      "id": "c01",
+      "image": "data/heridal/yolo_full/test/images/test_TRS_0006.jpg",
+      "x0": 3000,
+      "y0": 2250,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c02",
+      "image": "data/heridal/yolo_full/test/images/test_ZRI_0006.jpg",
+      "x0": 0,
+      "y0": 1500,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c03",
+      "image": "data/heridal/yolo_full/test/images/test_ZRI_0001.jpg",
+      "x0": 0,
+      "y0": 1500,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c04",
+      "image": "data/heridal/yolo_full/test/images/test_BRA_0005.jpg",
+      "x0": 3000,
+      "y0": 1500,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c05",
+      "image": "data/heridal/yolo_full/test/images/test_BRS_0007.jpg",
+      "x0": 0,
+      "y0": 2250,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c06",
+      "image": "data/heridal/yolo_full/test/images/test_SB_0001.jpg",
+      "x0": 0,
+      "y0": 2250,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c07",
+      "image": "data/heridal/yolo_full/test/images/test_BRK_0009.jpg",
+      "x0": 0,
+      "y0": 0,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c08",
+      "image": "data/heridal/yolo_full/test/images/test_SB_0007.jpg",
+      "x0": 2000,
+      "y0": 2250,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c09",
+      "image": "data/heridal/yolo_full/test/images/test_SB_0005.jpg",
+      "x0": 3000,
+      "y0": 0,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c10",
+      "image": "data/heridal/yolo_full/test/images/test_BRA_0004.jpg",
+      "x0": 0,
+      "y0": 2250,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c11",
+      "image": "data/heridal/yolo_full/test/images/test_ZRI_0005.jpg",
+      "x0": 2000,
+      "y0": 750,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c12",
+      "image": "data/heridal/yolo_full/test/images/test_BRS_0008.jpg",
+      "x0": 3000,
+      "y0": 0,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c13",
+      "image": "data/heridal/yolo_full/test/images/test_CAP_0004.jpg",
+      "x0": 0,
+      "y0": 2250,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c14",
+      "image": "data/heridal/yolo_full/test/images/test_CAP_0005.jpg",
+      "x0": 0,
+      "y0": 0,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c15",
+      "image": "data/heridal/yolo_full/test/images/test_CAB_0003.jpg",
+      "x0": 1000,
+      "y0": 2250,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c16",
+      "image": "data/heridal/yolo_full/test/images/test_BRS_0002.jpg",
+      "x0": 2000,
+      "y0": 1500,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c17",
+      "image": "data/heridal/yolo_full/test/images/test_CAB_0007.jpg",
+      "x0": 3000,
+      "y0": 2250,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c18",
+      "image": "data/heridal/yolo_full/test/images/test_BRK_0009.jpg",
+      "x0": 3000,
+      "y0": 0,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c19",
+      "image": "data/heridal/yolo_full/test/images/test_GRO_0008.jpg",
+      "x0": 3000,
+      "y0": 0,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    },
+    {
+      "id": "c20",
+      "image": "data/heridal/yolo_full/test/images/test_BRA_0009.jpg",
+      "x0": 3000,
+      "y0": 2250,
+      "width_px": 1000,
+      "height_px": 750,
+      "canopy": null
+    }
+  ]
+}
