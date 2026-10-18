@@ -78,6 +78,13 @@ def tile_one(
 
 def tile_split(name: str, src: Path, out: Path, args: argparse.Namespace) -> dict[str, int]:
     images = sorted((src / name / "images").glob("*.jpg"))
+    if args.skip_unlabelled:
+        # HERIDAL's Zenodo copy has ~560 trainval photos with an empty annotation stub; some show
+        # people nobody labelled, so their "empty" tiles would teach the model people are background.
+        labels_dir = src / name / "labels"
+        images = [
+            i for i in images if (labels_dir / f"{i.stem}.txt").read_text(encoding="utf-8").strip()
+        ]
     out_images, out_labels = out / name / "images", out / name / "labels"
     out_images.mkdir(parents=True, exist_ok=True)
     out_labels.mkdir(parents=True, exist_ok=True)
@@ -134,6 +141,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--workers", type=int, default=None, help="default: CPU count")
     ap.add_argument("--quality", type=int, default=95, help="JPEG quality for tiles")
+    ap.add_argument(
+        "--keep-unlabelled",
+        dest="skip_unlabelled",
+        action="store_false",
+        help="also tile photos whose annotation is empty (off by default; see docstring)",
+    )
     args = ap.parse_args(argv)
 
     for name in SPLITS:
@@ -152,6 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         "empty_keep_frac": args.empty_frac,
         "seed": args.seed,
         "jpeg_quality": args.quality,
+        "skip_unlabelled": args.skip_unlabelled,
         "splits": {name: tile_split(name, args.src, args.out, args) for name in SPLITS},
     }
     report["seconds"] = round(time.time() - t0, 1)

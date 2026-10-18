@@ -242,3 +242,21 @@ def test_write_survey_writes_jpegs_frames_json_and_truth_json(tmp_path):
     assert [f["id"] for f in listed] == [f.id for f in frames]
     saved_truth = json.loads((tmp_path / "survey" / "truth.json").read_text())
     assert saved_truth == {k: [[b.x1, b.y1, b.x2, b.y2] for b in v] for k, v in truth.items()}
+
+
+def test_write_survey_output_is_byte_identical_across_operating_systems(tmp_path):
+    """frames.json and truth.json are compared by hash between machines, so they must not depend
+    on the OS: paths use forward slashes and lines end in \n, also on Windows."""
+    source = tmp_path / "raw" / "test_000.jpg"
+    source.parent.mkdir()
+    Image.new("RGB", (4000, 3000), (90, 120, 80)).save(source)
+    image = LabeledImage(source, 4000, 3000, [Box(2100, 900, 2160, 960)])
+    frames, truth = build_survey([image], n_frames=5, n_positive=1, survey_dir=tmp_path / "survey")
+
+    write_survey(frames, truth, [image], tmp_path / "survey")
+
+    for name in ("frames.json", "truth.json"):
+        assert b"\r" not in (tmp_path / "survey" / name).read_bytes(), f"{name} has CRLF"
+    listed = json.loads((tmp_path / "survey" / "frames.json").read_text())
+    assert all("\\" not in f["path"] for f in listed)
+    assert [Path(f["path"]) for f in listed] == [f.path for f in frames]  # still the same files

@@ -160,3 +160,96 @@ describe("motion", () => {
     ).toHaveLength(3);
   });
 });
+
+describe("ablation rows that were not measured", () => {
+  const withAblations = (ablations: CacheBundle["metrics"]["ablations"]) => ({
+    ...cache.metrics,
+    detector: { ...cache.metrics.detector, model: "yolo11s-heridal-tiled" },
+    ablations,
+  });
+
+  it("shows a missing row as not yet measured, never as numbers", () => {
+    render(
+      <MetricsView
+        metrics={withAblations(cache.metrics.ablations.slice(0, 3))}
+      />,
+    );
+    const rows = within(screen.getByRole("table", { name: "Ablations" }))
+      .getAllByRole("row")
+      .slice(1);
+    expect(rows).toHaveLength(4);
+    expect(rows[3]).toHaveTextContent("+ hard negatives");
+    expect(rows[3]).toHaveTextContent("Not yet measured");
+    expect(rows[3]).not.toHaveTextContent("%");
+    expect(rows[2]).toHaveTextContent("best"); // best is chosen among measured rows only
+  });
+
+  it("treats an all-zero row (a placeholder) as not measured", () => {
+    const zero = { precision: 0, recall: 0, ap50: 0 };
+    const rows4 = cache.metrics.ablations.map((r, i) =>
+      i === 3 ? { ...r, voc: zero } : r,
+    );
+    render(<MetricsView metrics={withAblations(rows4)} />);
+    const rows = within(screen.getByRole("table", { name: "Ablations" }))
+      .getAllByRole("row")
+      .slice(1);
+    expect(rows[3]).toHaveTextContent("Not yet measured");
+    expect(rows[3]).not.toHaveTextContent("0.0%");
+  });
+
+  it("never renders any all-zero row as a result", () => {
+    const zero = { precision: 0, recall: 0, ap50: 0 };
+    const allZero = cache.metrics.ablations.map((r) => ({ ...r, voc: zero }));
+    const { container } = render(
+      <MetricsView metrics={withAblations(allZero)} />,
+    );
+    const table = screen.getByRole("table", { name: "Ablations" });
+    expect(within(table).getAllByText("Not yet measured")).toHaveLength(4);
+    expect(table.textContent).not.toMatch(/0\.0%/);
+    expect(container.querySelector('[data-measured="false"]')).not.toBeNull();
+  });
+});
+
+describe("ablationDisplayRows", () => {
+  it("keeps canonical order, fills gaps, and appends unknown rows", async () => {
+    const { ablationDisplayRows } = await import("./format");
+    const v = { precision: 0.5, recall: 0.5, ap50: 0.5 };
+    const out = ablationDisplayRows([
+      { name: "Fine-tuned + tiling", voc: v },
+      { name: "Extra", voc: v },
+    ]);
+    expect(out.map((r) => [r.name, r.measured])).toEqual([
+      ["Stock model, no tiling", false],
+      ["Fine-tuned, no tiling", false],
+      ["Fine-tuned + tiling", true],
+      ["+ hard negatives", false],
+      ["Extra", true],
+    ]);
+  });
+});
+
+describe("search simulation highlighting", () => {
+  it("highlights the method with the fewest median cells, not always the Sightline row", () => {
+    const methods = [
+      { name: "Prior only", median_cells: 1260, p90_cells: 2246 },
+      {
+        name: "Naive: photographed = cleared",
+        median_cells: 1177,
+        p90_cells: 2131,
+      },
+      { name: "Sightline: canopy-aware", median_cells: 1192, p90_cells: 2149 },
+    ];
+    const metrics = {
+      ...cache.metrics,
+      search_sim: { ...cache.metrics.search_sim, methods },
+    };
+    render(<MetricsView metrics={metrics} />);
+    const rows = within(
+      screen.getByRole("table", { name: "Search simulation" }),
+    )
+      .getAllByRole("row")
+      .slice(1);
+    expect(rows[1]).toHaveAttribute("data-highlight", "true");
+    expect(rows[2]).not.toHaveAttribute("data-highlight");
+  });
+});
