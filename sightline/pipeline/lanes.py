@@ -334,14 +334,16 @@ class Lanes:
         lkp: LatLon,
         recall: float,
         recall_source: str = RECALL_FROM_DETECTOR,
+        cell_m: float = geometry.CELL_M,
     ) -> tuple[MapFile, FrameCells]:
-        """`recall_source` says where `recall` comes from (the detector metrics or the placeholder)."""
+        """`recall_source` says where `recall` comes from (the detector metrics or the placeholder).
+        `cell_m` is the grid cell size; the grid always covers 1 km, so 10 m gives 100 x 100 cells."""
         function = self.get("build_map")
         if function is None:
             self._fallback("build_map", "a uniform prior with empty steps")
             return placeholder_map([f.id for f in frames], lkp, recall, recall_source)
         if _first_parameter(function) == "grid":  # lane C's native signature
-            result = self._native_build_map(function, frames, lkp, recall, recall_source)
+            result = self._native_build_map(function, frames, lkp, recall, recall_source, cell_m)
         elif _accepts_positional(function, 4):
             result = function(list(frames), lkp, recall, recall_source)
         else:
@@ -367,10 +369,11 @@ class Lanes:
         lkp: LatLon,
         recall: float,
         recall_source: str,
+        cell_m: float = geometry.CELL_M,
     ) -> tuple[Any, FrameCells | None]:
         """Call lane C's `build_map(grid, lkp, prior, frames, recall, recall_source)` and turn its
         per-frame `{idx: (canopy, overlap)}` lists into cells keyed by frame id."""
-        grid = self._grid(lkp)
+        grid = self._grid(lkp, cell_m)
         prior = self._prior(grid)
         frame_class = self.get("frame_input") or NativeFrameInput
         inputs = [
@@ -403,16 +406,17 @@ class Lanes:
         }
         return raw_map, cells
 
-    def _grid(self, lkp: LatLon) -> Grid:
-        """Lane C's `make_grid(lkp)`, or the same 1 km / 20 m grid built here."""
+    def _grid(self, lkp: LatLon, cell_m: float = geometry.CELL_M) -> Grid:
+        """Lane C's `make_grid(lkp, cell_m=...)`, or the same 1 km grid built here."""
         make_grid = self.get("make_grid")
         if make_grid is not None:
-            return make_grid(lkp)
+            return make_grid(lkp) if cell_m == geometry.CELL_M else make_grid(lkp, cell_m=cell_m)
+        n = round(geometry.GRID_ROWS * geometry.CELL_M / cell_m)
         return Grid(
-            origin_nw=geometry.grid_origin_nw(lkp),
-            cell_m=geometry.CELL_M,
-            rows=geometry.GRID_ROWS,
-            cols=geometry.GRID_COLS,
+            origin_nw=geometry.grid_origin_nw(lkp, rows=n, cols=n, cell_m=cell_m),
+            cell_m=cell_m,
+            rows=n,
+            cols=n,
         )
 
     def _stamp_prior_source(self, map_file: MapFile) -> MapFile:
