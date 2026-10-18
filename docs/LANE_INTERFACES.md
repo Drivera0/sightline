@@ -38,6 +38,20 @@ of the `MapFile` as it is. A `build_map` that takes only three arguments still w
 The pipeline rounds each `pod` to 4 decimals and recomputes `final` and `top_cells` from the
 prior, so the contract's replay check (section 11) always holds. You may return unrounded pods.
 
+### Lane C's own signatures (`LANE_C_SEARCH.md`) are supported too
+
+The pipeline recognises these by parameter names and converts to and from the shapes above, so you
+can write the functions as planned in your doc:
+
+| Function | Recognised by | What the pipeline does |
+|---|---|---|
+| `build_map(grid, lkp, prior, frames, recall, recall_source)` | first parameter is named `grid` | Builds `grid` with your `make_grid(lkp)` (or a 1 km / 20 m grid centred on the LKP). Builds `prior` with your `placeholder_prior(grid)` (or a uniform one) and notes `prior` in the manifest, because no real prior exists yet. Builds `frames` as `FrameInput` (your class if it is importable, else one with the same fields) with `candidates` as `[(LatLon, radius_m)]`. Turns your `list[{idx: (canopy, overlap)}]` (one per frame, flight order) into `frame_cells.json`. |
+| `simulate(map_file, frame_cells, trials, seed, vis_noise)` | has a `trials` or `vis_noise` parameter | Passes the cells as `list[{idx: (canopy, overlap)}]` in flight order, with your defaults for the rest. Unknown canopy is given as 0.0. |
+
+The functions are looked up in `sightline.search` first, then in `sightline.search.build`, `.sim`,
+`.grid`, `.prior` and `.pod`. If your `build_map` returns only a `MapFile`, the cells are derived from the
+steps as described above.
+
 ## Lane A: `sightline.ml` (documented in `LANE_A_ML.md`)
 
 `run_survey(frames_dir, weights, out_dir, candidate_threshold, model_name, save_threshold)` and
