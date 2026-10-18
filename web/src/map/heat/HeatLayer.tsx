@@ -975,7 +975,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         </Panel>
       )}
       {slider && (
-        <Panel {...overlay("bottom")} className={`pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-38rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
+        <Panel {...overlay("bottom")} className={`pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-44rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
           {slider}
         </Panel>
       )}
