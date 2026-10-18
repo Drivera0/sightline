@@ -13,7 +13,16 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from sightline.contract import Distribution, Grid, LatLon, MapFile, Params, Step, TopCell
+from sightline.contract import (
+    CONTRACT_VERSION,
+    Distribution,
+    Grid,
+    LatLon,
+    MapFile,
+    Params,
+    Step,
+    TopCell,
+)
 from sightline.search.grid import cell_center
 from sightline.search.pod import MIN_STEP_POD, FrameInput, frame_step
 from sightline.search.update import replay
@@ -38,6 +47,8 @@ def build_map(
     recall_source: str,
     pod_cap: float = 0.95,
     review_pod: float = 0.90,
+    *,
+    prior_source: str | None = None,
     **canopy_thr: float,
 ) -> tuple[MapFile, list[FrameCells]]:
     """MapFile (contract) + one {idx: (canopy, overlap)} per frame in flight order.
@@ -55,6 +66,9 @@ def build_map(
     - top_cells = the 5 cells with the largest final p, descending (ties: lower idx).
     - The returned per-frame cells are unrounded; simulate() needs them.
 
+    prior_source (contract 1.1) is written to params.prior_source: the citation of the
+    lost-person statistics the prior came from, or None. The pipeline sets "placeholder"
+    itself when it gave the placeholder prior.
     canopy_thr passes exg_thr, std_thr and shadow_thr to the canopy classifier.
     Raises ValueError if the prior has the wrong length or does not sum to 1 with outside.
     """
@@ -104,11 +118,15 @@ def build_map(
         )
 
     map_file = MapFile(
-        contract_version="1.0",
+        contract_version=CONTRACT_VERSION,
         grid=grid,
         lkp=lkp,
         params=Params(
-            recall=recall, recall_source=recall_source, pod_cap=pod_cap, review_pod=review_pod
+            recall=recall,
+            recall_source=recall_source,
+            pod_cap=pod_cap,
+            review_pod=review_pod,
+            prior_source=prior_source,
         ),
         prior=Distribution(p=prior_p.tolist(), outside=prior_outside),
         canopy=canopy_out,

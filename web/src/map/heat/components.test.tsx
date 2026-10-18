@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FoundBanner } from "./FoundBanner";
-import { isPlaceholderPrior, Legend } from "./Legend";
+import { isPlaceholderPrior, Legend, showsPlaceholderPrior } from "./Legend";
 import { NextSearch } from "./NextSearch";
 import { StepSlider, stepText } from "./StepSlider";
 
@@ -89,8 +89,42 @@ describe("Legend", () => {
     expect(isPlaceholderPrior("Koester hiker ring prior. Placeholder detections.")).toBe(false);
   });
 
+  it("lets params.prior_source decide, and reads the notes only when it is null or missing", () => {
+    expect(showsPlaceholderPrior("placeholder", "real prior")).toBe(true);
+    expect(showsPlaceholderPrior("test citation: hiker distance table", "placeholder uniform prior")).toBe(false);
+    expect(showsPlaceholderPrior(null, "placeholder uniform prior")).toBe(true);
+    expect(showsPlaceholderPrior(undefined, "placeholder uniform prior")).toBe(true);
+    expect(showsPlaceholderPrior(null, "real prior")).toBe(false);
+  });
+
+  it("shows the placeholder badge when prior_source is placeholder", () => {
+    render(
+      <Legend simulatedPath={false} params={{ prior_source: "placeholder" }} manifest={{ notes: "" }} hasSurveyed />,
+    );
+    expect(screen.getByText("Placeholder prior")).toBeInTheDocument();
+  });
+
+  it("hides the placeholder badge for a cited prior even if the notes mention a placeholder", () => {
+    render(
+      <Legend
+        simulatedPath={false}
+        params={{ prior_source: "test citation: hiker distance table" }}
+        manifest={{ notes: "placeholder uniform prior" }}
+        hasSurveyed
+      />,
+    );
+    expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the manifest notes for a 1.0 cache (prior_source null)", () => {
+    render(
+      <Legend simulatedPath={false} params={{ prior_source: null }} manifest={{ notes: "placeholder prior" }} hasSurveyed />,
+    );
+    expect(screen.getByText("Placeholder prior")).toBeInTheDocument();
+  });
+
   it("shows the ramp words and the honesty badges", () => {
-    render(<Legend simulatedPath manifest={{ notes: "placeholder prior" }} hasSurveyed />);
+    render(<Legend simulatedPath params={{}} manifest={{ notes: "placeholder prior" }} hasSurveyed />);
     expect(screen.getByText("Less likely")).toBeInTheDocument();
     expect(screen.getByText("More likely")).toBeInTheDocument();
     expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
@@ -99,7 +133,7 @@ describe("Legend", () => {
   });
 
   it("hides badges that do not apply", () => {
-    render(<Legend simulatedPath={false} manifest={{ notes: "real prior" }} hasSurveyed={false} />);
+    render(<Legend simulatedPath={false} params={{}} manifest={{ notes: "real prior" }} hasSurveyed={false} />);
     expect(screen.queryByText("Simulated flight path")).not.toBeInTheDocument();
     expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
   });

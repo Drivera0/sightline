@@ -156,6 +156,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
       <Panel className="pointer-events-auto absolute bottom-3 right-3 w-64 p-4">
         <Legend
           simulatedPath={bundle.survey.simulated_path}
+          params={mapFile.params}
           manifest={bundle.manifest}
           hasSurveyed={hasSurveyed}
         />

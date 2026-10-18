@@ -145,3 +145,75 @@ def test_fast_enough_on_full_size_grid() -> None:
     t0 = time.perf_counter()
     simulate(map_file, frames, trials=1000, seed=7)
     assert time.perf_counter() - t0 < 5.0
+
+
+# --- in_survey (contract 1.1) ---------------------------------------------------------------
+
+
+def test_in_survey_names_order_and_trials_bound() -> None:
+    map_file, frames = _half_forest()
+    sim = simulate(map_file, frames, trials=1000, seed=7)
+    assert sim.in_survey is not None
+    assert [m.name for m in sim.in_survey.methods] == NAMES
+    assert 0 < sim.in_survey.trials <= sim.trials
+    for m in sim.in_survey.methods:
+        assert float(m.median_cells).is_integer() and float(m.p90_cells).is_integer()
+    SearchSim.model_validate(sim.model_dump())
+
+
+def test_in_survey_trials_equals_hand_count() -> None:
+    # Recall 0: nobody is found, so in_survey.trials = trials whose true cell is photographed.
+    # Cells 0-4 are photographed; cell 5 is listed with overlap 0, so it is not photographed.
+    frames: list[FrameCells] = [{i: (0.0, 0.75) for i in range(5)} | {5: (0.0, 0.0)}]
+    map_file = _make_map(5, frames, recall=0.0)
+    sim = simulate(map_file, frames, trials=400, seed=11)
+    # The same draw as step 1 of simulate (uniform prior, 25 cells).
+    true_cells = np.random.default_rng(11).choice(25, size=400, p=np.full(25, 1 / 25))
+    assert sim.in_survey is not None
+    assert sim.in_survey.trials == int(np.sum(true_cells < 5))
+
+
+def test_in_survey_equals_methods_when_all_cells_photographed_and_none_found() -> None:
+    frames: list[FrameCells] = [{i: (0.5, 0.75) for i in range(25)}]
+    map_file = _make_map(5, frames, recall=0.0)
+    sim = simulate(map_file, frames, trials=300, seed=7)
+    assert sim.in_survey is not None
+    assert sim.in_survey.trials == sim.trials
+    assert sim.in_survey.methods == sim.methods
+
+
+def test_in_survey_shows_canopy_aware_gain_hidden_in_overall_median() -> None:
+    # Half the grid is photographed. Outside it the naive and canopy-aware maps rank cells
+    # the same, so the overall median does not separate them; in_survey does.
+    map_file, frames = _half_forest()
+    sim = simulate(map_file, frames, trials=1000, seed=7)
+    assert sim.in_survey is not None
+    overall = {m.name: m for m in sim.methods}
+    survey = {m.name: m for m in sim.in_survey.methods}
+    assert survey[NAMES[2]].median_cells < survey[NAMES[1]].median_cells
+    assert survey[NAMES[2]].p90_cells <= survey[NAMES[1]].p90_cells
+    assert overall[NAMES[2]].median_cells == overall[NAMES[1]].median_cells
+
+
+def test_in_survey_is_deterministic_with_seed() -> None:
+    map_file, frames = _half_forest()
+    a = simulate(map_file, frames, trials=500, seed=7)
+    b = simulate(map_file, frames, trials=500, seed=7)
+    assert a.in_survey == b.in_survey
+
+
+def test_in_survey_none_when_everyone_photographed_is_found() -> None:
+    frames: list[FrameCells] = [{i: (0.0, 1.0) for i in range(9)}]
+    map_file = _make_map(3, frames, recall=1.0)
+    sim = simulate(map_file, frames, trials=100, seed=7, vis_noise=0.0)
+    assert sim.found_by_drone_rate == 1.0
+    assert sim.in_survey is None
+
+
+def test_in_survey_none_when_no_cell_photographed() -> None:
+    frames: list[FrameCells] = [{}, {2: (0.3, 0.0)}]
+    map_file = _make_map(3, frames, recall=0.8)
+    sim = simulate(map_file, frames, trials=100, seed=7)
+    assert sim.found_by_drone_rate == 0.0
+    assert sim.in_survey is None
+    assert all(m.median_cells >= 1 for m in sim.methods)
