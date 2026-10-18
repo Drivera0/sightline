@@ -30,6 +30,20 @@ export interface SearchDerived {
    * overlap, with each area's share of the chance if the missing person is one of them.
    */
   sightings: CandidateShare[];
+  /**
+   * "Unsure" answers whose photo the replay has flown, in answer order. Nothing changes in the map
+   * for them ("I can't tell" is no evidence, so Bayes' rule leaves the state as it was); they are
+   * listed so the area stays visible as unresolved. Still held (heldCells) until "Not a person".
+   */
+  unsure: UnsureArea[];
+}
+
+/** An area the reviewer answered "Unsure" on: the cells within the detection's radius_m. */
+export interface UnsureArea {
+  detectionId: string;
+  lat: number;
+  lon: number;
+  cells: number[];
 }
 
 /** Replay checkpoints are kept every this many steps, so scrubbing never replays from the start. */
@@ -118,7 +132,8 @@ export function detectionById(detections: Detections, id: string): Detection | u
  * the whole flight): "not a person" clears the cells around it; "person" is a candidate sighting, so
  * once its photo is flown that photo's "nobody here" look at the cells around it is undone
  * (applyReviewPerson). Then the flown sightings are merged into candidate areas with their shares.
- * foundDetectionId is the most recent detection whose latest answer is "person".
+ * foundDetectionId is the most recent detection whose latest answer is "person". "Unsure" leaves the
+ * state alone and is only listed (once its photo is flown) in `unsure`.
  * Ids not in detections.json (for example an old saved history) are ignored.
  */
 export function applyReview(
@@ -131,6 +146,11 @@ export function applyReview(
   let state = base;
   let foundDetectionId: string | null = null;
   const sighted: { detectionId: string; cells: number[] }[] = [];
+  const unsure: UnsureArea[] = [];
+  const flownStep = (detectionId: string): number => {
+    const frameId = frameOfDetection(data.detections, detectionId);
+    return frameId === undefined ? -1 : stepOfFrame(data.map, frameId);
+  };
   for (const entry of effectiveAnswers(history)) {
     const detection = detectionById(data.detections, entry.detectionId);
     if (!detection) continue;
@@ -146,15 +166,24 @@ export function applyReview(
       );
     } else if (entry.answer === "person") {
       foundDetectionId = entry.detectionId;
-      const frameId = frameOfDetection(data.detections, entry.detectionId);
-      const step = frameId === undefined ? -1 : stepOfFrame(data.map, frameId);
+      const step = flownStep(entry.detectionId);
       if (step < 0 || step >= stepIndex) continue;
       state = applyReviewPerson(state, grid, detection.lat, detection.lon, detection.radius_m, data.map.steps[step] ?? null);
       sighted.push({ detectionId: entry.detectionId, cells: cellsWithinRadius(grid, detection.lat, detection.lon, detection.radius_m) });
+    } else if (entry.answer === "unsure") {
+      // No evidence either way: the state is not touched.
+      const step = flownStep(entry.detectionId);
+      if (step < 0 || step >= stepIndex) continue;
+      unsure.push({
+        detectionId: entry.detectionId,
+        lat: detection.lat,
+        lon: detection.lon,
+        cells: cellsWithinRadius(grid, detection.lat, detection.lon, detection.radius_m),
+      });
     }
   }
   const sightings = sighted.length > 0 ? candidateShares(state, mergeSightings(sighted)) : [];
-  return { state, found: foundDetectionId !== null, foundDetectionId, sightings };
+  return { state, found: foundDetectionId !== null, foundDetectionId, sightings, unsure };
 }
 
 /**
@@ -198,6 +227,7 @@ interface SearchStore {
   found: boolean;
   foundDetectionId: string | null;
   sightings: CandidateShare[];
+  unsure: UnsureArea[];
   /** Use this cache. Resets the slider to the final map when the map file changes. */
   bind: (data: SearchData) => void;
   setStepIndex: (stepIndex: number) => void;
@@ -221,6 +251,7 @@ export const useSearch = create<SearchStore>((set, get) => ({
   found: false,
   foundDetectionId: null,
   sightings: [],
+  unsure: [],
   bind: (data) => {
     const current = get().data;
     if (current && current.map === data.map && current.detections === data.detections) return;

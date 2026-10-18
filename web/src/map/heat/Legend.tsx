@@ -1,6 +1,7 @@
 import type { Params } from "../../contract";
 import { Label } from "../../shell/components";
 import { droneSvgMarkup } from "./droneImage";
+import { UNSURE_LABEL } from "./unsure";
 import { HEAT_CLASSES, HELD_ALPHA, heatColor, paletteFromTokens, readRasterTokens, VEIL_ALPHA } from "./raster";
 
 /** Contract 1.1 §8: the value of `map.params.prior_source` when the pipeline used the placeholder prior. */
@@ -65,6 +66,8 @@ interface Props {
   onShowPathChange?: (visible: boolean) => void;
   /** A candidate sighting is on the map: add its entry, and say the heat is the "none of them" plan. */
   hasSightings?: boolean;
+  /** An "Unsure" area is on the map (amber ring): add its entry next to the candidate sighting. */
+  hasUnsure?: boolean;
   /** With a handler (the folded legend below 1280 px), the header gets a "Hide" button. */
   onCollapse?: () => void;
 }
@@ -77,6 +80,7 @@ export function Legend({
   onShowPathChange,
   onCollapse,
   hasSightings = false,
+  hasUnsure = false,
 }: Props) {
   const swatches = rampSwatches();
   return (
@@ -133,6 +137,19 @@ export function Legend({
             <span className="flex flex-col">
               <span>Candidate sighting</span>
               {!compact && <span className="text-label text-text-2">A person is there; maybe not the missing one</span>}
+            </span>
+          </li>
+        )}
+        {hasUnsure && (
+          <li className="flex items-center gap-2.5">
+            <span
+              className="inline-block size-3 rounded-[3px] ring-2 ring-warn"
+              style={{ background: REVIEW_FILL }}
+              aria-hidden="true"
+            />
+            <span className="flex flex-col">
+              <span>{UNSURE_LABEL}</span>
+              {!compact && <span className="text-label text-text-2">The reviewer couldn&apos;t call it; held, map unchanged</span>}
             </span>
           </li>
         )}

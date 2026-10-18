@@ -48,6 +48,7 @@ import {
   setHeldBoundary,
   setRippleFrame,
   setSurveyedBoundary,
+  setUnsureBoundary,
 } from "./layers";
 import { Legend, rampSwatches } from "./Legend";
 import { SimulatedLine, simulatedLineFor } from "../base/SimulatedLine";
@@ -67,6 +68,7 @@ import {
 } from "./sightings";
 import { buildSectors, currentSector, sectorBounds, sectorStatuses } from "./sectors";
 import { StepSlider } from "./StepSlider";
+import { unsureMask, unsureReadoutText } from "./unsure";
 
 type PanelTab = "legend" | "sectors" | "next";
 /** The segmented control above the panels on narrow screens. */
@@ -198,6 +200,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const setStepIndex = useSearch((s) => s.setStepIndex);
   const foundDetectionId = useSearch((s) => s.foundDetectionId);
   const sightings = useSearch((s) => s.sightings);
+  const unsureAreas = useSearch((s) => s.unsure);
   // Follows the system setting live, so the build-up (and its Skip pill) never runs under reduced motion.
   const reduced = useMediaQuery(REDUCED_MOTION_QUERY, prefersReducedMotion());
 
@@ -276,6 +279,11 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   // Candidate sightings (flown "Person" answers): drawn darkest and ringed, not as awaiting review.
   const candidate = useMemo(() => candidateMask(grid.rows * grid.cols, ready ? sightings : []), [grid, ready, sightings]);
   const heldShown = useMemo(() => withoutCandidates(held, candidate), [held, candidate]);
+  // Flown "Unsure" answers: still held (same raster look), but ringed in amber instead of the dashed
+  // "awaiting review" outline, so an unresolved area is not overlooked. The map itself is unchanged.
+  const shownUnsure = useMemo(() => (ready ? (unsureAreas ?? []) : []), [ready, unsureAreas]);
+  const unsure = useMemo(() => unsureMask(grid.rows * grid.cols, shownUnsure), [grid, shownUnsure]);
+  const heldOutline = useMemo(() => withoutCandidates(heldShown, unsure), [heldShown, unsure]);
 
   // Sectors (computed in the browser; see sectors.ts).
   const sectorLayout = useMemo(() => buildSectors(grid, frames), [grid, frames]);
@@ -283,6 +291,12 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     () => sectorsWithSightings(sectorLayout.cellSector, sectorLayout.sectors.map((s) => s.id), candidate),
     [sectorLayout, candidate],
   );
+  const unsureSectors = useMemo(
+    () => sectorsWithSightings(sectorLayout.cellSector, sectorLayout.sectors.map((s) => s.id), unsure),
+    [sectorLayout, unsure],
+  );
+  // Each click on the sector list's unsure entry flies to the next unsure area.
+  const unsureCursor = useRef(0);
   const statuses = useMemo(
     () => (ready && state ? sectorStatuses(sectorLayout, state, covered) : []),
     [ready, state, sectorLayout, covered],
@@ -317,8 +331,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const [building, setBuilding] = useState(false);
 
   // The latest values, for the style-reload installer.
-  const latest = useRef({ covered, heldShown, candidate, hotspots, statuses, currentId, hoverId });
-  latest.current = { covered, heldShown, candidate, hotspots, statuses, currentId, hoverId };
+  const latest = useRef({ covered, heldOutline, candidate, unsure, hotspots, statuses, currentId, hoverId });
+  latest.current = { covered, heldOutline, candidate, unsure, hotspots, statuses, currentId, hoverId };
   const [showPath, setShowPath] = useState(true);
   const showPathRef = useRef(showPath);
   showPathRef.current = showPath;
@@ -358,8 +372,9 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         ensureHeatLayers(map, raster, grid, now.covered, colors, variant);
         if (isSearch) ensureDroneImage(map, colors.outline);
         refreshHeatSource(map, raster.animating);
-        setHeldBoundary(map, grid, now.covered, now.heldShown);
+        setHeldBoundary(map, grid, now.covered, now.heldOutline);
         setCandidateBoundary(map, grid, now.candidate);
+        setUnsureBoundary(map, grid, now.unsure);
         pushSectors(map, grid, now.statuses, now.currentId, now.hoverId, livePlacement(map));
         if (isSearch) {
           setSurveyedBoundary(map, grid, now.covered);
@@ -477,12 +492,13 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   useEffect(() => {
     if (!map) return;
     try {
-      setHeldBoundary(map, grid, covered, heldShown);
+      setHeldBoundary(map, grid, covered, heldOutline);
       setCandidateBoundary(map, grid, candidate);
+      setUnsureBoundary(map, grid, unsure);
     } catch {
       /* style reloading */
     }
-  }, [map, grid, covered, heldShown, candidate]);
+  }, [map, grid, covered, heldOutline, candidate, unsure]);
 
   // The outline follows the photographed cells.
   useEffect(() => {
@@ -682,6 +698,11 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
                     as cleared: send a ground team to check.
                   </span>
                 )}
+                {shownUnsure.length > 0 && (
+                  <span className="text-label text-warn" data-testid="review-unsure">
+                    {unsureReadoutText(shownUnsure.length)}
+                  </span>
+                )}
               </div>
             ) : (
               <span className="text-small text-text-2" role="status">
@@ -693,6 +714,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
               simulatedPath={bundle.survey.simulated_path}
               hasSurveyed={hasSurveyed}
               hasSightings={sightings.length > 0}
+              hasUnsure={shownUnsure.length > 0}
             />
             {/* Review's map is narrow: its one simulated line lives here, not in a corner the card covers. */}
             <SimulatedLine {...simulatedLineFor(bundle)} plain />
@@ -730,6 +752,19 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         onSelect={(s) => flyToSector(s.id)}
         layout={sectorLayout.kind}
         sighted={sightedSectors}
+        unsure={
+          shownUnsure.length > 0
+            ? {
+                count: shownUnsure.length,
+                sectors: unsureSectors,
+                onSelect: () => {
+                  const a = shownUnsure[unsureCursor.current % shownUnsure.length];
+                  unsureCursor.current += 1;
+                  if (a) flyToPoint(a.lon, a.lat);
+                },
+              }
+            : undefined
+        }
       />
     ) : null;
   const nextSearch =
@@ -750,6 +785,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       simulatedPath={bundle.survey.simulated_path}
       hasSurveyed={hasSurveyed}
       hasSightings={sightings.length > 0}
+      hasUnsure={shownUnsure.length > 0}
       showPath={showPath}
       onShowPathChange={setShowPath}
       onCollapse={
