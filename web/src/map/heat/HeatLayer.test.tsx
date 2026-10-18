@@ -611,6 +611,9 @@ describe("HeatLayer", () => {
       act(() => pill.click());
       expect(screen.getByText("Lower probability")).toBeInTheDocument();
       expect(document.getElementById("search-legend")!.className).toContain("bottom-7");
+      // The replay bar leaves 22rem free on each side, so it never covers the simulated line (bottom left).
+      const replayBar = screen.getByRole("slider").closest('[data-map-overlay="bottom"]');
+      expect(replayBar!.className).toContain("calc(100%-44rem)");
       act(() => screen.getByRole("button", { name: "Hide" }).click());
       expect(screen.queryByText("Lower probability")).toBeNull();
     } finally {
