@@ -78,6 +78,26 @@ def test_read_voc_falls_back_to_image_size(tmp_path: Path) -> None:
     assert labeled.boxes == [Box(10, 30, 20, 45)]
 
 
+def test_read_voc_trusts_the_jpeg_over_a_wrong_xml_size(tmp_path: Path) -> None:
+    """Four HERIDAL MED test photos are 4000x2250 but their XML says 4000x3000. Trusting the XML
+    squashed their boxes to 0.75 of their height on the way to YOLO; the JPEG header decides."""
+    img = tmp_path / "a.jpg"
+    Image.new("RGB", (400, 225)).save(img)
+    xml = tmp_path / "a.xml"
+    xml.write_text(
+        "<annotation><size><width>400</width><height>300</height></size>"
+        "<object><name>person</name><bndbox>"
+        "<xmin>100</xmin><xmax>120</xmax><ymin>200</ymin><ymax>220</ymax></bndbox></object>"
+        "</annotation>"
+    )
+    labeled = read_voc(xml, img)
+    assert (labeled.width, labeled.height) == (400, 225)
+    assert labeled.boxes == [Box(100, 200, 120, 220)]
+    # Round trip through YOLO with the real size lands back on the same pixels.
+    line = yolo_line(labeled.boxes[0], labeled.width, labeled.height)
+    assert yolo_line_to_box(line, 400, 225) == Box(100, 200, 120, 220)
+
+
 def test_read_voc_clips_out_of_range_boxes(tmp_path: Path) -> None:
     img = tmp_path / "a.jpg"
     Image.new("RGB", (100, 100)).save(img)

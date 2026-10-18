@@ -46,10 +46,12 @@ def clip_box(box: Box, width: int, height: int) -> Box | None:
 
 
 def read_voc(xml_path: Path, image_path: Path) -> LabeledImage:
-    """One labelled image. Falls back to the JPEG header for size when the XML lacks it."""
-    width, height, boxes = parse_voc(xml_path.read_text(encoding="utf-8"))
-    if width is None or height is None:
-        width, height = image_size(image_path)
+    """One labelled image. The size always comes from the JPEG header, never the XML: some
+    HERIDAL XML files state the wrong size (four MED test photos are 4000x2250 but say
+    4000x3000), and trusting it squashed their boxes when normalised for YOLO. The box
+    coordinates in those files are correct pixel positions."""
+    _, _, boxes = parse_voc(xml_path.read_text(encoding="utf-8"))
+    width, height = image_size(image_path)
     clipped = [c for b in boxes if (c := clip_box(b, width, height)) is not None]
     return LabeledImage(path=image_path, width=width, height=height, boxes=clipped)
 

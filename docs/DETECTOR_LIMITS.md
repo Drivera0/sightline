@@ -18,7 +18,7 @@ The label check also needs the raw HERIDAL VOC annotations
 `tests/ml/test_detector_errors.py` checks that the script counts hits and false alarms exactly
 like the official scorer (`sightline.ml.evaluate.score_voc`).
 
-## 1. A label bug that undercounts the detector
+## 1. A label bug that undercounted the detector (fixed 2026-10-18)
 
 Four test photos (`test_MED_0001`, `0002`, `0004`, `0006`) are 4000×2250 JPEGs whose VOC files
 say 4000×3000. Our converter trusts the XML size, so their 42 person boxes were squashed to 0.75
@@ -37,10 +37,12 @@ Same predictions, same threshold, scored two ways:
 | People missed | 78 | 46 |
 | False alarms | 104 | 72 |
 
-The published row is exactly what `metrics.json`, the website and the deck show today. **Whether
-to fix the converter and republish is the lane A owner's decision**; this analysis changes no
-code under `sightline/ml/` and no metrics. The fix is one line in `sightline/ml/voc.read_voc`:
-take the size from the JPEG header, not the XML.
+**Fixed.** `sightline/ml/voc.read_voc` now takes the size from the JPEG header, the converter
+reports any XML whose size disagrees (exactly these four), the data-v1 test zip and the weights-v2
+`detector_metrics.json` were re-uploaded, and `scripts/evaluate_model.py` re-measured every
+ablation row on the corrected labels: 0.802 / 0.864 / 0.868 for the final model, the same as the
+label-checked column above. The threshold (0.29, chosen on validation) did not change. The
+"Published labels" column is the old, squashed score, kept here for the record.
 
 Everything below uses the label-checked set, so it describes the detector, not the bug.
 
@@ -105,7 +107,7 @@ is why the validation set chose an F2-optimal threshold.
 ## Honest limits: one page for the deck
 
 1. **`threshold_curve.png`**: the trade-off and where we sit. Recall 0.864 / precision 0.802
-   label-checked (0.769 / 0.713 as published).
+   (the dotted line is the old score on the squashed labels, 0.769 / 0.713).
 2. **`gallery_missed.jpg`**: what it misses. Groups, camouflage against pale or dark rock, people
    on benches or lying down. Size alone is not the problem.
 3. **`gallery_false_alarms.jpg`**: what it flags wrongly. Mostly unlabelled people and second
