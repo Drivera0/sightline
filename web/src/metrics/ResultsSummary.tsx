@@ -80,19 +80,17 @@ export function ResultsSummary({
             </h2>
             <p className="max-w-3xl text-title text-text-2">
               That is <span className="text-accent-soft">{share(ranked)}</span> of the {count(ranking.n_frames)} photos
-              to reach everyone.{" "}
-              {random && (
-                <span>
-                  A random order needs{" "}
+              {random ? (
+                <>
+                  ; a random order needs{" "}
                   <Sourced source={randomSource}>
                     about <span className="text-text">{count(random.expectedAll)}</span>
-                  </Sourced>{" "}
-                  on average (9 in 10 random orders need at least {count(random.p10All)}).{" "}
-                </span>
+                  </Sourced>
+                  .
+                </>
+              ) : (
+                " to reach everyone."
               )}
-              This flight in the order it was flown (one layout, not an average) needed{" "}
-              <span className="text-text">{count(flight)}</span>. The first person is photo{" "}
-              {ranking.ranked.frames_to_first_hit} of the queue.
             </p>
           </>
         )}
@@ -143,11 +141,12 @@ export function ResultsSummary({
           label="Recall"
           value={detector.sar.recall}
           format={(v) => pct(v)}
+          scoring="SAR-APD"
           ours={detector.sar.recall}
           theirs={human.recall}
           oursLabel="Sightline"
           theirsLabel="Human"
-          note={`People found on photos the detector never trained on, scored as in the human study (SAR-APD); ${pct(detector.voc.recall)} under strict VOC`}
+          note={`People found on photos the detector never trained on, scored as in the human study. Strict VOC: ${pct(detector.voc.recall)}`}
           source={`HERIDAL test set, ${detector.test_images} images, SAR-APD matching (metrics.detector.sar; VOC: metrics.detector.voc) vs ${human.source}`}
           delay={0}
         />
@@ -535,6 +534,7 @@ function Card({
   value,
   format,
   headline,
+  scoring,
   ours,
   theirs,
   oursLabel,
@@ -550,6 +550,8 @@ function Card({
   value: number;
   format: (v: number) => string;
   headline?: string;
+  /** The scoring scheme of the big figure, shown right next to it ("SAR-APD"). */
+  scoring?: string;
   ours: number;
   theirs: number;
   oursLabel: string;
@@ -577,6 +579,7 @@ function Card({
         <Sourced source={source}>
           <span className="font-mono text-display leading-none text-text">{format(shown)}</span>
         </Sourced>
+        {scoring && <span className="font-mono text-label uppercase tracking-label text-text-2">{scoring}</span>}
         {headline && <span className="text-small text-accent-soft">{headline}</span>}
       </div>
       <div className="flex flex-col gap-1.5">
