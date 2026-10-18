@@ -99,4 +99,40 @@ describe("guided flow", () => {
     await userEvent.keyboard("m");
     expect(current()).toHaveTextContent("Search next");
   });
+
+  it("plays a guided tour from the survey: captions per step, Next by hand, Esc to leave", async () => {
+    render(<Shell cache={cache} />);
+    await userEvent.click(screen.getByRole("button", { name: "Watch the 60-second tour" }));
+    const tour = () => screen.getByRole("dialog", { name: "Guided tour" });
+    // jsdom can't tell the motion preference, so the tour runs captions-only with Next.
+    expect(tour()).toHaveTextContent("Tour · 1 of 5");
+    expect(tour()).toHaveTextContent("Reduced motion: press Next");
+    await userEvent.click(within(tour()).getByRole("button", { name: "Next" }));
+    expect(current()).toHaveTextContent("Rank");
+    await userEvent.click(within(tour()).getByRole("button", { name: "Next" }));
+    expect(current()).toHaveTextContent("Review");
+    expect(tour()).toHaveTextContent("This demo answer is not saved");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Guided tour" })).toBeNull();
+    // Leaving the tour leaves the viewer where they were.
+    expect(current()).toHaveTextContent("Review");
+  });
+
+  it("stops the tour on any key and lets that key do its usual job", async () => {
+    render(<Shell cache={cache} />);
+    await userEvent.keyboard("t");
+    expect(screen.getByRole("dialog", { name: "Guided tour" })).toBeInTheDocument();
+    await userEvent.keyboard("5");
+    expect(screen.queryByRole("dialog", { name: "Guided tour" })).toBeNull();
+    expect(current()).toHaveTextContent("Results");
+  });
+
+  it("offers the tour in the shortcuts list", async () => {
+    render(<Shell cache={cache} />);
+    await userEvent.keyboard("?");
+    const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
+    await userEvent.click(within(dialog).getByRole("button", { name: /Watch the 60-second tour/ }));
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Guided tour" })).toBeInTheDocument();
+  });
 });
