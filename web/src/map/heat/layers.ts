@@ -8,6 +8,7 @@ import type { CanvasSource, GeoJSONSource, Map } from "maplibre-gl";
 import type { MapFile } from "../../contract";
 import { HEAT_LAYER_PREFIX, MAP_LAYER_IDS } from "../base/layerIds";
 import { DRONE_IMAGE_ID, DRONE_ICON_SIZE } from "./droneImage";
+import { HOTSPOT_BADGE_COUNT, HOTSPOT_BADGE_PREFIX } from "./hotspotImages";
 import { cellCenter, surveyedBoundary } from "./geometry";
 import { gridCorners, type HeatRaster } from "./raster";
 import type { LabelCandidate } from "./labelPlacement";
@@ -38,7 +39,11 @@ export const HEAT_LAYER_IDS = {
   surveyed: `${HEAT_LAYER_PREFIX}surveyed`,
   sectorLine: `${HEAT_LAYER_PREFIX}sector-line`,
   sectorLabel: `${HEAT_LAYER_PREFIX}sector-label`,
+  hotspotHalo: `${HEAT_LAYER_PREFIX}hotspot-halo`,
+  hotspotPulse: `${HEAT_LAYER_PREFIX}hotspot-pulse`,
   hotspots: `${HEAT_LAYER_PREFIX}hotspots`,
+  hotspotActive: `${HEAT_LAYER_PREFIX}hotspot-active`,
+  hotspotBadge: `${HEAT_LAYER_PREFIX}hotspot-badge`,
   trail: `${HEAT_LAYER_PREFIX}trail`,
   droneFootprint: `${HEAT_LAYER_PREFIX}drone-footprint`,
   droneFootprintLine: `${HEAT_LAYER_PREFIX}drone-footprint-line`,
@@ -255,26 +260,11 @@ export function ensureHeatLayers(
     );
   }
   if (variant === "search") {
-    // The Search next cells: a ring that breathes with the heat (see setBreath).
     for (const id of [HEAT_HOTSPOT_SOURCE_ID, HEAT_TRAIL_SOURCE_ID, HEAT_DRONE_SOURCE_ID, HEAT_DRONE_FOOTPRINT_SOURCE_ID]) {
       if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: EMPTY });
     }
-    if (!map.getLayer(HEAT_LAYER_IDS.hotspots)) {
-      map.addLayer({
-        id: HEAT_LAYER_IDS.hotspots,
-        type: "circle",
-        source: HEAT_HOTSPOT_SOURCE_ID,
-        paint: {
-          "circle-radius": HOTSPOT_RADIUS_PX,
-          "circle-color": colors.outline,
-          "circle-opacity": 0,
-          "circle-stroke-color": colors.outline,
-          "circle-stroke-width": 2,
-          "circle-stroke-opacity": HOTSPOT_OPACITY.mid,
-        },
-      });
-    }
-    // The replay trail, the photo being taken now, and the drone go on top: they are what moves.
+    // Bottom to top: the replay trail and the photo being taken, the last known point (raiseLkp),
+    // the search-next circles (above the heat and the flight path), then the drone.
     if (!map.getLayer(HEAT_LAYER_IDS.trail)) {
       map.addLayer({
         id: HEAT_LAYER_IDS.trail,
@@ -298,6 +288,87 @@ export function ensureHeatLayers(
         type: "line",
         source: HEAT_DRONE_FOOTPRINT_SOURCE_ID,
         paint: { "line-color": colors.accent, "line-opacity": 0, "line-width": 1.25 },
+      });
+    }
+    // The search-next circles: a near-white ring on a dark casing (it holds against the pale-yellow
+    // and the deep-red ends of the heat and against the trail), a numbered accent badge matching the
+    // list, a slow pulse on the first (setHotspotPulse), and an accent ring on the one hovered or
+    // picked in the list (setActiveHotspot).
+    if (!map.getLayer(HEAT_LAYER_IDS.hotspotHalo)) {
+      map.addLayer({
+        id: HEAT_LAYER_IDS.hotspotHalo,
+        type: "circle",
+        source: HEAT_HOTSPOT_SOURCE_ID,
+        paint: {
+          "circle-radius": HOTSPOT_RADIUS_PX,
+          "circle-color": colors.veil,
+          "circle-opacity": HOTSPOT_STYLE.fillOpacity,
+          "circle-stroke-color": colors.veil,
+          "circle-stroke-width": HOTSPOT_STYLE.casingPx,
+          "circle-stroke-opacity": HOTSPOT_STYLE.casingOpacity,
+        },
+      });
+    }
+    if (!map.getLayer(HEAT_LAYER_IDS.hotspotPulse)) {
+      map.addLayer({
+        id: HEAT_LAYER_IDS.hotspotPulse,
+        type: "circle",
+        source: HEAT_HOTSPOT_SOURCE_ID,
+        filter: ["==", ["get", "rank"], 1],
+        paint: {
+          "circle-radius": HOTSPOT_RADIUS_PX,
+          "circle-opacity": 0,
+          "circle-stroke-color": colors.outline,
+          "circle-stroke-width": 2,
+          "circle-stroke-opacity": 0,
+        },
+      });
+    }
+    if (!map.getLayer(HEAT_LAYER_IDS.hotspots)) {
+      map.addLayer({
+        id: HEAT_LAYER_IDS.hotspots,
+        type: "circle",
+        source: HEAT_HOTSPOT_SOURCE_ID,
+        paint: {
+          "circle-radius": HOTSPOT_RADIUS_PX,
+          "circle-opacity": 0,
+          "circle-stroke-color": colors.outline,
+          "circle-stroke-width": HOTSPOT_STYLE.ringPx,
+          "circle-stroke-opacity": 1,
+        },
+      });
+    }
+    if (!map.getLayer(HEAT_LAYER_IDS.hotspotActive)) {
+      map.addLayer({
+        id: HEAT_LAYER_IDS.hotspotActive,
+        type: "circle",
+        source: HEAT_HOTSPOT_SOURCE_ID,
+        filter: ["==", ["get", "idx"], -1],
+        paint: {
+          "circle-radius": HOTSPOT_RADIUS_PX + 6,
+          "circle-opacity": 0,
+          "circle-stroke-color": colors.accent,
+          "circle-stroke-width": 3,
+          "circle-stroke-opacity": 1,
+        },
+      });
+    }
+    if (!map.getLayer(HEAT_LAYER_IDS.hotspotBadge)) {
+      map.addLayer({
+        id: HEAT_LAYER_IDS.hotspotBadge,
+        type: "symbol",
+        source: HEAT_HOTSPOT_SOURCE_ID,
+        layout: {
+          "icon-image": ["concat", HOTSPOT_BADGE_PREFIX, ["to-string", ["min", ["get", "rank"], HOTSPOT_BADGE_COUNT]]],
+          // Up and to the right of the ring, so the cell inside it stays visible.
+          "icon-offset": [HOTSPOT_BADGE_OFFSET_PX, -HOTSPOT_BADGE_OFFSET_PX],
+          "icon-size": ["case", ["==", ["get", "rank"], 1], 1.15, 1],
+          "icon-allow-overlap": true,
+          // Badges always show, and labels (the last known point's) move off them and their ring.
+          "icon-padding": HOTSPOT_RADIUS_PX - HOTSPOT_BADGE_OFFSET_PX + 6,
+          "symbol-sort-key": ["-", 0, ["get", "rank"]],
+        },
+        paint: { "icon-opacity": 1 },
       });
     }
     if (!map.getLayer(HEAT_LAYER_IDS.droneHalo)) {
@@ -553,6 +624,16 @@ export function setReplayEmphasis(map: Map, { playing, highlight }: { playing: b
   set(HEAT_LAYER_IDS.trail, "line-opacity", playing ? TRAIL_OPACITY.playing : TRAIL_OPACITY.rest);
   set(HEAT_LAYER_IDS.droneFootprint, "fill-opacity", highlight ? FOOTPRINT_OPACITY.fill : 0);
   set(HEAT_LAYER_IDS.droneFootprintLine, "line-opacity", highlight ? FOOTPRINT_OPACITY.line : 0);
+  // The circles move as the photos come in: quiet while the drone flies, full strength at rest.
+  const k = playing ? HOTSPOT_STYLE.replayOpacity : 1;
+  set(HEAT_LAYER_IDS.hotspotHalo, "circle-stroke-opacity", HOTSPOT_STYLE.casingOpacity * k);
+  set(HEAT_LAYER_IDS.hotspotHalo, "circle-opacity", HOTSPOT_STYLE.fillOpacity * k);
+  set(HEAT_LAYER_IDS.hotspots, "circle-stroke-opacity", k);
+  set(HEAT_LAYER_IDS.hotspotActive, "circle-stroke-opacity", k);
+  set(HEAT_LAYER_IDS.hotspotBadge, "icon-opacity", k);
+  if (map.getLayer(HEAT_LAYER_IDS.hotspotPulse)) {
+    map.setLayoutProperty?.(HEAT_LAYER_IDS.hotspotPulse, "visibility", playing ? "none" : "visible");
+  }
 }
 
 /** Draw the drone at an interpolated position (the smooth replay; see droneMotion.ts). */
@@ -583,25 +664,70 @@ export function pushDrone(
 /** Breathing: ±10 % over 5 s. Slow and small on purpose (nothing flashes; WCAG 2.3.1). */
 export const BREATH_AMPLITUDE = 0.1;
 export const BREATH_PERIOD_MS = 5000;
-/** Hotspot ring opacity across one breath, and its radius at rest (it breathes ±1.5 px). */
-export const HOTSPOT_OPACITY = { low: 0.45, mid: 0.7, high: 0.95 } as const;
-export const HOTSPOT_RADIUS_PX = 9;
+/** Radius of a search-next ring (to the middle of its stroke). */
+export const HOTSPOT_RADIUS_PX = 12;
+/** The badge sits on the ring, up and to the right (45°). */
+export const HOTSPOT_BADGE_OFFSET_PX = Math.round(HOTSPOT_RADIUS_PX * Math.SQRT1_2);
+/**
+ * The ring is 2.5 px of near-white (--text) centred on a 7 px dark casing (--bg), so 2.25 px of dark
+ * shows on each side: light-on-dark at the pale end of the heat, light on dark red at the other.
+ * A faint dark fill lifts the ring off busy cells. While the drone flies, all of it drops to
+ * replayOpacity.
+ */
+export const HOTSPOT_STYLE = { ringPx: 2.5, casingPx: 7, casingOpacity: 0.85, fillOpacity: 0.14, replayOpacity: 0.3 } as const;
+/** The first circle's pulse: one ring grows from the circle and fades, every PULSE_MS. */
+export const HOTSPOT_PULSE_MS = 2400;
+export const HOTSPOT_PULSE_GROW_PX = 12;
 
 /** 1 ± BREATH_AMPLITUDE, a sine of period BREATH_PERIOD_MS. */
 export function breathFactor(tMs: number): number {
   return 1 + BREATH_AMPLITUDE * Math.sin((2 * Math.PI * tMs) / BREATH_PERIOD_MS);
 }
 
-/** Apply one breath: the heat raster's opacity and the hotspot rings, in step. Cheap: no data-driven paint. */
+/** Apply one breath to the heat raster's opacity. Cheap: no data-driven paint. */
 export function setBreath(map: Map, factor: number, base: number = HEAT_BASE_OPACITY.search): void {
   if (map.getLayer(HEAT_LAYER_IDS.cells)) {
     map.setPaintProperty(HEAT_LAYER_IDS.cells, "raster-opacity", Math.min(1, base * factor));
   }
-  if (map.getLayer(HEAT_LAYER_IDS.hotspots)) {
-    const t = (factor - (1 - BREATH_AMPLITUDE)) / (2 * BREATH_AMPLITUDE); // 0 … 1
-    const { low, high } = HOTSPOT_OPACITY;
-    map.setPaintProperty(HEAT_LAYER_IDS.hotspots, "circle-stroke-opacity", low + t * (high - low));
-    map.setPaintProperty(HEAT_LAYER_IDS.hotspots, "circle-radius", HOTSPOT_RADIUS_PX + 3 * (t - 0.5));
+}
+
+/** The pulse ring at time tMs: radius and opacity, growing out of the circle and fading (eased out). */
+export function hotspotPulseFrame(tMs: number): { radius: number; opacity: number } {
+  const k = (((tMs % HOTSPOT_PULSE_MS) + HOTSPOT_PULSE_MS) % HOTSPOT_PULSE_MS) / HOTSPOT_PULSE_MS;
+  const eased = 1 - (1 - k) ** 2;
+  return { radius: HOTSPOT_RADIUS_PX + HOTSPOT_PULSE_GROW_PX * eased, opacity: 0.7 * (1 - k) };
+}
+
+/** One pulse frame on the first circle (null: no pulse, e.g. reduced motion). Safe before the layer exists. */
+export function setHotspotPulse(map: Map, tMs: number | null): void {
+  if (!map.getLayer(HEAT_LAYER_IDS.hotspotPulse)) return;
+  const { radius, opacity } = tMs === null ? { radius: HOTSPOT_RADIUS_PX, opacity: 0 } : hotspotPulseFrame(tMs);
+  map.setPaintProperty(HEAT_LAYER_IDS.hotspotPulse, "circle-radius", radius);
+  map.setPaintProperty(HEAT_LAYER_IDS.hotspotPulse, "circle-stroke-opacity", opacity);
+}
+
+/** Ring the circle of cell `idx` in accent (hovered or picked in the list); null clears it. */
+export function setActiveHotspot(map: Map, idx: number | null): void {
+  if (!map.getLayer(HEAT_LAYER_IDS.hotspotActive)) return;
+  map.setFilter?.(HEAT_LAYER_IDS.hotspotActive, ["==", ["get", "idx"], idx ?? -1]);
+}
+
+/** The layers a pointer can hit on a search-next circle. */
+export const HOTSPOT_HIT_LAYERS = [HEAT_LAYER_IDS.hotspotHalo, HEAT_LAYER_IDS.hotspotBadge] as const;
+
+/**
+ * Lift lane B's last-known-point marker and label above the heat, the trail and the photo highlight
+ * (they are added after lane B's layers), just under the search-next circles, so a circle at the
+ * last known point still shows whole and the label moves off the badges. Safe in any state.
+ */
+export function raiseLkp(map: Map): void {
+  const before = map.getLayer(HEAT_LAYER_IDS.hotspotHalo)
+    ? HEAT_LAYER_IDS.hotspotHalo
+    : map.getLayer(HEAT_LAYER_IDS.droneHalo)
+      ? HEAT_LAYER_IDS.droneHalo
+      : undefined;
+  for (const id of [MAP_LAYER_IDS.lkp, MAP_LAYER_IDS.lkpLabel]) {
+    if (map.getLayer(id)) map.moveLayer?.(id, before);
   }
 }
 

@@ -56,6 +56,16 @@ export function DroneGlyph({ className = "size-5" }: { className?: string }) {
   );
 }
 
+/** The search-next circle as drawn on the map: a light ring on a dark casing with an accent badge. */
+function SearchNextGlyph() {
+  return (
+    <span aria-hidden="true" className="relative inline-block size-3.5 shrink-0">
+      <span className="absolute inset-0 rounded-full border-2 border-text shadow-[0_0_0_2px_var(--bg)]" />
+      <span className="absolute -right-1.5 -top-1.5 inline-flex size-2.5 items-center justify-center rounded-full bg-accent ring-1 ring-bg" />
+    </span>
+  );
+}
+
 interface Props {
   simulatedPath: boolean;
   hasSurveyed: boolean;
@@ -127,6 +137,15 @@ export function Legend({
         </span>
       )}
       <ul className="flex flex-col gap-2 text-small text-text-2">
+        {!compact && (
+          <li className="flex items-center gap-2.5">
+            <SearchNextGlyph />
+            <span className="flex flex-col">
+              <span>Search next</span>
+              <span className="text-label text-text-2">Numbered as in the list; 1 pulses</span>
+            </span>
+          </li>
+        )}
         {hasSightings && (
           <li className="flex items-center gap-2.5">
             <span
@@ -183,6 +202,14 @@ export function Legend({
             </span>
           </summary>
           <ul className="mt-2 flex flex-col gap-2">
+            <li className="flex items-center gap-2.5">
+              <span
+                aria-hidden="true"
+                className="ml-0.5 inline-block size-2.5 rotate-45 bg-text shadow-[0_0_0_2px_var(--bg)]"
+              />
+              {/* The same words as the map label (base/features.ts buildLkpFeature). */}
+              {simulatedPath ? "Last known point" : "Survey centre"}
+            </li>
             <li className="flex items-center gap-2.5">
               <span className="inline-block h-0 w-5 border-t border-text/60" aria-hidden="true" />
               {hasSurveyed ? "Surveyed area (outline)" : "No cell photographed yet"}

@@ -4,7 +4,7 @@
 // the pins), the review ripple and a small readout, without the replay and the side panel.
 import { type ReactNode, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { MapMouseEvent } from "maplibre-gl";
+import type { MapLayerMouseEvent, MapMouseEvent } from "maplibre-gl";
 import type { CacheBundle } from "../../contract";
 import type { CandidateShare } from "../../search/update";
 import { CacheContext, useCache } from "../../lib/cache";
@@ -27,20 +27,25 @@ import {
   photographedCells,
 } from "./coverage";
 import { ensureDroneImage } from "./droneImage";
+import { ensureHotspotBadges } from "./hotspotImages";
 import {
   breathFactor,
   ensureHeatLayers,
   HEAT_BASE_OPACITY,
+  HOTSPOT_HIT_LAYERS,
   type HeatVariant,
   pushHotspots,
   pushRipple,
   pushSectorLabels,
   pushSectors,
   type PlaceLabel,
+  raiseLkp,
   readHeatColors,
   refreshHeatSource,
   RIPPLE_MS,
+  setActiveHotspot,
   setBreath,
+  setHotspotPulse,
   setFlightPathVisible,
   setCandidateBoundary,
   setHeldBoundary,
@@ -323,6 +328,14 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     [isSearch, ready, panelState, panelOverlap, held],
   );
 
+  // A search-next circle hovered (map or list) or picked (click on either): ringed on the map and
+  // highlighted in the list. Hover wins while it lasts.
+  const [hoverHot, setHoverHot] = useState<number | null>(null);
+  const [pickedHot, setPickedHot] = useState<number | null>(null);
+  const activeHot = [hoverHot, pickedHot].find((i) => i !== null && hotspots.includes(i)) ?? null;
+  const activeHotRef = useRef(activeHot);
+  activeHotRef.current = activeHot;
+
   // --- the raster ---------------------------------------------------------------------------
   const palette = useMemo(() => paletteFromTokens(readRasterTokens()), []);
   const raster = useMemo(() => new HeatRaster(grid), [grid]);
@@ -369,7 +382,10 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         const colors = readHeatColors();
         const now = latest.current;
         ensureHeatLayers(map, raster, grid, now.covered, colors, variant);
-        if (isSearch) ensureDroneImage(map, colors.outline);
+        if (isSearch) {
+          ensureDroneImage(map, colors.outline);
+          ensureHotspotBadges(map, { accent: colors.accent, veil: colors.veil });
+        }
         refreshHeatSource(map, raster.animating);
         setHeldBoundary(map, grid, now.covered, now.heldOutline);
         setCandidateBoundary(map, grid, now.candidate);
@@ -379,6 +395,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
           setSurveyedBoundary(map, grid, now.covered);
           setFlightPathVisible(map, showPathRef.current);
           pushHotspots(map, grid, now.hotspots);
+          setActiveHotspot(map, activeHotRef.current);
+          raiseLkp(map);
           redrawReplayRef.current();
         }
       } catch {
@@ -565,8 +583,56 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     }
   }, [map, grid, hotspots, isSearch]);
 
-  // Breathing: a slow, small pulse of the heat and the hotspots (Search next only). Off for reduced
-  // motion, paused while the tab is hidden, about 20 updates a second; only raster-opacity changes.
+  useEffect(() => {
+    if (!map || !isSearch) return;
+    try {
+      setActiveHotspot(map, activeHot);
+    } catch {
+      /* style reloading; install() applies it again */
+    }
+  }, [map, isSearch, activeHot]);
+
+  // Hover and click on a circle (its casing or its badge) highlight its row in the list.
+  useEffect(() => {
+    if (!map || !isSearch) return undefined;
+    const idxOf = (e: MapLayerMouseEvent) => {
+      const v = e.features?.[0]?.properties?.idx;
+      return typeof v === "number" ? v : null;
+    };
+    const enter = (e: MapLayerMouseEvent) => {
+      setHoverHot(idxOf(e));
+      try {
+        map.getCanvas().style.cursor = "pointer";
+      } catch {
+        /* map gone */
+      }
+    };
+    const leave = () => {
+      setHoverHot(null);
+      try {
+        map.getCanvas().style.cursor = "";
+      } catch {
+        /* map gone */
+      }
+    };
+    const pick = (e: MapLayerMouseEvent) => setPickedHot(idxOf(e));
+    for (const id of HOTSPOT_HIT_LAYERS) {
+      map.on?.("mousemove", id, enter);
+      map.on?.("mouseleave", id, leave);
+      map.on?.("click", id, pick);
+    }
+    return () => {
+      for (const id of HOTSPOT_HIT_LAYERS) {
+        map.off?.("mousemove", id, enter);
+        map.off?.("mouseleave", id, leave);
+        map.off?.("click", id, pick);
+      }
+    };
+  }, [map, isSearch]);
+
+  // Breathing: a slow, small pulse of the heat, and the first search-next circle's pulse ring (Search
+  // next only). Off for reduced motion, paused while the tab is hidden, about 20 updates a second;
+  // only raster-opacity and the pulse ring's paint change.
   useEffect(() => {
     if (!map || !isSearch || reduced) return undefined;
     let frame = 0;
@@ -577,6 +643,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       last = now;
       try {
         setBreath(map, breathFactor(now), HEAT_BASE_OPACITY.search);
+        // The first search-next circle pulses gently (hidden while the drone flies).
+        setHotspotPulse(map, now);
       } catch {
         /* style reloading */
       }
@@ -586,6 +654,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       cancelAnimationFrame(frame);
       try {
         setBreath(map, 1, HEAT_BASE_OPACITY.search);
+        setHotspotPulse(map, null);
       } catch {
         /* map gone */
       }
@@ -746,7 +815,12 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         overlap={panelOverlap}
         held={held}
         found={finds.length > 0}
-        onSelect={flyToPoint}
+        onSelect={(lon, lat, idx) => {
+          setPickedHot(idx);
+          flyToPoint(lon, lat);
+        }}
+        activeIdx={activeHot}
+        onHover={setHoverHot}
         unsure={
           shownUnsure.length > 0
             ? {

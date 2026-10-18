@@ -272,16 +272,17 @@ export function syncBaseLayers(
       },
     });
   }
+  // The last known point: a cased diamond (pinImages.ts) with its label on a dark halo. The heat
+  // map lifts both above its own layers (heat/layers.ts raiseLkp).
   if (!map.getLayer(MAP_LAYER_IDS.lkp)) {
     map.addLayer({
       id: MAP_LAYER_IDS.lkp,
-      type: "circle",
+      type: "symbol",
       source: MAP_SOURCE_IDS.lkp,
-      paint: {
-        "circle-color": colors.text,
-        "circle-radius": 7,
-        "circle-stroke-color": colors.accent,
-        "circle-stroke-width": 3,
+      layout: {
+        "icon-image": PIN_IMAGES.lkp,
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true,
       },
     });
   }
@@ -294,14 +295,16 @@ export function syncBaseLayers(
         "text-field": ["get", "label"],
         "text-font": ["Noto Sans Regular"],
         "text-size": 13,
-        "text-offset": [0, 1.4],
-        "text-anchor": "top",
-        "text-allow-overlap": true,
+        // Below the marker, or the first side clear of the search-next badges and the pins.
+        "text-variable-anchor": ["top", "bottom", "right", "left"],
+        "text-radial-offset": 1.35,
+        "text-letter-spacing": 0.02,
       },
       paint: {
         "text-color": colors.text,
         "text-halo-color": colors.background,
-        "text-halo-width": 2,
+        "text-halo-width": 2.5,
+        "text-halo-blur": 0.5,
       },
     });
   }
