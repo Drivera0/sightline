@@ -5,6 +5,7 @@ import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import { placeName } from "../shell/SurveyIntro";
 import { useReview } from "../review/store";
+import { pct } from "./format";
 import { duration, fewer, medianGapSeconds, ResultsSummary, seedNote } from "./ResultsSummary";
 
 let cache: CacheBundle;
@@ -48,11 +49,12 @@ describe("ResultsSummary in time and in your own answers", () => {
     m.ranking.flight_order.frames_to_all_hits = 336;
     m.baseline_human.seconds_per_image = 33;
     render(<ResultsSummary metrics={m} />);
-    const line = screen.getByText(/to reach everyone/);
-    expect(line).toHaveTextContent("That is 1.4% of the 500 photos to reach everyone.");
-    // Random order: E[last] = 6 x 501 / 7 = 429.4; 10th percentile 342.
-    expect(line).toHaveTextContent("A random order needs about 429 on average (9 in 10 random orders need at least 342)");
-    expect(line).toHaveTextContent("one layout, not an average) needed 336");
+    // One sentence under the headline; the race below carries the spread and this flight's order.
+    const line = screen.getByText(/photos; a random order needs/);
+    // Random order: E[last] = 6 x 501 / 7 = 429.4.
+    expect(line).toHaveTextContent(/^That is 1\.4% of the 500 photos; a random order needs about 429\.$/);
+    expect(screen.getByText("expected value; 10–90%: 342–492")).toBeInTheDocument();
+    expect(screen.getByText("336")).toBeInTheDocument();
     // The survey's photos are sections of full photos; the human time is per full photo.
     expect(screen.queryByText(/min of looking|3 h 5 min/)).toBeNull();
     expect(screen.getByText("Time per full photo")).toBeInTheDocument();
@@ -100,6 +102,15 @@ describe("ResultsSummary in time and in your own answers", () => {
   it("asks for a review before there are answers", () => {
     render(<ResultsSummary metrics={cache.metrics} candidateIds={["a"]} />);
     expect(screen.getByText(/haven't answered any of the 1 candidates/)).toBeInTheDocument();
+  });
+});
+
+describe("Results recall figures", () => {
+  it("names the scoring next to each recall figure", () => {
+    render(<ResultsSummary metrics={cache.metrics} />);
+    const big = screen.getByText(pct(cache.metrics.detector.sar.recall), { selector: ".text-display" });
+    expect(big.closest("div")).toHaveTextContent(`${pct(cache.metrics.detector.sar.recall)}SAR-APD`);
+    expect(screen.getByText(new RegExp(`Strict VOC: ${pct(cache.metrics.detector.voc.recall)}`))).toBeInTheDocument();
   });
 });
 
