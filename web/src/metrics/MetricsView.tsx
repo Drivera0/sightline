@@ -8,13 +8,14 @@ import {
   count,
   deltaPts,
   isResizedRow,
-  minutes,
   pct,
   seconds,
   speedup,
   uniqueMinIndex,
 } from "./format";
 import { useCountUp } from "./motion";
+import { AIR_CITATION, AIR_ROWS, AIR_TUNING_NOTE } from "./publishedSota";
+import { randomOrderBaseline } from "./randomOrder";
 
 /**
  * Lane A's screen (LANE_A_ML.md §9): detector vs. the human baseline, the ablation table,
@@ -54,6 +55,7 @@ function MetricsBody({ m }: { m: Metrics }) {
     detector.tiled ? "tiled" : "untiled"
   } inference at threshold ${detector.threshold} (metrics.detector)`;
   const humanSource = `Human baseline: ${human.source}`;
+  const random = randomOrderBaseline(ranking.n_frames, ranking.n_positive);
   const isSample = detector.model === "SAMPLE";
 
   return (
@@ -109,8 +111,8 @@ function MetricsBody({ m }: { m: Metrics }) {
             value={seconds(detector.seconds_per_image)}
             animate={detector.seconds_per_image}
             format={seconds}
-            label="Per photo"
-            source={detectorSource}
+            label="Per full photo"
+            source={`${detectorSource}; time per full 4000×3000 photo (metrics.detector.seconds_per_image), the same unit as the human baseline`}
             compare={
               <>
                 <Num source={humanSource}>
@@ -155,6 +157,54 @@ function MetricsBody({ m }: { m: Metrics }) {
         </Source>
       </Panel>
 
+      {/* The published state of the art, paired scheme by scheme. */}
+      <Panel className={RIM}>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <Label>Against the published state of the art</Label>
+          <span className="text-small text-text-3">same HERIDAL test set, scored the same way per pair</span>
+        </div>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[28rem] text-body" aria-label="State of the art">
+            <thead>
+              <tr className="text-left text-small text-text-3">
+                <th className="py-1 font-normal">Detector · scoring</th>
+                <th className="py-1 text-right font-normal">Precision</th>
+                <th className="py-1 text-right font-normal">Recall</th>
+                <th className="py-1 text-right font-normal">AP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(["voc", "sar"] as const).flatMap((scheme) => {
+                const air = AIR_ROWS.find((r) => r.scheme === scheme)!;
+                const ours = scheme === "voc" ? detector.voc : detector.sar;
+                const oursAp = scheme === "voc" ? detector.voc.ap50 : detector.sar.ap;
+                const schemeLabel = scheme === "voc" ? "VOC, IoU 0.5" : "SAR-APD (loose matching)";
+                return [
+                  <Row
+                    key={`ours-${scheme}`}
+                    label={<>Sightline <span className="text-small text-text-3">· {schemeLabel}</span></>}
+                    cells={[pct(ours.precision, 1), pct(ours.recall, 1), pct(oursAp, 1)]}
+                    source={`${detectorSource}; ${scheme === "voc" ? "VOC matching at IoU 0.5 (metrics.detector.voc)" : "SAR-APD matching from the AIR paper (metrics.detector.sar)"}`}
+                    highlight
+                  />,
+                  <Row
+                    key={`air-${scheme}`}
+                    label={<>{air.name} <span className="text-small text-text-3">· {scheme === "voc" ? "VOC2012" : "SAR-APD"}</span></>}
+                    cells={[pct(air.precision, 1), pct(air.recall, 1), pct(air.ap, 1)]}
+                    source={`${AIR_CITATION}, ${scheme === "voc" ? "VOC2012 evaluation" : "SAR-APD evaluation"} (arXiv)`}
+                  />,
+                ];
+              })}
+            </tbody>
+          </table>
+        </div>
+        <Source>
+          AIR: {AIR_CITATION}, the same paper as the human baseline. Each pair uses the same scoring scheme, but AIR&apos;s
+          numbers come from its own evaluation code and ours from our reimplementation, and AIR with MOB merges boxes its
+          own way. {AIR_TUNING_NOTE}
+        </Source>
+      </Panel>
+
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {/* Ablation table. */}
         <Panel className={RIM}>
@@ -163,14 +213,14 @@ function MetricsBody({ m }: { m: Metrics }) {
 
         {/* Ranking block (D's numbers). */}
         <Panel className={RIM}>
-          <Label>Frames reviewed before the first person</Label>
+          <Label>Photos reviewed before the first and the last person</Label>
           <table className="mt-3 w-full text-body" aria-label="Ranking">
             <thead>
               <tr className="text-left text-small text-text-3">
                 <th className="py-1 font-normal">Order</th>
                 <th className="py-1 text-right font-normal">First hit</th>
                 <th className="py-1 text-right font-normal">All hits</th>
-                <th className="py-1 text-right font-normal">At human pace</th>
+                <th className="py-1 text-right font-normal">Share to all hits</th>
               </tr>
             </thead>
             <tbody>
@@ -179,7 +229,7 @@ function MetricsBody({ m }: { m: Metrics }) {
                 cells={[
                   count(ranking.ranked.frames_to_first_hit),
                   count(ranking.ranked.frames_to_all_hits),
-                  minutes(ranking.minutes_at_human_pace.ranked_first),
+                  pct(ranking.ranked.frames_to_all_hits / ranking.n_frames, 1),
                 ]}
                 source={rankingSource(ranking)}
                 highlight
@@ -188,14 +238,10 @@ function MetricsBody({ m }: { m: Metrics }) {
                 label="Random order, expected"
                 cells={[
                   count(ranking.expected_first_hit_random_order),
-                  "—",
-                  minutes(
-                    (ranking.expected_first_hit_random_order *
-                      HUMAN_SECONDS_PER_PHOTO) /
-                      60,
-                  ),
+                  random ? `≈${count(random.expectedAll)}` : "—",
+                  random ? pct(random.expectedAll / ranking.n_frames, 1) : "—",
                 ]}
-                source={`(N + 1) / (k + 1) for ${ranking.n_frames} frames and ${ranking.n_positive} with people (metrics.ranking); minutes at the published ${HUMAN_SECONDS_PER_PHOTO} s per photo (Pyrrö et al. 2021)`}
+                source={`First hit (N + 1) / (k + 1), all hits k(N + 1) / (k + 1), for N = ${ranking.n_frames} frames and k = ${ranking.n_positive} with people (metrics.ranking)`}
               />
               <Row
                 label={
@@ -207,14 +253,29 @@ function MetricsBody({ m }: { m: Metrics }) {
                 cells={[
                   count(ranking.flight_order.frames_to_first_hit),
                   count(ranking.flight_order.frames_to_all_hits),
-                  minutes(ranking.minutes_at_human_pace.flight_order_first),
+                  pct(ranking.flight_order.frames_to_all_hits / ranking.n_frames, 1),
                 ]}
                 source={`${rankingSource(ranking)}; one seeded layout, not a baseline`}
               />
             </tbody>
           </table>
+          {random && (
+            <p className="mt-2 text-small text-text-3">
+              Random order: expected values for a uniformly random shuffle of the same photos. In 8 of 10
+              shuffles the last photo with a person is between photo{" "}
+              <Num source={`Exact 10th and 90th percentile of the last positive's position for N = ${ranking.n_frames}, k = ${ranking.n_positive} (metrics.ranking)`}>
+                {count(random.p10All)}
+              </Num>{" "}
+              and{" "}
+              <Num source={`Exact 10th and 90th percentile of the last positive's position for N = ${ranking.n_frames}, k = ${ranking.n_positive} (metrics.ranking)`}>
+                {count(random.p90All)}
+              </Num>
+              .
+            </p>
+          )}
           <Source>
-            {rankingSource(ranking)}. {ranking.note}
+            {rankingSource(ranking)}. Shown in photos, not minutes: the survey&apos;s photos are 1000×750 sections
+            of 4000×3000 HERIDAL photos, and the published human time is per full photo.
           </Source>
         </Panel>
 
@@ -270,7 +331,6 @@ function MetricsBody({ m }: { m: Metrics }) {
   );
 }
 
-const HUMAN_SECONDS_PER_PHOTO = 33; // Pyrrö et al. 2021, the published human baseline
 
 /** One method table. Highlights the row with the fewest median cells, and nothing on a tie. */
 function SearchTable({

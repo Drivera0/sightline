@@ -1,11 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CacheBundle } from "../contract";
 import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import { placeName } from "../shell/SurveyIntro";
 import { useReview } from "../review/store";
-import { duration, medianGapSeconds, ResultsSummary } from "./ResultsSummary";
+import { duration, fewer, medianGapSeconds, ResultsSummary, seedNote } from "./ResultsSummary";
 
 let cache: CacheBundle;
 
@@ -38,9 +38,9 @@ describe("ResultsSummary", () => {
 });
 
 describe("ResultsSummary in time and in your own answers", () => {
-  beforeEach(() => useReview.setState({ history: [], answers: {} }));
+  beforeEach(() => useReview.setState({ history: [], answers: {}, cleared: null }));
 
-  it("turns photos into a person's time at the published pace", () => {
+  it("says the saving in photos and as a share of the survey, never in minutes at 33 s per section", () => {
     const m = structuredClone(cache.metrics);
     m.ranking.n_frames = 500;
     m.ranking.n_positive = 6;
@@ -48,8 +48,25 @@ describe("ResultsSummary in time and in your own answers", () => {
     m.ranking.flight_order.frames_to_all_hits = 336;
     m.baseline_human.seconds_per_image = 33;
     render(<ResultsSummary metrics={m} />);
-    // 7 x 33 s = 3.85 min; 336 x 33 s = 3 h 5 min.
-    expect(screen.getByText(/a person spends on each photo/)).toHaveTextContent("about 4 min of looking instead of about 3 h 5 min");
+    const line = screen.getByText(/to reach everyone/);
+    expect(line).toHaveTextContent("That is 1.4% of the 500 photos to reach everyone.");
+    // Random order: E[last] = 6 x 501 / 7 = 429.4; 10th percentile 342.
+    expect(line).toHaveTextContent("A random order needs about 429 on average (9 in 10 random orders need at least 342)");
+    expect(line).toHaveTextContent("one layout, not an average) needed 336");
+    // The survey's photos are sections of full photos; the human time is per full photo.
+    expect(screen.queryByText(/min of looking|3 h 5 min/)).toBeNull();
+    expect(screen.getByText("Time per full photo")).toBeInTheDocument();
+    expect(screen.getByText(/For a whole 4000×3000 photo/)).toBeInTheDocument();
+  });
+
+  it("races the queue against the expected random order, with its spread, and this flight's order", () => {
+    const m = structuredClone(cache.metrics);
+    m.ranking.n_frames = 500;
+    m.ranking.n_positive = 6;
+    render(<ResultsSummary metrics={m} />);
+    expect(screen.getByText("Random order")).toBeInTheDocument();
+    expect(screen.getByText("expected value; 10–90%: 342–492")).toBeInTheDocument();
+    expect(screen.getByText("one layout, as flown")).toBeInTheDocument();
   });
 
   it("summarises the reviewer's own answers for this survey's candidates", () => {
@@ -65,6 +82,19 @@ describe("ResultsSummary in time and in your own answers", () => {
     // "x" is not one of this survey's candidates, so it is not counted.
     expect(screen.getByText(/2 of 3 candidates answered/)).toHaveTextContent("a median of 30 s per answer");
     expect(screen.getByText("Not answered").nextSibling).toHaveTextContent("1");
+  });
+
+  it("lets a new reviewer on a shared machine reset the saved answers from the summary", async () => {
+    useReview.setState({
+      surveyId: null,
+      cleared: null,
+      history: [{ detectionId: "a", answer: "person", at: 0 }],
+      answers: { a: "person" },
+    });
+    render(<ResultsSummary metrics={cache.metrics} candidateIds={["a"]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reset review" }));
+    expect(screen.getByText(/haven't answered any of the 1 candidates/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
   });
 
   it("asks for a review before there are answers", () => {
@@ -94,5 +124,23 @@ describe("placeName", () => {
     expect(placeName("Mount Seymour, North Vancouver (simulated flight path)")).toBe("Mount Seymour, North Vancouver");
     expect(placeName("HERIDAL SB site (real EXIF positions)")).toBe("HERIDAL SB site");
     expect(placeName("Somewhere")).toBe("Somewhere");
+  });
+});
+
+describe("fewer", () => {
+  it("gives a percentage only when it means something", () => {
+    expect(fewer(98, 123)).toBe("20% fewer");
+    expect(fewer(11, 13)).toBeUndefined(); // the real-GPS survey: 2 cells is not "15% fewer"
+    expect(fewer(5, 20)).toBe("75% fewer"); // a gap of 15 cells
+    expect(fewer(123, 98)).toBeUndefined();
+  });
+});
+
+describe("seedNote", () => {
+  it("names the seed, and 'best of 3' only for the run the docs describe", () => {
+    expect(seedNote(7, "seymour-demo", 1213, 1743)).toBe("Seed 7, the best of 3 seeds tried (docs/LANE_C_SEARCH.md)");
+    expect(seedNote(7, "seymour-demo", 98, 123)).toBe("Seed 7");
+    expect(seedNote(7, "heridal-sb", 11, 13)).toBe("Seed 7");
+    expect(seedNote(7, undefined, 98, 123)).toBe("Seed 7");
   });
 });

@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CacheBundle } from "../contract";
 import { CACHE_DIR, CacheContext, useCache } from "../lib/cache";
 import { isTyping } from "../lib/keys";
 import { HeatLayer } from "../map/heat/HeatLayer";
 import { MapView } from "../map/MapView";
+import { TryPhoto } from "../detect/TryPhoto";
 import { MetricsView } from "../metrics/MetricsView";
+import { prefersReducedMotion } from "../metrics/motion";
 import { ResultsSummary } from "../metrics/ResultsSummary";
 import { reviewItems } from "../review/items";
 import { useReview } from "../review/store";
@@ -16,6 +18,8 @@ import { ScreenBoundary } from "./ScreenBoundary";
 import { ShortcutOverlay } from "./ShortcutOverlay";
 import { StepBar } from "./StepBar";
 import { SurveyIntro } from "./SurveyIntro";
+import { TOUR_IDLE, isTouring, tourReducer, tourStops, type TourEvent, type TourStop } from "./tour";
+import { TourOverlay, pressForTour } from "./TourOverlay";
 
 export interface SurveyOption {
   dir: string;
@@ -102,12 +106,46 @@ export function Shell({
   const bindReview = useReview((s) => s.bind);
   useEffect(() => bindReview(cache.survey.survey_id), [bindReview, cache.survey.survey_id]);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [tryPhoto, setTryPhoto] = useState(false);
   const loadedDir = useCache((s) => s.dir);
   const dir = loadedDir ?? CACHE_DIR;
 
   const setStep = useCallback((id: StepId) => {
     setStepState(id);
     if (window.location.hash !== `#${id}`) window.history.replaceState(null, "", `#${id}`);
+  }, []);
+
+  // The guided tour: the stops' captions come from this cache; the tour drives the step.
+  const stops = useMemo(() => tourStops(cache), [cache]);
+  const [tour, setTour] = useState(TOUR_IDLE);
+  const [tourRun, setTourRun] = useState(0);
+  const touring = isTouring(tour);
+  const dispatchTour = useCallback(
+    (event: TourEvent) => {
+      if (event.type === "start") setTourRun((r) => r + 1);
+      setTour((state) => tourReducer(state, event, stops.length));
+    },
+    [stops.length],
+  );
+  const startTour = useCallback(() => {
+    setShowShortcuts(false);
+    dispatchTour({ type: "start", reducedMotion: prefersReducedMotion() });
+  }, [dispatchTour]);
+  const tourStep = touring ? stops[tour.index]?.step : undefined;
+  useEffect(() => {
+    if (tourStep) setStep(tourStep);
+    // The demo answer lives only while the tour shows its effect (Review, Search next).
+    if (tourStep !== "review" && tourStep !== "search") useReview.getState().endDemo();
+  }, [tourStep, tourRun, setStep]);
+  useEffect(() => () => useReview.getState().endDemo(), []);
+  const onTourAction = useCallback((stop: TourStop) => {
+    if (stop.action === "demoAnswer") {
+      useReview.getState().beginDemo();
+      // The queue's own "P" key, so the viewer sees the real toast, pin and queue move.
+      pressForTour("p");
+    } else if (stop.action === "playFlight") {
+      document.querySelector<HTMLButtonElement>('[data-testid="mount-heat"] button[aria-label="Play"], button[aria-label="Play"]')?.click();
+    }
   }, []);
 
   useEffect(() => {
@@ -119,6 +157,11 @@ export function Shell({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (isTyping(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === "t" || event.key === "T") {
+        startTour();
+        event.preventDefault();
+        return;
+      }
       if (event.key === "?") {
         setShowShortcuts((open) => !open);
         return;
@@ -135,7 +178,7 @@ export function Shell({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [setStep]);
+  }, [setStep, startTour]);
 
   const { manifest, survey, detections } = cache;
   const stepInfo = STEPS.find((s) => s.id === step) ?? STEPS[0]!;
@@ -146,7 +189,10 @@ export function Shell({
   // Review: the live heat under the pins, fainter, so each answer visibly changes the map.
   // Search next: the full heat with sectors, replay and the side panel.
   const map = (variant: "review" | "search") => (
-    <div className="relative h-full min-h-[24rem] overflow-hidden rounded-lg" data-testid="mount-map">
+    <div
+      className={"relative min-h-[24rem] overflow-hidden rounded-lg lg:h-full " + (variant === "search" ? "h-[78vh]" : "h-[60vh]")}
+      data-testid="mount-map"
+    >
       <ScreenBoundary name="Map">
         <MapView
           focusSelection={variant === "review"}
@@ -164,14 +210,14 @@ export function Shell({
 
   return (
     <CacheContext.Provider value={cache}>
-      <div className="flex h-full flex-col gap-3 p-4">
+      <div className="flex min-h-full flex-col gap-3 p-4 lg:h-full">
         <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="flex items-center gap-2 text-title font-medium">
               <Logo />
               Sightline
             </h1>
-            <span className="text-small text-text-3">{shortSurveyName(survey.area.name)}</span>
+            <span className="hidden text-small text-text-3 sm:inline">{shortSurveyName(survey.area.name)}</span>
             {survey.simulated_path && <Badge kind="simulated">Simulated flight path</Badge>}
             {detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
             {detections.model === "PLACEHOLDER" && <Badge kind="placeholder">Placeholder detections</Badge>}
@@ -181,9 +227,27 @@ export function Shell({
           ) : null}
           <StepBar value={step} onChange={setStep} />
           <div className="flex items-center gap-4 text-small text-text-3">
-            <span>
+            <span className="hidden sm:inline">
               {manifest.n_frames} frames · {manifest.survey_id}
             </span>
+            <button
+              type="button"
+              onClick={() => setTryPhoto(true)}
+              title="Run the detector on a photo of your own, in your browser"
+              className="inline-flex items-center gap-1.5 rounded-sm text-text-2 hover:text-text"
+            >
+              <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden="true">
+                <path
+                  d="M8 10.5V2.5M5 5.5l3-3 3 3M2.5 10v2.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V10"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Try your own photo
+            </button>
             <button
               type="button"
               onClick={() => setShowShortcuts(true)}
@@ -194,8 +258,8 @@ export function Shell({
           </div>
         </header>
 
-        <main key={step} className="sl-step flex min-h-0 flex-1 flex-col gap-3" aria-label={stepInfo.label}>
-          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} />}
+        <main key={step} className="sl-step flex flex-1 flex-col gap-3 lg:min-h-0" aria-label={stepInfo.label}>
+          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onTour={startTour} onTryPhoto={() => setTryPhoto(true)} />}
 
           {step === "rank" && <RankReveal cache={cache} dir={dir} onStart={() => setStep("review")} />}
 
@@ -208,7 +272,7 @@ export function Shell({
                   drone looked there. Unsure leaves the map as it is.
                 </span>
               </p>
-              <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+              <div className="grid flex-1 grid-cols-1 gap-3 lg:min-h-0 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
                 <ScreenBoundary name="Review">
                   <ReviewView cache={cache} onShowMap={() => setStep("search")} compact />
                 </ScreenBoundary>
@@ -225,16 +289,17 @@ export function Shell({
                 ranks the remaining work by probability. Press play to watch the drone fly sector by sector:
                 ground it saw clearly fades.
               </p>
-              <div className="min-h-0 flex-1">{map("search")}</div>
+              <div className="flex-1 lg:min-h-0">{map("search")}</div>
             </>
           )}
 
           {step === "results" && (
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+            <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
               <ResultsSummary
                 metrics={cache.metrics}
                 cellM={cache.map.grid.cell_m}
                 candidateIds={reviewItems(cache).map((i) => i.id)}
+                surveyId={cache.survey.survey_id}
               />
               <div className="mt-4 flex items-center gap-4">
                 <Label>The details</Label>
@@ -279,7 +344,11 @@ export function Shell({
           </div>
         </footer>
 
-        {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}
+        {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} onTour={startTour} />}
+        {tryPhoto && <TryPhoto cache={cache} dir={dir} onClose={() => setTryPhoto(false)} />}
+        {touring && (
+          <TourOverlay stops={stops} state={tour} run={tourRun} dispatch={dispatchTour} onAction={onTourAction} />
+        )}
       </div>
     </CacheContext.Provider>
   );

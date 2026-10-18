@@ -105,7 +105,7 @@ describe("ModelPanel", () => {
       "title",
       "scripts/README.md and the weights-v2 release notes",
     );
-    expect(screen.getByText(`${cache.metrics.detector.seconds_per_image.toFixed(2)} s/photo`)).toBeInTheDocument();
+    expect(screen.getByText(`${cache.metrics.detector.seconds_per_image.toFixed(2)} s per full 4000×3000 photo`)).toBeInTheDocument();
   });
 });
 

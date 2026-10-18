@@ -14,7 +14,7 @@ let cache: CacheBundle;
 beforeEach(async () => {
   cache = await loadCache("sample", diskFetch());
   localStorage.clear();
-  useReview.setState({ surveyId: null, history: [], answers: {} });
+  useReview.setState({ surveyId: null, history: [], answers: {}, cleared: null, demoSaved: null });
   useSelection.getState().clear();
 });
 
@@ -274,5 +274,22 @@ describe("ReviewView compact layout", () => {
     expect(screen.getByRole("region", { name: "Review keys" })).toBeInTheDocument();
     await userEvent.keyboard("{Enter}");
     expect(screen.getByRole("dialog", { name: "Full frame" })).toBeInTheDocument();
+  });
+});
+
+describe("ReviewView reset", () => {
+  it("offers Reset review once there are answers, clears them, and can undo it", async () => {
+    show();
+    expect(screen.queryByRole("button", { name: "Reset review" })).toBeNull();
+    await userEvent.keyboard("p");
+    await userEvent.keyboard("n");
+    expect(screen.getByText("2 of 3 reviewed · 1 person confirmed")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Reset review" }));
+    expect(screen.getByText("0 of 3 reviewed · 0 people confirmed")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("sightline.review.sample") as string)).toEqual([]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByText("2 of 3 reviewed · 1 person confirmed")).toBeInTheDocument();
   });
 });

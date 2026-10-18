@@ -104,10 +104,27 @@ describe("MetricsView", () => {
     expect(within(rows[0]!).getByText("1")).toBeInTheDocument();
     expect(rows[1]).toHaveTextContent("Random order, expected");
     expect(within(rows[1]!).getByText("7")).toBeInTheDocument();
-    // 7 photos at the published 33 s each, in minutes
-    expect(within(rows[1]!).getByText(/^3\.\d min$/)).toBeInTheDocument();
+    // No minutes: the survey's photos are sections of the full photos the human time was measured on.
+    expect(within(table).queryByText(/min$/)).toBeNull();
+    // All hits for a random order: k(N + 1) / (k + 1), shown as an expected value.
+    const { n_frames: n, n_positive: k } = cache.metrics.ranking;
+    expect(within(rows[1]!).getByText(`≈${Math.round((k * (n + 1)) / (k + 1))}`)).toBeInTheDocument();
     expect(rows[2]).toHaveTextContent("This flight's order (one layout)");
     expect(rows[2]).not.toHaveAttribute("data-highlight");
+  });
+
+  it("pairs Sightline with the published AIR detector, scheme by scheme, with the paper's Table 3 numbers", () => {
+    render(<MetricsView />);
+    const table = screen.getByRole("table", { name: "State of the art" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toHaveTextContent("Sightline · VOC, IoU 0.5");
+    expect(rows[1]).toHaveTextContent("AIR with NMS · VOC2012");
+    expect(rows[1]).toHaveTextContent("90.1%86.1%84.6%");
+    expect(rows[2]).toHaveTextContent("Sightline · SAR-APD");
+    expect(rows[3]).toHaveTextContent("AIR with MOB · SAR-APD");
+    expect(rows[3]).toHaveTextContent("94.9%92.9%91.7%");
+    expect(screen.getByText(/calibrated on the HERIDAL test set itself/)).toBeInTheDocument();
   });
 
   it("shows the search simulation with its simulated badge", () => {

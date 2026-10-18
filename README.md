@@ -4,6 +4,10 @@ Sightline finds the hiker in hundreds of search-and-rescue drone photos, then sh
 
 **Live demo: https://sightline-iota-sandy.vercel.app**
 
+![Sightline walkthrough: survey, rank, review, search next, results](docs/media/sightline-demo.gif)
+
+*The five steps on the demo survey, 23 s (recorded from the local build; the flight path and the search evaluation are simulated).*
+
 ![Sightline system architecture](docs/architecture/system.png)
 
 ## What the demo shows

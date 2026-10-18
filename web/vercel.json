@@ -2,6 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "bash scripts/fetch-caches.sh && VITE_CACHE_DIR=demo pnpm build",
+  "buildCommand": "bash scripts/fetch-caches.sh && bash scripts/fetch-model.sh && VITE_CACHE_DIR=demo pnpm build",
   "outputDirectory": "dist"
 }
