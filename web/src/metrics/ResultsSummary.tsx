@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import type { Metrics } from "../contract";
 import { ResetReview } from "../review/ResetReview";
 import { useReview, type Answer } from "../review/store";
@@ -79,7 +79,7 @@ export function ResultsSummary({
               <Sourced source={rankingSource}>first {ranked} photos</Sourced> of the queue.
             </h2>
             <p className="max-w-3xl text-title text-text-2">
-              That is <span className="text-accent-soft">{share(ranked)}</span> of the {count(ranking.n_frames)} photos
+              That is <span className="font-medium text-text">{share(ranked)}</span> of the {count(ranking.n_frames)} photos
               {random ? (
                 <>
                   ; a random order needs{" "}
@@ -138,10 +138,11 @@ export function ResultsSummary({
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card
-          label="Recall"
+          label="People found"
           value={detector.sar.recall}
           format={(v) => pct(v)}
           scoring="SAR-APD"
+          scoringPlain="scored like the human study"
           ours={detector.sar.recall}
           theirs={human.recall}
           oursLabel="Sightline"
@@ -166,10 +167,15 @@ export function ResultsSummary({
         />
         {sightline && naive && inside ? (
           <Card
-            label="Cells to search"
+            label="Ground to search"
             value={sightline.median_cells}
-            format={(v) => count(Math.round(v))}
-            headline={fewer(sightline.median_cells, naive.median_cells)}
+            // Area first when the cell size is known: hectares are what a ground team plans in.
+            format={(v) => (cellM ? hectares(v, cellM) : count(Math.round(v)))}
+            headline={
+              cellM
+                ? fewer(sightline.median_cells, naive.median_cells)?.replace("fewer", "less")
+                : fewer(sightline.median_cells, naive.median_cells)
+            }
             ours={sightline.median_cells}
             theirs={naive.median_cells}
             oursLabel="Sightline"
@@ -177,7 +183,7 @@ export function ResultsSummary({
             lowerIsBetter
             note={
               cellM
-                ? `Median ${count(cellM)} m cells a ground team checks inside the surveyed area: about ${hectares(sightline.median_cells, cellM)} of ground against ${hectares(naive.median_cells, cellM)}`
+                ? `Median ground a team checks inside the surveyed area before reaching the person: ${count(sightline.median_cells)} vs ${count(naive.median_cells)} cells of ${count(cellM)} m`
                 : "Median cells a ground team checks inside the surveyed area"
             }
             source={`Simulated search, ${inside.trials} trials with the person in a photographed cell, seed ${sim.seed} (metrics.search_sim.in_survey; seed choice: docs/LANE_C_SEARCH.md)`}
@@ -187,8 +193,8 @@ export function ResultsSummary({
           />
         ) : (
           <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-5">
-            <Label>Cells to search</Label>
-            <span className="font-mono text-display leading-none text-text-3">—</span>
+            <Label>Ground to search</Label>
+            <span className="text-display leading-none text-text-3">—</span>
             <span className="text-small text-text-3">Not yet measured (needs a contract 1.1 cache)</span>
           </div>
         )}
@@ -363,7 +369,7 @@ function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"];
         <Sourced source={source}>
           <Label>Why resolution matters</Label>
         </Sourced>
-        <span className="text-label text-text-3">test set, strict VOC: recall, precision</span>
+        <span className="text-label text-text-3">test set, strict scoring (VOC)</span>
       </div>
       <p className="text-small text-text-2">
         A person is about 70 px wide in a full 4000×3000 photo. Shrink the photo to the model&apos;s input and every
@@ -381,14 +387,24 @@ function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"];
           </>
         )}
       </p>
+      {/* Column heads, so the two numbers per row explain themselves. */}
+      <div
+        data-testid="resolution-headers"
+        className="grid grid-cols-[minmax(0,11.5rem)_minmax(0,1fr)_3rem_4rem] items-end gap-3 border-b border-border pb-1.5 text-label text-text-3"
+      >
+        <span>How the photo is read</span>
+        <span aria-hidden="true" />
+        <span className="text-right">Recall</span>
+        <span className="text-right">Precision</span>
+      </div>
       <ul className="flex flex-col gap-2.5" aria-label="Recall by how the photo is read">
         {rows.map((r, i) => {
           const inUse = r.name === IN_USE_ROW;
           return (
-            <li key={r.name} data-in-use={inUse || undefined} className="grid grid-cols-[minmax(0,11.5rem)_minmax(0,1fr)_3rem_3rem] items-center gap-3">
+            <li key={r.name} data-in-use={inUse || undefined} className="grid grid-cols-[minmax(0,11.5rem)_minmax(0,1fr)_3rem_4rem] items-center gap-3">
               <span className={"flex min-w-0 flex-col text-small " + (inUse ? "text-text" : "text-text-2")} title={r.name}>
                 <span className="truncate">{r.short}</span>
-                {inUse && <span className="font-mono text-label uppercase tracking-label text-accent">in use</span>}
+                {inUse && <span className="font-mono text-label uppercase tracking-label text-text-2">in use</span>}
               </span>
               <span className="h-2 rounded-full bg-surface-strong">
                 <span
@@ -396,10 +412,10 @@ function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"];
                   style={{ width: `${Math.max(2, r.voc.recall * 100)}%`, animationDelay: `${350 + i * 120}ms` }}
                 />
               </span>
-              <span className={"text-right font-mono text-small " + (inUse ? "text-accent-soft" : "text-text-2")}>
+              <span className={"text-right font-mono text-small " + (inUse ? "font-medium text-text" : "text-text-2")}>
                 {pct(r.voc.recall)}
               </span>
-              <span className="text-right font-mono text-small text-text-3" title="Precision">
+              <span className="text-right font-mono text-small text-text-2" title="Precision">
                 {pct(r.voc.precision)}
               </span>
             </li>
@@ -407,8 +423,7 @@ function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"];
         })}
       </ul>
       <p className="text-label text-text-3">
-        Bars show recall; the grey figure is precision. The highlighted row is the detector the app runs: tiled
-        inference, which fits on a small GPU.{singlePass && " The single full-resolution pass is not the model in use."}{" "}
+        The orange row is the detector the app runs: tiled inference, which fits on a small GPU.{singlePass && " The single full-resolution pass is not the model in use."}{" "}
         Every row is in the details below.
       </p>
     </div>
@@ -465,24 +480,73 @@ interface RaceRowData {
   source?: string;
 }
 
+/**
+ * Axis ticks from 0 to `max`: a whole step of 1, 2 or 5 × a power of ten giving at most six
+ * intervals, and no tick past `max` (500 -> 0, 100 … 500; 37 -> 0, 10, 20, 30).
+ */
+export function axisTicks(max: number): number[] {
+  if (max <= 0) return [0];
+  const base = 10 ** Math.floor(Math.log10(max));
+  // Photos and cells are whole numbers, so the step is never below 1.
+  const step =
+    [0.1, 0.2, 0.5, 1, 2, 5, 10].map((f) => f * base).find((s) => s >= 1 && max / s <= 6) ?? base * 10;
+  const ticks: number[] = [];
+  for (let t = 0; t <= max + 1e-9; t += step) ticks.push(Math.round(t * 1e6) / 1e6);
+  return ticks;
+}
+
+/** The race's three columns: label, bars, count. The axis uses the same grid so its ticks line up. */
+const RACE_GRID = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[13rem_minmax(0,1fr)_9rem]";
+
 /** Bars racing to "everyone found", with a tick where the first person turns up. */
 function Race({ n, rows, source }: { n: number; rows: RaceRowData[]; source: string }) {
+  const hasBand = rows.some((r) => r.band);
+  const ticks = axisTicks(n);
   return (
     <div className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5" style={{ animationDelay: "60ms" }}>
-      <div className="flex items-baseline justify-between gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <Sourced source={source}>
           <Label>Photos looked at before every person is found</Label>
         </Sourced>
-        <span className="font-mono text-label text-text-3">of {n}</span>
+        {/* A legend for the two marks that aren't bars, in place of a paragraph explaining them. */}
+        <ul aria-label="Chart legend" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-text-3">
+          <li className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="h-3.5 w-0.5 rounded-full bg-text" />
+            First person found
+          </li>
+          {hasBand && (
+            <li className="flex items-center gap-1.5">
+              <span aria-hidden="true" className="h-3 w-4 rounded-sm bg-text-3/25" />
+              <Sourced source="10th to 90th percentile of a uniformly random order, computed exactly">
+                8 in 10 random orders finish here
+              </Sourced>
+            </li>
+          )}
+        </ul>
       </div>
       {rows.map((row, i) => (
         <RaceRow key={row.label} n={n} row={row} delay={250 + i * 200} />
       ))}
-      <p className="text-label text-text-3">
-        The white tick marks the first person.
-        {rows.some((r) => r.band) &&
-          " The dashed box is where 8 in 10 random orders reach the last photo with a person (10th to 90th percentile, computed exactly)."}
-      </p>
+      {/* The scale the bars are read against: photos looked at, out of the survey's n. */}
+      <div className={RACE_GRID} aria-hidden="true">
+        <span className="hidden text-label text-text-3 sm:block">photos looked at</span>
+        <div data-testid="race-axis" className="relative order-last col-span-2 h-4 border-t border-border sm:order-none sm:col-span-1">
+          {ticks.map((t, i) => (
+            <span
+              key={t}
+              data-tick
+              className={
+                "absolute top-1 font-mono text-label tabular-nums text-text-3 " +
+                (i === 0 ? "" : t === n ? "-translate-x-full" : "-translate-x-1/2")
+              }
+              style={{ left: `${(t / n) * 100}%` }}
+            >
+              {count(t)}
+            </span>
+          ))}
+        </div>
+        <span />
+      </div>
     </div>
   );
 }
@@ -491,27 +555,35 @@ function RaceRow({ n, row, delay }: { n: number; row: RaceRowData; delay: number
   const shown = useCountUp(row.all, 1400);
   const accent = row.tone === "accent";
   return (
-    <div
-      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[13rem_minmax(0,1fr)_9rem]"
-      title={row.source}
-    >
+    <div className={RACE_GRID} title={row.source}>
       <span className="flex flex-col">
-        <span className={"text-small " + (accent ? "text-text" : "text-text-2")}>{row.label}</span>
+        <span className={"text-small " + (accent ? "font-medium text-text" : "text-text-2")}>{row.label}</span>
         {row.note && <span className="text-label text-text-3">{row.note}</span>}
       </span>
       <div className="relative order-last col-span-2 h-3 rounded-full bg-surface-strong sm:order-none sm:col-span-1">
         {row.band && (
+          // A solid, faint range: dashed outlines read as a projection or a threshold.
           <span
-            className="absolute -inset-y-1 rounded-sm border border-dashed border-text-3/60"
+            data-band
+            className="absolute -inset-y-1 rounded-sm bg-text-3/25"
             style={{ left: `${(row.band[0] / n) * 100}%`, width: `${((row.band[1] - row.band[0]) / n) * 100}%` }}
             title={`10th to 90th percentile: ${row.band[0]} to ${row.band[1]} photos`}
             aria-hidden="true"
           />
         )}
         <span
-          className={"sl-grow absolute inset-y-0 left-0 rounded-full " + (accent ? "bg-accent shadow-[0_0_18px_-2px_var(--accent)]" : "bg-text-3/60")}
+          className={"sl-grow absolute inset-y-0 left-0 rounded-full " + (accent ? "bg-accent" : "bg-text-3/60")}
           style={{ width: `${Math.max(1.2, (row.all / n) * 100)}%`, animationDelay: `${delay}ms` }}
         />
+        {accent && (
+          // A short bar is easy to miss: a dot with a surface ring marks where it ends.
+          <span
+            data-end-dot
+            aria-hidden="true"
+            className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent ring-2 ring-bg"
+            style={{ left: `${Math.max(1.2, (row.all / n) * 100)}%` }}
+          />
+        )}
         <span
           className="absolute -top-1 h-5 w-0.5 rounded-full bg-text"
           style={{ left: `${(row.first / n) * 100}%` }}
@@ -519,7 +591,7 @@ function RaceRow({ n, row, delay }: { n: number; row: RaceRowData; delay: number
         />
       </div>
       <span className="flex items-baseline justify-end gap-2">
-        <span className={"font-mono text-title " + (accent ? "text-accent-soft" : "text-text-2")}>
+        <span data-count className={"font-mono text-title " + (accent ? "font-medium text-text" : "text-text-2")}>
           {row.approx ? "≈" : ""}
           {Math.round(shown)}
         </span>
@@ -535,6 +607,7 @@ function Card({
   format,
   headline,
   scoring,
+  scoringPlain,
   ours,
   theirs,
   oursLabel,
@@ -552,6 +625,8 @@ function Card({
   headline?: string;
   /** The scoring scheme of the big figure, shown right next to it ("SAR-APD"). */
   scoring?: string;
+  /** The scoring scheme in plain words, after its name ("scored like the human study"). */
+  scoringPlain?: string;
   ours: number;
   theirs: number;
   oursLabel: string;
@@ -566,30 +641,36 @@ function Card({
 }) {
   const shown = useCountUp(value, 1100);
   const max = Math.max(ours, theirs) || 1;
+  const labelId = useId();
   return (
     <div
+      role="group"
+      aria-labelledby={labelId}
       className="sl-rise flex flex-col gap-3 rounded-lg border border-border bg-surface p-5 [box-shadow:inset_0_1px_0_0_var(--surface-strong)]"
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="flex items-center justify-between gap-2">
-        <Label>{label}</Label>
+        <span className="flex flex-col gap-0.5">
+          <Label id={labelId}>{label}</Label>
+          {/* Which way is good, said where the number is read, not at the end of a footnote. */}
+          <span className="text-label text-text-3">{lowerIsBetter ? "lower is better" : "higher is better"}</span>
+        </span>
         {badge}
       </div>
-      <div className="flex items-baseline gap-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        {/* The body sans with proportional digits: tabular monospace looks loose at display size. */}
         <Sourced source={source}>
-          <span className="font-mono text-display leading-none text-text">{format(shown)}</span>
+          <span className="text-display font-semibold leading-none tracking-tight text-text">{format(shown)}</span>
         </Sourced>
         {scoring && <span className="font-mono text-label uppercase tracking-label text-text-2">{scoring}</span>}
-        {headline && <span className="text-small text-accent-soft">{headline}</span>}
+        {scoringPlain && <span className="text-label text-text-3">{scoringPlain}</span>}
+        {headline && <span className="text-small font-medium text-text">{headline}</span>}
       </div>
       <div className="flex flex-col gap-1.5">
         <Bar label={oursLabel} value={format(ours)} width={(ours / max) * 100} accent />
         <Bar label={theirsLabel} value={format(theirs)} width={(theirs / max) * 100} />
       </div>
-      <span className="text-small text-text-3">
-        {note}
-        {lowerIsBetter ? " (lower is better)" : ""}
-      </span>
+      <span className="text-small text-text-3">{note}</span>
       {footnote && <span className="font-mono text-label text-text-3">{footnote}</span>}
     </div>
   );
@@ -597,7 +678,7 @@ function Card({
 
 function Bar({ label, value, width, accent = false }: { label: string; value: string; width: number; accent?: boolean }) {
   return (
-    <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_3.5rem] items-center gap-2 text-label">
+    <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_4rem] items-center gap-2 text-label">
       <span className={accent ? "text-text" : "text-text-3"}>{label}</span>
       <span className="h-1.5 rounded-full bg-surface-strong">
         <span
