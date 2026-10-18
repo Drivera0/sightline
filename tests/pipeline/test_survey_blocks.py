@@ -157,3 +157,23 @@ def test_cli_offers_the_layout_option_and_rejects_unknown_layouts():
     assert "--layout" in runner.invoke(app, ["run", "--help"], env={"COLUMNS": "200"}).output
     assert "--layout" in runner.invoke(app, ["frames", "--help"], env={"COLUMNS": "200"}).output
     assert runner.invoke(app, ["frames", "--layout", "spiral"]).exit_code != 0
+
+
+def test_auto_layout_uses_blocks_when_the_frame_count_allows_it():
+    from sightline.pipeline.stages import resolve_layout
+
+    assert resolve_layout("auto", 500) == "blocks"
+    assert resolve_layout("auto", 40) == "shuffle"  # small test surveys can't fill a 100-frame band
+    assert (
+        resolve_layout("blocks", 40) == "blocks"
+    )  # explicit choice is kept (and fails loudly later)
+    assert resolve_layout("shuffle", 500) == "shuffle"
+
+
+def test_cli_defaults_to_auto():
+    from typer.testing import CliRunner
+
+    from sightline.pipeline.__main__ import app
+
+    help_text = CliRunner().invoke(app, ["run", "--help"], env={"COLUMNS": "200"}).output
+    assert "auto" in help_text and "[default: auto]" in help_text

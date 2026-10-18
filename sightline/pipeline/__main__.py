@@ -39,8 +39,9 @@ SeedOption = Annotated[int, typer.Option(help="Seed for every random choice.")]
 LayoutOption = Annotated[
     str,
     typer.Option(
-        help="Frame layout: 'shuffle' (random crops) or 'blocks' (neighbouring crops of a photo).",
-        click_type=click.Choice(["shuffle", "blocks"]),
+        help="Frame layout: 'blocks' (neighbouring crops of a photo, the demo layout), 'shuffle' "
+        "(random crops), or 'auto' (blocks when the frame count fills whole 100-frame bands).",
+        click_type=click.Choice(["auto", "blocks", "shuffle"]),
     ),
 ]
 WeightsOption = Annotated[
@@ -74,7 +75,7 @@ def _context(
     candidate_threshold: float,
     model_name: str,
     test_dir: Path | None,
-    layout: str = "shuffle",
+    layout: str = "auto",
 ) -> Context:
     return Context(
         data=data,
@@ -110,7 +111,7 @@ def _register_stage(name: str, function: Callable[[Context], None]) -> None:
         candidate_threshold: ThresholdOption = 0.25,
         model_name: ModelNameOption = "yolo11s-heridal-tiled",
         test_dir: TestDirOption = None,
-        layout: LayoutOption = "shuffle",
+        layout: LayoutOption = "auto",
     ) -> None:
         ctx = _context(
             data,
@@ -185,7 +186,7 @@ def run(
     candidate_threshold: ThresholdOption = 0.25,
     model_name: ModelNameOption = "yolo11s-heridal-tiled",
     test_dir: TestDirOption = None,
-    layout: LayoutOption = "shuffle",
+    layout: LayoutOption = "auto",
 ) -> None:
     """Run the chosen stages in order and write the cache and its manifest."""
     ctx = _context(

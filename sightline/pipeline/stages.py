@@ -33,7 +33,13 @@ from sightline.pipeline.lanes import RECALL_FROM_DETECTOR, Lanes, MapFrame
 from sightline.pipeline.mapmath import normalise_map
 from sightline.pipeline.placeholders import placeholder_detector_metrics
 from sightline.pipeline.rank import rank_frames, ranking_metrics
-from sightline.pipeline.survey import build_block_survey, build_survey, write_survey
+from sightline.pipeline.survey import (
+    BLOCK_LINES,
+    FRAMES_PER_LINE,
+    build_block_survey,
+    build_survey,
+    write_survey,
+)
 
 PLACEHOLDER_RECALL = 0.80  # used by `map` until lane A has written detector_metrics.json
 RECALL_FROM_PLACEHOLDER = "placeholder"
@@ -41,6 +47,14 @@ DEFAULT_NOTES = "Real HERIDAL test imagery on a simulated flight path over Mount
 
 
 SURVEY_LAYOUTS = {"shuffle": build_survey, "blocks": build_block_survey}
+
+
+def resolve_layout(layout: str, n_frames: int) -> str:
+    """'auto' picks blocks when the frame count fills whole bands (the 500-frame demo does), else
+    shuffle (small test surveys). An explicit 'blocks' or 'shuffle' is kept as asked."""
+    if layout != "auto":
+        return layout
+    return "blocks" if n_frames % (BLOCK_LINES * FRAMES_PER_LINE) == 0 else "shuffle"
 
 
 @dataclass
@@ -89,9 +103,11 @@ def _frame_ids(ctx: Context) -> list[str]:
 def frames_stage(ctx: Context) -> None:
     """Cut frames from the HERIDAL test photos; write the JPEGs, `frames.json` and `truth.json`."""
     images = ctx.lanes.test_images(ctx.test_dir or _default_test_dir(ctx.data))
-    if ctx.layout not in SURVEY_LAYOUTS:
-        raise ValueError(f"unknown layout {ctx.layout!r}; choose one of {sorted(SURVEY_LAYOUTS)}")
-    frames, truth = SURVEY_LAYOUTS[ctx.layout](
+    layout = resolve_layout(ctx.layout, ctx.n_frames)
+    if layout not in SURVEY_LAYOUTS:
+        raise ValueError(f"unknown layout {ctx.layout!r}; choose auto, blocks or shuffle")
+    print(f"frames: {layout} layout")
+    frames, truth = SURVEY_LAYOUTS[layout](
         images, ctx.n_frames, ctx.n_positive, ctx.seed, survey_dir=ctx.survey_dir
     )
     write_survey(frames, truth, images, ctx.survey_dir)
