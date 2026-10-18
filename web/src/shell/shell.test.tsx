@@ -1,11 +1,18 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import type { CacheBundle } from "../contract";
 import { Annotation, Badge, EmptyState, KeyHint, Panel, Stat } from "./components";
 import { Shell } from "./Shell";
+
+// jsdom has no WebGL, so the real MapLibre map throws. Stand in for lane B's MapView so these tests
+// check what the shell passes it: lane C's heat layer must be mounted inside the map context.
+vi.mock("../map/MapView", () => ({
+  MapView: ({ layers }: { layers?: ReactNode }) => <div data-testid="map-view">{layers}</div>,
+}));
 
 async function sample(change?: (c: CacheBundle) => void): Promise<CacheBundle> {
   const cache = await loadCache("sample", diskFetch());
@@ -85,6 +92,8 @@ describe("Shell tabs", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Map" }));
     expect(screen.getByTestId("mount-map")).toBeInTheDocument();
     expect(screen.getByTestId("mount-heat")).toBeInTheDocument();
+    // The heat layer is inside the map, not a sibling of it.
+    expect(within(screen.getByTestId("map-view")).getByTestId("mount-heat")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "Metrics" }));
     expect(screen.getByTestId("mount-metrics")).toBeInTheDocument();
