@@ -1,0 +1,1120 @@
+{
+  "$defs": {
+    "Ablation": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "voc": {
+          "$ref": "#/$defs/VocScores"
+        }
+      },
+      "required": [
+        "name",
+        "voc"
+      ],
+      "title": "Ablation",
+      "type": "object"
+    },
+    "Area": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "lkp": {
+          "$ref": "#/$defs/LatLon"
+        }
+      },
+      "required": [
+        "name",
+        "lkp"
+      ],
+      "title": "Area",
+      "type": "object"
+    },
+    "BaselineHuman": {
+      "additionalProperties": false,
+      "properties": {
+        "precision": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "recall": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "seconds_per_image": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "precision",
+        "recall",
+        "seconds_per_image",
+        "source"
+      ],
+      "title": "BaselineHuman",
+      "type": "object"
+    },
+    "Detection": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^f\\d{4}-d\\d{2}$",
+          "type": "string"
+        },
+        "box_px": {
+          "maxItems": 4,
+          "minItems": 4,
+          "items": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "additionalItems": false,
+          "type": "array"
+        },
+        "conf": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "crop": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        },
+        "radius_m": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "box_px",
+        "conf",
+        "crop",
+        "lat",
+        "lon",
+        "radius_m"
+      ],
+      "title": "Detection",
+      "type": "object"
+    },
+    "Detections": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "enum": [
+            "1.0",
+            "1.1"
+          ],
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "save_threshold": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "candidate_threshold": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "frames": {
+          "patternProperties": {
+            "^f\\d{4}$": {
+              "items": {
+                "$ref": "#/$defs/Detection"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "contract_version",
+        "model",
+        "save_threshold",
+        "candidate_threshold",
+        "frames"
+      ],
+      "title": "Detections",
+      "type": "object"
+    },
+    "DetectorMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "test_images": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tiled": {
+          "type": "boolean"
+        },
+        "threshold": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "voc": {
+          "$ref": "#/$defs/VocScores"
+        },
+        "sar": {
+          "$ref": "#/$defs/SarScores"
+        },
+        "recall": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "seconds_per_image": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "model",
+        "test_images",
+        "tiled",
+        "threshold",
+        "voc",
+        "sar",
+        "recall",
+        "seconds_per_image"
+      ],
+      "title": "DetectorMetrics",
+      "type": "object"
+    },
+    "Distribution": {
+      "additionalProperties": false,
+      "description": "Per-cell probabilities plus the mass outside the grid; used for `prior` and `final`.",
+      "properties": {
+        "p": {
+          "items": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "outside": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "p",
+        "outside"
+      ],
+      "title": "Distribution",
+      "type": "object"
+    },
+    "Frame": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^f\\d{4}$",
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "width_px": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "height_px": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "flight_index": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "pose": {
+          "$ref": "#/$defs/Pose"
+        },
+        "footprint": {
+          "maxItems": 4,
+          "minItems": 4,
+          "items": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "items": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "additionalItems": false,
+              "type": "array"
+            },
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "items": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "additionalItems": false,
+              "type": "array"
+            },
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "items": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "additionalItems": false,
+              "type": "array"
+            },
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "items": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "additionalItems": false,
+              "type": "array"
+            }
+          ],
+          "additionalItems": false,
+          "type": "array"
+        },
+        "score": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "rank": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "n_candidates": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "file",
+        "width_px",
+        "height_px",
+        "flight_index",
+        "source",
+        "pose",
+        "footprint",
+        "score",
+        "rank",
+        "n_candidates"
+      ],
+      "title": "Frame",
+      "type": "object"
+    },
+    "Grid": {
+      "additionalProperties": false,
+      "properties": {
+        "origin_nw": {
+          "$ref": "#/$defs/LatLon"
+        },
+        "cell_m": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "rows": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "cols": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "origin_nw",
+        "cell_m",
+        "rows",
+        "cols"
+      ],
+      "title": "Grid",
+      "type": "object"
+    },
+    "HitPositions": {
+      "additionalProperties": false,
+      "properties": {
+        "frames_to_first_hit": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frames_to_all_hits": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "frames_to_first_hit",
+        "frames_to_all_hits"
+      ],
+      "title": "HitPositions",
+      "type": "object"
+    },
+    "InSurvey": {
+      "additionalProperties": false,
+      "description": "1.1: the same statistics over only the not-found trials whose true cell was photographed.",
+      "properties": {
+        "trials": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/SearchMethod"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "trials",
+        "methods"
+      ],
+      "title": "InSurvey",
+      "type": "object"
+    },
+    "LatLon": {
+      "additionalProperties": false,
+      "properties": {
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        }
+      },
+      "required": [
+        "lat",
+        "lon"
+      ],
+      "title": "LatLon",
+      "type": "object"
+    },
+    "Manifest": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "enum": [
+            "1.0",
+            "1.1"
+          ],
+          "type": "string"
+        },
+        "survey_id": {
+          "type": "string"
+        },
+        "generated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "git_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "simulated_path": {
+          "type": "boolean"
+        },
+        "n_frames": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stages": {
+          "$ref": "#/$defs/Stages"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_version",
+        "survey_id",
+        "generated_at",
+        "git_sha",
+        "simulated_path",
+        "n_frames",
+        "stages",
+        "notes"
+      ],
+      "title": "Manifest",
+      "type": "object"
+    },
+    "MapFile": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "enum": [
+            "1.0",
+            "1.1"
+          ],
+          "type": "string"
+        },
+        "grid": {
+          "$ref": "#/$defs/Grid"
+        },
+        "lkp": {
+          "$ref": "#/$defs/LatLon"
+        },
+        "params": {
+          "$ref": "#/$defs/Params"
+        },
+        "prior": {
+          "$ref": "#/$defs/Distribution"
+        },
+        "canopy": {
+          "items": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "type": "array"
+        },
+        "final": {
+          "$ref": "#/$defs/Distribution"
+        },
+        "top_cells": {
+          "items": {
+            "$ref": "#/$defs/TopCell"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "contract_version",
+        "grid",
+        "lkp",
+        "params",
+        "prior",
+        "canopy",
+        "steps",
+        "final",
+        "top_cells"
+      ],
+      "title": "MapFile",
+      "type": "object"
+    },
+    "Metrics": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "enum": [
+            "1.0",
+            "1.1"
+          ],
+          "type": "string"
+        },
+        "detector": {
+          "$ref": "#/$defs/DetectorMetrics"
+        },
+        "baseline_human": {
+          "$ref": "#/$defs/BaselineHuman"
+        },
+        "ablations": {
+          "items": {
+            "$ref": "#/$defs/Ablation"
+          },
+          "type": "array"
+        },
+        "ranking": {
+          "$ref": "#/$defs/Ranking"
+        },
+        "search_sim": {
+          "$ref": "#/$defs/SearchSim"
+        }
+      },
+      "required": [
+        "contract_version",
+        "detector",
+        "baseline_human",
+        "ablations",
+        "ranking",
+        "search_sim"
+      ],
+      "title": "Metrics",
+      "type": "object"
+    },
+    "MinutesAtHumanPace": {
+      "additionalProperties": false,
+      "properties": {
+        "flight_order_first": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "ranked_first": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "flight_order_first",
+        "ranked_first"
+      ],
+      "title": "MinutesAtHumanPace",
+      "type": "object"
+    },
+    "Params": {
+      "additionalProperties": false,
+      "properties": {
+        "recall": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "recall_source": {
+          "type": "string"
+        },
+        "pod_cap": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "review_pod": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "prior_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "recall",
+        "recall_source",
+        "pod_cap",
+        "review_pod"
+      ],
+      "title": "Params",
+      "type": "object"
+    },
+    "Pose": {
+      "additionalProperties": false,
+      "properties": {
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        },
+        "alt_agl_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "heading_deg": {
+          "maximum": 360,
+          "minimum": 0,
+          "type": "number"
+        },
+        "gsd_m": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "lat",
+        "lon",
+        "alt_agl_m",
+        "heading_deg",
+        "gsd_m"
+      ],
+      "title": "Pose",
+      "type": "object"
+    },
+    "Ranking": {
+      "additionalProperties": false,
+      "properties": {
+        "n_frames": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "n_positive": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "flight_order": {
+          "$ref": "#/$defs/HitPositions"
+        },
+        "ranked": {
+          "$ref": "#/$defs/HitPositions"
+        },
+        "expected_first_hit_random_order": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "minutes_at_human_pace": {
+          "$ref": "#/$defs/MinutesAtHumanPace"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "n_frames",
+        "n_positive",
+        "flight_order",
+        "ranked",
+        "expected_first_hit_random_order",
+        "minutes_at_human_pace",
+        "note"
+      ],
+      "title": "Ranking",
+      "type": "object"
+    },
+    "SarScores": {
+      "additionalProperties": false,
+      "properties": {
+        "precision": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "recall": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "ap": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "precision",
+        "recall",
+        "ap"
+      ],
+      "title": "SarScores",
+      "type": "object"
+    },
+    "SearchMethod": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "median_cells": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "p90_cells": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "median_cells",
+        "p90_cells"
+      ],
+      "title": "SearchMethod",
+      "type": "object"
+    },
+    "SearchSim": {
+      "additionalProperties": false,
+      "properties": {
+        "simulated": {
+          "type": "boolean"
+        },
+        "trials": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "found_by_drone_rate": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/SearchMethod"
+          },
+          "type": "array"
+        },
+        "in_survey": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InSurvey"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "simulated",
+        "trials",
+        "seed",
+        "found_by_drone_rate",
+        "methods"
+      ],
+      "title": "SearchSim",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "x0": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y0": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "image",
+        "x0",
+        "y0"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "StageResult": {
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "seconds": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "ok",
+        "seconds"
+      ],
+      "title": "StageResult",
+      "type": "object"
+    },
+    "Stages": {
+      "additionalProperties": false,
+      "description": "Exactly the eight pipeline stages, in order.",
+      "properties": {
+        "frames": {
+          "$ref": "#/$defs/StageResult"
+        },
+        "place": {
+          "$ref": "#/$defs/StageResult"
+        },
+        "detect": {
+          "$ref": "#/$defs/StageResult"
+        },
+        "georef": {
+          "$ref": "#/$defs/StageResult"
+        },
+        "rank": {
+          "$ref": "#/$defs/StageResult"
+        },
+        "map": {
+          "$ref": "#/$defs/StageResult"
+        },
+        "metrics": {
+          "$ref": "#/$defs/StageResult"
+        },
+        "export": {
+          "$ref": "#/$defs/StageResult"
+        }
+      },
+      "required": [
+        "frames",
+        "place",
+        "detect",
+        "georef",
+        "rank",
+        "map",
+        "metrics",
+        "export"
+      ],
+      "title": "Stages",
+      "type": "object"
+    },
+    "Step": {
+      "additionalProperties": false,
+      "properties": {
+        "frame_id": {
+          "pattern": "^f\\d{4}$",
+          "type": "string"
+        },
+        "cells": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "items": [
+              {
+                "type": "integer"
+              },
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              }
+            ],
+            "additionalItems": false,
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "frame_id",
+        "cells"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "Survey": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "enum": [
+            "1.0",
+            "1.1"
+          ],
+          "type": "string"
+        },
+        "survey_id": {
+          "type": "string"
+        },
+        "simulated_path": {
+          "type": "boolean"
+        },
+        "area": {
+          "$ref": "#/$defs/Area"
+        },
+        "frames": {
+          "items": {
+            "$ref": "#/$defs/Frame"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "contract_version",
+        "survey_id",
+        "simulated_path",
+        "area",
+        "frames"
+      ],
+      "title": "Survey",
+      "type": "object"
+    },
+    "TopCell": {
+      "additionalProperties": false,
+      "properties": {
+        "idx": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        },
+        "p": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "canopy": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "idx",
+        "lat",
+        "lon",
+        "p",
+        "canopy"
+      ],
+      "title": "TopCell",
+      "type": "object"
+    },
+    "VocScores": {
+      "additionalProperties": false,
+      "properties": {
+        "precision": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "recall": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "ap50": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "precision",
+        "recall",
+        "ap50"
+      ],
+      "title": "VocScores",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Root type used only to export one JSON Schema covering every cache file.",
+  "properties": {
+    "manifest": {
+      "$ref": "#/$defs/Manifest"
+    },
+    "survey": {
+      "$ref": "#/$defs/Survey"
+    },
+    "detections": {
+      "$ref": "#/$defs/Detections"
+    },
+    "map": {
+      "$ref": "#/$defs/MapFile"
+    },
+    "metrics": {
+      "$ref": "#/$defs/Metrics"
+    }
+  },
+  "required": [
+    "manifest",
+    "survey",
+    "detections",
+    "map",
+    "metrics"
+  ],
+  "title": "CacheBundle",
+  "type": "object"
+}

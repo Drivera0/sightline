@@ -2,30 +2,56 @@
 .venv/
 __pycache__/
 *.pyc
+*.py[cod]
 .pytest_cache/
 .ruff_cache/
 
-# Data, weights, runs: never committed (CLAUDE.md)
+# Data, weights, runs, caches: never committed (CLAUDE.md)
 data/
+data/runs/
 cache/demo/
-weights/
+cache/real-gps/
+web/public/cache/demo/
+web/public/cache/real-gps/
 *.pt
+weights/
 runs/
 datasets/
+
+# Secrets and environment
 .env
+.env*
 
 # Local YOLO smoke-test leftovers
 bus.jpg
 test.txt
 requirements.txt
 
+# Local planning copies and event documents
+/lane-b/
+/docs/*.pdf
+/docs/*.docx
+/sightline/geo/LOCAL_PROGRESS_README.md
+/sightline/geo/DEMO_TALKING_POINTS_README.md
+
 # Web
+node_modules/
 web/node_modules/
 web/dist/
-web/public/cache/demo/
+.pnpm-store/
+dist/
 
-# OS / editors
+# OS and editors
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+# Personal Claude Code rules (each person keeps their own)
+CLAUDE.local.md
+
+# Vercel CLI link files and pulled env (lane D)
+.vercel/
+
+# Local task notes
+message.txt

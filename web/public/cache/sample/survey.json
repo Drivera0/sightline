@@ -1,0 +1,814 @@
+{
+  "contract_version": "1.1",
+  "survey_id": "sample",
+  "simulated_path": true,
+  "area": {
+    "name": "Mount Seymour, North Vancouver (simulated flight path)",
+    "lkp": {
+      "lat": 49.37,
+      "lon": -122.945
+    }
+  },
+  "frames": [
+    {
+      "id": "f0001",
+      "file": "frames/f0001.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 0,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.370269,
+        "lon": -122.945414,
+        "alt_agl_m": null,
+        "heading_deg": 90.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.94531,
+          49.370359
+        ],
+        [
+          -122.94531,
+          49.37018
+        ],
+        [
+          -122.945517,
+          49.37018
+        ],
+        [
+          -122.945517,
+          49.370359
+        ]
+      ],
+      "score": 0.0,
+      "rank": 6,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0002",
+      "file": "frames/f0002.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 1,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.370269,
+        "lon": -122.945207,
+        "alt_agl_m": null,
+        "heading_deg": 90.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.945103,
+          49.370359
+        ],
+        [
+          -122.945103,
+          49.37018
+        ],
+        [
+          -122.94531,
+          49.37018
+        ],
+        [
+          -122.94531,
+          49.370359
+        ]
+      ],
+      "score": 0.0,
+      "rank": 7,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0003",
+      "file": "frames/f0003.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 2,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.370269,
+        "lon": -122.945,
+        "alt_agl_m": null,
+        "heading_deg": 90.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.944897,
+          49.370359
+        ],
+        [
+          -122.944897,
+          49.37018
+        ],
+        [
+          -122.945103,
+          49.37018
+        ],
+        [
+          -122.945103,
+          49.370359
+        ]
+      ],
+      "score": 0.12,
+      "rank": 4,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0004",
+      "file": "frames/f0004.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 3,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.370269,
+        "lon": -122.944793,
+        "alt_agl_m": null,
+        "heading_deg": 90.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.94469,
+          49.370359
+        ],
+        [
+          -122.94469,
+          49.37018
+        ],
+        [
+          -122.944897,
+          49.37018
+        ],
+        [
+          -122.944897,
+          49.370359
+        ]
+      ],
+      "score": 0.0,
+      "rank": 8,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0005",
+      "file": "frames/f0005.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 4,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.370269,
+        "lon": -122.944586,
+        "alt_agl_m": null,
+        "heading_deg": 90.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.944483,
+          49.370359
+        ],
+        [
+          -122.944483,
+          49.37018
+        ],
+        [
+          -122.94469,
+          49.37018
+        ],
+        [
+          -122.94469,
+          49.370359
+        ]
+      ],
+      "score": 0.874,
+      "rank": 1,
+      "n_candidates": 1
+    },
+    {
+      "id": "f0006",
+      "file": "frames/f0006.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 5,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.37009,
+        "lon": -122.944586,
+        "alt_agl_m": null,
+        "heading_deg": 270.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.94469,
+          49.37
+        ],
+        [
+          -122.94469,
+          49.37018
+        ],
+        [
+          -122.944483,
+          49.37018
+        ],
+        [
+          -122.944483,
+          49.37
+        ]
+      ],
+      "score": 0.0,
+      "rank": 9,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0007",
+      "file": "frames/f0007.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 6,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.37009,
+        "lon": -122.944793,
+        "alt_agl_m": null,
+        "heading_deg": 270.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.944897,
+          49.37
+        ],
+        [
+          -122.944897,
+          49.37018
+        ],
+        [
+          -122.94469,
+          49.37018
+        ],
+        [
+          -122.94469,
+          49.37
+        ]
+      ],
+      "score": 0.0,
+      "rank": 10,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0008",
+      "file": "frames/f0008.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 7,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.37009,
+        "lon": -122.945,
+        "alt_agl_m": null,
+        "heading_deg": 270.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.945103,
+          49.37
+        ],
+        [
+          -122.945103,
+          49.37018
+        ],
+        [
+          -122.944897,
+          49.37018
+        ],
+        [
+          -122.944897,
+          49.37
+        ]
+      ],
+      "score": 0.31,
+      "rank": 3,
+      "n_candidates": 1
+    },
+    {
+      "id": "f0009",
+      "file": "frames/f0009.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 8,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.37009,
+        "lon": -122.945207,
+        "alt_agl_m": null,
+        "heading_deg": 270.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.94531,
+          49.37
+        ],
+        [
+          -122.94531,
+          49.37018
+        ],
+        [
+          -122.945103,
+          49.37018
+        ],
+        [
+          -122.945103,
+          49.37
+        ]
+      ],
+      "score": 0.0,
+      "rank": 11,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0010",
+      "file": "frames/f0010.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 9,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.37009,
+        "lon": -122.945414,
+        "alt_agl_m": null,
+        "heading_deg": 270.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.945517,
+          49.37
+        ],
+        [
+          -122.945517,
+          49.37018
+        ],
+        [
+          -122.94531,
+          49.37018
+        ],
+        [
+          -122.94531,
+          49.37
+        ]
+      ],
+      "score": 0.0,
+      "rank": 12,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0011",
+      "file": "frames/f0011.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 10,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.36991,
+        "lon": -122.945414,
+        "alt_agl_m": null,
+        "heading_deg": 90.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.94531,
+          49.37
+        ],
+        [
+          -122.94531,
+          49.36982
+        ],
+        [
+          -122.945517,
+          49.36982
+        ],
+        [
+          -122.945517,
+          49.37
+        ]
+      ],
+      "score": 0.0,
+      "rank": 13,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0012",
+      "file": "frames/f0012.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 11,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.36991,
+        "lon": -122.945207,
+        "alt_agl_m": null,
+        "heading_deg": 90.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.945103,
+          49.37
+        ],
+        [
+          -122.945103,
+          49.36982
+        ],
+        [
+          -122.94531,
+          49.36982
+        ],
+        [
+          -122.94531,
+          49.37
+        ]
+      ],
+      "score": 0.612,
+      "rank": 2,
+      "n_candidates": 1
+    },
+    {
+      "id": "f0013",
+      "file": "frames/f0013.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 12,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.36991,
+        "lon": -122.945,
+        "alt_agl_m": null,
+        "heading_deg": 90.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.944897,
+          49.37
+        ],
+        [
+          -122.944897,
+          49.36982
+        ],
+        [
+          -122.945103,
+          49.36982
+        ],
+        [
+          -122.945103,
+          49.37
+        ]
+      ],
+      "score": 0.0,
+      "rank": 14,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0014",
+      "file": "frames/f0014.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 13,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.36991,
+        "lon": -122.944793,
+        "alt_agl_m": null,
+        "heading_deg": 90.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.94469,
+          49.37
+        ],
+        [
+          -122.94469,
+          49.36982
+        ],
+        [
+          -122.944897,
+          49.36982
+        ],
+        [
+          -122.944897,
+          49.37
+        ]
+      ],
+      "score": 0.0,
+      "rank": 15,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0015",
+      "file": "frames/f0015.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 14,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.36991,
+        "lon": -122.944586,
+        "alt_agl_m": null,
+        "heading_deg": 90.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.944483,
+          49.37
+        ],
+        [
+          -122.944483,
+          49.36982
+        ],
+        [
+          -122.94469,
+          49.36982
+        ],
+        [
+          -122.94469,
+          49.37
+        ]
+      ],
+      "score": 0.0,
+      "rank": 16,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0016",
+      "file": "frames/f0016.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 15,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.369731,
+        "lon": -122.944586,
+        "alt_agl_m": null,
+        "heading_deg": 270.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.94469,
+          49.369641
+        ],
+        [
+          -122.94469,
+          49.36982
+        ],
+        [
+          -122.944483,
+          49.36982
+        ],
+        [
+          -122.944483,
+          49.369641
+        ]
+      ],
+      "score": 0.08,
+      "rank": 5,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0017",
+      "file": "frames/f0017.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 16,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.369731,
+        "lon": -122.944793,
+        "alt_agl_m": null,
+        "heading_deg": 270.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.944897,
+          49.369641
+        ],
+        [
+          -122.944897,
+          49.36982
+        ],
+        [
+          -122.94469,
+          49.36982
+        ],
+        [
+          -122.94469,
+          49.369641
+        ]
+      ],
+      "score": 0.0,
+      "rank": 17,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0018",
+      "file": "frames/f0018.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 17,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.369731,
+        "lon": -122.945,
+        "alt_agl_m": null,
+        "heading_deg": 270.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.945103,
+          49.369641
+        ],
+        [
+          -122.945103,
+          49.36982
+        ],
+        [
+          -122.944897,
+          49.36982
+        ],
+        [
+          -122.944897,
+          49.369641
+        ]
+      ],
+      "score": 0.0,
+      "rank": 18,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0019",
+      "file": "frames/f0019.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 18,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.369731,
+        "lon": -122.945207,
+        "alt_agl_m": null,
+        "heading_deg": 270.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.94531,
+          49.369641
+        ],
+        [
+          -122.94531,
+          49.36982
+        ],
+        [
+          -122.945103,
+          49.36982
+        ],
+        [
+          -122.945103,
+          49.369641
+        ]
+      ],
+      "score": 0.0,
+      "rank": 19,
+      "n_candidates": 0
+    },
+    {
+      "id": "f0020",
+      "file": "frames/f0020.jpg",
+      "width_px": 1000,
+      "height_px": 750,
+      "flight_index": 19,
+      "source": {
+        "image": "SAMPLE_synthetic.jpg",
+        "x0": 0,
+        "y0": 0
+      },
+      "pose": {
+        "lat": 49.369731,
+        "lon": -122.945414,
+        "alt_agl_m": null,
+        "heading_deg": 270.0,
+        "gsd_m": 0.02
+      },
+      "footprint": [
+        [
+          -122.945517,
+          49.369641
+        ],
+        [
+          -122.945517,
+          49.36982
+        ],
+        [
+          -122.94531,
+          49.36982
+        ],
+        [
+          -122.94531,
+          49.369641
+        ]
+      ],
+      "score": 0.0,
+      "rank": 20,
+      "n_candidates": 0
+    }
+  ]
+}

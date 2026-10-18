@@ -1,0 +1,103 @@
+{
+  "contract_version": "1.1",
+  "detector": {
+    "model": "SAMPLE",
+    "test_images": 101,
+    "tiled": true,
+    "threshold": 0.25,
+    "voc": {
+      "precision": 0.812,
+      "recall": 0.8,
+      "ap50": 0.766
+    },
+    "sar": {
+      "precision": 0.86,
+      "recall": 0.84,
+      "ap": 0.79
+    },
+    "recall": 0.8,
+    "seconds_per_image": 0.9
+  },
+  "baseline_human": {
+    "precision": 0.59,
+    "recall": 0.68,
+    "seconds_per_image": 33.0,
+    "source": "Pyrr\u00f6, Naseri & Jung 2021, arXiv:2111.09406"
+  },
+  "ablations": [
+    {
+      "name": "Stock model, no tiling",
+      "voc": {
+        "precision": 0.31,
+        "recall": 0.42,
+        "ap50": 0.28
+      }
+    },
+    {
+      "name": "Fine-tuned, no tiling",
+      "voc": {
+        "precision": 0.55,
+        "recall": 0.61,
+        "ap50": 0.52
+      }
+    },
+    {
+      "name": "Fine-tuned + tiling",
+      "voc": {
+        "precision": 0.74,
+        "recall": 0.77,
+        "ap50": 0.71
+      }
+    },
+    {
+      "name": "+ hard negatives",
+      "voc": {
+        "precision": 0.812,
+        "recall": 0.8,
+        "ap50": 0.766
+      }
+    }
+  ],
+  "ranking": {
+    "n_frames": 20,
+    "n_positive": 2,
+    "flight_order": {
+      "frames_to_first_hit": 5,
+      "frames_to_all_hits": 12
+    },
+    "ranked": {
+      "frames_to_first_hit": 1,
+      "frames_to_all_hits": 2
+    },
+    "expected_first_hit_random_order": 7.0,
+    "minutes_at_human_pace": {
+      "flight_order_first": 2.75,
+      "ranked_first": 0.55
+    },
+    "note": "SAMPLE numbers. Minutes use the published 33 s per image, measured on full 4000\u00d73000 photos."
+  },
+  "search_sim": {
+    "simulated": true,
+    "trials": 1000,
+    "seed": 7,
+    "found_by_drone_rate": 0.5,
+    "methods": [
+      {
+        "name": "Prior only",
+        "median_cells": 410.0,
+        "p90_cells": 980.0
+      },
+      {
+        "name": "Naive: photographed = cleared",
+        "median_cells": 350.0,
+        "p90_cells": 900.0
+      },
+      {
+        "name": "Sightline: canopy-aware",
+        "median_cells": 120.0,
+        "p90_cells": 450.0
+      }
+    ],
+    "in_survey": null
+  }
+}
