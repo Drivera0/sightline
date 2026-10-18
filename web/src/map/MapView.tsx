@@ -19,6 +19,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useBundle } from "../lib/cache";
 import { useSelection } from "../lib/selection";
 import { Badge } from "../shell/components";
+import { showsPlaceholderPrior } from "./heat/Legend";
+import { SimulatedLine } from "./base/SimulatedLine";
 import { useReview } from "../review/store";
 import { prefersReducedMotion } from "../metrics/motion";
 import type { CacheBundle } from "../contract";
@@ -306,11 +308,13 @@ function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean })
   const radiusLabel = new Set(candidateRadii).size === 1 ? candidateRadii[0] : null;
 
   return (
-    <div className="pointer-events-none absolute bottom-4 left-4 flex flex-col items-start gap-2">
+    <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
       {!bundle.survey.simulated_path && <Badge kind="info">Real EXIF positions</Badge>}
-      {radiusLabel !== null && (
-        <Badge kind="info">{radiusLabel} m position uncertainty</Badge>
-      )}
+      <SimulatedLine
+        simulatedPath={bundle.survey.simulated_path}
+        radiusM={radiusLabel ?? null}
+        placeholderPrior={showsPlaceholderPrior(bundle.map.params.prior_source, bundle.manifest.notes)}
+      />
     </div>
   );
 }

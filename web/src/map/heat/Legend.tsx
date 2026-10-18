@@ -1,5 +1,5 @@
-import type { Manifest, Params } from "../../contract";
-import { Badge, Label } from "../../shell/components";
+import type { Params } from "../../contract";
+import { Label } from "../../shell/components";
 import { droneSvgMarkup } from "./droneImage";
 import { HEAT_CLASSES, HELD_ALPHA, heatColor, paletteFromTokens, readRasterTokens, VEIL_ALPHA } from "./raster";
 
@@ -57,18 +57,15 @@ export function DroneGlyph({ className = "size-5" }: { className?: string }) {
 
 interface Props {
   simulatedPath: boolean;
-  params: Pick<Params, "prior_source">;
-  manifest: Pick<Manifest, "notes">;
   hasSurveyed: boolean;
-  /** The short version beside the review queue: ramp, veil, awaiting review and the badges. */
+  /** The short version beside the review queue: ramp, veil and awaiting review. The simulated labels live in the map's own line (map/base/SimulatedLine). */
   compact?: boolean;
   /** With a handler, the legend shows a "Flight path (simulated)" switch. */
   showPath?: boolean;
   onShowPathChange?: (visible: boolean) => void;
 }
 
-export function Legend({ simulatedPath, params, manifest, hasSurveyed, compact = false, showPath = true, onShowPathChange }: Props) {
-  const placeholder = showsPlaceholderPrior(params.prior_source, manifest.notes);
+export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath = true, onShowPathChange }: Props) {
   const swatches = rampSwatches();
   return (
     <div className="flex flex-col gap-3">
@@ -160,12 +157,6 @@ export function Legend({ simulatedPath, params, manifest, hasSurveyed, compact =
             />
           </span>
         </label>
-      )}
-      {(simulatedPath || placeholder) && (
-        <div className="flex flex-wrap gap-2">
-          {simulatedPath && <Badge kind="simulated">Simulated flight path</Badge>}
-          {placeholder && <Badge kind="placeholder">Placeholder prior</Badge>}
-        </div>
       )}
     </div>
   );
