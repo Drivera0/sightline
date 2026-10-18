@@ -314,10 +314,10 @@ export function ReviewView({
       <div
         className={
           "grid flex-1 grid-cols-1 gap-3 lg:min-h-0 " +
-          (compact ? "md:grid-cols-[16.5rem_minmax(0,1fr)]" : "lg:grid-cols-[18rem_1fr_20rem]")
+          (compact ? "md:grid-cols-[16.5rem_minmax(0,1fr)] lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[16.5rem_minmax(0,1fr)]" : "lg:grid-cols-[18rem_1fr_20rem]")
         }
       >
-        <Panel className="max-h-64 overflow-y-auto p-2 md:max-h-[70vh] lg:max-h-none lg:min-h-0">
+        <Panel className="max-h-64 overflow-y-auto overflow-x-hidden p-2 md:max-h-[70vh] lg:max-h-none lg:min-h-0">
           <ul aria-label="Candidates" className="flex flex-col gap-1">
             {items.map((item, index) => {
               const state = answers[item.id] ?? "unreviewed";
@@ -390,11 +390,11 @@ export function ReviewView({
               </span>
             </div>
 
-            <div className="contents sm:grid sm:grid-cols-[minmax(0,1fr)_18rem] sm:gap-6 md:contents lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-1 xl:content-start xl:overflow-y-auto 2xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:overflow-visible">
+            <div className="contents sm:grid sm:grid-cols-[minmax(0,1fr)_18rem] sm:gap-6 md:contents lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-1 lg:content-start lg:overflow-y-auto 2xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:content-normal 2xl:overflow-visible">
               {/* The crop, as large as the panel allows up to 1.5x its 256 px (any larger just blurs). */}
-              <div className="flex min-w-0 items-center justify-center p-2 lg:min-h-0 xl:h-64 xl:shrink-0 2xl:h-auto">
+              <div className="flex min-w-0 items-center justify-center p-2 lg:h-64 lg:min-h-0 lg:shrink-0 2xl:h-auto">
                 {current.detection.crop && (
-                  <div key={current.id} className="sl-pop relative aspect-square max-h-full w-full max-w-[24rem] xl:size-60 xl:max-h-none 2xl:size-auto 2xl:max-h-full 2xl:w-full 2xl:max-w-[24rem]">
+                  <div key={current.id} className="sl-pop relative aspect-square max-h-full w-full max-w-[24rem] lg:size-60 lg:max-h-none 2xl:size-auto 2xl:max-h-full 2xl:w-full 2xl:max-w-[24rem]">
                     <img
                       src={cacheUrl(folder, current.detection.crop)}
                       alt={`Crop of detection ${current.id}`}
@@ -406,7 +406,7 @@ export function ReviewView({
               </div>
 
               {/* Where it sits, and the facts a searcher weighs. */}
-              <div className="order-last flex flex-col gap-5 sm:order-none md:order-last lg:order-none lg:min-h-0 lg:overflow-y-auto xl:min-h-max xl:overflow-visible 2xl:min-h-0 2xl:overflow-y-auto">
+              <div className="order-last flex flex-col gap-5 sm:order-none md:order-last lg:order-none lg:min-h-max lg:overflow-visible 2xl:min-h-0 2xl:overflow-y-auto">
                 <div className="flex flex-col gap-2">
                   <div className="flex items-baseline justify-between">
                     <Label>Where in the photo</Label>
@@ -516,16 +516,16 @@ export function ReviewView({
                     data-answer={value}
                     aria-pressed={answers[current.id] === value}
                     className={
-                      "inline-flex h-12 items-center justify-center gap-2.5 rounded-full border px-2 text-body leading-tight transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] sm:text-title xl:text-body 2xl:text-title " +
+                      "inline-flex h-12 items-center justify-center gap-2.5 rounded-full border px-2 text-body leading-tight transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] sm:text-title lg:text-body 2xl:text-title " +
                       tone +
                       (answers[current.id] === value ? " bg-surface-strong" : "")
                     }
                   >
-                    <span className="hidden sm:contents xl:hidden 2xl:contents">
+                    <span className="hidden sm:contents lg:hidden 2xl:contents">
                       <PinMark state={value} size={16} />
                     </span>
                     {label}{" "}
-                    <span className="hidden sm:contents xl:hidden 2xl:contents">
+                    <span className="hidden sm:contents lg:hidden 2xl:contents">
                       <KeyHint>{key}</KeyHint>
                     </span>
                   </button>

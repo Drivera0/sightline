@@ -276,7 +276,7 @@ export function Shell({
                   drone looked there. Unsure leaves the map as it is.
                 </span>
               </p>
-              <div className="grid flex-1 grid-cols-1 gap-3 lg:min-h-0 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+              <div className="grid flex-1 grid-cols-1 gap-3 lg:min-h-0 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
                 <ScreenBoundary name="Review">
                   <ReviewView cache={cache} onShowMap={() => setStep("search")} compact />
                 </ScreenBoundary>
