@@ -138,7 +138,7 @@ export function tourStops(cache: CacheBundle): TourStop[] {
       title: "Where the person could still be",
       body:
         "A probability map updated after every photo. Replaying the flight (simulated), ground the drone saw " +
-        "clearly fades; forest it cannot see into stays bright, and ground never photographed is marked not yet searched.",
+        "clearly turns pale; forest it cannot see into stays dark red, and ground never photographed is marked not yet searched.",
       ms: 12000,
       action: "playFlight",
       actionAtMs: 1500,

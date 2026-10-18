@@ -2,10 +2,14 @@
 // a canvas source with nearest-neighbour resampling (so every cell stays a crisp square; nothing is
 // blurred or interpolated between cells). Pure functions except HeatRaster, which owns the canvas.
 //
-// Colour: a sequential ramp built from the theme tokens and interpolated in OKLab, so equal steps in
-// probability give roughly equal steps in perceived lightness (the idea behind matplotlib's
-// viridis/inferno, Smith & van der Walt 2015, and Carbon's sequential palettes). On the dark basemap
-// "more likely" is lighter and more opaque, and "less likely" recedes towards the background.
+// Colour: a sequential light-to-dark ramp, pale yellow (less likely) through orange to deep red
+// (more likely), after ColorBrewer's YlOrRd (Brewer, colorbrewer2.org), with the app's accent as
+// the orange stop. Darker means more likely, as on a printed probability map. The stops are placed
+// by their OKLab distance and interpolated in OKLab (Ottosson 2020), so equal steps in probability
+// give roughly equal steps in perceived colour, with lightness falling monotonically (the idea
+// behind matplotlib's viridis/magma, Smith & van der Walt 2015). Opacity rises with probability: the
+// low end lets the basemap show through, the high end is dense and saturated, the strongest signal
+// over the dark basemap.
 import type { MapFile } from "../../contract";
 import type { MapState } from "../../search/update";
 import { edgeLat, edgeLon, relativeHeatLevels } from "./geometry";
@@ -15,13 +19,26 @@ export type RGB = [number, number, number];
 
 /** Opacity of the "not yet searched" veil (cells not photographed at this step). */
 export const VEIL_ALPHA = 0.62;
-/** Heat opacity at the low and the high end of the ramp: low cells stay visible, high cells leave the basemap readable. */
-export const HEAT_ALPHA_MIN = 0.5;
-export const HEAT_ALPHA_MAX = 0.9;
+/** Heat opacity at the low and the high end of the ramp: the pale low end lets the basemap through, the dark high end is dense. */
+export const HEAT_ALPHA_MIN = 0.8;
+export const HEAT_ALPHA_MAX = 0.95;
 /** Fill of a cell awaiting review: a neutral light tone (no update yet), outlined dashed on the map. */
 export const HELD_ALPHA = 0.3;
 /** Ramp resolution. */
 export const RAMP_STEPS = 256;
+/**
+ * The map shows the ramp in this many classes (ColorBrewer's YlOrRd is designed as 3 to 9 classes).
+ * Rounding each cell's level to a class turns the cell-to-cell speckle into a few clear bands; it
+ * only removes precision, it adds no detail. 1 would mean a continuous ramp.
+ */
+export const HEAT_CLASSES = 1;
+
+/** A heat level in [0, 1] rounded down to its class: class k of n is shown at k / (n − 1). */
+export function classLevel(t: number, classes = HEAT_CLASSES): number {
+  const x = Math.min(1, Math.max(0, t));
+  if (classes <= 1) return x;
+  return Math.min(classes - 1, Math.floor(x * classes)) / (classes - 1);
+}
 
 /** Theme values used when a CSS token is missing (tests, or before the stylesheet loads). */
 export const FALLBACK_TOKENS = {
@@ -99,6 +116,41 @@ export function buildRamp(stops: readonly RGB[], steps = RAMP_STEPS): Uint8Clamp
   return out;
 }
 
+/**
+ * Stops placed by their cumulative OKLab distance (instead of evenly), then interpolated in OKLab, so
+ * the colour changes at a steady perceived rate along the ramp even when the stops are unevenly spaced.
+ */
+export function buildEvenRamp(stops: readonly RGB[], steps = RAMP_STEPS): Uint8ClampedArray {
+  const labs = stops.map(rgbToOklab);
+  const at = [0];
+  for (let k = 1; k < labs.length; k++) {
+    const a = labs[k - 1] as [number, number, number];
+    const b = labs[k] as [number, number, number];
+    at.push((at[k - 1] as number) + Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
+  }
+  const total = at.at(-1) as number;
+  const out = new Uint8ClampedArray(steps * 3);
+  let k = 0;
+  for (let i = 0; i < steps; i++) {
+    const d = (i / (steps - 1)) * total;
+    while (k < labs.length - 2 && d > (at[k + 1] as number)) k++;
+    const span = (at[k + 1] as number) - (at[k] as number);
+    const t = span > 0 ? Math.min(1, Math.max(0, (d - (at[k] as number)) / span)) : 0;
+    const a = labs[k] as [number, number, number];
+    const b = labs[k + 1] as [number, number, number];
+    out.set(oklabToRgb([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]), i * 3);
+  }
+  return out;
+}
+
+/**
+ * ColorBrewer YlOrRd (9 classes, Cynthia Brewer, colorbrewer2.org), less likely to more likely. The
+ * palest class (#ffffcc) is left out: at partial opacity over the dark basemap it reads as grey.
+ * The orange class #fd8d3c is replaced by the theme accent (see paletteFromTokens).
+ */
+export const YLORRD_STOPS = ["#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"] as const;
+const ACCENT_STOP_INDEX = 3;
+
 export interface RasterPalette {
   ramp: Uint8ClampedArray;
   veil: RGB;
@@ -113,18 +165,16 @@ export interface RasterTokens {
 }
 
 /**
- * The heat ramp from the theme: a dark ember (the accent mixed into the background), the accent,
- * the soft accent, then a pale warm tone. Lightness rises monotonically along it (OKLab L about
- * 0.42 → 0.71 → 0.83 → 0.92), the hue stays in the app's one accent family (05_FRONTEND_SHARED §5).
+ * The heat ramp: YlOrRd with the theme accent as its orange stop, so the middle of the ramp is the
+ * app's one accent (05_FRONTEND_SHARED §5). Lightness falls monotonically along it (OKLab L about
+ * 0.94 → 0.72 at the accent → 0.38), so lighter is less likely and darker is more likely.
  */
 export function paletteFromTokens(tokens: RasterTokens): RasterPalette {
   const bg = parseHex(tokens.bg, FALLBACK_TOKENS.bg);
   const text = parseHex(tokens.text, FALLBACK_TOKENS.text);
   const accent = parseHex(tokens.accent, FALLBACK_TOKENS.accent);
-  const soft = parseHex(tokens.accentSoft, FALLBACK_TOKENS.accentSoft);
-  const ember = mixOklab(bg, accent, 0.5);
-  const pale = mixOklab(soft, text, 0.55);
-  return { ramp: buildRamp([ember, accent, soft, pale]), veil: bg, held: text };
+  const stops = YLORRD_STOPS.map((hex, i) => (i === ACCENT_STOP_INDEX ? accent : parseHex(hex, hex)));
+  return { ramp: buildEvenRamp(stops), veil: bg, held: text };
 }
 
 /** Read the tokens from the document (MapLibre and canvases cannot read CSS variables). */
@@ -146,7 +196,8 @@ export function heatColor(palette: RasterPalette, t: number): [number, number, n
  * RGBA per cell (row-major, row 0 = north: the canvas's own pixel order).
  * - not photographed at this step: the background colour at VEIL_ALPHA ("not yet searched");
  * - photographed and awaiting review: the neutral held tone at HELD_ALPHA;
- * - photographed: the ramp at the cell's level among the photographed cells (relativeHeatLevels).
+ * - photographed: the ramp at the cell's level among the photographed cells (relativeHeatLevels),
+ *   rounded to one of HEAT_CLASSES classes (classLevel).
  */
 export function heatPixels(
   state: MapState,
@@ -171,7 +222,7 @@ export function heatPixels(
       out[o + 2] = palette.held[2];
       out[o + 3] = heldA;
     } else {
-      const c = heatColor(palette, levels[i] as number);
+      const c = heatColor(palette, classLevel(levels[i] as number));
       out[o] = c[0];
       out[o + 1] = c[1];
       out[o + 2] = c[2];

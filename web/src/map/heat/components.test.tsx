@@ -192,8 +192,8 @@ describe("Legend", () => {
 
   it("shows the ramp words and the honesty badges", () => {
     render(<Legend simulatedPath params={{}} manifest={{ notes: "placeholder prior" }} hasSurveyed />);
-    expect(screen.getByText("Less likely")).toBeInTheDocument();
-    expect(screen.getByText("More likely")).toBeInTheDocument();
+    expect(screen.getByText("Lower probability")).toBeInTheDocument();
+    expect(screen.getByText("Higher probability")).toBeInTheDocument();
     expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
     expect(screen.getByText("Placeholder prior")).toBeInTheDocument();
     expect(screen.getByText("Surveyed area (outline)")).toBeInTheDocument();

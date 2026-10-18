@@ -28,10 +28,10 @@ export function showsPlaceholderPrior(priorSource: Params["prior_source"], notes
 
 const pct = (x: number) => Math.round(x * 100);
 
-/** The map's own ramp as a CSS gradient: the same OKLab-built colours and opacities as the raster. */
+/** The map's own ramp as a CSS gradient: the same OKLab-built colours and opacities as the raster, light (lower) to dark (higher). */
 export function rampGradient(): string {
   const palette = paletteFromTokens(typeof document === "undefined" ? { bg: "", text: "", accent: "", accentSoft: "" } : readRasterTokens());
-  const stops = [0, 0.2, 0.4, 0.6, 0.8, 1].map((t) => {
+  const stops = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1].map((t) => {
     const [r, g, b, a] = heatColor(palette, t);
     return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)}) ${pct(t)}%`;
   });
@@ -73,8 +73,8 @@ export function Legend({ simulatedPath, params, manifest, hasSurveyed, compact =
       <div className="flex flex-col gap-1.5">
         <div className="h-2 w-full rounded-full" style={{ background: ramp }} />
         <div className="flex justify-between text-label text-text-2">
-          <span>Less likely</span>
-          <span>More likely</span>
+          <span>Lower probability</span>
+          <span>Higher probability</span>
         </div>
         {!compact && (
           <span className="text-label text-text-3">Inside the surveyed area, relative to the other surveyed cells</span>

@@ -4,20 +4,24 @@ import { pointAtStep, lerpAngle, stepDrone, trailAtStep } from "./droneMotion";
 import { droneShapes } from "./droneImage";
 import {
   blendPixels,
+  buildEvenRamp,
   buildRamp,
   FALLBACK_TOKENS,
   gridCorners,
   HEAT_ALPHA_MAX,
   HEAT_ALPHA_MIN,
+  heatColor,
   HeatRaster,
   heatPixels,
   HELD_ALPHA,
   oklabToRgb,
   paletteFromTokens,
   parseHex,
+  RAMP_STEPS,
   rgbToOklab,
   sweepDelays,
   VEIL_ALPHA,
+  YLORRD_STOPS,
 } from "./raster";
 
 const palette = paletteFromTokens({
@@ -41,16 +45,59 @@ describe("colour ramp", () => {
     }
   });
 
-  it("rises monotonically in perceived lightness from low to high (a sequential ramp)", () => {
+  it("falls monotonically in perceived lightness from low to high: lighter is less likely, darker more likely", () => {
     const ramp = palette.ramp;
-    let last = -1;
+    let last = 2;
     for (let i = 0; i < ramp.length / 3; i += 8) {
       const L = rgbToOklab([ramp[i * 3]!, ramp[i * 3 + 1]!, ramp[i * 3 + 2]!])[0];
-      expect(L).toBeGreaterThan(last - 1e-3);
+      expect(L).toBeLessThan(last + 1e-3);
       last = L;
     }
-    const first = rgbToOklab([ramp[0]!, ramp[1]!, ramp[2]!])[0];
-    expect(last - first).toBeGreaterThan(0.35);
+    const lab = (i: number) => rgbToOklab([ramp[i * 3]!, ramp[i * 3 + 1]!, ramp[i * 3 + 2]!]);
+    const first = lab(0)[0];
+    const end = lab(RAMP_STEPS - 1)[0];
+    expect(first - end).toBeGreaterThan(0.45);
+    // The dark end stays a saturated red, well above the background's lightness (not a near-black).
+    const [, a, b] = lab(RAMP_STEPS - 1);
+    expect(Math.hypot(a, b)).toBeGreaterThan(0.1);
+    expect(end).toBeGreaterThan(rgbToOklab(parseHex(FALLBACK_TOKENS.bg, "#000"))[0] + 0.15);
+  });
+
+  it("starts at pale yellow and ends at deep red (ColorBrewer YlOrRd), with the accent in the middle", () => {
+    const r = palette.ramp;
+    expect([r[0], r[1], r[2]]).toEqual(parseHex(YLORRD_STOPS[0], "#000"));
+    expect([r.at(-3), r.at(-2), r.at(-1)]).toEqual(parseHex(YLORRD_STOPS.at(-1)!, "#000"));
+    const accent = rgbToOklab(parseHex(FALLBACK_TOKENS.accent, "#000"));
+    const nearest = Math.min(
+      ...Array.from({ length: RAMP_STEPS }, (_, i) => {
+        const c = rgbToOklab([r[i * 3]!, r[i * 3 + 1]!, r[i * 3 + 2]!]);
+        return Math.hypot(c[0] - accent[0], c[1] - accent[1], c[2] - accent[2]);
+      }),
+    );
+    expect(nearest).toBeLessThan(0.01);
+  });
+
+  it("spaces the stops by perceived distance: no big jump between neighbouring ramp steps", () => {
+    const r = buildEvenRamp([
+      [255, 237, 160],
+      [254, 217, 118],
+      [128, 0, 38],
+    ]);
+    const steps: number[] = [];
+    for (let i = 1; i < RAMP_STEPS; i++) {
+      const a = rgbToOklab([r[(i - 1) * 3]!, r[(i - 1) * 3 + 1]!, r[(i - 1) * 3 + 2]!]);
+      const b = rgbToOklab([r[i * 3]!, r[i * 3 + 1]!, r[i * 3 + 2]!]);
+      steps.push(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
+    }
+    const mean = steps.reduce((x, y) => x + y, 0) / steps.length;
+    // 8-bit rounding leaves some jitter; an evenly spaced ramp would put ~1/2 of the steps in the short first segment.
+    expect(Math.max(...steps)).toBeLessThan(mean * 2.5);
+  });
+
+  it("rises in opacity from the low end to the high end", () => {
+    expect(heatColor(palette, 0)[3]).toBe(Math.round(HEAT_ALPHA_MIN * 255));
+    expect(heatColor(palette, 1)[3]).toBe(Math.round(HEAT_ALPHA_MAX * 255));
+    expect(HEAT_ALPHA_MAX).toBeGreaterThan(HEAT_ALPHA_MIN);
   });
 
   it("hits the stops at the ends", () => {
