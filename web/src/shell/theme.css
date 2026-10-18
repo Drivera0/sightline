@@ -107,26 +107,29 @@ body {
   .sl-toast { animation: none; opacity: 0; }
 }
 
-/* Rank scanner: a scan line sweeping the photo, boxes drawing themselves, a flash on a hit. */
+/* Rank scanner: calm on purpose (no flashing). A soft scan line, photos crossfading, boxes that
+   draw themselves, and a slow glow when a candidate is found. */
 @keyframes sl-scan {
-  from { top: -4rem; }
+  from { top: -6rem; }
   to { top: 100%; }
 }
 .sl-scan {
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--accent) 22%, transparent) 85%, var(--accent));
-  height: 4rem;
-  animation: sl-scan 420ms linear both;
+  height: 6rem;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--accent) 10%, transparent) 80%, color-mix(in srgb, var(--accent) 55%, transparent));
+  animation: sl-scan 700ms cubic-bezier(0.4, 0, 0.6, 1) both;
 }
+@keyframes sl-xfade { from { opacity: 0; } to { opacity: 1; } }
+.sl-xfade { animation: sl-xfade 450ms ease-out both; }
 @keyframes sl-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-.sl-draw { stroke-dasharray: 1; animation: sl-draw 260ms ease-out both; }
-@keyframes sl-hit {
-  0% { box-shadow: 0 0 0 0 var(--accent); }
-  100% { box-shadow: 0 0 0 10px transparent; }
+.sl-draw { stroke-dasharray: 1; animation: sl-draw 650ms cubic-bezier(0.4, 0, 0.2, 1) 250ms both; }
+@keyframes sl-glow {
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+  50% { box-shadow: 0 0 0 1px var(--accent), 0 0 40px -8px color-mix(in srgb, var(--accent) 60%, transparent); }
 }
-.sl-hit { animation: sl-hit 420ms ease-out both; }
-@keyframes sl-blink { 50% { opacity: 0.25; } }
-.sl-blink { animation: sl-blink 900ms ease-in-out infinite; }
+.sl-glow { animation: sl-glow 1400ms ease-in-out both; }
+@keyframes sl-blink { 50% { opacity: 0.35; } }
+.sl-blink { animation: sl-blink 1800ms ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .sl-scan, .sl-draw, .sl-hit, .sl-blink { animation: none; }
+  .sl-scan, .sl-xfade, .sl-draw, .sl-glow, .sl-blink { animation: none; }
   .sl-draw { stroke-dasharray: none; }
 }
