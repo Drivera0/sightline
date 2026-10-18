@@ -10,7 +10,9 @@ __pycache__/
 data/
 data/runs/
 cache/demo/
+cache/real-gps/
 web/public/cache/demo/
+web/public/cache/real-gps/
 *.pt
 weights/
 runs/

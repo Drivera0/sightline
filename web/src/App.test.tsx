@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "./App";
+import { App, discoverAvailableSurveys, surveyCandidates } from "./App";
 import { loadCache, useCache } from "./lib/cache";
 import { diskFetch } from "./lib/diskFetch";
 import { useSelection } from "./lib/selection";
@@ -13,8 +13,12 @@ describe("App", () => {
     vi.unstubAllGlobals();
   });
 
-  it("loads the selected real-position cache and clears stale map selection", async () => {
-    const real = await loadCache("sample", diskFetch());
+  it("switches between simulated and real-position caches and clears stale selection", async () => {
+    const source = await loadCache("sample", diskFetch());
+    const demo = structuredClone(source);
+    demo.manifest.survey_id = "seymour-demo";
+    demo.survey.survey_id = "seymour-demo";
+    const real = structuredClone(source);
     real.manifest.survey_id = "heridal-real-gps";
     real.manifest.simulated_path = false;
     real.survey.survey_id = "heridal-real-gps";
@@ -23,6 +27,11 @@ describe("App", () => {
     vi.stubGlobal(
       "fetch",
       diskFetch({
+        "/cache/demo/manifest.json": () => Response.json(demo.manifest),
+        "/cache/demo/survey.json": () => Response.json(demo.survey),
+        "/cache/demo/detections.json": () => Response.json(demo.detections),
+        "/cache/demo/map.json": () => Response.json(demo.map),
+        "/cache/demo/metrics.json": () => Response.json(demo.metrics),
         "/cache/real-gps/manifest.json": () => Response.json(real.manifest),
         "/cache/real-gps/survey.json": () => Response.json(real.survey),
         "/cache/real-gps/detections.json": () => Response.json(real.detections),
@@ -31,12 +40,20 @@ describe("App", () => {
       }),
     );
     useSelection.getState().selectDetection("f0001-d01");
-    render(<App dir="sample" />);
+    render(<App dir="demo" />);
     await screen.findByRole("heading", { name: /Mount Seymour/ });
 
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Survey" }), "real-gps");
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Survey" }),
+      "real-gps",
+    );
 
-    expect(await screen.findByText("HERIDAL SB site (real EXIF positions)")).toBeInTheDocument();
+    expect(await screen.findByText("HERIDAL SB site")).toBeInTheDocument();
+    expect(useSelection.getState().selectedDetectionId).toBeNull();
+
+    useSelection.getState().selectDetection("f0001-d01");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Survey" }), "demo");
+    expect(await screen.findByText("Mount Seymour, North Vancouver")).toBeInTheDocument();
     expect(useSelection.getState().selectedDetectionId).toBeNull();
   });
 
@@ -57,5 +74,54 @@ describe("App", () => {
     expect(alert).toHaveTextContent(/manifest\.json/);
     expect(alert).toHaveTextContent(/pipeline/);
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+  });
+
+  it("only offers surveys whose manifest loads", async () => {
+    const options = surveyCandidates(false);
+    const fetchManifest = vi.fn<typeof fetch>(async (input) =>
+      String(input) === "/cache/demo/manifest.json"
+        ? Response.json({ contract_version: "1.1" })
+        : new Response("not found", { status: 404 }),
+    );
+
+    await expect(discoverAvailableSurveys(options, fetchManifest)).resolves.toEqual([
+      { dir: "demo", label: "Mount Seymour simulation" },
+    ]);
+  });
+
+  it("keeps a working survey selector on the error screen", async () => {
+    const demo = await loadCache("sample", diskFetch());
+    demo.manifest.survey_id = "seymour-demo";
+    demo.survey.survey_id = "seymour-demo";
+    const demoFiles: Record<string, () => Response> = {
+      "/cache/demo/manifest.json": () => Response.json(demo.manifest),
+      "/cache/demo/survey.json": () => Response.json(demo.survey),
+      "/cache/demo/detections.json": () => Response.json(demo.detections),
+      "/cache/demo/map.json": () => Response.json(demo.map),
+      "/cache/demo/metrics.json": () => Response.json(demo.metrics),
+      "/cache/sample/manifest.json": () => new Response("not found", { status: 404 }),
+      "/cache/real-gps/manifest.json": () => new Response("not found", { status: 404 }),
+    };
+    vi.stubGlobal("fetch", diskFetch(demoFiles));
+    render(<App dir="missing-cache" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/manifest\.json/);
+    const picker = await screen.findByRole("combobox", { name: "Survey" });
+    expect(within(picker).getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Choose a survey",
+      "Mount Seymour simulation",
+    ]);
+
+    await userEvent.selectOptions(picker, "demo");
+    expect(await screen.findByText(/20 frames/)).toBeInTheDocument();
+  });
+
+  it("keeps sample data out of production survey candidates", () => {
+    expect(surveyCandidates(false).map((option) => option.dir)).toEqual(["demo", "real-gps"]);
+    expect(surveyCandidates(true).map((option) => option.dir)).toEqual([
+      "sample",
+      "demo",
+      "real-gps",
+    ]);
   });
 });
