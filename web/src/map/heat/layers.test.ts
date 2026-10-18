@@ -16,6 +16,7 @@ import {
   HEAT_BASE_OPACITY,
   HOTSPOT_OPACITY,
   hotspotFeatures,
+  pushHotspots,
   setBreath,
 } from "./layers";
 
@@ -139,5 +140,16 @@ describe("breathing", () => {
     // Cell 0 is the north-west cell: its centre is just south-east of the grid origin.
     expect(lat).toBeLessThan(grid.origin_nw.lat);
     expect(lon).toBeGreaterThan(grid.origin_nw.lon);
+  });
+
+  it("draws however many cells exist (a small survey can have fewer than 5, or none)", () => {
+    const grid = { origin_nw: { lat: 49.37, lon: -122.95 }, cell_m: 20, rows: 50, cols: 50 };
+    const few = hotspotFeatures(grid, [7, 3]) as { features: unknown[] };
+    expect(few.features).toHaveLength(2);
+    const none = hotspotFeatures(grid, []) as { type: string; features: unknown[] };
+    expect(none).toEqual({ type: "FeatureCollection", features: [] });
+    // Before the layers are installed there is no source: pushing does nothing and does not throw.
+    const map = { getSource: () => undefined } as unknown as Map;
+    expect(() => pushHotspots(map, grid, [1, 2, 3])).not.toThrow();
   });
 });
