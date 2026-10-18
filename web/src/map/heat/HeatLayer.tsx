@@ -2,7 +2,7 @@
 // found banner. Mount it through B's MapView: <MapView layers={<HeatLayer />} />.
 // variant="review" is the quiet version beside the review queue: the same live heat (fainter, under
 // the pins), the review ripple and a small readout, without the replay and the side panel.
-import { type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { MapMouseEvent } from "maplibre-gl";
 import type { CacheBundle } from "../../contract";
@@ -27,13 +27,11 @@ import {
   photographedCells,
 } from "./coverage";
 import { ensureDroneImage } from "./droneImage";
-import { lerpAngle, pointAtStep, stepDrone, trailAtStep, type DroneState } from "./droneMotion";
 import {
   breathFactor,
   ensureHeatLayers,
   HEAT_BASE_OPACITY,
   type HeatVariant,
-  pushDrone,
   pushHotspots,
   pushRipple,
   pushSectorLabels,
@@ -68,6 +66,7 @@ import {
 } from "./sightings";
 import { buildSectors, currentSector, sectorBounds, sectorStatuses } from "./sectors";
 import { StepSlider } from "./StepSlider";
+import { REPLAY_HEAT_TWEEN_MS, useFlightReplay } from "./useFlightReplay";
 import { unsureMask, unsureReadoutText } from "./unsure";
 
 type PanelTab = "legend" | "sectors" | "next";
@@ -233,6 +232,11 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const firstStep = useMemo(() => firstPhotographedStep(overlapIndex), [overlapIndex]);
   const overlap = useMemo(() => overlapAtStep(overlapIndex, stepIndex), [overlapIndex, stepIndex]);
   const covered = useMemo(() => photographedCells(overlap), [overlap]);
+  // The panels, the sectors and the search-next circles follow the replay at a lower priority than
+  // the heat, so a commit during play never holds up the drone's next animation frame.
+  const panelState = useDeferredValue(state);
+  const panelOverlap = useDeferredValue(overlap);
+  const panelCovered = useDeferredValue(covered);
   const history = useReview((s) => s.history);
   const held = useMemo(
     () => heldCells({ map: mapFile, detections: bundle.detections }, history),
@@ -298,8 +302,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   // Each click on the sector list's unsure entry flies to the next unsure area.
   const unsureCursor = useRef(0);
   const statuses = useMemo(
-    () => (ready && state ? sectorStatuses(sectorLayout, state, covered) : []),
-    [ready, state, sectorLayout, covered],
+    () => (ready && panelState ? sectorStatuses(sectorLayout, panelState, panelCovered) : []),
+    [ready, panelState, sectorLayout, panelCovered],
   );
   const currentId = isSearch ? (currentSector(sectorLayout, stepIndex, stepCount)?.id ?? null) : null;
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -315,8 +319,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
 
   // The Search next cells (same rule as the panel), ringed on the map.
   const hotspots = useMemo(
-    () => (isSearch && ready && state ? topCellIndices(state.p, 5, eligibleCells(overlap, held)) : []),
-    [isSearch, ready, state, overlap, held],
+    () => (isSearch && ready && panelState ? topCellIndices(panelState.p, 5, eligibleCells(panelOverlap, held)) : []),
+    [isSearch, ready, panelState, panelOverlap, held],
   );
 
   // --- the raster ---------------------------------------------------------------------------
@@ -336,19 +340,14 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const [showPath, setShowPath] = useState(true);
   const showPathRef = useRef(showPath);
   showPathRef.current = showPath;
-  const droneRef = useRef<DroneState>({ s: stepIndex, bearing: pointAtStep(path, stepIndex)?.bearing ?? 0 });
-  const drawDroneRef = useRef<() => void>(() => {});
-  drawDroneRef.current = () => {
-    if (!map || !isSearch) return;
-    const d = droneRef.current;
-    const p = pointAtStep(path, d.s);
-    const frame = p ? stepFrames[p.frame] : undefined;
-    try {
-      pushDrone(map, p ? p.at : null, d.bearing, trailAtStep(path, d.s), frame ? frame.footprint : null);
-    } catch {
-      /* style reloading */
-    }
-  };
+  // The flight replay: one animation clock for the drone, the trail, the photo highlight and the
+  // slider's thumb; the store's step is committed a few times a second (useFlightReplay.ts).
+  const footprints = useMemo(() => stepFrames.map((f) => f.footprint), [stepFrames]);
+  const replay = useFlightReplay({ map, enabled: isSearch, path, footprints, stepIndex, stepCount, setStepIndex, reduced });
+  const playingRef = useRef(replay.playing);
+  playingRef.current = replay.playing;
+  const redrawReplayRef = useRef(replay.redraw);
+  redrawReplayRef.current = replay.redraw;
 
   useEffect(() => {
     if (!map) return undefined;
@@ -380,7 +379,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
           setSurveyedBoundary(map, grid, now.covered);
           setFlightPathVisible(map, showPathRef.current);
           pushHotspots(map, grid, now.hotspots);
-          drawDroneRef.current();
+          redrawReplayRef.current();
         }
       } catch {
         // Style not ready yet; the next 'styledata' or 'load' event tries again.
@@ -424,6 +423,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     }
     setBuilding(false);
     if (historyChanged && !stepChanged && !reduced) raster.animate(pixels, { durationMs: ANSWER_TWEEN_MS });
+    // Playing: the heat flows from one commit to the next instead of stepping (from what is on screen).
+    else if (stepChanged && playingRef.current && !reduced) raster.animate(pixels, { durationMs: REPLAY_HEAT_TWEEN_MS });
     else raster.show(pixels);
     // Only a new picture starts an animation; the refs above say why it changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -555,25 +556,6 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     }
   }, [map, showPath, isSearch]);
 
-  // The drone glides towards the slider's step and turns smoothly; it jumps with reduced motion.
-  useEffect(() => {
-    if (!map || !isSearch) return undefined;
-    let frame = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = Math.min(64, Math.max(0, now - last));
-      last = now;
-      const next = stepDrone(droneRef.current, path, stepIndex, dt, reduced);
-      droneRef.current = next;
-      drawDroneRef.current();
-      const heading = pointAtStep(path, next.s)?.bearing ?? next.bearing;
-      const settled = next.s === stepIndex && Math.abs(lerpAngle(next.bearing, heading, 1) - next.bearing) < 0.5;
-      if (!settled && !reduced) frame = requestAnimationFrame(tick);
-    };
-    tick(performance.now());
-    return () => cancelAnimationFrame(frame);
-  }, [map, isSearch, path, stepIndex, reduced]);
-
   useEffect(() => {
     if (!map || !isSearch) return;
     try {
@@ -611,15 +593,15 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   }, [map, isSearch, reduced]);
 
   // Candidate sighting cells are not "photographed and cleared": the readout leaves them out.
-  const coveredClear = useMemo(() => withoutCandidates(covered, candidate), [covered, candidate]);
+  const coveredClear = useMemo(() => withoutCandidates(panelCovered, candidate), [panelCovered, candidate]);
   const shares = useMemo(
-    () => (ready && state ? probabilityShares(state, coveredClear) : null),
-    [ready, state, coveredClear],
+    () => (ready && panelState ? probabilityShares(panelState, coveredClear) : null),
+    [ready, panelState, coveredClear],
   );
-  // Before any review answer: the same step with no answers (from the store's own inputs).
+  // Before any review answer: the same step with no answers (from the store's own inputs). Review only.
   const baseShares = useMemo(
-    () => (ready && data ? probabilityShares(stateAtStep(data.map, stepIndex), coveredClear) : null),
-    [ready, data, stepIndex, coveredClear],
+    () => (!isSearch && ready && data ? probabilityShares(stateAtStep(data.map, stepIndex), coveredClear) : null),
+    [isSearch, ready, data, stepIndex, coveredClear],
   );
   // Every detection whose latest answer is "Person" and whose photo the replay has flown, newest first.
   const flown = useMemo(() => flownFrames(mapFile.steps, stepIndex), [mapFile.steps, stepIndex]);
@@ -771,9 +753,9 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     ready && state ? (
       <NextSearch
         map={mapFile}
-        state={state}
-        covered={covered}
-        overlap={overlap}
+        state={panelState ?? state}
+        covered={panelCovered}
+        overlap={panelOverlap}
         held={held}
         found={finds.length > 0}
         onSelect={flyToPoint}
@@ -798,7 +780,18 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       }
     />
   );
-  const slider = stepCount > 0 ? <StepSlider value={stepIndex} max={stepCount} onChange={setStepIndex} /> : null;
+  const slider =
+    stepCount > 0 ? (
+      <StepSlider
+        value={stepIndex}
+        max={stepCount}
+        playing={replay.playing}
+        onTogglePlay={replay.toggle}
+        onScrub={replay.scrub}
+        onSkip={replay.skip}
+        inputRef={replay.bindSlider}
+      />
+    ) : null;
   const buildingToast = building && !reduced && (
     <div className="pointer-events-auto absolute left-1/2 top-3 -translate-x-1/2">
       <button

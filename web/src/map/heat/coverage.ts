@@ -206,7 +206,10 @@ export function overlapAtStep(index: OverlapIndex, k: number): Float64Array {
  * are drawn as "not yet searched" and stay out of the stretch bounds and the surveyed outline.
  */
 export function photographedCells(overlap: Float64Array): Uint8Array {
-  return Uint8Array.from(overlap, (v) => (v >= MIN_OVERLAP ? 1 : 0));
+  // Plain loops here and below: these run on every replay commit over 40,000 cells (5 m grid).
+  const out = new Uint8Array(overlap.length);
+  for (let i = 0; i < overlap.length; i++) if ((overlap[i] as number) >= MIN_OVERLAP) out[i] = 1;
+  return out;
 }
 
 /**
@@ -230,5 +233,7 @@ export function firstPhotographedStep(index: OverlapIndex): Int32Array {
 
 /** 1 where "Search next" may rank the cell: summed overlap >= MIN_OVERLAP and not awaiting review. */
 export function eligibleCells(overlap: Float64Array, held?: Uint8Array): Uint8Array {
-  return Uint8Array.from(overlap, (v, i) => (v >= MIN_OVERLAP && held?.[i] !== 1 ? 1 : 0));
+  const out = new Uint8Array(overlap.length);
+  for (let i = 0; i < overlap.length; i++) if ((overlap[i] as number) >= MIN_OVERLAP && held?.[i] !== 1) out[i] = 1;
+  return out;
 }

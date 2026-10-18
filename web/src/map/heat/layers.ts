@@ -281,7 +281,7 @@ export function ensureHeatLayers(
         type: "line",
         source: HEAT_TRAIL_SOURCE_ID,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": colors.outline, "line-opacity": 0.45, "line-width": 1.25 },
+        paint: { "line-color": colors.outline, "line-opacity": TRAIL_OPACITY.rest, "line-width": 1.25 },
       });
     }
     if (!map.getLayer(HEAT_LAYER_IDS.droneFootprint)) {
@@ -289,7 +289,7 @@ export function ensureHeatLayers(
         id: HEAT_LAYER_IDS.droneFootprint,
         type: "fill",
         source: HEAT_DRONE_FOOTPRINT_SOURCE_ID,
-        paint: { "fill-color": colors.accent, "fill-opacity": 0.22, "fill-antialias": true },
+        paint: { "fill-color": colors.accent, "fill-opacity": 0, "fill-antialias": true },
       });
     }
     if (!map.getLayer(HEAT_LAYER_IDS.droneFootprintLine)) {
@@ -297,7 +297,7 @@ export function ensureHeatLayers(
         id: HEAT_LAYER_IDS.droneFootprintLine,
         type: "line",
         source: HEAT_DRONE_FOOTPRINT_SOURCE_ID,
-        paint: { "line-color": colors.accent, "line-opacity": 0.9, "line-width": 1.25 },
+        paint: { "line-color": colors.accent, "line-opacity": 0, "line-width": 1.25 },
       });
     }
     if (!map.getLayer(HEAT_LAYER_IDS.droneHalo)) {
@@ -371,7 +371,8 @@ export function setUnsureBoundary(map: Map, grid: Grid, unsure: Uint8Array): voi
 
 /** Redraw the dashed outline of the photographed cells awaiting review. */
 export function setHeldBoundary(map: Map, grid: Grid, covered: Uint8Array, held: Uint8Array): void {
-  const shown = Uint8Array.from(held, (h, i) => (h === 1 && covered[i] === 1 ? 1 : 0));
+  const shown = new Uint8Array(held.length);
+  for (let i = 0; i < held.length; i++) if (held[i] === 1 && covered[i] === 1) shown[i] = 1;
   (map.getSource(HEAT_HELD_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(lines(surveyedBoundary(grid, shown)));
 }
 
@@ -527,6 +528,31 @@ export function pushReplay(map: Map, path: LonLat[], stepIndex: number): void {
   const { trail, drone } = replayFeatures(path, stepIndex);
   (map.getSource(HEAT_TRAIL_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(trail);
   (map.getSource(HEAT_DRONE_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(drone);
+}
+
+/** The replay trail: brighter while the drone flies, dimmer at rest so the search-next circles win. */
+export const TRAIL_OPACITY = { playing: 0.5, rest: 0.28 } as const;
+/** The photo being taken: its fill and outline at full strength (they fade to 0 when hidden). */
+export const FOOTPRINT_OPACITY = { fill: 0.22, line: 0.9 } as const;
+/** Fade time of the trail and the photo highlight (MapLibre paint transitions). */
+export const EMPHASIS_FADE_MS = 320;
+
+/**
+ * Replay emphasis, faded by MapLibre's paint transitions (no per-frame calls): the trail brightens
+ * while playing, and the photo highlight shows while the drone is mid-flight. `instant` (reduced
+ * motion, a style reload) sets the values without a fade.
+ */
+export function setReplayEmphasis(map: Map, { playing, highlight }: { playing: boolean; highlight: boolean }, instant: boolean): void {
+  const transition = { duration: instant ? 0 : EMPHASIS_FADE_MS, delay: 0 };
+  type PaintName = Parameters<Map["setPaintProperty"]>[1];
+  const set = (id: string, prop: string, value: number) => {
+    if (!map.getLayer(id)) return;
+    map.setPaintProperty(id, `${prop}-transition` as PaintName, transition);
+    map.setPaintProperty(id, prop as PaintName, value);
+  };
+  set(HEAT_LAYER_IDS.trail, "line-opacity", playing ? TRAIL_OPACITY.playing : TRAIL_OPACITY.rest);
+  set(HEAT_LAYER_IDS.droneFootprint, "fill-opacity", highlight ? FOOTPRINT_OPACITY.fill : 0);
+  set(HEAT_LAYER_IDS.droneFootprintLine, "line-opacity", highlight ? FOOTPRINT_OPACITY.line : 0);
 }
 
 /** Draw the drone at an interpolated position (the smooth replay; see droneMotion.ts). */

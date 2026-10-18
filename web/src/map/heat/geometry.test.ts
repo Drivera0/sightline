@@ -10,6 +10,7 @@ import {
   heatScaleMax,
   HEAT_FLOOR,
   HEAT_CEIL,
+  topCellIndices,
   percentile,
   relativeHeatOpacities,
   probabilityShares,
@@ -174,5 +175,29 @@ describe("fixedHeatLevels", () => {
     const p = Float64Array.from([0.1, 0.3]);
     expect(fixedHeatLevels(p, Uint8Array.from([1, 0]), 0.4)[0]).toBe(fixedHeatLevels(p, Uint8Array.from([1, 1]), 0.4)[0]);
     expect(Array.from(fixedHeatLevels(p, Uint8Array.from([1, 1]), 0))).toEqual([0, 0]);
+  });
+});
+
+describe("topCellIndices", () => {
+  /** The plain definition: sort every allowed cell, most likely first, ties by lower index. */
+  const bySort = (p: Float64Array, n: number, only?: Uint8Array) =>
+    Array.from(p.keys())
+      .filter((i) => only === undefined || only[i] === 1)
+      .sort((a, b) => (p[b] as number) - (p[a] as number) || a - b)
+      .slice(0, n);
+
+  it("matches a full sort, ties included, with and without a mask", () => {
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let trial = 0; trial < 50; trial++) {
+      // Few distinct values, so ties are common.
+      const p = Float64Array.from({ length: 300 }, () => Math.floor(rand() * 6) / 6);
+      const only = Uint8Array.from({ length: 300 }, () => (rand() < 0.6 ? 1 : 0));
+      for (const n of [0, 1, 5, 12]) {
+        expect(topCellIndices(p, n)).toEqual(bySort(p, n));
+        expect(topCellIndices(p, n, only)).toEqual(bySort(p, n, only));
+      }
+    }
+    expect(topCellIndices(Float64Array.from([0.1, 0.2]), 5)).toEqual([1, 0]);
   });
 });
