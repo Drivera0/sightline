@@ -68,7 +68,7 @@ const PANEL_TABS: readonly { id: PanelTab; label: string }[] = [
  * of the heat ramp under a 5 % white glass left their secondary text unreadable (Apple HIG,
  * Materials: thicker materials give better contrast for text over bright content).
  */
-const OVER_MAP = "bg-bg/80!";
+const OVER_MAP = "bg-bg/90!";
 
 /** How long an answer's change to the map takes to settle, and the Search next build-up. */
 export const ANSWER_TWEEN_MS = 650;
@@ -594,7 +594,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
                     ? `${pct2(baseShares.surveyed)} → ${pct2(shares.surveyed)}`
                     : pct2(shares.surveyed)}
                 </span>
-                <span className="text-label text-text-3">
+                <span className="text-label text-text-2">
                   {answered ? "Before review → now. " : ""}Each &ldquo;Not a person&rdquo; lowers it around that pin.
                 </span>
               </div>
@@ -674,7 +674,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
           raster.finish();
           setBuilding(false);
         }}
-        className="sl-toast rounded-full border border-border bg-bg/85 px-4 py-1.5 text-small text-text-2 backdrop-blur hover:text-text"
+        className="sl-toast rounded-full border border-border bg-bg/90 px-4 py-1.5 text-small text-text-2 backdrop-blur hover:text-text"
       >
         Building the map along the flight… <span className="text-text">Skip</span>
       </button>

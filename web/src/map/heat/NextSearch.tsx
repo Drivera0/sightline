@@ -67,7 +67,7 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
       <div className="flex flex-col gap-2">
         <div className="flex flex-col gap-0.5">
           <Label>Search next in the surveyed area</Label>
-          <span className="text-small text-text-3">
+          <span className="text-small text-text-2">
             {found
               ? "If the confirmed find is not your missing person, search here next"
               : "Most likely spots on ground the drone photographed well"}
@@ -105,7 +105,7 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
                           style={{ width: `${topP > 0 ? Math.round((p / topP) * 100) : 0}%` }}
                         />
                       </span>
-                      <span className="font-mono text-label text-text-3">{Math.round(dist)} m from LKP</span>
+                      <span className="font-mono text-label text-text-2">{Math.round(dist)} m from LKP</span>
                     </span>
                     <span
                       className="flex flex-col items-end"
@@ -115,7 +115,7 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
                       {mean > 0 ? (
                         <>
                           <span className="font-mono text-small text-text">{(p / mean).toFixed(1)}×</span>
-                          <span className="font-mono text-label text-text-3">avg photographed cell</span>
+                          <span className="font-mono text-label text-text-2">avg photographed cell</span>
                         </>
                       ) : (
                         <span className="font-mono text-small text-text">{pct(p)}</span>
@@ -138,7 +138,7 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
         <ShareRow label={SHARE_LABELS.surveyed} swatch="bg-accent" value={shares.surveyed} />
         <ShareRow label={SHARE_LABELS.restOfGrid} swatch="bg-text-3" value={shares.restOfGrid} />
         <ShareRow label={SHARE_LABELS.outside} swatch="bg-text-3/30" value={shares.outside} />
-        <p className="text-label text-text-3">
+        <p className="text-label text-text-2">
           Darkened ground on the map is not yet searched (under half of the cell photographed): it is
           unsearched, not cleared.
         </p>
