@@ -39,7 +39,7 @@ describe("ReviewView list and progress", () => {
   it("shows progress as a sentence", () => {
     show();
 
-    expect(screen.getByText("0 of 3 reviewed · 0 people confirmed")).toBeInTheDocument();
+    expect(screen.getByText("0 of 3 reviewed · 0 people sighted")).toBeInTheDocument();
   });
 
   it("starts on the first candidate and shows its crop, frame, rank and confidence", () => {
@@ -80,7 +80,7 @@ describe("ReviewView answering", () => {
     await userEvent.keyboard("p");
 
     expect(status(queue()[0]!)).toBe("Person");
-    expect(screen.getByText("1 of 3 reviewed · 1 person confirmed")).toBeInTheDocument();
+    expect(screen.getByText("1 of 3 reviewed · 1 person sighted")).toBeInTheDocument();
     expect(useReview.getState().answers).toEqual({ "f0005-d01": "person" });
   });
 
@@ -126,7 +126,7 @@ describe("ReviewView answering", () => {
     await userEvent.keyboard("pnu");
 
     expect(screen.getByText(/all candidates reviewed/i)).toBeInTheDocument();
-    expect(screen.getByText("3 of 3 reviewed · 1 person confirmed")).toBeInTheDocument();
+    expect(screen.getByText("3 of 3 reviewed · 1 person sighted")).toBeInTheDocument();
   });
 
   it("Z undoes the last answer and goes back to that candidate", async () => {
@@ -137,7 +137,7 @@ describe("ReviewView answering", () => {
 
     expect(status(queue()[0]!)).toBe("Unreviewed");
     expect(current()).toHaveTextContent("f0005");
-    expect(screen.getByText("0 of 3 reviewed · 0 people confirmed")).toBeInTheDocument();
+    expect(screen.getByText("0 of 3 reviewed · 0 people sighted")).toBeInTheDocument();
   });
 
   it("starts on the first candidate nobody has answered yet, using saved answers", () => {
@@ -367,14 +367,14 @@ describe("ReviewView reset", () => {
     expect(screen.queryByRole("button", { name: "Reset review" })).toBeNull();
     await userEvent.keyboard("p");
     await userEvent.keyboard("n");
-    expect(screen.getByText("2 of 3 reviewed · 1 person confirmed")).toBeInTheDocument();
+    expect(screen.getByText("2 of 3 reviewed · 1 person sighted")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Reset review" }));
-    expect(screen.getByText("0 of 3 reviewed · 0 people confirmed")).toBeInTheDocument();
+    expect(screen.getByText("0 of 3 reviewed · 0 people sighted")).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("sightline.review.sample") as string)).toEqual([]);
 
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
-    expect(screen.getByText("2 of 3 reviewed · 1 person confirmed")).toBeInTheDocument();
+    expect(screen.getByText("2 of 3 reviewed · 1 person sighted")).toBeInTheDocument();
   });
 });
 

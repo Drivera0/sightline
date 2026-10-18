@@ -482,7 +482,7 @@ export function ReviewView({
             <span aria-hidden="true" className="text-text-3">
               ·
             </span>
-            <p>{`${progress.reviewed} of ${progress.total} reviewed · ${progress.persons} ${people} confirmed`}</p>
+            <p>{`${progress.reviewed} of ${progress.total} reviewed · ${progress.persons} ${people} sighted`}</p>
           </div>
           <div className="flex items-center gap-3">
             {allDone && <p className="sl-fade text-small text-ok">All candidates reviewed</p>}

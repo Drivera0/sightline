@@ -252,7 +252,7 @@ function hectares(cells: number, cellM: number): string {
 }
 
 const ANSWER_ROWS: [Answer, string, string][] = [
-  ["person", "Confirmed people", "bg-ok"],
+  ["person", "People sighted", "bg-ok"],
   ["not_person", "Not a person", "bg-text-3"],
   ["unsure", "Unsure", "bg-warn"],
 ];
@@ -320,7 +320,7 @@ function YourReview({ candidateIds }: { candidateIds: readonly string[] }) {
             </div>
           </dl>
           <p className="text-small text-text-3">
-            Confirmed people are pinned on the map; each &ldquo;Not a person&rdquo; updated the search map where the
+            People you marked are pinned on the map as sightings; each &ldquo;Not a person&rdquo; updated the search map where the
             drone looked.
           </p>
         </>

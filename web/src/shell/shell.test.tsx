@@ -122,9 +122,21 @@ describe("Shell header", () => {
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       expect.stringContaining("Keyboard shortcuts"),
       expect.stringContaining("Take the tour"),
+      expect.stringContaining("Background animation: on"),
     ]);
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("turns the intro's background animation off and on from the menu", async () => {
+    window.localStorage.removeItem("sightline.modelBackground");
+    render(<Shell cache={await sample()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /Background animation: on/ }));
+    expect(window.localStorage.getItem("sightline.modelBackground")).toBe("off");
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /Background animation: off/ }));
+    expect(window.localStorage.getItem("sightline.modelBackground")).toBe("on");
   });
 });
 

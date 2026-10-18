@@ -319,12 +319,18 @@ export function Shell({
   }, [setStep, startTour]);
 
   const { survey, detections } = cache;
+  const [modelBg, setModelBg] = useModelBackgroundSetting();
   const menuItems: MenuItem[] = [
     ...(canTryPhoto
       ? [{ label: "Try your own photo", detail: "Runs the detector in your browser", onSelect: () => setTryPhoto(true) }]
       : []),
     { label: "Keyboard shortcuts", hint: "?", onSelect: () => setShowShortcuts(true) },
     { label: "Take the tour", detail: "The five steps, played for you", hint: "T", onSelect: startTour },
+    {
+      label: modelBg ? "Background animation: on" : "Background animation: off",
+      detail: modelBg ? "The detector's layers behind the intro · turn off" : "Turn on the detector's layers behind the intro",
+      onSelect: () => setModelBg(!modelBg),
+    },
   ];
   const stepInfo = STEPS.find((s) => s.id === step) ?? STEPS[0]!;
   const stepIndex = STEPS.findIndex((s) => s.id === step);
@@ -415,7 +421,7 @@ export function Shell({
 
         <main key={step} className="sl-step flex flex-1 flex-col gap-4 lg:min-h-0" aria-label={stepInfo.label}>
           {step === "survey" && (
-            <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onReview={() => setStep("review")} onTour={startTour} />
+            <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onReview={() => setStep("review")} onTour={startTour} modelBackground={modelBg} />
           )}
 
           {step === "rank" && <RankReveal cache={cache} dir={dir} onStart={() => setStep("review")} />}
@@ -494,4 +500,33 @@ export function Shell({
       </div>
     </CacheContext.Provider>
   );
+}
+
+const MODEL_BG_KEY = "sightline.modelBackground";
+
+/**
+ * The intro's faded detector graph: on by default, remembered per browser, and overridable with
+ * ?bg=off or ?bg=model in the address. Storage can be blocked, so every access is guarded.
+ */
+function useModelBackgroundSetting(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const param = new URLSearchParams(window.location.search).get("bg");
+    if (param === "off") return false;
+    if (param === "model") return true;
+    try {
+      return window.localStorage.getItem(MODEL_BG_KEY) !== "off";
+    } catch {
+      return true;
+    }
+  });
+  const set = (next: boolean) => {
+    setOn(next);
+    try {
+      window.localStorage.setItem(MODEL_BG_KEY, next ? "on" : "off");
+    } catch {
+      // Storage blocked: the choice lasts for this visit only.
+    }
+  };
+  return [on, set];
 }

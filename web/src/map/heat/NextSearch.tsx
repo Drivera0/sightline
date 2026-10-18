@@ -69,7 +69,7 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
           <Label>Search next in the surveyed area</Label>
           <span className="text-small text-text-2">
             {found
-              ? "If the confirmed find is not your missing person, search here next"
+              ? "If the sighting is not your missing person, search here next"
               : "Most likely spots on ground the drone photographed well"}
           </span>
         </div>
