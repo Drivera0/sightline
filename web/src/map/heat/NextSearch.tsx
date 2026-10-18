@@ -18,14 +18,23 @@ interface Props {
   onSelect: (lon: number, lat: number) => void;
 }
 
-/** "Search next": the 5 most likely cells now, and where the probability sits. */
+/**
+ * "Search next": the 5 most likely PHOTOGRAPHED cells now, and where the probability sits.
+ *
+ * Only photographed cells are ranked. Inside a 1 km grid a hiker prior is flat (Koester's hiker
+ * distances are larger than the grid), so every unphotographed cell would outrank every
+ * photographed one and the list would show the grid corners. Ranking the surveyed area shows where
+ * the drone could not see well; the rest of the grid is the "Rest of grid" share below.
+ */
 export function NextSearch({ map, state, covered, onSelect }: Props) {
-  const top = topCellIndices(state.p, 5);
+  const top = topCellIndices(state.p, 5, covered);
   const shares = probabilityShares(state, covered);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Label>Search next</Label>
+        <Label>Search next in the surveyed area</Label>
+        {top.length === 0 && <p className="text-small text-text-2">No cell photographed yet</p>}
+        {top.length > 0 && (
         <ol className="flex flex-col gap-1" aria-label="Most likely cells">
           {top.map((idx, rank) => {
             const c = cellCenter(map.grid, idx);
@@ -53,6 +62,7 @@ export function NextSearch({ map, state, covered, onSelect }: Props) {
             );
           })}
         </ol>
+        )}
       </div>
       <div className="flex flex-col gap-1.5" aria-label="Where the probability is">
         <Label>Where the probability is</Label>
