@@ -176,12 +176,12 @@ describe("Annotation", () => {
 describe("Shell credits", () => {
   it("credits the HERIDAL imagery and its licence on every screen", async () => {
     render(<Shell cache={await sample()} />);
-    const credit = screen.getByText(/HERIDAL/);
+    const credit = screen.getByText(/HERIDAL dataset/);
     expect(credit).toHaveTextContent(/Božić-Štulić/);
     expect(credit).toHaveTextContent(/CC BY 3\.0/);
     for (const key of ["2", "3", "4", "5", "1"]) {
       await userEvent.keyboard(key);
-      expect(screen.getByText(/HERIDAL/)).toBeInTheDocument();
+      expect(screen.getByText(/HERIDAL dataset/)).toBeInTheDocument();
     }
   });
 });

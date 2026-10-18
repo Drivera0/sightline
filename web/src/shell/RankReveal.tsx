@@ -4,10 +4,11 @@ import { cacheUrl } from "../lib/cache";
 import { prefersReducedMotion } from "../metrics/motion";
 import { reviewItems, type ReviewItem } from "../review/items";
 import { Badge, Label } from "./components";
+import { ModelPanel } from "./ModelPanel";
 import { framesInFlightOrder, scanStops, stopMs } from "./scan";
 
 /** Queue rows shown before "+N more". */
-const QUEUE_ROWS = 6;
+const QUEUE_ROWS = 4;
 
 function ordinal(n: number): string {
   return n === 1 ? "first" : `#${n}`;
@@ -290,10 +291,18 @@ export function RankReveal({
 
       {/* The queue, building as the detector finds candidates, then the answer. */}
       <div className="flex min-h-0 flex-col gap-4">
+        <ModelPanel
+          cache={cache}
+          dir={dir}
+          frame={done ? undefined : viewer?.frame}
+          boxes={done || !viewer ? [] : (cache.detections.frames[viewer.frame.id] ?? [])}
+          pulseKey={done ? "done" : `${stop}-${viewer?.frame.id ?? ""}`}
+          done={done}
+        />
         {done ? (
           <div className="sl-rise flex flex-col gap-2">
             <Label>Ranked review queue</Label>
-            <h2 className="text-[34px] font-semibold leading-[1.08]" title={source}>
+            <h2 className="text-[28px] font-semibold leading-[1.1]" title={source}>
               {firstHit === 1 ? "Person in the first photo you see" : `First person at photo ${ordinal(firstHit)}`}
             </h2>
             <p className="text-body text-text-2" title={source}>
@@ -306,7 +315,7 @@ export function RankReveal({
         ) : (
           <div className="flex flex-col gap-2">
             <Label>Ranked review queue</Label>
-            <h2 className="text-[34px] font-semibold leading-[1.08] text-text-2">Most likely people first</h2>
+            <h2 className="text-[28px] font-semibold leading-[1.1] text-text-2">Most likely people first</h2>
             <p className="text-body text-text-3">Each candidate is placed by the detector&apos;s confidence.</p>
           </div>
         )}
