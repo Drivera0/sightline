@@ -26,8 +26,9 @@ four and a half hours of careful looking.
 Sightline is one loop for the person reviewing drone photos:
 
 1. **Rank.** A detector trained on real, labelled search-and-rescue photos reads every photo and
-   puts the likeliest crops at the top of a review queue. On our 500-photo demo survey, all six
-   people are within the first 15 photos reviewed, against photo 462 in flight order.
+   puts the likeliest crops at the top of a review queue. On our 500-photo demo survey, the first
+   photo is a person and all six people are within the first 7 photos reviewed: under four minutes
+   of looking at 33 s a photo, instead of 4.6 hours for the whole survey.
 2. **Pin.** When a searcher presses P for "person", the sighting becomes a GPS pin on the map, with
    its position uncertainty drawn as a circle.
 3. **Search next.** A Bayesian probability map updates after every photo. Ground the drone could
@@ -41,7 +42,8 @@ It assists searchers. It never decides on its own that a person is safe or that 
 - **Detector (Python, PyTorch, Ultralytics YOLO11s, SAHI).** Trained on 1024 px tiles cut from the
   HERIDAL aerial search dataset, using only the annotated training photos, with rotation and flips.
   Tiling is the key: shrinking a whole photo makes a person a few pixels tall. We also mined
-  hard negatives (bags, rocks, debris), measured them, and kept the model that scored better.
+  hard negatives (bags, rocks, debris), measured them, and kept the model without them because it
+  scored better.
 - **Geo (Python, NumPy).** Camera math turns a pixel into a GPS position from the drone's pose,
   height and heading, and builds each photo's ground footprint. The demo flies a simulated
   lawnmower path over Mount Seymour.
@@ -63,17 +65,30 @@ On the 101 HERIDAL test photos (337 people) the model never saw in training:
 | | Recall | Precision | Time per photo |
 |---|---|---|---|
 | Published human baseline | 68% | 59% | 33 s |
-| Stock YOLO11s, photo shrunk | 19.6% | 42.0% | 0.06 s |
-| **Sightline (tiled, fine-tuned)** | **76.9%** | **71.3%** | **0.25 s** |
+| Stock YOLO11s, photo shrunk | 19.6% | 42.0% | — |
+| **Sightline (tiled, fine-tuned)** | **86.4%** | **80.2%** | **0.25 s** |
 
-Search map, **simulated** (30,000 simulated lost hikers in ground the drone photographed but did
-not find): a ground team reaches the right 20 m cell after a median of 102 cells with Sightline,
-122 if photographed ground is treated as cleared, and 154 with no photos at all.
+Scored one box per person at IoU ≥ 0.5, threshold chosen on validation photos. The 86.4% is after
+correcting a label error in 4 test photos: their label files gave the wrong image size, so 42
+person boxes sat above the people. Against the published labels, the same predictions score
+76.9% / 71.3%. With the looser search-and-rescue matching used in the human-baseline paper we get
+89.6% recall at 89.8% precision.
+
+Search map, **simulated** (30,000 simulated lost hikers). In our simulation, even when the drone
+flies right over a hiker, the photos miss them about half the time, so "not found" can't mean
+"clear". In the demo run, Sightline's map needs 98 cells against 123 for a naive map inside the
+surveyed area (median cells a ground team checks before reaching the hiker; 137 with no photos);
+across seeds and with our canopy estimate's measured error it stays at least 10% better, in every
+run. Over the whole 1 km grid it ties the naive map, because the drone only photographed part of
+it.
 
 ## Challenges we ran into
 
 - **Tiny people.** A stock detector found one person in five. Tiling plus fine-tuning took recall
-  to 77%.
+  to 86%.
+- **A scoring bug that wasn't ours.** Four test photos are 4000×2250 but their label files say
+  4000×3000, so 42 of the 337 test people were scored against boxes squashed above them. We now read
+  the size from the image itself; recall went from 76.9% to 86.4% with the same predictions.
 - **Bad labels.** About 560 training and validation photos in the public copy of the dataset have
   empty label files, and some of them show people nobody labelled. Training on them taught the model that those
   people were background. We found this mid-hackathon and retrained without them.
@@ -85,7 +100,9 @@ not find): a ground team reaches the right 20 m cell after a median of 102 cells
 ## Accomplishments that we're proud of
 
 - Beating the published human baseline on recall and precision, more than 130 times faster per photo.
-- A review queue that puts all six people in the first 15 of 500 photos.
+- A review queue that puts all six people in the first 7 of 500 photos.
+- Trying hard negatives, measuring them, and keeping the model without them because it scored
+  worse (F2 0.840 vs 0.850).
 - Every number on screen traces to a file or a paper, and everything simulated is labelled as simulated.
 
 ## What we learned
@@ -97,6 +114,14 @@ not find): a ground team reaches the right 20 m cell after a median of 102 cells
 
 ## Honest limits
 
+- **What the detector misses.** People in groups, clothing that matches pale or dark rock, and
+  people sitting or lying down. Misses cluster by site, not by size: two of the twelve sites hold
+  28 of the 46 misses, and the median missed person is the same size as the median found one.
+- **False alarms.** Most of the 72 look like people the dataset didn't label, or a second box on a
+  labelled person; a few are bags and shadows.
+- **Canopy estimate error.** The canopy classifier that sets how much each photo "clears" has a
+  mean absolute error of 0.34.
+- **Independent looks.** The search map treats each photo as an independent look at the ground.
 - **Simulated flight path.** The photos are real, but their positions are placed on a simulated
   flight over Mount Seymour.
 - **Simulated search evaluation.** The search-map comparison uses simulated lost hikers.

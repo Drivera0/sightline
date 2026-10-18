@@ -68,7 +68,7 @@ but the photos did not find them.
 |---|---|---|
 | Median cells a ground team checks, inside the surveyed area (demo run) | Sightline **98**, naive ("photographed = cleared") **123**, prior only **137** | Live `search_sim.in_survey.methods[*].median_cells` |
 | 90th percentile, same | 216 / 228 / 236 | Live `search_sim.in_survey.methods[*].p90_cells` |
-| Robust claim | **at least 10% fewer cells than naive, in every run** (15 runs: 5 canopy-noise levels × 3 seeds, including noise matching our measured canopy error) | `docs/LANE_C_SEARCH.md` "Robustness" (lane C) |
+| Robust claim | **beats naive in all 15 live-cache runs** (5 canopy-noise levels × 3 seeds). At noise matching our measured canopy error (σ 0.43): naive 125 / 119 / 120 vs Sightline 112 / 108 / 106, so **"at least 10% better"** (naive needs 10–13% more cells). At the highest noise tried (0.55) the gain is only 8–9%. | `docs/LANE_C_SEARCH.md` "Robustness" (lane C, `origin/lane-c`) |
 | Over the whole 1 km grid | Sightline 1,197 = naive 1,197; prior only 1,262 | Live `search_sim.methods` |
 | How often the drone misses a hiker it flew over | **about half the time** — never an exact % (the two counts use different rules) | Lane C, 18 Oct |
 | Survey found the person itself | 5% of all trials | Live `search_sim.found_by_drone_rate` |
@@ -76,7 +76,11 @@ but the photos did not find them.
 Lane C's suggested line: **"In the demo run, Sightline's map needs 98 cells against 123 for a naive
 map inside the surveyed area (simulated); across seeds and with our canopy estimate's measured
 error it stays at least 10% better, in every run."** 98 vs 123 is seed 7 at default noise, the best
-of the three seeds, so always pair it with "at least 10%".
+of the three seeds, so always pair it with "at least 10% better".
+
+Say **"10% better"**, not **"10% fewer cells"**: at seed 8 with the measured error, Sightline checks
+108 cells against 119, which is 9.2% fewer (naive needs 10.2% more). And "in every run" holds only up
+to the measured error, not at the highest noise tried.
 
 Do not claim a whole-grid win: Sightline ties naive there, because the survey covers only part of
 the grid and the prior is a flat placeholder (`map.json` `params.prior_source = "placeholder"`).

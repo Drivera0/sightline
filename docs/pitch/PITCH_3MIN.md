@@ -1,6 +1,7 @@
 # 3-minute pitch (draft)
 
-About 390 spoken words: ~2:40 at 150 words a minute, which leaves ~20 s for pauses and clicks. Every number is in `NUMBERS.md`.
+About 420 spoken words: ~2:48 at 150 words a minute, which leaves only ~12 s for pauses and clicks.
+If the first rehearsal runs over, use the short version of Harvir's section (Timing notes). Every number is in `NUMBERS.md`.
 Speaker names are suggestions; swap freely. Click steps live in `DEMO_60S.md` (Dan sends the final UI flow).
 
 ---
@@ -23,13 +24,13 @@ Speaker names are suggestions; swap freely. Click steps live in `DEMO_60S.md` (D
 > One survey flight of five hundred photos is four and a half hours of staring.
 > North Shore Rescue does more than a hundred rescues a year. That time is the bottleneck.
 
-### 0:55–1:55 · Demo — Grace drives, the team narrates  *(live site; see `DEMO_60S.md`)*
+### 0:55–1:50 · Demo — Grace drives, the team narrates  *(live site; see `DEMO_60S.md`)*
 
 > Sightline is one loop: rank, pin, search next.
 >
 > *(Review)* These are the same five hundred photos. Our detector has already read all of them,
-> in a quarter of a second each, and put the likeliest crops first. All six people are within the
-> first fifteen photos. In flight order, the sixth one is photo four hundred and sixty-two.
+> in a quarter of a second each, and put the likeliest crops first. The first photo is a person.
+> All six people are within the first seven photos: under four minutes of looking.
 >
 > *(Press P on a person)* A searcher confirms it, and the pin drops on the map, with its uncertainty
 > circle.
@@ -38,20 +39,23 @@ Speaker names are suggestions; swap freely. Click steps live in `DEMO_60S.md` (D
 > *(Scrub)* Open ground the drone could see fades. Forest it could not see into stays bright.
 > That is where the ground team goes next.
 
-### 1:55–2:35 · Why this is not "just CV in a drone" — Dan  *(slide: 19.6% → 76.9%)*
+### 1:50–2:20 · Why this is not "just CV in a drone" — Dan  *(slide: 19.6% → 86.4%)*
 
 > A stock detector finds one person in five on these photos: people are just too small.
 > We cut every photo into tiles and trained on real labelled search photos.
-> On the hundred and one test photos we never trained on, we find seventy-seven percent of people
-> with seventy-one percent precision. The published human baseline is sixty-eight and fifty-nine,
-> at thirty-three seconds a photo. We take a quarter of a second.
+> On a hundred and one test photos we never trained on, we find eighty-six percent of people at
+> eighty percent precision, after correcting a label error in four of them.
+> The published human baseline is sixty-eight and fifty-nine, at thirty-three seconds a photo.
+> We take a quarter of a second.
 
-### 2:35–2:50 · Honest limits — Harvir  *(slide: what is simulated)*
+### 2:20–2:50 · Why a map, and honest limits — Harvir  *(slide: what is simulated + what it misses)*
 
-> Three things are simulated, and the app labels them every time: the flight path, the ten-metre
-> position uncertainty, and the search evaluation. In thirty thousand simulated searches,
-> our map sends the ground team to the right cell in a hundred and two cells instead of a
-> hundred and twenty-two. The photos are Croatian scrub, not BC rainforest.
+> In our simulation, even when the drone flies right over a hiker, the photos miss them about half
+> the time. So "not found" can't mean "clear". Inside the surveyed area, our map reaches the hiker
+> in ninety-eight cells against a hundred and twenty-three for a naive map. With our canopy
+> estimate's real error, it stays at least ten percent better on every seed. The flight path, the
+> ten-metre uncertainty and that evaluation are simulated, and labelled on screen. And these are
+> Croatian scrub photos, not BC rainforest.
 
 ### 2:50–3:00 · Close — Grace
 
@@ -61,8 +65,13 @@ Speaker names are suggestions; swap freely. Click steps live in `DEMO_60S.md` (D
 ---
 
 ## Timing notes
-- If short on time, cut "Honest limits" to one line: "Everything simulated is labelled on screen."
-  Never cut the human-baseline comparison.
+- If short on time, cut Harvir's section to: "The search map is evaluated in simulation: with our
+  canopy estimate's real error, it stays at least ten percent better than a naive map on every
+  seed. Everything simulated is labelled on screen." Never cut the human-baseline comparison or the label-fix clause after 86%.
+- Always say "about half" for the overflown-hiker miss rate, never an exact percentage; always pair
+  98 vs 123 with "at least ten percent better" (98 vs 123 is the best of three seeds). Say
+  "better", not "fewer cells": at one seed Sightline checks 9.2% fewer (`NUMBERS.md`).
+- Don't say "photo 336 in flight order" on stage: it is one flight's order, not a baseline.
 - The opener's pause only works if the haystack photo is full-screen with no circles. Reveal the
   circles on the next click.
 - Check before stage: the Mount Seymour wording against the DroneXL / CBC article (`NUMBERS.md`).
