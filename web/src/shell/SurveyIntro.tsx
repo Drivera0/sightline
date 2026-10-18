@@ -1,4 +1,5 @@
-import type { CacheBundle } from "../contract";
+import { useMemo } from "react";
+import type { CacheBundle, Detection, Frame } from "../contract";
 import { cacheUrl } from "../lib/cache";
 import { Label } from "./components";
 
@@ -33,7 +34,64 @@ function Fact({ value, label, source }: { value: string; label: string; source: 
   );
 }
 
-/** Step 1: the job. A mosaic of the real frames, the size of the job, and one action. */
+/** Seconds for one loop of each wall column: slow and slightly different, so nothing lines up. */
+const WALL_SECONDS = [95, 80, 110, 88, 102, 84];
+const WALL_COLUMNS = 6;
+const WALL_PER_COLUMN = 9;
+
+interface WallTileData {
+  frame: Frame;
+  hit: Detection | undefined;
+}
+
+/**
+ * The photo wall behind the survey hero: every photo with a candidate (so the wall shows a few
+ * orange boxes drifting past) topped up with photos spread over the flight, dealt into columns.
+ */
+export function wallColumns(cache: Pick<CacheBundle, "survey" | "detections">): WallTileData[][] {
+  const threshold = cache.detections.candidate_threshold;
+  const best = (frame: Frame) =>
+    (cache.detections.frames[frame.id] ?? [])
+      .filter((d) => d.conf >= threshold)
+      .sort((x, y) => y.conf - x.conf)[0];
+  const frames = [...cache.survey.frames].sort((x, y) => x.flight_index - y.flight_index);
+  const want = WALL_COLUMNS * WALL_PER_COLUMN;
+  const hits = frames.filter((f) => best(f) !== undefined);
+  const rest = frames.filter((f) => best(f) === undefined);
+  const fill = Math.max(0, want - hits.length);
+  const spread = rest.filter((_, i) => rest.length <= fill || i % Math.ceil(rest.length / fill) === 0).slice(0, fill);
+  const chosen = [...hits, ...spread].sort((x, y) => x.flight_index - y.flight_index).slice(0, want);
+  const columns: WallTileData[][] = Array.from({ length: WALL_COLUMNS }, () => []);
+  chosen.forEach((frame, i) => columns[i % WALL_COLUMNS]!.push({ frame, hit: best(frame) }));
+  return columns.filter((c) => c.length > 0);
+}
+
+function WallTile({ tile, dir }: { tile: WallTileData; dir: string }) {
+  const { frame, hit } = tile;
+  const box = hit?.box_px;
+  return (
+    <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden rounded-md bg-surface-strong">
+      <img src={cacheUrl(dir, frame.file)} alt="" loading="lazy" className="h-full w-full object-cover opacity-70" />
+      {box && (
+        <span
+          className="absolute rounded-[5px] border-[1.5px] border-accent shadow-[0_0_16px_color-mix(in_srgb,var(--accent)_55%,transparent)]"
+          style={{
+            left: `${((box[0] - 14) / frame.width_px) * 100}%`,
+            top: `${((box[1] - 14) / frame.height_px) * 100}%`,
+            width: `${((box[2] - box[0] + 28) / frame.width_px) * 100}%`,
+            height: `${((box[3] - box[1] + 28) / frame.height_px) * 100}%`,
+          }}
+        >
+          <span className="absolute -top-5 left-0 rounded-full bg-accent px-1.5 py-px font-mono text-[10px] leading-tight text-bg">
+            {hit.conf.toFixed(2)}
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Step 1: the job. A wall of the real frames, the size of the job, and one action. */
 export function SurveyIntro({
   cache,
   dir,
@@ -45,24 +103,29 @@ export function SurveyIntro({
 }) {
   const { survey, manifest, metrics } = cache;
   const human = metrics.baseline_human;
-  const mosaic = survey.frames.slice(0, 84);
+  const columns = useMemo(() => wallColumns(cache), [cache]);
   const personPx = medianPersonPx(cache);
   return (
     <div className="relative flex h-full min-h-0 items-center overflow-hidden rounded-lg border border-border">
-      {/* The real photos, dimmed: what a searcher would have to go through. */}
-      <div aria-hidden="true" className="sl-drift absolute inset-0 grid grid-cols-6 content-start gap-1 p-1 opacity-60 md:grid-cols-10 xl:grid-cols-12">
-        {mosaic.map((frame, i) => (
-          <img
-            key={frame.id}
-            src={cacheUrl(dir, frame.file)}
-            alt=""
-            loading="lazy"
-            className="sl-fade aspect-[4/3] w-full rounded-sm object-cover"
-            style={{ animationDelay: `${i * 12}ms` }}
-          />
-        ))}
+      {/* The real photos, on a slow scrolling wall: what a searcher would have to go through. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -right-[12%] -top-[30%] flex h-[160%] w-[78%] rotate-[-9deg] gap-3">
+          {columns.map((column, c) => (
+            <div key={c} className="relative min-w-0 flex-1 overflow-hidden">
+              <div
+                className={"sl-wall flex flex-col gap-3 " + (c % 2 ? "sl-wall-down" : "")}
+                style={{ animationDuration: `${WALL_SECONDS[c % WALL_SECONDS.length]}s` }}
+              >
+                {/* Twice, so the loop is seamless at -50%. */}
+                {[...column, ...column].map((tile, i) => (
+                  <WallTile key={`${tile.frame.id}-${i}`} tile={tile} dir={dir} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="absolute inset-0 bg-gradient-to-r from-bg from-25% via-bg/85 via-50% to-bg/20" aria-hidden="true" />
+      <div className="absolute inset-0 bg-gradient-to-r from-bg from-30% via-bg/80 via-55% to-bg/10" aria-hidden="true" />
 
       <div className="relative flex w-full max-w-[52rem] flex-col gap-7 p-12">
         <Label className="sl-rise">Search and rescue · drone survey</Label>
