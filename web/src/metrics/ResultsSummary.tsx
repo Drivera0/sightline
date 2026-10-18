@@ -90,124 +90,164 @@ export function ResultsSummary({
         )}
       </div>
 
+      {/* The page answers three questions a search team asks, in order (status first, detail last):
+          does it find people faster, can we trust it, and where do we search next. */}
+      <Part title="At a glance" lead="The three numbers that matter to a search team.">
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card
+            label="People found"
+            value={detector.sar.recall}
+            format={(v) => pct(v)}
+            scoring="SAR-APD"
+            scoringPlain="scored like the human study"
+            ours={detector.sar.recall}
+            theirs={human.recall}
+            oursLabel="Sightline"
+            theirsLabel="Human"
+            // "Strict VOC" is the name the figure is known by; the plain rule follows it in the same line.
+            note={`Share of people found in test photos the detector never saw in training. Strict VOC: ${pct(detector.voc.recall)}, when the box must match the person closely`}
+            source={`HERIDAL test set, ${detector.test_images} images, SAR-APD matching (metrics.detector.sar; VOC: metrics.detector.voc) vs ${human.source}`}
+            delay={0}
+          />
+          <Card
+            label="Time per full photo"
+            value={detector.seconds_per_image}
+            format={(v) => seconds(v)}
+            headline={speedup(detector.seconds_per_image, human.seconds_per_image)}
+            ours={detector.seconds_per_image}
+            theirs={human.seconds_per_image}
+            oursLabel="Sightline"
+            theirsLabel="Human"
+            lowerIsBetter
+            note={`For a whole 4000×3000 photo, 16 times the area of each photo here: ${seconds(human.seconds_per_image)} for a person looking by eye`}
+            source={`metrics.detector.seconds_per_image vs ${human.source}`}
+            delay={90}
+          />
+          {sightline && naive && inside ? (
+            <Card
+              label="Ground to search"
+              value={sightline.median_cells}
+              // Area first when the cell size is known: hectares are what a ground team plans in.
+              format={(v) => (cellM ? hectares(v, cellM) : count(Math.round(v)))}
+              headline={
+                cellM
+                  ? fewer(sightline.median_cells, naive.median_cells)?.replace("fewer", "less")
+                  : fewer(sightline.median_cells, naive.median_cells)
+              }
+              ours={sightline.median_cells}
+              theirs={naive.median_cells}
+              oursLabel="Sightline"
+              theirsLabel="Naive map"
+              lowerIsBetter
+              note={
+                cellM
+                  ? `Typical (median) ground a team checks inside the photographed area before reaching the person: ${count(sightline.median_cells)} vs ${count(naive.median_cells)} cells of ${count(cellM)} m × ${count(cellM)} m. The naive map counts every photographed patch as already searched.`
+                  : "Typical (median) number of grid cells a ground team checks inside the photographed area. The naive map counts every photographed patch as already searched."
+              }
+              source={`Simulated search, ${inside.trials} trials with the person in a photographed cell, seed ${sim.seed} (metrics.search_sim.in_survey; seed choice: docs/LANE_C_SEARCH.md)`}
+              badge={<Badge kind="simulated">Simulated</Badge>}
+              footnote={`${seedNote(sim.seed, surveyId, sightline.median_cells, naive.median_cells)}; each seed is one simulation run`}
+              delay={180}
+            />
+          ) : (
+            <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-5">
+              <Label>Ground to search</Label>
+              <span className="text-display leading-none text-text-3">—</span>
+              <span className="text-small text-text-3">Not measured for this survey yet</span>
+            </div>
+          )}
+        </div>
+      </Part>
+
       {!trivial && (
-        <Race
-          n={ranking.n_frames}
-          source={rankingSource}
-          rows={[
-            ...(random
-              ? [
-                  {
-                    label: "Random order",
-                    note: `expected value; 10–90%: ${count(random.p10All)}–${count(random.p90All)}`,
-                    plain: "on average; 8 in 10 shuffles finish in that range",
-                    first: random.expectedFirst,
-                    all: random.expectedAll,
-                    band: [random.p10All, random.p90All] as [number, number],
-                    approx: true,
-                    time: share(random.expectedAll),
-                    tone: "muted" as const,
-                    source: randomSource,
-                  },
-                ]
-              : []),
-            {
-              label: "This flight's order",
-              note: "one layout, as flown",
-              plain: "photos in the order the drone took them",
-              first: ranking.flight_order.frames_to_first_hit,
-              all: flight,
-              time: share(flight),
-              tone: "muted",
-            },
-            {
-              label: "Sightline ranked queue",
-              note: "likeliest photos first",
-              first: ranking.ranked.frames_to_first_hit,
-              all: ranked,
-              time: share(ranked),
-              tone: "accent",
-            },
-          ]}
-        />
+        <Part title="How much looking it saves" lead="Photos a searcher looks at before every person in them is found.">
+    <Race
+              n={ranking.n_frames}
+              source={rankingSource}
+              rows={[
+                ...(random
+                  ? [
+                      {
+                        label: "Random order",
+                        note: `expected value; 10–90%: ${count(random.p10All)}–${count(random.p90All)}`,
+                        plain: "on average; 8 in 10 shuffles finish in that range",
+                        first: random.expectedFirst,
+                        all: random.expectedAll,
+                        band: [random.p10All, random.p90All] as [number, number],
+                        approx: true,
+                        time: share(random.expectedAll),
+                        tone: "muted" as const,
+                        source: randomSource,
+                      },
+                    ]
+                  : []),
+                {
+                  label: "This flight's order",
+                  note: "one layout, as flown",
+                  plain: "photos in the order the drone took them",
+                  first: ranking.flight_order.frames_to_first_hit,
+                  all: flight,
+                  time: share(flight),
+                  tone: "muted",
+                },
+                {
+                  label: "Sightline ranked queue",
+                  note: "likeliest photos first",
+                  first: ranking.ranked.frames_to_first_hit,
+                  all: ranked,
+                  time: share(ranked),
+                  tone: "accent",
+                },
+              ]}
+            />
+        </Part>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card
-          label="People found"
-          value={detector.sar.recall}
-          format={(v) => pct(v)}
-          scoring="SAR-APD"
-          scoringPlain="scored like the human study"
-          ours={detector.sar.recall}
-          theirs={human.recall}
-          oursLabel="Sightline"
-          theirsLabel="Human"
-          // "Strict VOC" is the name the figure is known by; the plain rule follows it in the same line.
-          note={`Share of people found in test photos the detector never saw in training. Strict VOC: ${pct(detector.voc.recall)}, when the box must match the person closely`}
-          source={`HERIDAL test set, ${detector.test_images} images, SAR-APD matching (metrics.detector.sar; VOC: metrics.detector.voc) vs ${human.source}`}
-          delay={0}
-        />
-        <Card
-          label="Time per full photo"
-          value={detector.seconds_per_image}
-          format={(v) => seconds(v)}
-          headline={speedup(detector.seconds_per_image, human.seconds_per_image)}
-          ours={detector.seconds_per_image}
-          theirs={human.seconds_per_image}
-          oursLabel="Sightline"
-          theirsLabel="Human"
-          lowerIsBetter
-          note={`For a whole 4000×3000 photo, 16 times the area of each photo here: ${seconds(human.seconds_per_image)} for a person looking by eye`}
-          source={`metrics.detector.seconds_per_image vs ${human.source}`}
-          delay={90}
-        />
-        {sightline && naive && inside ? (
-          <Card
-            label="Ground to search"
-            value={sightline.median_cells}
-            // Area first when the cell size is known: hectares are what a ground team plans in.
-            format={(v) => (cellM ? hectares(v, cellM) : count(Math.round(v)))}
-            headline={
-              cellM
-                ? fewer(sightline.median_cells, naive.median_cells)?.replace("fewer", "less")
-                : fewer(sightline.median_cells, naive.median_cells)
-            }
-            ours={sightline.median_cells}
-            theirs={naive.median_cells}
-            oursLabel="Sightline"
-            theirsLabel="Naive map"
-            lowerIsBetter
-            note={
-              cellM
-                ? `Typical (median) ground a team checks inside the photographed area before reaching the person: ${count(sightline.median_cells)} vs ${count(naive.median_cells)} cells of ${count(cellM)} m × ${count(cellM)} m. The naive map counts every photographed patch as already searched.`
-                : "Typical (median) number of grid cells a ground team checks inside the photographed area. The naive map counts every photographed patch as already searched."
-            }
-            source={`Simulated search, ${inside.trials} trials with the person in a photographed cell, seed ${sim.seed} (metrics.search_sim.in_survey; seed choice: docs/LANE_C_SEARCH.md)`}
-            badge={<Badge kind="simulated">Simulated</Badge>}
-            footnote={`${seedNote(sim.seed, surveyId, sightline.median_cells, naive.median_cells)}; each seed is one simulation run`}
-            delay={180}
-          />
-        ) : (
-          <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-5">
-            <Label>Ground to search</Label>
-            <span className="text-display leading-none text-text-3">—</span>
-            <span className="text-small text-text-3">Not measured for this survey yet</span>
-          </div>
-        )}
-      </div>
+      <Part title="When not to rely on it" lead="Where the detector misses people, so a searcher knows when to look harder.">
+        <Limits />
+      </Part>
 
-      <ResultsCharts metrics={metrics} surveyId={surveyId} cellM={cellM} />
-
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      <Part title="Your review" lead="Your own answers on this survey, saved in this browser.">
         <YourReview candidateIds={candidateIds} />
-        <WhyResolution
-          ablations={metrics.ablations}
-          source={`HERIDAL test set, ${detector.test_images} images, same threshold rule for every row (metrics.ablations)`}
-        />
-      </div>
+      </Part>
 
-      <Limits />
+      {/* Detail for judges and the curious, folded away so it doesn't compete with the answers above.
+          Styled like the detail rows under it (MetricsView), which the shell labels "Full tables". */}
+      <div className="mt-4 flex items-center gap-4">
+        <Label>For judges: how we measured it</Label>
+        <span className="h-px flex-1 bg-border" aria-hidden="true" />
+      </div>
+      <details className="group rounded-lg border border-border bg-surface">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-lg p-4 hover:bg-surface-strong lg:px-6 [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="font-mono text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none">
+            ›
+          </span>
+          <span className="text-body text-text">Charts: how the detector compares, and how the search map holds up</span>
+        </summary>
+        <div className="flex flex-col gap-4 px-4 pb-4 lg:px-6 lg:pb-6">
+          <WhyResolution
+            ablations={metrics.ablations}
+            source={`HERIDAL test set, ${detector.test_images} images, same threshold rule for every row (metrics.ablations)`}
+          />
+          <ResultsCharts metrics={metrics} surveyId={surveyId} cellM={cellM} />
+        </div>
+      </details>
+    </section>
+  );
+}
+
+/** One section of the page: a short question-like title, one plain line, then its content. */
+function Part({ title, lead, children }: { title: string; lead: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-3 pt-4">
+      <div className="flex flex-col gap-0.5">
+        <h3 id={id} className="text-title font-semibold text-text">
+          {title}
+        </h3>
+        <p className="text-small text-text-2">{lead}</p>
+      </div>
+      {children}
     </section>
   );
 }
@@ -283,7 +323,7 @@ function YourReview({ candidateIds }: { candidateIds: readonly string[] }) {
       style={{ animationDelay: "240ms" }}
     >
       <div className="flex items-baseline justify-between gap-3">
-        <Label>Your review</Label>
+        <Label>Answers so far</Label>
         <span className="flex items-center gap-2 text-label text-text-3">
           answers saved in this browser
           <ResetReview />
