@@ -136,14 +136,14 @@ export function ResultsSummary({
       <div className="grid gap-4 md:grid-cols-3">
         <Card
           label="Recall"
-          value={detector.voc.recall}
+          value={detector.sar.recall}
           format={(v) => pct(v)}
-          ours={detector.voc.recall}
+          ours={detector.sar.recall}
           theirs={human.recall}
           oursLabel="Sightline"
           theirsLabel="Human"
-          note="People found on photos the detector never trained on"
-          source={`HERIDAL test set, ${detector.test_images} images (metrics.detector) vs ${human.source}`}
+          note={`People found on photos the detector never trained on, scored as in the human study (SAR-APD); ${pct(detector.voc.recall)} under strict VOC`}
+          source={`HERIDAL test set, ${detector.test_images} images, SAR-APD matching (metrics.detector.sar; VOC: metrics.detector.voc) vs ${human.source}`}
           delay={0}
         />
         <Card

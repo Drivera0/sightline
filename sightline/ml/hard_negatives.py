@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Protocol
 
 from sightline.ml.evaluate import iou
-from sightline.ml.tiling import TILE_PX, Tile, boxes_in_tile
+from sightline.ml.tiling import TILE_PX, Tile, apply_masks, boxes_in_tile, masked_regions_in_tile
 from sightline.ml.types import Box, LabeledImage, RawDetection
 from sightline.ml.voc import yolo_line
 
@@ -87,13 +87,16 @@ def mine(
     written: list[Path] = []
     for im, tile in candidates:
         name = f"{im.path.stem}_hn_{tile.x0}_{tile.y0}"
+        tile_boxes = boxes_in_tile(list(im.boxes), tile)
+        masks = masked_regions_in_tile(list(im.boxes), tile)  # partly visible, unlabelled people
         with Image.open(im.path) as src:
-            src.convert("RGB").crop((tile.x0, tile.y0, tile.x1, tile.y1)).save(
-                images_dir / f"{name}.jpg", "JPEG", quality=quality
-            )
-        lines = [
-            yolo_line(b, tile.width_px, tile.height_px) for b in boxes_in_tile(list(im.boxes), tile)
-        ]
+            crop = src.convert("RGB").crop((tile.x0, tile.y0, tile.x1, tile.y1))
+            if masks:
+                import numpy as np
+
+                crop = Image.fromarray(apply_masks(np.asarray(crop), masks, tile_boxes))
+            crop.save(images_dir / f"{name}.jpg", "JPEG", quality=quality)
+        lines = [yolo_line(b, tile.width_px, tile.height_px) for b in tile_boxes]
         (labels_dir / f"{name}.txt").write_text(
             "\n".join(lines) + ("\n" if lines else ""), encoding="utf-8"
         )

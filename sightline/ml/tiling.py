@@ -4,13 +4,19 @@ Rules:
 - tile 1024 px, overlap 0.2 → stride 819; the last tile in each row/column snaps to the edge;
 - a box is kept in a tile if ≥ 50 % of its original area is inside, and the clipped box is
   at least 8 px on each side;
-- every tile with a box is kept, plus a seeded fraction (25 %) of the empty tiles.
+- every tile with a box is kept, plus a seeded fraction (25 %) of the empty tiles;
+- a person who is visible in a tile but fails the two rules above (less than 50 % inside, or
+  a sliver) is **blacked out** in that tile (``masked_regions_in_tile`` + ``apply_masks``).
+  Before 2026-10-18 such people stayed visible with no label, so the model was taught that
+  a partly visible person is background. Run 2 (weights-v2) was trained before this fix.
 """
 
 from __future__ import annotations
 
 import random
 from dataclasses import dataclass
+
+import numpy as np
 
 from sightline.ml.types import Box
 
@@ -19,6 +25,7 @@ OVERLAP = 0.2
 MIN_INSIDE_FRAC = 0.5
 MIN_SIDE_PX = 8
 EMPTY_KEEP_FRAC = 0.25
+MASK_PAD_PX = 2
 
 
 @dataclass(frozen=True)
@@ -82,6 +89,42 @@ def boxes_in_tile(
             continue
         kept.append(clipped.shifted(-tile.x0, -tile.y0))
     return kept
+
+
+def masked_regions_in_tile(
+    boxes: list[Box],
+    tile: Tile,
+    min_inside_frac: float = MIN_INSIDE_FRAC,
+    min_side_px: int = MIN_SIDE_PX,
+    pad_px: int = MASK_PAD_PX,
+) -> list[Box]:
+    """Visible parts of people that ``boxes_in_tile`` does **not** label, in tile coordinates,
+    padded by ``pad_px`` and clipped to the tile. These are blacked out so an unlabelled,
+    partly visible person never appears as background."""
+    kept = set(boxes_in_tile(boxes, tile, min_inside_frac, min_side_px))
+    out: list[Box] = []
+    for box in boxes:
+        clipped = box.clipped(tile.x0, tile.y0, tile.x1, tile.y1)
+        if clipped is None or clipped.shifted(-tile.x0, -tile.y0) in kept:
+            continue
+        padded = Box(
+            clipped.x1 - pad_px, clipped.y1 - pad_px, clipped.x2 + pad_px, clipped.y2 + pad_px
+        ).clipped(tile.x0, tile.y0, tile.x1, tile.y1)
+        if padded is not None:
+            out.append(padded.shifted(-tile.x0, -tile.y0))
+    return out
+
+
+def apply_masks(pixels: np.ndarray, masks: list[Box], keep: list[Box]) -> np.ndarray:
+    """Copy of an ``(H, W[, C])`` tile with every ``masks`` region set to 0, except pixels inside
+    a ``keep`` box (a labelled person next to a masked one stays intact)."""
+    out = pixels.copy()
+    for m in masks:
+        out[m.y1 : m.y2, m.x1 : m.x2] = 0
+    if masks:
+        for k in keep:
+            out[k.y1 : k.y2, k.x1 : k.x2] = pixels[k.y1 : k.y2, k.x1 : k.x2]
+    return out
 
 
 def select_tiles(

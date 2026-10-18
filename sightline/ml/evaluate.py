@@ -30,6 +30,7 @@ __all__ = [
     "evaluate",
     "f_beta",
     "iou",
+    "predict_split",
     "score_sar",
     "score_voc",
     "write_detector_metrics",
@@ -77,8 +78,10 @@ def _flatten(preds: Preds) -> list[tuple[float, str, Box]]:
     return flat
 
 
-def _voc_hits(preds: Preds, truth: Truth) -> list[tuple[float, bool]]:
-    """Greedy one-to-one matching in descending confidence at IoU ≥ 0.5.
+def _voc_hits(
+    preds: Preds, truth: Truth, iou_threshold: float = VOC_IOU
+) -> list[tuple[float, bool]]:
+    """Greedy one-to-one matching in descending confidence at IoU ≥ ``iou_threshold`` (0.5).
 
     Returns ``(conf, is_true_positive)`` per prediction in descending confidence. A
     prediction's outcome depends only on higher-confidence predictions, so slicing this
@@ -94,7 +97,7 @@ def _voc_hits(preds: Preds, truth: Truth) -> list[tuple[float, bool]]:
             v = iou(box, gt)
             if v > best_iou:
                 best_iou, best_j = v, j
-        if best_j >= 0 and best_iou >= VOC_IOU:
+        if best_j >= 0 and best_iou >= iou_threshold:
             used[img].add(best_j)
             hits.append((conf, True))
         else:
@@ -233,6 +236,14 @@ def choose_threshold(detector: object, val: Sequence[LabeledImage], mode: Mode =
     This is ``candidate_threshold``. Never call this on the test split."""
     preds, truth, _ = _run(detector, val, mode, SAVE_THRESHOLD)
     return choose_threshold_from_preds(preds, truth)
+
+
+def predict_split(
+    detector: object, images: Sequence[LabeledImage], mode: Mode = "tiled"
+) -> tuple[Preds, Truth, float]:
+    """``(preds, truth, seconds_per_image)`` at ``SAVE_THRESHOLD``, for scoring several
+    operating points from one inference pass."""
+    return _run(detector, images, mode, SAVE_THRESHOLD)
 
 
 def evaluate(

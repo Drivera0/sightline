@@ -64,11 +64,14 @@ describe("MetricsView", () => {
     expect(
       screen.getByRole("heading", { name: /human baseline/i }),
     ).toBeInTheDocument();
-    // sample metrics.json: recall 0.80 vs 0.68, precision 0.812 vs 0.59, 0.9 s vs 33 s
-    expect(screen.getByText("80%")).toBeInTheDocument();
-    expect(screen.getByText("+12 pts better")).toBeInTheDocument();
-    expect(screen.getByText("81%")).toBeInTheDocument();
-    expect(screen.getByText("+22 pts better")).toBeInTheDocument();
+    // sample metrics.json, SAR-APD (the human study's scoring): recall 0.84 vs 0.68, precision
+    // 0.86 vs 0.59; strict VOC 0.80 / 0.812 underneath; 0.9 s vs 33 s
+    expect(screen.getByText("84%")).toBeInTheDocument();
+    expect(screen.getByText("+16 pts better")).toBeInTheDocument();
+    expect(screen.getByText("86%")).toBeInTheDocument();
+    expect(screen.getByText("+27 pts better")).toBeInTheDocument();
+    expect(screen.getByText(/Strict VOC/)).toHaveTextContent("80%");
+    expect(screen.getByText(/Strict VOC/)).toHaveTextContent("81%");
     expect(screen.getByText("0.90 s")).toBeInTheDocument();
     expect(screen.getByText("37× faster")).toBeInTheDocument();
   });
@@ -168,8 +171,8 @@ describe("motion", () => {
     const { prefersReducedMotion } = await import("./motion");
     expect(prefersReducedMotion()).toBe(true); // jsdom has no matchMedia
     render(<MetricsView />);
-    expect(screen.getByText("80%")).toBeInTheDocument();
-    expect(screen.getByLabelText("80%")).toBeInTheDocument();
+    expect(screen.getByText("84%")).toBeInTheDocument();
+    expect(screen.getByLabelText("84%")).toBeInTheDocument();
   });
 
   it("shows comparison bars for each headline tile", () => {
