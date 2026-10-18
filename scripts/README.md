@@ -28,6 +28,7 @@ MD5 `c5dc48d8bae53cd09b2933e98327e3ab`. Test data only: never train on it, never
 |---|---|---|
 | `convert_heridal.py` | VOC XML → YOLO txt using the official `trainval`/`test` lists; val = seeded 10 % of trainval, split by image (`seed=7`). Images are hard-linked, not copied. | `data/heridal/yolo_full/{train,val,test}/{images,labels}`, `convert_report.json` |
 | `tile_dataset.py` | Cuts train and val images into 1024 px tiles, 20 % overlap. Keeps a box if ≥ 50 % of it is inside the tile and it's ≥ 8 px a side. Keeps every tile with a box plus a seeded 25 % of empty tiles. | `data/heridal/yolo_tiles/{train,val}`, `dataset.yaml`, `tile_report.json` |
+| `analysis/detector_errors.py` | Error analysis of the final detector on the test split (analysis only, never tuning): misses and false alarms by size, light, vegetation and site, threshold curve, galleries, and a check for test photos whose XML size disagrees with the JPEG. Findings: `docs/DETECTOR_LIMITS.md`. | `data/work/analysis/limits.json`, `docs/figures/limits/` |
 
 Run order: `convert_heridal.py`, then `tile_dataset.py`. Both print a JSON report with the counts.
 
