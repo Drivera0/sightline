@@ -27,7 +27,9 @@ describe("NextSearch", () => {
     expect(rows).toHaveLength(4);
     expect(rows.map((r) => r.getAttribute("data-idx"))).toEqual(["1", "4", "3", "7"]);
     expect(rows[0]).toHaveTextContent("dense forest");
-    expect(rows[0]).toHaveTextContent("20.00%");
+    // The exact share stays in the tooltip; the row shows the cell against the average.
+    expect(rows[0]!.querySelector("[data-p]")).toHaveAttribute("data-p", "20.00%");
+    expect(rows[0]!.querySelector("[data-p]")!.getAttribute("title")).toContain("20.00%");
     expect(rows[1]).toHaveTextContent("dense forest"); // canopy 0.5
     expect(rows[2]).toHaveTextContent("open");
     expect(screen.queryByText("not photographed")).toBeNull();
@@ -55,7 +57,7 @@ describe("NextSearch", () => {
     expect(rows.map((r) => r.getAttribute("data-idx"))).toEqual(["3", "7", "4", "1"]);
   });
 
-  it("keeps tiny probabilities apart and shows each cell against the surveyed average", () => {
+  it("shows tiny probabilities as relative likelihood, with the exact value kept apart in the tooltip", () => {
     // Real demo values: every photographed cell is around 0.02%, so 2 decimals would all read "0.02%".
     const tiny = {
       p: Float64Array.from([0.0002043, 0.0002014, 0.0002043, 0.0001954, 0.0000517, 0.0002043, 0.0002043, 0.0001119]),
@@ -63,11 +65,12 @@ describe("NextSearch", () => {
     };
     render(<NextSearch map={map} state={tiny} covered={covered} overlap={seenOnce} onSelect={vi.fn()} />);
     const rows = within(screen.getByRole("list", { name: "Most likely cells" })).getAllByRole("button");
-    expect(rows[0]).toHaveTextContent("0.0201%");
-    expect(rows[1]).toHaveTextContent("0.0195%");
+    expect(rows[0]!.querySelector("[data-p]")).toHaveAttribute("data-p", "0.0201%");
+    expect(rows[1]!.querySelector("[data-p]")).toHaveAttribute("data-p", "0.0195%");
+    expect(rows[0]).not.toHaveTextContent("0.0201%");
     // Average over the 4 photographed cells = (2.014 + 1.954 + 0.517 + 1.119) / 4 = 1.401e-4
-    expect(rows[0]).toHaveTextContent("1.4× avg");
-    expect(rows[3]).toHaveTextContent("0.4× avg");
+    expect(rows[0]).toHaveTextContent("1.4×avg photographed cell");
+    expect(rows[3]).toHaveTextContent("0.4×avg photographed cell");
   });
 
   it("skips a lightly covered cell with higher p and lists the well covered forest cell", () => {
@@ -78,7 +81,7 @@ describe("NextSearch", () => {
     expect(rows.map((r) => r.getAttribute("data-idx"))).toEqual(["4", "3"]);
     expect(rows[0]).toHaveTextContent("dense forest");
     // Average over the 2 eligible cells only: (0.15 + 0.1) / 2 = 0.125, so cell 4 is 1.2x.
-    expect(rows[0]).toHaveTextContent("1.2× avg");
+    expect(rows[0]).toHaveTextContent("1.2×avg photographed cell");
   });
 
   it("keeps a cell seen exactly the minimum overlap", () => {
@@ -103,7 +106,7 @@ describe("NextSearch", () => {
     render(<NextSearch map={map} state={state} covered={covered} overlap={seenOnce} held={held} onSelect={vi.fn()} />);
     const rows = within(screen.getByRole("list", { name: "Most likely cells" })).getAllByRole("button");
     expect(rows.map((r) => r.getAttribute("data-idx"))).toEqual(["4", "3", "7"]);
-    expect(rows[0]).toHaveTextContent("1.3× avg");
+    expect(rows[0]).toHaveTextContent("1.3×avg photographed cell");
   });
 
   it("says so when no cell has been photographed", () => {
@@ -211,10 +214,29 @@ describe("Legend", () => {
 });
 
 describe("FoundBanner", () => {
-  it("shows coordinates to 6 decimals and the position uncertainty", () => {
-    render(<FoundBanner detection={{ id: "f0005-d01", lat: 49.3712345678, lon: -122.9461234, radius_m: 10 }} />);
+  it("names one find with its photo, coordinates to 6 decimals and the position uncertainty", () => {
+    render(<FoundBanner finds={[{ id: "f0005-d01", lat: 49.3712345678, lon: -122.9461234, radius_m: 10 }]} />);
     expect(screen.getByText("Person confirmed: dispatch ground team")).toBeInTheDocument();
+    expect(screen.getByText("Photo f0005")).toBeInTheDocument();
     expect(screen.getByText("49.371235, -122.946123")).toBeInTheDocument();
     expect(screen.getByText("±10 m position uncertainty")).toBeInTheDocument();
+  });
+
+  it("lists every confirmed find, labels a simulated radius, and flies to a find", () => {
+    const onFlyTo = vi.fn();
+    const finds = [
+      { id: "f0005-d01", lat: 49.371, lon: -122.946, radius_m: 10 },
+      { id: "f0120-d02", lat: 49.369, lon: -122.944, radius_m: 10 },
+    ];
+    render(<FoundBanner finds={finds} simulatedRadius onFlyTo={onFlyTo} />);
+    expect(screen.getByText("2 people confirmed: dispatch ground teams")).toBeInTheDocument();
+    expect(screen.getAllByText("±10 m radius · simulated")).toHaveLength(2);
+    screen.getAllByRole("button", { name: "Fly to it" })[1]!.click();
+    expect(onFlyTo).toHaveBeenCalledWith(finds[1]);
+  });
+
+  it("renders nothing without a find", () => {
+    const { container } = render(<FoundBanner finds={[]} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

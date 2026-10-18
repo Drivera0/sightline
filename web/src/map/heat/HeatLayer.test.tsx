@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CacheBundle, Frame } from "../../contract";
 import { CacheContext, loadCache } from "../../lib/cache";
@@ -10,11 +10,14 @@ import { MAP_LAYER_IDS } from "../base/layerIds";
 import { HeatLayer } from "./HeatLayer";
 import {
   HEAT_DRONE_SOURCE_ID,
+  HEAT_HELD_SOURCE_ID,
   HEAT_LAYER_IDS,
+  HEAT_SECTOR_LABEL_SOURCE_ID,
   HEAT_SOURCE_ID,
   HEAT_SURVEYED_SOURCE_ID,
   HEAT_TRAIL_SOURCE_ID,
 } from "./layers";
+import { HELD_ALPHA, rasterForCanvas, VEIL_ALPHA } from "./raster";
 
 const ctx: { value: MapContextValue | null } = { value: null };
 vi.mock("../MapView", () => ({
@@ -29,14 +32,15 @@ interface Recorded {
   before: string | undefined;
 }
 
-// Just enough of a MapLibre map: sources, ordered layers, feature state and events.
+// Just enough of a MapLibre map: sources, ordered layers, a canvas source, paint and events.
 function mockMap(withGridOutline: boolean) {
   const sources = new Map<string, unknown>();
   const layers: Recorded[] = withGridOutline ? [{ id: MAP_LAYER_IDS.gridOutline, before: undefined }] : [];
-  const featureState = new Map<number, { o: number; u: number; h: number }>();
   const boundaryDrawn: unknown[] = [];
+  const heldDrawn: unknown[] = [];
   const replayDrawn = new Map<string, unknown>();
   const handlers = new Map<string, Set<() => void>>();
+  const uploads = { count: 0 };
   const map = {
     isStyleLoaded: () => true,
     getSource: (id: string) => {
@@ -44,9 +48,11 @@ function mockMap(withGridOutline: boolean) {
       if (!spec) return undefined;
       const setData = (data: unknown) => {
         if (id === HEAT_SURVEYED_SOURCE_ID) boundaryDrawn.push(data);
+        else if (id === HEAT_HELD_SOURCE_ID) heldDrawn.push(data);
         else replayDrawn.set(id, data);
       };
-      return { ...(spec as object), setData };
+      const canvas = id === HEAT_SOURCE_ID ? { play: () => {}, pause: () => (uploads.count += 1) } : {};
+      return { ...(spec as object), setData, ...canvas };
     },
     addSource: vi.fn((id: string, spec: unknown) => {
       sources.set(id, spec);
@@ -58,9 +64,11 @@ function mockMap(withGridOutline: boolean) {
       if (at >= 0) layers.splice(at, 0, entry);
       else layers.push(entry);
     }),
-    setFeatureState: vi.fn((target: { source: string; id: number }, value: { o: number; u: number; h: number }) => {
-      featureState.set(target.id, value);
-    }),
+    setPaintProperty: vi.fn(),
+    setLayoutProperty: vi.fn(),
+    hasImage: () => false,
+    addImage: vi.fn(),
+    fitBounds: vi.fn(),
     on: (event: string, fn: () => void) => {
       if (!handlers.has(event)) handlers.set(event, new Set());
       handlers.get(event)!.add(fn);
@@ -78,7 +86,21 @@ function mockMap(withGridOutline: boolean) {
       handlers.get("styledata")?.forEach((fn) => fn());
     },
   };
-  return { map, sources, layers, featureState, boundaryDrawn, replayDrawn };
+  /** What the raster shows for one cell: "veil" (not yet searched), "held", or "heat". */
+  const kind = (idx: number): "veil" | "held" | "heat" => {
+    const spec = sources.get(HEAT_SOURCE_ID) as { canvas: HTMLCanvasElement };
+    const px = rasterForCanvas(spec.canvas)!.shown;
+    const a = px[idx * 4 + 3] as number;
+    if (a === Math.round(VEIL_ALPHA * 255) && (px[idx * 4] as number) < 40) return "veil";
+    if (a === Math.round(HELD_ALPHA * 255)) return "held";
+    return "heat";
+  };
+  /** Heat alpha of a cell (higher = more likely). */
+  const alpha = (idx: number): number => {
+    const spec = sources.get(HEAT_SOURCE_ID) as { canvas: HTMLCanvasElement };
+    return rasterForCanvas(spec.canvas)!.shown[idx * 4 + 3] as number;
+  };
+  return { map, sources, layers, boundaryDrawn, heldDrawn, replayDrawn, kind, alpha, uploads };
 }
 
 let cache: CacheBundle;
@@ -136,7 +158,7 @@ describe("HeatLayer", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("adds heat-cells before grid-outline and recolours via feature state only", () => {
+  it("adds the heat raster before grid-outline and recolours the canvas, never the geometry", () => {
     const m = mockMap(true);
     const flyTo = vi.fn();
     ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo };
@@ -148,61 +170,53 @@ describe("HeatLayer", () => {
 
     const ids = m.layers.map((l) => l.id);
     expect(ids.indexOf(HEAT_LAYER_IDS.cells)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
-    expect(ids.indexOf(HEAT_LAYER_IDS.unsearched)).toBeLessThan(ids.indexOf(HEAT_LAYER_IDS.cells));
-    expect(ids.indexOf(HEAT_LAYER_IDS.unsearched)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
     expect(ids.indexOf(HEAT_LAYER_IDS.surveyed)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
-    expect(m.sources.get(HEAT_SOURCE_ID)).toMatchObject({ type: "geojson", promoteId: "idx" });
-    const spec = m.sources.get(HEAT_SOURCE_ID) as { data: { features: unknown[] } };
-    expect(spec.data.features).toHaveLength(2500);
-    expect(m.featureState.size).toBe(2500);
+    expect(ids.indexOf(HEAT_LAYER_IDS.sectorLabel)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
+    expect(m.sources.get(HEAT_SOURCE_ID)).toMatchObject({ type: "canvas", animate: false });
     const addSourceCalls = m.map.addSource.mock.calls.length;
 
-    // Final map: cell 1275 was photographed (heat, not flagged), cell 0 was not (no heat, flagged).
-    expect(m.featureState.get(1276)).toMatchObject({ u: 0, h: 0 });
-    expect(m.featureState.get(1276)!.o).toBeGreaterThan(0);
-    expect(m.featureState.get(0)).toEqual({ o: 0, u: 1, h: 0 });
+    // Final map: cell 1276 was photographed (heat), cell 0 was not (veil).
+    expect(m.kind(1276)).toBe("heat");
+    expect(m.kind(0)).toBe("veil");
     expect(screen.getByText("After frame 2 of 2")).toBeInTheDocument();
-    // The candidate at cell 1275 is awaiting review: its own category, no heat.
-    expect(m.featureState.get(1275)).toEqual({ o: 0, u: 0, h: 1 });
-    expect(m.featureState.get(1277)!.h).toBe(0);
-    expect(m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.review)).toBeGreaterThan(
-      m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.unsearched),
-    );
-    expect(m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.review)).toBeLessThan(
-      m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.cells),
-    );
+    // The candidate at cell 1275 is awaiting review: its own look, no heat, and a dashed outline.
+    expect(m.kind(1275)).toBe("held");
+    expect(m.kind(1277)).toBe("heat");
+    const held = m.heldDrawn.at(-1) as { geometry: { coordinates: unknown[] } };
+    expect(held.geometry.coordinates).toHaveLength(4);
 
     // Only what the first frame photographed is photographed at step 1.
     act(() => useSearch.getState().setStepIndex(1));
-    expect(m.featureState.get(1276)).toMatchObject({ u: 0 });
-    expect(m.featureState.get(1277)).toEqual({ o: 0, u: 1, h: 0 });
+    expect(m.kind(1276)).toBe("heat");
+    expect(m.kind(1277)).toBe("veil");
     expect(m.boundaryDrawn.length).toBeGreaterThan(0);
 
+    const uploadsBefore = m.uploads.count;
     act(() => useSearch.getState().setStepIndex(0));
     expect(screen.getByText("Before the first frame")).toBeInTheDocument();
-    expect(m.featureState.get(1275)).toEqual({ o: 0, u: 1, h: 0 });
-    expect(m.featureState.get(0)).toEqual({ o: 0, u: 1, h: 0 });
+    expect(m.kind(1275)).toBe("veil");
+    expect(m.kind(0)).toBe("veil");
+    expect(m.uploads.count).toBeGreaterThan(uploadsBefore);
     expect(m.map.addSource.mock.calls.length).toBe(addSourceCalls);
 
     // A confirmed person shows the banner; the slider keeps working.
     act(() => useReview.getState().answer("f0001-d01", "person", 1));
     expect(screen.getByText("Person confirmed: dispatch ground team")).toBeInTheDocument();
-    // Answering "Not a person" releases the held cell into the normal map.
+    // Answering "Not a person" releases the held cell into the normal map and clears its outline.
     act(() => useSearch.getState().setStepIndex(2));
     act(() => useReview.getState().answer("f0001-d01", "not_person", 2));
-    expect(m.featureState.get(1275)).toMatchObject({ u: 0, h: 0 });
-    expect(m.featureState.get(1275)!.o).toBeGreaterThan(0);
-    act(() => useSearch.getState().setStepIndex(2));
+    expect(m.kind(1275)).toBe("heat");
+    expect((m.heldDrawn.at(-1) as { geometry: { coordinates: unknown[] } }).geometry.coordinates).toHaveLength(0);
     expect(screen.getByText("After frame 2 of 2")).toBeInTheDocument();
 
     // Clicking a "search next" cell flies there.
     act(() => screen.getAllByRole("button").find((b) => b.hasAttribute("data-idx"))!.click());
     expect(flyTo).toHaveBeenCalledTimes(1);
 
-    // A basemap switch drops the layers; they come back with their colours.
+    // A basemap switch drops the layers; they come back.
     act(() => m.map.reloadStyle());
     expect(m.layers.map((l) => l.id)).toContain(HEAT_LAYER_IDS.cells);
-    expect(m.map.setFeatureState.mock.calls.length).toBeGreaterThanOrEqual(2500 * 2);
+    expect(m.sources.get(HEAT_SOURCE_ID)).toMatchObject({ type: "canvas" });
   });
 
   it("draws a sliver cell (overlap below MIN_OVERLAP) as not yet searched, with no heat and no outline", () => {
@@ -217,7 +231,10 @@ describe("HeatLayer", () => {
       map: { ...cache.map, steps: [...cache.map.steps, { frame_id: "f0003", cells: [[1325, 0.01]] }] },
       survey: {
         ...cache.survey,
-        frames: [...cache.survey.frames, { ...(cache.survey.frames[0] as Frame), footprint: sliver }],
+        frames: [
+          ...cache.survey.frames,
+          { ...(cache.survey.frames[0] as Frame), id: "f0003", flight_index: 2, footprint: sliver },
+        ],
       },
     };
     const m = mockMap(true);
@@ -229,12 +246,12 @@ describe("HeatLayer", () => {
     );
     act(() => useReview.getState().answer("f0001-d01", "not_person", 1));
     act(() => useSearch.getState().setStepIndex(3));
-    // The sliver cell has almost the top p (barely searched) but is not searched: no heat, flagged.
+    // The sliver cell has almost the top p (barely searched) but is not searched: veil, no heat.
     const p = useSearch.getState().state!.p;
     expect(p[1325]).toBeGreaterThan(p[1276] as number);
-    expect(m.featureState.get(1325)).toEqual({ o: 0, u: 1, h: 0 });
+    expect(m.kind(1325)).toBe("veil");
     // Well-photographed cells keep their heat.
-    expect(m.featureState.get(1276)!.o).toBeGreaterThan(0);
+    expect(m.kind(1276)).toBe("heat");
     // The outline does not include the sliver cell: it is the same drawing as at step 2.
     const drawn = m.boundaryDrawn.at(-1) as { geometry: { coordinates: unknown[] } };
     act(() => useSearch.getState().setStepIndex(2));
@@ -242,10 +259,10 @@ describe("HeatLayer", () => {
     expect(drawn.geometry.coordinates).toEqual(atTwo.geometry.coordinates);
     // At step 0 nothing is coloured.
     act(() => useSearch.getState().setStepIndex(0));
-    for (const i of [1275, 1276, 1277, 1325]) expect(m.featureState.get(i)).toEqual({ o: 0, u: 1, h: 0 });
+    for (const i of [1275, 1276, 1277, 1325]) expect(m.kind(i)).toBe("veil");
   });
 
-  it("moves the drone and its trail with the slider, above the heat, with one veil only", () => {
+  it("moves the drone icon and its trail with the slider, pointing along the flight, above the heat", () => {
     const m = mockMap(true);
     ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
     render(
@@ -257,8 +274,12 @@ describe("HeatLayer", () => {
       const f = cache.survey.frames[i] as Frame;
       return [f.pose.lon, f.pose.lat];
     };
+    // Reduced motion (jsdom): the drone sits exactly on the frame, no glide.
     expect(m.replayDrawn.get(HEAT_DRONE_SOURCE_ID)).toMatchObject({ geometry: { type: "Point", coordinates: pose(1) } });
     expect(m.replayDrawn.get(HEAT_TRAIL_SOURCE_ID)).toMatchObject({ geometry: { coordinates: [pose(0), pose(1)] } });
+    const bearing = (m.replayDrawn.get(HEAT_DRONE_SOURCE_ID) as { properties: { bearing: number } }).properties.bearing;
+    expect(bearing).toBeGreaterThanOrEqual(0);
+    expect(bearing).toBeLessThan(360);
     act(() => useSearch.getState().setStepIndex(1));
     expect(m.replayDrawn.get(HEAT_DRONE_SOURCE_ID)).toMatchObject({ geometry: { coordinates: pose(0) } });
     act(() => useSearch.getState().setStepIndex(0));
@@ -269,8 +290,47 @@ describe("HeatLayer", () => {
     expect(ids.indexOf(HEAT_LAYER_IDS.drone)).toBeGreaterThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
     expect(ids.indexOf(HEAT_LAYER_IDS.reviewOutline)).toBeGreaterThan(ids.indexOf(HEAT_LAYER_IDS.cells));
     expect(ids.indexOf(HEAT_LAYER_IDS.reviewOutline)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
-    // The step-aware heat-unsearched layer is the only veil.
-    expect(ids.filter((id) => id.includes("unseen"))).toEqual([]);
+  });
+
+  it("labels the sectors on the map and lists them by remaining probability", () => {
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    // Two frames are not east-west flight lines, so the 4 x 4 map-reference lattice is used.
+    const labels = m.replayDrawn.get(HEAT_SECTOR_LABEL_SOURCE_ID) as { features: { properties: { text: string } }[] };
+    expect(labels.features).toHaveLength(16);
+    expect(labels.features[0]!.properties.text.startsWith("SECTOR A1")).toBe(true);
+    const list = screen.getByRole("list", { name: "Sectors by remaining probability" });
+    const rows = within(list).getAllByRole("button");
+    expect(rows).toHaveLength(16);
+    act(() => rows[0]!.click());
+    expect(m.map.fitBounds).toHaveBeenCalledTimes(1);
+  });
+
+  it("review variant: live heat under the pins with a readout, no replay, no side panel", () => {
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer variant="review" />
+      </CacheContext.Provider>,
+    );
+    const ids = m.layers.map((l) => l.id);
+    expect(ids).toContain(HEAT_LAYER_IDS.cells);
+    expect(ids).not.toContain(HEAT_LAYER_IDS.drone);
+    expect(screen.queryByText("Flight replay")).not.toBeInTheDocument();
+    expect(screen.queryByText("Search next in the surveyed area")).not.toBeInTheDocument();
+    expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
+    expect(screen.getByTestId("review-readout").textContent).not.toContain("→");
+    expect(m.kind(1275)).toBe("held");
+    act(() => useReview.getState().answer("f0001-d01", "not_person", 1));
+    // The same store drives it: the held cell is released and the readout shows before → now.
+    expect(m.kind(1275)).toBe("heat");
+    expect(screen.getByTestId("review-readout").textContent).toContain("→");
   });
 
   it("adds the layers on top when lane B has not drawn yet", () => {
@@ -314,7 +374,7 @@ describe("HeatLayer", () => {
     );
     act(() => useReview.getState().answer("f0001-d01", "person", 1));
     const banner = screen.getByText("Person confirmed: dispatch ground team");
-    const sidePanel = screen.getByText("Search next in the surveyed area").closest(".w-72");
+    const sidePanel = screen.getByText("Search next in the surveyed area").closest(".w-80");
     expect(sidePanel).not.toBeNull();
     expect(sidePanel!.contains(banner)).toBe(true);
   });
