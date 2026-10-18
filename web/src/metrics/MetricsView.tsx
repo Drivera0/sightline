@@ -4,10 +4,10 @@ import { useCache } from "../lib/cache";
 import { Badge, EmptyState, Label, Panel, Stat } from "../shell/components";
 import {
   ablationDisplayRows,
-  bestByAp50,
+  ablationSubLabel,
   count,
   deltaPts,
-  isResizedRow,
+  IN_USE_ROW,
   pct,
   seconds,
   speedup,
@@ -547,8 +547,6 @@ function AblationTable({
   source: string;
 }) {
   const display = ablationDisplayRows(rows);
-  const measured = display.flatMap((r) => (r.measured ? [r] : []));
-  const bestName = measured[bestByAp50(measured)]?.name;
   return (
     <>
       <Label>What each technique adds</Label>
@@ -563,17 +561,19 @@ function AblationTable({
         </thead>
         <tbody>
           {display.map((row) => {
+            const inUse = row.name === IN_USE_ROW;
+            const sub = ablationSubLabel(row.name);
             const label = (
               <>
                 {row.name}
-                {isResizedRow(row.name) && (
-                  <span className="block text-small text-text-3">
-                    resized to 1024
+                {inUse && (
+                  <span className="ml-2 font-mono text-label uppercase tracking-label text-accent">
+                    in use
                   </span>
                 )}
-                {row.name === bestName && (
-                  <span className="ml-2 font-mono text-label uppercase tracking-label text-accent">
-                    best
+                {sub && (
+                  <span className="block text-small text-text-3">
+                    {sub}
                   </span>
                 )}
               </>
@@ -605,13 +605,16 @@ function AblationTable({
                   pct(row.voc.ap50, 1),
                 ]}
                 source={`${source}; same threshold rule for every row (metrics.ablations)`}
-                highlight={row.name === bestName}
+                highlight={inUse}
               />
             );
           })}
         </tbody>
       </table>
-      <Source>{source}; same scoring and threshold rule for every row.</Source>
+      <Source>
+        {source}; VOC scoring, each row at its own threshold chosen on validation. &ldquo;In use&rdquo; marks the
+        detector the app runs, not the best score.
+      </Source>
     </>
   );
 }
