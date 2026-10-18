@@ -42,6 +42,7 @@ import {
   setSurveyedBoundary,
 } from "./layers";
 import { Legend } from "./Legend";
+import { SimulatedLine, simulatedLineFor } from "../base/SimulatedLine";
 import { NextSearch } from "./NextSearch";
 import { PanelSlotContext, useMediaQuery, WIDE_LAYOUT_QUERY } from "./panelSlot";
 import { HeatRaster, heatPixels, paletteFromTokens, readRasterTokens, sweepDelays } from "./raster";
@@ -519,6 +520,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
               simulatedPath={bundle.survey.simulated_path}
               hasSurveyed={hasSurveyed}
             />
+            {/* Review's map is narrow: its one simulated line lives here, not in a corner the card covers. */}
+            <SimulatedLine {...simulatedLineFor(bundle)} plain />
           </div>
         </Panel>
       </Overlay>

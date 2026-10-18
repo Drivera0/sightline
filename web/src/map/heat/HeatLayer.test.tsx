@@ -326,6 +326,8 @@ describe("HeatLayer", () => {
     expect(screen.queryByText("Flight replay")).not.toBeInTheDocument();
     expect(screen.queryByText("Search next in the surveyed area")).not.toBeInTheDocument();
     expect(screen.getByTestId("review-readout").textContent).not.toContain("→");
+    // The map's one simulated line sits in the review card (the card covers the map's corner).
+    expect(screen.getByTestId("simulated-line")).toHaveTextContent(/flight path/);
     expect(m.kind(1275)).toBe("held");
     act(() => useReview.getState().answer("f0001-d01", "not_person", 1));
     // The same store drives it: the held cell is released and the readout shows before → now.
