@@ -7,6 +7,7 @@ import { MapView } from "../map/MapView";
 import { MetricsView } from "../metrics/MetricsView";
 import { ResultsSummary } from "../metrics/ResultsSummary";
 import { reviewItems } from "../review/items";
+import { useReview } from "../review/store";
 import { ReviewView } from "../review/ReviewView";
 import { Badge, KeyHint, Label } from "./components";
 import { STEPS, nextStep, previousStep, stepFromHash, stepFromKey, type StepId } from "./flow";
@@ -96,6 +97,10 @@ export function Shell({
   surveyOptions = [],
 }: ShellProps) {
   const [step, setStepState] = useState<StepId>(readStep);
+  // Load this survey's saved review answers on every step, not only once Review opens: the search
+  // map and the results summary read them too, including after a reload straight onto those steps.
+  const bindReview = useReview((s) => s.bind);
+  useEffect(() => bindReview(cache.survey.survey_id), [bindReview, cache.survey.survey_id]);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const loadedDir = useCache((s) => s.dir);
   const dir = loadedDir ?? CACHE_DIR;
