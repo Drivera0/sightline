@@ -99,6 +99,11 @@ export function Shell({ cache }: { cache: CacheBundle }) {
         )}
       </main>
 
+      <footer className="text-small text-text-3">
+        Imagery: HERIDAL dataset (Božić-Štulić, Marušić &amp; Gotovac, 2019), VOC-format copy by
+        Pyrrö (2021), CC BY 3.0. Real photos on a simulated flight path.
+      </footer>
+
       {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}
     </div>
     </CacheContext.Provider>
