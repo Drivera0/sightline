@@ -63,7 +63,7 @@ export function ResultsSummary({
         <Label>Results</Label>
         {trivial ? (
           <>
-            <h2 className="max-w-4xl text-[40px] font-semibold leading-[1.05]" title={rankingSource}>
+            <h2 className="max-w-4xl text-[30px] font-semibold leading-[1.05] sm:text-[40px]" title={rankingSource}>
               Every photo in this survey contains a person.
             </h2>
             <p className="max-w-3xl text-title text-text-2" title={rankingSource}>
@@ -73,7 +73,7 @@ export function ResultsSummary({
           </>
         ) : (
           <>
-            <h2 className="max-w-4xl text-[40px] font-semibold leading-[1.05]" title={rankingSource}>
+            <h2 className="max-w-4xl text-[30px] font-semibold leading-[1.05] sm:text-[40px]" title={rankingSource}>
               All {ranking.n_positive} {photos} were in the first {ranked} photos of the queue.
             </h2>
             <p className="max-w-3xl text-title text-text-2" title={rankingSource}>
