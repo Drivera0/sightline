@@ -1,8 +1,8 @@
 // MapLibre sources and layers for the heat map. Kept free of React so tests can use a mocked map.
-import type { GeoJSONSource, Map } from "maplibre-gl";
+import type { ExpressionSpecification, GeoJSONSource, Map } from "maplibre-gl";
 import type { MapFile } from "../../contract";
 import { HEAT_LAYER_PREFIX, MAP_LAYER_IDS } from "../base/layerIds";
-import { buildCellFeatures, HEAT_CEIL, HEAT_FLOOR, relativeHeatOpacities, surveyedBoundary } from "./geometry";
+import { buildCellFeatures, cellCenter, HEAT_CEIL, HEAT_FLOOR, relativeHeatOpacities, surveyedBoundary } from "./geometry";
 import type { MapState } from "../../search/update";
 
 type Grid = MapFile["grid"];
@@ -13,10 +13,12 @@ export const HEAT_SOURCE_ID = `${HEAT_LAYER_PREFIX}cells`;
 export const HEAT_SURVEYED_SOURCE_ID = `${HEAT_LAYER_PREFIX}surveyed`;
 export const HEAT_TRAIL_SOURCE_ID = `${HEAT_LAYER_PREFIX}trail`;
 export const HEAT_DRONE_SOURCE_ID = `${HEAT_LAYER_PREFIX}drone`;
+export const HEAT_HOTSPOT_SOURCE_ID = `${HEAT_LAYER_PREFIX}hotspots`;
 export const HEAT_LAYER_IDS = {
   unsearched: `${HEAT_LAYER_PREFIX}unsearched`,
   review: `${HEAT_LAYER_PREFIX}review`,
   reviewOutline: `${HEAT_LAYER_PREFIX}review-outline`,
+  hotspots: `${HEAT_LAYER_PREFIX}hotspots`,
   cells: `${HEAT_LAYER_PREFIX}cells`,
   surveyed: `${HEAT_LAYER_PREFIX}surveyed`,
   trail: `${HEAT_LAYER_PREFIX}trail`,
@@ -138,7 +140,7 @@ export function ensureHeatLayers(
           // Warm at the floor of the stretch, the accent at its ceiling.
           "fill-color": ["interpolate", ["linear"], o, HEAT_FLOOR, colors.warm, HEAT_CEIL, colors.accent],
           // Softer than the raw share so the basemap still reads through the hottest cells.
-          "fill-opacity": ["*", o, 0.75],
+          "fill-opacity": ["*", o, HEAT_BASE_OPACITY],
           "fill-antialias": false,
         },
       } as unknown as Parameters<Map["addLayer"]>[0],
@@ -172,6 +174,25 @@ export function ensureHeatLayers(
       },
       beforeId(map),
     );
+  }
+  // The Search next cells: a ring that breathes with the heat (see setBreath).
+  if (!map.getSource(HEAT_HOTSPOT_SOURCE_ID)) map.addSource(HEAT_HOTSPOT_SOURCE_ID, { type: "geojson", data: EMPTY });
+  if (!map.getLayer(HEAT_LAYER_IDS.hotspots)) {
+    // A white ring at each cell centre: readable at any zoom (a 10 m cell is a few pixels when the
+    // whole grid fits) and distinct from the orange heat.
+    map.addLayer({
+      id: HEAT_LAYER_IDS.hotspots,
+      type: "circle",
+      source: HEAT_HOTSPOT_SOURCE_ID,
+      paint: {
+        "circle-radius": HOTSPOT_RADIUS_PX,
+        "circle-color": colors.outline,
+        "circle-opacity": 0,
+        "circle-stroke-color": colors.outline,
+        "circle-stroke-width": 2,
+        "circle-stroke-opacity": HOTSPOT_OPACITY.mid,
+      },
+    });
   }
   // The replay trail and the drone go on top of everything: they are what moves.
   if (!map.getLayer(HEAT_LAYER_IDS.trail)) {
@@ -287,4 +308,48 @@ export function pushReplay(map: Map, path: LonLat[], stepIndex: number): void {
   const { trail, drone } = replayFeatures(path, stepIndex);
   (map.getSource(HEAT_TRAIL_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(trail);
   (map.getSource(HEAT_DRONE_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(drone);
+}
+
+/** Heat opacity multiplier at rest; breathing moves it by ±BREATH_AMPLITUDE of itself. */
+export const HEAT_BASE_OPACITY = 0.75;
+/** Breathing: ±10 % over 5 s. Slow and small on purpose (nothing flashes; WCAG 2.3.1). */
+export const BREATH_AMPLITUDE = 0.1;
+export const BREATH_PERIOD_MS = 5000;
+/** Hotspot ring opacity across one breath, and its radius at rest (it breathes ±1.5 px). */
+export const HOTSPOT_OPACITY = { low: 0.45, mid: 0.7, high: 0.95 } as const;
+export const HOTSPOT_RADIUS_PX = 9;
+
+/** 1 ± BREATH_AMPLITUDE, a sine of period BREATH_PERIOD_MS. */
+export function breathFactor(tMs: number): number {
+  return 1 + BREATH_AMPLITUDE * Math.sin((2 * Math.PI * tMs) / BREATH_PERIOD_MS);
+}
+
+/** Apply one breath: the heat's opacity scale and the hotspot rings, in step. */
+export function setBreath(map: Map, factor: number): void {
+  const o: ExpressionSpecification = ["coalesce", ["feature-state", "o"], 0];
+  if (map.getLayer(HEAT_LAYER_IDS.cells)) {
+    map.setPaintProperty(HEAT_LAYER_IDS.cells, "fill-opacity", ["*", o, HEAT_BASE_OPACITY * factor]);
+  }
+  if (map.getLayer(HEAT_LAYER_IDS.hotspots)) {
+    const t = (factor - (1 - BREATH_AMPLITUDE)) / (2 * BREATH_AMPLITUDE); // 0 … 1
+    const { low, high } = HOTSPOT_OPACITY;
+    map.setPaintProperty(HEAT_LAYER_IDS.hotspots, "circle-stroke-opacity", low + t * (high - low));
+    map.setPaintProperty(HEAT_LAYER_IDS.hotspots, "circle-radius", HOTSPOT_RADIUS_PX + 3 * (t - 0.5));
+  }
+}
+
+/** Centres of the given cells (the Search next list), for the hotspot rings. */
+export function hotspotFeatures(grid: Grid, cells: readonly number[]): GeoJsonData {
+  return {
+    type: "FeatureCollection",
+    features: cells.map((idx, rank) => {
+      const c = cellCenter(grid, idx);
+      return { type: "Feature", properties: { idx, rank: rank + 1 }, geometry: { type: "Point", coordinates: [c.lon, c.lat] } };
+    }),
+  };
+}
+
+/** Redraw the hotspot outlines. Safe before the source exists (does nothing). */
+export function pushHotspots(map: Map, grid: Grid, cells: readonly number[]): void {
+  (map.getSource(HEAT_HOTSPOT_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(hotspotFeatures(grid, cells));
 }

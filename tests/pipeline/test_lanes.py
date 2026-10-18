@@ -377,3 +377,20 @@ def test_lane_a_reads_exactly_the_folder_given_even_when_it_is_not_called_test(t
     lanes.test_images(tmp_path / "my_photos")
 
     assert calls == [("my_photos", tmp_path)]
+
+
+def test_grid_cell_size_is_configurable_and_always_covers_1_km():
+    lkp = LatLon(lat=49.37, lon=-122.95)
+    default = Lanes()._grid(lkp)
+    fine = Lanes()._grid(lkp, 10.0)
+    assert (default.rows, default.cols, default.cell_m) == (50, 50, 20.0)
+    assert (fine.rows, fine.cols, fine.cell_m) == (100, 100, 10.0)
+    # Same 1 km square: the north-west corner does not move.
+    assert fine.origin_nw.lat == pytest.approx(default.origin_nw.lat)
+    assert fine.origin_nw.lon == pytest.approx(default.origin_nw.lon)
+
+
+def test_grid_fallback_without_lane_c_also_honours_the_cell_size():
+    lanes = Lanes(overrides={"make_grid": None})
+    fine = lanes._grid(LatLon(lat=49.37, lon=-122.95), 10.0)
+    assert (fine.rows, fine.cols, fine.cell_m) == (100, 100, 10.0)

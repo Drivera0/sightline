@@ -55,3 +55,7 @@ CLAUDE.local.md
 
 # Local task notes
 message.txt
+
+# Experimental caches (test branches): same rule as cache/demo, never committed.
+cache/demo-*/
+web/public/cache/demo-*/
