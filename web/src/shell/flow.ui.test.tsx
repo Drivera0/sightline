@@ -42,6 +42,14 @@ describe("guided flow", () => {
     // sample metrics: ranked.frames_to_first_hit = 1
     expect(await screen.findByText(/first photo you see/)).toBeInTheDocument();
     expect(screen.getByText(/3 of 20 photos flagged/)).toBeInTheDocument();
+    // The queue opens on #1, and the architecture waits behind a disclosure.
+    const queue = screen.getByRole("list", { name: "Ranked candidates" });
+    expect(queue.querySelector("li")).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: "Start review" })).toHaveFocus();
+    const how = screen.getByRole("button", { name: /How the detector works/ });
+    expect(how).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(how);
+    expect(how).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(screen.getByRole("button", { name: "Start review" }));
     expect(current()).toHaveTextContent("Review");
   });
