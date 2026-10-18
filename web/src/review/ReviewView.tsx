@@ -56,10 +56,13 @@ export function ReviewView({
   cache,
   dir,
   onShowMap,
+  compact = false,
 }: {
   cache: CacheBundle;
   dir?: string;
   onShowMap: () => void;
+  /** Two columns (queue + crop) so the review fits beside the map; the full frame stays on Enter. */
+  compact?: boolean;
 }) {
   const loadedDir = useCache((s) => s.dir);
   const folder = dir ?? loadedDir ?? CACHE_DIR;
@@ -172,7 +175,12 @@ export function ReviewView({
         {allDone && <p className="text-small text-ok">All candidates reviewed</p>}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[18rem_1fr_20rem]">
+      <div
+        className={
+          "grid min-h-0 flex-1 grid-cols-1 gap-4 " +
+          (compact ? "md:grid-cols-[13rem_minmax(0,1fr)]" : "lg:grid-cols-[18rem_1fr_20rem]")
+        }
+      >
         <Panel className="min-h-0 overflow-y-auto p-3">
           <ul aria-label="Candidates" className="flex flex-col gap-2">
             {items.map((item, index) => {
@@ -219,7 +227,7 @@ export function ReviewView({
                 alt={`Crop of detection ${current.id}`}
                 width={384}
                 height={384}
-                className="size-96 max-w-full rounded-md border border-border"
+                className={`${compact ? "size-72" : "size-96"} max-w-full rounded-md border border-border`}
               />
             )}
             <p data-testid="detail" className="font-mono text-small text-text-2">
@@ -247,7 +255,7 @@ export function ReviewView({
           </Panel>
         )}
 
-        {current && (
+        {current && !compact && (
           <Panel className="flex flex-col gap-3 overflow-y-auto">
             <Label>Frame {current.frame.id}</Label>
             <FrameWithBox

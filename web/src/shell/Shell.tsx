@@ -1,111 +1,206 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CacheBundle } from "../contract";
-import { CacheContext } from "../lib/cache";
+import { CACHE_DIR, CacheContext, useCache } from "../lib/cache";
 import { isTyping } from "../lib/keys";
 import { HeatLayer } from "../map/heat/HeatLayer";
 import { MapView } from "../map/MapView";
 import { MetricsView } from "../metrics/MetricsView";
+import { ResultsSummary } from "../metrics/ResultsSummary";
 import { ReviewView } from "../review/ReviewView";
-import { Badge, KeyHint } from "./components";
+import { Badge, KeyHint, Label } from "./components";
+import { STEPS, nextStep, previousStep, stepFromHash, stepFromKey, type StepId } from "./flow";
+import { RankReveal } from "./RankReveal";
 import { ScreenBoundary } from "./ScreenBoundary";
 import { ShortcutOverlay } from "./ShortcutOverlay";
-import { TabPanel, Tabs, type TabItem } from "./Tabs";
+import { StepBar } from "./StepBar";
+import { SurveyIntro } from "./SurveyIntro";
 
-type TabId = "review" | "map" | "metrics";
-
-const TABS: readonly TabItem<TabId>[] = [
-  { id: "review", label: "Review" },
-  { id: "map", label: "Map" },
-  { id: "metrics", label: "Metrics" },
+const REVIEW_KEYS: [string, string][] = [
+  ["P", "Person"],
+  ["N", "Not a person"],
+  ["U", "Unsure"],
+  ["Z", "Undo"],
+  ["J / K", "Next / previous"],
+  ["Enter", "Full frame"],
 ];
 
+function readStep(): StepId {
+  return typeof window === "undefined" ? "survey" : stepFromHash(window.location.hash);
+}
+
+/**
+ * The guided demo: Survey -> Rank -> Review (queue beside the live map) -> Search next -> Results.
+ * One screen at a time, a step bar that always shows where you are, and the step in the URL hash
+ * (so a presenter can open any step directly, e.g. /#review).
+ */
 export function Shell({ cache }: { cache: CacheBundle }) {
-  const [tab, setTab] = useState<TabId>("review");
+  const [step, setStepState] = useState<StepId>(readStep);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const loadedDir = useCache((s) => s.dir);
+  const dir = loadedDir ?? CACHE_DIR;
+
+  const setStep = useCallback((id: StepId) => {
+    setStepState(id);
+    if (window.location.hash !== `#${id}`) window.history.replaceState(null, "", `#${id}`);
+  }, []);
+
+  useEffect(() => {
+    const onHash = () => setStepState(readStep());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "?" && !isTyping(event.target)) {
+      if (isTyping(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === "?") {
         setShowShortcuts((open) => !open);
-      } else if (event.key === "Escape") {
+        return;
+      }
+      if (event.key === "Escape") {
         setShowShortcuts(false);
+        return;
+      }
+      const jump = stepFromKey(event.key);
+      if (jump) {
+        setStep(jump);
+        event.preventDefault();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [setStep]);
 
   const { manifest, survey, detections } = cache;
+  const stepInfo = STEPS.find((s) => s.id === step) ?? STEPS[0]!;
+  const isFirst = step === STEPS[0]!.id;
+  const isLast = step === STEPS.at(-1)!.id;
+  const nextLabel = STEPS.find((s) => s.id === nextStep(step))?.label;
+
+  const map = (withHeat: boolean) => (
+    <div className="relative h-full min-h-[24rem] overflow-hidden rounded-lg" data-testid="mount-map">
+      <ScreenBoundary name="Map">
+        <MapView
+          layers={
+            withHeat ? (
+              <div data-testid="mount-heat">
+                <ScreenBoundary name="Heat layer">
+                  <HeatLayer />
+                </ScreenBoundary>
+              </div>
+            ) : undefined
+          }
+        />
+      </ScreenBoundary>
+    </div>
+  );
 
   return (
     <CacheContext.Provider value={cache}>
-    <div className="flex h-full flex-col gap-4 p-4">
-      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-title font-medium">Sightline · Mount Seymour survey</h1>
-          {survey.simulated_path && <Badge kind="simulated">Simulated flight path</Badge>}
-          {detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
-          {detections.model === "PLACEHOLDER" && <Badge kind="placeholder">Placeholder detections</Badge>}
-        </div>
-        <Tabs tabs={TABS} value={tab} onChange={setTab} label="Screens" idPrefix="shell" />
-        <div className="flex items-center gap-4 text-small text-text-3">
-          <span>
-            {manifest.n_frames} frames · {manifest.survey_id}
-          </span>
-          <button
-            type="button"
-            onClick={() => setShowShortcuts(true)}
-            className="inline-flex items-center gap-2 rounded-sm text-text-2 hover:text-text"
-          >
-            Shortcuts <KeyHint>?</KeyHint>
-          </button>
-        </div>
-      </header>
+      <div className="flex h-full flex-col gap-3 p-4">
+        <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-title font-medium">Sightline</h1>
+            <span className="text-small text-text-3">Mount Seymour survey</span>
+            {survey.simulated_path && <Badge kind="simulated">Simulated flight path</Badge>}
+            {detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
+            {detections.model === "PLACEHOLDER" && <Badge kind="placeholder">Placeholder detections</Badge>}
+          </div>
+          <StepBar value={step} onChange={setStep} />
+          <div className="flex items-center gap-4 text-small text-text-3">
+            <span>
+              {manifest.n_frames} frames · {manifest.survey_id}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowShortcuts(true)}
+              className="inline-flex items-center gap-2 rounded-sm text-text-2 hover:text-text"
+            >
+              Shortcuts <KeyHint>?</KeyHint>
+            </button>
+          </div>
+        </header>
 
-      <main className="flex min-h-0 flex-1 flex-col">
-        {tab === "review" && (
-          <TabPanel id="review" idPrefix="shell">
-            <ScreenBoundary name="Review">
-              <ReviewView cache={cache} onShowMap={() => setTab("map")} />
-            </ScreenBoundary>
-          </TabPanel>
-        )}
-        {tab === "map" && (
-          <TabPanel id="map" idPrefix="shell">
-            <div className="relative h-full" data-testid="mount-map">
-              <ScreenBoundary name="Map">
-                {/* Lane C's heat layer renders inside lane B's map context, so it can call useMap(). */}
-                <MapView
-                  layers={
-                    <div data-testid="mount-heat">
-                      <ScreenBoundary name="Heat layer">
-                        <HeatLayer />
-                      </ScreenBoundary>
-                    </div>
-                  }
-                />
-              </ScreenBoundary>
+        <main key={step} className="sl-fade flex min-h-0 flex-1 flex-col gap-3" aria-label={stepInfo.label}>
+          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} />}
+
+          {step === "rank" && <RankReveal cache={cache} dir={dir} onStart={() => setStep("review")} />}
+
+          {step === "review" && (
+            <>
+              <section
+                aria-label="Review keys"
+                className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-full border border-border bg-surface px-4 py-2 text-small text-text-2"
+              >
+                <span className="text-text">Is this a person? Confirmed people are pinned on the map.</span>
+                {REVIEW_KEYS.map(([key, label]) => (
+                  <span key={key} className="inline-flex items-center gap-1.5">
+                    <KeyHint>{key}</KeyHint>
+                    <span>{label}</span>
+                  </span>
+                ))}
+              </section>
+              <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+                <ScreenBoundary name="Review">
+                  <ReviewView cache={cache} onShowMap={() => setStep("search")} compact />
+                </ScreenBoundary>
+                {map(false)}
+              </div>
+            </>
+          )}
+
+          {step === "search" && (
+            <>
+              <p className="rounded-full border border-border bg-surface px-4 py-2 text-small text-text-2">
+                <span className="text-text">Where the person could still be.</span> Ground the drone saw
+                clearly fades; forest it couldn&apos;t see into stays bright. Your &quot;Not a person&quot;
+                answers update it live. Drag the slider to replay the flight.
+              </p>
+              <div className="min-h-0 flex-1">{map(true)}</div>
+            </>
+          )}
+
+          {step === "results" && (
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+              <ResultsSummary metrics={cache.metrics} />
+              <div data-testid="mount-metrics">
+                <ScreenBoundary name="Metrics">
+                  <MetricsView />
+                </ScreenBoundary>
+              </div>
             </div>
-          </TabPanel>
-        )}
-        {tab === "metrics" && (
-          <TabPanel id="metrics" idPrefix="shell">
-            <div className="h-full" data-testid="mount-metrics">
-              <ScreenBoundary name="Metrics">
-                <MetricsView />
-              </ScreenBoundary>
-            </div>
-          </TabPanel>
-        )}
-      </main>
+          )}
+        </main>
 
-      <footer className="text-small text-text-3">
-        Imagery: HERIDAL dataset (Božić-Štulić, Marušić &amp; Gotovac, 2019), VOC-format copy by
-        Pyrrö (2021), CC BY 3.0. Real photos on a simulated flight path.
-      </footer>
+        <footer className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-small text-text-3">
+            Imagery: HERIDAL dataset (Božić-Štulić, Marušić &amp; Gotovac, 2019), VOC-format copy by
+            Pyrrö (2021), CC BY 3.0. Real photos on a simulated flight path.
+          </p>
+          <div className="flex items-center gap-2">
+            <Label className="mr-2 hidden md:inline">{stepInfo.hint}</Label>
+            <button
+              type="button"
+              disabled={isFirst}
+              onClick={() => setStep(previousStep(step))}
+              className="rounded-full border border-border px-4 py-1.5 text-small text-text-2 hover:text-text disabled:opacity-30"
+            >
+              Back
+            </button>
+            {!isLast && (
+              <button
+                type="button"
+                onClick={() => setStep(nextStep(step))}
+                className="rounded-full border border-accent px-4 py-1.5 text-small text-accent-soft hover:bg-accent hover:text-bg"
+              >
+                Next: {nextLabel}
+              </button>
+            )}
+          </div>
+        </footer>
 
-      {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}
-    </div>
+        {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}
+      </div>
     </CacheContext.Provider>
   );
 }
