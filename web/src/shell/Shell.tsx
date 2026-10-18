@@ -331,12 +331,15 @@ export function Shell({
   const credit =
     "Imagery: HERIDAL dataset (Božić-Štulić, Marušić & Gotovac, 2019), VOC-format copy by Pyrrö (2021), CC BY 3.0. " +
     (cache.survey.simulated_path ? "Real photos on a simulated flight path." : "Real photos at recorded EXIF positions.");
+  // Another survey is a new story: start it from step 1.
+  const changeSurvey = (d: string) => {
+    if (!onCacheDirChange || d === cacheDir) return;
+    setStep("survey");
+    onCacheDirChange(d);
+  };
   const realGps =
     cacheDir && cacheDir !== "real-gps" && onCacheDirChange && surveyOptions.some((o) => o.dir === "real-gps")
-      ? () => {
-          setStep("survey");
-          onCacheDirChange("real-gps");
-        }
+      ? () => changeSurvey("real-gps")
       : undefined;
 
   // Review: the live heat under the pins, fainter, so each answer visibly changes the map.
@@ -376,7 +379,7 @@ export function Shell({
               simulatedPath={survey.simulated_path}
               options={cacheDir && onCacheDirChange ? surveyOptions : []}
               value={cacheDir ?? ""}
-              onChange={(d) => onCacheDirChange?.(d)}
+              onChange={changeSurvey}
             />
             {detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
             {detections.model === "PLACEHOLDER" && <Badge kind="placeholder">Placeholder detections</Badge>}
@@ -399,7 +402,7 @@ export function Shell({
                   {survey.simulated_path && <span className="text-caption text-accent-soft">Simulated flight path</span>}
                 </span>
                 {cacheDir && onCacheDirChange && surveyOptions.length > 0 && (
-                  <SurveySelect options={surveyOptions} value={cacheDir} onChange={onCacheDirChange} />
+                  <SurveySelect options={surveyOptions} value={cacheDir} onChange={changeSurvey} />
                 )}
               </div>
             </AppMenu>

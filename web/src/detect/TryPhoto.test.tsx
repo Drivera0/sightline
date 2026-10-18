@@ -25,7 +25,8 @@ describe("TryPhoto", () => {
     expect(screen.getByRole("dialog", { name: "Try your own photo" })).toBeInTheDocument();
     expect(screen.getByText("Runs on your device")).toBeInTheDocument();
     expect(screen.getByText(/its boxes\s+are meaningless/)).toBeInTheDocument();
-    expect(screen.getByText(/its boxes/).textContent).toContain(`threshold (${cache.metrics.detector.threshold}, metrics.detector)`);
+    expect(screen.getByText(/its boxes/).textContent).toContain(`a box counts from a score of ${cache.metrics.detector.threshold}`);
+    expect(screen.getByText(/its boxes/).textContent).not.toContain("metrics.detector");
     expect(await screen.findByText(/Drop a JPEG here/)).toBeInTheDocument();
   });
 

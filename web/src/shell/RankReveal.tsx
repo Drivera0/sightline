@@ -125,6 +125,7 @@ function ScanFrame({
   threshold,
   dir,
   scanMs,
+  onLoad,
 }: {
   frame: Frame;
   hits: Detection[];
@@ -133,10 +134,17 @@ function ScanFrame({
   dir: string;
   /** Length of the scan-line sweep; 0 for none. */
   scanMs: number;
+  /** The photo has loaded (the caption waits for it, so the two never disagree). */
+  onLoad?: () => void;
 }) {
   return (
     <div className="relative h-full w-full overflow-hidden rounded-md bg-surface-strong">
-      <img src={cacheUrl(dir, frame.file)} alt={`Frame ${frame.id}`} className="absolute inset-0 h-full w-full object-cover" />
+      <img
+        src={cacheUrl(dir, frame.file)}
+        alt={`Frame ${frame.id}`}
+        onLoad={onLoad}
+        className="absolute inset-0 h-full w-full object-cover"
+      />
       {rejected.map((d) => (
         <BoxOverlay key={d.id} frame={frame} detection={d} kind="rejected" threshold={threshold} />
       ))}
@@ -227,6 +235,9 @@ export function RankReveal({
   const viewer = done ? (lead ? { frame: lead.frame, hits: [lead.detection], rejected: [] } : undefined) : current;
   const threshold = cache.detections.candidate_threshold;
   const aspect = viewer ? viewer.frame.width_px / viewer.frame.height_px : 4 / 3;
+  // The caption follows the photo on screen: it changes when the new photo has loaded, not before.
+  const [loaded, setLoaded] = useState<typeof viewer>(undefined);
+  const caption = done || !loaded ? viewer : loaded;
 
   return (
     <div className="grid h-full min-h-0 grid-cols-1 gap-4 overflow-y-auto lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible">
@@ -266,16 +277,17 @@ export function RankReveal({
                   threshold={threshold}
                   dir={dir}
                   scanMs={done || !current ? 0 : Math.min(900, stopMs(current))}
+                  onLoad={() => setLoaded(viewer)}
                 />
               </div>
             )}
             <div className="pointer-events-none absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 font-mono text-label">
               <span className="rounded-full bg-bg/75 px-2.5 py-1 text-text-2 backdrop-blur">
-                {viewer?.frame.id} · photo {(viewer ? (positionOf.get(viewer.frame.id) ?? 0) : 0) + 1}
+                {caption?.frame.id} · photo {(caption ? (positionOf.get(caption.frame.id) ?? 0) : 0) + 1}
               </span>
-              {viewer && viewer.hits.length > 0 ? (
+              {caption && caption.hits.length > 0 ? (
                 <span className="rounded-full bg-accent px-2.5 py-1 text-bg">Flagged for review</span>
-              ) : viewer && viewer.rejected.length > 0 ? (
+              ) : caption && caption.rejected.length > 0 ? (
                 <span className="rounded-full bg-bg/80 px-2.5 py-1 text-text-2 backdrop-blur">
                   Looked closer, scored below {threshold}: not flagged
                 </span>
@@ -411,7 +423,7 @@ export function RankReveal({
                 onClick={() => setStop(stops.length)}
                 className="rounded-full border border-border px-4 py-2 text-small text-text-2 transition-colors hover:text-text"
               >
-                Skip to the result
+                Skip animation
               </button>
             )}
             {cache.detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}

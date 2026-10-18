@@ -67,10 +67,10 @@ export function Annotation({ children }: { children: ReactNode }) {
   return <span className="font-hand text-title text-accent-soft">{children}</span>;
 }
 
-/** A key to press. Hidden on touch-only screens, where there is no keyboard to press it on. */
+/** A key to press. Hidden on touch screens (no hover, or a finger for a pointer), where there is no keyboard to press it on. */
 export function KeyHint({ children }: { children: ReactNode }) {
   return (
-    <kbd className="inline-flex min-w-6 items-center justify-center rounded-sm border border-border bg-surface-strong px-1.5 py-0.5 font-mono text-label text-text-2 [@media(hover:none)]:hidden">
+    <kbd className="inline-flex min-w-6 items-center justify-center rounded-sm border border-border bg-surface-strong px-1.5 py-0.5 font-mono text-label text-text-2 [@media(hover:none)]:hidden [@media(pointer:coarse)]:hidden">
       {children}
     </kbd>
   );
