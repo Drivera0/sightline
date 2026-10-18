@@ -536,7 +536,8 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         )}
       </Panel>
       <Panel
-        className="sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]"
+        // Capped below the basemap switch (top right), so the two never overlap on short screens.
+        className="sl-rise pointer-events-auto absolute bottom-3 right-3 max-h-[calc(100%-4.5rem)] w-64 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]"
         style={{ animationDelay: "80ms" }}
       >
         <Legend

@@ -5,11 +5,13 @@ import { droneShapes } from "./droneImage";
 import {
   blendPixels,
   buildEvenRamp,
+  classLevel,
   buildRamp,
   FALLBACK_TOKENS,
   gridCorners,
   HEAT_ALPHA_MAX,
   HEAT_ALPHA_MIN,
+  HEAT_CLASSES,
   heatColor,
   HeatRaster,
   heatPixels,
@@ -107,6 +109,22 @@ describe("colour ramp", () => {
     ]);
     expect([r[0], r[1], r[2]]).toEqual([0, 0, 0]);
     expect([r.at(-3), r.at(-2), r.at(-1)]).toEqual([255, 255, 255]);
+  });
+});
+
+describe("classLevel", () => {
+  it("rounds a level down to one of n classes, shown at k / (n - 1), keeping both ends", () => {
+    expect(classLevel(0, 7)).toBe(0);
+    expect(classLevel(1, 7)).toBe(1);
+    expect(classLevel(0.5, 7)).toBeCloseTo(3 / 6, 12);
+    expect(classLevel(0.14, 7)).toBe(0);
+    expect(classLevel(0.15, 7)).toBeCloseTo(1 / 6, 12);
+    expect(classLevel(0.99, 7)).toBe(1);
+    expect(new Set(Array.from({ length: 101 }, (_, i) => classLevel(i / 100, 7))).size).toBe(7);
+    // One class means the continuous ramp.
+    expect(classLevel(0.37, 1)).toBe(0.37);
+    expect(HEAT_CLASSES).toBeGreaterThanOrEqual(3);
+    expect(HEAT_CLASSES).toBeLessThanOrEqual(9);
   });
 });
 

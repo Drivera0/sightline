@@ -1,7 +1,7 @@
 import type { Manifest, Params } from "../../contract";
 import { Badge, Label } from "../../shell/components";
 import { droneSvgMarkup } from "./droneImage";
-import { HELD_ALPHA, heatColor, paletteFromTokens, readRasterTokens, VEIL_ALPHA } from "./raster";
+import { HEAT_CLASSES, HELD_ALPHA, heatColor, paletteFromTokens, readRasterTokens, VEIL_ALPHA } from "./raster";
 
 /** Contract 1.1 §8: the value of `map.params.prior_source` when the pipeline used the placeholder prior. */
 export const PRIOR_FROM_PLACEHOLDER = "placeholder";
@@ -28,14 +28,17 @@ export function showsPlaceholderPrior(priorSource: Params["prior_source"], notes
 
 const pct = (x: number) => Math.round(x * 100);
 
-/** The map's own ramp as a CSS gradient: the same OKLab-built colours and opacities as the raster, light (lower) to dark (higher). */
-export function rampGradient(): string {
+/**
+ * The map's own classes as CSS colours, light (lower probability) to dark (higher): the same
+ * OKLab-built colours and opacities as the raster, one per class (HEAT_CLASSES).
+ */
+export function rampSwatches(classes = HEAT_CLASSES): string[] {
   const palette = paletteFromTokens(typeof document === "undefined" ? { bg: "", text: "", accent: "", accentSoft: "" } : readRasterTokens());
-  const stops = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1].map((t) => {
-    const [r, g, b, a] = heatColor(palette, t);
-    return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)}) ${pct(t)}%`;
+  const n = Math.max(2, classes);
+  return Array.from({ length: n }, (_, k) => {
+    const [r, g, b, a] = heatColor(palette, k / (n - 1));
+    return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
   });
-  return `linear-gradient(to right, ${stops.join(", ")})`;
 }
 const UNSEEN_FILL = `color-mix(in srgb, var(--bg) ${pct(VEIL_ALPHA)}%, transparent)`;
 const REVIEW_FILL = `color-mix(in srgb, var(--text) ${pct(HELD_ALPHA)}%, transparent)`;
@@ -66,12 +69,16 @@ interface Props {
 
 export function Legend({ simulatedPath, params, manifest, hasSurveyed, compact = false, showPath = true, onShowPathChange }: Props) {
   const placeholder = showsPlaceholderPrior(params.prior_source, manifest.notes);
-  const ramp = rampGradient();
+  const swatches = rampSwatches();
   return (
     <div className="flex flex-col gap-3">
       {!compact && <Label>Reading the map</Label>}
       <div className="flex flex-col gap-1.5">
-        <div className="h-2 w-full rounded-full" style={{ background: ramp }} />
+        <div className="flex h-2.5 w-full gap-px overflow-hidden rounded-full" data-testid="heat-ramp">
+          {swatches.map((c) => (
+            <span key={c} className="h-full flex-1" style={{ background: c }} />
+          ))}
+        </div>
         <div className="flex justify-between text-label text-text-2">
           <span>Lower probability</span>
           <span>Higher probability</span>
@@ -81,12 +88,6 @@ export function Legend({ simulatedPath, params, manifest, hasSurveyed, compact =
         )}
       </div>
       <ul className="flex flex-col gap-2 text-small text-text-2">
-        {!compact && (
-          <li className="flex items-center gap-2.5">
-            <span className="inline-block h-0 w-5 border-t border-text/60" aria-hidden="true" />
-            {hasSurveyed ? "Surveyed area (outline)" : "No cell photographed yet"}
-          </li>
-        )}
         <li className="flex items-center gap-2.5">
           <span
             className="inline-block size-3 rounded-[3px] ring-1 ring-border"
@@ -106,25 +107,38 @@ export function Legend({ simulatedPath, params, manifest, hasSurveyed, compact =
           />
           Awaiting review
         </li>
-        {!compact && (
-          <li className="flex items-center gap-2.5">
-            <span className="inline-block h-0 w-5 border-t border-text/30" aria-hidden="true" />
-            <span className="flex flex-col">
-              <span>Search sectors</span>
-              <span className="text-label text-text-3">Orange: the sector the drone is in</span>
-            </span>
-          </li>
-        )}
-        {!compact && (
-          <li className="flex items-center gap-2.5">
-            <DroneGlyph />
-            <span className="flex flex-col">
-              <span>Drone, during replay</span>
-              <span className="text-label text-text-3">Orange box: the photo it is taking</span>
-            </span>
-          </li>
-        )}
       </ul>
+      {!compact && (
+        // The line symbols are folded away so the legend stays short; the colours above are always shown.
+        <details className="group text-small text-text-2">
+          <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 rounded-sm text-text-2 hover:text-text [&::-webkit-details-marker]:hidden">
+            <span>Lines and markers</span>
+            <span aria-hidden="true" className="font-mono text-text-3 transition-transform group-open:rotate-90">
+              ›
+            </span>
+          </summary>
+          <ul className="mt-2 flex flex-col gap-2">
+            <li className="flex items-center gap-2.5">
+              <span className="inline-block h-0 w-5 border-t border-text/60" aria-hidden="true" />
+              {hasSurveyed ? "Surveyed area (outline)" : "No cell photographed yet"}
+            </li>
+            <li className="flex items-center gap-2.5">
+              <span className="inline-block h-0 w-5 border-t border-text/30" aria-hidden="true" />
+              <span className="flex flex-col">
+                <span>Search sectors</span>
+                <span className="text-label text-text-3">Orange: the sector the drone is in</span>
+              </span>
+            </li>
+            <li className="flex items-center gap-2.5">
+              <DroneGlyph />
+              <span className="flex flex-col">
+                <span>Drone, during replay</span>
+                <span className="text-label text-text-3">Orange box: the photo it is taking</span>
+              </span>
+            </li>
+          </ul>
+        </details>
+      )}
       {onShowPathChange && (
         <label className="flex cursor-pointer items-center justify-between gap-3 border-t border-border pt-3 text-small text-text-2">
           <span>Flight path{simulatedPath ? " (simulated)" : ""}</span>
