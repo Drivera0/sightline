@@ -30,7 +30,7 @@ describe("ReviewView list and progress", () => {
     const items = queue();
     expect(items).toHaveLength(3);
     expect(items[0]).toHaveTextContent("f0005");
-    expect(items[0]).toHaveTextContent("0.874");
+    expect(items[0]).toHaveTextContent("#1 · 87%");
     expect(items[1]).toHaveTextContent("f0012");
     expect(items[2]).toHaveTextContent("f0008");
     expect(items.map(status)).toEqual(["Unreviewed", "Unreviewed", "Unreviewed"]);

@@ -335,7 +335,7 @@ export function ReviewView({
       <div
         className={
           "grid flex-1 grid-cols-1 gap-3 lg:min-h-0 " +
-          (compact ? "md:grid-cols-[16.5rem_minmax(0,1fr)] lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[16.5rem_minmax(0,1fr)]" : "lg:grid-cols-[18rem_1fr_20rem]")
+          (compact ? "md:grid-cols-[14rem_minmax(0,1fr)] lg:grid-cols-[12rem_minmax(0,1fr)] 2xl:grid-cols-[14rem_minmax(0,1fr)]" : "lg:grid-cols-[18rem_1fr_20rem]")
         }
       >
         <Panel className="max-h-64 overflow-y-auto overflow-x-hidden p-2 md:max-h-[70vh] lg:max-h-none lg:min-h-0">
@@ -366,7 +366,6 @@ export function ReviewView({
                         (isCurrent ? "scale-y-100" : "scale-y-0")
                       }
                     />
-                    <span className="w-5 shrink-0 text-right font-mono text-label text-text-3">{index + 1}</span>
                     {item.detection.crop && (
                       <img
                         src={cacheUrl(folder, item.detection.crop)}
@@ -375,13 +374,14 @@ export function ReviewView({
                         className="size-11 shrink-0 rounded-[8px] object-cover"
                       />
                     )}
-                    <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="truncate font-mono text-small text-text">
-                        {item.frame.id} <span className="text-text-3">· {item.detection.conf.toFixed(3)}</span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="whitespace-nowrap text-body text-text" title={`Detector score ${item.detection.conf.toFixed(3)}`}>
+                        #{index + 1} <span className="text-text-3">·</span> {Math.round(item.detection.conf * 100)}%
                       </span>
-                      <span className="flex items-center gap-1.5">
+                      <span className="font-mono text-label text-text-3">{item.frame.id}</span>
+                      <span className="mt-0.5 flex items-center gap-1.5">
                         <PinMark state={state} size={12} />
-                        <span data-testid="status" className={`text-label ${STATUS[state].className}`}>
+                        <span data-testid="status" className={`whitespace-nowrap text-label ${STATUS[state].className}`}>
                           {STATUS[state].label}
                         </span>
                       </span>

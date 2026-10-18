@@ -3,6 +3,7 @@ import type { Metrics } from "../contract";
 import { ResetReview } from "../review/ResetReview";
 import { useReview, type Answer } from "../review/store";
 import { Badge, Label } from "../shell/components";
+import { Sourced } from "../shell/Popover";
 import { ablationDisplayRows, count, pct, seconds, speedup } from "./format";
 import { useCountUp } from "./motion";
 import { randomOrderBaseline } from "./randomOrder";
@@ -63,26 +64,30 @@ export function ResultsSummary({
         <Label>Results</Label>
         {trivial ? (
           <>
-            <h2 className="max-w-4xl text-[30px] font-semibold leading-[1.05] sm:text-[40px]" title={rankingSource}>
-              Every photo in this survey contains a person.
+            <h2 className="max-w-4xl text-[30px] font-semibold leading-[1.05] sm:text-[40px]">
+              <Sourced source={rankingSource}>Every photo in this survey contains a person.</Sourced>
             </h2>
-            <p className="max-w-3xl text-title text-text-2" title={rankingSource}>
+            <p className="max-w-3xl text-title text-text-2">
               There is nothing for the ranking to reorder here, so the queue simply opens on the most
               confident detection. The Mount Seymour survey shows what ranking buys.
             </p>
           </>
         ) : (
           <>
-            <h2 className="max-w-4xl text-[30px] font-semibold leading-[1.05] sm:text-[40px]" title={rankingSource}>
-              All {ranking.n_positive} {photos} were in the first {ranked} photos of the queue.
+            <h2 className="max-w-4xl text-[30px] font-semibold leading-[1.05] sm:text-[40px]">
+              All {ranking.n_positive} {photos} were in the{" "}
+              <Sourced source={rankingSource}>first {ranked} photos</Sourced> of the queue.
             </h2>
-            <p className="max-w-3xl text-title text-text-2" title={rankingSource}>
+            <p className="max-w-3xl text-title text-text-2">
               That is <span className="text-accent-soft">{share(ranked)}</span> of the {count(ranking.n_frames)} photos
               to reach everyone.{" "}
               {random && (
-                <span title={randomSource}>
-                  A random order needs about <span className="text-text">{count(random.expectedAll)}</span> on average
-                  (9 in 10 random orders need at least {count(random.p10All)}).{" "}
+                <span>
+                  A random order needs{" "}
+                  <Sourced source={randomSource}>
+                    about <span className="text-text">{count(random.expectedAll)}</span>
+                  </Sourced>{" "}
+                  on average (9 in 10 random orders need at least {count(random.p10All)}).{" "}
                 </span>
               )}
               This flight in the order it was flown (one layout, not an average) needed{" "}
@@ -176,7 +181,7 @@ export function ResultsSummary({
                 ? `Median ${count(cellM)} m cells a ground team checks inside the surveyed area: about ${hectares(sightline.median_cells, cellM)} of ground against ${hectares(naive.median_cells, cellM)}`
                 : "Median cells a ground team checks inside the surveyed area"
             }
-            source={`Simulated search, ${inside.trials} trials with the person in a photographed cell, seed ${sim.seed} (metrics.search_sim.in_survey)`}
+            source={`Simulated search, ${inside.trials} trials with the person in a photographed cell, seed ${sim.seed} (metrics.search_sim.in_survey; seed choice: docs/LANE_C_SEARCH.md)`}
             badge={<Badge kind="simulated">Simulated</Badge>}
             footnote={seedNote(sim.seed, surveyId, sightline.median_cells, naive.median_cells)}
             delay={180}
@@ -231,13 +236,14 @@ export function fewer(ours: number, theirs: number): string | undefined {
  */
 const SEED_NOTES: Record<string, { ours: number; theirs: number; note: string }> = {
   // Only for that exact run: a regenerated cache with other numbers gets no note.
-  "seymour-demo": { ours: 1213, theirs: 1743, note: "the best of 3 seeds tried (docs/LANE_C_SEARCH.md)" },
+  "seymour-demo": { ours: 1213, theirs: 1743, note: "the best of 3 seeds tried" },
 };
 
-/** "Seed 7, the best of 3 seeds tried (...)" when the docs describe this run, else "Seed 7". */
+/** "Simulation seed 7, the best of 3 seeds tried" when the docs describe this run, else "Simulation seed 7". */
 export function seedNote(seed: number, surveyId: string | undefined, ours: number, theirs: number): string {
   const known = surveyId ? SEED_NOTES[surveyId] : undefined;
-  return known && known.ours === ours && known.theirs === theirs ? `Seed ${seed}, ${known.note}` : `Seed ${seed}`;
+  const label = `Simulation seed ${seed}`;
+  return known && known.ours === ours && known.theirs === theirs ? `${label}, ${known.note}` : label;
 }
 
 /** Cells of `cellM` metres as ground area: 98 cells of 20 m -> "3.9 ha". */
@@ -333,10 +339,11 @@ function WhyTiling({ ablations, source }: { ablations: Metrics["ablations"]; sou
     <div
       className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5"
       style={{ animationDelay: "300ms" }}
-      title={source}
     >
       <div className="flex items-baseline justify-between gap-3">
-        <Label>Why tiling matters</Label>
+        <Sourced source={source}>
+          <Label>Why tiling matters</Label>
+        </Sourced>
         <span className="text-label text-text-3">test set: recall, precision</span>
       </div>
       <p className="text-small text-text-2">
@@ -386,7 +393,9 @@ function Limits() {
     >
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <Label>Where it still misses</Label>
-        <span className="text-label text-text-3">docs/DETECTOR_LIMITS.md</span>
+        <Sourced source="docs/DETECTOR_LIMITS.md: the failure cases the team found reviewing the test set" align="end">
+          <span className="text-label text-text-3">Known limits (team testing)</span>
+        </Sourced>
       </div>
       <ul className="grid gap-3 md:grid-cols-3">
         {items.map(([title, body]) => (
@@ -423,9 +432,11 @@ interface RaceRowData {
 /** Bars racing to "everyone found", with a tick where the first person turns up. */
 function Race({ n, rows, source }: { n: number; rows: RaceRowData[]; source: string }) {
   return (
-    <div className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5" style={{ animationDelay: "60ms" }} title={source}>
+    <div className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5" style={{ animationDelay: "60ms" }}>
       <div className="flex items-baseline justify-between gap-4">
-        <Label>Photos looked at before every person is found</Label>
+        <Sourced source={source}>
+          <Label>Photos looked at before every person is found</Label>
+        </Sourced>
         <span className="font-mono text-label text-text-3">of {n}</span>
       </div>
       {rows.map((row, i) => (
@@ -520,14 +531,15 @@ function Card({
     <div
       className="sl-rise flex flex-col gap-3 rounded-lg border border-border bg-surface p-5 [box-shadow:inset_0_1px_0_0_var(--surface-strong)]"
       style={{ animationDelay: `${delay}ms` }}
-      title={source}
     >
       <div className="flex items-center justify-between gap-2">
         <Label>{label}</Label>
         {badge}
       </div>
       <div className="flex items-baseline gap-3">
-        <span className="font-mono text-[44px] leading-none text-text">{format(shown)}</span>
+        <Sourced source={source}>
+          <span className="font-mono text-[44px] leading-none text-text">{format(shown)}</span>
+        </Sourced>
         {headline && <span className="text-small text-accent-soft">{headline}</span>}
       </div>
       <div className="flex flex-col gap-1.5">
