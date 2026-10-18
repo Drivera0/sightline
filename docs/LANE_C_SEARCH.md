@@ -39,7 +39,7 @@ Keep a running answer to **"where could the missing person still be?"** Start fr
 
 ### 3.1 The grid (contract §8, repeated because it matters)
 
-- 1,000 m × 1,000 m, centred on the LKP, **20 m** cells → **50 × 50 = 2,500 cells**.
+- 1,000 m × 1,000 m, centred on the LKP, **20 m** cells → **50 × 50 = 2,500 cells** (the original plan). The demo cache now uses **5 m** cells (**200 × 200 = 40,000**, the pipeline's `--cell-m` default since 2026-10-18): a frame footprint is 20 × 15 m, so a 20 m cell averaged open ground and forest inside one photo. At 5 m each photo covers about 12 cells and the per-pixel canopy estimate shows through. The prior is still the uniform placeholder, so outside the photographed area the extra cells carry no extra information.
 - `origin_nw` = north-west corner. **Row 0 = north, column 0 = west.** `idx = row · 50 + col`.
 - Cell centre: `lat = origin.lat − (row + 0.5)·20/111320`, `lon = origin.lon + (col + 0.5)·20/(111320·cos(origin.lat))`.
 - Plus one **outside** bucket: the chance the person is outside the grid. `sum(p) + outside = 1` always.
@@ -215,7 +215,19 @@ Re-run on the live demo cache (v2 weights with corrected labels, recall 0.864, 1
 | 0.43 | 125 / 119 / 120 | 112 / 108 / 106 | 9–12% |
 | 0.55 | 124 / 119 / 119 | 113 / 110 / 110 | 8–9% |
 
-Sightline beat Naive in all 15 live-cache runs (5 noise levels × 3 seeds), median and p90. The demo's 98 vs 123 is seed 7 at the default noise, the best of the three seeds.
+Sightline beat Naive in all 15 live-cache runs (5 noise levels × 3 seeds), median and p90. The demo's 98 vs 123 is seed 7 at the default noise, the best of the three seeds. **The tables above were measured on the 20 m grid.**
+
+Re-run on the 5 m demo cache (2026-10-18; same detections, blocks, seed 7; `simulate` on `data/blocks/work/map/frame_cells.json`, 30,000 trials, in_survey medians in 5 m cells; 0.25 and 0.35 are the two extra noise levels):
+
+| `vis_noise` | Naive median (seeds 7 / 8 / 9) | Sightline median (seeds 7 / 8 / 9) | Gain |
+|---|---|---|---|
+| 0.15 | 1743 / 1684 / 1791 | 1213 / 1211 / 1298 | 28–30% |
+| 0.25 | 1779 / 1735 / 1789 | 1284 / 1260 / 1367 | 24–28% |
+| 0.35 | 1788 / 1741 / 1862 | 1356 / 1339 / 1457 | 22–24% |
+| 0.43 | 1810 / 1775 / 1879 | 1395 / 1407 / 1516 | 19–23% |
+| 0.55 | 1825 / 1790 / 1926 | 1448 / 1476 / 1606 | 17–21% |
+
+Sightline beat Naive on the in-survey median and p90 in all 15 runs. The demo's 1,213 vs 1,743 is seed 7 at the default noise, again the best of the three seeds. The gain is larger than on 20 m cells because each cell's canopy now comes from the pixels inside it instead of a 20 m average; the same limit applies (the simulation draws visibility from our own canopy estimate plus noise).
 
 Sightline beat Naive on the in-survey median and p90 in all 30 runs (2 layouts × 5 noise levels from 0.15 to 0.55 × 3 seeds), but the gain shrinks as the noise grows and varies with the seed (blocks at 0.43: 4 to 18 cells). Limit of this test: the noise is random, while the classifier's real errors are systematic (it always misses pale and autumn trees), so even the 0.43 result is somewhat optimistic.
 
