@@ -47,3 +47,6 @@ Thumbs.db
 
 # Personal Claude Code rules (each person keeps their own)
 CLAUDE.local.md
+
+# Vercel CLI link files and pulled env (lane D)
+.vercel/
