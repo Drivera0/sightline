@@ -6,7 +6,8 @@ import { useCountUp } from "./motion";
 
 /**
  * The finale: the one result to say out loud (how soon the ranked queue reaches every person),
- * drawn as a race against flight order, then three cards with their comparisons. Every number is
+ * drawn as a race against this flight's own order (one layout, not a baseline average), then three
+ * cards with their comparisons. Every number is
  * from metrics.json and carries its source as a tooltip; the full tables follow below this.
  */
 export function ResultsSummary({ metrics }: { metrics: Metrics }) {
@@ -17,31 +18,48 @@ export function ResultsSummary({ metrics }: { metrics: Metrics }) {
   const naive = byName("Naive");
   const ranked = ranking.ranked.frames_to_all_hits;
   const flight = ranking.flight_order.frames_to_all_hits;
-  const people = ranking.n_positive === 1 ? "person" : "people";
-  const rankingSource = `Demo survey, ${ranking.n_frames} frames, ${ranking.n_positive} with people (metrics.ranking)`;
+  const photos = ranking.n_positive === 1 ? "photo with a person" : "photos with a person";
+  const rankingSource = `This survey, ${ranking.n_frames} frames, ${ranking.n_positive} with a person (metrics.ranking)`;
+  // When every photo has a person there is nothing for the ranking to reorder: say so, skip the race.
+  const trivial = ranking.n_positive >= ranking.n_frames;
 
   return (
     <section aria-label="Results" className="flex flex-col gap-5">
       <div className="sl-rise flex flex-col gap-2">
         <Label>Results</Label>
-        <h2 className="max-w-4xl text-[40px] font-semibold leading-[1.05]" title={rankingSource}>
-          All {ranking.n_positive} {people} were in the first {ranked} photos of the queue.
-        </h2>
-        <p className="max-w-3xl text-title text-text-2" title={rankingSource}>
-          Looking in flight order, a searcher reaches the last one at photo {flight}. That is{" "}
-          <span className="text-text">{Math.round(flight / ranked)}× fewer photos</span> to look at before
-          everyone is found.
-        </p>
+        {trivial ? (
+          <>
+            <h2 className="max-w-4xl text-[40px] font-semibold leading-[1.05]" title={rankingSource}>
+              Every photo in this survey contains a person.
+            </h2>
+            <p className="max-w-3xl text-title text-text-2" title={rankingSource}>
+              There is nothing for the ranking to reorder here, so the queue simply opens on the most
+              confident detection. The Mount Seymour survey shows what ranking buys.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 className="max-w-4xl text-[40px] font-semibold leading-[1.05]" title={rankingSource}>
+              All {ranking.n_positive} {photos} were in the first {ranked} photos of the queue.
+            </h2>
+            <p className="max-w-3xl text-title text-text-2" title={rankingSource}>
+              The first one is photo {ranking.ranked.frames_to_first_hit}. Paging through this flight in the
+              order it was flown (one layout, not an average) reaches the last one at photo {flight}.
+            </p>
+          </>
+        )}
       </div>
 
-      <Race
-        n={ranking.n_frames}
-        source={rankingSource}
-        rows={[
-          { label: "Flight order", first: ranking.flight_order.frames_to_first_hit, all: flight, tone: "muted" },
-          { label: "Sightline ranked queue", first: ranking.ranked.frames_to_first_hit, all: ranked, tone: "accent" },
-        ]}
-      />
+      {!trivial && (
+        <Race
+          n={ranking.n_frames}
+          source={rankingSource}
+          rows={[
+            { label: "This flight's order", first: ranking.flight_order.frames_to_first_hit, all: flight, tone: "muted" },
+            { label: "Sightline ranked queue", first: ranking.ranked.frames_to_first_hit, all: ranked, tone: "accent" },
+          ]}
+        />
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card

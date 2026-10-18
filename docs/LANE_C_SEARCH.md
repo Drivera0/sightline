@@ -207,6 +207,16 @@ def write_test_vectors(out: Path = Path("web/src/search/__fixtures__/update_vect
 | shuffle | 0.15 | 120 / 111 / 116 | 109 / 104 / 105 | about 8% |
 | shuffle | 0.43 | 120 / 114 / 117 | 115 / 108 / 109 | about 5% |
 
+Re-run on the live demo cache (v2 weights with corrected labels, recall 0.864, 14 candidates, blocks, seed 7; per-frame cells rebuilt from the cache frames with `build_map`, final p within 7e-7 of the live map.json):
+
+| `vis_noise` | Naive median (seeds 7 / 8 / 9) | Sightline median (seeds 7 / 8 / 9) | Gain |
+|---|---|---|---|
+| 0.15 | 123 / 114 / 114 | 98 / 100 / 99 | 12–20% |
+| 0.43 | 125 / 119 / 120 | 112 / 108 / 106 | 9–12% |
+| 0.55 | 124 / 119 / 119 | 113 / 110 / 110 | 8–9% |
+
+Sightline beat Naive in all 15 live-cache runs (5 noise levels × 3 seeds), median and p90. The demo's 98 vs 123 is seed 7 at the default noise, the best of the three seeds.
+
 Sightline beat Naive on the in-survey median and p90 in all 30 runs (2 layouts × 5 noise levels from 0.15 to 0.55 × 3 seeds), but the gain shrinks as the noise grows and varies with the seed (blocks at 0.43: 4 to 18 cells). Limit of this test: the noise is random, while the classifier's real errors are systematic (it always misses pale and autumn trees), so even the 0.43 result is somewhat optimistic.
 
 ---

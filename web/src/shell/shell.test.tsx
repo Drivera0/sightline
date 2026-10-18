@@ -6,7 +6,7 @@ import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import type { CacheBundle } from "../contract";
 import { Annotation, Badge, EmptyState, KeyHint, Panel, Stat } from "./components";
-import { Shell } from "./Shell";
+import { Shell, shortSurveyName } from "./Shell";
 
 // jsdom has no WebGL, so the real MapLibre map throws. Stand in for lane B's MapView so these tests
 // check what the shell passes it: lane C's heat layer must be mounted inside the map context.
@@ -25,14 +25,55 @@ describe("Shell header", () => {
     render(<Shell cache={await sample()} />);
 
     expect(screen.getByRole("heading", { name: "Sightline" })).toBeInTheDocument();
-    expect(screen.getByText("Mount Seymour survey")).toBeInTheDocument();
+    expect(screen.getByText("Mount Seymour, North Vancouver")).toBeInTheDocument();
     expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
   });
 
-  it("hides the badge when the path is real", async () => {
-    render(<Shell cache={await sample((c) => (c.survey.simulated_path = false))} />);
+  it("uses the real survey name and hides the simulated badge", async () => {
+    render(
+      <Shell
+        cache={await sample((cache) => {
+          cache.survey.simulated_path = false;
+          cache.survey.area.name = "HERIDAL SB site (real EXIF positions)";
+        })}
+      />,
+    );
 
+    expect(screen.getByRole("heading", { name: "Sightline" })).toBeInTheDocument();
+    expect(screen.getByText("HERIDAL SB site")).toBeInTheDocument();
     expect(screen.queryByText("Simulated flight path")).not.toBeInTheDocument();
+  });
+
+  it("offers the real-position survey and reports selection changes", async () => {
+    const onCacheDirChange = vi.fn();
+    render(
+      <Shell
+        cache={await sample()}
+        cacheDir="demo"
+        onCacheDirChange={onCacheDirChange}
+        surveyOptions={[
+          { dir: "demo", label: "Mount Seymour simulation" },
+          { dir: "real-gps", label: "Real EXIF positions" },
+        ]}
+      />,
+    );
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Survey" }), "real-gps");
+
+    expect(onCacheDirChange).toHaveBeenCalledWith("real-gps");
+    expect(screen.getByRole("combobox", { name: "Survey" })).toHaveClass(
+      "border-border",
+      "bg-surface-strong",
+      "text-label",
+    );
+  });
+
+  it("removes only a trailing explanatory parenthetical from survey names", () => {
+    expect(shortSurveyName("Mount Seymour, North Vancouver (simulated flight path)")).toBe(
+      "Mount Seymour, North Vancouver",
+    );
+    expect(shortSurveyName("HERIDAL SB site (real EXIF positions)")).toBe("HERIDAL SB site");
+    expect(shortSurveyName("Survey (north) sector")).toBe("Survey (north) sector");
   });
 
   it("flags sample data so it is never mistaken for a real run", async () => {
@@ -183,5 +224,13 @@ describe("Shell credits", () => {
       await userEvent.keyboard(key);
       expect(screen.getByText(/HERIDAL dataset/)).toBeInTheDocument();
     }
+  });
+
+  it("describes whether image positions are simulated or recorded", async () => {
+    const { rerender } = render(<Shell cache={await sample()} />);
+    expect(screen.getByText(/Real photos on a simulated flight path/)).toBeInTheDocument();
+
+    rerender(<Shell cache={await sample((cache) => (cache.survey.simulated_path = false))} />);
+    expect(screen.getByText(/Real photos at recorded EXIF positions/)).toBeInTheDocument();
   });
 });
