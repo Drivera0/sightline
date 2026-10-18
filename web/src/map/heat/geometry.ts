@@ -134,9 +134,12 @@ export function distanceM(lat1: number, lon1: number, lat2: number, lon2: number
   return Math.hypot(dx, dy);
 }
 
-/** Indices of the n most likely cells, most likely first (ties: lower idx first). */
-export function topCellIndices(p: Float64Array, n: number): number[] {
-  const idx = Array.from(p.keys());
+/**
+ * Indices of the n most likely cells, most likely first (ties: lower idx first). With `only`,
+ * just the cells where `only[idx] === 1` are considered.
+ */
+export function topCellIndices(p: Float64Array, n: number, only?: Uint8Array): number[] {
+  const idx = Array.from(p.keys()).filter((i) => only === undefined || only[i] === 1);
   idx.sort((a, b) => (p[b] as number) - (p[a] as number) || a - b);
   return idx.slice(0, n);
 }

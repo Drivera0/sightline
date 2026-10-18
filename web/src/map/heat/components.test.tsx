@@ -17,17 +17,18 @@ describe("NextSearch", () => {
   };
   const covered = Uint8Array.from([0, 1, 0, 1, 1, 0, 0, 1]);
 
-  it("lists 5 cells, most likely first, with labels, and shares that sum to 100%", () => {
+  it("lists only photographed cells, most likely first, with labels, and shares that sum to 100%", () => {
     const onSelect = vi.fn();
     render(<NextSearch map={map} state={state} covered={covered} onSelect={onSelect} />);
     const rows = within(screen.getByRole("list", { name: "Most likely cells" })).getAllByRole("button");
-    expect(rows).toHaveLength(5);
-    expect(rows.map((r) => r.getAttribute("data-idx"))).toEqual(["1", "4", "3", "7", "6"]);
+    // Cell 6 (p 0.07) would be 5th, but it was never photographed; only the 4 covered cells count.
+    expect(rows).toHaveLength(4);
+    expect(rows.map((r) => r.getAttribute("data-idx"))).toEqual(["1", "4", "3", "7"]);
     expect(rows[0]).toHaveTextContent("dense forest");
     expect(rows[0]).toHaveTextContent("20.00%");
     expect(rows[1]).toHaveTextContent("dense forest"); // canopy 0.5
     expect(rows[2]).toHaveTextContent("open");
-    expect(rows[4]).toHaveTextContent("not photographed");
+    expect(screen.queryByText("not photographed")).toBeNull();
     // Cell 1 centre is 10 m south, 30 m east of the LKP at the NW corner.
     expect(rows[0]).toHaveTextContent("32 m from LKP");
 
@@ -42,6 +43,20 @@ describe("NextSearch", () => {
     const [lon, lat] = onSelect.mock.calls[0] as [number, number];
     expect(lat).toBeLessThan(grid.origin_nw.lat);
     expect(lon).toBeGreaterThan(grid.origin_nw.lon);
+  });
+
+  it("ranks a photographed cell above an unphotographed cell with higher p", () => {
+    // With a flat prior every unphotographed cell ends up above every photographed one.
+    const flat = { p: Float64Array.from([0.2, 0.05, 0.2, 0.2, 0.08, 0.2, 0.2, 0.2]), outside: 0 };
+    render(<NextSearch map={map} state={flat} covered={covered} onSelect={vi.fn()} />);
+    const rows = within(screen.getByRole("list", { name: "Most likely cells" })).getAllByRole("button");
+    expect(rows.map((r) => r.getAttribute("data-idx"))).toEqual(["3", "7", "4", "1"]);
+  });
+
+  it("says so when no cell has been photographed", () => {
+    render(<NextSearch map={map} state={state} covered={new Uint8Array(8)} onSelect={vi.fn()} />);
+    expect(screen.queryByRole("list", { name: "Most likely cells" })).toBeNull();
+    expect(screen.getByText("No cell photographed yet")).toBeInTheDocument();
   });
 });
 
