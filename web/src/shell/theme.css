@@ -95,3 +95,14 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .sl-rise, .sl-fade, .sl-dim, .sl-flag, .sl-pop { animation-duration: 1ms; animation-delay: 0ms !important; }
 }
+
+/* Review: a decision toast that rises in, holds, and fades out on its own. */
+@keyframes sl-toast {
+  0% { opacity: 0; transform: translate(-50%, 6px); }
+  12%, 75% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+.sl-toast { animation: sl-toast 1800ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-toast { animation: none; opacity: 0; }
+}
