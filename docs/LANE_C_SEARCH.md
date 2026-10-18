@@ -195,6 +195,20 @@ def write_test_vectors(out: Path = Path("web/src/search/__fixtures__/update_vect
 - The canopy classifier has MAE 0.34 against the 20 hand-scored crops (`tests/search/fixtures/canopy_report.md`; the best of 180 threshold sets gives 0.32 on the same crops, so the defaults were kept). It finds green forest well, but misses pale, autumn and dry trees (it looks for green texture), reads dark lawn as shadow, and reads bright textured rock as canopy.
 - "Not a person" applies `review_pod` (0.9) within the radius. This over-clears, because a rejected crop covers only about 2.6 m (a 128 × 128 px window at 0.02 m/px, contract §7). The correct rule would release the frame's normal pod, but that needs the held pods in `map.json` (a contract change). Not done.
 
+## Robustness: does the gain survive the canopy error?
+
+`simulate` draws the person's true visibility from our own canopy estimate plus noise `vis_noise` (default 0.15). The measured canopy error is MAE 0.34, which for Gaussian noise is σ ≈ 0.34 / 0.80 ≈ 0.43. So we re-ran `simulate` (30,000 trials, seeds 7, 8, 9, in_survey with overlap ≥ 0.5) at higher noise. Maps: the 500-frame scratch runs without detections (blocks and shuffle layouts), not the demo cache.
+
+| Layout | `vis_noise` | Naive median (seeds 7 / 8 / 9) | Sightline median (seeds 7 / 8 / 9) | Mean gain |
+|---|---|---|---|---|
+| blocks | 0.15 | 121 / 114 / 120 | 97 / 102 / 103 | about 15% |
+| blocks | 0.43 | 123 / 115 / 120 | 105 / 111 / 108 | about 10% |
+| blocks | 0.55 | 124 / 116 / 118 | 108 / 113 / 110 | about 7% |
+| shuffle | 0.15 | 120 / 111 / 116 | 109 / 104 / 105 | about 8% |
+| shuffle | 0.43 | 120 / 114 / 117 | 115 / 108 / 109 | about 5% |
+
+Sightline beat Naive on the in-survey median and p90 in all 30 runs (2 layouts × 5 noise levels from 0.15 to 0.55 × 3 seeds), but the gain shrinks as the noise grows and varies with the seed (blocks at 0.43: 4 to 18 cells). Limit of this test: the noise is random, while the classifier's real errors are systematic (it always misses pale and autumn trees), so even the 0.43 result is somewhat optimistic.
+
 ---
 
 ## 6. Step by step
