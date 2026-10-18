@@ -48,6 +48,22 @@ Detection on the demo frames is one call, `sightline.ml.run_survey(...)` (see `s
 `detect_resized`), `evaluate.py` (scoring, threshold choice), `crops.py`, `hard_negatives.py`, `data.py`.
 Until lane D lands `sightline/contract.py`, the metrics models come from `sightline/ml/_contract_shim.py`.
 
+## Results so far (from `data/work/detect/detector_metrics.json`, full 101-image HERIDAL test set)
+
+Run 1: yolo11s, 80 epochs on 1024 px tiles, seed 7, best epoch 62. Threshold 0.21 chosen on **val** by max F2.
+VOC scoring (greedy one-to-one, IoU ≥ 0.5); precision/recall at the threshold, AP50 over all confidences.
+
+| Row | Precision | Recall | AP50 | s / image |
+|---|---|---|---|---|
+| Stock model, no tiling (COCO yolo11s, resized to 1024) | 0.420 | 0.196 | 0.142 | 0.06 |
+| Fine-tuned, no tiling (resized to 1024) | 0.230 | 0.122 | 0.046 | 0.06 |
+| Fine-tuned + tiling | **0.681** | **0.754** | **0.711** | 0.25 |
+| + hard negatives | pending | | | |
+
+Human baseline (Pyrrö et al. 2021): precision 0.59, recall 0.68, 33 s per photo.
+SAR-style loose matching (approx. AIR) for the tiled model: precision 0.796, recall 0.801.
+`metrics.detector.recall` for lane C's POD: **0.754**. Trained and evaluated 2026-10-17 on an RTX 4080 SUPER.
+
 ## Training (timing run, then run 1)
 
 ```bash
