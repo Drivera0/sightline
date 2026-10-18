@@ -167,6 +167,30 @@ yolo detect train model=yolo11s.pt data=data/heridal/yolo_tiles/dataset.yaml \
 6. `metrics.detector.recall` = the VOC recall of the final model. **Tell C the number as soon as you have it**, because it's their POD input.
 7. `write_detector_metrics` → `data/work/detect/detector_metrics.json`: the contract `DetectorMetrics` (with `threshold` = `candidate_threshold`) and the 4 `Ablation` rows. D's `map` stage reads `recall` from it (0.80 placeholder if the file doesn't exist yet), and the `metrics` stage copies the rest into `metrics.json`. Re-write it whenever the model changes.
 
+### 6.3a Tuning on val only (2026-10-18)
+
+Every setting below was chosen on the 95 annotated val photos (333 people). A change is adopted only if a paired bootstrap over val photos (2,000 resamples, seed 7) puts the 95 % interval of ΔF2 above zero; otherwise the current setting stays. Test is scored once, at the end, with whatever was chosen.
+
+- **SAHI merge** (`scripts/tune_on_val.py`, `data/work/tune/val_tuning.json`): 90 settings (overlap 0.1/0.2/0.3 × NMS/NMM/GREEDYNMM × IOU/IOS × match 0.3–0.7), threshold re-chosen by max F2 for each. Current default (overlap 0.2, NMS, IOU 0.5): val F2 0.831 at threshold 0.29. Best: overlap 0.1, NMS, IOU 0.5, val F2 0.846; ΔF2 +0.015, 95 % CI [−0.007, +0.038]. Not clearly better, so the default stays.
+- **Test-time augmentation** (`scripts/tta_on_val.py`, `data/work/tune/val_tta.json`): each val photo in 1, 2, 4 or 8 flip/rotation views, each view tiled and merged as usual, views fused by pooled NMS or weighted box fusion (WBF), threshold re-chosen by max F2:
+
+  | Views | Fusion | Threshold | Val P | Val R | Val F2 | Val AP50 | s / photo | ΔF2 vs no TTA, 95 % CI |
+  |---|---|---|---|---|---|---|---|---|
+  | 1 (no TTA) | | 0.29 | 0.735 | 0.859 | 0.831 | 0.861 | 0.32 | |
+  | 2 (photo + mirror) | NMS | 0.28 | 0.677 | 0.886 | 0.834 | 0.862 | 0.62 | +0.003 [−0.012, +0.019] |
+  | **2 (photo + mirror)** | **WBF** | **0.32** | **0.797** | **0.874** | **0.857** | **0.889** | **0.62** | **+0.027 [+0.004, +0.048]** |
+  | 4 (+ vflip, rot90) | NMS | 0.45 | 0.745 | 0.862 | 0.836 | 0.872 | 1.19 | +0.005 [−0.019, +0.028] |
+  | 4 | WBF | 0.25 | 0.741 | 0.883 | 0.850 | 0.891 | 1.19 | +0.019 [+0.002, +0.039] |
+  | 8 (all) | NMS | 0.52 | 0.753 | 0.862 | 0.838 | 0.881 | 2.41 | +0.007 [−0.018, +0.032] |
+  | 8 | WBF | 0.24 | 0.755 | 0.889 | 0.858 | 0.906 | 2.42 | +0.028 [+0.004, +0.051] |
+
+  Rule (the task's): among settings under 2 s per photo, the best val F2, adopted only if its interval is above zero. **Adopted: 2 views with WBF**, now the default of `Detector.detect_tiled` (`TTA_VIEWS`), with the threshold re-chosen on val: **0.32**. The gain is mostly precision: WBF divides a box's summed confidence by the number of views, so a box only one view sees keeps half its score. Note: the first version of `tta_on_val.py` took the best F2 overall (8 views, 2.4 s) and so rejected TTA on speed; the rule was corrected to apply the speed limit first, after seeing that result. Seconds are from the same val pass on the 4080 SUPER (decode + views + fusion); the single-view time here (0.32 s) is higher than `evaluate_model.py`'s 0.25 s because the photo is decoded to an array first. TTA is in `detect_tiled` only: `detect_frame` (the demo frames) is unchanged.
+- **Secondary high-recall operating point.** Rule fixed before looking: the highest threshold whose val recall is ≥ 0.90 (about nine in ten people surfaced; a false alarm costs a reviewer seconds). For single-view inference that was 0.10 (val recall 0.907, precision 0.571); for the adopted TTA setting it is **0.16** (val recall 0.901, precision 0.654). `scripts/evaluate_model.py` recomputes it from val and writes it, with its test score, to lane A's `data/work/detect/operating_points.json`, not to `metrics.json`: the contract's `DetectorMetrics` has no field for it (see §6.3b).
+
+### 6.3b Contract change needed for the secondary threshold (lane D decides)
+
+`DetectorMetrics` forbids extra keys. To show the high-recall point on the metrics screen, lane D would add an optional field, e.g. `detector.high_recall: {threshold, voc: VocScores, rule: string} | null`, bump the contract to 1.2, and have the `metrics` stage copy it from `data/work/detect/operating_points.json`. Until then it lives only in lane A's files and docs.
+
 ### 6.4 Run on the demo frames (as soon as D has frames, around hour 8–10)
 
 Run `run_survey(Path("data/survey/frames"), <best weights>, Path("data/work/detect"), <candidate_threshold>, <model name>)`. D's `detect` stage is a thin wrapper that calls exactly this. It:
@@ -189,7 +213,9 @@ The detect stage needs the GPU, so it runs on the desktop. Copy `data/work/detec
 1. `mine`: tiled inference over **training** images. A false positive is a prediction with `conf ≥ 0.25` and IoU < 0.1 to every true box.
 2. For each false positive, cut the 1024 tile centred on it (clamped to the image), with that tile's true labels (often none). Cap at 2,000 tiles, seeded.
 3. Add them to the training tiles; fine-tune from best weights about 20 epochs with `lr0=0.002`.
-4. Re-run §6.3 for the "+ hard negatives" row. **Keep the model only if test-set F2 doesn't drop**; report the row either way.
+4. Re-run §6.3 for the "+ hard negatives" row. **Keep the model only if it is clearly better on val**: a paired bootstrap over the annotated val photos (`sightline.ml.tuning.paired_bootstrap_f2`, 2,000 resamples, seed 7) whose 95 % interval of ΔF2 is above zero. Report the test row either way, but never use it to decide.
+
+   > **Disclosure.** This step used to say "keep the model only if test-set F2 doesn't drop", and that is how the weights-v2 hard-negative model was dropped (test F2 0.840 vs 0.850). Run 2 was also kept over run 1 with test scores in view. Both were test-set selections; see `scripts/README.md` for the retroactive val check.
 
 ### 6.6 Stretch: re-check classifier (only if ahead at hour 18)
 
