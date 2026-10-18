@@ -151,8 +151,8 @@ function WallTile({ tile, dir }: { tile: WallTileData; dir: string }) {
 }
 
 /**
- * Prototype, opt-in with ?bg=model in the address: the detector's layer graph, faded, over the
- * photo wall, with a signal running through it every few seconds.
+ * Prototype, opt-in with ?bg=model in the address: the detector's layer graph, faded, on the left
+ * behind the text and clear of the photo wall, with a signal running through it every few seconds.
  */
 function useModelBackground(): boolean {
   return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("bg") === "model";
@@ -167,7 +167,7 @@ function ModelBackground({ threshold }: { threshold: number }) {
     return () => window.clearInterval(id);
   }, [motion]);
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-y-[8%] right-[2%] hidden w-[58%] opacity-[0.3] mix-blend-screen sm:block">
+    <div aria-hidden="true" className="pointer-events-none absolute inset-y-[6%] left-0 hidden w-[46%] opacity-[0.18] sm:block [&_text]:hidden">
       <ModelGraph
         photo={undefined}
         top={undefined}
