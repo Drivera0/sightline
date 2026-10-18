@@ -11,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
 
+import click
 import typer
 
 from sightline.pipeline.export import CacheValidationError, validate_cache
@@ -35,6 +36,13 @@ DataOption = Annotated[Path, typer.Option(help="Folder with survey/ and work/ (a
 NFramesOption = Annotated[int, typer.Option(help="Frames in the survey.")]
 NPositiveOption = Annotated[int, typer.Option(help="Frames that contain a person.")]
 SeedOption = Annotated[int, typer.Option(help="Seed for every random choice.")]
+LayoutOption = Annotated[
+    str,
+    typer.Option(
+        help="Frame layout: 'shuffle' (random crops) or 'blocks' (neighbouring crops of a photo).",
+        click_type=click.Choice(["shuffle", "blocks"]),
+    ),
+]
 WeightsOption = Annotated[
     Path | None,
     typer.Option(help="Detector weights for lane A. Without them detect is a placeholder."),
@@ -66,6 +74,7 @@ def _context(
     candidate_threshold: float,
     model_name: str,
     test_dir: Path | None,
+    layout: str = "shuffle",
 ) -> Context:
     return Context(
         data=data,
@@ -77,6 +86,7 @@ def _context(
         candidate_threshold=candidate_threshold,
         model_name=model_name,
         test_dir=test_dir,
+        layout=layout,
     )
 
 
@@ -100,9 +110,18 @@ def _register_stage(name: str, function: Callable[[Context], None]) -> None:
         candidate_threshold: ThresholdOption = 0.25,
         model_name: ModelNameOption = "yolo11s-heridal-tiled",
         test_dir: TestDirOption = None,
+        layout: LayoutOption = "shuffle",
     ) -> None:
         ctx = _context(
-            data, n_frames, n_positive, seed, weights, candidate_threshold, model_name, test_dir
+            data,
+            n_frames,
+            n_positive,
+            seed,
+            weights,
+            candidate_threshold,
+            model_name,
+            test_dir,
+            layout,
         )
         try:
             function(ctx)
@@ -166,10 +185,11 @@ def run(
     candidate_threshold: ThresholdOption = 0.25,
     model_name: ModelNameOption = "yolo11s-heridal-tiled",
     test_dir: TestDirOption = None,
+    layout: LayoutOption = "shuffle",
 ) -> None:
     """Run the chosen stages in order and write the cache and its manifest."""
     ctx = _context(
-        data, n_frames, n_positive, seed, weights, candidate_threshold, model_name, test_dir
+        data, n_frames, n_positive, seed, weights, candidate_threshold, model_name, test_dir, layout
     )
     chosen = "all" if stages == "all" else [s.strip() for s in stages.split(",") if s.strip()]
     skipped = [s.strip() for s in skip.split(",") if s.strip()]
