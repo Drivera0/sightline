@@ -192,7 +192,7 @@ def write_test_vectors(out: Path = Path("web/src/search/__fixtures__/update_vect
 ## Known limits
 
 - Repeated looks at a cell are treated as independent.
-- The canopy classifier misses autumn (non-green) trees. It is not yet tuned against hand labels: `tests/search/fixtures/canopy_labels.json` is still unscored.
+- The canopy classifier has MAE 0.34 against the 20 hand-scored crops (`tests/search/fixtures/canopy_report.md`; the best of 180 threshold sets gives 0.32 on the same crops, so the defaults were kept). It finds green forest well, but misses pale, autumn and dry trees (it looks for green texture), reads dark lawn as shadow, and reads bright textured rock as canopy.
 - "Not a person" applies `review_pod` (0.9) within the radius. This over-clears, because a rejected crop covers only about 2.6 m (a 128 × 128 px window at 0.02 m/px, contract §7). The correct rule would release the frame's normal pod, but that needs the held pods in `map.json` (a contract change). Not done.
 
 ---
