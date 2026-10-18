@@ -20,7 +20,10 @@ import { useBundle } from "../lib/cache";
 import { useSelection } from "../lib/selection";
 import { Badge } from "../shell/components";
 import { useReview } from "../review/store";
-import { viewBounds } from "./base/features";
+import { prefersReducedMotion } from "../metrics/motion";
+import type { CacheBundle } from "../contract";
+import { gridBounds, surveyBounds, viewBounds } from "./base/features";
+import { EASE_MS, insidePaddedViewport, surveyPadding } from "./base/camera";
 import {
   basemapStyle,
   chooseBasemapMode,
@@ -138,7 +141,7 @@ function BasemapToggle({
   return (
     <div
       aria-label="Basemap"
-      className="pointer-events-auto absolute right-3 top-3 flex rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg)]/85 p-1 shadow-lg backdrop-blur-md"
+      className="pointer-events-auto flex rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg)]/85 p-1 shadow-lg backdrop-blur-md"
       role="group"
     >
       <button
@@ -167,10 +170,51 @@ function BasemapToggle({
   );
 }
 
+/**
+ * Frame the photographed area (not the outer sectors), clear of the panels drawn over the map:
+ * Search next's panels overlay the map on wide screens.
+ */
+function fitSurvey(map: Map, bundle: CacheBundle, panelsOverMap: boolean, duration: number): void {
+  const container = map.getContainer();
+  const overlay =
+    panelsOverMap && typeof window !== "undefined" && (window.matchMedia?.("(min-width: 1024px)").matches ?? false);
+  map.fitBounds(surveyBounds(bundle.survey) ?? gridBounds(bundle.map.grid), {
+    padding: surveyPadding(container.clientWidth, container.clientHeight, overlay),
+    duration,
+  });
+}
+
+// "Fit to survey": back to the whole photographed area after panning or zooming around.
+function FitSurveyButton({ panelsOverMap }: { panelsOverMap: boolean }): ReactNode {
+  const bundle = useBundle();
+  const { map } = useMap();
+  return (
+    <button
+      type="button"
+      disabled={!map}
+      onClick={() => map && fitSurvey(map, bundle, panelsOverMap, prefersReducedMotion() ? 0 : 600)}
+      title="Show the whole photographed area"
+      className="pointer-events-auto inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg)]/85 px-3 py-3 font-mono text-xs text-[var(--text-2)] shadow-lg backdrop-blur-md transition-colors hover:text-[var(--text)]"
+    >
+      <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden="true">
+        <path
+          d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      Fit to survey
+    </button>
+  );
+}
+
 // Keep the rendered map layers synchronized with cache and shared selection state.
 function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean }): ReactNode {
   const bundle = useBundle();
-  const { map, flyTo } = useMap();
+  const { map } = useMap();
   const selectedDetectionId = useSelection((state) => state.selectedDetectionId);
   const selectDetection = useSelection((state) => state.selectDetection);
   const reviewAnswers = useReview((state) => state.answers);
@@ -182,15 +226,19 @@ function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean })
     const renderLayers = () => {
       syncBaseLayers(map, bundle, useReview.getState().answers);
       setSelectedPin(map, useSelection.getState().selectedDetectionId);
-      map.fitBounds(viewBounds(bundle.survey, bundle.map.grid), { padding: 48, duration: 0 });
-      // On the review step, open on the overview, then fly in to the candidate under review.
+      // Review opens on the overview, then eases in to the candidate under review. Search next opens
+      // on the photographed area, clear of its panels.
+      if (focusSelection) map.fitBounds(viewBounds(bundle.survey, bundle.map.grid), { padding: 48, duration: 0 });
+      else fitSurvey(map, bundle, true, 0);
       const selected = useSelection.getState().selectedDetectionId;
       const detection = selected
         ? Object.values(bundle.detections.frames)
             .flat()
             .find((candidate) => candidate.id === selected)
         : undefined;
-      if (focusSelection && detection) map.flyTo({ center: [detection.lon, detection.lat], zoom: 17 });
+      if (focusSelection && detection) {
+        map.easeTo({ center: [detection.lon, detection.lat], zoom: 17, duration: prefersReducedMotion() ? 0 : EASE_MS });
+      }
       map.on("click", MAP_LAYER_IDS.pins, selectPin);
       map.on("mousemove", MAP_LAYER_IDS.pins, showPointer);
       map.on("mouseleave", MAP_LAYER_IDS.pins, hidePointer);
@@ -239,13 +287,17 @@ function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean })
   }, [map, selectedDetectionId]);
 
   useEffect(() => {
-    if (!selectedDetectionId) return;
+    if (!selectedDetectionId || !map || !map.isStyleLoaded()) return;
     const detection = Object.values(bundle.detections.frames)
       .flat()
       .find((candidate) => candidate.id === selectedDetectionId);
-    // Close enough to see the candidate's surroundings, without zooming out a searcher who is closer.
-    if (detection) flyTo(detection.lon, detection.lat, Math.max(map?.getZoom() ?? 0, 17));
-  }, [bundle.detections.frames, flyTo, map, selectedDetectionId]);
+    if (!detection) return;
+    // Calm: a pin already comfortably in view needs no move; otherwise pan to it, keeping the zoom.
+    const container = map.getContainer();
+    const point = map.project([detection.lon, detection.lat]);
+    if (insidePaddedViewport(point, container.clientWidth, container.clientHeight)) return;
+    map.easeTo({ center: [detection.lon, detection.lat], duration: prefersReducedMotion() ? 0 : EASE_MS });
+  }, [bundle.detections.frames, map, selectedDetectionId]);
 
   const candidateRadii = Object.values(bundle.detections.frames)
     .flat()
@@ -298,13 +350,16 @@ export function MapView({ layers, className, focusSelection, ...providerProps }:
       >
         <BaseMapLayers focusSelection={focusSelection} />
         {layers}
-        {managedBasemap ? (
-          <BasemapToggle
-            mode={mode}
-            satelliteAvailable={Boolean(mapTilerKey && online)}
-            onChange={setMode}
-          />
-        ) : null}
+        <div className="pointer-events-none absolute right-3 top-3 flex items-start gap-2">
+          <FitSurveyButton panelsOverMap={!focusSelection} />
+          {managedBasemap ? (
+            <BasemapToggle
+              mode={mode}
+              satelliteAvailable={Boolean(mapTilerKey && online)}
+              onChange={setMode}
+            />
+          ) : null}
+        </div>
       </MapProvider>
     </div>
   );
