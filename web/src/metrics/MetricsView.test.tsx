@@ -227,3 +227,29 @@ describe("ablationDisplayRows", () => {
     ]);
   });
 });
+
+describe("search simulation highlighting", () => {
+  it("highlights the method with the fewest median cells, not always the Sightline row", () => {
+    const methods = [
+      { name: "Prior only", median_cells: 1260, p90_cells: 2246 },
+      {
+        name: "Naive: photographed = cleared",
+        median_cells: 1177,
+        p90_cells: 2131,
+      },
+      { name: "Sightline: canopy-aware", median_cells: 1192, p90_cells: 2149 },
+    ];
+    const metrics = {
+      ...cache.metrics,
+      search_sim: { ...cache.metrics.search_sim, methods },
+    };
+    render(<MetricsView metrics={metrics} />);
+    const rows = within(
+      screen.getByRole("table", { name: "Search simulation" }),
+    )
+      .getAllByRole("row")
+      .slice(1);
+    expect(rows[1]).toHaveAttribute("data-highlight", "true");
+    expect(rows[2]).not.toHaveAttribute("data-highlight");
+  });
+});
