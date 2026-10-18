@@ -1,9 +1,24 @@
 import type { ReactNode } from "react";
+import type { CacheBundle } from "../../contract";
 import { Popover } from "../../shell/Popover";
+import { showsPlaceholderPrior } from "../heat/Legend";
 
 interface Item {
   label: string;
   explain: string;
+}
+
+/** What this survey's map draws that is simulated: the props for `SimulatedLine`. */
+export function simulatedLineFor(bundle: CacheBundle): { simulatedPath: boolean; radiusM: number | null; placeholderPrior: boolean } {
+  const radii = Object.values(bundle.detections.frames)
+    .flat()
+    .filter((d) => d.conf >= bundle.detections.candidate_threshold)
+    .map((d) => d.radius_m);
+  return {
+    simulatedPath: bundle.survey.simulated_path,
+    radiusM: new Set(radii).size === 1 ? (radii[0] ?? null) : null,
+    placeholderPrior: showsPlaceholderPrior(bundle.map.params.prior_source, bundle.manifest.notes),
+  };
 }
 
 /**
@@ -14,11 +29,14 @@ export function SimulatedLine({
   simulatedPath,
   radiusM,
   placeholderPrior,
+  plain = false,
 }: {
   simulatedPath: boolean;
   /** The candidates' shared position radius, or null when they differ (then each pin says its own). */
   radiusM: number | null;
   placeholderPrior: boolean;
+  /** Inside a panel: no pill of its own. */
+  plain?: boolean;
 }): ReactNode {
   const items: Item[] = [
     ...(simulatedPath
@@ -52,7 +70,10 @@ export function SimulatedLine({
   return (
     <p
       data-testid="simulated-line"
-      className="pointer-events-auto inline-flex flex-wrap items-center gap-x-1 rounded-full bg-bg/75 px-2.5 py-1 text-caption text-text-2 backdrop-blur-md"
+      className={
+        "pointer-events-auto inline-flex flex-wrap items-center gap-x-1 text-caption text-text-2 " +
+        (plain ? "" : "rounded-full bg-bg/75 px-2.5 py-1 backdrop-blur-md")
+      }
     >
       <span className="text-accent-soft">Simulated:</span>
       {items.map((item, i) => (
@@ -63,7 +84,7 @@ export function SimulatedLine({
             </span>
           )}
           <Popover
-            align="start"
+            align={plain ? "end" : "start"}
             trigger={item.label}
             triggerClassName="cursor-help underline decoration-text-3 decoration-dotted underline-offset-2 hover:text-text"
           >
