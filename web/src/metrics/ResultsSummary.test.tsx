@@ -4,7 +4,8 @@ import type { CacheBundle } from "../contract";
 import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import { placeName } from "../shell/SurveyIntro";
-import { ResultsSummary } from "./ResultsSummary";
+import { useReview } from "../review/store";
+import { duration, medianGapSeconds, ResultsSummary } from "./ResultsSummary";
 
 let cache: CacheBundle;
 
@@ -33,6 +34,58 @@ describe("ResultsSummary", () => {
     render(<ResultsSummary metrics={m} />);
     expect(screen.getByRole("heading", { name: "Every photo in this survey contains a person." })).toBeInTheDocument();
     expect(screen.queryByText("This flight's order")).toBeNull();
+  });
+});
+
+describe("ResultsSummary in time and in your own answers", () => {
+  beforeEach(() => useReview.setState({ history: [], answers: {} }));
+
+  it("turns photos into a person's time at the published pace", () => {
+    const m = structuredClone(cache.metrics);
+    m.ranking.n_frames = 500;
+    m.ranking.n_positive = 6;
+    m.ranking.ranked.frames_to_all_hits = 7;
+    m.ranking.flight_order.frames_to_all_hits = 336;
+    m.baseline_human.seconds_per_image = 33;
+    render(<ResultsSummary metrics={m} />);
+    // 7 x 33 s = 3.85 min; 336 x 33 s = 3 h 5 min.
+    expect(screen.getByText(/a person spends on each photo/)).toHaveTextContent("about 4 min of looking instead of about 3 h 5 min");
+  });
+
+  it("summarises the reviewer's own answers for this survey's candidates", () => {
+    useReview.setState({
+      history: [
+        { detectionId: "a", answer: "person", at: 0 },
+        { detectionId: "b", answer: "not_person", at: 30_000 },
+        { detectionId: "x", answer: "person", at: 40_000 },
+      ],
+      answers: { a: "person", b: "not_person", x: "person" },
+    });
+    render(<ResultsSummary metrics={cache.metrics} candidateIds={["a", "b", "c"]} />);
+    // "x" is not one of this survey's candidates, so it is not counted.
+    expect(screen.getByText(/2 of 3 candidates answered/)).toHaveTextContent("a median of 30 s per answer");
+    expect(screen.getByText("Not answered").nextSibling).toHaveTextContent("1");
+  });
+
+  it("asks for a review before there are answers", () => {
+    render(<ResultsSummary metrics={cache.metrics} candidateIds={["a"]} />);
+    expect(screen.getByText(/haven't answered any of the 1 candidates/)).toBeInTheDocument();
+  });
+});
+
+describe("medianGapSeconds", () => {
+  it("ignores one long pause between answers", () => {
+    expect(medianGapSeconds([0, 4_000, 9_000, 600_000, 605_000])).toBe(5);
+    expect(medianGapSeconds([1_000])).toBeNull();
+  });
+});
+
+describe("duration", () => {
+  it("reads like a person would say it", () => {
+    expect(duration(231)).toBe("4 min");
+    expect(duration(11_088)).toBe("3 h 5 min");
+    expect(duration(7_200)).toBe("2 h");
+    expect(duration(20)).toBe("20 s");
   });
 });
 
