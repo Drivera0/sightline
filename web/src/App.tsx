@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { CACHE_DIR, useCache } from "./lib/cache";
+import { useSelection } from "./lib/selection";
 import { EmptyState } from "./shell/components";
 import { Shell } from "./shell/Shell";
 
 export function App({ dir = CACHE_DIR }: { dir?: string }) {
-  const { status, data, error, load } = useCache();
+  const { status, data, error, dir: loadedDir, load } = useCache();
 
   useEffect(() => {
     void load(dir);
@@ -26,5 +27,19 @@ export function App({ dir = CACHE_DIR }: { dir?: string }) {
       </div>
     );
   }
-  return <Shell cache={data} />;
+
+  // Clear cross-screen selection before replacing every cache-backed frame and detection.
+  const changeSurvey = (nextDir: string) => {
+    if (nextDir === loadedDir) return;
+    useSelection.getState().clear();
+    void load(nextDir);
+  };
+
+  return (
+    <Shell
+      cache={data}
+      cacheDir={loadedDir ?? dir}
+      onCacheDirChange={changeSurvey}
+    />
+  );
 }

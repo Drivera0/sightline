@@ -20,7 +20,7 @@ import { useBundle } from "../lib/cache";
 import { useSelection } from "../lib/selection";
 import { Badge } from "../shell/components";
 import { useReview } from "../review/store";
-import { gridBounds } from "./base/features";
+import { viewBounds } from "./base/features";
 import {
   basemapStyle,
   chooseBasemapMode,
@@ -181,7 +181,7 @@ function BaseMapLayers(): ReactNode {
     const renderLayers = () => {
       syncBaseLayers(map, bundle, useReview.getState().answers);
       setSelectedFootprint(map, useSelection.getState().selectedFrameId);
-      map.fitBounds(gridBounds(bundle.map.grid), { padding: 48, duration: 0 });
+      map.fitBounds(viewBounds(bundle.survey, bundle.map.grid), { padding: 48, duration: 0 });
       map.on("click", MAP_LAYER_IDS.pins, selectPin);
       map.on("mouseenter", MAP_LAYER_IDS.pins, showPointer);
       map.on("mouseleave", MAP_LAYER_IDS.pins, hidePointer);
@@ -233,9 +233,16 @@ function BaseMapLayers(): ReactNode {
     .map((detection) => detection.radius_m);
   const radiusLabel = new Set(candidateRadii).size === 1 ? candidateRadii[0] : null;
 
-  return radiusLabel === null ? null : (
-    <div className="pointer-events-none absolute bottom-4 left-4">
-      <Badge kind="info">{radiusLabel} m position uncertainty</Badge>
+  return (
+    <div className="pointer-events-none absolute bottom-4 left-4 flex flex-col items-start gap-2">
+      {!bundle.survey.simulated_path && <Badge kind="info">Real EXIF positions</Badge>}
+      {radiusLabel !== null && (
+        <Badge kind="info">
+          {bundle.survey.simulated_path
+            ? `${radiusLabel} m position uncertainty`
+            : `${radiusLabel} m measured label-relative offset (p90)`}
+        </Badge>
+      )}
     </div>
   );
 }

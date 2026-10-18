@@ -25,14 +25,38 @@ describe("Shell header", () => {
     render(<Shell cache={await sample()} />);
 
     expect(screen.getByRole("heading", { name: "Sightline" })).toBeInTheDocument();
-    expect(screen.getByText("Mount Seymour survey")).toBeInTheDocument();
+    expect(screen.getByText("Mount Seymour, North Vancouver (simulated flight path)")).toBeInTheDocument();
     expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
   });
 
-  it("hides the badge when the path is real", async () => {
-    render(<Shell cache={await sample((c) => (c.survey.simulated_path = false))} />);
+  it("uses the real survey name and hides the simulated badge", async () => {
+    render(
+      <Shell
+        cache={await sample((cache) => {
+          cache.survey.simulated_path = false;
+          cache.survey.area.name = "HERIDAL SB site (real EXIF positions)";
+        })}
+      />,
+    );
 
+    expect(screen.getByRole("heading", { name: "Sightline" })).toBeInTheDocument();
+    expect(screen.getByText("HERIDAL SB site (real EXIF positions)")).toBeInTheDocument();
     expect(screen.queryByText("Simulated flight path")).not.toBeInTheDocument();
+  });
+
+  it("offers the real-position survey and reports selection changes", async () => {
+    const onCacheDirChange = vi.fn();
+    render(
+      <Shell
+        cache={await sample()}
+        cacheDir="demo"
+        onCacheDirChange={onCacheDirChange}
+      />,
+    );
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Survey" }), "real-gps");
+
+    expect(onCacheDirChange).toHaveBeenCalledWith("real-gps");
   });
 
   it("flags sample data so it is never mistaken for a real run", async () => {
@@ -183,5 +207,13 @@ describe("Shell credits", () => {
       await userEvent.keyboard(key);
       expect(screen.getByText(/HERIDAL/)).toBeInTheDocument();
     }
+  });
+
+  it("describes whether image positions are simulated or recorded", async () => {
+    const { rerender } = render(<Shell cache={await sample()} />);
+    expect(screen.getByText(/Real photos on a simulated flight path/)).toBeInTheDocument();
+
+    rerender(<Shell cache={await sample((cache) => (cache.survey.simulated_path = false))} />);
+    expect(screen.getByText(/Real photos at recorded EXIF positions/)).toBeInTheDocument();
   });
 });
