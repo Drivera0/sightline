@@ -145,6 +145,8 @@ describe("Legend", () => {
     expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
     expect(screen.getByText("Placeholder prior")).toBeInTheDocument();
     expect(screen.getByText("Surveyed area (outline)")).toBeInTheDocument();
+    expect(screen.getByText(/Inside the surveyed area/)).toBeInTheDocument();
+    expect(screen.getByText("Not yet searched")).toBeInTheDocument();
   });
 
   it("hides badges that do not apply", () => {

@@ -27,7 +27,7 @@ interface Recorded {
 function mockMap(withGridOutline: boolean) {
   const sources = new Map<string, unknown>();
   const layers: Recorded[] = withGridOutline ? [{ id: MAP_LAYER_IDS.gridOutline, before: undefined }] : [];
-  const featureState = new Map<number, { o: number }>();
+  const featureState = new Map<number, { o: number; u: number }>();
   const handlers = new Map<string, Set<() => void>>();
   const map = {
     isStyleLoaded: () => true,
@@ -42,7 +42,7 @@ function mockMap(withGridOutline: boolean) {
       if (at >= 0) layers.splice(at, 0, entry);
       else layers.push(entry);
     }),
-    setFeatureState: vi.fn((target: { source: string; id: number }, value: { o: number }) => {
+    setFeatureState: vi.fn((target: { source: string; id: number }, value: { o: number; u: number }) => {
       featureState.set(target.id, value);
     }),
     on: (event: string, fn: () => void) => {
@@ -110,6 +110,8 @@ describe("HeatLayer", () => {
 
     const ids = m.layers.map((l) => l.id);
     expect(ids.indexOf(HEAT_LAYER_IDS.cells)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
+    expect(ids.indexOf(HEAT_LAYER_IDS.unsearched)).toBeLessThan(ids.indexOf(HEAT_LAYER_IDS.cells));
+    expect(ids.indexOf(HEAT_LAYER_IDS.unsearched)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
     expect(ids.indexOf(HEAT_LAYER_IDS.surveyed)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
     expect(m.sources.get(HEAT_SOURCE_ID)).toMatchObject({ type: "geojson", promoteId: "idx" });
     const spec = m.sources.get(HEAT_SOURCE_ID) as { data: { features: unknown[] } };
@@ -117,13 +119,15 @@ describe("HeatLayer", () => {
     expect(m.featureState.size).toBe(2500);
     const addSourceCalls = m.map.addSource.mock.calls.length;
 
-    // Final map: the stepped cells are dimmer than an untouched one.
-    expect(m.featureState.get(1275)!.o).toBeLessThan(m.featureState.get(0)!.o);
+    // Final map: cell 1275 was photographed (heat, not flagged), cell 0 was not (no heat, flagged).
+    expect(m.featureState.get(1275)).toMatchObject({ u: 0 });
+    expect(m.featureState.get(1275)!.o).toBeGreaterThan(0);
+    expect(m.featureState.get(0)).toEqual({ o: 0, u: 1 });
     expect(screen.getByText("After frame 2 of 2")).toBeInTheDocument();
 
     act(() => useSearch.getState().setStepIndex(0));
     expect(screen.getByText("Before the first frame")).toBeInTheDocument();
-    expect(m.featureState.get(1275)!.o).toBeCloseTo(m.featureState.get(0)!.o, 9);
+    expect(m.featureState.get(0)).toEqual({ o: 0, u: 1 });
     expect(m.map.addSource.mock.calls.length).toBe(addSourceCalls);
 
     // A confirmed person shows the banner; the slider keeps working.

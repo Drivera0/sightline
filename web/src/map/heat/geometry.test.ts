@@ -6,7 +6,10 @@ import {
   coveredCells,
   edgeLat,
   edgeLon,
-  heatOpacity,
+  HEAT_FLOOR,
+  HEAT_CEIL,
+  percentile,
+  relativeHeatOpacities,
   probabilityShares,
   surveyedBoundary,
 } from "./geometry";
@@ -65,11 +68,60 @@ describe("surveyedBoundary", () => {
 });
 
 describe("panel maths", () => {
-  it("opacity is 0.75 at the max, linear, and 0 below 2% of the max", () => {
-    expect(heatOpacity(0.01, 0.01)).toBeCloseTo(0.75);
-    expect(heatOpacity(0.005, 0.01)).toBeCloseTo(0.375);
-    expect(heatOpacity(0.00019, 0.01)).toBe(0);
-    expect(heatOpacity(0, 0)).toBe(0);
+  it("percentile interpolates linearly", () => {
+    expect(percentile([1, 2, 3, 4, 5], 0)).toBe(1);
+    expect(percentile([1, 2, 3, 4, 5], 0.5)).toBe(3);
+    expect(percentile([1, 2, 3, 4, 5], 1)).toBe(5);
+    expect(percentile([0, 10], 0.25)).toBeCloseTo(2.5);
+  });
+
+  it("stretches photographed cells from the floor to the ceiling and hides the rest", () => {
+    // 21 photographed cells, p = 0..20 (1e-4 steps); two unphotographed cells with huge p.
+    const p = new Float64Array(23);
+    const covered = new Uint8Array(23);
+    for (let i = 0; i < 21; i++) {
+      p[i] = i * 1e-4;
+      covered[i] = 1;
+    }
+    p[21] = 0.5;
+    p[22] = 0.9;
+    const o = relativeHeatOpacities(p, covered);
+    expect(o[21]).toBe(0);
+    expect(o[22]).toBe(0);
+    // 5th and 95th percentile are cells 1 and 19; outside them the value is clamped.
+    expect(o[0]).toBeCloseTo(HEAT_FLOOR);
+    expect(o[1]).toBeCloseTo(HEAT_FLOOR);
+    expect(o[19]).toBeCloseTo(HEAT_CEIL);
+    expect(o[20]).toBeCloseTo(HEAT_CEIL);
+    expect(o[10]).toBeCloseTo((HEAT_FLOOR + HEAT_CEIL) / 2);
+  });
+
+  it("is not flattened by tiny, close values (p / max would be)", () => {
+    const p = Float64Array.from([1e-4, 1.1e-4, 1.2e-4, 0.01]);
+    const covered = Uint8Array.from([1, 1, 1, 0]);
+    const o = relativeHeatOpacities(p, covered);
+    expect(o[2]! - o[0]!).toBeGreaterThan(0.5);
+  });
+
+  it("gives photographed cells one mid value when they all share the same p", () => {
+    const o = relativeHeatOpacities(Float64Array.from([2e-4, 2e-4, 5e-4]), Uint8Array.from([1, 1, 0]));
+    expect(o[0]).toBeCloseTo((HEAT_FLOOR + HEAT_CEIL) / 2);
+    expect(o[1]).toBe(o[0]);
+    expect(o[2]).toBe(0);
+  });
+
+  it("is all zero when nothing is photographed", () => {
+    const o = relativeHeatOpacities(Float64Array.from([1, 2]), Uint8Array.from([0, 0]));
+    expect(Array.from(o)).toEqual([0, 0]);
+  });
+
+  it("an open-ground cell (lower p) is dimmer than a forest cell (higher p)", () => {
+    // Seen open ground was cleared (p dropped); seen forest kept more of its prior.
+    const p = Float64Array.from([4e-4, 3e-5, 4e-4, 2e-5, 3.5e-4, 9e-3]);
+    const covered = Uint8Array.from([1, 1, 1, 1, 1, 0]);
+    const o = relativeHeatOpacities(p, covered);
+    expect(o[1]).toBeLessThan(o[0]!);
+    expect(o[3]).toBeLessThan(o[4]!);
   });
 
   it("canopy labels", () => {
