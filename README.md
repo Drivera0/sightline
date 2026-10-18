@@ -24,16 +24,21 @@ A second survey, real HERIDAL photos at their recorded EXIF positions, is in the
 
 ## Results
 
-From `metrics.json` (the HERIDAL test set: 101 photos, 337 people, never used for training or tuning):
+From `metrics.json` (the HERIDAL test set: 101 photos, 337 people, never used for training or threshold tuning; see the disclosure below). The human study scored people with the paper's loose search-and-rescue matching (SAR-APD), so the comparison uses the same scoring for us:
 
-| | Sightline detector | Human baseline |
+| SAR-APD scoring, as in the human study | Sightline detector | Human baseline |
 |---|---|---|
-| Recall | **0.864** | 0.68 |
-| Precision | **0.802** | 0.59 |
-| AP50 | 0.868 | |
+| Recall | **0.896** | 0.68 |
+| Precision | **0.898** | 0.59 |
 | Time per full 4000×3000 photo | 0.25 s (GPU) | 33 s |
 
+Under the strict VOC scoring (one box per person, IoU ≥ 0.5) the same detector scores recall **0.864**, precision **0.802**, AP50 0.868; those are the numbers used everywhere else (threshold choice, ablations, the search map's detection probability).
+
 Human baseline: Pyrrö, Naseri & Jung 2021, arXiv:2111.09406.
+
+**Mirror-image experiment (not in the demo).** Running each photo and its mirror image and fusing the boxes passed our validation rule (val F2 0.857 vs 0.831, 95% CI of the gain [+0.004, +0.048]). Scored once on test it gave recall 0.858, precision 0.835, AP50 0.872 at 0.50 s per photo: within noise of the single view, with 2 fewer people found and twice the time. The demo's photos were detected single-view and there was no time to rebuild the demo and every number around it, so the single-view model stays the reported one. That last decision was made after the mirror test score was seen, so both are reported here. Details: [docs/LANE_A_ML.md](docs/LANE_A_ML.md) §6.3a.
+
+**Disclosure:** the threshold and every inference setting were chosen on the validation split, but two earlier model choices were made with test scores in view: keeping training run 2 over run 1, and dropping the hard-negative fine-tune (test F2 0.840 vs 0.850). The test numbers above are therefore slightly optimistic. Since then every choice is made on validation only ([scripts/README.md](scripts/README.md)).
 
 - **Ranking (demo survey):** all 6 photos with a person were in the first 7 photos of the review queue; the first one is photo 1.
 - **Search map (simulated, 1,341 trials with the person in a photographed cell, 5 m cells):** a ground team checks a median of 1,213 cells with Sightline's map, against 1,743 for a naive "photographed = cleared" map (seed 7, the best of the three seeds tried). In the robustness check on the same 5 m map it was better in all 15 runs (3 seeds × 5 noise levels): 28–30% fewer cells at the default noise, 19–23% with noise matching the canopy estimate's measured error (docs/LANE_C_SEARCH.md).
@@ -43,7 +48,7 @@ Human baseline: Pyrrö, Naseri & Jung 2021, arXiv:2111.09406.
 
 ![Sightline ML pipeline](docs/architecture/ml-pipeline.png)
 
-A person is about 70 px wide in a 4000×3000 photo, so shrinking the photo to the model's input loses them. YOLO11s (9.43 M parameters) is fine-tuned for 80 epochs on overlapping 1024 px tiles from 890 labelled HERIDAL photos, and runs the same way: SAHI slices each photo into 1024 px tiles and merges the boxes. The 0.29 threshold is chosen on validation by maximising F2, because a missed person costs more than a false alarm a searcher dismisses in seconds. Tiling is what makes fine-tuning pay off: without it the fine-tuned model's test recall is 0.234.
+A person is about 70 px wide in a 4000×3000 photo, so shrinking the photo to the model's input loses them. YOLO11s (9.43 M parameters) is fine-tuned for 80 epochs on overlapping 1024 px tiles from 890 labelled HERIDAL photos, and runs the same way: SAHI slices each photo into 1024 px tiles and merges the boxes. The merge settings and the 0.29 threshold were chosen on validation (the threshold by maximising F2), because a missed person costs more than a false alarm a searcher dismisses in seconds. Tiling is what makes fine-tuning pay off: without it the fine-tuned model's test recall is 0.234.
 
 Both diagrams, with notes: [docs/architecture/sightline-architecture.html](docs/architecture/sightline-architecture.html). They are drawn to the [Diagram Design](https://github.com/cathrynlavery/diagram-design) rules by `docs/architecture/build_architecture.py`.
 

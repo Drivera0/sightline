@@ -4,7 +4,17 @@ from __future__ import annotations
 
 import random
 
-from sightline.ml.tiling import Tile, boxes_in_tile, select_tiles, tile_grid, tile_positions
+import numpy as np
+
+from sightline.ml.tiling import (
+    Tile,
+    apply_masks,
+    boxes_in_tile,
+    masked_regions_in_tile,
+    select_tiles,
+    tile_grid,
+    tile_positions,
+)
 from sightline.ml.types import Box
 
 
@@ -75,3 +85,30 @@ def test_select_tiles_keeps_all_positive_and_a_seeded_quarter_of_empty() -> None
 
 def test_tile_name_encodes_offset() -> None:
     assert Tile(2976, 1976, 4000, 3000).name("train_BRS_0052") == "train_BRS_0052_2976_1976"
+
+
+def test_partly_visible_person_is_masked_not_left_as_background() -> None:
+    left = Tile(0, 0, 1024, 1024)
+    # 40 % inside the left tile: no label there, so its visible part must be masked (2 px pad)
+    box = Box(1000, 100, 1060, 160)
+    assert boxes_in_tile([box], left) == []
+    assert masked_regions_in_tile([box], left) == [Box(998, 98, 1024, 162)]
+    # a labelled person (>= 50 % inside) is never masked
+    assert masked_regions_in_tile([Box(990, 100, 1050, 160)], left) == []
+    # a sliver (60 % inside but 6 px wide) is masked too
+    assert masked_regions_in_tile([Box(1018, 100, 1028, 160)], left) == [Box(1016, 98, 1024, 162)]
+    # a person entirely outside the tile is ignored
+    assert masked_regions_in_tile([Box(2000, 100, 2060, 160)], left) == []
+
+
+def test_apply_masks_blacks_out_region_but_keeps_labelled_neighbour() -> None:
+    pixels = np.full((20, 20, 3), 200, dtype=np.uint8)
+    masks = [Box(0, 0, 10, 10)]
+    keep = [Box(8, 8, 15, 15)]  # overlaps the mask corner
+    out = apply_masks(pixels, masks, keep)
+    assert out[0, 0].tolist() == [0, 0, 0]
+    assert out[7, 7].tolist() == [0, 0, 0]
+    assert out[9, 9].tolist() == [200, 200, 200]  # inside the kept box: restored
+    assert out[15, 15].tolist() == [200, 200, 200]
+    assert pixels[0, 0].tolist() == [200, 200, 200]  # input untouched
+    assert (apply_masks(pixels, [], keep) == pixels).all()

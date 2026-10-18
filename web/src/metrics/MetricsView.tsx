@@ -55,6 +55,9 @@ function MetricsBody({ m }: { m: Metrics }) {
     detector.tiled ? "tiled" : "untiled"
   } inference at threshold ${detector.threshold} (metrics.detector)`;
   const humanSource = `Human baseline: ${human.source}`;
+  // The human study scored with the paper's loose SAR-APD matching, so the headline compares like
+  // for like with ours (metrics.detector.sar); the strict VOC scores sit underneath.
+  const sarSource = `${detectorSource}, SAR-APD loose matching as in the human study (metrics.detector.sar)`;
   const random = randomOrderBaseline(ranking.n_frames, ranking.n_positive);
   const isSample = detector.model === "SAMPLE";
 
@@ -77,35 +80,35 @@ function MetricsBody({ m }: { m: Metrics }) {
       <Panel className={RIM}>
         <div className="grid gap-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border">
           <Headline
-            value={pct(detector.voc.recall)}
-            animate={detector.voc.recall}
+            value={pct(detector.sar.recall)}
+            animate={detector.sar.recall}
             format={(v) => pct(v)}
             label="Recall"
-            source={detectorSource}
+            source={sarSource}
             compare={
               <>
                 <Num source={humanSource}>{pct(human.recall)}</Num> human ·{" "}
-                <Delta value={detector.voc.recall} baseline={human.recall} />
+                <Delta value={detector.sar.recall} baseline={human.recall} />
               </>
             }
-            bars={{ ours: detector.voc.recall, human: human.recall }}
+            bars={{ ours: detector.sar.recall, human: human.recall }}
           />
           <Headline
-            value={pct(detector.voc.precision)}
-            animate={detector.voc.precision}
+            value={pct(detector.sar.precision)}
+            animate={detector.sar.precision}
             format={(v) => pct(v)}
             label="Precision"
-            source={detectorSource}
+            source={sarSource}
             compare={
               <>
                 <Num source={humanSource}>{pct(human.precision)}</Num> human ·{" "}
                 <Delta
-                  value={detector.voc.precision}
+                  value={detector.sar.precision}
                   baseline={human.precision}
                 />
               </>
             }
-            bars={{ ours: detector.voc.precision, human: human.precision }}
+            bars={{ ours: detector.sar.precision, human: human.precision }}
           />
           <Headline
             value={seconds(detector.seconds_per_image)}
@@ -135,25 +138,20 @@ function MetricsBody({ m }: { m: Metrics }) {
         </div>
         <div className="mt-5 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-small text-text-3">
           <span>
-            AP50 <Num source={detectorSource}>{pct(detector.voc.ap50)}</Num>
-          </span>
-          <span>
-            SAR-style (approx. AIR): precision{" "}
-            <Num
-              source={`${detectorSource}, loose matching from the AIR paper`}
-            >
-              {pct(detector.sar.precision)}
+            Strict VOC (IoU 0.5): recall{" "}
+            <Num source={`${detectorSource}, VOC matching (metrics.detector.voc)`}>
+              {pct(detector.voc.recall)}
             </Num>{" "}
-            · recall{" "}
-            <Num
-              source={`${detectorSource}, loose matching from the AIR paper`}
-            >
-              {pct(detector.sar.recall)}
-            </Num>
+            · precision{" "}
+            <Num source={`${detectorSource}, VOC matching (metrics.detector.voc)`}>
+              {pct(detector.voc.precision)}
+            </Num>{" "}
+            · AP50 <Num source={detectorSource}>{pct(detector.voc.ap50)}</Num>
           </span>
         </div>
         <Source>
-          Ours: {detectorSource}. Human: {human.source}.
+          Recall and precision use SAR-APD loose matching, the scoring of the human study, so the comparison is like for
+          like. Ours: {detectorSource}. Human: {human.source}.
         </Source>
       </Panel>
 
