@@ -1,0 +1,43 @@
+{
+  "contract_version": "1.1",
+  "survey_id": "sample",
+  "generated_at": "2026-01-01T00:00:00Z",
+  "git_sha": null,
+  "simulated_path": true,
+  "n_frames": 20,
+  "stages": {
+    "frames": {
+      "ok": true,
+      "seconds": 0.0
+    },
+    "place": {
+      "ok": true,
+      "seconds": 0.0
+    },
+    "detect": {
+      "ok": true,
+      "seconds": 0.0
+    },
+    "georef": {
+      "ok": true,
+      "seconds": 0.0
+    },
+    "rank": {
+      "ok": true,
+      "seconds": 0.0
+    },
+    "map": {
+      "ok": true,
+      "seconds": 0.0
+    },
+    "metrics": {
+      "ok": true,
+      "seconds": 0.0
+    },
+    "export": {
+      "ok": true,
+      "seconds": 0.0
+    }
+  },
+  "notes": "SAMPLE: fake detections and metrics, placeholder uniform prior, one empty step per frame, simulated flight path."
+}
