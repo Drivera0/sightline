@@ -199,6 +199,16 @@ export function RankReveal({
     for (const s of stops) new Image().src = cacheUrl(dir, s.frame.file);
   }, [stops, dir]);
 
+  // Focus "Start review" when the result is in, without scrolling the queue away from #1.
+  const startButton = useRef<HTMLButtonElement>(null);
+  const queueColumn = useRef<HTMLDivElement>(null);
+  const [showModel, setShowModel] = useState(false);
+  useEffect(() => {
+    if (!done) return;
+    startButton.current?.focus({ preventScroll: true });
+    queueColumn.current?.scrollTo?.({ top: 0 });
+  }, [done]);
+
   const scannedTo = useGlide(done ? nFrames - 1 : (current?.position ?? 0), done ? 900 : 650);
   const previous = !done && stop > 0 ? stops[stop - 1] : undefined;
   const found: ReviewItem[] = done
@@ -217,7 +227,7 @@ export function RankReveal({
   const aspect = viewer ? viewer.frame.width_px / viewer.frame.height_px : 4 / 3;
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-5 overflow-y-auto lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.1fr)_minmax(0,0.75fr)]">
+    <div className="grid h-full min-h-0 grid-cols-1 gap-4 overflow-y-auto lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible">
       {/* The scanner. */}
       <div className="flex min-h-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4">
         <div className="flex items-center justify-between gap-3">
@@ -274,12 +284,12 @@ export function RankReveal({
           </div>
         </div>
 
-        {/* The detector's score strip sits under the photo when the detector has its own column. */}
+        {/* The detector's scores for this photo, under it. */}
         <ScoreStrip
           cache={cache}
           boxes={viewer ? (cache.detections.frames[viewer.frame.id] ?? NO_BOXES) : NO_BOXES}
           done={done}
-          className="hidden xl:flex"
+          className="hidden lg:flex"
         />
 
         {/* The whole flight as a barcode: one bar per photo, flagged ones tall and orange. */}
@@ -300,24 +310,14 @@ export function RankReveal({
         </div>
       </div>
 
-      {/* The detector: its own column on wide screens, above the queue below that. */}
-      <div className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto xl:contents">
-        <ModelPanel
-          cache={cache}
-          dir={dir}
-          frame={viewer?.frame}
-          boxes={viewer ? (cache.detections.frames[viewer.frame.id] ?? NO_BOXES) : NO_BOXES}
-          pulseKey={done ? "done" : `${stop}-${viewer?.frame.id ?? ""}`}
-          stopMs={current ? stopMs(current) : 0}
-          done={done}
-        />
-
-        {/* The queue, building as the detector finds candidates, then the answer. */}
-        <div className="flex min-h-0 flex-col gap-4 xl:overflow-y-auto">
+      {/* The queue, building as the detector finds candidates, then the answer; the detector's
+          architecture waits behind a disclosure below it. */}
+      <div ref={queueColumn} className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto">
+        <div className="flex flex-col gap-4">
           {done ? (
             <div className="sl-rise flex flex-col gap-2">
               <Label>Ranked review queue</Label>
-              <h2 className="text-[28px] font-semibold leading-[1.1]" title={source}>
+              <h2 className="text-headline font-semibold" title={source}>
                 {firstHit === 1 ? "Person in the first photo you see" : `First person at photo ${ordinal(firstHit)}`}
               </h2>
               <p className="text-body text-text-2" title={source}>
@@ -330,7 +330,7 @@ export function RankReveal({
           ) : (
             <div className="flex flex-col gap-2">
               <Label>Ranked review queue</Label>
-              <h2 className="text-[28px] font-semibold leading-[1.1] text-text-2">Most likely people first</h2>
+              <h2 className="text-headline font-semibold text-text-2">Most likely people first</h2>
               <p className="text-body text-text-3">Each candidate is placed by the detector&apos;s confidence.</p>
             </div>
           )}
@@ -342,7 +342,7 @@ export function RankReveal({
                 ref={flip(item.id)}
                 className={
                   "sl-pop items-center gap-3 rounded-sm border p-2 transition-colors duration-300 " +
-                  (i >= QUEUE_ROWS_NARROW ? "hidden xl:flex " : "flex ") +
+                  (i >= QUEUE_ROWS_NARROW ? "hidden lg:flex " : "flex ") +
                   (i === 0 ? "border-accent/60 bg-accent/10" : "border-border bg-surface")
                 }
               >
@@ -367,28 +367,28 @@ export function RankReveal({
               </li>
             ))}
             {found.length > QUEUE_ROWS_NARROW && (
-              <li className="px-2 font-mono text-label text-text-3 xl:hidden">
+              <li className="px-2 font-mono text-label text-text-3 lg:hidden">
                 + {found.length - QUEUE_ROWS_NARROW} more in the queue
               </li>
             )}
             {found.length > QUEUE_ROWS && (
-              <li className="hidden px-2 font-mono text-label text-text-3 xl:block">
+              <li className="hidden px-2 font-mono text-label text-text-3 lg:block">
                 + {found.length - QUEUE_ROWS} more in the queue
               </li>
             )}
             {found.length === 0 && <li className="px-2 text-small text-text-3">Waiting for the first candidate…</li>}
           </ol>
 
-          <div className="mt-auto flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {done ? (
               <>
                 <button
+                  ref={startButton}
                   type="button"
                   onClick={onStart}
-                  autoFocus
-                  className="sl-rise rounded-full bg-accent px-6 py-3 text-body font-medium text-bg transition-transform hover:scale-[1.03]"
+                  className="sl-rise inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 text-body font-medium text-bg transition-[filter] hover:brightness-110"
                 >
-                  Start review
+                  Start review <span aria-hidden="true">→</span>
                 </button>
                 {stops.length > 0 && (
                   <button
@@ -411,6 +411,31 @@ export function RankReveal({
             )}
             {cache.detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
           </div>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <button
+            type="button"
+            aria-expanded={showModel}
+            onClick={() => setShowModel((v) => !v)}
+            className="inline-flex w-fit items-center gap-1.5 rounded-full py-1 text-small text-text-2 transition-colors hover:text-text"
+          >
+            How the detector works
+            <span aria-hidden="true" className={"transition-transform " + (showModel ? "rotate-90" : "")}>
+              ›
+            </span>
+          </button>
+          {showModel && (
+            <ModelPanel
+              cache={cache}
+              dir={dir}
+              frame={viewer?.frame}
+              boxes={viewer ? (cache.detections.frames[viewer.frame.id] ?? NO_BOXES) : NO_BOXES}
+              pulseKey={done ? "done" : `${stop}-${viewer?.frame.id ?? ""}`}
+              stopMs={current ? stopMs(current) : 0}
+              done={done}
+            />
+          )}
         </div>
       </div>
     </div>
