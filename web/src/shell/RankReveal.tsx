@@ -435,10 +435,18 @@ export function RankReveal({
             type="button"
             aria-expanded={showModel}
             onClick={() => setShowModel((v) => !v)}
-            className="inline-flex w-fit items-center gap-1.5 rounded-full py-1 text-small text-text-2 transition-colors hover:text-text"
+            className="group inline-flex w-fit items-center gap-3 rounded-full border border-border bg-surface py-2 pl-2 pr-4 text-left transition-colors hover:border-accent/60 hover:bg-surface-strong"
           >
-            How the detector works
-            <span aria-hidden="true" className={"transition-transform " + (showModel ? "rotate-90" : "")}>
+            <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent-soft" aria-hidden="true">
+              <svg viewBox="0 0 16 16" className="size-4">
+                <path d="M2 4h3v8H2zM6.5 2.5h3v11h-3zM11 5.5h3v5h-3z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="flex flex-col">
+              <span className="text-body font-medium text-text">How the detector works</span>
+              <span className="text-small text-text-3">Every layer of the model, and what it sees in this photo</span>
+            </span>
+            <span aria-hidden="true" className={"ml-1 text-text-2 transition-transform group-hover:text-accent-soft " + (showModel ? "rotate-90" : "")}>
               ›
             </span>
           </button>
