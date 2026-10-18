@@ -17,6 +17,7 @@ import {
   HEAT_SURVEYED_SOURCE_ID,
   HEAT_TRAIL_SOURCE_ID,
 } from "./layers";
+import { PanelSlotContext } from "./panelSlot";
 import { HELD_ALPHA, rasterForCanvas, VEIL_ALPHA } from "./raster";
 
 const ctx: { value: MapContextValue | null } = { value: null };
@@ -377,5 +378,41 @@ describe("HeatLayer", () => {
     const sidePanel = screen.getByText("Search next in the surveyed area").closest(".w-80");
     expect(sidePanel).not.toBeNull();
     expect(sidePanel!.contains(banner)).toBe(true);
+  });
+
+  it("narrow screens: puts the panels below the map, in the shell's slot, behind a segmented control", () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const m = mockMap(true);
+      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+      const slot = document.createElement("div");
+      document.body.appendChild(slot);
+      const { container } = render(
+        <CacheContext.Provider value={cache}>
+          <PanelSlotContext.Provider value={slot}>
+            <HeatLayer />
+          </PanelSlotContext.Provider>
+        </CacheContext.Provider>,
+      );
+      // Nothing floats over the map; the replay, tabs and legend are in the slot.
+      expect(container.querySelector(".w-80")).toBeNull();
+      expect(within(slot).getByText("Flight replay")).toBeInTheDocument();
+      expect(within(slot).getByText("Lower probability")).toBeInTheDocument();
+      expect(within(slot).getByText("Simulated flight path")).toBeInTheDocument();
+      const tabs = within(slot).getAllByRole("tab");
+      expect(tabs.map((t) => t.textContent)).toEqual(["Legend", "Sectors", "Search next"]);
+      act(() => tabs[1]!.click());
+      expect(within(slot).getByRole("list", { name: "Sectors by remaining probability" })).toBeInTheDocument();
+      expect(tabs[1]).toHaveAttribute("aria-selected", "true");
+      slot.remove();
+    } finally {
+      window.matchMedia = original;
+    }
   });
 });

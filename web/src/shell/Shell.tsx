@@ -3,6 +3,7 @@ import type { CacheBundle } from "../contract";
 import { CACHE_DIR, CacheContext, useCache } from "../lib/cache";
 import { isTyping } from "../lib/keys";
 import { HeatLayer } from "../map/heat/HeatLayer";
+import { PanelSlotContext } from "../map/heat/panelSlot";
 import { MapView } from "../map/MapView";
 import { TryPhoto } from "../detect/TryPhoto";
 import { MetricsView } from "../metrics/MetricsView";
@@ -107,6 +108,8 @@ export function Shell({
   useEffect(() => bindReview(cache.survey.survey_id), [bindReview, cache.survey.survey_id]);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [tryPhoto, setTryPhoto] = useState(false);
+  // Below the Search next map on narrow screens: HeatLayer puts its panels here (panelSlot.ts).
+  const [searchPanelSlot, setSearchPanelSlot] = useState<HTMLDivElement | null>(null);
   const loadedDir = useCache((s) => s.dir);
   const dir = loadedDir ?? CACHE_DIR;
 
@@ -190,7 +193,8 @@ export function Shell({
   // Search next: the full heat with sectors, replay and the side panel.
   const map = (variant: "review" | "search") => (
     <div
-      className={"relative min-h-[24rem] overflow-hidden rounded-lg lg:h-full " + (variant === "search" ? "h-[78vh]" : "h-[60vh]")}
+      // Search next on narrow screens: the map takes a fixed share of the height and its panels go below it.
+      className={"relative min-h-[24rem] overflow-hidden rounded-lg lg:h-full " + (variant === "search" ? "h-[62svh]" : "h-[60vh]")}
       data-testid="mount-map"
     >
       <ScreenBoundary name="Map">
@@ -283,13 +287,16 @@ export function Shell({
 
           {step === "search" && (
             <>
-              <p className="rounded-full border border-border bg-surface px-4 py-2 text-small text-text-2">
+              <p className="rounded-lg border border-border bg-surface px-4 py-2 text-small text-text-2 lg:rounded-full">
                 <span className="text-text">Where the person could still be.</span> Darker red is more likely,
                 pale yellow less likely, on ground the drone photographed. Dimmed grey ground is not yet searched.
                 The sectors list ranks the remaining work by probability. Press play to watch the drone fly
                 sector by sector: ground it saw clearly turns pale.
               </p>
-              <div className="flex-1 lg:min-h-0">{map("search")}</div>
+              <PanelSlotContext.Provider value={searchPanelSlot}>
+                <div className="flex-1 lg:min-h-0">{map("search")}</div>
+              </PanelSlotContext.Provider>
+              <div ref={setSearchPanelSlot} className="lg:hidden" data-testid="search-panel-slot" />
             </>
           )}
 
