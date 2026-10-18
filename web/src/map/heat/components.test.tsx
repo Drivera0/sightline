@@ -71,6 +71,10 @@ describe("NextSearch", () => {
     // Average over the 4 photographed cells = (2.014 + 1.954 + 0.517 + 1.119) / 4 = 1.401e-4
     expect(rows[0]).toHaveTextContent("1.4×avg photographed cell");
     expect(rows[3]).toHaveTextContent("0.4×avg photographed cell");
+    // On screen the row says only "avg" (so the spot's name and distance fit on one line each); the
+    // key above the list says what it is compared with, and screen readers get the whole phrase.
+    expect(rows[0]!.querySelector(".sr-only")).toHaveTextContent("photographed cell");
+    expect(screen.getByTestId("avg-key")).toHaveTextContent("average photographed cell");
   });
 
   it("skips a lightly covered cell with higher p and lists the well covered forest cell", () => {
