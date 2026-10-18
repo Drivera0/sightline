@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { CacheBundle, Detection, Frame } from "../contract";
 import { cacheUrl } from "../lib/cache";
 import { prefersReducedMotion } from "../metrics/motion";
 import { queueCounts, reviewItems, type ReviewItem } from "../review/items";
-import { Badge, Label } from "./components";
+import { Badge, KeyHint, Label } from "./components";
 import { ModelPanel, ScoreStrip } from "./ModelPanel";
 import { framesInFlightOrder, scanStops, stopMs } from "./scan";
 
@@ -451,18 +452,84 @@ export function RankReveal({
             </span>
           </button>
           {showModel && (
-            <ModelPanel
-              cache={cache}
-              dir={dir}
-              frame={viewer?.frame}
-              boxes={viewer ? (cache.detections.frames[viewer.frame.id] ?? NO_BOXES) : NO_BOXES}
-              pulseKey={done ? "done" : `${stop}-${viewer?.frame.id ?? ""}`}
-              stopMs={current ? stopMs(current) : 0}
-              done={done}
-            />
+            <DetectorDialog onClose={() => setShowModel(false)}>
+              <ModelPanel
+                cache={cache}
+                dir={dir}
+                frame={viewer?.frame}
+                boxes={viewer ? (cache.detections.frames[viewer.frame.id] ?? NO_BOXES) : NO_BOXES}
+                pulseKey={done ? "done" : `${stop}-${viewer?.frame.id ?? ""}`}
+                stopMs={current ? stopMs(current) : 0}
+                done={done}
+                size="large"
+              />
+            </DetectorDialog>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * "How the detector works", opened large over Rank so the layer graph has room to be read. Focus
+ * moves to Close, Tab stays inside, Escape or a click outside closes it, and focus returns.
+ */
+function DetectorDialog({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    closeButton.current?.focus();
+    return () => previous?.focus();
+  }, []);
+  const onKeyDown = (event: ReactKeyboardEvent) => {
+    // Keys pressed in the dialog never reach the app's shortcuts.
+    event.stopPropagation();
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = [...(box.current?.querySelectorAll<HTMLElement>("button, [href], [tabindex]:not([tabindex='-1'])") ?? [])];
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+  // Portalled to <body>: the step container animates with a transform, which would trap a fixed overlay.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm sm:p-8" onClick={onClose}>
+      <div
+        ref={box}
+        role="dialog"
+        aria-modal="true"
+        aria-label="How the detector works"
+        onKeyDown={onKeyDown}
+        onClick={(event) => event.stopPropagation()}
+        className="flex h-full max-h-full w-[min(96rem,100%)] flex-col gap-3 rounded-lg border border-border bg-bg/95 p-4 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] sm:p-6"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-title font-medium">How the detector works</h2>
+          <button
+            ref={closeButton}
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-small text-text-2 hover:border-text-2 hover:text-text"
+          >
+            Close <KeyHint>Esc</KeyHint>
+          </button>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      </div>
+    </div>,
+    document.body,
   );
 }

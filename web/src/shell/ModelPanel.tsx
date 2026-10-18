@@ -40,6 +40,8 @@ interface Props {
   /** How long the scanner rests on this photo, in milliseconds. */
   stopMs: number;
   done: boolean;
+  /** "large": the graph gets most of the screen (the Rank dialog); default is the compact panel. */
+  size?: "compact" | "large";
 }
 
 /**
@@ -49,7 +51,7 @@ interface Props {
  * in detections.json and the flag threshold. The graph is a schematic, labelled as such: the
  * model does not run in the browser.
  */
-export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, pulseKey, stopMs, done }: Props) {
+export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, pulseKey, stopMs, done, size = "compact" }: Props) {
   const { detections, metrics } = cache;
   const spec = detectorSpec;
   const threshold = detections.candidate_threshold;
@@ -74,7 +76,10 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
   return (
     <section
       aria-label="Inside the detector"
-      className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-4 [box-shadow:inset_0_1px_0_0_var(--surface-strong)]"
+      className={
+        "flex min-h-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4 [box-shadow:inset_0_1px_0_0_var(--surface-strong)] " +
+        (size === "large" ? "h-full overflow-hidden" : "overflow-y-auto")
+      }
     >
       {/* Header */}
       <div className="flex shrink-0 flex-col gap-2">
@@ -96,7 +101,7 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
       </div>
 
       {/* Architecture */}
-      <div className="flex flex-col gap-1.5 xl:flex-1">
+      <div className={size === "large" ? "flex min-h-0 flex-1 flex-col gap-1.5" : "flex flex-col gap-1.5 xl:flex-1"}>
         <div className="flex items-center justify-between gap-2">
           <Label>Architecture</Label>
           <div className="flex rounded-full border border-border p-0.5 text-[11px]" role="group" aria-label="Architecture view">
@@ -117,7 +122,13 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
           </div>
         </div>
         {/* Fixed height in the stacked layout; in the three-column layout it takes the room left. */}
-        <div className="relative h-[min(250px,52vw)] w-full shrink-0 xl:h-auto xl:min-h-[140px] xl:flex-1 xl:shrink">
+        <div
+          className={
+            size === "large"
+              ? "relative min-h-[160px] w-full flex-1"
+              : "relative h-[min(250px,52vw)] w-full shrink-0 xl:h-auto xl:min-h-[140px] xl:flex-1 xl:shrink"
+          }
+        >
           {view === "graph" ? (
             <div key="graph" className="sl-fade absolute inset-0">
               <ModelGraph
@@ -154,7 +165,8 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
 
       {/* Prediction grids */}
       {frame && (
-        <div className="shrink-0">
+        // In the dialog the grids are capped (about 14% of the screen tall) so everything fits without scrolling.
+        <div className={size === "large" ? "w-full max-w-[min(100%,70vh)] shrink-0" : "shrink-0"}>
           <ModelGrids
             frame={frame}
             photo={photo}
