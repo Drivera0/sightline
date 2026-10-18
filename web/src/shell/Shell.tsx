@@ -6,6 +6,7 @@ import { HeatLayer } from "../map/heat/HeatLayer";
 import { MapView } from "../map/MapView";
 import { MetricsView } from "../metrics/MetricsView";
 import { ResultsSummary } from "../metrics/ResultsSummary";
+import { reviewItems } from "../review/items";
 import { ReviewView } from "../review/ReviewView";
 import { Badge, KeyHint, Label } from "./components";
 import { STEPS, nextStep, previousStep, stepFromHash, stepFromKey, type StepId } from "./flow";
@@ -224,7 +225,11 @@ export function Shell({
 
           {step === "results" && (
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-              <ResultsSummary metrics={cache.metrics} />
+              <ResultsSummary
+                metrics={cache.metrics}
+                cellM={cache.map.grid.cell_m}
+                candidateIds={reviewItems(cache).map((i) => i.id)}
+              />
               <div className="mt-4 flex items-center gap-4">
                 <Label>The details</Label>
                 <span className="h-px flex-1 bg-border" aria-hidden="true" />
