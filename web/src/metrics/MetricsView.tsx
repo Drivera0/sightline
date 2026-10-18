@@ -39,6 +39,10 @@ export function MetricsView({ metrics }: { metrics?: Metrics }) {
   return <MetricsBody m={m} />;
 }
 
+/** The plain gloss that goes wherever AP or AP50 is shown. */
+const AP_GLOSS =
+  "Overall score (AP): one number that combines people found and real alerts across every confidence cut-off; higher is better.";
+
 /** Lit top edge on a glass panel, from the surface-strong token. */
 const RIM = "[box-shadow:inset_0_1px_0_0_var(--surface-strong)]";
 
@@ -77,17 +81,20 @@ function MetricsBody({ m }: { m: Metrics }) {
       </div>
 
       {/* Headline row: recall, precision, speed. Each tile: value, label, comparison, bars. */}
-      <Section title="Recall, precision and speed against the human study">
+      <Section
+        title="People found, real alerts and speed, against the human study"
+        plain="Sightline's detector against people searching drone photos by eye in a published study, scored the way that study scored people, so the two compare directly."
+      >
         <div className="grid gap-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border">
           <Headline
             value={pct(detector.sar.recall)}
             animate={detector.sar.recall}
             format={(v) => pct(v)}
-            label="Recall"
+            label="People found"
             source={sarSource}
             compare={
               <>
-                <Num source={humanSource}>{pct(human.recall)}</Num> human ·{" "}
+                <Num source={humanSource}>{pct(human.recall)}</Num> people (by eye) ·{" "}
                 <Delta value={detector.sar.recall} baseline={human.recall} />
               </>
             }
@@ -97,11 +104,11 @@ function MetricsBody({ m }: { m: Metrics }) {
             value={pct(detector.sar.precision)}
             animate={detector.sar.precision}
             format={(v) => pct(v)}
-            label="Precision"
+            label="Alerts that are real people"
             source={sarSource}
             compare={
               <>
-                <Num source={humanSource}>{pct(human.precision)}</Num> human ·{" "}
+                <Num source={humanSource}>{pct(human.precision)}</Num> people (by eye) ·{" "}
                 <Delta
                   value={detector.sar.precision}
                   baseline={human.precision}
@@ -114,15 +121,15 @@ function MetricsBody({ m }: { m: Metrics }) {
             value={seconds(detector.seconds_per_image)}
             animate={detector.seconds_per_image}
             format={seconds}
-            label="Per full photo"
+            label="Time per full photo"
             source={`${detectorSource}; time per full 4000×3000 photo (metrics.detector.seconds_per_image), the same unit as the human baseline`}
             compare={
               <>
                 <Num source={humanSource}>
                   {seconds(human.seconds_per_image)}
                 </Num>{" "}
-                human ·{" "}
-                <span className="text-accent-soft">
+                people (by eye) ·{" "}
+                <span className="text-ok">
                   {speedup(detector.seconds_per_image, human.seconds_per_image)}
                 </span>
               </>
@@ -138,36 +145,39 @@ function MetricsBody({ m }: { m: Metrics }) {
         </div>
         <div className="mt-5 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-small text-text-3">
           <span>
-            Strict VOC (IoU 0.5): recall{" "}
+            Strict VOC scoring (IoU 0.5, the box must match the person closely): people found{" "}
             <Num source={`${detectorSource}, VOC matching (metrics.detector.voc)`}>
               {pct(detector.voc.recall)}
             </Num>{" "}
-            · precision{" "}
+            · alerts that are real people{" "}
             <Num source={`${detectorSource}, VOC matching (metrics.detector.voc)`}>
               {pct(detector.voc.precision)}
             </Num>{" "}
-            · AP50 <Num source={detectorSource}>{pct(detector.voc.ap50)}</Num>
+            · overall score (AP50){" "}
+            <Num source={detectorSource}>{pct(detector.voc.ap50)}</Num>
           </span>
+          <span>{AP_GLOSS}</span>
         </div>
         <Source>
-          Recall and precision use SAR-APD loose matching, the scoring of the human study, so the comparison is like for
-          like. Ours: {detectorSource}. Human: {human.source}.
+          People found and real alerts are scored like the human study (SAR-APD loose matching), so the comparison is
+          like for like. Ours: {detectorSource}. Human: {human.source}.
         </Source>
       </Section>
 
       {/* The published state of the art, paired scheme by scheme. */}
       <Section
-        title="Against the published state of the art"
-        aside="same HERIDAL test set, scored the same way per pair"
+        title="Against the best published model (AIR)"
+        aside="same HERIDAL test photos, each pair scored the same way"
+        plain="AIR is the best published model on these test photos. Each pair of rows uses the same scoring, once strict and once like the human study."
       >
         <div className="overflow-x-auto">
           <table className="w-full min-w-[28rem] text-body" aria-label="State of the art">
             <thead>
               <tr className="text-left text-small text-text-3">
-                <th className="py-1 font-normal">Detector · scoring</th>
-                <th className="py-1 text-right font-normal">Precision</th>
-                <th className="py-1 text-right font-normal">Recall</th>
-                <th className="py-1 text-right font-normal">AP</th>
+                <th className="py-1 font-normal">Model · scoring</th>
+                <th className="py-1 text-right font-normal">Alerts that are real people</th>
+                <th className="py-1 text-right font-normal">People found</th>
+                <th className="py-1 text-right font-normal">Overall score (AP)</th>
               </tr>
             </thead>
             <tbody>
@@ -175,7 +185,7 @@ function MetricsBody({ m }: { m: Metrics }) {
                 const air = AIR_ROWS.find((r) => r.scheme === scheme)!;
                 const ours = scheme === "voc" ? detector.voc : detector.sar;
                 const oursAp = scheme === "voc" ? detector.voc.ap50 : detector.sar.ap;
-                const schemeLabel = scheme === "voc" ? "VOC, IoU 0.5" : "SAR-APD (loose matching)";
+                const schemeLabel = scheme === "voc" ? "VOC, IoU 0.5 (strict)" : "SAR-APD (like the human study)";
                 return [
                   <Row
                     key={`ours-${scheme}`}
@@ -186,7 +196,7 @@ function MetricsBody({ m }: { m: Metrics }) {
                   />,
                   <Row
                     key={`air-${scheme}`}
-                    label={<>{air.name} <span className="text-small text-text-3">· {scheme === "voc" ? "VOC2012" : "SAR-APD"}</span></>}
+                    label={<>{air.name} <span className="text-small text-text-3">· {scheme === "voc" ? "VOC2012 (strict)" : "SAR-APD (like the human study)"}</span></>}
                     cells={[pct(air.precision, 1), pct(air.recall, 1), pct(air.ap, 1)]}
                     source={`${AIR_CITATION}, ${scheme === "voc" ? "VOC2012 evaluation" : "SAR-APD evaluation"} (arXiv)`}
                   />,
@@ -195,6 +205,10 @@ function MetricsBody({ m }: { m: Metrics }) {
             </tbody>
           </table>
         </div>
+        <p className="mt-2 text-small text-text-3">
+          Strict: the box must match the person closely. Like the human study: a looser match, as that study scored
+          people. {AP_GLOSS}
+        </p>
         <Source>
           AIR: {AIR_CITATION}, the same paper as the human baseline. Each pair uses the same scoring scheme, but AIR&apos;s
           numbers come from its own evaluation code and ours from our reimplementation, and AIR with MOB merges boxes its
@@ -203,7 +217,11 @@ function MetricsBody({ m }: { m: Metrics }) {
       </Section>
 
       {/* Ablation table. */}
-      <Section title="What each technique adds" aside="every variant, test set">
+      <Section
+        title="What each choice adds"
+        aside="each version of the detector, on the test photos"
+        plain="Each row is one version of the detector, built a different way, so you can see which choice made the difference."
+      >
         <AblationTable
           rows={ablations}
           source={`HERIDAL test set, ${detector.test_images} images (metrics.ablations)`}
@@ -211,14 +229,18 @@ function MetricsBody({ m }: { m: Metrics }) {
       </Section>
 
       {/* Ranking block (D's numbers): the race above draws the same result. */}
-      <Section title="Photos reviewed before the first and the last person" aside="the race above, as a table">
+      <Section
+        title="Photos reviewed before the first and the last person"
+        aside="the race above, as a table"
+        plain="How many photos a reviewer looks at before reaching a photo with a person in it, and before reaching the last one. Fewer is better."
+      >
         <table className="w-full text-body" aria-label="Ranking">
           <thead>
             <tr className="text-left text-small text-text-3">
               <th className="py-1 font-normal">Order</th>
-              <th className="py-1 text-right font-normal">First hit</th>
-              <th className="py-1 text-right font-normal">All hits</th>
-              <th className="py-1 text-right font-normal">Share to all hits</th>
+              <th className="py-1 text-right font-normal">Photos to the first person</th>
+              <th className="py-1 text-right font-normal">Photos to the last person</th>
+              <th className="py-1 text-right font-normal">Share of all photos</th>
             </tr>
           </thead>
           <tbody>
@@ -259,7 +281,7 @@ function MetricsBody({ m }: { m: Metrics }) {
         </table>
         {random && (
           <p className="mt-2 text-small text-text-3">
-            Random order: expected values for a uniformly random shuffle of the same photos. In 8 of 10
+            Random order: the average over random shuffles of the same photos (expected value). In 8 of 10
             shuffles the last photo with a person is between photo{" "}
             <Num source={`Exact 10th and 90th percentile of the last positive's position for N = ${ranking.n_frames}, k = ${ranking.n_positive} (metrics.ranking)`}>
               {count(random.p10All)}
@@ -281,6 +303,7 @@ function MetricsBody({ m }: { m: Metrics }) {
       <Section
         title="Cells a ground team checks before reaching the person"
         aside={sim.simulated ? <Badge kind="simulated">Simulated evaluation</Badge> : undefined}
+        plain="The map is split into small squares (cells). A ground team checks them in the order each map suggests, until it reaches the person. Fewer is better."
       >
         {sim.in_survey ? (
           <>
@@ -292,13 +315,14 @@ function MetricsBody({ m }: { m: Metrics }) {
             />
             <p className="mt-2 text-small text-text-3">
               {count(sim.in_survey.trials)} trials whose person was in a
-              photographed cell and the drone missed them. Lower is better.
+              photographed cell and the drone missed them (each trial is one
+              simulated search). Fewer is better.
             </p>
           </>
         ) : (
           <p className="mt-3 text-small text-text-3">
-            Inside-the-survey numbers: not yet measured (this cache predates
-            contract 1.1).
+            Inside-the-survey numbers: not yet measured (this data file is older
+            than that measurement).
           </p>
         )}
         <details className="group mt-3">
@@ -313,11 +337,16 @@ function MetricsBody({ m }: { m: Metrics }) {
             secondary={Boolean(sim.in_survey)}
           />
         </details>
+        <p className="mt-2 text-small text-text-3">
+          Prior only: checks cells by the starting guess (prior) of where a lost person goes, ignoring the drone.
+          Naive map (photographed = searched): treats every photographed cell as searched. Sightline: canopy-aware:
+          trusts a photo less where trees hide the ground, so forest the drone could not see into stays on the list.
+        </p>
         <Source>
           {simSource(sim)}. The drone itself found the person in{" "}
           <Num source={simSource(sim)}>{pct(sim.found_by_drone_rate)}</Num> of
           trials. Across the whole grid the methods nearly tie: most of the
-          grid was never photographed and the prior is flat, so only the
+          grid was never photographed and the starting guess is flat, so only the
           surveyed area can separate them.
         </Source>
       </Section>
@@ -333,10 +362,13 @@ function MetricsBody({ m }: { m: Metrics }) {
 function Section({
   title,
   aside,
+  plain,
   children,
 }: {
   title: string;
   aside?: ReactNode;
+  /** One plain sentence for a reader with no statistics: what the table shows and which way is good. */
+  plain: string;
   children: ReactNode;
 }) {
   return (
@@ -355,7 +387,12 @@ function Section({
           <span className="text-small text-text-3 sm:ml-auto">{aside}</span>
         )}
       </summary>
-      <div className="px-4 pb-4 lg:px-6 lg:pb-6">{children}</div>
+      <div className="px-4 pb-4 lg:px-6 lg:pb-6">
+        <p data-plain className="mb-3 text-small text-text-2">
+          {plain}
+        </p>
+        {children}
+      </div>
     </details>
   );
 }
@@ -386,9 +423,9 @@ function SearchTable({
       </caption>
       <thead>
         <tr className="text-left text-small text-text-3">
-          <th className="py-1 font-normal">Method</th>
-          <th className="py-1 text-right font-normal">Median</th>
-          <th className="py-1 text-right font-normal">90th percentile</th>
+          <th className="py-1 font-normal">Search order</th>
+          <th className="py-1 text-right font-normal">Typical (median)</th>
+          <th className="py-1 text-right font-normal">9 in 10 searches (90th percentile)</th>
         </tr>
       </thead>
       <tbody>
@@ -583,10 +620,10 @@ function AblationTable({
       <table className="w-full text-body" aria-label="Ablations">
         <thead>
           <tr className="text-left text-small text-text-3">
-            <th className="py-1 font-normal">Variant</th>
-            <th className="py-1 text-right font-normal">Precision</th>
-            <th className="py-1 text-right font-normal">Recall</th>
-            <th className="py-1 text-right font-normal">AP50</th>
+            <th className="py-1 font-normal">Version</th>
+            <th className="py-1 text-right font-normal">Alerts that are real people</th>
+            <th className="py-1 text-right font-normal">People found</th>
+            <th className="py-1 text-right font-normal">Overall score (AP50)</th>
           </tr>
         </thead>
         <tbody>
@@ -641,6 +678,12 @@ function AblationTable({
           })}
         </tbody>
       </table>
+      <p className="mt-2 text-small text-text-3">
+        Stock: the off-the-shelf model. Fine-tuned: trained further on search-and-rescue photos. Tiling: cutting each
+        photo into tiles, so a person a few pixels wide is not shrunk away. Hard negatives: extra training on spots
+        where it raised a false alarm. All rows use strict scoring (the box must match the person closely), each at its
+        own confidence cut-off. {AP_GLOSS}
+      </p>
       <Source>
         {source}; VOC scoring, each row at its own threshold chosen on validation. &ldquo;In use&rdquo; marks the
         detector the app runs, not the best score.
