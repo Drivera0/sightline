@@ -103,7 +103,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
         );
         if (added) lastRef.current = new Float64Array(n).fill(Number.NaN);
         const current = stateRef.current;
-        if (current) pushHeatState(map, current, lastRef.current);
+        if (current) pushHeatState(map, current, lastRef.current, covered);
       } catch {
         // Style not ready yet; the next 'styledata' or 'load' event tries again.
       }
@@ -124,11 +124,11 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
   useEffect(() => {
     if (!map || !ready || !state) return;
     try {
-      if (map.getSource(HEAT_SOURCE_ID)) pushHeatState(map, state, lastRef.current);
+      if (map.getSource(HEAT_SOURCE_ID)) pushHeatState(map, state, lastRef.current, covered);
     } catch {
       /* style reloading; install() pushes again */
     }
-  }, [map, ready, state]);
+  }, [map, ready, state, covered]);
 
   const foundDetection = foundDetectionId ? detectionById(bundle.detections, foundDetectionId) : undefined;
 

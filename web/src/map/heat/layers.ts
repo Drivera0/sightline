@@ -2,7 +2,7 @@
 import type { GeoJSONSource, Map } from "maplibre-gl";
 import type { MapFile } from "../../contract";
 import { HEAT_LAYER_PREFIX, MAP_LAYER_IDS } from "../base/layerIds";
-import { buildCellFeatures, heatOpacity, maxOf, surveyedBoundary } from "./geometry";
+import { buildCellFeatures, relativeHeatOpacities, surveyedBoundary } from "./geometry";
 import type { MapState } from "../../search/update";
 
 type Grid = MapFile["grid"];
@@ -11,6 +11,7 @@ type GeoJsonData = Parameters<GeoJSONSource["setData"]>[0];
 export const HEAT_SOURCE_ID = `${HEAT_LAYER_PREFIX}cells`;
 export const HEAT_SURVEYED_SOURCE_ID = `${HEAT_LAYER_PREFIX}surveyed`;
 export const HEAT_LAYER_IDS = {
+  unsearched: `${HEAT_LAYER_PREFIX}unsearched`,
   cells: `${HEAT_LAYER_PREFIX}cells`,
   surveyed: `${HEAT_LAYER_PREFIX}surveyed`,
 } as const;
@@ -18,7 +19,12 @@ export const HEAT_LAYER_IDS = {
 export interface HeatColors {
   accent: string;
   outline: string;
+  /** Neutral tone for "not yet searched" cells. */
+  unsearched: string;
 }
+
+/** Opacity of the neutral "not yet searched" fill. Low, so the basemap shows through. */
+export const UNSEARCHED_OPACITY = 0.22;
 
 /** MapLibre cannot read CSS variables, so read the tokens at runtime. */
 export function readHeatColors(root: Element = document.documentElement): HeatColors {
@@ -26,6 +32,7 @@ export function readHeatColors(root: Element = document.documentElement): HeatCo
   return {
     accent: styles.getPropertyValue("--accent").trim(),
     outline: styles.getPropertyValue("--text").trim(),
+    unsearched: styles.getPropertyValue("--text-3").trim(),
   };
 }
 
@@ -60,6 +67,22 @@ export function ensureHeatLayers(
         geometry: { type: "MultiLineString", coordinates: surveyedBoundary(grid, covered) },
       },
     });
+  }
+  // Below heat-cells: unphotographed cells in a neutral tone ("u" feature state = 1).
+  if (!map.getLayer(HEAT_LAYER_IDS.unsearched)) {
+    map.addLayer(
+      {
+        id: HEAT_LAYER_IDS.unsearched,
+        type: "fill",
+        source: HEAT_SOURCE_ID,
+        paint: {
+          "fill-color": colors.unsearched,
+          "fill-opacity": ["case", ["==", ["coalesce", ["feature-state", "u"], 0], 1], UNSEARCHED_OPACITY, 0],
+          "fill-antialias": false,
+        },
+      },
+      beforeId(map),
+    );
   }
   if (!map.getLayer(HEAT_LAYER_IDS.cells)) {
     map.addLayer(
@@ -102,16 +125,17 @@ export function cellFeaturesFor(grid: Grid): GeoJsonData {
 }
 
 /**
- * Push opacities as feature state. `last` holds what the map already has (NaN = unknown);
+ * Push feature state: "o" = heat opacity (relative to the photographed cells), "u" = 1 for a
+ * cell that is not photographed. `last` holds the opacity the map already has (NaN = unknown);
  * only cells whose opacity changed are sent. Mutates and returns `last`.
  */
-export function pushHeatState(map: Map, state: MapState, last: Float64Array): Float64Array {
-  const maxP = maxOf(state.p);
-  for (let i = 0; i < state.p.length; i++) {
-    const o = heatOpacity(state.p[i] as number, maxP);
+export function pushHeatState(map: Map, state: MapState, last: Float64Array, covered: Uint8Array): Float64Array {
+  const opacities = relativeHeatOpacities(state.p, covered);
+  for (let i = 0; i < opacities.length; i++) {
+    const o = opacities[i] as number;
     const prev = last[i] as number;
     if (Number.isNaN(prev) || Math.abs(prev - o) > 1e-4) {
-      map.setFeatureState({ source: HEAT_SOURCE_ID, id: i }, { o });
+      map.setFeatureState({ source: HEAT_SOURCE_ID, id: i }, { o, u: covered[i] === 1 ? 0 : 1 });
       last[i] = o;
     }
   }
