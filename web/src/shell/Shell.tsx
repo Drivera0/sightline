@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CacheBundle } from "../contract";
 import { CACHE_DIR, CacheContext, useCache } from "../lib/cache";
 import { isTyping } from "../lib/keys";
@@ -15,6 +15,7 @@ import { useReview } from "../review/store";
 import { ReviewView } from "../review/ReviewView";
 import { AppMenu, type MenuItem } from "./AppMenu";
 import { Badge, Label } from "./components";
+import { InfoTip } from "./Popover";
 import { STEPS, nextStep, previousStep, stepFromHash, stepFromKey, type StepId } from "./flow";
 import { RankReveal } from "./RankReveal";
 import { ScreenBoundary } from "./ScreenBoundary";
@@ -134,6 +135,23 @@ export function SurveyPicker({
           ))}
         </select>
       )}
+    </div>
+  );
+}
+
+/** A plain step header: one title and one short line, no box. */
+function StepHeader({ title, subtitle, info }: { title: string; subtitle: string; info?: ReactNode }) {
+  return (
+    <div className="flex flex-col">
+      <h2 className="text-title font-medium">{title}</h2>
+      <p className="flex items-center gap-2 text-small text-text-2">
+        {subtitle}
+        {info && (
+          <InfoTip label="How to read this map" side="bottom" align="start">
+            {info}
+          </InfoTip>
+        )}
+      </p>
     </div>
   );
 }
@@ -341,13 +359,10 @@ export function Shell({
 
           {step === "review" && (
             <>
-              <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-full border border-border bg-surface px-4 py-2 text-small text-text-2">
-                <span className="text-text">Is this a person?</span>
-                <span>
-                  &ldquo;Person&rdquo; pins them on the map. &ldquo;Not a person&rdquo; tells the search map the
-                  drone looked there. Unsure leaves the map as it is.
-                </span>
-              </p>
+              <StepHeader
+                title="Is this a person?"
+                subtitle="Person pins them on the map. Not a person clears that ground. Unsure changes nothing."
+              />
               <div className="grid flex-1 grid-cols-1 gap-3 lg:min-h-0 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
                 <ScreenBoundary name="Review">
                   <ReviewView cache={cache} onShowMap={() => setStep("search")} compact />
@@ -359,12 +374,18 @@ export function Shell({
 
           {step === "search" && (
             <>
-              <p className="rounded-lg border border-border bg-surface px-4 py-2 text-small text-text-2 lg:rounded-full">
-                <span className="text-text">Where the person could still be.</span> Darker red is more likely,
-                pale yellow less likely, on ground the drone photographed. Dimmed grey ground is not yet searched.
-                The sectors list ranks the remaining work by probability. Press play to watch the drone fly
-                sector by sector: ground it saw clearly turns pale.
-              </p>
+              <StepHeader
+                title="Where the person could still be"
+                subtitle="Darker red = more likely. Grey = not yet photographed."
+                info={
+                  <>
+                    The colours show probability on ground the drone photographed, relative to the other
+                    photographed cells. The sectors list ranks the remaining work by probability. Press play to
+                    watch the drone fly sector by sector: ground it saw clearly turns pale, forest it cannot see
+                    into stays dark red.
+                  </>
+                }
+              />
               <PanelSlotContext.Provider value={searchPanelSlot}>
                 <div className="flex-1 lg:min-h-0">{map("search")}</div>
               </PanelSlotContext.Provider>
