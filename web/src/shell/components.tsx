@@ -1,9 +1,9 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" ");
 
 /** Glass panel over the map or background. Inner elements use `rounded-sm` (concentric corners). */
-export function Panel({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function Panel({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       className={cx("rounded-lg border border-border bg-surface p-5 backdrop-blur-[16px]", className)}

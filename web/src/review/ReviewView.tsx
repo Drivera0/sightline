@@ -161,6 +161,9 @@ export function ReviewView({
   const [fullFrame, setFullFrame] = useState(false);
   const selectedByQueue = useRef<string | null>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  // After an answer, focus moves here: never left on the answer button, where the next Enter would
+  // re-click it and record the same answer for the next candidate.
+  const candidateRef = useRef<HTMLDivElement>(null);
   // The last decision, shown as a short-lived toast; `n` re-keys it so each answer animates.
   const [lastDecision, setLastDecision] = useState<{ frameId: string; value: Answer; n: number } | null>(null);
 
@@ -216,6 +219,7 @@ export function ReviewView({
       if (value === "person") select(current.id);
       const next = nextUnreviewed(items, { ...answers, [current.id]: value }, currentIndex);
       setCursorId((next ?? current).id);
+      candidateRef.current?.focus({ preventScroll: true });
     },
     [current, items, answers, currentIndex, select],
   );
@@ -240,7 +244,13 @@ export function ReviewView({
         return;
       }
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-      const onControl = (event.target as HTMLElement | null)?.closest?.("button, a") != null;
+      const target = event.target as HTMLElement | null;
+      const onControl = target?.closest?.("button, a") != null;
+      // Enter on an answer button would answer again: swallow it (focus normally moves off it anyway).
+      if (event.key === "Enter" && target?.closest?.("[data-answer]")) {
+        event.preventDefault();
+        return;
+      }
       if (key === "j" || key === "ArrowDown") goTo(currentIndex + 1);
       else if (key === "k" || key === "ArrowUp") goTo(currentIndex - 1);
       else if (key === "p") answer("person");
@@ -363,7 +373,13 @@ export function ReviewView({
         </Panel>
 
         {current && compact && (
-          <Panel className="relative order-first flex flex-col gap-4 overflow-hidden md:order-none lg:min-h-0">
+          <Panel
+            ref={candidateRef}
+            tabIndex={-1}
+            aria-label={`Candidate ${currentIndex + 1} of ${items.length}`}
+            data-testid="candidate-panel"
+            className="relative order-first flex flex-col gap-4 overflow-hidden outline-none md:order-none lg:min-h-0"
+          >
             <div className="flex items-center justify-between gap-3">
               <Label>
                 Candidate {currentIndex + 1} of {items.length}
@@ -497,6 +513,7 @@ export function ReviewView({
                     key={value}
                     type="button"
                     onClick={() => answer(value)}
+                    data-answer={value}
                     aria-pressed={answers[current.id] === value}
                     className={
                       "inline-flex h-12 items-center justify-center gap-2.5 rounded-full border px-2 text-body leading-tight transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] sm:text-title xl:text-body 2xl:text-title " +
@@ -554,7 +571,13 @@ export function ReviewView({
         )}
 
         {current && !compact && (
-          <Panel className="relative flex min-h-0 flex-col gap-5 overflow-y-auto">
+          <Panel
+            ref={candidateRef}
+            tabIndex={-1}
+            aria-label={`Candidate ${currentIndex + 1} of ${items.length}`}
+            data-testid="candidate-panel"
+            className="relative flex min-h-0 flex-col gap-5 overflow-y-auto outline-none"
+          >
             <div className="flex items-center justify-between gap-3">
               <Label>
                 Candidate {currentIndex + 1} of {items.length}
@@ -596,6 +619,7 @@ export function ReviewView({
                     key={value}
                     type="button"
                     onClick={() => answer(value)}
+                    data-answer={value}
                     aria-pressed={answers[current.id] === value}
                     className={
                       "inline-flex items-center justify-center gap-2 rounded-full border px-3 py-2.5 text-body transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +

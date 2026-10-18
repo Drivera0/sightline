@@ -263,6 +263,28 @@ describe("ReviewView full frame view", () => {
   });
 });
 
+describe("ReviewView focus after an answer", () => {
+  it.each([false, true])("moves focus off the answer button, so Enter opens the frame instead of answering again (compact %s)", async (compact) => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact={compact} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /^person/i }));
+
+    expect(document.activeElement).toBe(screen.getByTestId("candidate-panel"));
+    await userEvent.keyboard("{Enter}");
+    expect(useReview.getState().history.map((h) => h.answer)).toEqual(["person"]);
+    expect(screen.getByRole("dialog", { name: "Full frame" })).toBeInTheDocument();
+  });
+
+  it("Enter on a focused answer button does not record an answer", async () => {
+    show();
+    screen.getByRole("button", { name: /not a person/i }).focus();
+
+    await userEvent.keyboard("{Enter}");
+
+    expect(useReview.getState().history).toEqual([]);
+  });
+});
+
 describe("ReviewView compact layout", () => {
   it("drops the frame panel so the queue fits beside the map, keeping the full frame on Enter", async () => {
     render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
