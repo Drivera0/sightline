@@ -29,7 +29,7 @@ import {
   type BasemapMode,
 } from "./base/basemap";
 import { MAP_LAYER_IDS } from "./base/layerIds";
-import { setSelectedFootprint, syncBaseLayers, syncDetectionSource } from "./base/layers";
+import { setSelectedPin, syncBaseLayers, syncDetectionSource } from "./base/layers";
 
 const DEFAULT_CENTER: [number, number] = [-122.945, 49.37];
 const EMPTY_STYLE: StyleSpecification = {
@@ -170,7 +170,6 @@ function BaseMapLayers(): ReactNode {
   const bundle = useBundle();
   const { map, flyTo } = useMap();
   const selectedDetectionId = useSelection((state) => state.selectedDetectionId);
-  const selectedFrameId = useSelection((state) => state.selectedFrameId);
   const selectDetection = useSelection((state) => state.selectDetection);
   const reviewAnswers = useReview((state) => state.answers);
 
@@ -180,7 +179,7 @@ function BaseMapLayers(): ReactNode {
     // Add cache features after the style is ready and frame the complete search grid.
     const renderLayers = () => {
       syncBaseLayers(map, bundle, useReview.getState().answers);
-      setSelectedFootprint(map, useSelection.getState().selectedFrameId);
+      setSelectedPin(map, useSelection.getState().selectedDetectionId);
       map.fitBounds(viewBounds(bundle.survey, bundle.map.grid), { padding: 48, duration: 0 });
       map.on("click", MAP_LAYER_IDS.pins, selectPin);
       map.on("mouseenter", MAP_LAYER_IDS.pins, showPointer);
@@ -216,16 +215,17 @@ function BaseMapLayers(): ReactNode {
   }, [bundle, map, reviewAnswers]);
 
   useEffect(() => {
-    if (map) setSelectedFootprint(map, selectedFrameId);
-  }, [map, selectedFrameId]);
+    if (map) setSelectedPin(map, selectedDetectionId);
+  }, [map, selectedDetectionId]);
 
   useEffect(() => {
     if (!selectedDetectionId) return;
     const detection = Object.values(bundle.detections.frames)
       .flat()
       .find((candidate) => candidate.id === selectedDetectionId);
-    if (detection) flyTo(detection.lon, detection.lat, 18);
-  }, [bundle.detections.frames, flyTo, selectedDetectionId]);
+    // Close enough to see the candidate's surroundings, without zooming out a searcher who is closer.
+    if (detection) flyTo(detection.lon, detection.lat, Math.max(map?.getZoom() ?? 0, 17));
+  }, [bundle.detections.frames, flyTo, map, selectedDetectionId]);
 
   const candidateRadii = Object.values(bundle.detections.frames)
     .flat()
