@@ -115,7 +115,7 @@ def test_unknown_nested_field_is_rejected(examples):
 
 def test_wrong_contract_version_is_rejected(examples):
     data = copy.deepcopy(examples["manifest"])
-    data["contract_version"] = "1.1"
+    data["contract_version"] = "2.0"  # 1.0 and 1.1 are both readable; anything else is not
     with pytest.raises(ValidationError):
         Manifest.model_validate(data)
 

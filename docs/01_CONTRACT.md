@@ -1,4 +1,4 @@
-# 01 · The Data Contract (v1.0)
+# 01 · The Data Contract (v1.1)
 
 > **Read this before writing any code that reads or writes the cache.**
 > This file is the single source of truth for every file the lanes exchange.
@@ -32,7 +32,7 @@ Rules that follow from this:
 | File paths in JSON | Relative to the cache folder root, forward slashes, e.g. `"frames/f0042.jpg"`. |
 | Floats in JSON | Lat/lon: 6 decimals. In `map.json`: step `pod`, `canopy` and `top_cells.p` to 4 decimals, but **`prior` and `final` probabilities unrounded** (full float64; cell values are around 1e-4, so rounding would break the sum checks). Everything else: 3 decimals. |
 | Missing values | `null`, never omitted, never `NaN`. |
-| Version | Every top-level JSON file has `"contract_version": "1.0"`. |
+| Version | Every top-level JSON file the pipeline writes has `"contract_version": "1.1"`. Readers also accept `"1.0"`: 1.1 only adds optional fields, which read as `null` in a 1.0 file. |
 
 ---
 
@@ -69,7 +69,7 @@ Written last by the pipeline. Used for debugging and for the website's "about th
 
 ```json
 {
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "survey_id": "seymour-demo",
   "generated_at": "2026-11-07T18:30:00Z",
   "git_sha": "a1b2c3d",
@@ -104,7 +104,7 @@ One entry per frame. **Writers:** D (frame list, flight order, ranking) using B'
 
 ```json
 {
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "survey_id": "seymour-demo",
   "simulated_path": true,
   "area": {
@@ -161,7 +161,7 @@ All detections for all frames, in one file. **Writers:** D, using A's detector o
 
 ```json
 {
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "model": "yolo11s-heridal-tiled-hn",
   "save_threshold": 0.05,
   "candidate_threshold": 0.25,
@@ -213,7 +213,7 @@ The search grid. **Writer:** D, using C's functions. The website replays the ste
 
 ```json
 {
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "grid": {
     "origin_nw": {"lat": 49.374492, "lon": -122.951898},
     "cell_m": 20,
@@ -225,7 +225,8 @@ The search grid. **Writer:** D, using C's functions. The website replays the ste
     "recall": 0.80,
     "recall_source": "metrics.detector.recall",
     "pod_cap": 0.95,
-    "review_pod": 0.90
+    "review_pod": 0.90,
+    "prior_source": "placeholder"
   },
   "prior": {"p": [0.0004, "... 2500 values ..."], "outside": 0.35},
   "canopy": [null, 0.62, "... 2500 values, null where no frame covers the cell ..."],
@@ -257,6 +258,7 @@ The search grid. **Writer:** D, using C's functions. The website replays the ste
 | `params.recall` | float | Detector recall used in POD. Copied from `metrics.detector.recall` once A has it; placeholder 0.80 before that. |
 | `params.pod_cap` | float | No single look can take a cell's POD above this. |
 | `params.review_pod` | float | POD applied when a searcher marks a crop "not a person" (see `LANE_C_SEARCH.md`). |
+| `params.prior_source` | string \| null | **1.1.** `"placeholder"` when the pipeline used the placeholder prior; otherwise the citation of the lost-person statistics the prior came from (written by lane C). `null` in 1.0 files. The website shows a "Placeholder prior" badge when it is `"placeholder"`. |
 | `prior.p` | float[2500] | Probability the person is in each cell before any photo. |
 | `prior.outside` | float | Probability the person is outside the grid. **`sum(prior.p) + prior.outside = 1`** (within 1e-6). |
 | `canopy` | (float \| null)[2500] | Estimated canopy fraction 0–1 per cell, averaged over the frames that covered it. `null` if no frame covered it. |
@@ -281,7 +283,7 @@ Everything the metrics screen and the pitch quote. **Writers:** D, from A's, C's
 
 ```json
 {
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "detector": {
     "model": "yolo11s-heridal-tiled-hn",
     "test_images": 101,
@@ -322,7 +324,8 @@ Everything the metrics screen and the pitch quote. **Writers:** D, from A's, C's
       {"name": "Prior only",                  "median_cells": 0, "p90_cells": 0},
       {"name": "Naive: photographed = cleared", "median_cells": 0, "p90_cells": 0},
       {"name": "Sightline: canopy-aware",      "median_cells": 0, "p90_cells": 0}
-    ]
+    ],
+    "in_survey": null
   }
 }
 ```
@@ -333,7 +336,7 @@ Everything the metrics screen and the pitch quote. **Writers:** D, from A's, C's
 | `baseline_human` | fixed | Do not change these numbers; they're published. |
 | `ablations` | A | Same test set, same scoring, one row per variant. Names exactly as shown unless the team agrees otherwise. |
 | `ranking` | D | `frames_to_first_hit` = 1-based position of the first frame that truly contains a person, when frames are reviewed in that order. `expected_first_hit_random_order` = (N + 1) / (k + 1) for N frames and k positives: what flight order gives on average, so one lucky or unlucky shuffle can't mislead. |
-| `search_sim` | C | `median_cells` / `p90_cells` = how many cells a ground team checks, in descending probability order, before reaching the true cell, over trials where the drone did **not** find the person. Lower is better. `found_by_drone_rate` = share of trials where the survey itself found the person. |
+| `search_sim` | C | `median_cells` / `p90_cells` = how many cells a ground team checks, in descending probability order, before reaching the true cell, over trials where the drone did **not** find the person. Lower is better. `found_by_drone_rate` = share of trials where the survey itself found the person. **1.1:** `in_survey` is `null` or `{"trials": int, "methods": [same names, same order as methods]}`: the same statistics computed only over the not-found trials whose true cell was photographed by the survey (lane C's `simulate` fills it). |
 
 All zeros above are placeholders; the sample cache uses plausible fake numbers, clearly marked `"model": "SAMPLE"`.
 
@@ -345,6 +348,10 @@ All zeros above are placeholders; the sample cache uses plausible fake numbers, 
 2. Everyone affected agrees.
 3. D updates this file, bumps `contract_version` (1.0 → 1.1), updates `sightline/contract.py`, regenerates `web/src/contract.ts` and the sample cache, all in **one commit**.
 4. Nobody else edits `sightline/contract.py`.
+
+### Changelog
+
+- **1.1** (additive, agreed by lanes C and D): `map.json` `params.prior_source: string | null`; `metrics.json` `search_sim.in_survey: {trials, methods} | null`. Writers stamp `"1.1"`; readers accept `"1.0"` and `"1.1"`.
 
 **Frozen at hour 3.** After that, only additive changes (new optional fields) unless the whole team agrees.
 

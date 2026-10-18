@@ -137,7 +137,10 @@
       "additionalProperties": false,
       "properties": {
         "contract_version": {
-          "const": "1.0",
+          "enum": [
+            "1.0",
+            "1.1"
+          ],
           "type": "string"
         },
         "model": {
@@ -416,6 +419,28 @@
       "title": "HitPositions",
       "type": "object"
     },
+    "InSurvey": {
+      "additionalProperties": false,
+      "description": "1.1: the same statistics over only the not-found trials whose true cell was photographed.",
+      "properties": {
+        "trials": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/SearchMethod"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "trials",
+        "methods"
+      ],
+      "title": "InSurvey",
+      "type": "object"
+    },
     "LatLon": {
       "additionalProperties": false,
       "properties": {
@@ -441,7 +466,10 @@
       "additionalProperties": false,
       "properties": {
         "contract_version": {
-          "const": "1.0",
+          "enum": [
+            "1.0",
+            "1.1"
+          ],
           "type": "string"
         },
         "survey_id": {
@@ -492,7 +520,10 @@
       "additionalProperties": false,
       "properties": {
         "contract_version": {
-          "const": "1.0",
+          "enum": [
+            "1.0",
+            "1.1"
+          ],
           "type": "string"
         },
         "grid": {
@@ -556,7 +587,10 @@
       "additionalProperties": false,
       "properties": {
         "contract_version": {
-          "const": "1.0",
+          "enum": [
+            "1.0",
+            "1.1"
+          ],
           "type": "string"
         },
         "detector": {
@@ -628,6 +662,17 @@
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number"
+        },
+        "prior_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -795,6 +840,17 @@
             "$ref": "#/$defs/SearchMethod"
           },
           "type": "array"
+        },
+        "in_survey": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InSurvey"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -928,7 +984,10 @@
       "additionalProperties": false,
       "properties": {
         "contract_version": {
-          "const": "1.0",
+          "enum": [
+            "1.0",
+            "1.1"
+          ],
           "type": "string"
         },
         "survey_id": {

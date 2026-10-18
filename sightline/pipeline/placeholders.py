@@ -63,6 +63,7 @@ def placeholder_map(
             recall_source=recall_source,
             pod_cap=POD_CAP,
             review_pod=REVIEW_POD,
+            prior_source=PRIOR_FROM_PLACEHOLDER,
         ),
         prior=Distribution(p=[p] * n, outside=PRIOR_OUTSIDE),
         canopy=[None] * n,
@@ -107,6 +108,9 @@ def placeholder_detector_metrics(candidate_threshold: float) -> DetectorMetricsF
         ),
         ablations=[Ablation(name=name, voc=zero_voc) for name in ABLATION_NAMES],
     )
+
+
+PRIOR_FROM_PLACEHOLDER = "placeholder"  # map.params.prior_source (contract 1.1)
 
 
 def placeholder_search_sim() -> SearchSim:
