@@ -141,7 +141,7 @@ describe("Legend", () => {
   it("offers a labelled flight path switch when given a handler", () => {
     const onChange = vi.fn();
     render(
-      <Legend simulatedPath params={{ prior_source: "cited" }} manifest={{ notes: "" }} hasSurveyed showPath onShowPathChange={onChange} />,
+      <Legend simulatedPath hasSurveyed showPath onShowPathChange={onChange} />,
     );
     const toggle = screen.getByRole("switch", { name: "Flight path (simulated)" });
     expect(toggle).toBeChecked();
@@ -164,53 +164,22 @@ describe("Legend", () => {
     expect(showsPlaceholderPrior(null, "real prior")).toBe(false);
   });
 
-  it("shows the placeholder badge when prior_source is placeholder", () => {
-    render(
-      <Legend simulatedPath={false} params={{ prior_source: "placeholder" }} manifest={{ notes: "" }} hasSurveyed />,
-    );
-    expect(screen.getByText("Placeholder prior")).toBeInTheDocument();
-  });
-
-  it("hides the placeholder badge for a cited prior even if the notes mention a placeholder", () => {
-    render(
-      <Legend
-        simulatedPath={false}
-        params={{ prior_source: "test citation: hiker distance table" }}
-        manifest={{ notes: "placeholder uniform prior" }}
-        hasSurveyed
-      />,
-    );
-    expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
-  });
-
-  it("falls back to the manifest notes for a 1.0 cache (prior_source null)", () => {
-    render(
-      <Legend simulatedPath={false} params={{ prior_source: null }} manifest={{ notes: "placeholder prior" }} hasSurveyed />,
-    );
-    expect(screen.getByText("Placeholder prior")).toBeInTheDocument();
-  });
-
-  it("shows the ramp words and the honesty badges", () => {
-    render(<Legend simulatedPath params={{}} manifest={{ notes: "placeholder prior" }} hasSurveyed />);
+  it("shows the ramp words; the simulated labels are the map's own line, not repeated here", () => {
+    render(<Legend simulatedPath hasSurveyed />);
     expect(screen.getByText("Lower probability")).toBeInTheDocument();
     expect(screen.getByText("Higher probability")).toBeInTheDocument();
-    expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
-    expect(screen.getByText("Placeholder prior")).toBeInTheDocument();
+    expect(screen.queryByText("Simulated flight path")).not.toBeInTheDocument();
+    expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
     expect(screen.getByText("Surveyed area (outline)")).toBeInTheDocument();
     expect(screen.getByText(/Inside the surveyed area/)).toBeInTheDocument();
     expect(screen.getByText("Not yet searched")).toBeInTheDocument();
   });
 
   it("has a swatch for cells awaiting review", () => {
-    render(<Legend simulatedPath={false} params={{}} manifest={{ notes: "" }} hasSurveyed />);
+    render(<Legend simulatedPath={false} hasSurveyed />);
     expect(screen.getByText("Awaiting review")).toBeInTheDocument();
   });
 
-  it("hides badges that do not apply", () => {
-    render(<Legend simulatedPath={false} params={{}} manifest={{ notes: "real prior" }} hasSurveyed={false} />);
-    expect(screen.queryByText("Simulated flight path")).not.toBeInTheDocument();
-    expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
-  });
 });
 
 describe("FoundBanner", () => {

@@ -517,8 +517,6 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
             <Legend
               compact
               simulatedPath={bundle.survey.simulated_path}
-              params={mapFile.params}
-              manifest={bundle.manifest}
               hasSurveyed={hasSurveyed}
             />
           </div>
@@ -562,8 +560,6 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const legend = (
     <Legend
       simulatedPath={bundle.survey.simulated_path}
-      params={mapFile.params}
-      manifest={bundle.manifest}
       hasSurveyed={hasSurveyed}
       showPath={showPath}
       onShowPathChange={setShowPath}

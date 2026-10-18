@@ -4,7 +4,7 @@ import { CACHE_DIR, cacheUrl, useCache } from "../lib/cache";
 import { isTyping } from "../lib/keys";
 import { prefersReducedMotion } from "../metrics/motion";
 import { useSelection } from "../lib/selection";
-import { Badge, EmptyState, KeyHint, Label, Panel } from "../shell/components";
+import { EmptyState, KeyHint, Label, Panel } from "../shell/components";
 import { reviewItems, reviewProgress, type ReviewItem } from "./items";
 import { ResetReview } from "./ResetReview";
 import { useReview, type Answer } from "./store";
@@ -497,11 +497,8 @@ export function ReviewView({
                     <dd className="font-mono text-body text-text">
                       {current.detection.lat.toFixed(5)}, {current.detection.lon.toFixed(5)}
                     </dd>
-                    <dd className="flex flex-wrap gap-1.5">
-                      {/* Both stay labelled simulated: the 10 m radius always, the flight path when it is. */}
-                      <Badge kind="simulated">±{current.detection.radius_m} m radius · simulated</Badge>
-                      {cache.survey.simulated_path && <Badge kind="simulated">Simulated flight path</Badge>}
-                    </dd>
+                    {/* The radius stays labelled simulated here too; the flight path is labelled once, on the map. */}
+                    <dd className="text-small text-accent-soft">±{current.detection.radius_m} m radius · simulated</dd>
                   </div>
                 </dl>
 

@@ -325,7 +325,6 @@ describe("HeatLayer", () => {
     expect(ids).not.toContain(HEAT_LAYER_IDS.drone);
     expect(screen.queryByText("Flight replay")).not.toBeInTheDocument();
     expect(screen.queryByText("Search next in the surveyed area")).not.toBeInTheDocument();
-    expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
     expect(screen.getByTestId("review-readout").textContent).not.toContain("→");
     expect(m.kind(1275)).toBe("held");
     act(() => useReview.getState().answer("f0001-d01", "not_person", 1));
@@ -345,26 +344,6 @@ describe("HeatLayer", () => {
     expect(m.layers.find((l) => l.id === HEAT_LAYER_IDS.cells)?.before).toBeUndefined();
   });
 
-  it("passes map.params.prior_source to the legend", () => {
-    ctx.value = { map: mockMap(true).map as unknown as MapContextValue["map"], flyTo: vi.fn() };
-    // The sample says "placeholder" in both prior_source and the notes.
-    const { unmount } = render(
-      <CacheContext.Provider value={cache}>
-        <HeatLayer />
-      </CacheContext.Provider>,
-    );
-    expect(screen.getByText("Placeholder prior")).toBeInTheDocument();
-    unmount();
-
-    // A cited prior wins over notes that still mention a placeholder.
-    const cited = { ...cache, map: { ...cache.map, params: { ...cache.map.params, prior_source: "test citation" } } };
-    render(
-      <CacheContext.Provider value={cited}>
-        <HeatLayer />
-      </CacheContext.Provider>,
-    );
-    expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
-  });
   it("shows the found banner inside the side panel, not over the map", () => {
     const m = mockMap(true);
     ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
@@ -404,7 +383,6 @@ describe("HeatLayer", () => {
       expect(container.querySelector(".w-80")).toBeNull();
       expect(within(slot).getByText("Flight replay")).toBeInTheDocument();
       expect(within(slot).getByText("Lower probability")).toBeInTheDocument();
-      expect(within(slot).getByText("Simulated flight path")).toBeInTheDocument();
       const tabs = within(slot).getAllByRole("tab");
       expect(tabs.map((t) => t.textContent)).toEqual(["Legend", "Sectors", "Search next"]);
       act(() => tabs[1]!.click());
