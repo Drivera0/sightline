@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CacheBundle } from "../contract";
 import { loadCache } from "../lib/cache";
@@ -100,6 +100,44 @@ describe("ResultsSummary in time and in your own answers", () => {
   it("asks for a review before there are answers", () => {
     render(<ResultsSummary metrics={cache.metrics} candidateIds={["a"]} />);
     expect(screen.getByText(/haven't answered any of the 1 candidates/)).toBeInTheDocument();
+  });
+});
+
+describe("Why resolution matters", () => {
+  const v = (precision: number, recall: number, ap50: number) => ({ precision, recall, ap50 });
+  const sevenRows = [
+    { name: "Stock model, no tiling", voc: v(0.42, 0.196, 0.142) },
+    { name: "Fine-tuned on tiles, run on shrunk photos", voc: v(0.38, 0.234, 0.144) },
+    { name: "Stock model, full-resolution photo", voc: v(0.678, 0.181, 0.165) },
+    { name: "Fine-tuned on tiles, full-resolution photo", voc: v(0.723, 0.905, 0.887) },
+    { name: "Trained and run on whole photos", voc: v(0.727, 0.804, 0.776) },
+    { name: "Fine-tuned + tiling", voc: v(0.802, 0.864, 0.868) },
+    { name: "+ hard negatives", voc: v(0.738, 0.869, 0.851) },
+  ];
+  const bars = () => within(screen.getByRole("list", { name: "Recall by how the photo is read" })).getAllByRole("listitem");
+
+  it("draws five bars from a seven-row file and highlights the tiled detector in use, not the best AP50", () => {
+    render(<ResultsSummary metrics={{ ...cache.metrics, ablations: sevenRows }} />);
+    const rows = bars();
+    expect(rows.map((r) => r.textContent)).toEqual([
+      "Stock, shrunk photo20%42%",
+      "Fine-tuned, shrunk photo23%38%",
+      "Trained on 1920 px photos80%73%",
+      "Fine-tuned + tilingin use86%80%",
+      "Fine-tuned, one 4000 px pass91%72%",
+    ]);
+    expect(rows.filter((r) => r.dataset.inUse)).toEqual([rows[3]]);
+    expect(screen.getByText("needs about 20× the GPU memory")).toBeInTheDocument();
+    expect(screen.getByText(/single full-resolution pass is not the model in use/)).toBeInTheDocument();
+  });
+
+  it("reads an old four-row file under the new names and leaves out the single-pass sentence", () => {
+    render(<ResultsSummary metrics={cache.metrics} />); // sample: old names, four rows
+    const rows = bars();
+    expect(rows).toHaveLength(3);
+    expect(rows[1]).toHaveTextContent("Fine-tuned, shrunk photo");
+    expect(rows[2]).toHaveAttribute("data-in-use", "true");
+    expect(screen.queryByText(/20× the GPU memory/)).toBeNull();
   });
 });
 

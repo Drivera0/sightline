@@ -39,31 +39,62 @@ export function minutes(value: number): string {
   return `${Number.isInteger(value) ? value : value.toFixed(1)} min`;
 }
 
-/** Index of the ablation row with the highest AP50 (first wins ties); -1 if empty. */
-export function bestByAp50(rows: readonly { voc: { ap50: number } }[]): number {
-  let best = -1;
-  let bestAp = -Infinity;
-  rows.forEach((row, i) => {
-    if (row.voc.ap50 > bestAp) {
-      bestAp = row.voc.ap50;
-      best = i;
-    }
-  });
-  return best;
-}
-
-/** Rows that score a whole photo shrunk to the model input, per LANE_A_ML.md §5. */
-export function isResizedRow(name: string): boolean {
-  return /no tiling/i.test(name);
-}
-
-/** The four ablation rows, in order (LANE_A_ML.md §6.3, contract §9). */
+/**
+ * The ablation rows, in lane A's order (sightline/ml/evaluate.py ABLATION_NAMES, contract §9).
+ * The first two shrink the whole photo to 1024 px; the next three keep it whole at full or
+ * 1920 px resolution; "Fine-tuned + tiling" is the detector in use.
+ */
 export const ABLATION_NAMES = [
   "Stock model, no tiling",
-  "Fine-tuned, no tiling",
+  "Fine-tuned on tiles, run on shrunk photos",
+  "Stock model, full-resolution photo",
+  "Fine-tuned on tiles, full-resolution photo",
+  "Trained and run on whole photos",
   "Fine-tuned + tiling",
   "+ hard negatives",
 ] as const;
+
+/** The row that matches the detector the app runs (tiled inference, docs/LANE_A_ML.md). */
+export const IN_USE_ROW = "Fine-tuned + tiling";
+
+/** Old row names in files written before 2026-10-18 (evening): sightline/ml/evaluate.py LEGACY_ABLATION_RENAMES. */
+export const LEGACY_ABLATION_RENAMES: Readonly<Record<string, string>> = {
+  "Fine-tuned, no tiling": "Fine-tuned on tiles, run on shrunk photos",
+};
+
+/** Rows every metrics file has carried since the first release; the other three came later. */
+const CORE_ROWS: readonly string[] = [
+  "Stock model, no tiling",
+  "Fine-tuned on tiles, run on shrunk photos",
+  "Fine-tuned + tiling",
+  "+ hard negatives",
+];
+
+/** A row name under its current name. */
+export function canonicalAblationName(name: string): string {
+  return LEGACY_ABLATION_RENAMES[name] ?? name;
+}
+
+const SHRUNK_ROWS = new Set(["Stock model, no tiling", "Fine-tuned on tiles, run on shrunk photos"]);
+
+/** Rows that score a whole photo shrunk to 1024 px (the model's input), matched by exact name. */
+export function isResizedRow(name: string): boolean {
+  return SHRUNK_ROWS.has(canonicalAblationName(name));
+}
+
+const SUB_LABELS: Readonly<Record<string, string>> = {
+  "Stock model, no tiling": "whole photo shrunk to 1024 px",
+  "Fine-tuned on tiles, run on shrunk photos": "whole photo shrunk to 1024 px",
+  "Stock model, full-resolution photo": "whole photo, 4000 px, one pass",
+  "Fine-tuned on tiles, full-resolution photo": "whole photo, 4000 px, one pass",
+  "Trained and run on whole photos": "trained and run at 1920 px",
+  "Fine-tuned + tiling": "1024 px tiles",
+};
+
+/** How a row reads the photo, for a line under its name; undefined when there is nothing to add. */
+export function ablationSubLabel(name: string): string | undefined {
+  return SUB_LABELS[canonicalAblationName(name)];
+}
 
 type Voc = { precision: number; recall: number; ap50: number };
 
@@ -77,19 +108,21 @@ export type AblationDisplayRow =
   | { name: string; measured: false };
 
 /**
- * Rows to show: every canonical name in order, then any extra rows. A name missing from
- * metrics.json, or present with all-zero scores (e.g. a pipeline placeholder), is "not measured".
+ * Rows to show: the canonical names in order, then any extra rows. Old names are mapped to
+ * their current ones. A row present with all-zero scores (e.g. a pipeline placeholder), or a core
+ * row missing from the file, is "not measured". The three newer baselines are expected only in a
+ * file that carries at least one of them, so an older four-row file does not list them as gaps.
  */
 export function ablationDisplayRows(
   rows: readonly { name: string; voc: Voc }[],
 ): AblationDisplayRow[] {
-  const byName = new Map(rows.map((r) => [r.name, r]));
-  const names = [
-    ...ABLATION_NAMES,
-    ...rows
-      .map((r) => r.name)
-      .filter((n) => !(ABLATION_NAMES as readonly string[]).includes(n)),
-  ];
+  const renamed = rows.map((r) => ({ ...r, name: canonicalAblationName(r.name) }));
+  const byName = new Map(renamed.map((r) => [r.name, r]));
+  const canonical = ABLATION_NAMES as readonly string[];
+  const newer = canonical.filter((n) => !CORE_ROWS.includes(n));
+  const hasNewer = newer.some((n) => byName.has(n));
+  const expected = canonical.filter((n) => byName.has(n) || CORE_ROWS.includes(n) || hasNewer);
+  const names = [...expected, ...renamed.map((r) => r.name).filter((n) => !canonical.includes(n))];
   return names.map((name) => {
     const row = byName.get(name);
     return row && !isPlaceholderVoc(row.voc)

@@ -4,7 +4,7 @@ import { ResetReview } from "../review/ResetReview";
 import { useReview, type Answer } from "../review/store";
 import { Badge, Label } from "../shell/components";
 import { Sourced } from "../shell/Popover";
-import { ablationDisplayRows, count, pct, seconds, speedup } from "./format";
+import { ablationDisplayRows, count, IN_USE_ROW, pct, seconds, speedup } from "./format";
 import { useCountUp } from "./motion";
 import { randomOrderBaseline } from "./randomOrder";
 
@@ -197,7 +197,7 @@ export function ResultsSummary({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <YourReview candidateIds={candidateIds} />
-        <WhyTiling
+        <WhyResolution
           ablations={metrics.ablations}
           source={`HERIDAL test set, ${detector.test_images} images, same threshold rule for every row (metrics.ablations)`}
         />
@@ -330,11 +330,31 @@ function YourReview({ candidateIds }: { candidateIds: readonly string[] }) {
   );
 }
 
-/** Recall by technique, as bars: the jump tiling makes is the story of the detector. */
-function WhyTiling({ ablations, source }: { ablations: Metrics["ablations"]; source: string }) {
-  const rows = ablationDisplayRows(ablations).flatMap((r) => (r.measured ? [r] : []));
+/**
+ * The bars WhyResolution draws, in story order, with a short label each: shrunk photos fail
+ * whatever the weights, a model trained on whole 1920 px photos does better, training on
+ * full-resolution tiles is what pays off, and a single full-resolution pass works too. The other
+ * rows stay in the details table.
+ */
+const RESOLUTION_BARS: readonly [name: string, short: string][] = [
+  ["Stock model, no tiling", "Stock, shrunk photo"],
+  ["Fine-tuned on tiles, run on shrunk photos", "Fine-tuned, shrunk photo"],
+  ["Trained and run on whole photos", "Trained on 1920 px photos"],
+  [IN_USE_ROW, "Fine-tuned + tiling"],
+  ["Fine-tuned on tiles, full-resolution photo", "Fine-tuned, one 4000 px pass"],
+];
+
+/** Recall by how the photo is read, as bars: working at native resolution is the story of the detector. */
+function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"]; source: string }) {
+  const measured = new Map(
+    ablationDisplayRows(ablations).flatMap((r) => (r.measured ? [[r.name, r] as const] : [])),
+  );
+  const rows = RESOLUTION_BARS.flatMap(([name, short]) => {
+    const row = measured.get(name);
+    return row ? [{ ...row, short }] : [];
+  });
   if (rows.length === 0) return null;
-  const best = rows.reduce((b, r, i) => (r.voc.ap50 > rows[b]!.voc.ap50 ? i : b), 0);
+  const singlePass = measured.has("Fine-tuned on tiles, full-resolution photo");
   return (
     <div
       className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5"
@@ -342,38 +362,55 @@ function WhyTiling({ ablations, source }: { ablations: Metrics["ablations"]; sou
     >
       <div className="flex items-baseline justify-between gap-3">
         <Sourced source={source}>
-          <Label>Why tiling matters</Label>
+          <Label>Why resolution matters</Label>
         </Sourced>
-        <span className="text-label text-text-3">test set: recall, precision</span>
+        <span className="text-label text-text-3">test set, strict VOC: recall, precision</span>
       </div>
       <p className="text-small text-text-2">
-        A person is a few dozen pixels in a full-size photo. Shrinking the photo to the model&apos;s input loses them;
-        reading it in overlapping tiles keeps them.
+        A person is about 70 px wide in a full 4000×3000 photo. Shrink the photo to the model&apos;s input and every
+        model loses them. What pays off is native resolution: the detector was trained on full-resolution tiles, and
+        a model trained on whole photos shrunk to 1920 px finds fewer people.
+        {singlePass && (
+          <>
+            {" "}
+            Tiling is one way to keep that scale at inference; one pass over the whole 4000 px photo with the same
+            weights works too, but{" "}
+            <Sourced source="5.7 GB against 0.28 GB for 1024 px tiles, timed on the same 101 test photos (scripts/README.md, data/work/detect/inference_cost.json)">
+              needs about 20× the GPU memory
+            </Sourced>
+            .
+          </>
+        )}
       </p>
-      <div className="flex flex-col gap-2.5">
-        {rows.map((r, i) => (
-          <div key={r.name} className="grid grid-cols-[minmax(0,10.5rem)_minmax(0,1fr)_3rem_3rem] items-center gap-3">
-            <span className={"truncate text-small " + (i === best ? "text-text" : "text-text-2")} title={r.name}>
-              {r.name}
-            </span>
-            <span className="h-2 rounded-full bg-surface-strong">
-              <span
-                className={"sl-grow block h-full rounded-full " + (i === best ? "bg-accent" : "bg-text-3/60")}
-                style={{ width: `${Math.max(2, r.voc.recall * 100)}%`, animationDelay: `${350 + i * 120}ms` }}
-              />
-            </span>
-            <span className={"text-right font-mono text-small " + (i === best ? "text-accent-soft" : "text-text-2")}>
-              {pct(r.voc.recall)}
-            </span>
-            <span className="text-right font-mono text-small text-text-3" title="Precision">
-              {pct(r.voc.precision)}
-            </span>
-          </div>
-        ))}
-      </div>
+      <ul className="flex flex-col gap-2.5" aria-label="Recall by how the photo is read">
+        {rows.map((r, i) => {
+          const inUse = r.name === IN_USE_ROW;
+          return (
+            <li key={r.name} data-in-use={inUse || undefined} className="grid grid-cols-[minmax(0,11.5rem)_minmax(0,1fr)_3rem_3rem] items-center gap-3">
+              <span className={"flex min-w-0 flex-col text-small " + (inUse ? "text-text" : "text-text-2")} title={r.name}>
+                <span className="truncate">{r.short}</span>
+                {inUse && <span className="font-mono text-label uppercase tracking-label text-accent">in use</span>}
+              </span>
+              <span className="h-2 rounded-full bg-surface-strong">
+                <span
+                  className={"sl-grow block h-full rounded-full " + (inUse ? "bg-accent" : "bg-text-3/60")}
+                  style={{ width: `${Math.max(2, r.voc.recall * 100)}%`, animationDelay: `${350 + i * 120}ms` }}
+                />
+              </span>
+              <span className={"text-right font-mono text-small " + (inUse ? "text-accent-soft" : "text-text-2")}>
+                {pct(r.voc.recall)}
+              </span>
+              <span className="text-right font-mono text-small text-text-3" title="Precision">
+                {pct(r.voc.precision)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
       <p className="text-label text-text-3">
-        Bars show recall; the grey figure is precision. The highlighted row, the best AP50, is the detector in use:
-        hard negatives found slightly more people but raised more false alarms.
+        Bars show recall; the grey figure is precision. The highlighted row is the detector the app runs: tiled
+        inference, which fits on a small GPU.{singlePass && " The single full-resolution pass is not the model in use."}{" "}
+        Every row is in the details below.
       </p>
     </div>
   );
