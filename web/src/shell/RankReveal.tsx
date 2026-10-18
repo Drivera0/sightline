@@ -13,6 +13,33 @@ function ordinal(n: number): string {
   return n === 1 ? "first" : `#${n}`;
 }
 
+/** Eases from the previous value to `target` over `ms` (integer steps); instant under reduced motion. */
+function useGlide(target: number, ms: number): number {
+  const [value, setValue] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    if (prefersReducedMotion()) {
+      from.current = target;
+      setValue(target);
+      return;
+    }
+    const start = performance.now();
+    const origin = from.current;
+    let frame = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / ms);
+      const eased = 1 - (1 - t) ** 3;
+      const next = Math.round(origin + (target - origin) * eased);
+      from.current = next;
+      setValue(next);
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [target, ms]);
+  return value;
+}
+
 /** Slide rows to their new place when the queue re-sorts (FLIP), instead of jumping. */
 function useFlip(order: string) {
   const nodes = useRef(new Map<string, HTMLElement>());
@@ -42,7 +69,18 @@ function useFlip(order: string) {
 }
 
 /** A photo with its candidate boxes drawn on, each labelled with the detector's confidence. */
-function ScanFrame({ frame, hits, dir, scanning }: { frame: Frame; hits: Detection[]; dir: string; scanning: boolean }) {
+function ScanFrame({
+  frame,
+  hits,
+  dir,
+  scanMs,
+}: {
+  frame: Frame;
+  hits: Detection[];
+  dir: string;
+  /** Length of the scan-line sweep; 0 for none. */
+  scanMs: number;
+}) {
   const w = frame.width_px;
   const h = frame.height_px;
   return (
@@ -52,6 +90,9 @@ function ScanFrame({ frame, hits, dir, scanning }: { frame: Frame; hits: Detecti
         {hits.map((d) => {
           const [x1, y1, x2, y2] = d.box_px;
           const pad = Math.max(8, (x2 - x1) * 0.25);
+          // The tag sits above the box, or below it when the person is near the top edge.
+          const tagH = w / 32;
+          const tagY = y1 - pad - tagH - 4 >= 0 ? y1 - pad - tagH - 4 : y2 + pad + 4;
           return (
             <g key={d.id}>
               <rect
@@ -66,11 +107,11 @@ function ScanFrame({ frame, hits, dir, scanning }: { frame: Frame; hits: Detecti
                 stroke="var(--accent)"
                 strokeWidth={Math.max(3, w / 300)}
               />
-              <g className="sl-fade" style={{ animationDelay: "160ms" }}>
-                <rect x={x1 - pad} y={y1 - pad - w / 28} width={w / 7.5} height={w / 32} rx={4} fill="var(--accent)" />
+              <g className="sl-fade" style={{ animationDelay: "450ms" }}>
+                <rect x={x1 - pad} y={tagY} width={w / 7.5} height={tagH} rx={4} fill="var(--accent)" />
                 <text
                   x={x1 - pad + w / 120}
-                  y={y1 - pad - w / 28 + w / 44}
+                  y={tagY + tagH * 0.72}
                   fill="var(--bg)"
                   fontSize={w / 48}
                   fontFamily="var(--mono)"
@@ -82,7 +123,13 @@ function ScanFrame({ frame, hits, dir, scanning }: { frame: Frame; hits: Detecti
           );
         })}
       </svg>
-      {scanning && <span aria-hidden="true" className="sl-scan pointer-events-none absolute inset-x-0 h-16" />}
+      {scanMs > 0 && (
+        <span
+          aria-hidden="true"
+          className="sl-scan pointer-events-none absolute inset-x-0"
+          style={{ animationDuration: `${scanMs}ms` }}
+        />
+      )}
     </div>
   );
 }
@@ -132,7 +179,8 @@ export function RankReveal({
     for (const s of stops) new Image().src = cacheUrl(dir, s.frame.file);
   }, [stops, dir]);
 
-  const scannedTo = done ? nFrames - 1 : (current?.position ?? 0);
+  const scannedTo = useGlide(done ? nFrames - 1 : (current?.position ?? 0), done ? 900 : 650);
+  const previous = !done && stop > 0 ? stops[stop - 1] : undefined;
   const found: ReviewItem[] = done
     ? items
     : items.filter((item) => (positionOf.get(item.frame.id) ?? Infinity) <= scannedTo);
@@ -163,13 +211,28 @@ export function RankReveal({
 
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <div
-            key={done ? "done" : current?.frame.id}
             className={
-              "relative aspect-[4/3] max-h-full w-full " + (viewer && viewer.hits.length > 0 ? "sl-hit rounded-md" : "")
+              "relative aspect-[4/3] max-h-full w-full overflow-hidden rounded-md " +
+              (viewer && viewer.hits.length > 0 ? "sl-glow" : "")
             }
+            key={viewer && viewer.hits.length > 0 ? `glow-${viewer.frame.id}` : "viewer"}
             style={{ maxWidth: "calc((100vh - 15rem) * 4 / 3)" }}
           >
-            {viewer && <ScanFrame frame={viewer.frame} hits={viewer.hits} dir={dir} scanning={!done} />}
+            {previous && (
+              <div className="absolute inset-0" aria-hidden="true">
+                <ScanFrame frame={previous.frame} hits={[]} dir={dir} scanMs={0} />
+              </div>
+            )}
+            {viewer && (
+              <div key={done ? "done" : viewer.frame.id} className="sl-xfade absolute inset-0">
+                <ScanFrame
+                  frame={viewer.frame}
+                  hits={viewer.hits}
+                  dir={dir}
+                  scanMs={done || !current ? 0 : current.hits.length > 0 ? HIT_MS * 0.6 : CLEAR_MS}
+                />
+              </div>
+            )}
             <div className="pointer-events-none absolute inset-x-3 bottom-3 flex items-center justify-between gap-3 font-mono text-label">
               <span className="rounded-full bg-bg/75 px-2.5 py-1 text-text-2 backdrop-blur">
                 {viewer?.frame.id} · photo {(viewer ? (positionOf.get(viewer.frame.id) ?? 0) : 0) + 1}
