@@ -6,7 +6,7 @@ import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import type { CacheBundle } from "../contract";
 import { Annotation, Badge, EmptyState, KeyHint, Panel, Stat } from "./components";
-import { Shell } from "./Shell";
+import { Shell, shortSurveyName } from "./Shell";
 
 // jsdom has no WebGL, so the real MapLibre map throws. Stand in for lane B's MapView so these tests
 // check what the shell passes it: lane C's heat layer must be mounted inside the map context.
@@ -25,7 +25,7 @@ describe("Shell header", () => {
     render(<Shell cache={await sample()} />);
 
     expect(screen.getByRole("heading", { name: "Sightline" })).toBeInTheDocument();
-    expect(screen.getByText("Mount Seymour, North Vancouver (simulated flight path)")).toBeInTheDocument();
+    expect(screen.getByText("Mount Seymour, North Vancouver")).toBeInTheDocument();
     expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
   });
 
@@ -40,7 +40,7 @@ describe("Shell header", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Sightline" })).toBeInTheDocument();
-    expect(screen.getByText("HERIDAL SB site (real EXIF positions)")).toBeInTheDocument();
+    expect(screen.getByText("HERIDAL SB site")).toBeInTheDocument();
     expect(screen.queryByText("Simulated flight path")).not.toBeInTheDocument();
   });
 
@@ -51,12 +51,29 @@ describe("Shell header", () => {
         cache={await sample()}
         cacheDir="demo"
         onCacheDirChange={onCacheDirChange}
+        surveyOptions={[
+          { dir: "demo", label: "Mount Seymour simulation" },
+          { dir: "real-gps", label: "Real EXIF positions" },
+        ]}
       />,
     );
 
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Survey" }), "real-gps");
 
     expect(onCacheDirChange).toHaveBeenCalledWith("real-gps");
+    expect(screen.getByRole("combobox", { name: "Survey" })).toHaveClass(
+      "border-border",
+      "bg-surface-strong",
+      "text-label",
+    );
+  });
+
+  it("removes only a trailing explanatory parenthetical from survey names", () => {
+    expect(shortSurveyName("Mount Seymour, North Vancouver (simulated flight path)")).toBe(
+      "Mount Seymour, North Vancouver",
+    );
+    expect(shortSurveyName("HERIDAL SB site (real EXIF positions)")).toBe("HERIDAL SB site");
+    expect(shortSurveyName("Survey (north) sector")).toBe("Survey (north) sector");
   });
 
   it("flags sample data so it is never mistaken for a real run", async () => {

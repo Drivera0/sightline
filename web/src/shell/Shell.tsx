@@ -24,16 +24,56 @@ const REVIEW_KEYS: [string, string][] = [
   ["Enter", "Full frame"],
 ];
 
-const SURVEY_OPTIONS = [
-  { dir: "sample", label: "Sample survey" },
-  { dir: "demo", label: "Mount Seymour simulation" },
-  { dir: "real-gps", label: "Real EXIF positions" },
-] as const;
+export interface SurveyOption {
+  dir: string;
+  label: string;
+}
 
 interface ShellProps {
   cache: CacheBundle;
   cacheDir?: string;
   onCacheDirChange?: (dir: string) => void;
+  surveyOptions?: readonly SurveyOption[];
+}
+
+/** Remove a trailing explanatory parenthetical that is already represented by badges. */
+export function shortSurveyName(name: string): string {
+  return name.replace(/\s+\([^()]+\)\s*$/, "");
+}
+
+/** Render only the survey choices whose manifests were verified by App. */
+export function SurveySelect({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly SurveyOption[];
+  value: string;
+  onChange: (dir: string) => void;
+}) {
+  const selected = options.some((option) => option.dir === value) ? value : "";
+  return (
+    <label className="flex items-center gap-2 font-mono text-label text-text-2">
+      Survey
+      <select
+        aria-label="Survey"
+        className="rounded-sm border border-border bg-surface-strong px-3 py-2 font-mono text-label text-text"
+        onChange={(event) => onChange(event.target.value)}
+        value={selected}
+      >
+        {selected === "" && (
+          <option value="" disabled>
+            Choose a survey
+          </option>
+        )}
+        {options.map((option) => (
+          <option key={option.dir} value={option.dir}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 /** A viewfinder ring with a centre dot: what the product does, in one glyph. */
@@ -57,7 +97,12 @@ function readStep(): StepId {
  * One screen at a time, a step bar that always shows where you are, and the step in the URL hash
  * (so a presenter can open any step directly, e.g. /#review).
  */
-export function Shell({ cache, cacheDir, onCacheDirChange }: ShellProps) {
+export function Shell({
+  cache,
+  cacheDir,
+  onCacheDirChange,
+  surveyOptions = [],
+}: ShellProps) {
   const [step, setStepState] = useState<StepId>(readStep);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const loadedDir = useCache((s) => s.dir);
@@ -128,27 +173,13 @@ export function Shell({ cache, cacheDir, onCacheDirChange }: ShellProps) {
               <Logo />
               Sightline
             </h1>
-            <span className="text-small text-text-3">{survey.area.name}</span>
+            <span className="text-small text-text-3">{shortSurveyName(survey.area.name)}</span>
             {survey.simulated_path && <Badge kind="simulated">Simulated flight path</Badge>}
             {detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
             {detections.model === "PLACEHOLDER" && <Badge kind="placeholder">Placeholder detections</Badge>}
           </div>
-          {cacheDir && onCacheDirChange ? (
-            <label className="flex items-center gap-2 font-mono text-xs text-text-2">
-              Survey
-              <select
-                aria-label="Survey"
-                className="rounded-sm border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2 text-[var(--text)]"
-                onChange={(event) => onCacheDirChange(event.target.value)}
-                value={cacheDir}
-              >
-                {SURVEY_OPTIONS.map((option) => (
-                  <option key={option.dir} value={option.dir}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {cacheDir && onCacheDirChange && surveyOptions.length > 0 ? (
+            <SurveySelect options={surveyOptions} value={cacheDir} onChange={onCacheDirChange} />
           ) : null}
           <StepBar value={step} onChange={setStep} />
           <div className="flex items-center gap-4 text-small text-text-3">

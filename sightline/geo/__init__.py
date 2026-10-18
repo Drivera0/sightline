@@ -13,7 +13,9 @@ from .constants import LKP, SECTOR_NW
 from .detections import georef_detection as _georef_detection
 from .flight import FlightPlan
 from .flight import simulate_flight as _simulate_flight
+from .position_error import PinErrorSummary, measure_pin_errors, summarize_pin_errors
 from .project import METRES_PER_DEGREE, footprint, latlon_to_pixel, pixel_to_latlon
+from .real import RealPhoto, RealPhotoSelection, cluster_real_photos, select_real_photos
 
 AREA_NAME = "Mount Seymour, North Vancouver (simulated flight path)"
 DEMO_FRAME_COUNT = 500
@@ -92,12 +94,19 @@ def georef_detection(
 
 
 __all__ = [
+    "PinErrorSummary",
+    "RealPhoto",
+    "RealPhotoSelection",
     "SimulatedFlight",
+    "cluster_real_photos",
     "footprint",
     "georef_detection",
     "gsd",
     "hfov_from_f35",
     "latlon_to_pixel",
+    "measure_pin_errors",
     "pixel_to_latlon",
+    "select_real_photos",
     "simulate_flight",
+    "summarize_pin_errors",
 ]

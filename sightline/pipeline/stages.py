@@ -43,7 +43,7 @@ from sightline.pipeline.survey import (
 
 PLACEHOLDER_RECALL = 0.80  # used by `map` until lane A has written detector_metrics.json
 RECALL_FROM_PLACEHOLDER = "placeholder"
-DEFAULT_NOTES = "Real HERIDAL test imagery on a simulated flight path over Mount Seymour."
+SIMULATED_NOTES = "Real HERIDAL test imagery on a simulated flight path over Mount Seymour."
 
 
 SURVEY_LAYOUTS = {"shuffle": build_survey, "blocks": build_block_survey}
@@ -289,7 +289,12 @@ def export_stage(
 ) -> None:
     """Build, validate and write the cache. The manifest names every placeholder that was used."""
     placeholders = ctx.lanes.placeholder_notes()
-    notes = DEFAULT_NOTES
+    place = read_json(ctx.work / "place" / "poses.json", PlaceFile, produced_by="place")
+    notes = (
+        SIMULATED_NOTES
+        if place.simulated_path
+        else f"Real photos at recorded EXIF positions: {place.area_name}."
+    )
     if placeholders:
         notes += (
             " Placeholders used: " + "; ".join(f"{k}: {v}" for k, v in placeholders.items()) + "."
