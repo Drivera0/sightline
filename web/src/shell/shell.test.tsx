@@ -65,6 +65,29 @@ describe("Shell header", () => {
     expect(screen.getByRole("combobox", { name: "Survey" })).toHaveClass("absolute", "inset-0", "opacity-0");
   });
 
+  it("goes back to step 1 when the survey changes", async () => {
+    window.location.hash = "#review";
+    const onCacheDirChange = vi.fn();
+    render(
+      <Shell
+        cache={await sample()}
+        cacheDir="demo"
+        onCacheDirChange={onCacheDirChange}
+        surveyOptions={[
+          { dir: "demo", label: "Mount Seymour simulation" },
+          { dir: "real-gps", label: "Real EXIF positions" },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("main")).toHaveAccessibleName("Review");
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Survey" }), "real-gps");
+
+    expect(onCacheDirChange).toHaveBeenCalledWith("real-gps");
+    expect(window.location.hash).toBe("#survey");
+    expect(screen.getByRole("main")).toHaveAccessibleName("Survey");
+  });
+
   it("removes only a trailing explanatory parenthetical from survey names", () => {
     expect(shortSurveyName("Mount Seymour, North Vancouver (simulated flight path)")).toBe(
       "Mount Seymour, North Vancouver",
@@ -183,6 +206,20 @@ describe("shared components", () => {
     render(<KeyHint>P</KeyHint>);
 
     expect(screen.getByText("P").tagName).toBe("KBD");
+  });
+
+  it("KeyHint hides on touch screens: no hover, or a coarse pointer", () => {
+    render(<KeyHint>P</KeyHint>);
+
+    expect(screen.getByText("P")).toHaveClass("[@media(hover:none)]:hidden", "[@media(pointer:coarse)]:hidden");
+  });
+
+  it("StepBar numbers future steps in text-2, for contrast on the chip", async () => {
+    const { StepBar } = await import("./StepBar");
+    render(<StepBar value="rank" onChange={() => {}} />);
+
+    const future = screen.getByRole("button", { name: /Results/ });
+    expect(future.querySelector("span")).toHaveClass("text-text-2");
   });
 
   it("EmptyState shows a title and a message", () => {

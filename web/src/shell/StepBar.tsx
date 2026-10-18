@@ -34,7 +34,7 @@ export function StepBar({ value, onChange }: { value: StepId; onChange: (id: Ste
                 <span
                   className={
                     "inline-flex size-5 items-center justify-center rounded-full font-mono text-label " +
-                    (isCurrent ? "bg-bg/20" : isDone ? "bg-accent/20 text-accent-soft" : "bg-surface-strong")
+                    (isCurrent ? "bg-bg/20" : isDone ? "bg-accent/20 text-accent-soft" : "bg-surface-strong text-text-2")
                   }
                 >
                   {isDone ? "✓" : index + 1}

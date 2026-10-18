@@ -158,8 +158,8 @@ export function TryPhoto({ cache, dir, onClose }: { cache: CacheBundle; dir: str
           Your photo never leaves this browser: the model downloads once from this site and runs here
           {backend ? ` (${backend === "webgpu" ? "WebGPU" : "WebAssembly"})` : ""}. It was trained on HERIDAL drone photos
           of people in rough terrain seen from above, so on anything else (selfies, street photos, close-ups) its boxes
-          are meaningless. Same weights, {SLICE_PX} px slices with {Math.round(OVERLAP * 100)}% overlap, merge and
-          threshold ({threshold}, metrics.detector) as the pipeline.
+          are meaningless. Same weights, {SLICE_PX} px slices with {Math.round(OVERLAP * 100)}% overlap and merge as
+          the pipeline, and the same cut-off: a box counts from a score of {threshold}.
         </p>
 
         {available === false ? (
