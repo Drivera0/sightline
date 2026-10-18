@@ -44,6 +44,10 @@ from sightline.pipeline.survey import (
 PLACEHOLDER_RECALL = 0.80  # used by `map` until lane A has written detector_metrics.json
 RECALL_FROM_PLACEHOLDER = "placeholder"
 SIMULATED_NOTES = "Real HERIDAL test imagery on a simulated flight path over Mount Seymour."
+# Search-grid cell size in metres. 5 m: a frame footprint is 20 x 15 m, so a 20 m cell averaged the
+# canopy of open ground and forest inside one photo; at 5 m each photo covers about 12 cells and the
+# per-pixel canopy estimate shows through (200 x 200 = 40,000 cells over the 1 km grid).
+DEFAULT_CELL_M = 5.0
 
 
 SURVEY_LAYOUTS = {"shuffle": build_survey, "blocks": build_block_survey}
@@ -77,7 +81,7 @@ class Context:
     # (neighbouring crops of one photo stay neighbours on the ground; see build_block_survey).
     layout: str = "shuffle"
     # Search-grid cell size in metres. The grid always covers 1 km around the LKP.
-    cell_m: float = 20.0
+    cell_m: float = DEFAULT_CELL_M
 
     def __post_init__(self) -> None:
         if self.test_dir is None:

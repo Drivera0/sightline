@@ -394,3 +394,17 @@ def test_grid_fallback_without_lane_c_also_honours_the_cell_size():
     lanes = Lanes(overrides={"make_grid": None})
     fine = lanes._grid(LatLon(lat=49.37, lon=-122.95), 10.0)
     assert (fine.rows, fine.cols, fine.cell_m) == (100, 100, 10.0)
+
+
+def test_the_pipeline_default_grid_is_5_m_cells():
+    """`run`, single stages, the upload API and the real-GPS build share Context's default."""
+    import inspect
+
+    from sightline.pipeline import __main__ as cli
+    from sightline.pipeline.stages import DEFAULT_CELL_M, Context
+
+    assert DEFAULT_CELL_M == 5.0
+    assert Context().cell_m == DEFAULT_CELL_M
+    assert inspect.signature(cli.run).parameters["cell_m"].default == DEFAULT_CELL_M
+    grid = Lanes()._grid(LatLon(lat=49.37, lon=-122.95), DEFAULT_CELL_M)
+    assert (grid.rows, grid.cols) == (200, 200)
