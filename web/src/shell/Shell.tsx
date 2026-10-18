@@ -6,6 +6,7 @@ import { HeatLayer } from "../map/heat/HeatLayer";
 import { PanelSlotContext } from "../map/heat/panelSlot";
 import { MapView } from "../map/MapView";
 import { TryPhoto } from "../detect/TryPhoto";
+import { useModelAvailable } from "../detect/useModelAvailable";
 import { MetricsView } from "../metrics/MetricsView";
 import { prefersReducedMotion } from "../metrics/motion";
 import { ResultsSummary } from "../metrics/ResultsSummary";
@@ -108,6 +109,8 @@ export function Shell({
   useEffect(() => bindReview(cache.survey.survey_id), [bindReview, cache.survey.survey_id]);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [tryPhoto, setTryPhoto] = useState(false);
+  // "Try your own photo" shows only when this deployment ships the model (one HEAD check).
+  const canTryPhoto = useModelAvailable();
   // Below the Search next map on narrow screens: HeatLayer puts its panels here (panelSlot.ts).
   const [searchPanelSlot, setSearchPanelSlot] = useState<HTMLDivElement | null>(null);
   const loadedDir = useCache((s) => s.dir);
@@ -234,6 +237,7 @@ export function Shell({
             <span className="hidden sm:inline">
               {manifest.n_frames} frames · {manifest.survey_id}
             </span>
+            {canTryPhoto && (
             <button
               type="button"
               onClick={() => setTryPhoto(true)}
@@ -252,6 +256,7 @@ export function Shell({
               </svg>
               Try your own photo
             </button>
+            )}
             <button
               type="button"
               onClick={() => setShowShortcuts(true)}
@@ -263,7 +268,7 @@ export function Shell({
         </header>
 
         <main key={step} className="sl-step flex flex-1 flex-col gap-3 lg:min-h-0" aria-label={stepInfo.label}>
-          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onTour={startTour} onTryPhoto={() => setTryPhoto(true)} />}
+          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onTour={startTour} onTryPhoto={canTryPhoto ? () => setTryPhoto(true) : undefined} />}
 
           {step === "rank" && <RankReveal cache={cache} dir={dir} onStart={() => setStep("review")} />}
 
