@@ -217,9 +217,21 @@ export function distanceM(lat1: number, lon1: number, lat2: number, lon2: number
  * just the cells where `only[idx] === 1` are considered.
  */
 export function topCellIndices(p: Float64Array, n: number, only?: Uint8Array): number[] {
-  const idx = Array.from(p.keys()).filter((i) => only === undefined || only[i] === 1);
-  idx.sort((a, b) => (p[b] as number) - (p[a] as number) || a - b);
-  return idx.slice(0, n);
+  // One pass keeping the best n in order (n is small), instead of sorting every cell: the same
+  // result, run on every replay commit over 40,000 cells.
+  const top: number[] = [];
+  if (n <= 0) return top;
+  for (let i = 0; i < p.length; i++) {
+    if (only !== undefined && only[i] !== 1) continue;
+    const v = p[i] as number;
+    // Scanning in index order, a tie never displaces an earlier (lower) index.
+    if (top.length === n && !(v > (p[top[n - 1] as number] as number))) continue;
+    let at = top.length;
+    while (at > 0 && v > (p[top[at - 1] as number] as number)) at--;
+    top.splice(at, 0, i);
+    if (top.length > n) top.pop();
+  }
+  return top;
 }
 
 /** "dense forest" (canopy ≥ 0.5), "open" (< 0.5) or "not photographed" (null). */
@@ -238,10 +250,11 @@ export interface Shares {
 export function probabilityShares(state: MapState, covered: Uint8Array): Shares {
   let surveyed = 0;
   let rest = 0;
-  state.p.forEach((v, i) => {
-    if (covered[i] === 1) surveyed += v;
-    else rest += v;
-  });
+  const p = state.p;
+  for (let i = 0; i < p.length; i++) {
+    if (covered[i] === 1) surveyed += p[i] as number;
+    else rest += p[i] as number;
+  }
   const total = surveyed + rest + state.outside;
   if (!(total > 0)) return { surveyed: 0, restOfGrid: 0, outside: 0 };
   return { surveyed: surveyed / total, restOfGrid: rest / total, outside: state.outside / total };

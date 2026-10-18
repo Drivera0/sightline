@@ -18,7 +18,9 @@ export function candidateMask(cellCount: number, sightings: readonly CandidateSh
 
 /** `mask` with the candidate cells cleared (they are drawn as sightings, not as awaiting review). */
 export function withoutCandidates(mask: Uint8Array, candidate: Uint8Array): Uint8Array {
-  return Uint8Array.from(mask, (v, i) => (v === 1 && candidate[i] !== 1 ? 1 : 0));
+  const out = new Uint8Array(mask.length);
+  for (let i = 0; i < mask.length; i++) if (mask[i] === 1 && candidate[i] !== 1) out[i] = 1;
+  return out;
 }
 
 /** A share as a percentage: whole numbers from 10 %, else two significant digits ("0.021%"). */

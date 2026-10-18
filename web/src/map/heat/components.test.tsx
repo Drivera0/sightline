@@ -122,17 +122,35 @@ describe("StepSlider", () => {
     expect(stepText(212, 500)).toBe("After frame 212 of 500");
   });
 
-  it("shows the text and moves with the range input", () => {
-    const onChange = vi.fn();
-    render(<StepSlider value={212} max={500} onChange={onChange} />);
+  it("shows the text and moves with the range input, in whole frames", () => {
+    const onScrub = vi.fn();
+    render(<StepSlider value={212} max={500} onScrub={onScrub} />);
     expect(screen.getByText("After frame 212 of 500")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("slider"), { target: { value: "13" } });
-    expect(onChange).toHaveBeenCalledWith(13);
+    expect(onScrub).toHaveBeenCalledWith(13);
     expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
   });
 
+  it("is only the controls: play, pause and skip call back; the clock moves the thumb while playing", () => {
+    const onTogglePlay = vi.fn();
+    const onSkip = vi.fn();
+    const { rerender } = render(<StepSlider value={40} max={500} onScrub={vi.fn()} onTogglePlay={onTogglePlay} onSkip={onSkip} />);
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(onTogglePlay).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("slider")).toHaveAttribute("step", "1");
+    rerender(<StepSlider value={40} max={500} playing onScrub={vi.fn()} onTogglePlay={onTogglePlay} onSkip={onSkip} />);
+    // Fractional while playing (the thumb glides), and the step text is not announced every commit.
+    expect(screen.getByRole("slider")).toHaveAttribute("step", "any");
+    expect(screen.getByText("After frame 40 of 500")).toHaveAttribute("aria-live", "off");
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip to the end of the flight" }));
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    rerender(<StepSlider value={500} max={500} onScrub={vi.fn()} onTogglePlay={onTogglePlay} onSkip={onSkip} />);
+    expect(screen.getByRole("button", { name: "Skip to the end of the flight" })).toBeDisabled();
+  });
+
   it("is hidden when there are no steps", () => {
-    const { container } = render(<StepSlider value={0} max={0} onChange={() => undefined} />);
+    const { container } = render(<StepSlider value={0} max={0} onScrub={() => undefined} />);
     expect(container).toBeEmptyDOMElement();
   });
 });
