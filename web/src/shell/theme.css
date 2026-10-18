@@ -61,7 +61,10 @@ body,
 
 body {
   margin: 0;
-  background: var(--bg);
+  background:
+    radial-gradient(1200px 500px at 50% -220px, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font);
   font-size: 15px;
@@ -129,9 +132,43 @@ body {
 .sl-glow { animation: sl-glow 1400ms ease-in-out both; }
 @keyframes sl-blink { 50% { opacity: 0.35; } }
 .sl-blink { animation: sl-blink 1800ms ease-in-out infinite; }
+/* A box settles onto its target, then its tag fades in. */
+@keyframes sl-box {
+  from { opacity: 0; transform: scale(1.35); }
+  to { opacity: 1; transform: none; }
+}
+.sl-box { animation: sl-box 600ms cubic-bezier(0.2, 0.7, 0.2, 1) 300ms both; }
+@keyframes sl-tag {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.sl-tag { animation: sl-tag 350ms ease-out 750ms both; }
 @media (prefers-reduced-motion: reduce) {
-  .sl-scan, .sl-xfade, .sl-draw, .sl-glow, .sl-blink { animation: none; }
+  .sl-scan, .sl-xfade, .sl-draw, .sl-glow, .sl-blink, .sl-box, .sl-tag { animation: none; }
   .sl-draw { stroke-dasharray: none; }
+}
+
+/* Bars grow from the left once (results). */
+@keyframes sl-grow { from { transform: scaleX(0); } to { transform: none; } }
+.sl-grow { transform-origin: left center; animation: sl-grow 1200ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-grow { animation: none; }
+}
+
+/* Step change: the new screen rises in slightly. */
+@keyframes sl-step {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.sl-step { animation: sl-step 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+/* Survey mosaic: a very slow drift, so the hero is alive without anything flashing. */
+@keyframes sl-drift {
+  from { transform: scale(1.04) translate3d(0, 0, 0); }
+  to { transform: scale(1.1) translate3d(-2%, -3%, 0); }
+}
+.sl-drift { animation: sl-drift 40s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-step, .sl-drift { animation: none; }
 }
 
 /* Range slider: a thin track filled up to the thumb (--sl-range-fill), and a round white thumb. */
