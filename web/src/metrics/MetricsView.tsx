@@ -14,6 +14,7 @@ import {
   uniqueMinIndex,
 } from "./format";
 import { useCountUp } from "./motion";
+import { AIR_CITATION, AIR_ROWS, AIR_TUNING_NOTE } from "./publishedSota";
 import { randomOrderBaseline } from "./randomOrder";
 
 /**
@@ -153,6 +154,54 @@ function MetricsBody({ m }: { m: Metrics }) {
         </div>
         <Source>
           Ours: {detectorSource}. Human: {human.source}.
+        </Source>
+      </Panel>
+
+      {/* The published state of the art, paired scheme by scheme. */}
+      <Panel className={RIM}>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <Label>Against the published state of the art</Label>
+          <span className="text-small text-text-3">same HERIDAL test set, scored the same way per pair</span>
+        </div>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[28rem] text-body" aria-label="State of the art">
+            <thead>
+              <tr className="text-left text-small text-text-3">
+                <th className="py-1 font-normal">Detector · scoring</th>
+                <th className="py-1 text-right font-normal">Precision</th>
+                <th className="py-1 text-right font-normal">Recall</th>
+                <th className="py-1 text-right font-normal">AP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(["voc", "sar"] as const).flatMap((scheme) => {
+                const air = AIR_ROWS.find((r) => r.scheme === scheme)!;
+                const ours = scheme === "voc" ? detector.voc : detector.sar;
+                const oursAp = scheme === "voc" ? detector.voc.ap50 : detector.sar.ap;
+                const schemeLabel = scheme === "voc" ? "VOC, IoU 0.5" : "SAR-APD (loose matching)";
+                return [
+                  <Row
+                    key={`ours-${scheme}`}
+                    label={<>Sightline <span className="text-small text-text-3">· {schemeLabel}</span></>}
+                    cells={[pct(ours.precision, 1), pct(ours.recall, 1), pct(oursAp, 1)]}
+                    source={`${detectorSource}; ${scheme === "voc" ? "VOC matching at IoU 0.5 (metrics.detector.voc)" : "SAR-APD matching from the AIR paper (metrics.detector.sar)"}`}
+                    highlight
+                  />,
+                  <Row
+                    key={`air-${scheme}`}
+                    label={<>{air.name} <span className="text-small text-text-3">· {scheme === "voc" ? "VOC2012" : "SAR-APD"}</span></>}
+                    cells={[pct(air.precision, 1), pct(air.recall, 1), pct(air.ap, 1)]}
+                    source={`${AIR_CITATION}, ${scheme === "voc" ? "VOC2012 evaluation" : "SAR-APD evaluation"} (arXiv)`}
+                  />,
+                ];
+              })}
+            </tbody>
+          </table>
+        </div>
+        <Source>
+          AIR: {AIR_CITATION}, the same paper as the human baseline. Each pair uses the same scoring scheme, but AIR&apos;s
+          numbers come from its own evaluation code and ours from our reimplementation, and AIR with MOB merges boxes its
+          own way. {AIR_TUNING_NOTE}
         </Source>
       </Panel>
 
