@@ -2,7 +2,7 @@
 
     python scripts/tile_dataset.py [--src data/heridal/yolo_full] [--out data/heridal/yolo_tiles]
                                    [--tile 1024] [--overlap 0.2] [--empty-frac 0.25] [--seed 7]
-                                   [--workers N] [--quality 95]
+                                   [--workers N] [--quality 95] [--no-mask-partial]
 
 Output (docs/LANE_A_ML.md §6.1):
 
@@ -41,11 +41,13 @@ def tile_one(
     empty_frac: float,
     seed: int,
     quality: int,
+    mask_partial: bool = True,
 ) -> dict[str, int]:
     """Tile one image; returns counts. Runs in a worker process."""
+    import numpy as np
     from PIL import Image
 
-    from sightline.ml.tiling import tiles_for_image
+    from sightline.ml.tiling import apply_masks, masked_regions_in_tile, tiles_for_image
     from sightline.ml.voc import read_yolo_labels, yolo_line
 
     with Image.open(image_path) as im:
@@ -55,10 +57,14 @@ def tile_one(
         chosen = tiles_for_image(
             width, height, boxes, image_path.stem, tile_px, overlap, empty_frac, seed
         )
-        n_boxes = 0
+        n_boxes = n_masked = 0
         for tile, tile_boxes in chosen:
             name = tile.name(image_path.stem)
             crop = im.crop((tile.x0, tile.y0, tile.x1, tile.y1))
+            masks = masked_regions_in_tile(boxes, tile) if mask_partial else []
+            if masks:
+                crop = Image.fromarray(apply_masks(np.asarray(crop), masks, tile_boxes))
+                n_masked += len(masks)
             crop.save(out_images / f"{name}.jpg", "JPEG", quality=quality)
             lines = [yolo_line(b, tile.width_px, tile.height_px) for b in tile_boxes]
             (out_labels / f"{name}.txt").write_text(
@@ -73,6 +79,7 @@ def tile_one(
         "positive_tiles": n_pos,
         "empty_tiles": len(chosen) - n_pos,
         "tile_boxes": n_boxes,
+        "masked_partial_people": n_masked,
     }
 
 
@@ -103,6 +110,7 @@ def tile_split(name: str, src: Path, out: Path, args: argparse.Namespace) -> dic
                 args.empty_frac,
                 args.seed,
                 args.quality,
+                args.mask_partial,
             )
             for img in images
         ]
@@ -147,6 +155,13 @@ def main(argv: list[str] | None = None) -> int:
         action="store_false",
         help="also tile photos whose annotation is empty (off by default; see docstring)",
     )
+    ap.add_argument(
+        "--no-mask-partial",
+        dest="mask_partial",
+        action="store_false",
+        help="leave people under 50%% inside a tile visible but unlabelled (how weights-v2 / run 2 "
+        "tiles were made); by default they are blacked out",
+    )
     args = ap.parse_args(argv)
 
     for name in SPLITS:
@@ -166,6 +181,7 @@ def main(argv: list[str] | None = None) -> int:
         "seed": args.seed,
         "jpeg_quality": args.quality,
         "skip_unlabelled": args.skip_unlabelled,
+        "mask_partial": args.mask_partial,
         "splits": {name: tile_split(name, args.src, args.out, args) for name in SPLITS},
     }
     report["seconds"] = round(time.time() - t0, 1)
