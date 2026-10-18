@@ -2,7 +2,7 @@
 
     python scripts/evaluate_model.py --weights data/runs/tiles_s/weights/best.pt \
         [--hn-weights data/runs/tiles_s_hn/weights/best.pt] [--stock yolo11s.pt] \
-        [--model-name yolo11s-heridal-tiled] [--out data/work/detect/detector_metrics.json]
+        [--model-name yolo11s-heridal-tiled] [--final auto|tiled|hn]         [--out data/work/detect/detector_metrics.json]
 
 For every ablation row the threshold is chosen on **val** by maximising F2 with that row's own
 inference mode, then precision/recall/AP50 are measured on the full **test** set. The
@@ -37,6 +37,13 @@ def main(argv: list[str] | None = None) -> int:
         "--stock", type=Path, default=ROOT / "data/weights/yolo11s.pt", help="COCO weights"
     )
     ap.add_argument("--model-name", default=None)
+    ap.add_argument(
+        "--final",
+        choices=["auto", "tiled", "hn"],
+        default="auto",
+        help="row reported as the detector: auto = hard negatives if given, else fine-tuned + tiling "
+        "(weights-v2 measured the hard-negative row but kept fine-tuned + tiling)",
+    )
     ap.add_argument("--data-root", type=Path, default=ROOT / "data/heridal/yolo_full")
     ap.add_argument("--out", type=Path, default=ROOT / "data/work/detect/detector_metrics.json")
     ap.add_argument("--device", default="auto", help="auto = cuda, then mps, then cpu")
@@ -94,10 +101,11 @@ def main(argv: list[str] | None = None) -> int:
             f"SAR P={sar.precision:.3f} R={sar.recall:.3f} {spi:.2f}s/img ({time.time() - t0:.0f}s)"
         )
 
-    final_name = ABLATION_NAMES[3] if hn else ABLATION_NAMES[2]
+    use_hn = hn is not None if args.final == "auto" else args.final == "hn"
+    final_name = ABLATION_NAMES[3] if use_hn else ABLATION_NAMES[2]
     final = results[final_name]
     final_voc = next(r.voc for r in rows if r.name == final_name)
-    model_name = args.model_name or (args.hn_weights or args.weights).parent.parent.name
+    model_name = args.model_name or (args.hn_weights if use_hn else args.weights).parent.parent.name
     detector = DetectorMetrics(
         model=model_name,
         test_images=len(test),
