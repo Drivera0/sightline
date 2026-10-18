@@ -171,6 +171,12 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
                 <span>
                   One square per prediction location, pixelated for scale.{" "}
                 </span>
+                {!cache.survey.simulated_path && (
+                  <span className="text-text-2">
+                    These photos were scored at full size in {spec.imgsz} px tiles, so the real cells are
+                    finer than drawn.
+                  </span>
+                )}
                 {best ? (
                   <span className="text-accent-soft">Orange: cell containing the top box&apos;s centre.</span>
                 ) : (
@@ -348,7 +354,7 @@ function ScoreDistribution({
       {/* The marker's label, kept inside the chart at either end. */}
       <div className="relative h-3.5 font-mono text-[10px] leading-none">
         <span
-          className="absolute whitespace-nowrap text-accent-soft transition-[left,transform,opacity] duration-700 ease-out motion-reduce:transition-none"
+          className={"absolute whitespace-nowrap text-accent-soft transition-[left,transform,opacity] ease-out motion-reduce:transition-none " + (m === undefined ? "duration-150" : "duration-700")}
           style={{ left: `${at}%`, transform: `translateX(-${at}%)`, opacity: m === undefined ? 0 : 1 }}
         >
           this photo {last.current.label}
@@ -382,7 +388,7 @@ function ScoreDistribution({
         <span
           aria-hidden="true"
           data-testid="score-marker"
-          className="absolute -top-1 bottom-0 w-0.5 -translate-x-1/2 rounded-full bg-accent-soft shadow-[0_0_8px_color-mix(in_srgb,var(--accent)_70%,transparent)] transition-[left,opacity] duration-700 ease-out motion-reduce:transition-none"
+          className={"absolute -top-1 bottom-0 w-0.5 -translate-x-1/2 rounded-full bg-accent-soft shadow-[0_0_8px_color-mix(in_srgb,var(--accent)_70%,transparent)] transition-[left,opacity] ease-out motion-reduce:transition-none " + (m === undefined ? "duration-150" : "duration-700")}
           style={{ left: `${at}%`, opacity: m === undefined ? 0 : 1 }}
         />
       </div>
