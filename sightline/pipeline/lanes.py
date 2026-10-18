@@ -12,8 +12,12 @@ accepted in several shapes on purpose (object with attributes, dict, tuple, plai
     lane B   simulate_flight(n_frames: int, seed: int) -> poses [+ lkp, area_name]
              footprint(pose: Pose, width_px: int, height_px: int) -> 4 corners [lon, lat]
              georef_detection(pose: Pose, box_px, width_px: int, height_px: int) -> (lat, lon, radius_m)
-    lane C   build_map(frames: list[MapFrame], lkp: LatLon, recall: float) -> MapFile [+ frame cells]
+    lane C   build_map(frames: list[MapFrame], lkp: LatLon, recall: float, recall_source: str)
+                 -> MapFile [+ frame cells]
              simulate(map_file: MapFile, frame_cells) -> SearchSim
+             ...or lane C's own signatures from docs/LANE_C_SEARCH.md (build_map(grid, lkp, prior,
+             frames, recall, recall_source), simulate(map_file, frame_cells, trials, ...)),
+             recognised by parameter names (see docs/LANE_INTERFACES.md).
     lane A   run_survey(frames_dir, weights, out_dir, candidate_threshold, model_name, save_threshold)
              load_split(split) -> list[LabeledImage]            (documented in LANE_A_ML.md)
 """
