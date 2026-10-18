@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { CacheBundle, Detection, Frame } from "../contract";
 import { cacheUrl } from "../lib/cache";
 import { prefersReducedMotion } from "../metrics/motion";
-import { reviewItems, type ReviewItem } from "../review/items";
+import { queueCounts, reviewItems, type ReviewItem } from "../review/items";
 import { Badge, Label } from "./components";
 import { ModelPanel, ScoreStrip } from "./ModelPanel";
 import { framesInFlightOrder, scanStops, stopMs } from "./scan";
@@ -171,6 +171,8 @@ export function RankReveal({
 }) {
   const { survey, metrics } = cache;
   const items = useMemo(() => reviewItems(cache), [cache]);
+  // A photo can hold two boxes: Review counts boxes, so say both here too.
+  const counts = queueCounts(items);
   const stops = useMemo(() => scanStops(cache), [cache]);
   const nFrames = survey.frames.length;
   const inFlightOrder = useMemo(() => framesInFlightOrder(cache), [cache]);
@@ -321,7 +323,10 @@ export function RankReveal({
                 {firstHit === 1 ? "Person in the first photo you see" : `First person at photo ${ordinal(firstHit)}`}
               </h2>
               <p className="text-body text-text-2" title={source}>
-                {flaggedPositions.size} of {nFrames} photos flagged for review. In random order you would expect to
+                <span data-testid="rank-counts">
+                  {counts.photos} of {nFrames} photos flagged for review · {counts.boxes} {counts.boxes === 1 ? "box" : "boxes"}
+                </span>
+                . In random order you would expect to
                 look at about{" "}
                 <span className="font-mono text-text">{Math.round(ranking.expected_first_hit_random_order)}</span>{" "}
                 before the first person.
