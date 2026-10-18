@@ -37,6 +37,11 @@ describe("scanStops", () => {
     expect(stops.every((s) => s.hits.length === 0)).toBe(true);
   });
 
+  it("stops on the most confident hits when there are more than maxHits", () => {
+    const stops = scanStops(cache(10, { 2: [0.4], 5: [0.9], 8: [0.6] }), 0, 2);
+    expect(stops.map((s) => s.frame.id)).toEqual(["f5", "f8"]);
+  });
+
   it("never asks for more clear frames than exist", () => {
     expect(scanStops(cache(3, { 2: [0.8] }), 30)).toHaveLength(3);
   });
