@@ -139,6 +139,57 @@ export function SurveyPicker({
   );
 }
 
+const GITHUB_URL = "https://github.com/Drivera0/sightline";
+
+/** Back and the one primary action, bottom-right of the step's content. */
+function StepNav({ onBack, onNext, next }: { onBack: () => void; onNext: () => void; next: string }) {
+  return (
+    <nav aria-label="Step navigation" className="flex shrink-0 items-center justify-end gap-2">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex h-10 items-center rounded-full px-4 text-small text-text-2 transition-colors hover:bg-surface-strong hover:text-text"
+      >
+        Back
+      </button>
+      <button
+        type="button"
+        onClick={onNext}
+        className="inline-flex h-10 items-center gap-2 rounded-full bg-accent px-5 text-small font-medium text-bg transition-[filter] hover:brightness-110"
+      >
+        {next} <span aria-hidden="true">→</span>
+      </button>
+    </nav>
+  );
+}
+
+/** The end of the story: what to do next. */
+function ClosingCard({ onTour, onRealGps }: { onTour: () => void; onRealGps?: () => void }) {
+  const action =
+    "inline-flex h-10 items-center gap-2 rounded-full border border-border px-4 text-small text-text transition-colors hover:border-text-2 hover:bg-surface-strong";
+  return (
+    <section aria-label="What next" className="mt-4 flex flex-col gap-4 rounded-lg border border-border bg-surface p-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-title font-medium">That&rsquo;s the whole search.</h2>
+        <p className="text-small text-text-2">Watch it again, try the survey with real GPS positions, or read the code.</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={onTour} className={action}>
+          Replay the tour
+        </button>
+        {onRealGps && (
+          <button type="button" onClick={onRealGps} className={action}>
+            Try the real-GPS survey
+          </button>
+        )}
+        <a href={GITHUB_URL} target="_blank" rel="noreferrer" className={action}>
+          Code on GitHub <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </section>
+  );
+}
+
 /** A plain step header: one title and one short line, no box. */
 function StepHeader({ title, subtitle, info }: { title: string; subtitle: string; info?: ReactNode }) {
   return (
@@ -277,9 +328,16 @@ export function Shell({
   ];
   const stepInfo = STEPS.find((s) => s.id === step) ?? STEPS[0]!;
   const stepIndex = STEPS.findIndex((s) => s.id === step);
-  const isFirst = step === STEPS[0]!.id;
-  const isLast = step === STEPS.at(-1)!.id;
-  const nextLabel = STEPS.find((s) => s.id === nextStep(step))?.label;
+  const credit =
+    "Imagery: HERIDAL dataset (Božić-Štulić, Marušić & Gotovac, 2019), VOC-format copy by Pyrrö (2021), CC BY 3.0. " +
+    (cache.survey.simulated_path ? "Real photos on a simulated flight path." : "Real photos at recorded EXIF positions.");
+  const realGps =
+    cacheDir && cacheDir !== "real-gps" && onCacheDirChange && surveyOptions.some((o) => o.dir === "real-gps")
+      ? () => {
+          setStep("survey");
+          onCacheDirChange("real-gps");
+        }
+      : undefined;
 
   // Review: the live heat under the pins, fainter, so each answer visibly changes the map.
   // Search next: the full heat with sectors, replay and the side panel.
@@ -369,6 +427,7 @@ export function Shell({
                 </ScreenBoundary>
                 {map("review")}
               </div>
+              <StepNav onBack={() => setStep(previousStep(step))} onNext={() => setStep(nextStep(step))} next="See where to search" />
             </>
           )}
 
@@ -390,6 +449,7 @@ export function Shell({
                 <div className="flex-1 lg:min-h-0">{map("search")}</div>
               </PanelSlotContext.Provider>
               <div ref={setSearchPanelSlot} className="lg:hidden" data-testid="search-panel-slot" />
+              <StepNav onBack={() => setStep(previousStep(step))} onNext={() => setStep(nextStep(step))} next="See results" />
             </>
           )}
 
@@ -410,38 +470,15 @@ export function Shell({
                   <MetricsView />
                 </ScreenBoundary>
               </div>
+              <ClosingCard onTour={startTour} onRealGps={realGps} />
             </div>
           )}
         </main>
 
-        <footer className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-small text-text-3">
-            Imagery: HERIDAL dataset (Božić-Štulić, Marušić &amp; Gotovac, 2019), VOC-format copy by
-            Pyrrö (2021), CC BY 3.0.{" "}
-            {survey.simulated_path
-              ? "Real photos on a simulated flight path."
-              : "Real photos at recorded EXIF positions."}
+        <footer>
+          <p className="text-[11px] leading-4 text-text-3 sm:truncate" title={credit}>
+            {credit}
           </p>
-          <div className="flex items-center gap-2">
-            <Label className="mr-2 hidden md:inline">{stepInfo.hint}</Label>
-            <button
-              type="button"
-              disabled={isFirst}
-              onClick={() => setStep(previousStep(step))}
-              className="rounded-full border border-border px-4 py-1.5 text-small text-text-2 hover:text-text disabled:opacity-30"
-            >
-              Back
-            </button>
-            {!isLast && (
-              <button
-                type="button"
-                onClick={() => setStep(nextStep(step))}
-                className="rounded-full border border-accent px-4 py-1.5 text-small text-accent-soft hover:bg-accent hover:text-bg"
-              >
-                Next: {nextLabel}
-              </button>
-            )}
-          </div>
         </footer>
 
         {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} onTour={startTour} />}

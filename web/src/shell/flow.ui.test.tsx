@@ -72,6 +72,44 @@ describe("guided flow", () => {
     expect(screen.getByTestId("mount-metrics")).toBeInTheDocument();
   });
 
+  it("gives Review and Search next one primary action that says what happens", async () => {
+    window.location.hash = "#review";
+    render(<Shell cache={cache} />);
+    const nav = () => screen.getByRole("navigation", { name: "Step navigation" });
+    await userEvent.click(within(nav()).getByRole("button", { name: /See where to search/ }));
+    expect(current()).toHaveTextContent("Search next");
+    await userEvent.click(within(nav()).getByRole("button", { name: /See results/ }));
+    expect(current()).toHaveTextContent("Results");
+    expect(screen.queryByRole("navigation", { name: "Step navigation" })).toBeNull();
+  });
+
+  it("ends Results with a closing card: replay the tour, the real-GPS survey and the code", async () => {
+    window.location.hash = "#results";
+    const onCacheDirChange = vi.fn();
+    render(
+      <Shell
+        cache={cache}
+        cacheDir="demo"
+        onCacheDirChange={onCacheDirChange}
+        surveyOptions={[
+          { dir: "demo", label: "Mount Seymour simulation" },
+          { dir: "real-gps", label: "Real EXIF positions" },
+        ]}
+      />,
+    );
+    const card = screen.getByRole("region", { name: "What next" });
+    expect(within(card).getByRole("link", { name: /GitHub/ })).toHaveAttribute("href", "https://github.com/Drivera0/sightline");
+    await userEvent.click(within(card).getByRole("button", { name: "Try the real-GPS survey" }));
+    expect(onCacheDirChange).toHaveBeenCalledWith("real-gps");
+  });
+
+  it("replays the tour from the closing card", async () => {
+    window.location.hash = "#results";
+    render(<Shell cache={cache} />);
+    await userEvent.click(screen.getByRole("button", { name: "Replay the tour" }));
+    expect(screen.getByRole("dialog", { name: "Guided tour" })).toBeInTheDocument();
+  });
+
   it("loads saved review answers on the results step after a reload, without visiting Review", () => {
     useReview.setState({ surveyId: null, history: [], answers: {} });
     localStorage.setItem(
