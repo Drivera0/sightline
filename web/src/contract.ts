@@ -16,7 +16,7 @@ export interface CacheBundle {
   metrics: Metrics;
 }
 export interface Manifest {
-  contract_version: "1.0";
+  contract_version: "1.0" | "1.1";
   survey_id: string;
   generated_at: string;
   git_sha: string | null;
@@ -43,7 +43,7 @@ export interface StageResult {
   seconds: number;
 }
 export interface Survey {
-  contract_version: "1.0";
+  contract_version: "1.0" | "1.1";
   survey_id: string;
   simulated_path: boolean;
   area: Area;
@@ -87,7 +87,7 @@ export interface Pose {
   gsd_m: number;
 }
 export interface Detections {
-  contract_version: "1.0";
+  contract_version: "1.0" | "1.1";
   model: string;
   save_threshold: number;
   candidate_threshold: number;
@@ -113,7 +113,7 @@ export interface Detection {
   radius_m: number;
 }
 export interface MapFile {
-  contract_version: "1.0";
+  contract_version: "1.0" | "1.1";
   grid: Grid;
   lkp: LatLon;
   params: Params;
@@ -134,6 +134,7 @@ export interface Params {
   recall_source: string;
   pod_cap: number;
   review_pod: number;
+  prior_source?: string | null;
 }
 /**
  * Per-cell probabilities plus the mass outside the grid; used for `prior` and `final`.
@@ -154,7 +155,7 @@ export interface TopCell {
   canopy: number | null;
 }
 export interface Metrics {
-  contract_version: "1.0";
+  contract_version: "1.0" | "1.1";
   detector: DetectorMetrics;
   baseline_human: BaselineHuman;
   ablations: Ablation[];
@@ -214,9 +215,17 @@ export interface SearchSim {
   seed: number;
   found_by_drone_rate: number;
   methods: SearchMethod[];
+  in_survey?: InSurvey | null;
 }
 export interface SearchMethod {
   name: string;
   median_cells: number;
   p90_cells: number;
+}
+/**
+ * 1.1: the same statistics over only the not-found trials whose true cell was photographed.
+ */
+export interface InSurvey {
+  trials: number;
+  methods: SearchMethod[];
 }

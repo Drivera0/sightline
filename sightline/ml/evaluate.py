@@ -257,15 +257,41 @@ def _round(obj: object, nd: int = 3) -> object:
     return obj
 
 
+def is_placeholder(voc: VocScores) -> bool:
+    """All three scores exactly zero: what a stand-in row looks like, not a measurement."""
+    return voc.precision == 0 and voc.recall == 0 and voc.ap50 == 0
+
+
+def check_ablation_rows(ablations: Sequence[Ablation]) -> None:
+    """Raise if a row is unknown, repeated, out of canonical order, or an all-zero stand-in."""
+    names = [a.name for a in ablations]
+    unknown = [n for n in names if n not in ABLATION_NAMES]
+    if unknown:
+        raise ValueError(f"unknown ablation rows {unknown}; allowed: {list(ABLATION_NAMES)}")
+    if len(set(names)) != len(names) or names != [n for n in ABLATION_NAMES if n in names]:
+        raise ValueError(f"ablation rows must be unique and in the order {list(ABLATION_NAMES)}")
+    zeros = [a.name for a in ablations if is_placeholder(a.voc)]
+    if zeros:
+        raise ValueError(
+            f"ablation rows {zeros} are all zeros: a variant that was not run must be omitted, "
+            "not written as a placeholder"
+        )
+
+
 def write_detector_metrics(
     detector: DetectorMetrics,
     ablations: list[Ablation],
     out: Path = Path("data/work/detect/detector_metrics.json"),
 ) -> None:
     """``detector_metrics.json``: the contract ``DetectorMetrics`` block plus the ablation rows.
-    D's ``map`` stage reads ``detector.recall``; the ``metrics`` stage copies the rest."""
-    if len(ablations) != len(ABLATION_NAMES) or [a.name for a in ablations] != list(ABLATION_NAMES):
-        raise ValueError(f"ablation rows must be exactly {list(ABLATION_NAMES)} in order")
+    D's ``map`` stage reads ``detector.recall``; the ``metrics`` stage copies the rest.
+
+    Only rows that were actually measured go in. A variant not run yet is **omitted**, never
+    written as zeros: contract §9 has no null for these fields, and an all-zero row would read as
+    a real (terrible) result on the metrics screen. Rows keep the canonical order of
+    ``ABLATION_NAMES``; the metrics screen shows any missing name as "Not yet measured".
+    """
+    check_ablation_rows(ablations)
     payload = {  # exactly lane D's DetectorMetricsFile: no extra keys
         "detector": _round(detector.model_dump()),
         "ablations": _round([a.model_dump() for a in ablations]),

@@ -14,7 +14,11 @@ from typing import Annotated, Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-CONTRACT_VERSION = "1.0"
+CONTRACT_VERSION = "1.1"
+# What readers accept. 1.1 only adds optional fields (map.params.prior_source,
+# metrics.search_sim.in_survey), so a 1.0 file is a valid 1.1 file with those fields null.
+# Everything the pipeline writes is stamped CONTRACT_VERSION.
+ContractVersion = Literal["1.0", "1.1"]
 
 Probability = Annotated[float, Field(ge=0.0, le=1.0)]
 FRAME_ID = r"^f\d{4}$"
@@ -78,7 +82,7 @@ class Area(_Model):
 
 
 class Survey(_Model):
-    contract_version: Literal["1.0"]
+    contract_version: ContractVersion
     survey_id: str
     simulated_path: bool
     area: Area
@@ -115,7 +119,7 @@ class Detection(_Model):
 
 
 class Detections(_Model):
-    contract_version: Literal["1.0"]
+    contract_version: ContractVersion
     model: str
     save_threshold: Probability
     candidate_threshold: Probability
@@ -153,6 +157,9 @@ class Params(_Model):
     recall_source: str
     pod_cap: Probability
     review_pod: Probability
+    # 1.1: "placeholder" when the pipeline used the placeholder prior, otherwise the citation of
+    # the lost-person statistics the prior came from. null in 1.0 files.
+    prior_source: str | None = None
 
 
 class Distribution(_Model):
@@ -176,7 +183,7 @@ class TopCell(_Model):
 
 
 class MapFile(_Model):
-    contract_version: Literal["1.0"]
+    contract_version: ContractVersion
     grid: Grid
     lkp: LatLon
     params: Params
@@ -299,16 +306,33 @@ class SearchMethod(_Model):
     p90_cells: float = Field(ge=0)
 
 
+class InSurvey(_Model):
+    """1.1: the same statistics over only the not-found trials whose true cell was photographed."""
+
+    trials: int = Field(ge=0)
+    methods: list[SearchMethod]
+
+
 class SearchSim(_Model):
     simulated: bool
     trials: int = Field(ge=0)
     seed: int
     found_by_drone_rate: Probability
     methods: list[SearchMethod]
+    in_survey: InSurvey | None = None  # 1.1; null until lane C's simulate fills it
+
+    @model_validator(mode="after")
+    def _in_survey_matches(self) -> SearchSim:
+        if self.in_survey is not None:
+            if [m.name for m in self.in_survey.methods] != [m.name for m in self.methods]:
+                raise ValueError("in_survey.methods must have the same names, in order, as methods")
+            if self.in_survey.trials > self.trials:
+                raise ValueError("in_survey.trials cannot exceed trials")
+        return self
 
 
 class Metrics(_Model):
-    contract_version: Literal["1.0"]
+    contract_version: ContractVersion
     detector: DetectorMetrics
     baseline_human: BaselineHuman
     ablations: list[Ablation]
@@ -338,7 +362,7 @@ class Stages(_Model):
 
 
 class Manifest(_Model):
-    contract_version: Literal["1.0"]
+    contract_version: ContractVersion
     survey_id: str
     generated_at: AwareDatetime
     git_sha: str | None

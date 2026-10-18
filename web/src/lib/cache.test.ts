@@ -38,7 +38,7 @@ describe("loadCache", () => {
   });
 
   it("reports a folder that does not exist", async () => {
-    await expect(loadCache("demo", diskFetch())).rejects.toBeInstanceOf(CacheLoadError);
+    await expect(loadCache("missing-cache", diskFetch())).rejects.toBeInstanceOf(CacheLoadError);
   });
 
   it("rejects a file that is not JSON", async () => {
@@ -84,7 +84,7 @@ describe("useCache", () => {
   });
 
   it("goes to error with a readable message", async () => {
-    await useCache.getState().load("demo", diskFetch());
+    await useCache.getState().load("missing-cache", diskFetch());
 
     const state = useCache.getState();
     expect(state.status).toBe("error");
@@ -96,7 +96,7 @@ describe("useCache", () => {
     const slow: typeof fetch = (input, init) =>
       new Promise((resolve) => setTimeout(() => resolve(diskFetch()(input, init)), 30));
     const first = useCache.getState().load("sample", slow);
-    const second = useCache.getState().load("demo", diskFetch());
+    const second = useCache.getState().load("missing-cache", diskFetch());
 
     await Promise.all([first, second]);
 
