@@ -200,13 +200,17 @@ describe("ReviewView moving and selecting", () => {
     });
   });
 
-  it("a person answer selects that detection and the move to the next one leaves it selected", async () => {
+  it("the map follows the queue: the first candidate is selected, and each answer selects the next", async () => {
     show();
+    expect(useSelection.getState().selectedDetectionId).toBe("f0005-d01");
 
     await userEvent.keyboard("p");
-
-    expect(useSelection.getState().selectedDetectionId).toBe("f0005-d01");
     expect(current()).toHaveTextContent("f0012");
+    expect(useSelection.getState().selectedDetectionId).toBe("f0012-d01");
+
+    await userEvent.keyboard("n");
+    expect(current()).not.toHaveTextContent("f0012");
+    expect(useSelection.getState().selectedDetectionId).not.toBe("f0012-d01");
   });
 
   it("clicking a candidate makes it current and selected", async () => {
