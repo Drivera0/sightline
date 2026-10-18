@@ -4,7 +4,7 @@ import { ResetReview } from "../review/ResetReview";
 import { useReview, type Answer } from "../review/store";
 import { Badge, Label } from "../shell/components";
 import { Sourced } from "../shell/Popover";
-import { ablationDisplayRows, count, duration, IN_USE_ROW, pct, seconds, speedup } from "./format";
+import { ablationDisplayRows, count, deltaPts, duration, IN_USE_ROW, pct, seconds, speedup } from "./format";
 import { useCountUp } from "./motion";
 import { randomOrderBaseline } from "./randomOrder";
 import { ResultsCharts } from "./ResultsCharts";
@@ -100,6 +100,8 @@ export function ResultsSummary({
             format={(v) => pct(v)}
             scoring="SAR-APD"
             scoringPlain="scored like the human study"
+            // The same green "+22 pts better" as the details below: the difference is the point.
+            headline={`${deltaPts(detector.sar.recall, human.recall)} ${detector.sar.recall >= human.recall ? "better" : "worse"}`}
             ours={detector.sar.recall}
             theirs={human.recall}
             oursLabel="Sightline"
@@ -691,6 +693,8 @@ function Card({
 }) {
   const shown = useCountUp(value, 1100);
   const max = Math.max(ours, theirs) || 1;
+  // Green when Sightline beats the comparison, amber when it doesn't (the details use the same pair).
+  const better = lowerIsBetter ? ours < theirs : ours > theirs;
   const labelId = useId();
   return (
     <div
@@ -714,7 +718,7 @@ function Card({
         </Sourced>
         {scoring && <span className="font-mono text-label uppercase tracking-label text-text-2">{scoring}</span>}
         {scoringPlain && <span className="text-label text-text-3">{scoringPlain}</span>}
-        {headline && <span className="text-small font-medium text-text">{headline}</span>}
+        {headline && <span className={"text-small font-medium " + (better ? "text-ok" : "text-warn")}>{headline}</span>}
       </div>
       <div className="flex flex-col gap-1.5">
         <Bar label={oursLabel} value={format(ours)} width={(ours / max) * 100} accent />

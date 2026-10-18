@@ -68,6 +68,26 @@ describe("the three result cards", () => {
     expect(within(search).getByText("30% less")).toBeInTheDocument();
   });
 
+  it("highlight how much better Sightline is in green, like the details below", () => {
+    const m = demo();
+    m.detector.sar.recall = 0.896;
+    m.baseline_human.recall = 0.68;
+    m.detector.seconds_per_image = 0.251;
+    m.baseline_human.seconds_per_image = 33;
+    render(<ResultsSummary metrics={m} cellM={5} />);
+    expect(within(card("People found")).getByText("+22 pts better")).toHaveClass("text-ok");
+    expect(within(card("Time per full photo")).getByText("131× faster")).toHaveClass("text-ok");
+    expect(within(card("Ground to search")).getByText("30% less")).toHaveClass("text-ok");
+  });
+
+  it("say so in amber when Sightline is worse, never in green", () => {
+    const m = demo();
+    m.detector.sar.recall = 0.6;
+    m.baseline_human.recall = 0.68;
+    render(<ResultsSummary metrics={m} cellM={5} />);
+    expect(within(card("People found")).getByText("−8 pts worse")).toHaveClass("text-warn");
+  });
+
   it("fall back to cells when the grid's cell size is unknown", () => {
     render(<ResultsSummary metrics={demo()} />);
     expect(within(card("Ground to search")).getByText("1,213", { selector: ".text-display" })).toBeInTheDocument();
