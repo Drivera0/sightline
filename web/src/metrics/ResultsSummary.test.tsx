@@ -40,7 +40,7 @@ describe("ResultsSummary", () => {
 describe("ResultsSummary in time and in your own answers", () => {
   beforeEach(() => useReview.setState({ history: [], answers: {} }));
 
-  it("turns photos into a person's time at the published pace", () => {
+  it("says the saving in photos and as a share of the survey, never in minutes at 33 s per section", () => {
     const m = structuredClone(cache.metrics);
     m.ranking.n_frames = 500;
     m.ranking.n_positive = 6;
@@ -48,12 +48,15 @@ describe("ResultsSummary in time and in your own answers", () => {
     m.ranking.flight_order.frames_to_all_hits = 336;
     m.baseline_human.seconds_per_image = 33;
     render(<ResultsSummary metrics={m} />);
-    // 7 x 33 s = 3.85 min; 336 x 33 s = 3 h 5 min.
-    const line = screen.getByText(/a person spends on each photo/);
-    expect(line).toHaveTextContent("about 4 min of looking.");
-    // Random order: E[last] = 6 x 501 / 7 = 429.4 photos x 33 s = 3 h 56 min; 10th percentile 342.
-    expect(line).toHaveTextContent("random order takes about 3 h 56 min on average (9 in 10 random orders need at least 342 photos)");
-    expect(line).toHaveTextContent("one layout, not an average) took about 3 h 5 min");
+    const line = screen.getByText(/to reach everyone/);
+    expect(line).toHaveTextContent("That is 1.4% of the 500 photos to reach everyone.");
+    // Random order: E[last] = 6 x 501 / 7 = 429.4; 10th percentile 342.
+    expect(line).toHaveTextContent("A random order needs about 429 on average (9 in 10 random orders need at least 342)");
+    expect(line).toHaveTextContent("one layout, not an average) needed 336");
+    // The survey's photos are sections of full photos; the human time is per full photo.
+    expect(screen.queryByText(/min of looking|3 h 5 min/)).toBeNull();
+    expect(screen.getByText("Time per full photo")).toBeInTheDocument();
+    expect(screen.getByText(/For a whole 4000×3000 photo/)).toBeInTheDocument();
   });
 
   it("races the queue against the expected random order, with its spread, and this flight's order", () => {

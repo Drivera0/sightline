@@ -46,9 +46,10 @@ export function ResultsSummary({
   const rankingSource = `This survey, ${ranking.n_frames} frames, ${ranking.n_positive} with a person (metrics.ranking)`;
   // When every photo has a person there is nothing for the ranking to reorder: say so, skip the race.
   const trivial = ranking.n_positive >= ranking.n_frames;
-  // Photos at the published human pace (Pyrrö et al. 2021): what the ranking saves in a person's time.
-  const pace = human.seconds_per_image;
-  const timeSource = `${rankingSource}; at the published ${seconds(pace)} per photo (${human.source})`;
+  // No minutes here: the survey's photos are 1000×750 sections of 4000×3000 HERIDAL photos, and the
+  // published human time (metrics.baseline_human.seconds_per_image) is per full photo. The saving is
+  // said in photos and as a share of the survey instead.
+  const share = (photosLooked: number) => pct(photosLooked / ranking.n_frames, 1);
   const random = randomOrderBaseline(ranking.n_frames, ranking.n_positive);
   const randomSource = `Expected position of the last of k = ${ranking.n_positive} photos with a person among N = ${ranking.n_frames} in a uniformly random order: k(N+1)/(k+1); spread is the exact 10th-90th percentile (metrics.ranking)`;
 
@@ -71,18 +72,17 @@ export function ResultsSummary({
             <h2 className="max-w-4xl text-[40px] font-semibold leading-[1.05]" title={rankingSource}>
               All {ranking.n_positive} {photos} were in the first {ranked} photos of the queue.
             </h2>
-            <p className="max-w-3xl text-title text-text-2" title={timeSource}>
-              At the {seconds(pace)} a person spends on each photo, that is about{" "}
-              <span className="text-accent-soft">{duration(ranked * pace)}</span> of looking.{" "}
+            <p className="max-w-3xl text-title text-text-2" title={rankingSource}>
+              That is <span className="text-accent-soft">{share(ranked)}</span> of the {count(ranking.n_frames)} photos
+              to reach everyone.{" "}
               {random && (
                 <span title={randomSource}>
-                  Paging through in a random order takes about{" "}
-                  <span className="text-text">{duration(random.expectedAll * pace)}</span> on average (9 in 10 random
-                  orders need at least {count(random.p10All)} photos).{" "}
+                  A random order needs about <span className="text-text">{count(random.expectedAll)}</span> on average
+                  (9 in 10 random orders need at least {count(random.p10All)}).{" "}
                 </span>
               )}
-              This flight in the order it was flown (one layout, not an average) took about{" "}
-              <span className="text-text">{duration(flight * pace)}</span>. The first person is photo{" "}
+              This flight in the order it was flown (one layout, not an average) needed{" "}
+              <span className="text-text">{count(flight)}</span>. The first person is photo{" "}
               {ranking.ranked.frames_to_first_hit} of the queue.
             </p>
           </>
@@ -103,7 +103,7 @@ export function ResultsSummary({
                     all: random.expectedAll,
                     band: [random.p10All, random.p90All] as [number, number],
                     approx: true,
-                    time: duration(random.expectedAll * pace),
+                    time: share(random.expectedAll),
                     tone: "muted" as const,
                     source: randomSource,
                   },
@@ -114,7 +114,7 @@ export function ResultsSummary({
               note: "one layout, as flown",
               first: ranking.flight_order.frames_to_first_hit,
               all: flight,
-              time: duration(flight * pace),
+              time: share(flight),
               tone: "muted",
             },
             {
@@ -122,7 +122,7 @@ export function ResultsSummary({
               note: "this survey",
               first: ranking.ranked.frames_to_first_hit,
               all: ranked,
-              time: duration(ranked * pace),
+              time: share(ranked),
               tone: "accent",
             },
           ]}
@@ -143,7 +143,7 @@ export function ResultsSummary({
           delay={0}
         />
         <Card
-          label="Time per photo"
+          label="Time per full photo"
           value={detector.seconds_per_image}
           format={(v) => seconds(v)}
           headline={speedup(detector.seconds_per_image, human.seconds_per_image)}
@@ -152,7 +152,7 @@ export function ResultsSummary({
           oursLabel="Sightline"
           theirsLabel="Human"
           lowerIsBetter
-          note={`${seconds(human.seconds_per_image)} for a person looking by eye`}
+          note={`For a whole 4000×3000 photo (16 of the survey's sections): ${seconds(human.seconds_per_image)} for a person looking by eye`}
           source={`metrics.detector.seconds_per_image vs ${human.source}`}
           delay={90}
         />
@@ -384,6 +384,7 @@ interface RaceRowData {
   band?: [number, number];
   /** Show "≈" before the count: an expected value, not an observed one. */
   approx?: boolean;
+  /** The count as a share of the survey's photos. */
   time: string;
   tone: "muted" | "accent";
   source?: string;
@@ -445,7 +446,7 @@ function RaceRow({ n, row, delay }: { n: number; row: RaceRowData; delay: number
           {row.approx ? "≈" : ""}
           {Math.round(shown)}
         </span>
-        <span className="text-small text-text-3">&asymp; {row.time}</span>
+        <span className="w-12 text-right text-small text-text-3">{row.time}</span>
       </span>
     </div>
   );

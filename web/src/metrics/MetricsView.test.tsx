@@ -104,8 +104,8 @@ describe("MetricsView", () => {
     expect(within(rows[0]!).getByText("1")).toBeInTheDocument();
     expect(rows[1]).toHaveTextContent("Random order, expected");
     expect(within(rows[1]!).getByText("7")).toBeInTheDocument();
-    // 7 photos at the published 33 s each, in minutes
-    expect(within(rows[1]!).getByText(/^3\.\d min$/)).toBeInTheDocument();
+    // No minutes: the survey's photos are sections of the full photos the human time was measured on.
+    expect(within(table).queryByText(/min$/)).toBeNull();
     // All hits for a random order: k(N + 1) / (k + 1), shown as an expected value.
     const { n_frames: n, n_positive: k } = cache.metrics.ranking;
     expect(within(rows[1]!).getByText(`≈${Math.round((k * (n + 1)) / (k + 1))}`)).toBeInTheDocument();
