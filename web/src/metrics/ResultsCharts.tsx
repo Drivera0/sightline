@@ -211,7 +211,7 @@ interface PrPoint {
   accent?: boolean;
   /** Direct label beside the mark (selective: the points the story is about). */
   label?: string;
-  labelAt?: "left-below" | "left-above" | "right";
+  labelAt?: "left-below" | "left-above" | "right" | "below-leader";
 }
 
 function PrecisionRecallMap({ metrics }: { metrics: Metrics }) {
@@ -230,7 +230,7 @@ function PrecisionRecallMap({ metrics }: { metrics: Metrics }) {
             shape: "dot" as const,
             accent: r.name === IN_USE_ROW,
             label: r.name === IN_USE_ROW ? "Sightline (in use)" : undefined,
-            labelAt: "left-below" as const,
+            labelAt: "below-leader" as const,
           },
         ]
       : [],
@@ -257,7 +257,7 @@ function PrecisionRecallMap({ metrics }: { metrics: Metrics }) {
             shape: "dot",
             accent: true,
             label: "Sightline",
-            labelAt: "left-below",
+            labelAt: "below-leader",
           },
           {
             name: "AIR (Pyrrö et al. 2021)",
@@ -278,8 +278,8 @@ function PrecisionRecallMap({ metrics }: { metrics: Metrics }) {
           },
         ];
 
-  const h = 280;
-  const m = { l: 44, r: 16, t: 12, b: 40 };
+  const h = 320;
+  const m = { l: 44, r: 16, t: 16, b: 40 };
   const x = (v: number) => m.l + v * (width - m.l - m.r);
   const y = (v: number) => h - m.b - v * (h - m.t - m.b);
   const ticks = [0, 0.25, 0.5, 0.75, 1];
@@ -360,8 +360,10 @@ function PrecisionRecallMap({ metrics }: { metrics: Metrics }) {
 function PrMark({ p, cx, cy }: { p: PrPoint; cx: number; cy: number }) {
   const fill = p.accent ? "fill-accent" : p.shape === "dot" ? "fill-text-3" : "fill-text-2";
   const ring = "stroke-bg";
-  const lx = p.labelAt === "right" ? cx + 10 : cx - 10;
-  const ly = p.labelAt === "left-above" ? cy - 9 : p.labelAt === "right" ? cy + 4 : cy + 16;
+  // "below-leader": the label sits in the empty space under a crowded cluster, tied to its mark by a line.
+  const leader = p.labelAt === "below-leader";
+  const lx = p.labelAt === "right" ? cx + 10 : leader ? cx - 6 : cx - 10;
+  const ly = p.labelAt === "left-above" ? cy - 9 : p.labelAt === "right" ? cy + 4 : leader ? cy + 40 : cy + 16;
   return (
     <g data-point tabIndex={0} aria-label={`${p.name}: finds ${pct(p.recall)} of people; ${pct(p.precision)} of its alerts are real people`} className="focus:outline-none focus-visible:[&>circle:last-of-type]:stroke-text">
       <title>{`${p.name}: finds ${pct(p.recall)} of people; ${pct(p.precision)} of its alerts are real people`}</title>
@@ -372,6 +374,7 @@ function PrMark({ p, cx, cy }: { p: PrPoint; cx: number; cy: number }) {
         <rect x={cx - 5} y={cy - 5} width={10} height={10} transform={`rotate(45 ${cx} ${cy})`} className={`${fill} ${ring}`} strokeWidth={2} />
       )}
       {p.shape === "square" && <rect x={cx - 5} y={cy - 5} width={10} height={10} rx={2} className={`${fill} ${ring}`} strokeWidth={2} />}
+      {leader && p.label && <line x1={cx - 2} y1={cy + 7} x2={cx - 4} y2={cy + 28} className="stroke-text-3" strokeWidth={1} />}
       {p.label && (
         <text x={lx} y={ly} textAnchor={p.labelAt === "right" ? "start" : "end"} className={p.accent ? "fill-text" : "fill-text-2"} style={{ ...SVG_TEXT, fontWeight: p.accent ? 600 : 400 }}>
           {p.label}
@@ -389,8 +392,8 @@ function RobustnessChart({ rows, cellM }: { rows: typeof ROBUSTNESS_5M; cellM: n
   const ha = (cells: number) => (cells * cellM * cellM) / 10_000;
   const mean = (xs: readonly number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
   const series = [
-    { key: "naive", label: "Naive map (photographed = searched)", accent: false, get: (r: (typeof rows)[number]) => r.naive },
-    { key: "sightline", label: "Sightline", accent: true, get: (r: (typeof rows)[number]) => r.sightline },
+    { key: "naive", label: "Naive map (photographed = searched)", end: "Naive map", accent: false, get: (r: (typeof rows)[number]) => r.naive },
+    { key: "sightline", label: "Sightline", end: "Sightline", accent: true, get: (r: (typeof rows)[number]) => r.sightline },
   ] as const;
   const atMeasured = rows.find((r) => r.noise === MEASURED_NOISE)!;
   const gains = atMeasured.sightline.map((s, i) => 1 - s / atMeasured.naive[i]!);
@@ -446,7 +449,7 @@ function RobustnessChart({ rows, cellM }: { rows: typeof ROBUSTNESS_5M; cellM: n
           </text>
           {/* Where our own canopy classifier's measured error sits. */}
           <line x1={x(MEASURED_NOISE)} x2={x(MEASURED_NOISE)} y1={y(0)} y2={y(yMax)} className="stroke-text-3" strokeWidth={1} />
-          <text x={x(MEASURED_NOISE) - 4} y={y(yMax) + 10} textAnchor="end" className="fill-text-2" style={SVG_TEXT}>
+          <text x={x(MEASURED_NOISE) - 4} y={y(0) - 6} textAnchor="end" className="fill-text-2" style={SVG_TEXT}>
             our measured error
           </text>
           {series.map((s) => {
@@ -476,7 +479,7 @@ function RobustnessChart({ rows, cellM }: { rows: typeof ROBUSTNESS_5M; cellM: n
                   );
                 })}
                 <text x={x(last.noise) + 10} y={y(mean(last.vals)) + 4} className={s.accent ? "fill-text" : "fill-text-2"} style={SVG_TEXT}>
-                  {s.label}
+                  {s.end}
                 </text>
               </g>
             );
@@ -526,7 +529,7 @@ function MissesChart({ overall }: { overall: number }) {
       source="docs/DETECTOR_LIMITS.md §2: final model on the corrected test labels, 337 people, threshold 0.29"
       footnote={`Share of people found at each place and size, strict scoring, on the 101 test photos. The vertical line is the overall ${pct(overall)}. ${worstTwo.map((s) => s.label).join(" and ")} are HERIDAL test sites in Croatia: groups of people on dark broken rock, and white or grey clothing on pale limestone.`}
     >
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="flex flex-col gap-5">
         <RecallList
           name="People found, by test site"
           overall={overall}

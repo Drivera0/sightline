@@ -62,8 +62,8 @@ export function ResultsSummary({
               <Sourced source={rankingSource}>Every photo in this survey contains a person.</Sourced>
             </h2>
             <p className="max-w-3xl text-title text-text-2">
-              There is nothing for the ranking to reorder here, so the queue simply opens on the most
-              confident detection. The Mount Seymour survey shows what ranking buys.
+              There is nothing for Sightline to sort here, so the queue simply opens on the photo it is most
+              sure shows a person. The Mount Seymour survey shows what the sorting saves.
             </p>
           </>
         ) : (
@@ -100,6 +100,7 @@ export function ResultsSummary({
                   {
                     label: "Random order",
                     note: `expected value; 10–90%: ${count(random.p10All)}–${count(random.p90All)}`,
+                    plain: "on average; 8 in 10 shuffles finish in that range",
                     first: random.expectedFirst,
                     all: random.expectedAll,
                     band: [random.p10All, random.p90All] as [number, number],
@@ -113,6 +114,7 @@ export function ResultsSummary({
             {
               label: "This flight's order",
               note: "one layout, as flown",
+              plain: "photos in the order the drone took them",
               first: ranking.flight_order.frames_to_first_hit,
               all: flight,
               time: share(flight),
@@ -120,7 +122,7 @@ export function ResultsSummary({
             },
             {
               label: "Sightline ranked queue",
-              note: "this survey",
+              note: "likeliest photos first",
               first: ranking.ranked.frames_to_first_hit,
               all: ranked,
               time: share(ranked),
@@ -141,7 +143,8 @@ export function ResultsSummary({
           theirs={human.recall}
           oursLabel="Sightline"
           theirsLabel="Human"
-          note={`People found on photos the detector never trained on, scored as in the human study. Strict VOC: ${pct(detector.voc.recall)}`}
+          // "Strict VOC" is the name the figure is known by; the plain rule follows it in the same line.
+          note={`Share of people found in test photos the detector never saw in training. Strict VOC: ${pct(detector.voc.recall)}, when the box must match the person closely`}
           source={`HERIDAL test set, ${detector.test_images} images, SAR-APD matching (metrics.detector.sar; VOC: metrics.detector.voc) vs ${human.source}`}
           delay={0}
         />
@@ -155,7 +158,7 @@ export function ResultsSummary({
           oursLabel="Sightline"
           theirsLabel="Human"
           lowerIsBetter
-          note={`For a whole 4000×3000 photo (16 of the survey's sections): ${seconds(human.seconds_per_image)} for a person looking by eye`}
+          note={`For a whole 4000×3000 photo, 16 times the area of each photo here: ${seconds(human.seconds_per_image)} for a person looking by eye`}
           source={`metrics.detector.seconds_per_image vs ${human.source}`}
           delay={90}
         />
@@ -177,19 +180,19 @@ export function ResultsSummary({
             lowerIsBetter
             note={
               cellM
-                ? `Median ground a team checks inside the surveyed area before reaching the person: ${count(sightline.median_cells)} vs ${count(naive.median_cells)} cells of ${count(cellM)} m`
-                : "Median cells a ground team checks inside the surveyed area"
+                ? `Typical (median) ground a team checks inside the photographed area before reaching the person: ${count(sightline.median_cells)} vs ${count(naive.median_cells)} cells of ${count(cellM)} m × ${count(cellM)} m. The naive map counts every photographed patch as already searched.`
+                : "Typical (median) number of grid cells a ground team checks inside the photographed area. The naive map counts every photographed patch as already searched."
             }
             source={`Simulated search, ${inside.trials} trials with the person in a photographed cell, seed ${sim.seed} (metrics.search_sim.in_survey; seed choice: docs/LANE_C_SEARCH.md)`}
             badge={<Badge kind="simulated">Simulated</Badge>}
-            footnote={seedNote(sim.seed, surveyId, sightline.median_cells, naive.median_cells)}
+            footnote={`${seedNote(sim.seed, surveyId, sightline.median_cells, naive.median_cells)}; each seed is one simulation run`}
             delay={180}
           />
         ) : (
           <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-5">
             <Label>Ground to search</Label>
             <span className="text-display leading-none text-text-3">—</span>
-            <span className="text-small text-text-3">Not yet measured (needs a contract 1.1 cache)</span>
+            <span className="text-small text-text-3">Not measured for this survey yet</span>
           </div>
         )}
       </div>
@@ -290,8 +293,8 @@ function YourReview({ candidateIds }: { candidateIds: readonly string[] }) {
         <p className="text-small text-text-3">This survey has no candidates to review.</p>
       ) : answered.length === 0 ? (
         <p className="text-body text-text-2">
-          You haven&apos;t answered any of the {total} candidates yet. Press <span className="font-mono">3</span> to
-          review them; your answers will be summarised here.
+          You haven&apos;t answered any of the {total} candidates yet: the spots the detector flagged as a possible
+          person. Press <span className="font-mono">3</span> to review them; your answers will be summarised here.
         </p>
       ) : (
         <>
@@ -365,21 +368,21 @@ function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"];
         <Sourced source={source}>
           <Label>Why resolution matters</Label>
         </Sourced>
-        <span className="text-label text-text-3">test set, strict scoring (VOC)</span>
+        <span className="text-label text-text-3">test photos, strict scoring</span>
       </div>
       <p className="text-small text-text-2">
-        A person is about 70 px wide in a full 4000×3000 photo. Shrink the photo to the model&apos;s input and every
-        model loses them. What pays off is native resolution: the detector was trained on full-resolution tiles, and
-        a model trained on whole photos shrunk to 1920 px finds fewer people.
+        A person is only about 70 pixels wide in a full 4000×3000 photo. Shrink the whole photo to the size the
+        detector takes in, and every model loses them. What pays off is keeping full detail: Sightline cuts each photo
+        into small tiles and checks them one by one, and its detector was trained on tiles like these. A model trained
+        on whole photos shrunk to 1920 pixels wide finds fewer people.
         {singlePass && (
           <>
             {" "}
-            Tiling is one way to keep that scale at inference; one pass over the whole 4000 px photo with the same
-            weights works too, but{" "}
+            Checking the whole 4000-pixel photo in one go with the same detector works too, but{" "}
             <Sourced source="5.7 GB against 0.28 GB for 1024 px tiles, timed on the same 101 test photos (scripts/README.md, data/work/detect/inference_cost.json)">
               needs about 20× the GPU memory
-            </Sourced>
-            .
+            </Sourced>{" "}
+            (the memory on the computer&apos;s graphics card).
           </>
         )}
       </p>
@@ -418,9 +421,13 @@ function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"];
           );
         })}
       </ul>
+      {/* A key for the columns and the bar labels' words. Lowercase "recall" on purpose: the column head is
+          the page's one capitalised "Recall". */}
       <p className="text-label text-text-3">
-        The orange row is the detector the app runs: tiled inference, which fits on a small GPU.{singlePass && " The single full-resolution pass is not the model in use."}{" "}
-        Every row is in the details below.
+        Each row: people found (recall), then alerts that are real people (precision). Stock is the detector as
+        downloaded; fine-tuned is further trained on drone photos of people. The orange row is the detector the app
+        runs: it checks each photo tile by tile, which fits on a small graphics card.
+        {singlePass && " The single full-resolution pass is not the model in use."} Every row is in the details below.
       </p>
     </div>
   );
@@ -464,6 +471,8 @@ interface RaceRowData {
   label: string;
   /** A short qualifier under the label ("expected value", "one layout"). */
   note?: string;
+  /** The note in plain words, under it ("on average; 8 in 10 shuffles finish in that range"). */
+  plain?: string;
   first: number;
   all: number;
   /** A spread to draw behind the bar, e.g. the 10th-90th percentile of a random order. */
@@ -520,6 +529,10 @@ function Race({ n, rows, source }: { n: number; rows: RaceRowData[]; source: str
           )}
         </ul>
       </div>
+      <p className="-mt-2 text-small text-text-2">
+        Each bar counts the photos a searcher looks at, in that order, before every person in them is found. Shorter is
+        better.
+      </p>
       {rows.map((row, i) => (
         <RaceRow key={row.label} n={n} row={row} delay={250 + i * 200} />
       ))}
@@ -555,6 +568,7 @@ function RaceRow({ n, row, delay }: { n: number; row: RaceRowData; delay: number
       <span className="flex flex-col">
         <span className={"text-small " + (accent ? "font-medium text-text" : "text-text-2")}>{row.label}</span>
         {row.note && <span className="text-label text-text-3">{row.note}</span>}
+        {row.plain && <span className="text-label text-text-3">{row.plain}</span>}
       </span>
       <div className="relative order-last col-span-2 h-3 rounded-full bg-surface-strong sm:order-none sm:col-span-1">
         {row.band && (
