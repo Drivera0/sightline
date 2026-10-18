@@ -54,14 +54,14 @@ def place_image(src: Path, dst: Path, copy: bool) -> str:
 def convert_split(
     name: str, ids: list[str], raw: Path, out: Path, copy: bool
 ) -> tuple[dict[str, object], list[str]]:
-    from sightline.ml.types import LabeledImage
-    from sightline.ml.voc import clip_box, image_size, parse_voc, yolo_lines
+    from sightline.ml.voc import clip_box, parse_voc, read_voc, yolo_lines
 
     images_dir, labels_dir = out / name / "images", out / name / "labels"
     images_dir.mkdir(parents=True, exist_ok=True)
     labels_dir.mkdir(parents=True, exist_ok=True)
     n_boxes = 0
     n_no_size = 0
+    wrong_size: list[str] = []
     n_clipped = 0
     missing: list[str] = []
     methods: set[str] = set()
@@ -71,14 +71,15 @@ def convert_split(
         if not xml.exists() or not jpg.exists():
             missing.append(image_id)
             continue
-        width, height, raw_boxes = parse_voc(xml.read_text(encoding="utf-8"))
-        if width is None or height is None:
+        # The JPEG header decides the size (read_voc); the XML <size> is only checked.
+        xml_w, xml_h, raw_boxes = parse_voc(xml.read_text(encoding="utf-8"))
+        labeled = read_voc(xml, jpg)
+        if xml_w is None or xml_h is None:
             n_no_size += 1
-            width, height = image_size(jpg)
-        boxes = [c for b in raw_boxes if (c := clip_box(b, width, height)) is not None]
-        n_clipped += sum(1 for b in raw_boxes if clip_box(b, width, height) != b)
-        labeled = LabeledImage(path=jpg, width=width, height=height, boxes=boxes)
-        n_boxes += len(boxes)
+        elif (xml_w, xml_h) != (labeled.width, labeled.height):
+            wrong_size.append(image_id)
+        n_clipped += sum(1 for b in raw_boxes if clip_box(b, labeled.width, labeled.height) != b)
+        n_boxes += len(labeled.boxes)
         (labels_dir / f"{image_id}.txt").write_text(
             "\n".join(yolo_lines(labeled)) + "\n", encoding="utf-8"
         )
@@ -89,6 +90,7 @@ def convert_split(
         "images": len(ids) - len(missing),
         "boxes": n_boxes,
         "xml_without_size": n_no_size,
+        "xml_size_disagrees_with_jpeg": wrong_size,
         "boxes_clipped_to_image": n_clipped,
         "missing_files": missing,
         "image_placement": sorted(methods),

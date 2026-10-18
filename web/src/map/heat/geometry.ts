@@ -9,10 +9,15 @@ type LonLat = [number, number];
 const M_PER_DEG_LAT = 111_320;
 const DEG_TO_RAD = Math.PI / 180;
 
-/** Highest heat opacity, for the most likely cell. */
-export const MAX_OPACITY = 0.75;
-/** Cells below this fraction of the most likely cell are fully transparent. */
-export const MIN_SHARE_OF_MAX = 0.02;
+/**
+ * Heat opacity range for photographed cells. The floor keeps seen open ground faintly visible
+ * (it was searched and is unlikely, not absent); the ceiling leaves the basemap readable.
+ */
+export const HEAT_FLOOR = 0.08;
+export const HEAT_CEIL = 0.85;
+/** Robust bounds of the stretch: the 5th and 95th percentile of p over photographed cells. */
+export const STRETCH_LOW_PERCENTILE = 0.05;
+export const STRETCH_HIGH_PERCENTILE = 0.95;
 /** Canopy at or above this is "dense forest"; below it is "open" (LANE_C_SEARCH §9). */
 export const DENSE_CANOPY = 0.5;
 
@@ -114,17 +119,43 @@ export function surveyedBoundary(grid: Grid, covered: Uint8Array): LonLat[][] {
   return segments;
 }
 
-/** Heat opacity for a cell: 0 … MAX_OPACITY in proportion to p / max, 0 below 2% of the max. */
-export function heatOpacity(p: number, maxP: number): number {
-  if (!(maxP > 0)) return 0;
-  const share = p / maxP;
-  return share < MIN_SHARE_OF_MAX ? 0 : MAX_OPACITY * Math.min(1, share);
+/** q-th quantile (0…1) of `values` by linear interpolation. NaN for an empty list. */
+export function percentile(values: ArrayLike<number>, q: number): number {
+  if (values.length === 0) return Number.NaN;
+  const sorted = Array.from(values).sort((a, b) => a - b);
+  const pos = Math.min(1, Math.max(0, q)) * (sorted.length - 1);
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return (sorted[lo] as number) + ((sorted[hi] as number) - (sorted[lo] as number)) * (pos - lo);
 }
 
-export function maxOf(values: Float64Array): number {
-  let max = 0;
-  for (const v of values) if (v > max) max = v;
-  return max;
+/**
+ * Heat opacity per cell, relative to the photographed cells only.
+ *
+ * Unphotographed cells get 0 (they are drawn by the separate "not yet searched" layer).
+ * Photographed cells get a min–max stretch of p between the 5th and 95th percentile of p over
+ * photographed cells (values outside are clamped), mapped to HEAT_FLOOR … HEAT_CEIL.
+ * Why not p / max: unphotographed cells keep the flat prior, so the global max is far above
+ * every photographed cell, and all photographed values are tiny and close together. p / max
+ * would make them all look the same. Stretching inside the photographed set keeps the
+ * forest-versus-open difference visible, and the percentile bounds stop one outlier cell from
+ * squashing the rest. If all photographed cells share one p, they get the mid value.
+ */
+export function relativeHeatOpacities(p: Float64Array, covered: Uint8Array, held?: Uint8Array): Float64Array {
+  const out = new Float64Array(p.length);
+  const shown = (i: number) => covered[i] === 1 && held?.[i] !== 1;
+  const seen: number[] = [];
+  for (let i = 0; i < p.length; i++) if (shown(i)) seen.push(p[i] as number);
+  if (seen.length === 0) return out;
+  const lo = percentile(seen, STRETCH_LOW_PERCENTILE);
+  const hi = percentile(seen, STRETCH_HIGH_PERCENTILE);
+  const span = hi - lo;
+  for (let i = 0; i < p.length; i++) {
+    if (!shown(i)) continue;
+    const t = span > 0 ? Math.min(1, Math.max(0, ((p[i] as number) - lo) / span)) : 0.5;
+    out[i] = HEAT_FLOOR + t * (HEAT_CEIL - HEAT_FLOOR);
+  }
+  return out;
 }
 
 /** Ground distance in metres, local equirectangular (fine at 1 km scale). */

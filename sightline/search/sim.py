@@ -9,9 +9,10 @@ over all not-found trials is then mostly those cells, and it hides the differenc
 the two methods.
 
 `in_survey` is "cells checked inside the surveyed area before reaching the person". It uses
-only the not-found trials whose true cell was photographed, and it ranks the true cell only
-among the photographed cells. This is the same rule as the "Search next" panel on the map,
-which ranks only photographed cells. The reason: inside a 1 km grid a hiker prior is flat
+only the not-found trials whose true cell was photographed well enough (summed overlap
+>= MIN_OVERLAP = 0.5), and it ranks the true cell only among those cells. This is the same
+rule as the "Search next" panel on the map, which ranks only cells with overlap >= 0.5, so
+edge slivers the camera barely touched do not count. The reason: inside a 1 km grid a hiker prior is flat
 (hiker distances are larger than the grid). Every update lowers p in photographed cells, so
 every photographed cell falls below every unphotographed cell. A whole-grid rank of a person
 in the survey is then about the number of unphotographed cells for every update method, and
@@ -34,6 +35,11 @@ METHOD_SIGHTLINE = "Sightline: canopy-aware"
 
 # Steps omit cells with a pod below this (contract section 8).
 MIN_POD = 0.001
+
+# A cell is "in the survey" when the frames covered at least this much of it, summed over
+# frames, in cell areas (0.5 = half the cell seen once). The same number as MIN_OVERLAP in
+# web/src/map/heat/coverage.ts, which the "Search next" panel uses for the cells it ranks.
+MIN_OVERLAP = 0.5
 
 
 # 1-based rank of every cell when cells are sorted by descending p (ties: lower idx first).
@@ -95,10 +101,11 @@ def simulate(
 
     in_survey (contract 1.1) has the same three methods, names and order. It counts the cells
     checked inside the surveyed area before reaching the person, the same rule as the "Search
-    next" panel. A cell is photographed when at least one frame in frame_cells covers it with
-    overlap > 0. Its median and p90 use only the not-found trials whose true cell was
-    photographed, and the rank is the true cell's 1-based rank among the photographed cells
-    only (same order: descending final p, ties to lower idx), so it is 1..n_photographed.
+    next" panel. A cell is in the survey when its overlap summed over all frames in frame_cells
+    is at least MIN_OVERLAP (0.5); a cell touched only by slivers is not. Its median and p90
+    use only the not-found trials whose true cell is in the survey, and the rank is the true
+    cell's 1-based rank among those cells only (same order: descending final p, ties to lower
+    idx), so it is 1..n_in_survey.
     With a flat prior the whole-grid rank would put every photographed cell below every
     unphotographed one, so it would measure the size of the unsurveyed area, not the order
     inside the survey. in_survey.trials is the number of those trials.
@@ -190,13 +197,13 @@ def simulate(
 
     not_found = true_cells[~found]
     methods = _methods(names, ranks_by_method, not_found)
-    # Not-found trials whose true cell was photographed (overlap > 0 in some frame).
-    photographed = overlap_sum > 0
+    # Not-found trials whose true cell is in the survey (summed overlap >= MIN_OVERLAP).
+    photographed = overlap_sum >= MIN_OVERLAP
     in_survey_cells = not_found[photographed[not_found]]
     in_survey = None
     if in_survey_cells.size > 0:
-        # Rank among photographed cells only, once per method; unphotographed cells get 0
-        # (never read, because every in_survey true cell is photographed).
+        # Rank among in-survey cells only, once per method; other cells get 0
+        # (never read, because every in_survey true cell is in the survey).
         photo_idx = np.flatnonzero(photographed)
         survey_ranks = np.zeros_like(ranks_by_method)
         for m, final_p in enumerate((prior_p, naive_p, sightline_p)):

@@ -1,6 +1,7 @@
 import type { Manifest, Params } from "../../contract";
 import { Badge, Label } from "../../shell/components";
-import { MAX_OPACITY } from "./geometry";
+import { HEAT_CEIL, HEAT_FLOOR } from "./geometry";
+import { REVIEW_OPACITY, UNSEEN_OPACITY } from "./layers";
 
 /** Contract 1.1 §8: the value of `map.params.prior_source` when the pipeline used the placeholder prior. */
 export const PRIOR_FROM_PLACEHOLDER = "placeholder";
@@ -25,10 +26,13 @@ export function showsPlaceholderPrior(priorSource: Params["prior_source"], notes
   return isPlaceholderPrior(notes);
 }
 
-// Matches the map: warm and faint for "some chance", full accent for the most likely cell.
-const RAMP = `linear-gradient(to right, color-mix(in srgb, var(--warn) 8%, transparent), color-mix(in srgb, var(--accent) ${Math.round(
-  MAX_OPACITY * 100,
+const pct = (x: number) => Math.round(x * 100);
+// Matches the map: warm and faint at the floor of the stretch, the accent at its ceiling.
+const RAMP = `linear-gradient(to right, color-mix(in srgb, var(--warn) ${pct(HEAT_FLOOR)}%, transparent), color-mix(in srgb, var(--accent) ${pct(
+  HEAT_CEIL,
 )}%, transparent))`;
+const UNSEEN_FILL = `color-mix(in srgb, var(--bg) ${pct(UNSEEN_OPACITY)}%, transparent)`;
+const REVIEW_FILL = `color-mix(in srgb, var(--warn) ${pct(REVIEW_OPACITY)}%, transparent)`;
 
 interface Props {
   simulatedPath: boolean;
@@ -51,15 +55,31 @@ export function Legend({ simulatedPath, params, manifest, hasSurveyed, showPath 
           <span>Less likely</span>
           <span>More likely</span>
         </div>
+        <span className="text-label text-text-3">Inside the surveyed area, relative to the other surveyed cells</span>
       </div>
       <ul className="flex flex-col gap-2 text-small text-text-2">
         <li className="flex items-center gap-2.5">
           <span className="inline-block h-0 w-5 border-t border-text/60" aria-hidden="true" />
-          {hasSurveyed ? "Photographed area" : "No cell photographed yet"}
+          {hasSurveyed ? "Surveyed area (outline)" : "No cell photographed yet"}
         </li>
         <li className="flex items-center gap-2.5">
-          <span className="inline-block size-3 rounded-[3px] bg-bg/80 ring-1 ring-border" aria-hidden="true" />
-          Not photographed: unsearched
+          <span
+            className="inline-block size-3 rounded-[3px] ring-1 ring-border"
+            style={{ background: UNSEEN_FILL }}
+            aria-hidden="true"
+          />
+          <span className="flex flex-col">
+            <span>Not yet searched</span>
+            <span className="text-label text-text-3">Under half of the cell photographed</span>
+          </span>
+        </li>
+        <li className="flex items-center gap-2.5">
+          <span
+            className="inline-block size-3 rounded-[3px] border border-dashed border-warn"
+            style={{ background: REVIEW_FILL }}
+            aria-hidden="true"
+          />
+          Awaiting review
         </li>
         <li className="flex items-center gap-2.5">
           <span className="relative inline-flex w-5 items-center" aria-hidden="true">
