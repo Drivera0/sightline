@@ -105,9 +105,10 @@ export function ResultsSummary({
             ours={detector.sar.recall}
             theirs={human.recall}
             oursLabel="Sightline"
-            theirsLabel="Human"
+            theirsLabel="People (by eye)"
             // "Strict VOC" is the name the figure is known by; the plain rule follows it in the same line.
-            note={`Share of people found in test photos the detector never saw in training. Strict VOC: ${pct(detector.voc.recall)}, when the box must match the person closely`}
+            line="Share of people found in test photos the detector never saw in training."
+            note={`Strict VOC: ${pct(detector.voc.recall)}, when the box must match the person closely. The big figure is scored like the human study (SAR-APD, a looser rule), so the comparison with people is like for like.`}
             source={`HERIDAL test set, ${detector.test_images} images, SAR-APD matching (metrics.detector.sar; VOC: metrics.detector.voc) vs ${human.source}`}
             delay={0}
           />
@@ -119,9 +120,10 @@ export function ResultsSummary({
             ours={detector.seconds_per_image}
             theirs={human.seconds_per_image}
             oursLabel="Sightline"
-            theirsLabel="Human"
+            theirsLabel="People (by eye)"
             lowerIsBetter
-            note={`For a whole 4000×3000 photo, 16 times the area of each photo here: ${seconds(human.seconds_per_image)} for a person looking by eye`}
+            line={`${seconds(human.seconds_per_image)} for a person looking by eye.`}
+            note="For a whole 4000×3000 photo, 16 times the area of each photo here."
             source={`metrics.detector.seconds_per_image vs ${human.source}`}
             delay={90}
           />
@@ -141,10 +143,11 @@ export function ResultsSummary({
               oursLabel="Sightline"
               theirsLabel="Naive map"
               lowerIsBetter
+              line="The naive map counts every photographed patch as already searched."
               note={
                 cellM
-                  ? `Typical (median) ground a team checks inside the photographed area before reaching the person: ${count(sightline.median_cells)} vs ${count(naive.median_cells)} cells of ${count(cellM)} m × ${count(cellM)} m. The naive map counts every photographed patch as already searched.`
-                  : "Typical (median) number of grid cells a ground team checks inside the photographed area. The naive map counts every photographed patch as already searched."
+                  ? `Typical (median) ground a team checks inside the photographed area before reaching the person: ${count(sightline.median_cells)} vs ${count(naive.median_cells)} cells of ${count(cellM)} m × ${count(cellM)} m.`
+                  : "Typical (median) number of grid cells a ground team checks inside the photographed area."
               }
               source={`Simulated search, ${inside.trials} trials with the person in a photographed cell, seed ${sim.seed} (metrics.search_sim.in_survey; seed choice: docs/LANE_C_SEARCH.md)`}
               badge={<Badge kind="simulated">Simulated</Badge>}
@@ -166,40 +169,40 @@ export function ResultsSummary({
     <Race
               n={ranking.n_frames}
               source={rankingSource}
+              // Sightline first: the result the page is about leads, the baselines follow.
               rows={[
+                {
+                  label: "Sightline ranked queue",
+                  short: "likeliest photos first",
+                  first: ranking.ranked.frames_to_first_hit,
+                  all: ranked,
+                  tone: "accent",
+                },
+                {
+                  label: "This flight's order",
+                  short: "in the order the drone took them",
+                  note: "one layout, as flown",
+                  plain: "photos in the order the drone took them",
+                  first: ranking.flight_order.frames_to_first_hit,
+                  all: flight,
+                  tone: "muted",
+                },
                 ...(random
                   ? [
                       {
                         label: "Random order",
+                        short: "average of shuffled orders",
                         note: `expected value; 10–90%: ${count(random.p10All)}–${count(random.p90All)}`,
                         plain: "on average; 8 in 10 shuffles finish in that range",
                         first: random.expectedFirst,
                         all: random.expectedAll,
                         band: [random.p10All, random.p90All] as [number, number],
                         approx: true,
-                        time: share(random.expectedAll),
                         tone: "muted" as const,
                         source: randomSource,
                       },
                     ]
                   : []),
-                {
-                  label: "This flight's order",
-                  note: "one layout, as flown",
-                  plain: "photos in the order the drone took them",
-                  first: ranking.flight_order.frames_to_first_hit,
-                  all: flight,
-                  time: share(flight),
-                  tone: "muted",
-                },
-                {
-                  label: "Sightline ranked queue",
-                  note: "likeliest photos first",
-                  first: ranking.ranked.frames_to_first_hit,
-                  all: ranked,
-                  time: share(ranked),
-                  tone: "accent",
-                },
               ]}
             />
         </Part>
@@ -324,12 +327,8 @@ function YourReview({ candidateIds }: { candidateIds: readonly string[] }) {
       className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5"
       style={{ animationDelay: "240ms" }}
     >
-      <div className="flex items-baseline justify-between gap-3">
-        <Label>Answers so far</Label>
-        <span className="flex items-center gap-2 text-label text-text-3">
-          answers saved in this browser
-          <ResetReview />
-        </span>
+      <div className="flex justify-end">
+        <ResetReview />
       </div>
       {total === 0 ? (
         <p className="text-small text-text-3">This survey has no candidates to review.</p>
@@ -487,8 +486,7 @@ function Limits() {
       className="sl-rise flex flex-col gap-3 rounded-lg border border-border bg-surface/60 p-5"
       style={{ animationDelay: "360ms" }}
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <Label>Where it still misses</Label>
+      <div className="flex flex-wrap items-baseline justify-end gap-3">
         <Sourced source="docs/DETECTOR_LIMITS.md: the failure cases the team found reviewing the test set" align="end">
           <span className="text-label text-text-3">Known limits (team testing)</span>
         </Sourced>
@@ -511,9 +509,11 @@ function Limits() {
 
 interface RaceRowData {
   label: string;
-  /** A short qualifier under the label ("expected value", "one layout"). */
+  /** The plain qualifier under the label ("likeliest photos first"). */
+  short: string;
+  /** The exact statistic, kept in the "Exact figures" fold ("expected value; 10–90%: 342–492"). */
   note?: string;
-  /** The note in plain words, under it ("on average; 8 in 10 shuffles finish in that range"). */
+  /** That statistic in plain words, beside it in the fold. */
   plain?: string;
   first: number;
   all: number;
@@ -521,8 +521,6 @@ interface RaceRowData {
   band?: [number, number];
   /** Show "≈" before the count: an expected value, not an observed one. */
   approx?: boolean;
-  /** The count as a share of the survey's photos. */
-  time: string;
   tone: "muted" | "accent";
   source?: string;
 }
@@ -551,10 +549,7 @@ function Race({ n, rows, source }: { n: number; rows: RaceRowData[]; source: str
   const ticks = axisTicks(n);
   return (
     <div className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5" style={{ animationDelay: "60ms" }}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <Sourced source={source}>
-          <Label>Photos looked at before every person is found</Label>
-        </Sourced>
+      <div className="flex flex-wrap items-baseline justify-end gap-x-6 gap-y-2">
         {/* A legend for the two marks that aren't bars, in place of a paragraph explaining them. */}
         <ul aria-label="Chart legend" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-text-3">
           <li className="flex items-center gap-1.5">
@@ -571,10 +566,6 @@ function Race({ n, rows, source }: { n: number; rows: RaceRowData[]; source: str
           )}
         </ul>
       </div>
-      <p className="-mt-2 text-small text-text-2">
-        Each bar counts the photos a searcher looks at, in that order, before every person in them is found. Shorter is
-        better.
-      </p>
       {rows.map((row, i) => (
         <RaceRow key={row.label} n={n} row={row} delay={250 + i * 200} />
       ))}
@@ -598,6 +589,29 @@ function Race({ n, rows, source }: { n: number; rows: RaceRowData[]; source: str
         </div>
         <span />
       </div>
+      {/* The exact statistics and the source, for anyone who wants them, folded under the chart. */}
+      <details className="group/more text-small text-text-3">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 hover:text-text-2 [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open/more:rotate-90 motion-reduce:transition-none">
+            ›
+          </span>
+          Exact figures
+        </summary>
+        <ul className="flex flex-col gap-1 pb-1">
+          {rows.flatMap((r) =>
+            r.note
+              ? [
+                  <li key={r.label}>
+                    <p>
+                      {r.label}: <span>{r.note}</span> ({r.plain})
+                    </p>
+                  </li>,
+                ]
+              : [],
+          )}
+          <li>Source: {source}</li>
+        </ul>
+      </details>
     </div>
   );
 }
@@ -606,11 +620,10 @@ function RaceRow({ n, row, delay }: { n: number; row: RaceRowData; delay: number
   const shown = useCountUp(row.all, 1400);
   const accent = row.tone === "accent";
   return (
-    <div className={RACE_GRID} title={row.source}>
+    <div className={RACE_GRID} title={row.source} data-race-row={row.label}>
       <span className="flex flex-col">
         <span className={"text-small " + (accent ? "font-medium text-text" : "text-text-2")}>{row.label}</span>
-        {row.note && <span className="text-label text-text-3">{row.note}</span>}
-        {row.plain && <span className="text-label text-text-3">{row.plain}</span>}
+        <span className="text-small text-text-3">{row.short}</span>
       </span>
       <div className="relative order-last col-span-2 h-3 rounded-full bg-surface-strong sm:order-none sm:col-span-1">
         {row.band && (
@@ -624,7 +637,7 @@ function RaceRow({ n, row, delay }: { n: number; row: RaceRowData; delay: number
           />
         )}
         <span
-          className={"sl-grow absolute inset-y-0 left-0 rounded-full " + (accent ? "bg-accent" : "bg-text-3/60")}
+          className={"sl-grow absolute inset-y-0 left-0 rounded-full " + (accent ? "bg-accent" : "bg-text-3/40")}
           style={{ width: `${Math.max(1.2, (row.all / n) * 100)}%`, animationDelay: `${delay}ms` }}
         />
         {accent && (
@@ -635,6 +648,15 @@ function RaceRow({ n, row, delay }: { n: number; row: RaceRowData; delay: number
             className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent ring-2 ring-bg"
             style={{ left: `${Math.max(1.2, (row.all / n) * 100)}%` }}
           />
+        )}
+        {accent && (
+          // The result, said right where the eye lands: beside the dot.
+          <span
+            className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap pl-3 text-small font-semibold text-text"
+            style={{ left: `${Math.max(1.2, (row.all / n) * 100)}%` }}
+          >
+            {Math.round(row.all)} photos
+          </span>
         )}
         <span
           className="absolute -top-1 h-5 w-0.5 rounded-full bg-text"
@@ -647,7 +669,6 @@ function RaceRow({ n, row, delay }: { n: number; row: RaceRowData; delay: number
           {row.approx ? "≈" : ""}
           {Math.round(shown)}
         </span>
-        <span className="w-12 text-right text-small text-text-3">{row.time}</span>
       </span>
     </div>
   );
@@ -665,6 +686,7 @@ function Card({
   oursLabel,
   theirsLabel,
   lowerIsBetter = false,
+  line,
   note,
   source,
   badge,
@@ -684,6 +706,9 @@ function Card({
   oursLabel: string;
   theirsLabel: string;
   lowerIsBetter?: boolean;
+  /** The one plain line on the card face. */
+  line: string;
+  /** How the number is measured: folded under "How it's measured". */
   note: string;
   source: string;
   badge?: ReactNode;
@@ -707,7 +732,7 @@ function Card({
         <span className="flex flex-col gap-0.5">
           <Label id={labelId}>{label}</Label>
           {/* Which way is good, said where the number is read, not at the end of a footnote. */}
-          <span className="text-label text-text-3">{lowerIsBetter ? "lower is better" : "higher is better"}</span>
+          <span className="text-small text-text-3">{lowerIsBetter ? "lower is better" : "higher is better"}</span>
         </span>
         {badge}
       </div>
@@ -724,15 +749,27 @@ function Card({
         <Bar label={oursLabel} value={format(ours)} width={(ours / max) * 100} accent />
         <Bar label={theirsLabel} value={format(theirs)} width={(theirs / max) * 100} />
       </div>
-      <span className="text-small text-text-3">{note}</span>
-      {footnote && <span className="font-mono text-label text-text-3">{footnote}</span>}
+      <span className="text-small text-text-2">{line}</span>
+      {/* The scoring and simulation detail, one click away, so the card face stays scannable. */}
+      <details className="group/more -mb-2 text-small text-text-3">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 hover:text-text-2 [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open/more:rotate-90 motion-reduce:transition-none">
+            ›
+          </span>
+          How it&apos;s measured
+        </summary>
+        <span className="flex flex-col gap-1 pb-2">
+          <span>{note}</span>
+          {footnote && <span>{footnote}</span>}
+        </span>
+      </details>
     </div>
   );
 }
 
 function Bar({ label, value, width, accent = false }: { label: string; value: string; width: number; accent?: boolean }) {
   return (
-    <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_4rem] items-center gap-2 text-label">
+    <div className="grid grid-cols-[7rem_minmax(0,1fr)_4rem] items-center gap-2 text-small">
       <span className={accent ? "text-text" : "text-text-3"}>{label}</span>
       <span className="h-1.5 rounded-full bg-surface-strong">
         <span
@@ -740,7 +777,7 @@ function Bar({ label, value, width, accent = false }: { label: string; value: st
           style={{ width: `${Math.max(2, width)}%` }}
         />
       </span>
-      <span className={"text-right font-mono " + (accent ? "text-text" : "text-text-3")}>{value}</span>
+      <span className={"text-right tabular-nums " + (accent ? "text-text" : "text-text-3")}>{value}</span>
     </div>
   );
 }

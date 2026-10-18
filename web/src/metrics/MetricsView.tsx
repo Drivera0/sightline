@@ -94,7 +94,7 @@ function MetricsBody({ m }: { m: Metrics }) {
             source={sarSource}
             compare={
               <>
-                <Num source={humanSource}>{pct(human.recall)}</Num> human ·{" "}
+                <Num source={humanSource}>{pct(human.recall)}</Num> people (by eye) ·{" "}
                 <Delta value={detector.sar.recall} baseline={human.recall} />
               </>
             }
@@ -108,7 +108,7 @@ function MetricsBody({ m }: { m: Metrics }) {
             source={sarSource}
             compare={
               <>
-                <Num source={humanSource}>{pct(human.precision)}</Num> human ·{" "}
+                <Num source={humanSource}>{pct(human.precision)}</Num> people (by eye) ·{" "}
                 <Delta
                   value={detector.sar.precision}
                   baseline={human.precision}
@@ -128,8 +128,8 @@ function MetricsBody({ m }: { m: Metrics }) {
                 <Num source={humanSource}>
                   {seconds(human.seconds_per_image)}
                 </Num>{" "}
-                human ·{" "}
-                <span className="text-accent-soft">
+                people (by eye) ·{" "}
+                <span className="text-ok">
                   {speedup(detector.seconds_per_image, human.seconds_per_image)}
                 </span>
               </>
