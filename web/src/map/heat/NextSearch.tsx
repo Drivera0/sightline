@@ -33,7 +33,7 @@ interface Props {
   map: Pick<MapFile, "grid" | "lkp" | "canopy">;
   state: MapState;
   covered: Uint8Array;
-  /** Per cell, summed footprint overlap in cell areas (coverage.ts). */
+  /** Per cell, footprint overlap in cell areas (coverage.ts; the heat map uses the "max" rule). */
   overlap: Float64Array;
   /** 1 for cells awaiting review: left out of the ranking and the average. */
   held?: Uint8Array;

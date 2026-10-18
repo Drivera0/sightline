@@ -438,8 +438,8 @@ export function Shell({
                 subtitle="Darker red = more likely. Grey = not yet photographed."
                 info={
                   <>
-                    The colours show probability on ground the drone photographed, relative to the other
-                    photographed cells. The sectors list ranks the remaining work by probability. Press play to
+                    The colours show probability per cell on ground the drone photographed, on one fixed scale
+                    for the whole replay. The sectors list ranks the remaining work by probability. Press play to
                     watch the drone fly sector by sector: ground it saw clearly turns pale, forest it cannot see
                     into stays dark red.
                   </>

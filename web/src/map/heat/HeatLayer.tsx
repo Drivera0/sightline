@@ -14,7 +14,7 @@ import { useMap, type MapContextValue } from "../MapView";
 import { OVERLAY_ATTR, readOverlays } from "../base/camera";
 import { placeLabel } from "./labelPlacement";
 import { FoundBanner } from "./FoundBanner";
-import { probabilityShares, topCellIndices } from "./geometry";
+import { heatScaleMax, probabilityShares, topCellIndices } from "./geometry";
 import {
   buildOverlapIndex,
   eligibleCells,
@@ -190,9 +190,11 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     });
   }, [bundle.survey.frames, mapFile.steps]);
 
-  // Summed overlap of the first `stepIndex` frames: precomputed once per survey, then cheap per step.
+  // Per cell, the largest share of it inside any one of the first `stepIndex` photos (coverage.ts):
+  // precomputed once per survey, then cheap per step.
   const overlapIndex = useMemo(
-    () => buildOverlapIndex(frameOverlaps(grid, bundle.survey.frames.map((f) => f.footprint)), grid.rows * grid.cols),
+    () =>
+      buildOverlapIndex(frameOverlaps(grid, bundle.survey.frames.map((f) => f.footprint)), grid.rows * grid.cols, "max"),
     [grid, bundle.survey.frames],
   );
   const firstStep = useMemo(() => firstPhotographedStep(overlapIndex), [overlapIndex]);
@@ -234,9 +236,11 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   // --- the raster ---------------------------------------------------------------------------
   const palette = useMemo(() => paletteFromTokens(readRasterTokens()), []);
   const raster = useMemo(() => new HeatRaster(grid), [grid]);
+  // One colour scale for the whole replay: the top is the prior's likeliest cell (geometry.ts).
+  const scaleMax = useMemo(() => heatScaleMax(mapFile.prior.p), [mapFile.prior.p]);
   const pixels = useMemo(
-    () => (ready && state ? heatPixels(state, covered, held, palette) : null),
-    [ready, state, covered, held, palette],
+    () => (ready && state ? heatPixels(state, covered, held, palette, scaleMax) : null),
+    [ready, state, covered, held, palette, scaleMax],
   );
   const [building, setBuilding] = useState(false);
 
@@ -322,7 +326,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         raster.show(pixels);
       } else if (isSearch) {
         // Cells sweep in from "not yet searched" in the order the flight photographed them.
-        const from = heatPixels(state, new Uint8Array(covered.length), held, palette);
+        const from = heatPixels(state, new Uint8Array(covered.length), held, palette, scaleMax);
         setBuilding(true);
         raster.animate(pixels, { durationMs: BUILD_UP_MS, delays: sweepDelays(firstStep, stepCount), fade: BUILD_UP_FADE }, from);
       } else {

@@ -61,7 +61,8 @@ export function SectorList({ statuses, outside, currentId, hoverId, onHover, onS
         })}
       </ol>
       <span className="text-label text-text-3">
-        POA = the sector&apos;s share of the probability. Outside the 1 km grid: {pct(outside)}.
+        POA = the sector&apos;s share of the probability. It adds up every cell, so a large sector can outrank a small one
+        whose cells look darker. Outside the 1 km grid: {pct(outside)}.
       </span>
     </div>
   );

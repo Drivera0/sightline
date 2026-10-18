@@ -130,7 +130,35 @@ export function percentile(values: ArrayLike<number>, q: number): number {
 }
 
 /**
- * Heat level per cell in [0, 1], relative to the photographed cells only.
+ * The fixed top of the heat scale: the highest per-cell probability of the prior (before the flight).
+ * The same for every replay step, so a cell's shade changes only when its own probability does.
+ */
+export function heatScaleMax(prior: ArrayLike<number>): number {
+  let max = 0;
+  for (let i = 0; i < prior.length; i++) max = Math.max(max, prior[i] as number);
+  return max;
+}
+
+/**
+ * Heat level per cell in [0, 1] on a fixed scale: p / scaleMax (heatScaleMax), clamped. Photographed
+ * cells that are not held get a level; the rest 0. Unlike relativeHeatLevels the scale does not move
+ * with the replay step or with which cells are photographed, so the darkest class always means "about
+ * as likely as the likeliest cell before the flight" and a pale cell is one the photos made unlikely.
+ * Demo cache (placeholder uniform prior), photographed cells at the end of the flight: p / scaleMax is
+ * 0.11 at the 5th percentile, 0.45 at the median, 1.03 at the 95th (renormalisation lifts p slightly).
+ */
+export function fixedHeatLevels(p: Float64Array, covered: Uint8Array, scaleMax: number, held?: Uint8Array): Float64Array {
+  const out = new Float64Array(p.length);
+  if (!(scaleMax > 0)) return out;
+  for (let i = 0; i < p.length; i++) {
+    if (covered[i] === 1 && held?.[i] !== 1) out[i] = Math.min(1, Math.max(0, (p[i] as number) / scaleMax));
+  }
+  return out;
+}
+
+/**
+ * Heat level per cell in [0, 1], relative to the photographed cells only (no longer drawn: the map
+ * uses fixedHeatLevels; kept for relativeHeatOpacities).
  *
  * Unphotographed and held cells get 0 (they are drawn as "not yet searched" / "awaiting review").
  * Photographed cells get a min–max stretch of p between the 5th and 95th percentile of p over

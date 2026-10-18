@@ -6,6 +6,8 @@ import {
   coveredCells,
   edgeLat,
   edgeLon,
+  fixedHeatLevels,
+  heatScaleMax,
   HEAT_FLOOR,
   HEAT_CEIL,
   percentile,
@@ -156,5 +158,21 @@ describe("relativeHeatOpacities with held cells", () => {
     expect(Array.from(relativeHeatOpacities(p, covered, new Uint8Array(4)))).toEqual(
       Array.from(relativeHeatOpacities(p, covered)),
     );
+  });
+});
+
+describe("fixedHeatLevels", () => {
+  it("divides by the prior's top cell, clamps, and gives 0 to unphotographed and held cells", () => {
+    const max = heatScaleMax(Float64Array.from([0.1, 0.4, 0.2]));
+    expect(max).toBe(0.4);
+    const p = Float64Array.from([0.1, 0.2, 0.5, 0.3]);
+    const levels = fixedHeatLevels(p, Uint8Array.from([1, 1, 1, 0]), max, Uint8Array.from([0, 1, 0, 0]));
+    expect(Array.from(levels)).toEqual([0.25, 0, 1, 0]);
+  });
+
+  it("does not depend on which other cells are photographed", () => {
+    const p = Float64Array.from([0.1, 0.3]);
+    expect(fixedHeatLevels(p, Uint8Array.from([1, 0]), 0.4)[0]).toBe(fixedHeatLevels(p, Uint8Array.from([1, 1]), 0.4)[0]);
+    expect(Array.from(fixedHeatLevels(p, Uint8Array.from([1, 1]), 0))).toEqual([0, 0]);
   });
 });
