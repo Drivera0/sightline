@@ -41,7 +41,8 @@ web/src/
   map/base/              # B: basemap switch, footprints, path, pins, LKP
   map/heat/              # C: heat layer, step slider, search-next panel
   search/                # C: update.ts (mirror), store.ts, __fixtures__/
-  metrics/               # A: metrics screen
+  metrics/               # A: Results step (ResultsSummary) and its details (MetricsView)
+  detect/                # Try your own photo: in-browser detector
 ```
 
 ---
@@ -66,6 +67,8 @@ Events:
 
 ## 5. The look (matches the pitch deck)
 
+The tokens live in `web/src/shell/theme.css` and are exposed to Tailwind there (`bg-surface`, `text-text-2`, `rounded-lg`, `text-small`, ...). This block mirrors them; if the two disagree, `theme.css` wins and this section is stale.
+
 ```css
 :root {
   --bg: #0A0B0D;              /* app background */
@@ -75,19 +78,37 @@ Events:
   --text: #F2F2F0;
   --text-2: #A1A1AA;          /* secondary */
   --text-3: #8A8A93;          /* captions, sources */
-  --accent: #FF7A1A;          /* the one accent: selection, pins, heat */
+  --accent: #FF7A1A;          /* the one accent: selection, attention, the middle of the heat ramp */
   --accent-soft: #FFB27A;
-  --ok: #7EE2A0;              /* "Person" */
+  --ok: #7EE2A0;              /* "Person": confirmed pins and chips */
   --warn: #FFC48F;            /* "Unsure" */
-  --radius-lg: 28px; --radius-md: 20px; --radius-sm: 12px;
-  --font: 'Geist', system-ui, sans-serif;
-  --mono: 'Geist Mono', ui-monospace, monospace;
+  --radius-lg: 16px;          /* panels */
+  --radius-md: 10px;          /* inner elements: crops, frames */
+  --radius-sm: 10px;          /* inner elements: rows, inputs; 999px only for buttons and chips */
+  --font: 'Geist Variable', system-ui, sans-serif;
+  --mono: 'Geist Mono Variable', ui-monospace, monospace;
+  --hand: 'Caveat Variable', cursive;  /* annotations only */
 }
 ```
 
-- **Panels:** `--surface` background, 1px `--border`, `backdrop-filter: blur(16px)` over the map, `--radius-lg`. Inner elements use `--radius-sm` (concentric corners: inner radius = outer − padding).
-- **Type scale:** 32 / 20 / 15 / 13 px. Numbers in `--mono`. Labels in uppercase mono at 12px with letter-spacing.
-- **One accent.** Orange means "attention / likely / selected". Status always pairs colour with a word ("Person", "Not a person", "Unsure"); never colour alone.
+- **Panels:** `--surface` background, 1px `--border`, `backdrop-filter: blur(16px)` over the map, `--radius-lg` (16 px). Inner elements use `--radius-sm` / `--radius-md` (10 px). Buttons and chips are pills.
+- **Type scale** (Tailwind `text-*`, size / line height in px):
+
+  | Token | Size / line | Use |
+  |---|---|---|
+  | `caption` | 11 / 16 | footers, credits |
+  | `label` | 11 / 16 | uppercase mono labels, letter-spacing `tracking-label` (0.08em) |
+  | `small` | 13 / 20 | secondary text, notes, sources |
+  | `body` | 15 / 24 | default text, tables |
+  | `lead` | 17 / 26 | intro paragraphs |
+  | `title` | 20 / 28 | card and section titles |
+  | `headline` | 28 / 34 | screen headlines on phones |
+  | `display` | 40 / 44 | big numbers, screen headlines from `sm` |
+
+  Numbers in `--mono` with tabular figures. Never set a font size outside these tokens.
+- **One accent.** Orange means "attention / selected", and it is the middle stop of the heat ramp. Status always pairs colour with a word ("Person", "Not a person", "Unsure"); never colour alone.
+- **Map pins** (`map/base/pinImages.ts`): Person = a green (`--ok`) disc with a dark check, the strongest mark on the map and never the heat's orange or red; Unsure = an open amber (`--warn`) ring with "?"; Not a person = a small grey cross; not answered yet = a small neutral dot.
+- **Heat ramp** (`map/heat/raster.ts`): ColorBrewer YlOrRd without its palest class, with the theme accent replacing the orange stop, drawn in 7 classes from pale yellow (less likely) to deep red (more likely); lightness falls monotonically along it. Ground not photographed yet is veiled with `--bg`; photographed ground awaiting review is a neutral grey tone. This is the one place colours outside the tokens are allowed, and the legend must say what the colours are relative to.
 - **Caveat** (handwriting font) only for one-off annotations, like the deck. Never for data.
 - **Honesty badges** (shared `<Badge kind="simulated">`): "Simulated flight path", "Simulated evaluation", "Placeholder prior", "10 m position uncertainty".
 
@@ -95,15 +116,19 @@ Shared components D provides in `shell/`: `Panel`, `Stat` (big number + label + 
 
 ---
 
-## 6. The three screens (summary; details in each lane file §9)
+## 6. The five steps (summary; details in each lane file §9)
 
-| Tab | Built by | What's on it |
+The app is one guided flow with a step bar and the step in the URL hash (`web/src/shell/flow.ts`); the hackathon plan's three tabs became these steps.
+
+| Step | Built by | What's on it |
 |---|---|---|
-| **Review** | D | Ranked crops, P/N/U keys, frame view, progress |
-| **Map** | B (base) + C (heat) | Satellite/offline basemap, footprints, path, pins, LKP, heatmap, step slider, search-next panel |
-| **Metrics** | A | Detector vs. human, ablations, ranking result (D's numbers), search simulation (C's numbers) |
+| **Survey** | D | The photos the drone brought back, the place and the simulated flight path |
+| **Rank** | D (+ A's detector) | The detector scoring every photo, the ranked queue |
+| **Review** | D (+ B's map) | Ranked crops, P/N/U keys, full frame, mini-map with pins |
+| **Search next** | B (base) + C (heat) | Basemap, footprints, path, pins, heat map, step replay, sectors list, legend |
+| **Results** | A (+ D's ranking, C's simulation) | The ranking race, recall / time / cells cards, why resolution matters, known limits, then the details (detector vs. human, state of the art, ablations, ranking table, search simulation) as collapsed sections |
 
-On a wide screen the Review tab can show a mini-map on the right (B's `MapView` in compact mode). Nice to have, not required.
+"Try your own photo" (`web/src/detect/`) runs the detector in the browser on an uploaded photo.
 
 ---
 
@@ -116,7 +141,7 @@ On a wide screen the Review tab can show a mini-map on the right (B's `MapView` 
 | 25–35 s | Review → Map | Press `M`; the pin is confirmed | "It's pinned, with its position uncertainty." |
 | 35–45 s | Review | Press `N` on a backpack; switch to Map | "A false alarm. Marking it updates the map live." |
 | 45–55 s | Map | Drag the step slider through the flight | "Open ground the drone saw turns pale. Forest it can't see into stays dark red. That's where the team goes next." |
-| 55–60 s | Metrics | Open the tab | "Here's the detector against the human baseline, and every number's source." |
+| 55–60 s | Results | Open the step | "Here's the detector against the human baseline, and every number's source." |
 
 The person is confirmed before the scrub, so the "found" state must not freeze the slider (see `LANE_C_SEARCH.md` §3.5). Rehearse exactly this order.
 
@@ -136,7 +161,7 @@ The person is confirmed before the scrub, so the "found" state must not freeze t
 ## 9. For Claude (instructions when working under `web/`)
 
 - Stay in your lane's folders (§3). Shared changes to `shell/` or `lib/` go through D.
-- Use the CSS variables in §5 via Tailwind theme config; no new colours.
+- Use the CSS variables in §5 via the Tailwind theme in `shell/theme.css`; no new colours (the heat ramp in §5 is the one exception).
 - Import cache types from `src/contract.ts`; never redefine them.
 - Map work goes through B's `useMap()`; don't create a second MapLibre instance.
 - Use C's `update.ts` for any probability change; never reimplement the update.

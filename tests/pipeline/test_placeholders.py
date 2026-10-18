@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from sightline.contract import LatLon, MapFile, Metrics, SearchSim
+from sightline.ml.evaluate import ABLATION_NAMES as LANE_A_ABLATION_NAMES
 from sightline.pipeline.formats import DetectConfig, DetectorMetricsFile, RawDetectionsFile
 from sightline.pipeline.placeholders import (
+    ABLATION_NAMES,
     placeholder_detections,
     placeholder_detector_metrics,
     placeholder_map,
@@ -56,7 +58,7 @@ def test_placeholder_detections_list_every_frame_with_no_detections():
     assert raw.candidate_threshold == config.candidate_threshold == 0.25
 
 
-def test_placeholder_detector_metrics_are_zeros_labelled_placeholder_with_the_four_ablation_rows():
+def test_placeholder_detector_metrics_are_zeros_labelled_placeholder_with_the_seven_ablation_rows():
     file = placeholder_detector_metrics(candidate_threshold=0.25)
 
     assert isinstance(file, DetectorMetricsFile)
@@ -64,10 +66,14 @@ def test_placeholder_detector_metrics_are_zeros_labelled_placeholder_with_the_fo
     assert file.detector.voc.recall == file.detector.recall == 0.0
     assert [a.name for a in file.ablations] == [
         "Stock model, no tiling",
-        "Fine-tuned, no tiling",
+        "Fine-tuned on tiles, run on shrunk photos",
+        "Stock model, full-resolution photo",
+        "Fine-tuned on tiles, full-resolution photo",
+        "Trained and run on whole photos",
         "Fine-tuned + tiling",
         "+ hard negatives",
     ]
+    assert list(ABLATION_NAMES) == list(LANE_A_ABLATION_NAMES)
 
 
 def test_placeholder_search_sim_is_marked_simulated_and_has_the_three_methods():
