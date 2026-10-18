@@ -4,8 +4,8 @@ import { STEPS, type StepId } from "./flow";
 export function StepBar({ value, onChange }: { value: StepId; onChange: (id: StepId) => void }) {
   const currentIndex = STEPS.findIndex((s) => s.id === value);
   return (
-    <nav aria-label="Demo steps">
-      <ol className="flex items-center gap-1 rounded-full border border-border bg-surface p-1">
+    <nav aria-label="Demo steps" className="max-w-full">
+      <ol className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-border bg-surface p-1">
         {STEPS.map((step, index) => {
           const isCurrent = step.id === value;
           const isDone = index < currentIndex;
@@ -14,7 +14,7 @@ export function StepBar({ value, onChange }: { value: StepId; onChange: (id: Ste
               {index > 0 && (
                 <span
                   aria-hidden="true"
-                  className={`mx-0.5 h-px w-3 ${isDone || isCurrent ? "bg-accent" : "bg-border"}`}
+                  className={`mx-0.5 h-px w-2 sm:w-3 ${isDone || isCurrent ? "bg-accent" : "bg-border"}`}
                 />
               )}
               <button
@@ -23,7 +23,7 @@ export function StepBar({ value, onChange }: { value: StepId; onChange: (id: Ste
                 onClick={() => onChange(step.id)}
                 title={step.hint}
                 className={
-                  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-small transition-colors " +
+                  "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2 py-1.5 text-small transition-colors sm:px-3 " +
                   (isCurrent
                     ? "bg-accent text-bg"
                     : isDone
@@ -39,7 +39,7 @@ export function StepBar({ value, onChange }: { value: StepId; onChange: (id: Ste
                 >
                   {isDone ? "✓" : index + 1}
                 </span>
-                {step.label}
+                <span className={isCurrent ? "" : "sr-only sm:not-sr-only"}>{step.label}</span>
               </button>
             </li>
           );

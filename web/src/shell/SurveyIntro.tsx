@@ -75,8 +75,8 @@ const HOW: [string, string][] = [
 
 function Fact({ value, label, source }: { value: string; label: string; source: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-border bg-bg/50 px-4 py-3 backdrop-blur" title={source}>
-      <dd className="font-mono text-[30px] leading-none text-text">{value}</dd>
+    <div className="flex flex-col gap-1 rounded-md border border-border bg-bg/50 px-3 py-3 backdrop-blur sm:px-4" title={source}>
+      <dd className="font-mono text-[22px] leading-none text-text sm:text-[30px]">{value}</dd>
       <dt className="text-label text-text-3">{label}</dt>
     </div>
   );

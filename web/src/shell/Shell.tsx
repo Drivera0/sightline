@@ -185,7 +185,7 @@ export function Shell({
   const nextLabel = STEPS.find((s) => s.id === nextStep(step))?.label;
 
   const map = (withHeat: boolean) => (
-    <div className="relative h-full min-h-[24rem] overflow-hidden rounded-lg" data-testid="mount-map">
+    <div className={"relative min-h-[24rem] overflow-hidden rounded-lg lg:h-full " + (withHeat ? "h-[78vh]" : "h-[60vh]")} data-testid="mount-map">
       <ScreenBoundary name="Map">
         <MapView
           focusSelection={!withHeat}
@@ -205,14 +205,14 @@ export function Shell({
 
   return (
     <CacheContext.Provider value={cache}>
-      <div className="flex h-full flex-col gap-3 p-4">
+      <div className="flex min-h-full flex-col gap-3 p-4 lg:h-full">
         <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="flex items-center gap-2 text-title font-medium">
               <Logo />
               Sightline
             </h1>
-            <span className="text-small text-text-3">{shortSurveyName(survey.area.name)}</span>
+            <span className="hidden text-small text-text-3 sm:inline">{shortSurveyName(survey.area.name)}</span>
             {survey.simulated_path && <Badge kind="simulated">Simulated flight path</Badge>}
             {detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
             {detections.model === "PLACEHOLDER" && <Badge kind="placeholder">Placeholder detections</Badge>}
@@ -222,7 +222,7 @@ export function Shell({
           ) : null}
           <StepBar value={step} onChange={setStep} />
           <div className="flex items-center gap-4 text-small text-text-3">
-            <span>
+            <span className="hidden sm:inline">
               {manifest.n_frames} frames · {manifest.survey_id}
             </span>
             <button
@@ -235,7 +235,7 @@ export function Shell({
           </div>
         </header>
 
-        <main key={step} className="sl-step flex min-h-0 flex-1 flex-col gap-3" aria-label={stepInfo.label}>
+        <main key={step} className="sl-step flex flex-1 flex-col gap-3 lg:min-h-0" aria-label={stepInfo.label}>
           {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onTour={startTour} />}
 
           {step === "rank" && <RankReveal cache={cache} dir={dir} onStart={() => setStep("review")} />}
@@ -249,7 +249,7 @@ export function Shell({
                   drone looked there. Unsure leaves the map as it is.
                 </span>
               </p>
-              <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+              <div className="grid flex-1 grid-cols-1 gap-3 lg:min-h-0 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
                 <ScreenBoundary name="Review">
                   <ReviewView cache={cache} onShowMap={() => setStep("search")} compact />
                 </ScreenBoundary>
@@ -265,12 +265,12 @@ export function Shell({
                 ground the drone photographed. Dark ground is not yet searched (less than half of it
                 photographed). Press play to watch the flight: ground the drone saw clearly fades.
               </p>
-              <div className="min-h-0 flex-1">{map(true)}</div>
+              <div className="flex-1 lg:min-h-0">{map(true)}</div>
             </>
           )}
 
           {step === "results" && (
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+            <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
               <ResultsSummary
                 metrics={cache.metrics}
                 cellM={cache.map.grid.cell_m}
