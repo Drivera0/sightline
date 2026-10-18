@@ -146,9 +146,13 @@ export function overlapAtStep(index: OverlapIndex, k: number): Float64Array {
   return out;
 }
 
-/** 1 where some frame so far touched the cell (summed overlap > 0). */
+/**
+ * 1 where the cell counts as photographed for the heat map: summed overlap >= MIN_OVERLAP, the same
+ * rule as "Search next". Slivers the footprints only touched (0 < overlap < MIN_OVERLAP) are 0, so they
+ * are drawn as "not yet searched" and stay out of the stretch bounds and the surveyed outline.
+ */
 export function photographedCells(overlap: Float64Array): Uint8Array {
-  return Uint8Array.from(overlap, (v) => (v > 0 ? 1 : 0));
+  return Uint8Array.from(overlap, (v) => (v >= MIN_OVERLAP ? 1 : 0));
 }
 
 /** 1 where "Search next" may rank the cell: summed overlap >= MIN_OVERLAP and not awaiting review. */

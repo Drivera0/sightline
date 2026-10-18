@@ -46,8 +46,8 @@ interface Props {
  * Only cells the footprints covered at least MIN_OVERLAP times are ranked ("eligible"), so edge
  * slivers the camera barely touched do not fill the list. The "× avg" average is over the same
  * eligible cells. Cells awaiting review (a candidate detection not yet answered "Not a person") are
- * left out of both: they have pod 0 until a searcher decides. The shares below still use `covered`
- * (the area photographed so far).
+ * left out of both: they have pod 0 until a searcher decides. The shares below use `covered`, which
+ * follows the same MIN_OVERLAP rule (the area photographed well enough so far).
  *
  * Only photographed cells are ranked. Inside a 1 km grid a hiker prior is flat (Koester's hiker
  * distances are larger than the grid), so every unphotographed cell would outrank every

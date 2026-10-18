@@ -193,6 +193,46 @@ describe("HeatLayer", () => {
     expect(m.map.setFeatureState.mock.calls.length).toBeGreaterThanOrEqual(2500 * 2);
   });
 
+  it("draws a sliver cell (overlap below MIN_OVERLAP) as not yet searched, with no heat and no outline", () => {
+    // A third frame that only grazes cell 1325 (row 26, col 25): 4 m of its 20 m width, so overlap 0.2.
+    const g = cache.map.grid;
+    const mLon = 111_320 * Math.cos((g.origin_nw.lat * Math.PI) / 180);
+    const lat = (m: number) => g.origin_nw.lat - (26 * 20 + m) / 111_320;
+    const lon = (m: number) => g.origin_nw.lon + (25 * 20 + m) / mLon;
+    const sliver: Frame["footprint"] = [[lon(0), lat(0)], [lon(4), lat(0)], [lon(4), lat(20)], [lon(0), lat(20)]];
+    const sliverCache: CacheBundle = {
+      ...cache,
+      map: { ...cache.map, steps: [...cache.map.steps, { frame_id: "f0003", cells: [[1325, 0.01]] }] },
+      survey: {
+        ...cache.survey,
+        frames: [...cache.survey.frames, { ...(cache.survey.frames[0] as Frame), footprint: sliver }],
+      },
+    };
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={sliverCache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    act(() => useReview.getState().answer("f0001-d01", "not_person", 1));
+    act(() => useSearch.getState().setStepIndex(3));
+    // The sliver cell has almost the top p (barely searched) but is not searched: no heat, flagged.
+    const p = useSearch.getState().state!.p;
+    expect(p[1325]).toBeGreaterThan(p[1276] as number);
+    expect(m.featureState.get(1325)).toEqual({ o: 0, u: 1, h: 0 });
+    // Well-photographed cells keep their heat.
+    expect(m.featureState.get(1276)!.o).toBeGreaterThan(0);
+    // The outline does not include the sliver cell: it is the same drawing as at step 2.
+    const drawn = m.boundaryDrawn.at(-1) as { geometry: { coordinates: unknown[] } };
+    act(() => useSearch.getState().setStepIndex(2));
+    const atTwo = m.boundaryDrawn.at(-1) as { geometry: { coordinates: unknown[] } };
+    expect(drawn.geometry.coordinates).toEqual(atTwo.geometry.coordinates);
+    // At step 0 nothing is coloured.
+    act(() => useSearch.getState().setStepIndex(0));
+    for (const i of [1275, 1276, 1277, 1325]) expect(m.featureState.get(i)).toEqual({ o: 0, u: 1, h: 0 });
+  });
+
   it("adds the layers on top when lane B has not drawn yet", () => {
     const m = mockMap(false);
     ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
