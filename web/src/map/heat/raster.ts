@@ -19,9 +19,13 @@ export type RGB = [number, number, number];
 
 /** Opacity of the "not yet searched" veil (cells not photographed at this step). */
 export const VEIL_ALPHA = 0.62;
-/** Heat opacity at the low and the high end of the ramp: the pale low end lets the basemap through, the dark high end is dense. */
-export const HEAT_ALPHA_MIN = 0.8;
-export const HEAT_ALPHA_MAX = 0.95;
+/**
+ * Heat opacity at the low and the high end of the ramp: the pale low end lets the basemap through, the
+ * dark high end is dense. (Was 0.5 to 0.9, too muddy at the pale end; then 0.8 to 0.95, which hid the
+ * basemap.) Multiplied by the layer's HEAT_BASE_OPACITY.
+ */
+export const HEAT_ALPHA_MIN = 0.7;
+export const HEAT_ALPHA_MAX = 0.92;
 /** Fill of a cell awaiting review: a neutral light tone (no update yet), outlined dashed on the map. */
 export const HELD_ALPHA = 0.3;
 /** Ramp resolution. */
@@ -146,9 +150,11 @@ export function buildEvenRamp(stops: readonly RGB[], steps = RAMP_STEPS): Uint8C
 /**
  * ColorBrewer YlOrRd (9 classes, Cynthia Brewer, colorbrewer2.org), less likely to more likely. The
  * palest class (#ffffcc) is left out: at partial opacity over the dark basemap it reads as grey.
- * The orange class #fd8d3c is replaced by the theme accent (see paletteFromTokens).
+ * The two palest stops used are lightened a little (#ffeda0 -> #fff4b8, #fed976 -> #fedc80) so they
+ * stay yellow, not olive, at the lower opacity that lets the basemap through. The orange class
+ * #fd8d3c is replaced by the theme accent (see paletteFromTokens).
  */
-export const YLORRD_STOPS = ["#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"] as const;
+export const YLORRD_STOPS = ["#fff4b8", "#fedc80", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"] as const;
 const ACCENT_STOP_INDEX = 3;
 
 export interface RasterPalette {
