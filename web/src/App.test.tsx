@@ -53,7 +53,7 @@ describe("App", () => {
 
     useSelection.getState().selectDetection("f0001-d01");
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Survey" }), "demo");
-    expect(await screen.findByText("Mount Seymour, North Vancouver")).toBeInTheDocument();
+    expect(await screen.findByText("Mount Seymour")).toBeInTheDocument();
     expect(useSelection.getState().selectedDetectionId).toBeNull();
   });
 
@@ -113,7 +113,7 @@ describe("App", () => {
     ]);
 
     await userEvent.selectOptions(picker, "demo");
-    expect(await screen.findByText(/20 frames/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Sightline" })).toBeInTheDocument();
   });
 
   it("keeps sample data out of production survey candidates", () => {

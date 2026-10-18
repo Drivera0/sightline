@@ -21,12 +21,12 @@ async function sample(change?: (c: CacheBundle) => void): Promise<CacheBundle> {
 }
 
 describe("Shell header", () => {
-  it("shows the title and the simulated-flight-path badge", async () => {
+  it("shows the title, the place and one simulated-flight-path label under it", async () => {
     render(<Shell cache={await sample()} />);
 
     expect(screen.getByRole("heading", { name: "Sightline" })).toBeInTheDocument();
-    expect(screen.getByText("Mount Seymour, North Vancouver")).toBeInTheDocument();
-    expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
+    expect(screen.getByTitle("Mount Seymour, North Vancouver")).toHaveTextContent("Mount Seymour");
+    expect(screen.getAllByText("Simulated flight path")).toHaveLength(1);
   });
 
   it("uses the real survey name and hides the simulated badge", async () => {
@@ -61,11 +61,8 @@ describe("Shell header", () => {
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Survey" }), "real-gps");
 
     expect(onCacheDirChange).toHaveBeenCalledWith("real-gps");
-    expect(screen.getByRole("combobox", { name: "Survey" })).toHaveClass(
-      "border-border",
-      "bg-surface-strong",
-      "text-label",
-    );
+    // A native select over the quiet survey button, so keyboard and screen readers get the real control.
+    expect(screen.getByRole("combobox", { name: "Survey" })).toHaveClass("absolute", "inset-0", "opacity-0");
   });
 
   it("removes only a trailing explanatory parenthetical from survey names", () => {
@@ -88,10 +85,23 @@ describe("Shell header", () => {
     expect(screen.queryByText("Sample data")).not.toBeInTheDocument();
   });
 
-  it("describes the survey from the manifest", async () => {
+  it("keeps the app bar to one row: no frame count or survey id", async () => {
     render(<Shell cache={await sample()} />);
 
-    expect(screen.getByText(/20 frames/)).toBeInTheDocument();
+    expect(screen.queryByText(/20 frames/)).not.toBeInTheDocument();
+  });
+
+  it("holds the shortcuts and the tour in one menu", async () => {
+    render(<Shell cache={await sample()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    const menu = screen.getByRole("menu", { name: "Menu" });
+    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      expect.stringContaining("Keyboard shortcuts"),
+      expect.stringContaining("Take the tour"),
+    ]);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 });
 
@@ -131,10 +141,11 @@ describe("Shell shortcut overlay", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("opens from the header button", async () => {
+  it("opens from the app bar menu", async () => {
     render(<Shell cache={await sample()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /shortcuts/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /keyboard shortcuts/i }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
