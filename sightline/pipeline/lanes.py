@@ -27,11 +27,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sightline.contract import LatLon, MapFile, Pose, SearchSim
+from sightline.contract import Grid, LatLon, MapFile, Pose, SearchSim
 from sightline.pipeline import geometry
 from sightline.pipeline.formats import write_json
 from sightline.pipeline.geometry import FRAME_H_PX, FRAME_W_PX
 from sightline.pipeline.placeholders import (
+    PRIOR_OUTSIDE,
     placeholder_detections,
     placeholder_map,
     placeholder_search_sim,
@@ -100,6 +101,27 @@ class MapFrame:
     # (lat, lon, radius_m) of each candidate detection in the frame (conf >= candidate_threshold),
     # so lane C can hold those cells for review (pod = 0 near a detection).
     candidates: tuple[tuple[float, float, float], ...] = ()
+
+
+@dataclass(frozen=True)
+class NativeFrameInput:
+    """Same fields as lane C's `FrameInput` (docs/LANE_C_SEARCH.md), used when lane C's own class
+    is not importable. Lane C's code only reads these attributes."""
+
+    frame_id: str
+    pose: Pose
+    width_px: int
+    height_px: int
+    image: Path
+    candidates: list[tuple[LatLon, float]]
+
+
+def _first_parameter(function: Callable[..., Any]) -> str | None:
+    try:
+        names = list(inspect.signature(function).parameters)
+    except (TypeError, ValueError):
+        return None
+    return names[0] if names else None
 
 
 def _accepts_positional(function: Callable[..., Any], count: int) -> bool:
@@ -303,7 +325,9 @@ class Lanes:
         if function is None:
             self._fallback("build_map", "a uniform prior with empty steps")
             return placeholder_map([f.id for f in frames], lkp, recall, recall_source)
-        if _accepts_positional(function, 4):
+        if _first_parameter(function) == "grid":  # lane C's native signature
+            result = self._native_build_map(function, frames, lkp, recall, recall_source)
+        elif _accepts_positional(function, 4):
             result = function(list(frames), lkp, recall, recall_source)
         else:
             result = function(list(frames), lkp, recall)  # an older build_map without recall_source
@@ -319,6 +343,73 @@ class Lanes:
         else:
             cells = _as_cells(raw_cells)
         return map_file, cells
+
+    def _native_build_map(
+        self,
+        function: Callable[..., Any],
+        frames: Sequence[MapFrame],
+        lkp: LatLon,
+        recall: float,
+        recall_source: str,
+    ) -> tuple[Any, FrameCells | None]:
+        """Call lane C's `build_map(grid, lkp, prior, frames, recall, recall_source)` and turn its
+        per-frame `{idx: (canopy, overlap)}` lists into cells keyed by frame id."""
+        grid = self._grid(lkp)
+        prior = self._prior(grid)
+        frame_class = self.get("frame_input") or NativeFrameInput
+        inputs = [
+            frame_class(
+                frame_id=f.id,
+                pose=f.pose,
+                width_px=FRAME_W_PX,
+                height_px=FRAME_H_PX,
+                image=f.image_path,
+                candidates=[
+                    (LatLon(lat=lat, lon=lon), radius) for lat, lon, radius in f.candidates
+                ],
+            )
+            for f in frames
+        ]
+        result = function(grid, lkp, prior, inputs, recall, recall_source)
+        if not isinstance(result, tuple):
+            return result, None  # a map only; the cells are derived from its steps
+        raw_map, per_frame = result
+        if len(per_frame) != len(frames):
+            raise ValueError(
+                f"build_map returned {len(per_frame)} frame-cell lists for {len(frames)} frames"
+            )
+        cells: FrameCells = {
+            frame.id: [
+                (int(idx), float(canopy), float(overlap))
+                for idx, (canopy, overlap) in sorted(cells_of_frame.items())
+            ]
+            for frame, cells_of_frame in zip(frames, per_frame, strict=True)
+        }
+        return raw_map, cells
+
+    def _grid(self, lkp: LatLon) -> Grid:
+        """Lane C's `make_grid(lkp)`, or the same 1 km / 20 m grid built here."""
+        make_grid = self.get("make_grid")
+        if make_grid is not None:
+            return make_grid(lkp)
+        return Grid(
+            origin_nw=geometry.grid_origin_nw(lkp),
+            cell_m=geometry.CELL_M,
+            rows=geometry.GRID_ROWS,
+            cols=geometry.GRID_COLS,
+        )
+
+    def _prior(self, grid: Grid) -> tuple[Any, float]:
+        """A placeholder prior (probabilities per cell, probability outside the grid). The real
+        prior needs the distance statistics for a lost hiker, which we do not have yet."""
+        import numpy as np
+
+        self.note_placeholder("prior", "no real search prior yet, used a uniform placeholder prior")
+        placeholder_prior = self.get("placeholder_prior")
+        if placeholder_prior is not None:
+            return placeholder_prior(grid)
+        cells = grid.rows * grid.cols
+        return np.full(cells, (1 - PRIOR_OUTSIDE) / cells), PRIOR_OUTSIDE
 
     def _cells_from_steps(self, map_file: MapFile) -> FrameCells:
         """When lane C returns only a MapFile: the cells each step covered, with the map's canopy and
