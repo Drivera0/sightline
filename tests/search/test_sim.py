@@ -193,6 +193,13 @@ def test_in_survey_shows_canopy_aware_gain_hidden_in_overall_median() -> None:
     assert survey[NAMES[2]].median_cells < survey[NAMES[1]].median_cells
     assert survey[NAMES[2]].p90_cells <= survey[NAMES[1]].p90_cells
     assert overall[NAMES[2]].median_cells == overall[NAMES[1]].median_cells
+    # Every photographed cell here has the same overlap, so the naive map is flat inside the
+    # survey, like "Prior only" (flat prior, index order). The replay's rounding splits the
+    # tie at the last bits, so naive's order inside the survey is close to random and its
+    # median is about the same as prior only, not better. Under the old whole-grid rank
+    # naive was far worse (every photographed cell fell below all 50 unphotographed ones).
+    assert abs(survey[NAMES[1]].median_cells - survey[NAMES[0]].median_cells) <= 2
+    assert survey[NAMES[2]].median_cells < survey[NAMES[0]].median_cells
 
 
 def test_in_survey_is_deterministic_with_seed() -> None:
@@ -217,3 +224,54 @@ def test_in_survey_none_when_no_cell_photographed() -> None:
     assert sim.found_by_drone_rate == 0.0
     assert sim.in_survey is None
     assert all(m.median_cells >= 1 for m in sim.methods)
+
+
+def test_methods_unchanged_by_in_survey_rule() -> None:
+    # Pinned from the code before in_survey was restricted to photographed cells: the
+    # whole-grid statistic must not change.
+    map_file, frames = _half_forest()
+    sim = simulate(map_file, frames, trials=1000, seed=7)
+    assert [(m.median_cells, m.p90_cells) for m in sim.methods] == [
+        (61, 92),
+        (39, 85),
+        (39, 74),
+    ]
+
+
+def test_in_survey_ranks_are_within_photographed_cells() -> None:
+    # 50 of the 100 cells are photographed, so a rank among them is 1..50.
+    map_file, frames = _half_forest()
+    sim = simulate(map_file, frames, trials=1000, seed=7)
+    assert sim.in_survey is not None
+    for m in sim.in_survey.methods:
+        assert 1 <= m.median_cells <= m.p90_cells <= 50
+
+
+def test_in_survey_rank_is_rank_among_photographed_cells() -> None:
+    # 3 x 3 grid, flat prior. Cells 1, 4 and 7 are photographed once with overlap 1.0;
+    # canopy 0.9, 0.1 and 0.5. The map's steps use recall 0.8, so the canopy-aware pods are
+    # 0.08, 0.72 and 0.40, and its final p inside the survey orders the cells 1, 7, 4.
+    # The naive pod is 0.95 for all three, so naive (like prior only) keeps index order 1, 4, 7.
+    # simulate runs with recall 0, so nobody is found and every trial is not found.
+    frames: list[FrameCells] = [{1: (0.9, 1.0)}, {4: (0.1, 1.0)}, {7: (0.5, 1.0)}]
+    built = _make_map(3, frames, recall=0.8)
+    map_file = built.model_copy(update={"params": built.params.model_copy(update={"recall": 0.0})})
+    sim = simulate(map_file, frames, trials=200, seed=5)
+    rank_index_order = {1: 1, 4: 2, 7: 3}
+    rank_canopy_aware = {1: 1, 7: 2, 4: 3}
+    # The same draw as step 1 of simulate (uniform prior, 9 cells).
+    true_cells = np.random.default_rng(5).choice(9, size=200, p=np.full(9, 1 / 9))
+    inside = [int(c) for c in true_cells if int(c) in rank_index_order]
+    assert sim.in_survey is not None
+    assert sim.in_survey.trials == len(inside)
+
+    def summary(ranks: list[int]) -> tuple[int, int]:
+        median, p90 = np.percentile(ranks, [50.0, 90.0])
+        return int(np.rint(median)), int(np.rint(p90))
+
+    expected = [
+        summary([rank_index_order[c] for c in inside]),
+        summary([rank_index_order[c] for c in inside]),
+        summary([rank_canopy_aware[c] for c in inside]),
+    ]
+    assert [(m.median_cells, m.p90_cells) for m in sim.in_survey.methods] == expected
