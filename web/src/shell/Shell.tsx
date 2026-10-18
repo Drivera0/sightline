@@ -24,6 +24,18 @@ const REVIEW_KEYS: [string, string][] = [
   ["Enter", "Full frame"],
 ];
 
+const SURVEY_OPTIONS = [
+  { dir: "sample", label: "Sample survey" },
+  { dir: "demo", label: "Mount Seymour simulation" },
+  { dir: "real-gps", label: "Real EXIF positions" },
+] as const;
+
+interface ShellProps {
+  cache: CacheBundle;
+  cacheDir?: string;
+  onCacheDirChange?: (dir: string) => void;
+}
+
 /** A viewfinder ring with a centre dot: what the product does, in one glyph. */
 function Logo() {
   return (
@@ -35,6 +47,7 @@ function Logo() {
   );
 }
 
+/** Reads the guided-demo step encoded in the current URL hash. */
 function readStep(): StepId {
   return typeof window === "undefined" ? "survey" : stepFromHash(window.location.hash);
 }
@@ -44,7 +57,7 @@ function readStep(): StepId {
  * One screen at a time, a step bar that always shows where you are, and the step in the URL hash
  * (so a presenter can open any step directly, e.g. /#review).
  */
-export function Shell({ cache }: { cache: CacheBundle }) {
+export function Shell({ cache, cacheDir, onCacheDirChange }: ShellProps) {
   const [step, setStepState] = useState<StepId>(readStep);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const loadedDir = useCache((s) => s.dir);
@@ -115,11 +128,28 @@ export function Shell({ cache }: { cache: CacheBundle }) {
               <Logo />
               Sightline
             </h1>
-            <span className="text-small text-text-3">Mount Seymour survey</span>
+            <span className="text-small text-text-3">{survey.area.name}</span>
             {survey.simulated_path && <Badge kind="simulated">Simulated flight path</Badge>}
             {detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
             {detections.model === "PLACEHOLDER" && <Badge kind="placeholder">Placeholder detections</Badge>}
           </div>
+          {cacheDir && onCacheDirChange ? (
+            <label className="flex items-center gap-2 font-mono text-xs text-text-2">
+              Survey
+              <select
+                aria-label="Survey"
+                className="rounded-sm border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2 text-[var(--text)]"
+                onChange={(event) => onCacheDirChange(event.target.value)}
+                value={cacheDir}
+              >
+                {SURVEY_OPTIONS.map((option) => (
+                  <option key={option.dir} value={option.dir}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <StepBar value={step} onChange={setStep} />
           <div className="flex items-center gap-4 text-small text-text-3">
             <span>
@@ -193,7 +223,10 @@ export function Shell({ cache }: { cache: CacheBundle }) {
         <footer className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-small text-text-3">
             Imagery: HERIDAL dataset (Božić-Štulić, Marušić &amp; Gotovac, 2019), VOC-format copy by
-            Pyrrö (2021), CC BY 3.0. Real photos on a simulated flight path.
+            Pyrrö (2021), CC BY 3.0.{" "}
+            {survey.simulated_path
+              ? "Real photos on a simulated flight path."
+              : "Real photos at recorded EXIF positions."}
           </p>
           <div className="flex items-center gap-2">
             <Label className="mr-2 hidden md:inline">{stepInfo.hint}</Label>
