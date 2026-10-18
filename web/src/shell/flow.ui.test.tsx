@@ -61,7 +61,7 @@ describe("guided flow", () => {
     window.location.hash = "#search";
     render(<Shell cache={cache} />);
     expect(within(screen.getByTestId("map-view")).getByTestId("mount-heat")).toBeInTheDocument();
-    expect(screen.getByText(/Ground the drone saw clearly fades/)).toBeInTheDocument();
+    expect(screen.getByText(/Grey was never photographed/)).toBeInTheDocument();
   });
 
   it("ends on the results headline numbers, with the full metrics below", () => {
