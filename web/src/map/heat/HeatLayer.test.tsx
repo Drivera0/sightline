@@ -8,6 +8,7 @@ import { useSearch } from "../../search/store";
 import type { MapContextValue } from "../MapView";
 import { MAP_LAYER_IDS } from "../base/layerIds";
 import { HeatLayer } from "./HeatLayer";
+import { coveredCells } from "./geometry";
 import { HEAT_LAYER_IDS, HEAT_SOURCE_ID } from "./layers";
 
 const ctx: { value: MapContextValue | null } = { value: null };
@@ -117,13 +118,17 @@ describe("HeatLayer", () => {
     expect(m.featureState.size).toBe(2500);
     const addSourceCalls = m.map.addSource.mock.calls.length;
 
-    // Final map: the stepped cells are dimmer than an untouched one.
-    expect(m.featureState.get(1275)!.o).toBeLessThan(m.featureState.get(0)!.o);
+    // Heat only on photographed ground: an unphotographed cell sits under the veil at 0.
+    const covered = coveredCells(cache.map);
+    const unseen = covered.findIndex((c) => c === 0);
+    expect(m.featureState.get(unseen)!.o).toBe(0);
+    // Final map: a cell the drone saw well is dimmer than one it saw less well.
+    expect(m.featureState.get(1275)!.o).toBeLessThan(m.featureState.get(1277)!.o);
     expect(screen.getByText("After frame 2 of 2")).toBeInTheDocument();
 
     act(() => useSearch.getState().setStepIndex(0));
     expect(screen.getByText("Before the first frame")).toBeInTheDocument();
-    expect(m.featureState.get(1275)!.o).toBeCloseTo(m.featureState.get(0)!.o, 9);
+    expect(m.featureState.get(1275)!.o).toBeCloseTo(m.featureState.get(1277)!.o, 9);
     expect(m.map.addSource.mock.calls.length).toBe(addSourceCalls);
 
     // A confirmed person shows the banner; the slider keeps working.
@@ -183,7 +188,7 @@ describe("HeatLayer", () => {
     );
     act(() => useReview.getState().answer("f0003-d01", "person", 1));
     const banner = screen.getByText("Person confirmed: dispatch ground team");
-    const sidePanel = screen.getByText("Search next in the surveyed area").closest(".w-72");
+    const sidePanel = screen.getByText("Search next").closest(".w-72");
     expect(sidePanel).not.toBeNull();
     expect(sidePanel!.contains(banner)).toBe(true);
   });

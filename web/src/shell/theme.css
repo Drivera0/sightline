@@ -106,3 +106,40 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .sl-toast { animation: none; opacity: 0; }
 }
+
+/* Range slider: a thin track filled up to the thumb (--sl-range-fill), and a round white thumb. */
+.sl-range {
+  appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+.sl-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--sl-range-fill, 0%), var(--surface-strong) var(--sl-range-fill, 0%));
+}
+.sl-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--sl-range-fill, 0%), var(--surface-strong) var(--sl-range-fill, 0%));
+}
+.sl-range::-webkit-slider-thumb {
+  appearance: none;
+  margin-top: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--text);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 150ms ease;
+}
+.sl-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+.sl-range:hover::-webkit-slider-thumb { transform: scale(1.15); }

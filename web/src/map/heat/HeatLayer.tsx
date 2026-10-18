@@ -11,7 +11,11 @@ import { coveredCells } from "./geometry";
 import {
   cellFeaturesFor,
   ensureHeatLayers,
-  HEAT_SOURCE_ID, pushHeatState, readHeatColors } from "./layers";
+  HEAT_SOURCE_ID,
+  pushHeatState,
+  pushReplay,
+  readHeatColors,
+} from "./layers";
 import { Legend } from "./Legend";
 import { NextSearch } from "./NextSearch";
 import { StepSlider } from "./StepSlider";
@@ -80,6 +84,16 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
 
   const covered = useMemo(() => coveredCells(mapFile), [mapFile]);
   const hasSurveyed = useMemo(() => covered.some((c) => c === 1), [covered]);
+  // The drone's position after each step, in step order (one point per applied frame).
+  const path = useMemo(() => {
+    const poses = new Map(bundle.survey.frames.map((f) => [f.id, [f.pose.lon, f.pose.lat] as [number, number]]));
+    return mapFile.steps.flatMap((s) => {
+      const at = poses.get(s.frame_id);
+      return at ? [at] : [];
+    });
+  }, [bundle.survey.frames, mapFile.steps]);
+  const stepRef = useRef(stepIndex);
+  stepRef.current = stepIndex;
 
   // What the map already shows per cell; NaN = unknown, push everything.
   const lastRef = useRef<Float64Array>(new Float64Array(0));
@@ -103,7 +117,8 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
         );
         if (added) lastRef.current = new Float64Array(n).fill(Number.NaN);
         const current = stateRef.current;
-        if (current) pushHeatState(map, current, lastRef.current);
+        if (current) pushHeatState(map, current, lastRef.current, covered);
+        pushReplay(map, path, stepRef.current);
       } catch {
         // Style not ready yet; the next 'styledata' or 'load' event tries again.
       }
@@ -118,23 +133,33 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
       map.off("load", install);
       map.off("styledata", onStyleData);
     };
-  }, [map, mapFile, covered]);
+  }, [map, mapFile, covered, path]);
 
   // Recolour via feature state when the derived state changes. Never touches the GeoJSON.
   useEffect(() => {
     if (!map || !ready || !state) return;
     try {
-      if (map.getSource(HEAT_SOURCE_ID)) pushHeatState(map, state, lastRef.current);
+      if (map.getSource(HEAT_SOURCE_ID)) pushHeatState(map, state, lastRef.current, covered);
     } catch {
       /* style reloading; install() pushes again */
     }
-  }, [map, ready, state]);
+  }, [map, ready, state, covered]);
+
+  // Move the drone and its trail with the replay slider.
+  useEffect(() => {
+    if (!map) return;
+    try {
+      pushReplay(map, path, stepIndex);
+    } catch {
+      /* style reloading; install() pushes again */
+    }
+  }, [map, path, stepIndex]);
 
   const foundDetection = foundDetectionId ? detectionById(bundle.detections, foundDetectionId) : undefined;
 
   return (
     <Overlay>
-      <Panel className="pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-5rem)] w-72 overflow-y-auto p-4">
+      <Panel className="sl-rise pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-6.5rem)] w-72 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]">
         {/* In the side panel rather than over the map, so it never hides the grid. */}
         {foundDetection && (
           <div className="mb-4 border-b border-border pb-4">
@@ -154,7 +179,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
           </span>
         )}
       </Panel>
-      <Panel className="pointer-events-auto absolute bottom-3 right-3 w-64 p-4">
+      <Panel className="sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]" style={{ animationDelay: "80ms" }}>
         <Legend
           simulatedPath={bundle.survey.simulated_path}
           params={mapFile.params}
@@ -163,7 +188,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
         />
       </Panel>
       {stepCount > 0 && (
-        <Panel className="pointer-events-auto absolute bottom-3 left-1/2 w-[min(32rem,calc(100%-36rem))] min-w-72 -translate-x-1/2 px-5 py-3">
+        <Panel className="pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-36rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]">
           <StepSlider value={stepIndex} max={stepCount} onChange={setStepIndex} />
         </Panel>
       )}
