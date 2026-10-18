@@ -42,3 +42,6 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# Personal Claude Code rules (each person keeps their own)
+CLAUDE.local.md
