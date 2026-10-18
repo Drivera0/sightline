@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import time
 
 import numpy as np
@@ -16,7 +17,7 @@ from sightline.contract import (
     Step,
 )
 from sightline.search.grid import make_grid
-from sightline.search.sim import simulate
+from sightline.search.sim import _canopy_aware_steps, simulate
 from sightline.search.update import replay
 
 DEMO_LKP = LatLon(lat=49.37, lon=-122.945)
@@ -249,18 +250,21 @@ def test_in_survey_ranks_are_within_photographed_cells() -> None:
 
 def test_in_survey_rank_is_rank_among_photographed_cells() -> None:
     # 3 x 3 grid, flat prior. Cells 1, 4 and 7 are photographed once with overlap 1.0;
-    # canopy 0.9, 0.1 and 0.5. The map's steps use recall 0.8, so the canopy-aware pods are
-    # 0.08, 0.72 and 0.40, and its final p inside the survey orders the cells 1, 7, 4.
+    # canopy 0.9, 0.1 and 0.5. With recall 0.01 the canopy-aware pods are 0.001, 0.009 and
+    # 0.005, so its final p inside the survey orders the cells 1, 7, 4.
     # The naive pod is 0.95 for all three, so naive (like prior only) keeps index order 1, 4, 7.
-    # simulate runs with recall 0, so nobody is found and every trial is not found.
+    # Recall is so small that most seeds find nobody; the test picks a seed where the
+    # drone finds nobody, so every trial is not found.
     frames: list[FrameCells] = [{1: (0.9, 1.0)}, {4: (0.1, 1.0)}, {7: (0.5, 1.0)}]
-    built = _make_map(3, frames, recall=0.8)
-    map_file = built.model_copy(update={"params": built.params.model_copy(update={"recall": 0.0})})
-    sim = simulate(map_file, frames, trials=200, seed=5)
+    map_file = _make_map(3, frames, recall=0.01)
+    seed = next(
+        s for s in range(200) if simulate(map_file, frames, 200, s).found_by_drone_rate == 0
+    )
+    sim = simulate(map_file, frames, trials=200, seed=seed)
     rank_index_order = {1: 1, 4: 2, 7: 3}
     rank_canopy_aware = {1: 1, 7: 2, 4: 3}
     # The same draw as step 1 of simulate (uniform prior, 9 cells).
-    true_cells = np.random.default_rng(5).choice(9, size=200, p=np.full(9, 1 / 9))
+    true_cells = np.random.default_rng(seed).choice(9, size=200, p=np.full(9, 1 / 9))
     inside = [int(c) for c in true_cells if int(c) in rank_index_order]
     assert sim.in_survey is not None
     assert sim.in_survey.trials == len(inside)
@@ -275,3 +279,58 @@ def test_in_survey_rank_is_rank_among_photographed_cells() -> None:
         summary([rank_canopy_aware[c] for c in inside]),
     ]
     assert [(m.median_cells, m.p90_cells) for m in sim.in_survey.methods] == expected
+
+
+# --- canopy-aware map from frame_cells; held cells do not matter (lane C fix) ---------------
+
+
+def _random_frames(n_frames: int = 40, n_cells: int = 100, seed: int = 3) -> list[FrameCells]:
+    rng = np.random.default_rng(seed)
+    frames: list[FrameCells] = []
+    for _ in range(n_frames):
+        start = int(rng.integers(0, n_cells - 12))
+        frames.append({start + j: (float(rng.random()), float(rng.random())) for j in range(12)})
+    return frames
+
+
+def test_default_trials_is_30000() -> None:
+    assert inspect.signature(simulate).parameters["trials"].default == 30_000
+    map_file, frames = _half_forest()
+    assert simulate(map_file, frames).trials == 30_000
+
+
+def test_canopy_aware_steps_equal_map_steps_when_nothing_is_held() -> None:
+    random_frames = _random_frames()
+    for map_file, frames in (_half_forest(), (_make_map(10, random_frames), random_frames)):
+        steps = _canopy_aware_steps(
+            frames, float(map_file.params.recall), float(map_file.params.pod_cap), 100
+        )
+        assert steps == [[tuple(c) for c in s.cells] for s in map_file.steps]
+
+
+def test_held_cells_do_not_change_the_result() -> None:
+    # build_map removes held cells from map_file.steps but keeps them in frame_cells.
+    frames = _random_frames()
+    full = _make_map(10, frames, outside=0.2)
+    held = {5, 6, 7, 8, 30, 31, 32, 50, 51}
+    stripped_steps = [
+        s.model_copy(update={"cells": [c for c in s.cells if c[0] not in held]}) for s in full.steps
+    ]
+    assert stripped_steps != full.steps
+    stripped = full.model_copy(update={"steps": stripped_steps})
+    assert simulate(stripped, frames, trials=3000, seed=9) == simulate(
+        full, frames, trials=3000, seed=9
+    )
+
+
+def test_default_trials_runtime_on_full_size_grid() -> None:
+    rng = np.random.default_rng(1)
+    frames: list[FrameCells] = []
+    for _ in range(500):
+        start = int(rng.integers(0, 2500 - 60))
+        frames.append({start + j: (float(rng.random()), 0.5) for j in range(0, 60, 10)})
+    map_file = _make_map(50, frames, outside=0.4)
+    t0 = time.perf_counter()
+    sim = simulate(map_file, frames)
+    assert sim.trials == 30_000
+    assert time.perf_counter() - t0 < 10.0
