@@ -21,7 +21,7 @@ describe("App", () => {
 
   it("shows which file failed and how to fix it, with no tabs", async () => {
     vi.stubGlobal("fetch", diskFetch());
-    render(<App dir="demo" />);
+    render(<App dir="missing-cache" />);
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/manifest\.json/);
