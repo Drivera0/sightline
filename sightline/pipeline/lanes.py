@@ -36,6 +36,7 @@ from sightline.pipeline import geometry
 from sightline.pipeline.formats import write_json
 from sightline.pipeline.geometry import FRAME_H_PX, FRAME_W_PX
 from sightline.pipeline.placeholders import (
+    PRIOR_FROM_PLACEHOLDER,
     PRIOR_OUTSIDE,
     placeholder_detections,
     placeholder_map,
@@ -184,6 +185,7 @@ class Lanes:
         self._cache: dict[str, Callable[..., Any] | None] = {}
         self.unavailable: dict[str, str] = {}
         self._notes: dict[str, str] = {}
+        self._used_placeholder_prior = False
 
     # --- bookkeeping --------------------------------------------------------------------------
 
@@ -351,6 +353,7 @@ class Lanes:
         else:
             raw_map, raw_cells = _field(result, "map"), _field(result, "frame_cells")
         map_file = raw_map if isinstance(raw_map, MapFile) else MapFile.model_validate(raw_map)
+        map_file = self._stamp_prior_source(map_file)
         if raw_cells is None:
             cells = self._cells_from_steps(map_file)
         else:
@@ -412,12 +415,22 @@ class Lanes:
             cols=geometry.GRID_COLS,
         )
 
+    def _stamp_prior_source(self, map_file: MapFile) -> MapFile:
+        """Contract 1.1 `params.prior_source`: "placeholder" when `_prior` handed lane C the
+        placeholder prior. Otherwise keep what lane C wrote (the citation of its prior); a map
+        that names no source and wasn't given ours stays null."""
+        if not self._used_placeholder_prior:
+            return map_file
+        params = map_file.params.model_copy(update={"prior_source": PRIOR_FROM_PLACEHOLDER})
+        return map_file.model_copy(update={"params": params})
+
     def _prior(self, grid: Grid) -> tuple[Any, float]:
         """A placeholder prior (probabilities per cell, probability outside the grid). The real
         prior needs the distance statistics for a lost hiker, which we do not have yet."""
         import numpy as np
 
         self.note_placeholder("prior", "no real search prior yet, used a uniform placeholder prior")
+        self._used_placeholder_prior = True
         placeholder_prior = self.get("placeholder_prior")
         if placeholder_prior is not None:
             return placeholder_prior(grid)

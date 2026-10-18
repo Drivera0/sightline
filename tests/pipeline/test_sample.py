@@ -112,4 +112,4 @@ def test_sample_json_has_no_nan_and_a_contract_version(tmp_path):
 
     for name in ("manifest", "survey", "detections", "map", "metrics"):
         data = json.loads(read(tmp_path / "sample", f"{name}.json"))
-        assert data["contract_version"] == "1.0"
+        assert data["contract_version"] == "1.1"

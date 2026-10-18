@@ -101,6 +101,8 @@ def export_cache(
     geo = read_json(work / "georef" / "detections_geo.json", GeoFile, "georef")
     rank = read_json(work / "rank" / "rank.json", RankFile, "rank")
     map_file = read_json(work / "map" / "map.json", MapFile, "map")
+    # Every file in the cache carries the current version, whatever lane C stamped on the map.
+    map_file = map_file.model_copy(update={"contract_version": CONTRACT_VERSION})
     detector = read_json(work / "metrics" / "detector_metrics.json", DetectorMetricsFile, "metrics")
     ranking = read_json(work / "metrics" / "ranking.json", Ranking, "metrics")
     search_sim = read_json(work / "metrics" / "search_sim.json", SearchSim, "metrics")

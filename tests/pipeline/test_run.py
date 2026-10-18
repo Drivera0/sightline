@@ -261,7 +261,7 @@ def test_manifest_json_is_valid_json_with_the_contract_version(tmp_path):
 
     run_pipeline(ctx, out=out, survey_id="demo")
 
-    assert json.loads((out / "manifest.json").read_text())["contract_version"] == "1.0"
+    assert json.loads((out / "manifest.json").read_text())["contract_version"] == "1.1"
 
 
 def test_raw_detection_files_stay_out_of_the_cache(tmp_path):
