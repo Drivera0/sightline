@@ -49,7 +49,7 @@ export function StepSlider({ value, max, onChange }: Props) {
         onClick={togglePlay}
         aria-pressed={playing}
         aria-label={playing ? "Pause" : "Play"}
-        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-text text-bg transition-transform duration-150 hover:scale-105 active:scale-95"
+        className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-text text-bg lg:size-9 transition-transform duration-150 hover:scale-105 active:scale-95"
       >
         {playing ? (
           <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden="true">

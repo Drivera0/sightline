@@ -50,7 +50,8 @@ export function Badge({ kind, children }: { kind: BadgeKind; children: ReactNode
     <span
       data-kind={kind}
       className={cx(
-        "inline-flex items-center rounded-full border px-3 py-1 font-mono text-label uppercase tracking-label",
+        // A dark fill keeps the label readable where it sits over the map's pale heat.
+        "inline-flex items-center rounded-full border bg-bg/75 px-3 py-1 font-mono text-label uppercase tracking-label",
         BADGE_STYLES[kind],
       )}
     >

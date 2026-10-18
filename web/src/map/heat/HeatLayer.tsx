@@ -3,6 +3,7 @@
 // variant="review" is the quiet version beside the review queue: the same live heat (fainter, under
 // the pins), the review ripple and a small readout, without the replay and the side panel.
 import { type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CacheBundle } from "../../contract";
 import { CacheContext, useCache } from "../../lib/cache";
 import { useReview, type HistoryEntry } from "../../review/store";
@@ -42,10 +43,26 @@ import {
 } from "./layers";
 import { Legend } from "./Legend";
 import { NextSearch } from "./NextSearch";
+import { PanelSlotContext, useMediaQuery, WIDE_LAYOUT_QUERY } from "./panelSlot";
 import { HeatRaster, heatPixels, paletteFromTokens, readRasterTokens, sweepDelays } from "./raster";
 import { SectorList } from "./SectorList";
 import { buildSectors, currentSector, sectorBounds, sectorStatuses } from "./sectors";
 import { StepSlider } from "./StepSlider";
+
+type PanelTab = "legend" | "sectors" | "next";
+/** The segmented control above the panels on narrow screens. */
+const PANEL_TABS: readonly { id: PanelTab; label: string }[] = [
+  { id: "legend", label: "Legend" },
+  { id: "sectors", label: "Sectors" },
+  { id: "next", label: "Search next" },
+];
+
+/**
+ * Panels floating over the map use a thicker, darker material than the shell's glass: the pale end
+ * of the heat ramp under a 5 % white glass left their secondary text unreadable (Apple HIG,
+ * Materials: thicker materials give better contrast for text over bright content).
+ */
+const OVER_MAP = "bg-bg/80!";
 
 /** How long an answer's change to the map takes to settle, and the Search next build-up. */
 export const ANSWER_TWEEN_MS = 650;
@@ -167,6 +184,11 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   );
   const currentId = isSearch ? (currentSector(sectorLayout, stepIndex, stepCount)?.id ?? null) : null;
   const [hoverId, setHoverId] = useState<string | null>(null);
+  // Narrow screens: the panels go below the map (see panelSlot.ts).
+  const slot = useContext(PanelSlotContext);
+  const wide = useMediaQuery(WIDE_LAYOUT_QUERY, true);
+  const panelSlot = isSearch && !wide ? slot : null;
+  const [panelTab, setPanelTab] = useState<PanelTab>("legend");
 
   // The Search next cells (same rule as the panel), ringed on the map.
   const hotspots = useMemo(
@@ -447,11 +469,23 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         : [],
     [foundDetectionId, history, bundle.detections],
   );
+  // Below the map (narrow screens) a list click also brings the map back into view.
+  const flyToPoint = (lon: number, lat: number) => {
+    flyTo(lon, lat, 18);
+    if (panelSlot) {
+      try {
+        map?.getContainer().scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
+      } catch {
+        /* map gone */
+      }
+    }
+  };
   const flyToSector = (sectorId: string) => {
     const s = sectorLayout.sectors.find((x) => x.id === sectorId);
     if (!s || !map) return;
     try {
       map.fitBounds(sectorBounds(grid, s), { padding: 64, duration: reduced ? 0 : 800 });
+      if (panelSlot) map.getContainer().scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
     } catch {
       /* map gone */
     }
@@ -461,7 +495,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     const answered = shares !== null && baseShares !== null && Math.abs(baseShares.surveyed - shares.surveyed) > 1e-12;
     return (
       <Overlay>
-        <Panel className="sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]">
+        <Panel className={`sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
           <div className="flex flex-col gap-3">
             {shares && baseShares ? (
               <div className="flex flex-col gap-1" aria-live="polite">
@@ -493,81 +527,135 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     );
   }
 
+  const foundBanner = finds.length > 0 && (
+    <FoundBanner finds={finds} simulatedRadius={bundle.survey.simulated_path} onFlyTo={(f) => flyToPoint(f.lon, f.lat)} />
+  );
+  const computing = (
+    <span className="text-small text-text-2" role="status">
+      Computing search map…
+    </span>
+  );
+  const sectorList =
+    ready && state && shares ? (
+      <SectorList
+        statuses={statuses}
+        outside={shares.outside}
+        currentId={currentId}
+        hoverId={hoverId}
+        onHover={setHoverId}
+        onSelect={(s) => flyToSector(s.id)}
+        layout={sectorLayout.kind}
+      />
+    ) : null;
+  const nextSearch =
+    ready && state ? (
+      <NextSearch
+        map={mapFile}
+        state={state}
+        covered={covered}
+        overlap={overlap}
+        held={held}
+        found={finds.length > 0}
+        onSelect={flyToPoint}
+      />
+    ) : null;
+  const legend = (
+    <Legend
+      simulatedPath={bundle.survey.simulated_path}
+      params={mapFile.params}
+      manifest={bundle.manifest}
+      hasSurveyed={hasSurveyed}
+      showPath={showPath}
+      onShowPathChange={setShowPath}
+    />
+  );
+  const slider = stepCount > 0 ? <StepSlider value={stepIndex} max={stepCount} onChange={setStepIndex} /> : null;
+  const buildingToast = building && (
+    <div className="pointer-events-auto absolute left-1/2 top-3 -translate-x-1/2">
+      <button
+        type="button"
+        onClick={() => {
+          raster.finish();
+          setBuilding(false);
+        }}
+        className="sl-toast rounded-full border border-border bg-bg/85 px-4 py-1.5 text-small text-text-2 backdrop-blur hover:text-text"
+      >
+        Building the map along the flight… <span className="text-text">Skip</span>
+      </button>
+    </div>
+  );
+
+  // Narrow screens: the map keeps its whole area; the replay, a segmented control and the chosen
+  // panel sit below it (in the shell's slot), with touch targets of at least 44 px.
+  if (panelSlot) {
+    const panelContent =
+      panelTab === "legend" ? legend : panelTab === "sectors" ? (sectorList ?? computing) : (nextSearch ?? computing);
+    return (
+      <>
+        <Overlay>{buildingToast}</Overlay>
+        {createPortal(
+          <div className="flex flex-col gap-3" data-testid="search-panels-below">
+            {slider && <Panel className="rounded-full px-3 py-2">{slider}</Panel>}
+            {foundBanner && <Panel className="p-4">{foundBanner}</Panel>}
+            <div
+              role="tablist"
+              aria-label="Search map panels"
+              className="grid grid-cols-3 gap-1 rounded-full border border-border bg-surface p-1"
+            >
+              {PANEL_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  id={`search-tab-${t.id}`}
+                  aria-selected={panelTab === t.id}
+                  aria-controls="search-tabpanel"
+                  onClick={() => setPanelTab(t.id)}
+                  className={`min-h-11 rounded-full px-2 text-small transition-colors ${
+                    panelTab === t.id ? "bg-surface-strong text-text ring-1 ring-border" : "text-text-2 hover:text-text"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <Panel id="search-tabpanel" role="tabpanel" aria-labelledby={`search-tab-${panelTab}`} className="p-4">
+              {panelContent}
+            </Panel>
+          </div>,
+          panelSlot,
+        )}
+      </>
+    );
+  }
+
   return (
     <Overlay>
-      <Panel className="sl-rise pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]">
+      <Panel className={`sl-rise pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
         {/* In the side panel rather than over the map, so it never hides the grid. */}
-        {finds.length > 0 && (
-          <div className="mb-4 border-b border-border pb-4">
-            <FoundBanner
-              finds={finds}
-              simulatedRadius={bundle.survey.simulated_path}
-              onFlyTo={(f) => flyTo(f.lon, f.lat, 18)}
-            />
-          </div>
-        )}
-        {ready && state && shares ? (
+        {foundBanner && <div className="mb-4 border-b border-border pb-4">{foundBanner}</div>}
+        {sectorList && nextSearch ? (
           <div className="flex flex-col gap-5">
-            <SectorList
-              statuses={statuses}
-              outside={shares.outside}
-              currentId={currentId}
-              hoverId={hoverId}
-              onHover={setHoverId}
-              onSelect={(s) => flyToSector(s.id)}
-              layout={sectorLayout.kind}
-            />
-            <div className="border-t border-border pt-4">
-              <NextSearch
-                map={mapFile}
-                state={state}
-                covered={covered}
-                overlap={overlap}
-                held={held}
-                found={finds.length > 0}
-                onSelect={(lon, lat) => flyTo(lon, lat, 18)}
-              />
-            </div>
+            {sectorList}
+            <div className="border-t border-border pt-4">{nextSearch}</div>
           </div>
         ) : (
-          <span className="text-small text-text-2" role="status">
-            Computing search map…
-          </span>
+          computing
         )}
       </Panel>
       <Panel
         // Capped below the basemap switch (top right), so the two never overlap on short screens.
-        className="sl-rise pointer-events-auto absolute bottom-3 right-3 max-h-[calc(100%-4.5rem)] w-64 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]"
+        className={`sl-rise pointer-events-auto absolute bottom-3 right-3 max-h-[calc(100%-4.5rem)] w-64 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}
         style={{ animationDelay: "80ms" }}
       >
-        <Legend
-          simulatedPath={bundle.survey.simulated_path}
-          params={mapFile.params}
-          manifest={bundle.manifest}
-          hasSurveyed={hasSurveyed}
-          showPath={showPath}
-          onShowPathChange={setShowPath}
-        />
+        {legend}
       </Panel>
-      {stepCount > 0 && (
-        <Panel className="pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-38rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]">
-          <StepSlider value={stepIndex} max={stepCount} onChange={setStepIndex} />
+      {slider && (
+        <Panel className={`pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-38rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
+          {slider}
         </Panel>
       )}
-      {building && (
-        <div className="pointer-events-auto absolute left-1/2 top-3 -translate-x-1/2">
-          <button
-            type="button"
-            onClick={() => {
-              raster.finish();
-              setBuilding(false);
-            }}
-            className="sl-toast rounded-full border border-border bg-bg/85 px-4 py-1.5 text-small text-text-2 backdrop-blur hover:text-text"
-          >
-            Building the map along the flight… <span className="text-text">Skip</span>
-          </button>
-        </div>
-      )}
+      {buildingToast}
     </Overlay>
   );
 }
