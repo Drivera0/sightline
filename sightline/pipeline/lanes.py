@@ -38,14 +38,23 @@ from sightline.pipeline.placeholders import (
 )
 from sightline.pipeline.survey import read_yolo_split
 
-REGISTRY: dict[str, tuple[str, str]] = {
+# Where to find each lane function: one (module, name), or several to try in order (lane C may
+# export from the package or from its submodules).
+Place = tuple[str, str]
+REGISTRY: dict[str, Place | list[Place]] = {
     "simulate_flight": ("sightline.geo", "simulate_flight"),
     "footprint": ("sightline.geo", "footprint"),
     "georef_detection": ("sightline.geo", "georef_detection"),
     "run_survey": ("sightline.ml", "run_survey"),
     "load_split": ("sightline.ml", "load_split"),
-    "build_map": ("sightline.search", "build_map"),
-    "simulate": ("sightline.search", "simulate"),
+    "build_map": [("sightline.search", "build_map"), ("sightline.search.build", "build_map")],
+    "simulate": [("sightline.search", "simulate"), ("sightline.search.sim", "simulate")],
+    "make_grid": [("sightline.search", "make_grid"), ("sightline.search.grid", "make_grid")],
+    "placeholder_prior": [
+        ("sightline.search", "placeholder_prior"),
+        ("sightline.search.prior", "placeholder_prior"),
+    ],
+    "frame_input": [("sightline.search", "FrameInput"), ("sightline.search.pod", "FrameInput")],
 }
 _LANE = {
     "simulate_flight": "B",
@@ -55,6 +64,9 @@ _LANE = {
     "load_split": "A",
     "build_map": "C",
     "simulate": "C",
+    "make_grid": "C",
+    "placeholder_prior": "C",
+    "frame_input": "C",
 }
 
 DEFAULT_LKP = LatLon(lat=49.37, lon=-122.945)
@@ -129,7 +141,7 @@ class Lanes:
 
     def __init__(
         self,
-        registry: Mapping[str, tuple[str, str]] | None = None,
+        registry: Mapping[str, Place | Sequence[Place]] | None = None,
         overrides: Mapping[str, Callable[..., Any] | None] | None = None,
     ) -> None:
         self._registry = dict(REGISTRY if registry is None else registry)
@@ -151,16 +163,21 @@ class Lanes:
         return self._cache[name]
 
     def _import(self, name: str) -> Callable[..., Any] | None:
-        module_name, attribute = self._registry[name]
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError as error:
-            self.unavailable[name] = f"cannot import {module_name}: {error}"
-            return None
-        function = getattr(module, attribute, None)
-        if function is None:
-            self.unavailable[name] = f"{module_name} has no function {attribute}"
-        return function
+        entry = self._registry[name]
+        places: Sequence[Place] = [entry] if isinstance(entry[0], str) else entry  # type: ignore[list-item]
+        reasons = []
+        for module_name, attribute in places:
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError as error:
+                reasons.append(f"cannot import {module_name}: {error}")
+                continue
+            function = getattr(module, attribute, None)
+            if function is not None:
+                return function
+            reasons.append(f"{module_name} has no function {attribute}")
+        self.unavailable[name] = "; ".join(reasons)
+        return None
 
     def placeholder_notes(self) -> dict[str, str]:
         """Function name -> what stood in for it. Empty when every lane function was real."""
