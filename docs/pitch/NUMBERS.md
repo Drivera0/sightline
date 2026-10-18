@@ -68,7 +68,7 @@ the grid and the prior is a flat placeholder (`map.json` `params.prior_source = 
 
 | Say | Value | Source |
 |---|---|---|
-| Automated tests | 886 (649 Python, 237 web) | `pytest --collect-only` and `pnpm test` on `pitch` at `b351597`'s parent `028479e` |
+| Automated tests | 886 (649 Python, 237 web) | `pytest --collect-only` and `pnpm test` on the code at `origin/lane-d` `028479e` |
 
 ## The problem (context)
 
