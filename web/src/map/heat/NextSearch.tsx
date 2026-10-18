@@ -9,6 +9,7 @@ import {
   probabilityShares,
   topCellIndices,
 } from "./geometry";
+import { unsureListText } from "./unsure";
 
 /** Two decimals, but 3 significant figures below 0.1% so tiny cell values stay distinguishable. */
 const pct = (fraction: number) => {
@@ -40,6 +41,11 @@ interface Props {
   /** A person is confirmed: the list is for the remaining search if that is not the missing person. */
   found?: boolean;
   onSelect: (lon: number, lat: number) => void;
+  /**
+   * Flown "Unsure" answers: an entry at the top of the list, before the ranked spots, with their
+   * count and the sectors holding them. Clicking it flies to the next unsure area.
+   */
+  unsure?: { count: number; sectorNames: readonly string[]; onSelect: () => void };
 }
 
 /**
@@ -56,7 +62,7 @@ interface Props {
  * photographed one and the list would show the grid corners. Ranking the surveyed area shows where
  * the drone could not see well; the rest of the grid is the "Not yet searched" share below.
  */
-export function NextSearch({ map, state, covered, overlap, held, found = false, onSelect }: Props) {
+export function NextSearch({ map, state, covered, overlap, held, found = false, onSelect, unsure }: Props) {
   const eligible = eligibleCells(overlap, held);
   const top = topCellIndices(state.p, 5, eligible);
   const shares = probabilityShares(state, covered);
@@ -73,6 +79,26 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
               : "Most likely spots on ground the drone photographed well"}
           </span>
         </div>
+        {unsure && unsure.count > 0 && (
+          <button
+            type="button"
+            data-unsure={unsure.count}
+            onClick={unsure.onSelect}
+            title={unsure.count === 1 ? "Fly to the unsure area" : "Fly to the next unsure area"}
+            className="grid w-full grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-3 rounded-sm border border-warn/40 px-2 py-2 text-left transition-colors hover:bg-surface-strong"
+          >
+            <span aria-hidden="true" className="ml-1 inline-block size-3 rounded-full ring-2 ring-warn" />
+            <span className="flex min-w-0 flex-col">
+              <span className="text-small text-warn" data-testid="unsure-line">
+                {unsureListText(unsure.count)}
+              </span>
+              {unsure.sectorNames.length > 0 && (
+                <span className="text-label text-text-2">In {unsure.sectorNames.join(", ")} · held until someone answers</span>
+              )}
+            </span>
+            <span className="font-mono text-small text-warn">{unsure.count}</span>
+          </button>
+        )}
         {top.length === 0 && <p className="text-small text-text-2">No cell photographed well enough yet</p>}
         {top.length > 0 && (
           <ol className="flex flex-col gap-0.5" aria-label="Most likely cells">

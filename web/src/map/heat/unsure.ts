@@ -1,10 +1,11 @@
 // "Unsure" answers on the map (LANE_C_SEARCH §3.5). "I can't tell" is no evidence, so the map does
 // not change: the area stays held (heldCells in search/store.ts) until someone answers "Not a
 // person". What this file adds is visibility, so a coordinator does not overlook an unresolved area:
-// an amber ring on the heat map, a line in the sector list and one in Review's readout.
+// an amber ring on the heat map, an entry at the top of the Search next list, a tag on the
+// sectors holding them and a line in Review's readout.
 import type { UnsureArea } from "../../search/store";
 
-/** The label shared by the pin, the legend, the sector list and the ring. */
+/** The label shared by the pin, the legend, the Search next entry, the sector tags and the ring. */
 export const UNSURE_LABEL = "Unsure · check again";
 
 /** 1 for every cell within radius_m of an "Unsure" detection whose photo has been flown. */
@@ -16,7 +17,7 @@ export function unsureMask(cellCount: number, areas: readonly UnsureArea[]): Uin
 
 const areasText = (n: number) => (n === 1 ? "1 area" : `${n} areas`);
 
-/** The sector list line: "Unsure · check again: 2 areas the reviewer couldn't call". */
+/** The Search next entry: "Unsure · check again: 2 areas the reviewer couldn't call". */
 export function unsureListText(n: number): string {
   return `${UNSURE_LABEL}: ${areasText(n)} the reviewer couldn't call`;
 }

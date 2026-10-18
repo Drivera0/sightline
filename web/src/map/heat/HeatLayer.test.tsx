@@ -454,6 +454,29 @@ describe("HeatLayer", () => {
     expect(sidePanel!.contains(banner)).toBe(true);
   });
 
+  it("side panel order: sightings, then Search next (unsure areas at its top), then the sectors", () => {
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    act(() => useReview.getState().answer("f0001-d01", "unsure", 1));
+    const next = screen.getByText("Search next in the surveyed area");
+    const sectors = screen.getByText("Sectors by remaining probability");
+    const unsure = screen.getByTestId("unsure-line");
+    const before = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(before(next, sectors)).toBe(true);
+    expect(before(next, unsure)).toBe(true);
+    expect(before(unsure, sectors)).toBe(true);
+    // One unsure entry only (the sector rows carry a tag, not a second entry).
+    expect(screen.getAllByTestId("unsure-line")).toHaveLength(1);
+    act(() => useReview.getState().answer("f0001-d01", "person", 1));
+    const banner = screen.getByText("Person sighted: send ground team to check");
+    expect(before(banner, screen.getByText("Search next in the surveyed area"))).toBe(true);
+  });
+
   it("narrow screens: puts the panels below the map, in the shell's slot, behind a segmented control", () => {
     const original = window.matchMedia;
     window.matchMedia = ((query: string) => ({
@@ -474,15 +497,19 @@ describe("HeatLayer", () => {
           </PanelSlotContext.Provider>
         </CacheContext.Provider>,
       );
-      // Nothing floats over the map; the replay, tabs and legend are in the slot.
+      // Nothing floats over the map; the replay, tabs and panels are in the slot.
       expect(container.querySelector(".w-80")).toBeNull();
       expect(within(slot).getByText("Flight replay")).toBeInTheDocument();
-      expect(within(slot).getByText("Lower probability")).toBeInTheDocument();
+      // Search next comes first and is open by default.
       const tabs = within(slot).getAllByRole("tab");
-      expect(tabs.map((t) => t.textContent)).toEqual(["Legend", "Sectors", "Search next"]);
+      expect(tabs.map((t) => t.textContent)).toEqual(["Search next", "Sectors", "Legend"]);
+      expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+      expect(within(slot).getByText("Search next in the surveyed area")).toBeInTheDocument();
       act(() => tabs[1]!.click());
       expect(within(slot).getByRole("list", { name: "Sectors by remaining probability" })).toBeInTheDocument();
       expect(tabs[1]).toHaveAttribute("aria-selected", "true");
+      act(() => tabs[2]!.click());
+      expect(within(slot).getByText("Lower probability")).toBeInTheDocument();
       slot.remove();
     } finally {
       window.matchMedia = original;

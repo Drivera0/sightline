@@ -64,17 +64,17 @@ import {
   sightingReading,
   withoutCandidates,
 } from "./sightings";
-import { buildSectors, currentSector, sectorBounds, sectorStatuses } from "./sectors";
+import { buildSectors, currentSector, rankSectors, sectorBounds, sectorName, sectorStatuses } from "./sectors";
 import { StepSlider } from "./StepSlider";
 import { REPLAY_HEAT_TWEEN_MS, useFlightReplay } from "./useFlightReplay";
 import { unsureMask, unsureReadoutText } from "./unsure";
 
 type PanelTab = "legend" | "sectors" | "next";
-/** The segmented control above the panels on narrow screens. */
+/** The segmented control above the panels on narrow screens: where to search next comes first. */
 const PANEL_TABS: readonly { id: PanelTab; label: string }[] = [
-  { id: "legend", label: "Legend" },
-  { id: "sectors", label: "Sectors" },
   { id: "next", label: "Search next" },
+  { id: "sectors", label: "Sectors" },
+  { id: "legend", label: "Legend" },
 ];
 
 /**
@@ -299,7 +299,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     () => sectorsWithSightings(sectorLayout.cellSector, sectorLayout.sectors.map((s) => s.id), unsure),
     [sectorLayout, unsure],
   );
-  // Each click on the sector list's unsure entry flies to the next unsure area.
+  // Each click on the Search next list's unsure entry flies to the next unsure area.
   const unsureCursor = useRef(0);
   const statuses = useMemo(
     () => (ready && panelState ? sectorStatuses(sectorLayout, panelState, panelCovered) : []),
@@ -311,7 +311,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const slot = useContext(PanelSlotContext);
   const wide = useMediaQuery(WIDE_LAYOUT_QUERY, true);
   const panelSlot = isSearch && !wide ? slot : null;
-  const [panelTab, setPanelTab] = useState<PanelTab>("legend");
+  const [panelTab, setPanelTab] = useState<PanelTab>("next");
   // Below 1280 px the floating legend folds into a pill, so it does not cover the photographed area.
   const roomy = useMediaQuery(ROOMY_LAYOUT_QUERY, true);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -734,19 +734,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         onSelect={(s) => flyToSector(s.id)}
         layout={sectorLayout.kind}
         sighted={sightedSectors}
-        unsure={
-          shownUnsure.length > 0
-            ? {
-                count: shownUnsure.length,
-                sectors: unsureSectors,
-                onSelect: () => {
-                  const a = shownUnsure[unsureCursor.current % shownUnsure.length];
-                  unsureCursor.current += 1;
-                  if (a) flyToPoint(a.lon, a.lat);
-                },
-              }
-            : undefined
-        }
+        unsureSectors={unsureSectors}
       />
     ) : null;
   const nextSearch =
@@ -759,6 +747,21 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         held={held}
         found={finds.length > 0}
         onSelect={flyToPoint}
+        unsure={
+          shownUnsure.length > 0
+            ? {
+                count: shownUnsure.length,
+                sectorNames: rankSectors(statuses)
+                  .filter((s) => unsureSectors.has(s.sector.id))
+                  .map((s) => sectorName(s.sector)),
+                onSelect: () => {
+                  const a = shownUnsure[unsureCursor.current % shownUnsure.length];
+                  unsureCursor.current += 1;
+                  if (a) flyToPoint(a.lon, a.lat);
+                },
+              }
+            : undefined
+        }
       />
     ) : null;
   const legendFolds = !panelSlot && !roomy;
@@ -857,12 +860,13 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   return (
     <Overlay>
       <Panel {...overlay("left")} className={`sl-rise pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
-        {/* In the side panel rather than over the map, so it never hides the grid. */}
+        {/* In the side panel rather than over the map, so it never hides the grid. Sightings first,
+            then where to search next (unsure areas at its top), then the sectors. */}
         {foundBanner && <div className="mb-4 border-b border-border pb-4">{foundBanner}</div>}
         {sectorList && nextSearch ? (
           <div className="flex flex-col gap-5">
-            {sectorList}
-            <div className="border-t border-border pt-4">{nextSearch}</div>
+            {nextSearch}
+            <div className="border-t border-border pt-4">{sectorList}</div>
           </div>
         ) : (
           computing
