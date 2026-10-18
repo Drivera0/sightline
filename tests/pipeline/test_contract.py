@@ -82,7 +82,7 @@ def test_detections_example_parses(examples):
 
 def test_metrics_example_parses(examples):
     m = Metrics.model_validate(examples["metrics"])
-    assert m.baseline_human.seconds_per_image == 33 and len(m.ablations) == 4
+    assert m.baseline_human.seconds_per_image == 33 and len(m.ablations) == 7
 
 
 def test_survey_example_parses_once_completed(examples):

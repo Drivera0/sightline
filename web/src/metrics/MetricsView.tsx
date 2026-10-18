@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import type { Metrics } from "../contract";
 import { useCache } from "../lib/cache";
-import { Badge, EmptyState, Label, Panel, Stat } from "../shell/components";
+import { Badge, EmptyState, Panel, Stat } from "../shell/components";
 import {
   ablationDisplayRows,
-  bestByAp50,
+  ablationSubLabel,
   count,
   deltaPts,
-  isResizedRow,
+  IN_USE_ROW,
   pct,
   seconds,
   speedup,
@@ -63,7 +63,7 @@ function MetricsBody({ m }: { m: Metrics }) {
 
   return (
     <div
-      className="flex h-full flex-col gap-4 overflow-y-auto"
+      className="flex h-full flex-col gap-3 overflow-y-auto"
       data-testid="metrics"
     >
       <div className="flex flex-wrap items-center gap-3">
@@ -77,7 +77,7 @@ function MetricsBody({ m }: { m: Metrics }) {
       </div>
 
       {/* Headline row: recall, precision, speed. Each tile: value, label, comparison, bars. */}
-      <Panel className={RIM}>
+      <Section title="Recall, precision and speed against the human study">
         <div className="grid gap-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border">
           <Headline
             value={pct(detector.sar.recall)}
@@ -153,15 +153,14 @@ function MetricsBody({ m }: { m: Metrics }) {
           Recall and precision use SAR-APD loose matching, the scoring of the human study, so the comparison is like for
           like. Ours: {detectorSource}. Human: {human.source}.
         </Source>
-      </Panel>
+      </Section>
 
       {/* The published state of the art, paired scheme by scheme. */}
-      <Panel className={RIM}>
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <Label>Against the published state of the art</Label>
-          <span className="text-small text-text-3">same HERIDAL test set, scored the same way per pair</span>
-        </div>
-        <div className="mt-3 overflow-x-auto">
+      <Section
+        title="Against the published state of the art"
+        aside="same HERIDAL test set, scored the same way per pair"
+      >
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[28rem] text-body" aria-label="State of the art">
             <thead>
               <tr className="text-left text-small text-text-3">
@@ -201,131 +200,163 @@ function MetricsBody({ m }: { m: Metrics }) {
           numbers come from its own evaluation code and ours from our reimplementation, and AIR with MOB merges boxes its
           own way. {AIR_TUNING_NOTE}
         </Source>
-      </Panel>
+      </Section>
 
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {/* Ablation table. */}
-        <Panel className={RIM}>
-          <AblationTable rows={ablations} source={detectorSource} />
-        </Panel>
+      {/* Ablation table. */}
+      <Section title="What each technique adds" aside="every variant, test set">
+        <AblationTable
+          rows={ablations}
+          source={`HERIDAL test set, ${detector.test_images} images (metrics.ablations)`}
+        />
+      </Section>
 
-        {/* Ranking block (D's numbers). */}
-        <Panel className={RIM}>
-          <Label>Photos reviewed before the first and the last person</Label>
-          <table className="mt-3 w-full text-body" aria-label="Ranking">
-            <thead>
-              <tr className="text-left text-small text-text-3">
-                <th className="py-1 font-normal">Order</th>
-                <th className="py-1 text-right font-normal">First hit</th>
-                <th className="py-1 text-right font-normal">All hits</th>
-                <th className="py-1 text-right font-normal">Share to all hits</th>
-              </tr>
-            </thead>
-            <tbody>
-              <Row
-                label="Ranked by detector"
-                cells={[
-                  count(ranking.ranked.frames_to_first_hit),
-                  count(ranking.ranked.frames_to_all_hits),
-                  pct(ranking.ranked.frames_to_all_hits / ranking.n_frames, 1),
-                ]}
-                source={rankingSource(ranking)}
-                highlight
-              />
-              <Row
-                label="Random order, expected"
-                cells={[
-                  count(ranking.expected_first_hit_random_order),
-                  random ? `≈${count(random.expectedAll)}` : "—",
-                  random ? pct(random.expectedAll / ranking.n_frames, 1) : "—",
-                ]}
-                source={`First hit (N + 1) / (k + 1), all hits k(N + 1) / (k + 1), for N = ${ranking.n_frames} frames and k = ${ranking.n_positive} with people (metrics.ranking)`}
-              />
-              <Row
-                label={
-                  <span className="text-text-3">
-                    This flight&apos;s order{" "}
-                    <span className="text-small">(one layout)</span>
-                  </span>
-                }
-                cells={[
-                  count(ranking.flight_order.frames_to_first_hit),
-                  count(ranking.flight_order.frames_to_all_hits),
-                  pct(ranking.flight_order.frames_to_all_hits / ranking.n_frames, 1),
-                ]}
-                source={`${rankingSource(ranking)}; one seeded layout, not a baseline`}
-              />
-            </tbody>
-          </table>
-          {random && (
-            <p className="mt-2 text-small text-text-3">
-              Random order: expected values for a uniformly random shuffle of the same photos. In 8 of 10
-              shuffles the last photo with a person is between photo{" "}
-              <Num source={`Exact 10th and 90th percentile of the last positive's position for N = ${ranking.n_frames}, k = ${ranking.n_positive} (metrics.ranking)`}>
-                {count(random.p10All)}
-              </Num>{" "}
-              and{" "}
-              <Num source={`Exact 10th and 90th percentile of the last positive's position for N = ${ranking.n_frames}, k = ${ranking.n_positive} (metrics.ranking)`}>
-                {count(random.p90All)}
-              </Num>
-              .
-            </p>
-          )}
-          <Source>
-            {rankingSource(ranking)}. Shown in photos, not minutes: the survey&apos;s photos are 1000×750 sections
-            of 4000×3000 HERIDAL photos, and the published human time is per full photo.
-          </Source>
-        </Panel>
-
-        {/* Search simulation (C's numbers). */}
-        <Panel className={`${RIM} lg:col-span-2 xl:col-span-1`}>
-          <div className="flex flex-wrap items-center gap-3">
-            <Label>Cells a ground team checks before reaching the person</Label>
-            {sim.simulated && (
-              <Badge kind="simulated">Simulated evaluation</Badge>
-            )}
-          </div>
-          {sim.in_survey ? (
-            <>
-              <SearchTable
-                label="Search simulation inside the surveyed area"
-                caption="Cells checked inside the surveyed area"
-                methods={sim.in_survey.methods}
-                source={`${simSource(sim)}; ${sim.in_survey.trials} trials with the person in a photographed cell (metrics.search_sim.in_survey)`}
-              />
-              <p className="mt-2 text-small text-text-3">
-                {count(sim.in_survey.trials)} trials whose person was in a
-                photographed cell and the drone missed them. Lower is better.
-              </p>
-            </>
-          ) : (
-            <p className="mt-3 text-small text-text-3">
-              Inside-the-survey numbers: not yet measured (this cache predates
-              contract 1.1).
-            </p>
-          )}
-          <details className="group mt-3">
-            <summary className="cursor-pointer text-small text-text-3 hover:text-text-2">
-              The whole 1 km grid, and why the methods nearly tie there
-            </summary>
-            <SearchTable
-              label="Search simulation"
-              caption="Whole 1 km grid"
-              methods={sim.methods}
-              source={simSource(sim)}
-              secondary={Boolean(sim.in_survey)}
+      {/* Ranking block (D's numbers): the race above draws the same result. */}
+      <Section title="Photos reviewed before the first and the last person" aside="the race above, as a table">
+        <table className="w-full text-body" aria-label="Ranking">
+          <thead>
+            <tr className="text-left text-small text-text-3">
+              <th className="py-1 font-normal">Order</th>
+              <th className="py-1 text-right font-normal">First hit</th>
+              <th className="py-1 text-right font-normal">All hits</th>
+              <th className="py-1 text-right font-normal">Share to all hits</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Row
+              label="Ranked by detector"
+              cells={[
+                count(ranking.ranked.frames_to_first_hit),
+                count(ranking.ranked.frames_to_all_hits),
+                pct(ranking.ranked.frames_to_all_hits / ranking.n_frames, 1),
+              ]}
+              source={rankingSource(ranking)}
+              highlight
             />
-          </details>
-          <Source>
-            {simSource(sim)}. The drone itself found the person in{" "}
-            <Num source={simSource(sim)}>{pct(sim.found_by_drone_rate)}</Num> of
-            trials. Across the whole grid the methods nearly tie: most of the
-            grid was never photographed and the prior is flat, so only the
-            surveyed area can separate them.
-          </Source>
-        </Panel>
-      </div>
+            <Row
+              label="Random order, expected"
+              cells={[
+                count(ranking.expected_first_hit_random_order),
+                random ? `≈${count(random.expectedAll)}` : "—",
+                random ? pct(random.expectedAll / ranking.n_frames, 1) : "—",
+              ]}
+              source={`First hit (N + 1) / (k + 1), all hits k(N + 1) / (k + 1), for N = ${ranking.n_frames} frames and k = ${ranking.n_positive} with people (metrics.ranking)`}
+            />
+            <Row
+              label={
+                <span className="text-text-3">
+                  This flight&apos;s order{" "}
+                  <span className="text-small">(one layout)</span>
+                </span>
+              }
+              cells={[
+                count(ranking.flight_order.frames_to_first_hit),
+                count(ranking.flight_order.frames_to_all_hits),
+                pct(ranking.flight_order.frames_to_all_hits / ranking.n_frames, 1),
+              ]}
+              source={`${rankingSource(ranking)}; one seeded layout, not a baseline`}
+            />
+          </tbody>
+        </table>
+        {random && (
+          <p className="mt-2 text-small text-text-3">
+            Random order: expected values for a uniformly random shuffle of the same photos. In 8 of 10
+            shuffles the last photo with a person is between photo{" "}
+            <Num source={`Exact 10th and 90th percentile of the last positive's position for N = ${ranking.n_frames}, k = ${ranking.n_positive} (metrics.ranking)`}>
+              {count(random.p10All)}
+            </Num>{" "}
+            and{" "}
+            <Num source={`Exact 10th and 90th percentile of the last positive's position for N = ${ranking.n_frames}, k = ${ranking.n_positive} (metrics.ranking)`}>
+              {count(random.p90All)}
+            </Num>
+            .
+          </p>
+        )}
+        <Source>
+          {rankingSource(ranking)}. Shown in photos, not minutes: the survey&apos;s photos are 1000×750 sections
+          of 4000×3000 HERIDAL photos, and the published human time is per full photo.
+        </Source>
+      </Section>
+
+      {/* Search simulation (C's numbers). */}
+      <Section
+        title="Cells a ground team checks before reaching the person"
+        aside={sim.simulated ? <Badge kind="simulated">Simulated evaluation</Badge> : undefined}
+      >
+        {sim.in_survey ? (
+          <>
+            <SearchTable
+              label="Search simulation inside the surveyed area"
+              caption="Cells checked inside the surveyed area"
+              methods={sim.in_survey.methods}
+              source={`${simSource(sim)}; ${sim.in_survey.trials} trials with the person in a photographed cell (metrics.search_sim.in_survey)`}
+            />
+            <p className="mt-2 text-small text-text-3">
+              {count(sim.in_survey.trials)} trials whose person was in a
+              photographed cell and the drone missed them. Lower is better.
+            </p>
+          </>
+        ) : (
+          <p className="mt-3 text-small text-text-3">
+            Inside-the-survey numbers: not yet measured (this cache predates
+            contract 1.1).
+          </p>
+        )}
+        <details className="group mt-3">
+          <summary className="cursor-pointer text-small text-text-3 hover:text-text-2">
+            The whole 1 km grid, and why the methods nearly tie there
+          </summary>
+          <SearchTable
+            label="Search simulation"
+            caption="Whole 1 km grid"
+            methods={sim.methods}
+            source={simSource(sim)}
+            secondary={Boolean(sim.in_survey)}
+          />
+        </details>
+        <Source>
+          {simSource(sim)}. The drone itself found the person in{" "}
+          <Num source={simSource(sim)}>{pct(sim.found_by_drone_rate)}</Num> of
+          trials. Across the whole grid the methods nearly tie: most of the
+          grid was never photographed and the prior is flat, so only the
+          surveyed area can separate them.
+        </Source>
+      </Section>
     </div>
+  );
+}
+
+/**
+ * One collapsed block of the details: a native <details> styled as a glass panel, so the Results
+ * page stays short and every table is one click (or Enter) away. Anything a closed block must
+ * still say, like a "Simulated" badge, goes in `aside`, which shows in the summary.
+ */
+function Section({
+  title,
+  aside,
+  children,
+}: {
+  title: string;
+  aside?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <details
+      className={`group rounded-lg border border-border bg-surface backdrop-blur-[16px] ${RIM}`}
+    >
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-lg p-4 hover:bg-surface-strong lg:px-6 [&::-webkit-details-marker]:hidden">
+        <span
+          aria-hidden="true"
+          className="font-mono text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none"
+        >
+          ›
+        </span>
+        <span className="text-body text-text">{title}</span>
+        {aside && (
+          <span className="text-small text-text-3 sm:ml-auto">{aside}</span>
+        )}
+      </summary>
+      <div className="px-4 pb-4 lg:px-6 lg:pb-6">{children}</div>
+    </details>
   );
 }
 
@@ -547,12 +578,9 @@ function AblationTable({
   source: string;
 }) {
   const display = ablationDisplayRows(rows);
-  const measured = display.flatMap((r) => (r.measured ? [r] : []));
-  const bestName = measured[bestByAp50(measured)]?.name;
   return (
     <>
-      <Label>What each technique adds</Label>
-      <table className="mt-3 w-full text-body" aria-label="Ablations">
+      <table className="w-full text-body" aria-label="Ablations">
         <thead>
           <tr className="text-left text-small text-text-3">
             <th className="py-1 font-normal">Variant</th>
@@ -563,17 +591,19 @@ function AblationTable({
         </thead>
         <tbody>
           {display.map((row) => {
+            const inUse = row.name === IN_USE_ROW;
+            const sub = ablationSubLabel(row.name);
             const label = (
               <>
                 {row.name}
-                {isResizedRow(row.name) && (
-                  <span className="block text-small text-text-3">
-                    resized to 1024
+                {inUse && (
+                  <span className="ml-2 font-mono text-label uppercase tracking-label text-accent">
+                    in use
                   </span>
                 )}
-                {row.name === bestName && (
-                  <span className="ml-2 font-mono text-label uppercase tracking-label text-accent">
-                    best
+                {sub && (
+                  <span className="block text-small text-text-3">
+                    {sub}
                   </span>
                 )}
               </>
@@ -604,14 +634,17 @@ function AblationTable({
                   pct(row.voc.recall, 1),
                   pct(row.voc.ap50, 1),
                 ]}
-                source={`${source}; same threshold rule for every row (metrics.ablations)`}
-                highlight={row.name === bestName}
+                source={`${source}; each row at its own threshold, chosen on validation`}
+                highlight={inUse}
               />
             );
           })}
         </tbody>
       </table>
-      <Source>{source}; same scoring and threshold rule for every row.</Source>
+      <Source>
+        {source}; VOC scoring, each row at its own threshold chosen on validation. &ldquo;In use&rdquo; marks the
+        detector the app runs, not the best score.
+      </Source>
     </>
   );
 }

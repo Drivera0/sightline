@@ -5,13 +5,26 @@ import { loadCache, useCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import { MetricsView } from "./MetricsView";
 import {
-  bestByAp50,
+  ABLATION_NAMES,
+  ablationSubLabel,
+  canonicalAblationName,
   deltaPts,
   isResizedRow,
   pct,
   seconds,
   speedup,
 } from "./format";
+
+/** The seven rows of a metrics.json written after 2026-10-18 (scripts/README.md results table). */
+const SEVEN_ROWS = [
+  { name: "Stock model, no tiling", voc: { precision: 0.42, recall: 0.196, ap50: 0.142 } },
+  { name: "Fine-tuned on tiles, run on shrunk photos", voc: { precision: 0.38, recall: 0.234, ap50: 0.144 } },
+  { name: "Stock model, full-resolution photo", voc: { precision: 0.678, recall: 0.181, ap50: 0.165 } },
+  { name: "Fine-tuned on tiles, full-resolution photo", voc: { precision: 0.723, recall: 0.905, ap50: 0.887 } },
+  { name: "Trained and run on whole photos", voc: { precision: 0.727, recall: 0.804, ap50: 0.776 } },
+  { name: "Fine-tuned + tiling", voc: { precision: 0.802, recall: 0.864, ap50: 0.868 } },
+  { name: "+ hard negatives", voc: { precision: 0.738, recall: 0.869, ap50: 0.851 } },
+];
 
 let cache: CacheBundle;
 
@@ -43,17 +56,24 @@ describe("format helpers", () => {
     expect(speedup(0, 33)).toBe("—");
   });
 
-  it("picks the best ablation row by AP50 and flags no-tiling rows", () => {
-    expect(
-      bestByAp50([
-        { voc: { ap50: 0.2 } },
-        { voc: { ap50: 0.7 } },
-        { voc: { ap50: 0.7 } },
-      ]),
-    ).toBe(1);
-    expect(bestByAp50([])).toBe(-1);
+  it("flags the two shrunk-photo rows by exact name, the old name included", () => {
     expect(isResizedRow("Stock model, no tiling")).toBe(true);
+    expect(isResizedRow("Fine-tuned on tiles, run on shrunk photos")).toBe(true);
+    expect(isResizedRow("Fine-tuned, no tiling")).toBe(true);
+    expect(isResizedRow("Fine-tuned on tiles, full-resolution photo")).toBe(false);
+    expect(isResizedRow("Trained and run on whole photos")).toBe(false);
     expect(isResizedRow("Fine-tuned + tiling")).toBe(false);
+    expect(isResizedRow("Something with no tiling")).toBe(false);
+  });
+
+  it("names how each row reads the photo, in lane A's order", () => {
+    expect(ABLATION_NAMES).toEqual(SEVEN_ROWS.map((r) => r.name));
+    expect(canonicalAblationName("Fine-tuned, no tiling")).toBe("Fine-tuned on tiles, run on shrunk photos");
+    expect(ablationSubLabel("Fine-tuned, no tiling")).toBe("whole photo shrunk to 1024 px");
+    expect(ablationSubLabel("Fine-tuned on tiles, full-resolution photo")).toBe("whole photo, 4000 px, one pass");
+    expect(ablationSubLabel("Stock model, full-resolution photo")).toBe("whole photo, 4000 px, one pass");
+    expect(ablationSubLabel("Trained and run on whole photos")).toBe("trained and run at 1920 px");
+    expect(ablationSubLabel("+ hard negatives")).toBeUndefined();
   });
 });
 
@@ -81,20 +101,40 @@ describe("MetricsView", () => {
     expect(screen.getByText("Sample numbers")).toBeInTheDocument();
   });
 
-  it("lists the four ablation rows, labels the untiled ones, and highlights the best", () => {
-    render(<MetricsView />);
+  it("shows an old four-row file under the new names, with no gaps, and marks the row in use", () => {
+    render(<MetricsView />); // the sample cache still has the old four rows
 
     const table = screen.getByRole("table", { name: "Ablations" });
     const rows = within(table).getAllByRole("row").slice(1); // skip the header
     expect(rows).toHaveLength(4);
+    expect(table).not.toHaveTextContent("Not yet measured");
     expect(rows[0]).toHaveTextContent("Stock model, no tiling");
-    expect(rows[0]).toHaveTextContent("resized to 1024");
-    expect(rows[2]).not.toHaveTextContent("resized to 1024");
+    expect(rows[0]).toHaveTextContent("whole photo shrunk to 1024 px");
+    expect(rows[1]).toHaveTextContent("Fine-tuned on tiles, run on shrunk photos");
+    expect(rows[1]).not.toHaveTextContent("Fine-tuned, no tiling");
+    expect(rows[2]).toHaveTextContent("Fine-tuned + tiling");
+    expect(rows[2]).toHaveTextContent("in use");
+    expect(rows[2]).toHaveAttribute("data-highlight", "true");
+    // The hard-negative row has the best AP50 in the sample, but it is not the detector in use.
     expect(rows[3]).toHaveTextContent("+ hard negatives");
-    expect(rows[3]).toHaveTextContent("best");
-    expect(rows[3]).toHaveAttribute("data-highlight", "true");
-    expect(rows[2]).not.toHaveAttribute("data-highlight");
+    expect(rows[3]).not.toHaveAttribute("data-highlight");
     expect(within(rows[3]!).getByText("76.6%")).toBeInTheDocument();
+  });
+
+  it("lists all seven rows of a new file in lane A's order, with the tiled row in use, not the best AP50", () => {
+    render(<MetricsView metrics={{ ...cache.metrics, ablations: SEVEN_ROWS }} />);
+
+    const table = screen.getByRole("table", { name: "Ablations" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(7);
+    rows.forEach((row, i) => expect(row).toHaveTextContent(SEVEN_ROWS[i]!.name));
+    expect(rows[3]).toHaveTextContent("whole photo, 4000 px, one pass");
+    expect(rows[4]).toHaveTextContent("trained and run at 1920 px");
+    expect(within(table).getAllByText("in use")).toHaveLength(1);
+    expect(rows[5]).toHaveTextContent("in use");
+    expect(rows[5]).toHaveAttribute("data-highlight", "true");
+    expect(rows[3]).not.toHaveAttribute("data-highlight"); // best AP50 (88.7%), not in use
+    expect(within(rows[3]!).getByText("88.7%")).toBeInTheDocument();
   });
 
   it("shows the ranking result: ranked vs the random-order expectation, this flight's order last", () => {
@@ -203,7 +243,7 @@ describe("ablation rows that were not measured", () => {
     expect(rows[3]).toHaveTextContent("+ hard negatives");
     expect(rows[3]).toHaveTextContent("Not yet measured");
     expect(rows[3]).not.toHaveTextContent("%");
-    expect(rows[2]).toHaveTextContent("best"); // best is chosen among measured rows only
+    expect(rows[2]).toHaveTextContent("in use");
   });
 
   it("treats an all-zero row (a placeholder) as not measured", () => {
@@ -233,7 +273,7 @@ describe("ablation rows that were not measured", () => {
 });
 
 describe("ablationDisplayRows", () => {
-  it("keeps canonical order, fills gaps, and appends unknown rows", async () => {
+  it("keeps canonical order, fills gaps in the core rows, and appends unknown rows", async () => {
     const { ablationDisplayRows } = await import("./format");
     const v = { precision: 0.5, recall: 0.5, ap50: 0.5 };
     const out = ablationDisplayRows([
@@ -242,11 +282,36 @@ describe("ablationDisplayRows", () => {
     ]);
     expect(out.map((r) => [r.name, r.measured])).toEqual([
       ["Stock model, no tiling", false],
-      ["Fine-tuned, no tiling", false],
+      ["Fine-tuned on tiles, run on shrunk photos", false],
       ["Fine-tuned + tiling", true],
       ["+ hard negatives", false],
       ["Extra", true],
     ]);
+  });
+
+  it("maps the old name and keeps an old file's order", async () => {
+    const { ablationDisplayRows } = await import("./format");
+    const v = { precision: 0.5, recall: 0.5, ap50: 0.5 };
+    const out = ablationDisplayRows([
+      { name: "Stock model, no tiling", voc: v },
+      { name: "Fine-tuned, no tiling", voc: v },
+      { name: "Fine-tuned + tiling", voc: v },
+      { name: "+ hard negatives", voc: v },
+    ]);
+    expect(out.map((r) => [r.name, r.measured])).toEqual([
+      ["Stock model, no tiling", true],
+      ["Fine-tuned on tiles, run on shrunk photos", true],
+      ["Fine-tuned + tiling", true],
+      ["+ hard negatives", true],
+    ]);
+  });
+
+  it("expects all seven rows once a file carries any of the newer ones", async () => {
+    const { ablationDisplayRows } = await import("./format");
+    const out = ablationDisplayRows(SEVEN_ROWS.filter((r) => r.name !== "Stock model, full-resolution photo"));
+    expect(out).toHaveLength(7);
+    expect(out[2]).toEqual({ name: "Stock model, full-resolution photo", measured: false });
+    expect(out.filter((r) => r.measured)).toHaveLength(6);
   });
 });
 
