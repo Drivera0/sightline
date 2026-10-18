@@ -157,6 +157,148 @@ def _pick_positives(
     return picked
 
 
+# --- block layout: neighbouring crops of one photo sit next to each other on the ground ----------
+
+BLOCK_LINES = 4  # a 4000 px photo row is 4 crops wide, so a band of 4 flight lines holds one row
+FRAMES_PER_LINE = 25  # lane B's 500-frame flight: 20 lines x 25 frames, alternating east / west
+
+
+@dataclass(frozen=True)
+class _Block:
+    """Consecutive rows of one photo, listed bottom row first (bottom = west end on the ground)."""
+
+    photo: str
+    rows: tuple[int, ...]  # image rows, descending
+    positive_row: int | None = None
+
+
+def build_block_survey(
+    images: Sequence[LabeledImageLike],
+    n_frames: int = 500,
+    n_positive: int = 6,
+    seed: int = 7,
+    survey_dir: Path = Path("data/survey"),
+    frames_per_line: int = FRAMES_PER_LINE,
+) -> tuple[list[FrameSpec], dict[str, list[BoxLike]]]:
+    """Like `build_survey`, but crops of the same photo keep their arrangement on the ground.
+
+    The flight is bands of `BLOCK_LINES` lines. A photo row (4 crops) fills one position across a
+    band: crop column c goes on line `band * 4 + c` (image right = south). Consecutive rows of one
+    photo fill consecutive positions, the image's top towards the east. So within a block the
+    ground layout matches the photo on both flight directions (on westbound lines each crop is shown
+    rotated 180 degrees, as every frame on those lines is).
+
+    Only rows whose 4 crops are all negative are used, plus `n_positive` rows holding exactly one
+    positive crop (one per photo), each with the negative rows above it. Blocks are shuffled, so the
+    positives land at random places. Ambiguous crops (a person cut by the crop edge) are never used.
+    """
+    per_band = BLOCK_LINES * frames_per_line
+    if n_frames % per_band:
+        raise ValueError(f"the block layout needs n_frames to be a multiple of {per_band}")
+    n_bands = n_frames // per_band
+    rng = random.Random(seed)
+
+    # Label every crop, then classify each photo row.
+    cut = cut_frames(sorted(images, key=lambda image: image.path.name))
+    crops: dict[tuple[str, int, int], tuple[FrameLabel, list[BoxLike]]] = {}
+    rows_of: dict[str, int] = {}
+    for c, label, boxes in cut:
+        col, row = c.x0 // FRAME_W, c.y0 // FRAME_H
+        crops[(c.source_image, col, row)] = (label, boxes)
+        rows_of[c.source_image] = max(rows_of.get(c.source_image, 0), row + 1)
+
+    def row_kind(photo: str, row: int) -> str:
+        labels = [crops.get((photo, col, row), ("missing", []))[0] for col in range(BLOCK_LINES)]
+        if all(lab == "negative" for lab in labels):
+            return "negative"
+        if labels.count("positive") == 1 and labels.count("negative") == BLOCK_LINES - 1:
+            return "positive"
+        return "unusable"
+
+    photos = sorted(rows_of)
+    kinds = {(p, r): row_kind(p, r) for p in photos for r in range(rows_of[p])}
+
+    # Positive blocks: one positive row per photo, plus the negative rows directly above it.
+    candidates = [p for p in photos if any(kinds[(p, r)] == "positive" for r in range(rows_of[p]))]
+    if len(candidates) < n_positive:
+        raise ValueError(
+            f"need {n_positive} photos with a usable positive row, found {len(candidates)}"
+        )
+    used: set[tuple[str, int]] = set()
+    positive_blocks: list[_Block] = []
+    for photo in rng.sample(candidates, n_positive):
+        row = rng.choice([r for r in range(rows_of[photo]) if kinds[(photo, r)] == "positive"])
+        rows = [row]
+        while rows[-1] - 1 >= 0 and kinds[(photo, rows[-1] - 1)] == "negative":
+            rows.append(rows[-1] - 1)
+        used.update((photo, r) for r in rows)
+        positive_blocks.append(_Block(photo, tuple(rows), positive_row=row))
+
+    # Negative blocks: maximal runs of consecutive negative rows not already used.
+    negative_blocks: list[_Block] = []
+    for photo in photos:
+        run: list[int] = []
+        for r in range(rows_of[photo]):
+            if kinds[(photo, r)] == "negative" and (photo, r) not in used:
+                run.append(r)
+            else:
+                if run:
+                    negative_blocks.append(_Block(photo, tuple(reversed(run))))
+                run = []
+        if run:
+            negative_blocks.append(_Block(photo, tuple(reversed(run))))
+    rng.shuffle(negative_blocks)
+
+    # Insert the positives at random places, but before the last negative block needed to fill the
+    # flight, so they are always placed. Then fill the bands west to east.
+    need = n_bands * frames_per_line
+    have, m = sum(len(b.rows) for b in positive_blocks), 0
+    while m < len(negative_blocks) and have < need:
+        have += len(negative_blocks[m].rows)
+        m += 1
+    sequence = list(negative_blocks)
+    for block in positive_blocks:
+        sequence.insert(rng.randint(0, max(0, m - 1)), block)
+        m += 1
+
+    placed: list[tuple[int, int, str, int]] = []  # (band, position, photo, row)
+    band, pos = 0, 0
+    placed_positive = 0
+    for block in sequence:
+        if band == n_bands:
+            break
+        rows = block.rows[: frames_per_line - pos]  # keep the west (bottom) end if it must be cut
+        placed_positive += block.positive_row in rows
+        for row in rows:
+            placed.append((band, pos, block.photo, row))
+            pos += 1
+        if pos == frames_per_line:
+            band, pos = band + 1, 0
+    if band < n_bands:
+        raise ValueError("not enough person-free photo rows to fill the flight")
+    if placed_positive != n_positive:
+        raise ValueError("a positive block could not be placed")
+
+    # Every placed row becomes 4 frames, one per line of its band; ids follow the flight order.
+    specs: list[tuple[int, str, int, int]] = []
+    for b, p, photo, row in placed:
+        for col in range(BLOCK_LINES):
+            line = b * BLOCK_LINES + col
+            k = p if line % 2 == 0 else frames_per_line - 1 - p
+            specs.append((line * frames_per_line + k, photo, col, row))
+    specs.sort()
+
+    frames: list[FrameSpec] = []
+    truth: dict[str, list[BoxLike]] = {}
+    for flight_index, photo, col, row in specs:
+        frame_id = f"f{flight_index + 1:04d}"
+        label, boxes = crops[(photo, col, row)]
+        path = survey_dir / "frames" / f"{frame_id}.jpg"
+        frames.append(FrameSpec(frame_id, flight_index, photo, col * FRAME_W, row * FRAME_H, path))
+        truth[frame_id] = list(boxes) if label == "positive" else []
+    return frames, truth
+
+
 def write_survey(
     frames: Sequence[FrameSpec],
     truth: dict[str, list[BoxLike]],
