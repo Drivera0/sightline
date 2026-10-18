@@ -2,13 +2,13 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Metrics } from "../contract";
 import { Badge, Label } from "../shell/components";
 import { Sourced } from "../shell/Popover";
-import { ablationDisplayRows, duration, IN_USE_ROW, pct, seconds } from "./format";
+import { ablationDisplayRows, IN_USE_ROW, pct } from "./format";
 import { AIR_CITATION, AIR_ROWS } from "./publishedSota";
 
 /**
- * Four charts under the Results cards, each answering one question a visitor asks: how long does
- * reading a survey take, where does the detector sit against people and the published model, does
- * the search map's gain survive a worse canopy estimate, and where does the detector miss people.
+ * Two charts for judges, folded under "For judges: how we measured it": where the detector sits
+ * against people and the published model, and whether the search map's gain survives a worse
+ * canopy estimate.
  * Numbers come from metrics.json or, where the contract has no field, from a cited doc table
  * (like publishedSota.ts), never invented.
  */
@@ -23,38 +23,15 @@ export function ResultsCharts({
 }) {
   const robustness = robustnessFor(metrics, surveyId, cellM);
   return (
-    <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-      <TimeChart metrics={metrics} />
+    <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
       <PrecisionRecallMap metrics={metrics} />
       {robustness && <RobustnessChart rows={robustness} cellM={cellM!} />}
-      <MissesChart overall={metrics.detector.voc.recall} />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------------------------
 // Cited tables (no contract field holds these).
-
-/**
- * Recall by HERIDAL test site, docs/DETECTOR_LIMITS.md §2 ("Which misses dominate"), final model
- * on the corrected labels. CAP and GRO, and the six sites with no misses, are grouped as there.
- */
-export const MISSES_BY_SITE: readonly { label: string; people: number; missed: number; sites?: string }[] = [
-  { label: "MED", people: 52, missed: 16 },
-  { label: "CAB", people: 34, missed: 12 },
-  { label: "ZRI", people: 47, missed: 8 },
-  { label: "BLI", people: 46, missed: 6 },
-  { label: "CAP, GRO", people: 40, missed: 4 },
-  { label: "6 other sites", people: 118, missed: 0, sites: "BRA, BRK, BRS, MOB, SB, TRS" },
-];
-
-/** Recall by person size (√ box area), docs/DETECTOR_LIMITS.md §2. */
-export const MISSES_BY_SIZE: readonly { label: string; people: number; recall: number }[] = [
-  { label: "tiny (< 40 px)", people: 34, recall: 0.88 },
-  { label: "small (40–60 px)", people: 175, recall: 0.83 },
-  { label: "medium (60–90 px)", people: 118, recall: 0.92 },
-  { label: "large (90 px +)", people: 10, recall: 0.7 },
-];
 
 /**
  * In-survey median cells on the 5 m demo cache at five canopy-noise levels, seeds 7 / 8 / 9:
@@ -144,51 +121,7 @@ function ChartCard({
 const SVG_TEXT = { fontSize: 11 } as const;
 
 // ---------------------------------------------------------------------------------------------
-// 1. Time to read a survey.
-
-/** A survey size to read the per-photo times against: full 4000×3000 photos, not the demo's sections. */
-const SURVEY_FULL_PHOTOS = 500;
-
-function TimeChart({ metrics }: { metrics: Metrics }) {
-  const human = SURVEY_FULL_PHOTOS * metrics.baseline_human.seconds_per_image;
-  const detector = SURVEY_FULL_PHOTOS * metrics.detector.seconds_per_image;
-  const rows = [
-    { label: "A person, by eye", value: human, accent: false },
-    { label: "Sightline", value: detector, accent: true },
-  ];
-  return (
-    <ChartCard
-      title={`Time to read a survey of ${SURVEY_FULL_PHOTOS} full photos`}
-      insight={
-        <>
-          By eye: {duration(human)}. The detector reads them all in {duration(detector)}, then puts the likeliest
-          photos first for a person to check.
-        </>
-      }
-      source={`${SURVEY_FULL_PHOTOS} × per-photo time: ${seconds(metrics.baseline_human.seconds_per_image)} by eye (${metrics.baseline_human.source}); ${seconds(metrics.detector.seconds_per_image)} for the detector (metrics.detector.seconds_per_image)`}
-      footnote="Per full 4000×3000 photo. The demo survey's frames are sections of full photos, so this is a survey of the size a team flies, not the demo's 500 frames."
-    >
-      <ul className="flex flex-col gap-3" aria-label="Time to read every photo">
-        {rows.map((r) => (
-          <li key={r.label} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] items-center gap-3">
-            <span className={"text-small " + (r.accent ? "font-medium text-text" : "text-text-2")}>{r.label}</span>
-            {/* Value at the bar's tip, outside it, so a 0.8% bar still reads. */}
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                className={"sl-grow block h-3 shrink-0 rounded-r-[4px] " + (r.accent ? "bg-accent" : "bg-text-3/60")}
-                style={{ width: `calc(${Math.max(0.8, (r.value / human) * 100)}% - 5.5rem)`, minWidth: 4 }}
-              />
-              <span className="whitespace-nowrap font-mono text-small text-text">{duration(r.value)}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </ChartCard>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
-// 2. Precision and recall map.
+// 1. People found and alerts that are real people.
 
 const SHORT_NAMES: Record<string, string> = {
   "Stock model, no tiling": "Stock, shrunk photo",
@@ -334,7 +267,8 @@ function PrecisionRecallMap({ metrics }: { metrics: Metrics }) {
           ))}
         </svg>
       </div>
-      <table className="sr-only">
+      <div className="sr-only">
+        <table>
         <caption>People found and alerts that are real people, {scheme === "voc" ? "strict scoring" : "scored like the human study"}</caption>
         <thead>
           <tr>
@@ -352,7 +286,8 @@ function PrecisionRecallMap({ metrics }: { metrics: Metrics }) {
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </ChartCard>
   );
 }
@@ -385,7 +320,7 @@ function PrMark({ p, cx, cy }: { p: PrPoint; cx: number; cy: number }) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 3. Search robustness.
+// 2. Search robustness.
 
 function RobustnessChart({ rows, cellM }: { rows: typeof ROBUSTNESS_5M; cellM: number }) {
   const [ref, width] = useWidth();
@@ -486,7 +421,8 @@ function RobustnessChart({ rows, cellM }: { rows: typeof ROBUSTNESS_5M; cellM: n
           })}
         </svg>
       </div>
-      <table className="sr-only">
+      <div className="sr-only">
+        <table>
         <caption>Typical hectares to search, average of 3 simulation runs (simulated)</caption>
         <thead>
           <tr>
@@ -504,74 +440,8 @@ function RobustnessChart({ rows, cellM }: { rows: typeof ROBUSTNESS_5M; cellM: n
             </tr>
           ))}
         </tbody>
-      </table>
-    </ChartCard>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
-// 4. Where it misses.
-
-function MissesChart({ overall }: { overall: number }) {
-  const sites = MISSES_BY_SITE.map((s) => ({ ...s, recall: 1 - s.missed / s.people })).sort((a, b) => a.recall - b.recall);
-  const missed = MISSES_BY_SITE.reduce((s, r) => s + r.missed, 0);
-  const worstTwo = sites.slice(0, 2);
-  const inWorstTwo = worstTwo.reduce((s, r) => s + r.missed, 0);
-  return (
-    <ChartCard
-      title="Where the detector misses people"
-      insight={
-        <>
-          It depends on the place more than the person: two sites account for {inWorstTwo} of the {missed} people it
-          missed, while how big a person looks in the photo changes little.
-        </>
-      }
-      source="docs/DETECTOR_LIMITS.md §2: final model on the corrected test labels, 337 people, threshold 0.29"
-      footnote={`Share of people found at each place and size, strict scoring, on the 101 test photos. The vertical line is the overall ${pct(overall)}. ${worstTwo.map((s) => s.label).join(" and ")} are HERIDAL test sites in Croatia: groups of people on dark broken rock, and white or grey clothing on pale limestone.`}
-    >
-      <div className="flex flex-col gap-5">
-        <RecallList
-          name="People found, by test site"
-          overall={overall}
-          rows={sites.map((s) => ({ label: s.label, recall: s.recall, people: s.people, title: s.sites }))}
-        />
-        <RecallList name="People found, by how big the person looks" overall={overall} rows={MISSES_BY_SIZE} />
+        </table>
       </div>
     </ChartCard>
-  );
-}
-
-function RecallList({
-  name,
-  overall,
-  rows,
-}: {
-  name: string;
-  overall: number;
-  rows: readonly { label: string; recall: number; people: number; title?: string }[];
-}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <span className="text-label text-text-3">{name}</span>
-      <ul aria-label={name} className="flex flex-col gap-2">
-        {rows.map((r) => (
-          <li
-            key={r.label}
-            data-label={r.label}
-            title={r.title}
-            className="grid grid-cols-[7.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 text-small"
-          >
-            <span className="truncate text-text-2">{r.label}</span>
-            <span className="relative h-2.5 rounded-full bg-surface-strong">
-              <span className="block h-full rounded-r-[4px] rounded-l-full bg-text-3/60" style={{ width: `${r.recall * 100}%` }} />
-              {/* The overall recall, as a reference line across every row. */}
-              <span aria-hidden="true" className="absolute -inset-y-1 w-px bg-text-2" style={{ left: `${overall * 100}%` }} />
-            </span>
-            <span className="text-right font-mono text-text">{pct(r.recall)}</span>
-            <span className="col-start-2 -mt-1 text-label text-text-3">{r.people} people</span>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }

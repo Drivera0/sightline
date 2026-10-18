@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { CacheBundle, Metrics } from "../contract";
 import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
-import { MISSES_BY_SITE, MISSES_BY_SIZE, ResultsCharts, ROBUSTNESS_5M } from "./ResultsCharts";
+import { ResultsCharts, ROBUSTNESS_5M } from "./ResultsCharts";
 import { ResultsSummary } from "./ResultsSummary";
 
 let cache: CacheBundle;
@@ -43,27 +43,12 @@ function demo(): Metrics {
 
 const chart = (name: string) => screen.getByRole("figure", { name });
 
-describe("the cited tables", () => {
-  it("add up to the test set: 337 people, 46 missed", () => {
-    expect(MISSES_BY_SITE.reduce((s, r) => s + r.people, 0)).toBe(337);
-    expect(MISSES_BY_SITE.reduce((s, r) => s + r.missed, 0)).toBe(46);
-    expect(MISSES_BY_SIZE.reduce((s, r) => s + r.people, 0)).toBe(337);
-  });
-
+describe("the cited table", () => {
   it("hold the demo's own run at the default noise, so the gate can match it", () => {
     const first = ROBUSTNESS_5M[0]!;
     expect(first.noise).toBe(0.15);
     expect(first.naive[0]).toBe(1743);
     expect(first.sightline[0]).toBe(1213);
-  });
-});
-
-describe("time to read a survey", () => {
-  it("compares a person and the detector on 500 full photos, in hours and minutes", () => {
-    render(<ResultsCharts metrics={demo()} />);
-    const fig = chart("Time to read a survey of 500 full photos");
-    expect(within(fig).getByText("4 h 35 min")).toBeInTheDocument(); // 500 × 33 s
-    expect(within(fig).getByText("2 min")).toBeInTheDocument(); // 500 × 0.251 s
   });
 });
 
@@ -113,21 +98,28 @@ describe("search robustness", () => {
   });
 });
 
-describe("where it misses", () => {
-  it("ranks the test sites worst first and gives the size bins with their counts", () => {
-    render(<ResultsCharts metrics={demo()} />);
-    const fig = chart("Where the detector misses people");
-    const sites = within(within(fig).getByRole("list", { name: "People found, by test site" })).getAllByRole("listitem");
-    expect(sites.map((s) => s.dataset.label)).toEqual(["CAB", "MED", "ZRI", "BLI", "CAP, GRO", "6 other sites"]);
-    const sizes = within(within(fig).getByRole("list", { name: "People found, by how big the person looks" })).getAllByRole("listitem");
-    expect(sizes).toHaveLength(4);
-    expect(sizes[3]).toHaveTextContent("10 people");
-  });
-});
-
 describe("on the Results page", () => {
-  it("sits below the three cards", () => {
+  it("is folded under the judges' section, with the resolution table", () => {
     render(<ResultsSummary metrics={demo()} surveyId="seymour-demo" cellM={5} />);
-    expect(chart("Where the detector misses people")).toBeInTheDocument();
+    expect(screen.getByText("For judges: how we measured it")).toBeInTheDocument();
+    const judges = screen.getByText(/^Charts: how the detector compares/).closest("details")!;
+    expect(judges).not.toHaveAttribute("open");
+    expect(within(judges).getByRole("figure", { name: "How many people it finds, and how often its alerts are right" })).toBeInTheDocument();
+    expect(within(judges).getByRole("list", { name: "Recall by how the photo is read" })).toBeInTheDocument();
+  });
+
+  it("is grouped into sections that each answer one question", () => {
+    render(<ResultsSummary metrics={demo()} surveyId="seymour-demo" cellM={5} />);
+    for (const name of ["At a glance", "How much looking it saves", "When not to rely on it", "Your review"]) {
+      expect(screen.getByRole("region", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("keeps the hidden table captions inside a clipped box, so they never draw over a chart title", () => {
+    render(<ResultsCharts metrics={demo()} surveyId="seymour-demo" cellM={5} />);
+    for (const caption of document.querySelectorAll("caption")) {
+      expect(caption.closest(".sr-only")).not.toBeNull();
+      expect(caption.closest("table")).not.toHaveClass("sr-only");
+    }
   });
 });

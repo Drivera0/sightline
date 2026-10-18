@@ -474,7 +474,7 @@ export function Shell({
                 surveyId={cache.survey.survey_id}
               />
               <div className="mt-4 flex items-center gap-4">
-                <Label>The details</Label>
+                <Label>Full tables</Label>
                 <span className="h-px flex-1 bg-border" aria-hidden="true" />
               </div>
               <div data-testid="mount-metrics">
