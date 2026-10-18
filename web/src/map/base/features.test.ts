@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Detections, Survey } from "../../contract";
 import {
   buildDetectionFeatures,
+  buildPinMarkerFeatures,
   buildFlightDirectionFeatures,
   buildFlightPathFeature,
   buildFootprintFeatures,
@@ -187,10 +188,20 @@ describe("base map GeoJSON", () => {
     ]);
     expect(collection.features.map((feature) => feature.properties.reviewLabel)).toEqual([
       "",
-      "Person",
+      "Person confirmed",
       "",
-      "?",
+      "Unsure · check again",
     ]);
+
+    // One centre point per candidate for the icon and chip; a person's label wins a collision.
+    const markers = buildPinMarkerFeatures(reviewedDetections, {
+      "f0001-d02": "person",
+      "f0001-d04": "unsure",
+    });
+    expect(markers.features.map((f) => f.geometry.coordinates)).toEqual(
+      reviewedDetections.frames.f0001!.map((d) => [d.lon, d.lat]),
+    );
+    expect(markers.features.map((f) => f.properties.labelRank)).toEqual([1, 0, 1, 1]);
   });
 
   it("uses the survey last-known point", () => {
