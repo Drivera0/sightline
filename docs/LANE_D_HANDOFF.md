@@ -121,3 +121,15 @@ cd web && VITE_CACHE_DIR=demo pnpm dev
 - [ ] Run the full click path on the presenting laptop with Wi-Fi **off**, at 1440×900 and on a
       1080p projector.
 - [ ] Check the event's prize tracks.
+
+## 6. The public website (added after hand-off)
+
+- **Live:** https://sightline-iota-sandy.vercel.app (Vercel project `sightline`, team "Driver0's projects").
+- **Auto-deploy:** every push to `lane-d` builds and publishes it (switch the production branch to
+  `main` in Vercel → Settings → Environments → Production once lane-d is merged). Pushes to other
+  branches make preview builds behind Vercel login.
+- **How the build gets data:** `web/vercel.json` downloads `demo-cache.tar.gz` from the `demo-cache`
+  GitHub release into `web/public/cache/`, then runs `VITE_CACHE_DIR=demo pnpm build`. The cache is
+  git-ignored, so **new demo data needs a re-upload**, then any push (or "Redeploy" in Vercel):
+  `tar -czf data/demo-cache.tar.gz -C cache demo && gh release upload demo-cache data/demo-cache.tar.gz -R Drivera0/sightline --clobber`
+- `web/scripts/vercel.test.ts` checks the build command keeps the download and the demo build.
