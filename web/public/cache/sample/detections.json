@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "model": "SAMPLE",
   "save_threshold": 0.05,
   "candidate_threshold": 0.25,

@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model-name", default=None)
     ap.add_argument("--data-root", type=Path, default=ROOT / "data/heridal/yolo_full")
     ap.add_argument("--out", type=Path, default=ROOT / "data/work/detect/detector_metrics.json")
-    ap.add_argument("--device", default="cuda:0")
+    ap.add_argument("--device", default="auto", help="auto = cuda, then mps, then cpu")
     ap.add_argument(
         "--limit", type=int, default=None, help="debug: only the first N images per split"
     )
@@ -52,13 +52,13 @@ def main(argv: list[str] | None = None) -> int:
         Ablation,
         DetectorMetrics,
         SarScores,
-        VocScores,
         choose_threshold,
         evaluate,
         write_detector_metrics,
     )
 
-    val = load_split("val", args.data_root)[: args.limit]
+    # Threshold on annotated val photos only: unlabelled people would count as false positives.
+    val = load_split("val", args.data_root, annotated_only=True)[: args.limit]
     test = load_split("test", args.data_root)[: args.limit]
     print(f"val {len(val)} images, test {len(test)} images")
 
@@ -76,8 +76,8 @@ def main(argv: list[str] | None = None) -> int:
     ]
     for name, det, mode in plan:
         if det is None:
-            print(f"[{name}] no weights given: writing the row as zeros, re-run after §6.5")
-            rows.append(Ablation(name=name, voc=VocScores(precision=0.0, recall=0.0, ap50=0.0)))
+            # Not run yet: omit the row. Never write zeros as a stand-in (see write_detector_metrics).
+            print(f"[{name}] not measured yet (no weights given): row omitted, re-run after §6.5")
             continue
         t0 = time.time()
         thr = choose_threshold(det, val, mode)
@@ -96,13 +96,14 @@ def main(argv: list[str] | None = None) -> int:
 
     final_name = ABLATION_NAMES[3] if hn else ABLATION_NAMES[2]
     final = results[final_name]
+    final_voc = next(r.voc for r in rows if r.name == final_name)
     model_name = args.model_name or (args.hn_weights or args.weights).parent.parent.name
     detector = DetectorMetrics(
         model=model_name,
         test_images=len(test),
         tiled=True,
         threshold=float(final["threshold"]),  # type: ignore[arg-type]
-        voc=rows[3].voc if hn else rows[2].voc,
+        voc=final_voc,
         sar=SarScores(**final["sar"]),  # type: ignore[arg-type]
         recall=float(final["voc"]["recall"]),  # type: ignore[index]
         seconds_per_image=float(final["seconds_per_image"]),  # type: ignore[arg-type]

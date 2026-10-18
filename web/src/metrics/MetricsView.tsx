@@ -3,6 +3,7 @@ import type { Metrics } from "../contract";
 import { useCache } from "../lib/cache";
 import { Badge, EmptyState, Label, Panel, Stat } from "../shell/components";
 import {
+  ablationDisplayRows,
   bestByAp50,
   count,
   deltaPts,
@@ -53,6 +54,12 @@ function MetricsBody({ m }: { m: Metrics }) {
   } inference at threshold ${detector.threshold} (metrics.detector)`;
   const humanSource = `Human baseline: ${human.source}`;
   const isSample = detector.model === "SAMPLE";
+  // Highlight whichever method really needs the fewest cells; never assume it's Sightline's row.
+  const fewestCells = sim.methods.reduce(
+    (best, m, i, all) =>
+      m.median_cells < (all[best]?.median_cells ?? Infinity) ? i : best,
+    0,
+  );
 
   return (
     <div
@@ -233,7 +240,7 @@ function MetricsBody({ m }: { m: Metrics }) {
                   label={method.name}
                   cells={[count(method.median_cells), count(method.p90_cells)]}
                   source={simSource(sim)}
-                  highlight={i === sim.methods.length - 1}
+                  highlight={i === fewestCells}
                 />
               ))}
             </tbody>
@@ -420,7 +427,9 @@ function AblationTable({
   rows: Metrics["ablations"];
   source: string;
 }) {
-  const best = bestByAp50(rows);
+  const display = ablationDisplayRows(rows);
+  const measured = display.flatMap((r) => (r.measured ? [r] : []));
+  const bestName = measured[bestByAp50(measured)]?.name;
   return (
     <>
       <Label>What each technique adds</Label>
@@ -434,33 +443,53 @@ function AblationTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <Row
-              key={row.name}
-              label={
-                <>
-                  {row.name}
-                  {isResizedRow(row.name) && (
-                    <span className="block text-small text-text-3">
-                      resized to 1024
-                    </span>
-                  )}
-                  {i === best && (
-                    <span className="ml-2 font-mono text-label uppercase tracking-label text-accent">
-                      best
-                    </span>
-                  )}
-                </>
-              }
-              cells={[
-                pct(row.voc.precision, 1),
-                pct(row.voc.recall, 1),
-                pct(row.voc.ap50, 1),
-              ]}
-              source={`${source}; same threshold rule for every row (metrics.ablations)`}
-              highlight={i === best}
-            />
-          ))}
+          {display.map((row) => {
+            const label = (
+              <>
+                {row.name}
+                {isResizedRow(row.name) && (
+                  <span className="block text-small text-text-3">
+                    resized to 1024
+                  </span>
+                )}
+                {row.name === bestName && (
+                  <span className="ml-2 font-mono text-label uppercase tracking-label text-accent">
+                    best
+                  </span>
+                )}
+              </>
+            );
+            if (!row.measured) {
+              // Never show a placeholder as a result: say plainly that it hasn't been measured.
+              return (
+                <tr
+                  key={row.name}
+                  data-measured="false"
+                  className="text-text-3"
+                >
+                  <th scope="row" className="py-1.5 pr-3 text-left font-normal">
+                    {label}
+                  </th>
+                  <td colSpan={3} className="py-1.5 pl-3 text-right">
+                    <Badge kind="placeholder">Not yet measured</Badge>
+                  </td>
+                </tr>
+              );
+            }
+            return (
+              <Row
+                key={row.name}
+                label={label}
+                cells={[
+                  pct(row.voc.precision, 1),
+                  pct(row.voc.recall, 1),
+                  pct(row.voc.ap50, 1),
+                ]}
+                source={`${source}; same threshold rule for every row (metrics.ablations)`}
+                highlight={row.name === bestName}
+              />
+            );
+          })}
         </tbody>
       </table>
       <Source>{source}; same scoring and threshold rule for every row.</Source>

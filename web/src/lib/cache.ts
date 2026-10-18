@@ -3,7 +3,9 @@ import { create } from "zustand";
 import type { CacheBundle } from "../contract";
 
 export const CACHE_FILES = ["manifest", "survey", "detections", "map", "metrics"] as const;
-export const SUPPORTED_CONTRACT_VERSION = "1.0";
+export const SUPPORTED_CONTRACT_VERSION = "1.1";
+/** 1.1 only adds optional fields, so 1.0 caches still load (the new fields read as null). */
+export const READABLE_CONTRACT_VERSIONS: readonly string[] = ["1.0", "1.1"];
 
 /** Folder under public/cache/ that the app reads: VITE_CACHE_DIR, or "sample". */
 export const CACHE_DIR = import.meta.env.VITE_CACHE_DIR || "sample";
@@ -43,10 +45,10 @@ async function loadFile(dir: string, name: string, fetchImpl: typeof fetch): Pro
     throw new CacheLoadError(file, `${file} from ${where} is not valid JSON`);
   }
   const version = (data as { contract_version?: unknown } | null)?.contract_version;
-  if (version !== SUPPORTED_CONTRACT_VERSION) {
+  if (typeof version !== "string" || !READABLE_CONTRACT_VERSIONS.includes(version)) {
     throw new CacheLoadError(
       file,
-      `${file} has contract_version ${JSON.stringify(version)}; this app reads ${SUPPORTED_CONTRACT_VERSION}`,
+      `${file} has contract_version ${JSON.stringify(version)}; this app reads ${READABLE_CONTRACT_VERSIONS.join(" or ")}`,
     );
   }
   return data;

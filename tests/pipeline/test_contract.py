@@ -27,7 +27,7 @@ N_CELLS = 50 * 50
 
 def _doc_examples() -> dict[str, dict]:
     """The five ```json blocks of the contract, in document order."""
-    blocks = re.findall(r"```json\n(.*?)```", DOC.read_text(), flags=re.DOTALL)
+    blocks = re.findall(r"```json\n(.*?)```", DOC.read_text(encoding="utf-8"), flags=re.DOTALL)
     names = ["manifest", "survey", "detections", "map", "metrics"]
     assert len(blocks) == len(names)
     # Only the map example has elided arrays ("... 2500 values ..."); stub them, tests fill them.
@@ -115,7 +115,7 @@ def test_unknown_nested_field_is_rejected(examples):
 
 def test_wrong_contract_version_is_rejected(examples):
     data = copy.deepcopy(examples["manifest"])
-    data["contract_version"] = "1.1"
+    data["contract_version"] = "2.0"  # 1.0 and 1.1 are both readable; anything else is not
     with pytest.raises(ValidationError):
         Manifest.model_validate(data)
 

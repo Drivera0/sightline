@@ -74,12 +74,16 @@ export function Shell({ cache }: { cache: CacheBundle }) {
           <TabPanel id="map" idPrefix="shell">
             <div className="relative h-full" data-testid="mount-map">
               <ScreenBoundary name="Map">
-                <MapView />
-              </ScreenBoundary>
-            </div>
-            <div data-testid="mount-heat">
-              <ScreenBoundary name="Heat layer">
-                <HeatLayer />
+                {/* Lane C's heat layer renders inside lane B's map context, so it can call useMap(). */}
+                <MapView
+                  layers={
+                    <div data-testid="mount-heat">
+                      <ScreenBoundary name="Heat layer">
+                        <HeatLayer />
+                      </ScreenBoundary>
+                    </div>
+                  }
+                />
               </ScreenBoundary>
             </div>
           </TabPanel>

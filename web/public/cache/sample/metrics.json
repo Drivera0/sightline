@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "detector": {
     "model": "SAMPLE",
     "test_images": 101,
@@ -97,6 +97,7 @@
         "median_cells": 120.0,
         "p90_cells": 450.0
       }
-    ]
+    ],
+    "in_survey": null
   }
 }

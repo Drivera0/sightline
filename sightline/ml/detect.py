@@ -24,12 +24,26 @@ def _require(module: str) -> Any:
         ) from e
 
 
+def resolve_device(device: str = "auto") -> str:
+    """``"auto"`` → ``"cuda:0"`` if a CUDA GPU is available, else ``"mps"`` (Apple silicon), else
+    ``"cpu"``. Any other value is returned unchanged."""
+    if device != "auto":
+        return device
+    torch = _require("torch")
+    if torch.cuda.is_available():
+        return "cuda:0"
+    mps = getattr(getattr(torch, "backends", None), "mps", None)
+    if mps is not None and mps.is_available():
+        return "mps"
+    return "cpu"
+
+
 class Detector:
     """One set of YOLO weights with three inference modes."""
 
-    def __init__(self, weights: Path, device: str = "cuda:0", imgsz: int = 1024) -> None:
+    def __init__(self, weights: Path, device: str = "auto", imgsz: int = 1024) -> None:
         self.weights = Path(weights)
-        self.device = device
+        self.device = resolve_device(device)
         self.imgsz = imgsz
         ultralytics = _require("ultralytics")
         if not self.weights.exists():
