@@ -121,12 +121,12 @@ describe("review-aware detection layers", () => {
     expect(layers.map((layer) => layer.id)).toEqual([
       MAP_LAYER_IDS.gridOutline,
       MAP_LAYER_IDS.footprints,
-      MAP_LAYER_IDS.selectedFootprint,
       MAP_LAYER_IDS.flightPath,
       MAP_LAYER_IDS.flightDirection,
       MAP_LAYER_IDS.pins,
       MAP_LAYER_IDS.pinOutlines,
       MAP_LAYER_IDS.rejectedPins,
+      MAP_LAYER_IDS.selectedPin,
       MAP_LAYER_IDS.pinMarkers,
       MAP_LAYER_IDS.pinLabels,
       MAP_LAYER_IDS.lkp,

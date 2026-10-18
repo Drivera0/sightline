@@ -104,15 +104,6 @@ export function syncBaseLayers(
       paint: { "line-color": colors.textSecondary, "line-opacity": 0.35, "line-width": 1 },
     });
   }
-  if (!map.getLayer(MAP_LAYER_IDS.selectedFootprint)) {
-    map.addLayer({
-      id: MAP_LAYER_IDS.selectedFootprint,
-      type: "line",
-      source: MAP_SOURCE_IDS.footprints,
-      filter: ["==", ["get", "frameId"], ""],
-      paint: { "line-color": colors.accent, "line-opacity": 0.95, "line-width": 3 },
-    });
-  }
   if (!map.getLayer(MAP_LAYER_IDS.flightPath)) {
     map.addLayer({
       id: MAP_LAYER_IDS.flightPath,
@@ -188,6 +179,22 @@ export function syncBaseLayers(
         "line-opacity": 0.55,
         "line-width": 1.25,
         "line-dasharray": [2, 2],
+      },
+    });
+  }
+  // The selected candidate: a double ring around its own circle, not a second shape (the photo
+  // footprint rectangle used to draw here too, which read as two markers for one find).
+  if (!map.getLayer(MAP_LAYER_IDS.selectedPin)) {
+    map.addLayer({
+      id: MAP_LAYER_IDS.selectedPin,
+      type: "line",
+      source: MAP_SOURCE_IDS.pins,
+      filter: ["==", ["get", "detectionId"], ""],
+      paint: {
+        "line-color": colors.text,
+        "line-opacity": 0.95,
+        "line-width": 1.5,
+        "line-gap-width": 3,
       },
     });
   }
@@ -278,8 +285,8 @@ export function syncBaseLayers(
   }
 }
 
-// Highlight the footprint associated with the shared review/map selection.
-export function setSelectedFootprint(map: Map, frameId: string | null): void {
-  if (!map.getLayer(MAP_LAYER_IDS.selectedFootprint)) return;
-  map.setFilter(MAP_LAYER_IDS.selectedFootprint, ["==", ["get", "frameId"], frameId ?? ""]);
+// Ring the candidate selected in the review queue or by a click on its pin.
+export function setSelectedPin(map: Map, detectionId: string | null): void {
+  if (!map.getLayer(MAP_LAYER_IDS.selectedPin)) return;
+  map.setFilter(MAP_LAYER_IDS.selectedPin, ["==", ["get", "detectionId"], detectionId ?? ""]);
 }
