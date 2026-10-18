@@ -54,6 +54,12 @@ function MetricsBody({ m }: { m: Metrics }) {
   } inference at threshold ${detector.threshold} (metrics.detector)`;
   const humanSource = `Human baseline: ${human.source}`;
   const isSample = detector.model === "SAMPLE";
+  // Highlight whichever method really needs the fewest cells; never assume it's Sightline's row.
+  const fewestCells = sim.methods.reduce(
+    (best, m, i, all) =>
+      m.median_cells < (all[best]?.median_cells ?? Infinity) ? i : best,
+    0,
+  );
 
   return (
     <div
@@ -234,7 +240,7 @@ function MetricsBody({ m }: { m: Metrics }) {
                   label={method.name}
                   cells={[count(method.median_cells), count(method.p90_cells)]}
                   source={simSource(sim)}
-                  highlight={i === sim.methods.length - 1}
+                  highlight={i === fewestCells}
                 />
               ))}
             </tbody>
