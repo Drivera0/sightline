@@ -205,7 +205,7 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
             {spec.train_epochs} epochs on {spec.train_imgsz} px tiles, {TRAINING_PHOTOS} labelled HERIDAL photos
           </span>
           {" · "}
-          <span title={SPEED_SOURCE}>{seconds.toFixed(2)} s/photo</span>
+          <span title={SPEED_SOURCE}>{seconds.toFixed(2)} s per full 4000×3000 photo</span>
         </p>
       </div>
     </section>

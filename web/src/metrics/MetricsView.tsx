@@ -8,7 +8,6 @@ import {
   count,
   deltaPts,
   isResizedRow,
-  minutes,
   pct,
   seconds,
   speedup,
@@ -111,8 +110,8 @@ function MetricsBody({ m }: { m: Metrics }) {
             value={seconds(detector.seconds_per_image)}
             animate={detector.seconds_per_image}
             format={seconds}
-            label="Per photo"
-            source={detectorSource}
+            label="Per full photo"
+            source={`${detectorSource}; time per full 4000×3000 photo (metrics.detector.seconds_per_image), the same unit as the human baseline`}
             compare={
               <>
                 <Num source={humanSource}>
@@ -165,14 +164,14 @@ function MetricsBody({ m }: { m: Metrics }) {
 
         {/* Ranking block (D's numbers). */}
         <Panel className={RIM}>
-          <Label>Frames reviewed before the first person</Label>
+          <Label>Photos reviewed before the first and the last person</Label>
           <table className="mt-3 w-full text-body" aria-label="Ranking">
             <thead>
               <tr className="text-left text-small text-text-3">
                 <th className="py-1 font-normal">Order</th>
                 <th className="py-1 text-right font-normal">First hit</th>
                 <th className="py-1 text-right font-normal">All hits</th>
-                <th className="py-1 text-right font-normal">At human pace</th>
+                <th className="py-1 text-right font-normal">Share to all hits</th>
               </tr>
             </thead>
             <tbody>
@@ -181,7 +180,7 @@ function MetricsBody({ m }: { m: Metrics }) {
                 cells={[
                   count(ranking.ranked.frames_to_first_hit),
                   count(ranking.ranked.frames_to_all_hits),
-                  minutes(ranking.minutes_at_human_pace.ranked_first),
+                  pct(ranking.ranked.frames_to_all_hits / ranking.n_frames, 1),
                 ]}
                 source={rankingSource(ranking)}
                 highlight
@@ -191,13 +190,9 @@ function MetricsBody({ m }: { m: Metrics }) {
                 cells={[
                   count(ranking.expected_first_hit_random_order),
                   random ? `≈${count(random.expectedAll)}` : "—",
-                  minutes(
-                    (ranking.expected_first_hit_random_order *
-                      HUMAN_SECONDS_PER_PHOTO) /
-                      60,
-                  ),
+                  random ? pct(random.expectedAll / ranking.n_frames, 1) : "—",
                 ]}
-                source={`First hit (N + 1) / (k + 1), all hits k(N + 1) / (k + 1), for N = ${ranking.n_frames} frames and k = ${ranking.n_positive} with people (metrics.ranking); minutes at the published ${HUMAN_SECONDS_PER_PHOTO} s per photo (Pyrrö et al. 2021)`}
+                source={`First hit (N + 1) / (k + 1), all hits k(N + 1) / (k + 1), for N = ${ranking.n_frames} frames and k = ${ranking.n_positive} with people (metrics.ranking)`}
               />
               <Row
                 label={
@@ -209,7 +204,7 @@ function MetricsBody({ m }: { m: Metrics }) {
                 cells={[
                   count(ranking.flight_order.frames_to_first_hit),
                   count(ranking.flight_order.frames_to_all_hits),
-                  minutes(ranking.minutes_at_human_pace.flight_order_first),
+                  pct(ranking.flight_order.frames_to_all_hits / ranking.n_frames, 1),
                 ]}
                 source={`${rankingSource(ranking)}; one seeded layout, not a baseline`}
               />
@@ -230,7 +225,8 @@ function MetricsBody({ m }: { m: Metrics }) {
             </p>
           )}
           <Source>
-            {rankingSource(ranking)}. {ranking.note}
+            {rankingSource(ranking)}. Shown in photos, not minutes: the survey&apos;s photos are 1000×750 sections
+            of 4000×3000 HERIDAL photos, and the published human time is per full photo.
           </Source>
         </Panel>
 
@@ -286,7 +282,6 @@ function MetricsBody({ m }: { m: Metrics }) {
   );
 }
 
-const HUMAN_SECONDS_PER_PHOTO = 33; // Pyrrö et al. 2021, the published human baseline
 
 /** One method table. Highlights the row with the fewest median cells, and nothing on a tie. */
 function SearchTable({
