@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model-name", default=None)
     ap.add_argument("--data-root", type=Path, default=ROOT / "data/heridal/yolo_full")
     ap.add_argument("--out", type=Path, default=ROOT / "data/work/detect/detector_metrics.json")
-    ap.add_argument("--device", default="cuda:0")
+    ap.add_argument("--device", default="auto", help="auto = cuda, then mps, then cpu")
     ap.add_argument(
         "--limit", type=int, default=None, help="debug: only the first N images per split"
     )
@@ -58,7 +58,8 @@ def main(argv: list[str] | None = None) -> int:
         write_detector_metrics,
     )
 
-    val = load_split("val", args.data_root)[: args.limit]
+    # Threshold on annotated val photos only: unlabelled people would count as false positives.
+    val = load_split("val", args.data_root, annotated_only=True)[: args.limit]
     test = load_split("test", args.data_root)[: args.limit]
     print(f"val {len(val)} images, test {len(test)} images")
 

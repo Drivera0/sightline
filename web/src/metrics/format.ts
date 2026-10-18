@@ -23,7 +23,8 @@ export function seconds(value: number): string {
 export function speedup(ours: number, baseline: number): string {
   if (ours <= 0) return "—";
   const factor = baseline / ours;
-  if (factor >= 1.05) return `${factor >= 10 ? Math.round(factor) : factor.toFixed(1)}× faster`;
+  if (factor >= 1.05)
+    return `${factor >= 10 ? Math.round(factor) : factor.toFixed(1)}× faster`;
   if (factor <= 0.95) return `${(1 / factor).toFixed(1)}× slower`;
   return "about the same";
 }
