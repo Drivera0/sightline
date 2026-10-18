@@ -109,6 +109,8 @@ export function useMap(): MapContextValue {
 
 export interface MapViewProps extends Omit<MapProviderProps, "children"> {
   layers?: ReactNode;
+  /** Fly to the selected candidate once the map loads (the review step). */
+  focusSelection?: boolean;
 }
 
 interface BasemapToggleProps {
@@ -166,7 +168,7 @@ function BasemapToggle({
 }
 
 // Keep the rendered map layers synchronized with cache and shared selection state.
-function BaseMapLayers(): ReactNode {
+function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean }): ReactNode {
   const bundle = useBundle();
   const { map, flyTo } = useMap();
   const selectedDetectionId = useSelection((state) => state.selectedDetectionId);
@@ -181,6 +183,14 @@ function BaseMapLayers(): ReactNode {
       syncBaseLayers(map, bundle, useReview.getState().answers);
       setSelectedPin(map, useSelection.getState().selectedDetectionId);
       map.fitBounds(viewBounds(bundle.survey, bundle.map.grid), { padding: 48, duration: 0 });
+      // On the review step, open on the overview, then fly in to the candidate under review.
+      const selected = useSelection.getState().selectedDetectionId;
+      const detection = selected
+        ? Object.values(bundle.detections.frames)
+            .flat()
+            .find((candidate) => candidate.id === selected)
+        : undefined;
+      if (focusSelection && detection) map.flyTo({ center: [detection.lon, detection.lat], zoom: 17 });
       map.on("click", MAP_LAYER_IDS.pins, selectPin);
       map.on("mouseenter", MAP_LAYER_IDS.pins, showPointer);
       map.on("mouseleave", MAP_LAYER_IDS.pins, hidePointer);
@@ -208,7 +218,7 @@ function BaseMapLayers(): ReactNode {
       map.off("mouseenter", MAP_LAYER_IDS.pins, showPointer);
       map.off("mouseleave", MAP_LAYER_IDS.pins, hidePointer);
     };
-  }, [bundle, map, selectDetection]);
+  }, [bundle, focusSelection, map, selectDetection]);
 
   useEffect(() => {
     if (map) syncDetectionSource(map, bundle, reviewAnswers);
@@ -244,7 +254,7 @@ function BaseMapLayers(): ReactNode {
 }
 
 // Render the cache-backed base layers, with an optional caller-supplied layer overlay.
-export function MapView({ layers, className, ...providerProps }: MapViewProps): ReactNode {
+export function MapView({ layers, className, focusSelection, ...providerProps }: MapViewProps): ReactNode {
   const mapTilerKey = import.meta.env.VITE_MAPTILER_KEY?.trim() || undefined;
   const [online, setOnline] = useState(browserIsOnline);
   const [mode, setMode] = useState<BasemapMode>(() => chooseBasemapMode(mapTilerKey, online));
@@ -276,7 +286,7 @@ export function MapView({ layers, className, ...providerProps }: MapViewProps): 
         className={`h-full min-h-0 w-full ${className ?? ""}`.trim()}
         mapStyle={resolvedStyle}
       >
-        <BaseMapLayers />
+        <BaseMapLayers focusSelection={focusSelection} />
         {layers}
         {managedBasemap ? (
           <BasemapToggle
