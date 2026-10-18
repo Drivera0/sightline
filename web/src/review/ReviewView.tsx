@@ -22,33 +22,35 @@ const DECISIONS = [
 ] as const;
 
 /**
- * The pin as lane B's map draws it for each answer (map/base/layers.ts): an orange ring while
- * unreviewed, filled for a person, amber with "?" when unsure, grey and dashed when not a person.
+ * The marker as the map draws it for each answer (map/base/pinImages.ts): a check on an orange
+ * disc for a person, "?" in an amber ring when unsure, a grey cross when not a person, and an
+ * orange ring with a dot while unanswered.
  */
 export function PinMark({ state, size = 14 }: { state: Answer | "unreviewed"; size?: number }) {
-  const ring = {
-    unreviewed: { stroke: "var(--accent)", width: 2, dash: undefined, fill: "none" },
-    person: { stroke: "var(--accent-soft)", width: 3, dash: undefined, fill: "var(--accent)" },
-    unsure: { stroke: "var(--warn)", width: 2, dash: undefined, fill: "none" },
-    not_person: { stroke: "var(--text-2)", width: 2, dash: "3 3", fill: "none" },
-  }[state];
   return (
     <svg viewBox="0 0 20 20" width={size} height={size} aria-hidden="true" className="shrink-0">
-      <circle
-        cx="10"
-        cy="10"
-        r="7.5"
-        fill={ring.fill}
-        fillOpacity={state === "person" ? 0.65 : undefined}
-        stroke={ring.stroke}
-        strokeWidth={ring.width}
-        strokeDasharray={ring.dash}
-        strokeOpacity={state === "not_person" ? 0.7 : 0.95}
-      />
+      {state === "person" && (
+        <>
+          <circle cx="10" cy="10" r="8" fill="var(--accent)" stroke="var(--text)" strokeWidth="1.5" />
+          <path d="M6.4 10.3 8.9 12.8 13.8 7.6" fill="none" stroke="var(--text)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      )}
       {state === "unsure" && (
-        <text x="10" y="14" textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--warn)">
-          ?
-        </text>
+        <>
+          <circle cx="10" cy="10" r="7.5" fill="var(--bg)" stroke="var(--warn)" strokeWidth="1.75" />
+          <text x="10" y="14" textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--warn)">
+            ?
+          </text>
+        </>
+      )}
+      {state === "not_person" && (
+        <path d="M6.5 6.5 13.5 13.5M13.5 6.5 6.5 13.5" stroke="var(--text-2)" strokeWidth="1.75" strokeLinecap="round" />
+      )}
+      {state === "unreviewed" && (
+        <>
+          <circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeOpacity="0.8" />
+          <circle cx="10" cy="10" r="2.75" fill="var(--accent)" />
+        </>
       )}
     </svg>
   );
