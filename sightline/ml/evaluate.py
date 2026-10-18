@@ -77,8 +77,10 @@ def _flatten(preds: Preds) -> list[tuple[float, str, Box]]:
     return flat
 
 
-def _voc_hits(preds: Preds, truth: Truth) -> list[tuple[float, bool]]:
-    """Greedy one-to-one matching in descending confidence at IoU ≥ 0.5.
+def _voc_hits(
+    preds: Preds, truth: Truth, iou_threshold: float = VOC_IOU
+) -> list[tuple[float, bool]]:
+    """Greedy one-to-one matching in descending confidence at IoU ≥ ``iou_threshold`` (0.5).
 
     Returns ``(conf, is_true_positive)`` per prediction in descending confidence. A
     prediction's outcome depends only on higher-confidence predictions, so slicing this
@@ -94,7 +96,7 @@ def _voc_hits(preds: Preds, truth: Truth) -> list[tuple[float, bool]]:
             v = iou(box, gt)
             if v > best_iou:
                 best_iou, best_j = v, j
-        if best_j >= 0 and best_iou >= VOC_IOU:
+        if best_j >= 0 and best_iou >= iou_threshold:
             used[img].add(best_j)
             hits.append((conf, True))
         else:
