@@ -10,6 +10,13 @@ import {
   setFlightPathVisible,
   UNSEEN_OPACITY,
   type HeatColors,
+  BREATH_AMPLITUDE,
+  BREATH_PERIOD_MS,
+  breathFactor,
+  HEAT_BASE_OPACITY,
+  HOTSPOT_OPACITY,
+  hotspotFeatures,
+  setBreath,
 } from "./layers";
 
 const path: [number, number][] = [
@@ -92,5 +99,45 @@ describe("setFlightPathVisible", () => {
     drawn.add(MAP_LAYER_IDS.flightDirection);
     setFlightPathVisible(map, true);
     expect(setLayoutProperty).toHaveBeenCalledWith(MAP_LAYER_IDS.flightDirection, "visibility", "visible");
+  });
+});
+
+describe("breathing", () => {
+  it("stays within ±BREATH_AMPLITUDE and repeats every BREATH_PERIOD_MS", () => {
+    for (let t = 0; t < 2 * BREATH_PERIOD_MS; t += 137) {
+      const f = breathFactor(t);
+      expect(f).toBeGreaterThanOrEqual(1 - BREATH_AMPLITUDE - 1e-9);
+      expect(f).toBeLessThanOrEqual(1 + BREATH_AMPLITUDE + 1e-9);
+      expect(breathFactor(t + BREATH_PERIOD_MS)).toBeCloseTo(f, 9);
+    }
+    expect(breathFactor(BREATH_PERIOD_MS / 4)).toBeCloseTo(1 + BREATH_AMPLITUDE, 9);
+  });
+
+  it("scales the heat and the hotspot outline together, and skips layers not drawn yet", () => {
+    const setPaintProperty = vi.fn();
+    const drawn = new Set<string>([HEAT_LAYER_IDS.cells, HEAT_LAYER_IDS.hotspots]);
+    const map = { getLayer: (id: string) => (drawn.has(id) ? {} : undefined), setPaintProperty } as unknown as Map;
+    setBreath(map, 1 + BREATH_AMPLITUDE);
+    const heat = setPaintProperty.mock.calls.find((c) => c[0] === HEAT_LAYER_IDS.cells)!;
+    expect(heat[2][2]).toBeCloseTo(HEAT_BASE_OPACITY * (1 + BREATH_AMPLITUDE), 9);
+    const glow = setPaintProperty.mock.calls.find((c) => c[0] === HEAT_LAYER_IDS.hotspots && c[1] === "circle-stroke-opacity")!;
+    expect(glow[2]).toBeCloseTo(HOTSPOT_OPACITY.high, 9);
+    setPaintProperty.mockClear();
+    drawn.clear();
+    setBreath(map, 1);
+    expect(setPaintProperty).not.toHaveBeenCalled();
+  });
+
+  it("puts a ring at the centre of each Search next cell, in rank order", () => {
+    const grid = { origin_nw: { lat: 49.37, lon: -122.95 }, cell_m: 10, rows: 100, cols: 100 };
+    const data = hotspotFeatures(grid, [0, 5050]) as {
+      features: { properties: { rank: number }; geometry: { type: string; coordinates: number[] } }[];
+    };
+    expect(data.features.map((f) => f.properties.rank)).toEqual([1, 2]);
+    const [lon, lat] = data.features[0]!.geometry.coordinates as [number, number];
+    expect(data.features[0]!.geometry.type).toBe("Point");
+    // Cell 0 is the north-west cell: its centre is just south-east of the grid origin.
+    expect(lat).toBeLessThan(grid.origin_nw.lat);
+    expect(lon).toBeGreaterThan(grid.origin_nw.lon);
   });
 });
