@@ -72,6 +72,8 @@ describe("unsure entry and tags", () => {
     expect(buttons[0]).toHaveAttribute("data-unsure", "2");
     expect(screen.getByTestId("unsure-line").textContent).toBe("Unsure · check again: 2 areas the reviewer couldn't call");
     expect(screen.getByText("In Sector 3 · held until someone answers")).toBeInTheDocument();
+    // The count is said once, in the sentence: the whole entry reads without a stray "2".
+    expect(buttons[0]!.textContent).toBe("Unsure · check again: 2 areas the reviewer couldn't callIn Sector 3 · held until someone answers");
     fireEvent.click(buttons[0]!);
     expect(onSelect).toHaveBeenCalledTimes(1);
     unmount();

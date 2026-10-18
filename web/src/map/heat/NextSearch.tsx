@@ -90,7 +90,8 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
             data-unsure={unsure.count}
             onClick={unsure.onSelect}
             title={unsure.count === 1 ? "Fly to the unsure area" : "Fly to the next unsure area"}
-            className="grid w-full grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-3 rounded-sm border border-warn/40 px-2 py-2 text-left transition-colors hover:bg-surface-strong"
+            // The count is in the sentence ("1 area"), so no second number on the right.
+            className="grid w-full grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 rounded-sm border border-warn/40 px-2 py-2 text-left transition-colors hover:bg-surface-strong"
           >
             <span aria-hidden="true" className="ml-1 inline-block size-3 rounded-full ring-2 ring-warn" />
             <span className="flex min-w-0 flex-col">
@@ -101,7 +102,6 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
                 <span className="text-label text-text-2">In {unsure.sectorNames.join(", ")} · held until someone answers</span>
               )}
             </span>
-            <span className="font-mono text-small text-warn">{unsure.count}</span>
           </button>
         )}
         {top.length === 0 && <p className="text-small text-text-2">No cell photographed well enough yet</p>}
