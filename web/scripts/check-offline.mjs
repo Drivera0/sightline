@@ -20,6 +20,9 @@ const ALLOWED_URLS = [
   // model are served from this site.
   "https://web.dev/cross-origin-isolation-guide/",
   "https://rolldown.rs/in-depth/bundling-cjs#require-external-modules",
+  // The Results closing card's "Code on GitHub" link: opened only when a viewer clicks it, never
+  // fetched by the page, so the demo still runs with Wi-Fi off.
+  "https://github.com/Drivera0/sightline",
 ];
 const dir = process.argv[2] ?? "dist";
 const found = scanDirectory(dir, ALLOWED_HOSTS, ALLOWED_URLS);
