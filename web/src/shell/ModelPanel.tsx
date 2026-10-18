@@ -40,6 +40,8 @@ interface Props {
   /** How long the scanner rests on this photo, in milliseconds. */
   stopMs: number;
   done: boolean;
+  /** "large": the graph gets most of the screen (the Rank dialog); default is the compact panel. */
+  size?: "compact" | "large";
 }
 
 /**
@@ -49,7 +51,7 @@ interface Props {
  * in detections.json and the flag threshold. The graph is a schematic, labelled as such: the
  * model does not run in the browser.
  */
-export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, pulseKey, stopMs, done }: Props) {
+export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, pulseKey, stopMs, done, size = "compact" }: Props) {
   const { detections, metrics } = cache;
   const spec = detectorSpec;
   const threshold = detections.candidate_threshold;
@@ -117,7 +119,13 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
           </div>
         </div>
         {/* Fixed height in the stacked layout; in the three-column layout it takes the room left. */}
-        <div className="relative h-[min(250px,52vw)] w-full shrink-0 xl:h-auto xl:min-h-[140px] xl:flex-1 xl:shrink">
+        <div
+          className={
+            size === "large"
+              ? "relative h-[min(62vh,820px)] w-full shrink-0"
+              : "relative h-[min(250px,52vw)] w-full shrink-0 xl:h-auto xl:min-h-[140px] xl:flex-1 xl:shrink"
+          }
+        >
           {view === "graph" ? (
             <div key="graph" className="sl-fade absolute inset-0">
               <ModelGraph
