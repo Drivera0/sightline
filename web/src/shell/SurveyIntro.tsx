@@ -167,7 +167,7 @@ function ModelBackground({ threshold }: { threshold: number }) {
     return () => window.clearInterval(id);
   }, [motion]);
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-y-[6%] left-0 hidden w-[46%] opacity-[0.18] sm:block [&_text]:hidden">
+    <div aria-hidden="true" className="pointer-events-none absolute left-[1%] top-[3%] hidden h-[34%] w-[40%] opacity-[0.2] sm:block [&_text]:hidden">
       <ModelGraph
         photo={undefined}
         top={undefined}
