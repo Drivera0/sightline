@@ -301,10 +301,13 @@ Everything the metrics screen and the pitch quote. **Writers:** D, from A's, C's
     "source": "Pyrrö, Naseri & Jung 2021, arXiv:2111.09406"
   },
   "ablations": [
-    {"name": "Stock model, no tiling",      "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}},
-    {"name": "Fine-tuned, no tiling",       "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}},
-    {"name": "Fine-tuned + tiling",         "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}},
-    {"name": "+ hard negatives",            "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}}
+    {"name": "Stock model, no tiling",                     "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}},
+    {"name": "Fine-tuned on tiles, run on shrunk photos",  "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}},
+    {"name": "Stock model, full-resolution photo",         "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}},
+    {"name": "Fine-tuned on tiles, full-resolution photo", "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}},
+    {"name": "Trained and run on whole photos",            "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}},
+    {"name": "Fine-tuned + tiling",                        "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}},
+    {"name": "+ hard negatives",                           "voc": {"precision": 0.0, "recall": 0.0, "ap50": 0.0}}
   ],
   "ranking": {
     "n_frames": 500,
@@ -334,7 +337,7 @@ Everything the metrics screen and the pitch quote. **Writers:** D, from A's, C's
 |---|---|---|
 | `detector` | A | On the full HERIDAL test set (101 images), tiled inference. `threshold` = `candidate_threshold` (chosen on the **validation** set by maximising F2). `recall` is a copy of `voc.recall` and is what C uses. `sar` uses the loose SAR-APD matching from the AIR paper. A writes this block plus `ablations` to `data/work/detect/detector_metrics.json` on the desktop; the pipeline reads it. |
 | `baseline_human` | fixed | Do not change these numbers; they're published. |
-| `ablations` | A | Same test set, same scoring, one row per variant. Names exactly as shown unless the team agrees otherwise. |
+| `ablations` | A | Same test set, same scoring, one row per variant. Names exactly as shown, in this order (`sightline/ml/evaluate.py` `ABLATION_NAMES`); a variant not measured is omitted, never written as zeros. The first two shrink the whole photo to 1024 px, the next two run the whole photo at full resolution (imgsz 4000) in one pass, "Trained and run on whole photos" trains and runs at 1920 px, and "Fine-tuned + tiling" is the reported detector. **Renamed 2026-10-18 (signed off by Dan, lane A):** "Fine-tuned, no tiling" is now "Fine-tuned on tiles, run on shrunk photos" and three rows were added; files written before then still carry the old name and four rows, and the web app maps the old name to the new one. |
 | `ranking` | D | `frames_to_first_hit` = 1-based position of the first frame that truly contains a person, when frames are reviewed in that order. `expected_first_hit_random_order` = (N + 1) / (k + 1) for N frames and k positives: what flight order gives on average, so one lucky or unlucky shuffle can't mislead. |
 | `search_sim` | C | `median_cells` / `p90_cells` = how many cells a ground team checks, in descending probability order, before reaching the true cell, over trials where the drone did **not** find the person. Lower is better. `found_by_drone_rate` = share of trials where the survey itself found the person. **1.1:** `in_survey` is `null` or `{"trials": int, "methods": [same names, same order as methods]}`: the same statistics computed only over the not-found trials whose true cell was photographed by the survey (lane C's `simulate` fills it). In `in_survey` the true cell is ranked **only among photographed cells** (overlap > 0), the same rule as the Search next panel, so its values are "cells checked inside the surveyed area" and can never exceed the number of photographed cells. |
 
