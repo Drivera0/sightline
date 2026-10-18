@@ -26,7 +26,7 @@ export function SectorList({ statuses, outside, currentId, hoverId, onHover, onS
     <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-0.5">
         <Label>Sectors by remaining probability</Label>
-        <span className="text-small text-text-3">
+        <span className="text-small text-text-2">
           {done} of {statuses.length} searched by drone.{" "}
           {layout === "flight" ? "Numbered sectors follow the flight blocks." : "4 × 4 map reference, A1 north-west."}
         </span>
@@ -49,7 +49,7 @@ export function SectorList({ statuses, outside, currentId, hoverId, onHover, onS
                 }`}
               >
                 <span className={`font-mono text-small ${id === currentId ? "text-accent" : "text-text"}`}>{sectorName(s.sector)}</span>
-                <span className="text-label text-text-3">
+                <span className="text-label text-text-2">
                   {id === currentId ? "Drone here" : SECTOR_STATE_LABEL[s.state]} · {pct(s.coverage, 0)} photographed
                 </span>
                 <span className="font-mono text-small text-text-2" title="Probability of area: this sector's share of the total probability">
@@ -60,7 +60,7 @@ export function SectorList({ statuses, outside, currentId, hoverId, onHover, onS
           );
         })}
       </ol>
-      <span className="text-label text-text-3">
+      <span className="text-label text-text-2">
         POA = the sector&apos;s share of the probability. It adds up every cell, so a large sector can outrank a small one
         whose cells look darker. Outside the 1 km grid: {pct(outside)}.
       </span>

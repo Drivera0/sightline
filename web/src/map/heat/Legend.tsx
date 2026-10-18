@@ -101,7 +101,7 @@ export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath =
           <span>Higher probability</span>
         </div>
         {!compact && (
-          <span className="text-label text-text-3">
+          <span className="text-label text-text-2">
             Chance per cell, on one fixed scale for the whole replay. Deepest red: as likely as the likeliest cell before
             the flight.
           </span>
@@ -116,7 +116,7 @@ export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath =
           />
           <span className="flex flex-col">
             <span>Not yet searched</span>
-            {!compact && <span className="text-label text-text-3">Under half of the cell photographed</span>}
+            {!compact && <span className="text-label text-text-2">Under half of the cell photographed</span>}
           </span>
         </li>
         <li className="flex items-center gap-2.5">
@@ -146,14 +146,14 @@ export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath =
               <span className="inline-block h-0 w-5 border-t border-text/30" aria-hidden="true" />
               <span className="flex flex-col">
                 <span>Search sectors</span>
-                <span className="text-label text-text-3">Orange: the sector the drone is in</span>
+                <span className="text-label text-text-2">Orange: the sector the drone is in</span>
               </span>
             </li>
             <li className="flex items-center gap-2.5">
               <DroneGlyph />
               <span className="flex flex-col">
                 <span>Drone, during replay</span>
-                <span className="text-label text-text-3">Orange box: the photo it is taking</span>
+                <span className="text-label text-text-2">Orange box: the photo it is taking</span>
               </span>
             </li>
           </ul>
