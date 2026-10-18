@@ -50,6 +50,12 @@ describe("guided flow", () => {
     expect(how).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(how);
     expect(how).toHaveAttribute("aria-expanded", "true");
+    // It opens large, in a dialog with Close focused; Escape closes it and focus returns.
+    const dialog = screen.getByRole("dialog", { name: "How the detector works" });
+    expect(within(dialog).getByRole("button", { name: /Close/ })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "How the detector works" })).not.toBeInTheDocument();
+    expect(how).toHaveFocus();
     await userEvent.click(screen.getByRole("button", { name: "Start review" }));
     expect(current()).toHaveTextContent("Review");
   });
