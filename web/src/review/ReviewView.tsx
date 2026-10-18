@@ -301,7 +301,7 @@ export function ReviewView({
                     )}
                     <span className="flex min-w-0 flex-col gap-0.5">
                       <span className="truncate font-mono text-small text-text">
-                        {item.frame.id} · {item.detection.conf.toFixed(3)}
+                        {item.frame.id} <span className="text-text-3">· {item.detection.conf.toFixed(3)}</span>
                       </span>
                       <span className="flex items-center gap-1.5">
                         <span aria-hidden="true" className={`size-1.5 rounded-full transition-colors ${STATUS[state].dot}`} />
@@ -348,8 +348,8 @@ export function ReviewView({
               <div className="flex min-h-0 flex-col gap-5 overflow-y-auto">
                 <div className="flex flex-col gap-2">
                   <div className="flex items-baseline justify-between">
-                    <Label>In the photo</Label>
-                    <span className="font-mono text-label text-text-3">{current.frame.id}</span>
+                    <Label>Where in the photo</Label>
+                    <span className="font-mono text-label text-text-3">Photo {current.frame.id}</span>
                   </div>
                   <button
                     type="button"
@@ -375,7 +375,7 @@ export function ReviewView({
                   <div className="flex flex-col gap-2.5 py-3">
                     <div className="flex items-baseline justify-between">
                       <dt>
-                        <Label>Confidence</Label>
+                        <Label>Detector score</Label>
                       </dt>
                       <dd className="font-mono text-title leading-none text-text">{current.detection.conf.toFixed(2)}</dd>
                     </div>
@@ -395,7 +395,7 @@ export function ReviewView({
                         className="absolute -translate-x-1/2 whitespace-nowrap font-mono"
                         style={{ left: `${cache.detections.candidate_threshold * 100}%` }}
                       >
-                        flag {cache.detections.candidate_threshold.toFixed(2)}
+                        flagged from {cache.detections.candidate_threshold.toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -404,20 +404,21 @@ export function ReviewView({
                       <Label>Photo rank</Label>
                     </dt>
                     <dd className="font-mono text-body text-text">
-                      {current.frame.rank}
-                      <span className="text-text-3"> / {cache.survey.frames.length}</span>
+                      #{current.frame.rank}
+                      <span className="text-text-3"> of {cache.survey.frames.length} photos</span>
                     </dd>
                   </div>
                   <div className="flex flex-col gap-2 py-3">
                     <dt>
-                      <Label>Position</Label>
+                      <Label>Estimated position</Label>
                     </dt>
                     <dd className="font-mono text-body text-text">
                       {current.detection.lat.toFixed(5)}, {current.detection.lon.toFixed(5)}
                     </dd>
                     <dd className="flex flex-wrap gap-1.5">
-                      <Badge kind="info">±{current.detection.radius_m} m</Badge>
-                      {cache.survey.simulated_path && <Badge kind="simulated">Simulated path</Badge>}
+                      {/* Both stay labelled simulated: the 10 m radius always, the flight path when it is. */}
+                      <Badge kind="simulated">±{current.detection.radius_m} m radius · simulated</Badge>
+                      {cache.survey.simulated_path && <Badge kind="simulated">Simulated flight path</Badge>}
                     </dd>
                   </div>
                 </dl>
@@ -453,8 +454,10 @@ export function ReviewView({
                   Where to search next <KeyHint>M</KeyHint>
                 </button>
                 <span className="inline-flex items-center gap-1.5 px-3">
-                  <KeyHint>J</KeyHint>
-                  <KeyHint>K</KeyHint> next / previous
+                  Next <KeyHint>J</KeyHint>
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3">
+                  Previous <KeyHint>K</KeyHint>
                 </span>
               </div>
             </section>
