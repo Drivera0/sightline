@@ -115,7 +115,7 @@ On a wide screen the Review tab can show a mini-map on the right (B's `MapView` 
 | 10–25 s | Review | Top crops are people; press `P` on #1 | "The likeliest crops come first. That one's a person." |
 | 25–35 s | Review → Map | Press `M`; the pin is confirmed | "It's pinned, with its position uncertainty." |
 | 35–45 s | Review | Press `N` on a backpack; switch to Map | "A false alarm. Marking it updates the map live." |
-| 45–55 s | Map | Drag the step slider through the flight | "Open ground the drone saw fades. Forest it can't see into stays bright. That's where the team goes next." |
+| 45–55 s | Map | Drag the step slider through the flight | "Open ground the drone saw turns pale. Forest it can't see into stays dark red. That's where the team goes next." |
 | 55–60 s | Metrics | Open the tab | "Here's the detector against the human baseline, and every number's source." |
 
 The person is confirmed before the scrub, so the "found" state must not freeze the slider (see `LANE_C_SEARCH.md` §3.5). Rehearse exactly this order.
