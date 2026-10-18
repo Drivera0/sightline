@@ -15,13 +15,13 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["U"], description: "Unsure" },
       { keys: ["Z"], description: "Undo" },
       { keys: ["Enter"], description: "Full frame view" },
-      { keys: ["M"], description: "Show on map" },
+      { keys: ["M"], description: "Go to the search map" },
     ],
   },
   {
     title: "Everywhere",
     shortcuts: [
-      { keys: ["←", "→"], description: "Switch tab (with a tab focused)" },
+      { keys: ["1", "2", "3", "4", "5"], description: "Jump to a step: Survey, Rank, Review, Search next, Results" },
       { keys: ["?"], description: "Show or hide this list" },
       { keys: ["Esc"], description: "Close" },
     ],

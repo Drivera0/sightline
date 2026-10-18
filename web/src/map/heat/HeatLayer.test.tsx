@@ -8,7 +8,13 @@ import { useSearch } from "../../search/store";
 import type { MapContextValue } from "../MapView";
 import { MAP_LAYER_IDS } from "../base/layerIds";
 import { HeatLayer } from "./HeatLayer";
-import { HEAT_LAYER_IDS, HEAT_SOURCE_ID } from "./layers";
+import {
+  HEAT_DRONE_SOURCE_ID,
+  HEAT_LAYER_IDS,
+  HEAT_SOURCE_ID,
+  HEAT_SURVEYED_SOURCE_ID,
+  HEAT_TRAIL_SOURCE_ID,
+} from "./layers";
 
 const ctx: { value: MapContextValue | null } = { value: null };
 vi.mock("../MapView", () => ({
@@ -29,12 +35,18 @@ function mockMap(withGridOutline: boolean) {
   const layers: Recorded[] = withGridOutline ? [{ id: MAP_LAYER_IDS.gridOutline, before: undefined }] : [];
   const featureState = new Map<number, { o: number; u: number; h: number }>();
   const boundaryDrawn: unknown[] = [];
+  const replayDrawn = new Map<string, unknown>();
   const handlers = new Map<string, Set<() => void>>();
   const map = {
     isStyleLoaded: () => true,
     getSource: (id: string) => {
       const spec = sources.get(id);
-      return spec ? { ...(spec as object), setData: (data: unknown) => boundaryDrawn.push(data) } : undefined;
+      if (!spec) return undefined;
+      const setData = (data: unknown) => {
+        if (id === HEAT_SURVEYED_SOURCE_ID) boundaryDrawn.push(data);
+        else replayDrawn.set(id, data);
+      };
+      return { ...(spec as object), setData };
     },
     addSource: vi.fn((id: string, spec: unknown) => {
       sources.set(id, spec);
@@ -66,7 +78,7 @@ function mockMap(withGridOutline: boolean) {
       handlers.get("styledata")?.forEach((fn) => fn());
     },
   };
-  return { map, sources, layers, featureState, boundaryDrawn };
+  return { map, sources, layers, featureState, boundaryDrawn, replayDrawn };
 }
 
 let cache: CacheBundle;
@@ -231,6 +243,34 @@ describe("HeatLayer", () => {
     // At step 0 nothing is coloured.
     act(() => useSearch.getState().setStepIndex(0));
     for (const i of [1275, 1276, 1277, 1325]) expect(m.featureState.get(i)).toEqual({ o: 0, u: 1, h: 0 });
+  });
+
+  it("moves the drone and its trail with the slider, above the heat, with one veil only", () => {
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    const pose = (i: number) => {
+      const f = cache.survey.frames[i] as Frame;
+      return [f.pose.lon, f.pose.lat];
+    };
+    expect(m.replayDrawn.get(HEAT_DRONE_SOURCE_ID)).toMatchObject({ geometry: { type: "Point", coordinates: pose(1) } });
+    expect(m.replayDrawn.get(HEAT_TRAIL_SOURCE_ID)).toMatchObject({ geometry: { coordinates: [pose(0), pose(1)] } });
+    act(() => useSearch.getState().setStepIndex(1));
+    expect(m.replayDrawn.get(HEAT_DRONE_SOURCE_ID)).toMatchObject({ geometry: { coordinates: pose(0) } });
+    act(() => useSearch.getState().setStepIndex(0));
+    expect(m.replayDrawn.get(HEAT_DRONE_SOURCE_ID)).toEqual({ type: "FeatureCollection", features: [] });
+
+    const ids = m.layers.map((l) => l.id);
+    // The trail and drone are added on top; the heat layers stay below lane B's grid outline.
+    expect(ids.indexOf(HEAT_LAYER_IDS.drone)).toBeGreaterThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
+    expect(ids.indexOf(HEAT_LAYER_IDS.reviewOutline)).toBeGreaterThan(ids.indexOf(HEAT_LAYER_IDS.cells));
+    expect(ids.indexOf(HEAT_LAYER_IDS.reviewOutline)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
+    // The step-aware heat-unsearched layer is the only veil.
+    expect(ids.filter((id) => id.includes("unseen"))).toEqual([]);
   });
 
   it("adds the layers on top when lane B has not drawn yet", () => {

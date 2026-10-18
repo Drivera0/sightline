@@ -258,3 +258,13 @@ describe("ReviewView full frame view", () => {
     expect(useReview.getState().history).toEqual([]);
   });
 });
+
+describe("ReviewView compact layout", () => {
+  it("drops the frame panel so the queue fits beside the map, keeping the full frame on Enter", async () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+    expect(screen.getByRole("list", { name: "Candidates" })).toBeInTheDocument();
+    expect(screen.queryByTestId("frame-box")).toBeNull();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("dialog", { name: "Full frame" })).toBeInTheDocument();
+  });
+});
