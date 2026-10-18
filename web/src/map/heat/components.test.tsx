@@ -53,6 +53,21 @@ describe("NextSearch", () => {
     expect(rows.map((r) => r.getAttribute("data-idx"))).toEqual(["3", "7", "4", "1"]);
   });
 
+  it("keeps tiny probabilities apart and shows each cell against the surveyed average", () => {
+    // Real demo values: every photographed cell is around 0.02%, so 2 decimals would all read "0.02%".
+    const tiny = {
+      p: Float64Array.from([0.0002043, 0.0002014, 0.0002043, 0.0001954, 0.0000517, 0.0002043, 0.0002043, 0.0001119]),
+      outside: 0.5,
+    };
+    render(<NextSearch map={map} state={tiny} covered={covered} onSelect={vi.fn()} />);
+    const rows = within(screen.getByRole("list", { name: "Most likely cells" })).getAllByRole("button");
+    expect(rows[0]).toHaveTextContent("0.0201%");
+    expect(rows[1]).toHaveTextContent("0.0195%");
+    // Average over the 4 photographed cells = (2.014 + 1.954 + 0.517 + 1.119) / 4 = 1.401e-4
+    expect(rows[0]).toHaveTextContent("1.4× avg");
+    expect(rows[3]).toHaveTextContent("0.4× avg");
+  });
+
   it("says so when no cell has been photographed", () => {
     render(<NextSearch map={map} state={state} covered={new Uint8Array(8)} onSelect={vi.fn()} />);
     expect(screen.queryByRole("list", { name: "Most likely cells" })).toBeNull();
