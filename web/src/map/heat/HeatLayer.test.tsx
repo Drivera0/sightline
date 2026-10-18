@@ -17,6 +17,7 @@ import {
   HEAT_SOURCE_ID,
   HEAT_SURVEYED_SOURCE_ID,
   HEAT_TRAIL_SOURCE_ID,
+  HEAT_UNSURE_SOURCE_ID,
 } from "./layers";
 import { PanelSlotContext } from "./panelSlot";
 import { HEAT_ALPHA_MAX, HELD_ALPHA, rasterForCanvas, VEIL_ALPHA } from "./raster";
@@ -373,6 +374,69 @@ describe("HeatLayer", () => {
     expect(m.kind(1275)).toBe("held");
     expect(useSearch.getState().sightings).toHaveLength(0);
     expect(screen.queryByText("Candidate sighting")).toBeNull();
+  });
+
+  it("rings a flown 'Unsure' area in amber, lists it under the sectors, and keeps the map unchanged", () => {
+    const m = mockMap(true);
+    const flyTo = vi.fn();
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo };
+    render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    const coords = (id: string) => (m.replayDrawn.get(id) as { geometry: { coordinates: unknown[] } }).geometry.coordinates;
+    const heldCoords = () => (m.heldDrawn.at(-1) as { geometry: { coordinates: unknown[] } }).geometry.coordinates;
+    expect(m.layers.map((l) => l.id)).toContain(HEAT_LAYER_IDS.unsureOutline);
+    const before = Array.from(useSearch.getState().state!.p);
+    expect(heldCoords()).toHaveLength(4);
+    act(() => useReview.getState().answer("f0001-d01", "unsure", 1));
+    // Still held (same raster look, same numbers), but ringed in amber instead of the dashed outline.
+    expect(m.kind(1275)).toBe("held");
+    expect(Array.from(useSearch.getState().state!.p)).toEqual(before);
+    expect(coords(HEAT_UNSURE_SOURCE_ID)).toHaveLength(4);
+    expect(heldCoords()).toHaveLength(0);
+    expect(screen.getByTestId("unsure-line").textContent).toBe("Unsure · check again: 1 area the reviewer couldn't call");
+    // In the legend and as a tag on the sector row holding it.
+    expect(screen.getAllByText("Unsure · check again")).toHaveLength(2);
+    // Clicking the entry flies to the unsure detection.
+    act(() => screen.getAllByRole("button").find((b) => b.hasAttribute("data-unsure"))!.click());
+    expect(flyTo).toHaveBeenCalledTimes(1);
+    // Replay: before its photo (frame f0001, step 1) is flown there is no ring and no entry.
+    act(() => useSearch.getState().setStepIndex(0));
+    expect(coords(HEAT_UNSURE_SOURCE_ID)).toHaveLength(0);
+    expect(screen.queryByTestId("unsure-line")).toBeNull();
+    act(() => useSearch.getState().setStepIndex(1));
+    expect(coords(HEAT_UNSURE_SOURCE_ID)).toHaveLength(4);
+    // Changing the answer to "Person" swaps the amber ring for the candidate ring; undo brings it back.
+    act(() => useReview.getState().answer("f0001-d01", "person", 2));
+    expect(coords(HEAT_UNSURE_SOURCE_ID)).toHaveLength(0);
+    expect(coords(HEAT_CANDIDATE_SOURCE_ID).length).toBeGreaterThan(0);
+    act(() => useReview.getState().undo());
+    expect(coords(HEAT_UNSURE_SOURCE_ID)).toHaveLength(4);
+    // Undo the "Unsure" too: back to the dashed awaiting-review outline only.
+    act(() => useReview.getState().undo());
+    expect(coords(HEAT_UNSURE_SOURCE_ID)).toHaveLength(0);
+    expect(screen.queryByTestId("unsure-line")).toBeNull();
+  });
+
+  it("review variant: says how many unsure areas are kept, only when there are some", () => {
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer variant="review" />
+      </CacheContext.Provider>,
+    );
+    expect(screen.queryByTestId("review-unsure")).toBeNull();
+    const readout = screen.getByTestId("review-readout").textContent;
+    act(() => useReview.getState().answer("f0001-d01", "unsure", 1));
+    expect(screen.getByTestId("review-unsure").textContent).toBe("1 unsure area kept at its value before the photo");
+    expect(screen.getByTestId("review-readout").textContent).toBe(readout);
+    expect(screen.getByText("Unsure · check again")).toBeInTheDocument();
+    expect((m.replayDrawn.get(HEAT_UNSURE_SOURCE_ID) as { geometry: { coordinates: unknown[] } }).geometry.coordinates).toHaveLength(4);
+    act(() => useReview.getState().undo());
+    expect(screen.queryByTestId("review-unsure")).toBeNull();
   });
 
   it("shows the found banner inside the side panel, not over the map", () => {

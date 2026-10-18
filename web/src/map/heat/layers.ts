@@ -21,6 +21,7 @@ export const HEAT_SOURCE_ID = `${HEAT_LAYER_PREFIX}cells`;
 export const HEAT_SURVEYED_SOURCE_ID = `${HEAT_LAYER_PREFIX}surveyed`;
 export const HEAT_HELD_SOURCE_ID = `${HEAT_LAYER_PREFIX}held`;
 export const HEAT_CANDIDATE_SOURCE_ID = `${HEAT_LAYER_PREFIX}candidates`;
+export const HEAT_UNSURE_SOURCE_ID = `${HEAT_LAYER_PREFIX}unsure`;
 export const HEAT_TRAIL_SOURCE_ID = `${HEAT_LAYER_PREFIX}trail`;
 export const HEAT_DRONE_SOURCE_ID = `${HEAT_LAYER_PREFIX}drone`;
 export const HEAT_DRONE_FOOTPRINT_SOURCE_ID = `${HEAT_LAYER_PREFIX}drone-footprint`;
@@ -33,6 +34,7 @@ export const HEAT_LAYER_IDS = {
   sectorFill: `${HEAT_LAYER_PREFIX}sector-fill`,
   reviewOutline: `${HEAT_LAYER_PREFIX}review-outline`,
   candidateOutline: `${HEAT_LAYER_PREFIX}candidate-outline`,
+  unsureOutline: `${HEAT_LAYER_PREFIX}unsure-outline`,
   surveyed: `${HEAT_LAYER_PREFIX}surveyed`,
   sectorLine: `${HEAT_LAYER_PREFIX}sector-line`,
   sectorLabel: `${HEAT_LAYER_PREFIX}sector-label`,
@@ -57,6 +59,9 @@ export interface HeatColors {
   /** "Person" token, for the ripple of a confirmed person. */
   ok: string;
 }
+
+/** The "Unsure" ring's width: thinner than the candidate ring (2.5), as wide as the unsure pin's ring. */
+export const UNSURE_OUTLINE_WIDTH = 2;
 
 /** The dashed outline that marks cells awaiting review. */
 export const REVIEW_OUTLINE_DASH = [2, 1.5];
@@ -119,7 +124,7 @@ export function ensureHeatLayers(
   if (!map.getSource(HEAT_SURVEYED_SOURCE_ID)) {
     map.addSource(HEAT_SURVEYED_SOURCE_ID, { type: "geojson", data: lines(surveyedBoundary(grid, covered)) });
   }
-  for (const id of [HEAT_HELD_SOURCE_ID, HEAT_CANDIDATE_SOURCE_ID, HEAT_SECTOR_SOURCE_ID, HEAT_SECTOR_LABEL_SOURCE_ID, HEAT_RIPPLE_SOURCE_ID]) {
+  for (const id of [HEAT_HELD_SOURCE_ID, HEAT_CANDIDATE_SOURCE_ID, HEAT_UNSURE_SOURCE_ID, HEAT_SECTOR_SOURCE_ID, HEAT_SECTOR_LABEL_SOURCE_ID, HEAT_RIPPLE_SOURCE_ID]) {
     if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: EMPTY });
   }
 
@@ -179,6 +184,19 @@ export function ensureHeatLayers(
         type: "line",
         source: HEAT_CANDIDATE_SOURCE_ID,
         paint: { "line-color": colors.ok, "line-opacity": 1, "line-width": 2.5 },
+      },
+      beforeId(map),
+    );
+  }
+  // "Unsure" areas: a solid amber ring, thinner than the candidate's (the unsure pin's colour and
+  // width), so it reads as unresolved and differs from the dashed "awaiting review" outline.
+  if (!map.getLayer(HEAT_LAYER_IDS.unsureOutline)) {
+    map.addLayer(
+      {
+        id: HEAT_LAYER_IDS.unsureOutline,
+        type: "line",
+        source: HEAT_UNSURE_SOURCE_ID,
+        paint: { "line-color": colors.review, "line-opacity": 1, "line-width": UNSURE_OUTLINE_WIDTH },
       },
       beforeId(map),
     );
@@ -344,6 +362,11 @@ export function setSurveyedBoundary(map: Map, grid: Grid, photographed: Uint8Arr
 /** Redraw the ring around the candidate sighting cells. */
 export function setCandidateBoundary(map: Map, grid: Grid, candidate: Uint8Array): void {
   (map.getSource(HEAT_CANDIDATE_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(lines(surveyedBoundary(grid, candidate)));
+}
+
+/** Redraw the amber ring around the "Unsure" cells. */
+export function setUnsureBoundary(map: Map, grid: Grid, unsure: Uint8Array): void {
+  (map.getSource(HEAT_UNSURE_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(lines(surveyedBoundary(grid, unsure)));
 }
 
 /** Redraw the dashed outline of the photographed cells awaiting review. */

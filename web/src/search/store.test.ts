@@ -200,6 +200,27 @@ describe("applyReview", () => {
     }
   });
 
+  it("'unsure' leaves the map exactly as with no answer, and lists the area once its photo is flown", () => {
+    const none = applyReview(base, data, [], 10);
+    const r = applyReview(base, data, [h("f0001-d01", "unsure", 1), h("f0002-d01", "unsure", 2)], 10);
+    // No evidence either way: the state is bit-for-bit the state with no answer.
+    expect(Array.from(r.state.p)).toEqual(Array.from(none.state.p));
+    expect(r.state.outside).toBe(none.state.outside);
+    expect(r.sightings).toEqual([]);
+    expect(r.found).toBe(false);
+    // Two unsure areas, in answer order, each the cells within its detection's radius_m.
+    expect(r.unsure.map((u) => u.detectionId)).toEqual(["f0001-d01", "f0002-d01"]);
+    expect(r.unsure[0]!.cells).toEqual(near);
+    expect(r.unsure[0]!.cells).toContain(44);
+    // Replay: f0002's photo is step 2, so after one step only f0001's area is listed; at step 0 none.
+    expect(applyReview(stateAtStep(map, 1), data, [h("f0001-d01", "unsure", 1), h("f0002-d01", "unsure", 2)], 1).unsure.map((u) => u.detectionId)).toEqual(["f0001-d01"]);
+    expect(applyReview(stateAtStep(map, 0), data, [h("f0001-d01", "unsure", 1)], 0).unsure).toEqual([]);
+    // Undo, or a changed answer, takes it off the list.
+    expect(applyReview(base, data, [h("f0001-d01", "unsure", 1), h("f0001-d01", "not_person", 2)], 10).unsure).toEqual([]);
+    expect(applyReview(base, data, [h("f0001-d01", "unsure", 1), h("f0001-d01", "person", 2)], 10).unsure).toEqual([]);
+    expect(applyReview(base, data, [h("f0001-d01", "not_person", 1), h("f0001-d01", "unsure", 2)], 10).unsure).toHaveLength(1);
+  });
+
   it("deriveSearch = stateAtStep then the answers", () => {
     const r = deriveSearch(data, 10, [h("f0001-d01", "not_person", 1)]);
     const s = applyReview(base, data, [h("f0001-d01", "not_person", 1)]);
@@ -223,6 +244,16 @@ describe("useSearch store", () => {
     expect(useSearch.getState().state!.outside).toBeCloseTo(map.final.outside, 9);
     useSearch.getState().setStepIndex(0);
     expect(useSearch.getState().state!.outside).toBe(map.prior.outside);
+  });
+
+  it("lists unsure areas from the review history, and undo removes them", () => {
+    useSearch.getState().bind(data);
+    useReview.getState().answer("f0001-d01", "unsure", 1);
+    expect(useSearch.getState().unsure.map((u) => u.detectionId)).toEqual(["f0001-d01"]);
+    const withUnsure = Array.from(useSearch.getState().state!.p);
+    useReview.getState().undo();
+    expect(useSearch.getState().unsure).toEqual([]);
+    expect(Array.from(useSearch.getState().state!.p)).toEqual(withUnsure);
   });
 
   it("follows the review history, including undo and reset", () => {
