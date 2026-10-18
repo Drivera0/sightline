@@ -78,8 +78,8 @@ function beforeId(map: Map): string | undefined {
 
 const EMPTY: GeoJsonData = { type: "FeatureCollection", features: [] };
 
-/** Heat raster opacity at rest: full on Search next, fainter beside the review queue so pins stay first. */
-export const HEAT_BASE_OPACITY = { search: 0.95, review: 0.62 } as const;
+/** Heat raster opacity at rest: full on Search next, a little fainter beside the review queue so pins stay first (lower than 0.8 turns the pale low end muddy over the dark basemap). */
+export const HEAT_BASE_OPACITY = { search: 0.95, review: 0.8 } as const;
 
 function lines(segments: LonLat[][]): GeoJsonData {
   return { type: "Feature", properties: {}, geometry: { type: "MultiLineString", coordinates: segments } };

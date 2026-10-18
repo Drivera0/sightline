@@ -284,10 +284,10 @@ export function Shell({
           {step === "search" && (
             <>
               <p className="rounded-full border border-border bg-surface px-4 py-2 text-small text-text-2">
-                <span className="text-text">Where the person could still be.</span> Brighter orange is more
-                likely, on ground the drone photographed. Dark ground is not yet searched. The sectors list
-                ranks the remaining work by probability. Press play to watch the drone fly sector by sector:
-                ground it saw clearly fades.
+                <span className="text-text">Where the person could still be.</span> Darker red is more likely,
+                pale yellow less likely, on ground the drone photographed. Dimmed grey ground is not yet searched.
+                The sectors list ranks the remaining work by probability. Press play to watch the drone fly
+                sector by sector: ground it saw clearly turns pale.
               </p>
               <div className="flex-1 lg:min-h-0">{map("search")}</div>
             </>
