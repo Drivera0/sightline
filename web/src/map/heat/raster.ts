@@ -201,6 +201,7 @@ export function heatColor(palette: RasterPalette, t: number): [number, number, n
 /**
  * RGBA per cell (row-major, row 0 = north: the canvas's own pixel order).
  * - not photographed at this step: the background colour at VEIL_ALPHA ("not yet searched");
+ * - a candidate sighting (a "Person" answer whose photo is flown): the darkest class;
  * - photographed and awaiting review: the neutral held tone at HELD_ALPHA;
  * - photographed: the ramp at the cell's level on the fixed scale p / scaleMax (fixedHeatLevels,
  *   scaleMax = the prior's highest cell, the same at every replay step), rounded to one of
@@ -213,14 +214,23 @@ export function heatPixels(
   held: Uint8Array,
   palette: RasterPalette,
   scaleMax: number,
+  candidate?: Uint8Array | null,
   out = new Uint8ClampedArray(state.p.length * 4),
 ): Uint8ClampedArray {
   const levels = fixedHeatLevels(state.p, covered, scaleMax, held);
   const veilA = Math.round(VEIL_ALPHA * 255);
   const heldA = Math.round(HELD_ALPHA * 255);
+  const top = heatColor(palette, 1);
   for (let i = 0; i < state.p.length; i++) {
     const o = i * 4;
-    if (covered[i] !== 1) {
+    if (candidate?.[i] === 1) {
+      // A candidate sighting: someone is there. Drawn as the darkest class (ringed on the map); no
+      // probability is invented for it, the class only says "most likely point on the map".
+      out[o] = top[0];
+      out[o + 1] = top[1];
+      out[o + 2] = top[2];
+      out[o + 3] = top[3];
+    } else if (covered[i] !== 1) {
       out[o] = palette.veil[0];
       out[o + 1] = palette.veil[1];
       out[o + 2] = palette.veil[2];

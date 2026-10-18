@@ -188,7 +188,7 @@ describe("base map GeoJSON", () => {
     ]);
     expect(collection.features.map((feature) => feature.properties.reviewLabel)).toEqual([
       "Not answered",
-      "Person confirmed",
+      "Person sighted",
       "Not a person",
       "Unsure · check again",
     ]);
@@ -202,7 +202,7 @@ describe("base map GeoJSON", () => {
       reviewedDetections.frames.f0001!.map((d) => [d.lon, d.lat]),
     );
     expect(markers.features.map((f) => f.properties.labelRank)).toEqual([1, 0, 1, 1]);
-    expect(markers.features[1]?.properties.chipText).toBe("Person confirmed · f0001");
+    expect(markers.features[1]?.properties.chipText).toBe("Person sighted · f0001");
   });
 
   it("uses the survey last-known point", () => {

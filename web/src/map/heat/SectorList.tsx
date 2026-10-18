@@ -12,6 +12,8 @@ interface Props {
   onHover: (id: string | null) => void;
   onSelect: (sector: Sector) => void;
   layout: "flight" | "lattice";
+  /** Sectors holding a candidate sighting: listed first, with a ground-team label. */
+  sighted?: ReadonlySet<string>;
 }
 
 /**
@@ -19,8 +21,12 @@ interface Props {
  * (POA, its share of the total), how much of it the drone photographed, and its state. Hover
  * highlights the sector on the map; click flies there.
  */
-export function SectorList({ statuses, outside, currentId, hoverId, onHover, onSelect, layout }: Props) {
-  const ranked = rankSectors(statuses);
+export function SectorList({ statuses, outside, currentId, hoverId, onHover, onSelect, layout, sighted }: Props) {
+  const byPoa = rankSectors(statuses);
+  // A sector with a candidate sighting goes first: a ground team checks it before anything else.
+  const ranked = sighted?.size
+    ? [...byPoa.filter((s) => sighted.has(s.sector.id)), ...byPoa.filter((s) => !sighted.has(s.sector.id))]
+    : byPoa;
   const done = statuses.filter((s) => s.state === "searched").length;
   return (
     <div className="flex flex-col gap-2">
@@ -49,9 +55,13 @@ export function SectorList({ statuses, outside, currentId, hoverId, onHover, onS
                 }`}
               >
                 <span className={`font-mono text-small ${id === currentId ? "text-accent" : "text-text"}`}>{sectorName(s.sector)}</span>
-                <span className="text-label text-text-2">
-                  {id === currentId ? "Drone here" : SECTOR_STATE_LABEL[s.state]} · {pct(s.coverage, 0)} photographed
-                </span>
+                {sighted?.has(id) ? (
+                  <span className="text-label text-ok">Candidate sighting · send ground team to check</span>
+                ) : (
+                  <span className="text-label text-text-2">
+                    {id === currentId ? "Drone here" : SECTOR_STATE_LABEL[s.state]} · {pct(s.coverage, 0)} photographed
+                  </span>
+                )}
                 <span className="font-mono text-small text-text-2" title="Probability of area: this sector's share of the total probability">
                   {pct(s.poa)}
                 </span>

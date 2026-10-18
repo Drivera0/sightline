@@ -13,18 +13,23 @@ export function photoOf(id: string): string {
 }
 
 /**
- * Shown while one or more detections' latest answer is "Person". Names every confirmed find (photo,
- * position, the position radius) with a "Fly to it" button. Never blocks the slider or other answers.
+ * Shown while one or more detections' latest answer is "Person" (and the replay has flown its photo).
+ * A "Person" answer is a candidate sighting: someone is there, maybe not the missing person, so the
+ * wording asks a ground team to check. Names every sighting (photo, position, the position radius,
+ * its reading) with a "Fly to it" button. Never blocks the slider or other answers.
  */
 export function FoundBanner({
   finds,
   simulatedRadius = false,
   onFlyTo,
+  readingFor,
 }: {
   finds: readonly Find[];
   /** The radius is a simulated position uncertainty (simulated flight path). */
   simulatedRadius?: boolean;
   onFlyTo?: (find: Find) => void;
+  /** The sighting's reading (sightings.ts), shown under it. */
+  readingFor?: (detectionId: string) => string | undefined;
 }) {
   const [all, setAll] = useState(false);
   if (finds.length === 0) return null;
@@ -33,10 +38,10 @@ export function FoundBanner({
     <div role="status" className="flex flex-col gap-3">
       <span className="text-title font-medium text-ok">
         {finds.length === 1
-          ? "Person confirmed: dispatch ground team"
-          : `${finds.length} people confirmed: dispatch ground teams`}
+          ? "Person sighted: send ground team to check"
+          : `${finds.length} people sighted: send ground teams to check`}
       </span>
-      <ul className="flex flex-col gap-2" aria-label="Confirmed finds">
+      <ul className="flex flex-col gap-2" aria-label="Candidate sightings">
         {shown.map((f) => (
           <li key={f.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-mono text-small text-text-2">Photo {photoOf(f.id)}</span>
@@ -55,6 +60,7 @@ export function FoundBanner({
                 Fly to it
               </button>
             )}
+            {readingFor?.(f.id) && <span className="w-full text-label text-text-2">{readingFor(f.id)}</span>}
           </li>
         ))}
       </ul>
@@ -64,7 +70,7 @@ export function FoundBanner({
           onClick={() => setAll((v) => !v)}
           className="self-start text-label text-text-2 underline-offset-2 hover:text-text hover:underline"
         >
-          {all ? "Show fewer" : `Show all ${finds.length} finds`}
+          {all ? "Show fewer" : `Show all ${finds.length} sightings`}
         </button>
       )}
     </div>

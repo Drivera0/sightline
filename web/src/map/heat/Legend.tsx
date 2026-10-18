@@ -63,11 +63,21 @@ interface Props {
   /** With a handler, the legend shows a "Flight path (simulated)" switch. */
   showPath?: boolean;
   onShowPathChange?: (visible: boolean) => void;
+  /** A candidate sighting is on the map: add its entry, and say the heat is the "none of them" plan. */
+  hasSightings?: boolean;
   /** With a handler (the folded legend below 1280 px), the header gets a "Hide" button. */
   onCollapse?: () => void;
 }
 
-export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath = true, onShowPathChange, onCollapse }: Props) {
+export function Legend({
+  simulatedPath,
+  hasSurveyed,
+  compact = false,
+  showPath = true,
+  onShowPathChange,
+  onCollapse,
+  hasSightings = false,
+}: Props) {
   const swatches = rampSwatches();
   return (
     <div className="flex flex-col gap-3">
@@ -107,7 +117,25 @@ export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath =
           </span>
         )}
       </div>
+      {hasSightings && (
+        <span className="text-label text-text-2">
+          With a sighting on the map, the colours are the plan if none of the sightings is the missing person.
+        </span>
+      )}
       <ul className="flex flex-col gap-2 text-small text-text-2">
+        {hasSightings && (
+          <li className="flex items-center gap-2.5">
+            <span
+              className="inline-block size-3 rounded-[3px] ring-2 ring-ok"
+              style={{ background: swatches.at(-1) }}
+              aria-hidden="true"
+            />
+            <span className="flex flex-col">
+              <span>Candidate sighting</span>
+              {!compact && <span className="text-label text-text-2">A person is there; maybe not the missing one</span>}
+            </span>
+          </li>
+        )}
         <li className="flex items-center gap-2.5">
           <span
             className="inline-block size-3 rounded-[3px] ring-1 ring-border"

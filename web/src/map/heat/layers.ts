@@ -20,6 +20,7 @@ type LonLat = [number, number];
 export const HEAT_SOURCE_ID = `${HEAT_LAYER_PREFIX}cells`;
 export const HEAT_SURVEYED_SOURCE_ID = `${HEAT_LAYER_PREFIX}surveyed`;
 export const HEAT_HELD_SOURCE_ID = `${HEAT_LAYER_PREFIX}held`;
+export const HEAT_CANDIDATE_SOURCE_ID = `${HEAT_LAYER_PREFIX}candidates`;
 export const HEAT_TRAIL_SOURCE_ID = `${HEAT_LAYER_PREFIX}trail`;
 export const HEAT_DRONE_SOURCE_ID = `${HEAT_LAYER_PREFIX}drone`;
 export const HEAT_DRONE_FOOTPRINT_SOURCE_ID = `${HEAT_LAYER_PREFIX}drone-footprint`;
@@ -31,6 +32,7 @@ export const HEAT_LAYER_IDS = {
   cells: `${HEAT_LAYER_PREFIX}cells`,
   sectorFill: `${HEAT_LAYER_PREFIX}sector-fill`,
   reviewOutline: `${HEAT_LAYER_PREFIX}review-outline`,
+  candidateOutline: `${HEAT_LAYER_PREFIX}candidate-outline`,
   surveyed: `${HEAT_LAYER_PREFIX}surveyed`,
   sectorLine: `${HEAT_LAYER_PREFIX}sector-line`,
   sectorLabel: `${HEAT_LAYER_PREFIX}sector-label`,
@@ -117,7 +119,7 @@ export function ensureHeatLayers(
   if (!map.getSource(HEAT_SURVEYED_SOURCE_ID)) {
     map.addSource(HEAT_SURVEYED_SOURCE_ID, { type: "geojson", data: lines(surveyedBoundary(grid, covered)) });
   }
-  for (const id of [HEAT_HELD_SOURCE_ID, HEAT_SECTOR_SOURCE_ID, HEAT_SECTOR_LABEL_SOURCE_ID, HEAT_RIPPLE_SOURCE_ID]) {
+  for (const id of [HEAT_HELD_SOURCE_ID, HEAT_CANDIDATE_SOURCE_ID, HEAT_SECTOR_SOURCE_ID, HEAT_SECTOR_LABEL_SOURCE_ID, HEAT_RIPPLE_SOURCE_ID]) {
     if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: EMPTY });
   }
 
@@ -165,6 +167,18 @@ export function ensureHeatLayers(
           "line-width": 1.5,
           "line-dasharray": REVIEW_OUTLINE_DASH,
         },
+      },
+      beforeId(map),
+    );
+  }
+  // Candidate sightings: a solid ring in the "Person" colour around their cells (drawn darkest).
+  if (!map.getLayer(HEAT_LAYER_IDS.candidateOutline)) {
+    map.addLayer(
+      {
+        id: HEAT_LAYER_IDS.candidateOutline,
+        type: "line",
+        source: HEAT_CANDIDATE_SOURCE_ID,
+        paint: { "line-color": colors.ok, "line-opacity": 1, "line-width": 2.5 },
       },
       beforeId(map),
     );
@@ -325,6 +339,11 @@ export function refreshHeatSource(map: Map, playing: boolean): void {
 /** Redraw the outline of the cells photographed so far. */
 export function setSurveyedBoundary(map: Map, grid: Grid, photographed: Uint8Array): void {
   (map.getSource(HEAT_SURVEYED_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(lines(surveyedBoundary(grid, photographed)));
+}
+
+/** Redraw the ring around the candidate sighting cells. */
+export function setCandidateBoundary(map: Map, grid: Grid, candidate: Uint8Array): void {
+  (map.getSource(HEAT_CANDIDATE_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(lines(surveyedBoundary(grid, candidate)));
 }
 
 /** Redraw the dashed outline of the photographed cells awaiting review. */
