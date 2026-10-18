@@ -49,7 +49,21 @@ describe("ResultsSummary in time and in your own answers", () => {
     m.baseline_human.seconds_per_image = 33;
     render(<ResultsSummary metrics={m} />);
     // 7 x 33 s = 3.85 min; 336 x 33 s = 3 h 5 min.
-    expect(screen.getByText(/a person spends on each photo/)).toHaveTextContent("about 4 min of looking instead of about 3 h 5 min");
+    const line = screen.getByText(/a person spends on each photo/);
+    expect(line).toHaveTextContent("about 4 min of looking.");
+    // Random order: E[last] = 6 x 501 / 7 = 429.4 photos x 33 s = 3 h 56 min; 10th percentile 342.
+    expect(line).toHaveTextContent("random order takes about 3 h 56 min on average (9 in 10 random orders need at least 342 photos)");
+    expect(line).toHaveTextContent("one layout, not an average) took about 3 h 5 min");
+  });
+
+  it("races the queue against the expected random order, with its spread, and this flight's order", () => {
+    const m = structuredClone(cache.metrics);
+    m.ranking.n_frames = 500;
+    m.ranking.n_positive = 6;
+    render(<ResultsSummary metrics={m} />);
+    expect(screen.getByText("Random order")).toBeInTheDocument();
+    expect(screen.getByText("expected value; 10–90%: 342–492")).toBeInTheDocument();
+    expect(screen.getByText("one layout, as flown")).toBeInTheDocument();
   });
 
   it("summarises the reviewer's own answers for this survey's candidates", () => {

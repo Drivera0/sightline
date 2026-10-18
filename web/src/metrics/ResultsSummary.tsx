@@ -4,6 +4,7 @@ import { useReview, type Answer } from "../review/store";
 import { Badge, Label } from "../shell/components";
 import { ablationDisplayRows, count, pct, seconds, speedup } from "./format";
 import { useCountUp } from "./motion";
+import { randomOrderBaseline } from "./randomOrder";
 
 /** "4 min", "3 h 5 min": a span of time a person would spend. */
 export function duration(totalSeconds: number): string {
@@ -17,9 +18,11 @@ export function duration(totalSeconds: number): string {
 
 /**
  * The finale: the one result to say out loud (how soon the ranked queue reaches every person),
- * drawn as a race against this flight's own order (one layout, not a baseline average), then three
- * cards with their comparisons. Every number is
- * from metrics.json and carries its source as a tooltip; the full tables follow below this.
+ * drawn as a race against the honest baseline (a uniformly random order: its expected value and
+ * 10th-90th percentile, computed exactly from metrics.ranking's N and k) and against this flight's
+ * own order (one layout, not an average), then three cards with their comparisons. Every number is
+ * from metrics.json or derived from it, and carries its source as a tooltip; the full tables
+ * follow below this.
  */
 export function ResultsSummary({
   metrics,
@@ -46,6 +49,8 @@ export function ResultsSummary({
   // Photos at the published human pace (Pyrrö et al. 2021): what the ranking saves in a person's time.
   const pace = human.seconds_per_image;
   const timeSource = `${rankingSource}; at the published ${seconds(pace)} per photo (${human.source})`;
+  const random = randomOrderBaseline(ranking.n_frames, ranking.n_positive);
+  const randomSource = `Expected position of the last of k = ${ranking.n_positive} photos with a person among N = ${ranking.n_frames} in a uniformly random order: k(N+1)/(k+1); spread is the exact 10th-90th percentile (metrics.ranking)`;
 
   return (
     <section aria-label="Results" className="flex flex-col gap-5">
@@ -68,9 +73,16 @@ export function ResultsSummary({
             </h2>
             <p className="max-w-3xl text-title text-text-2" title={timeSource}>
               At the {seconds(pace)} a person spends on each photo, that is about{" "}
-              <span className="text-accent-soft">{duration(ranked * pace)}</span> of looking instead of about{" "}
-              <span className="text-text">{duration(flight * pace)}</span> paging through this flight in the order
-              it was flown (one layout, not an average). The first person is photo{" "}
+              <span className="text-accent-soft">{duration(ranked * pace)}</span> of looking.{" "}
+              {random && (
+                <span title={randomSource}>
+                  Paging through in a random order takes about{" "}
+                  <span className="text-text">{duration(random.expectedAll * pace)}</span> on average (9 in 10 random
+                  orders need at least {count(random.p10All)} photos).{" "}
+                </span>
+              )}
+              This flight in the order it was flown (one layout, not an average) took about{" "}
+              <span className="text-text">{duration(flight * pace)}</span>. The first person is photo{" "}
               {ranking.ranked.frames_to_first_hit} of the queue.
             </p>
           </>
@@ -82,8 +94,24 @@ export function ResultsSummary({
           n={ranking.n_frames}
           source={rankingSource}
           rows={[
+            ...(random
+              ? [
+                  {
+                    label: "Random order",
+                    note: `expected value; 10–90%: ${count(random.p10All)}–${count(random.p90All)}`,
+                    first: random.expectedFirst,
+                    all: random.expectedAll,
+                    band: [random.p10All, random.p90All] as [number, number],
+                    approx: true,
+                    time: duration(random.expectedAll * pace),
+                    tone: "muted" as const,
+                    source: randomSource,
+                  },
+                ]
+              : []),
             {
               label: "This flight's order",
+              note: "one layout, as flown",
               first: ranking.flight_order.frames_to_first_hit,
               all: flight,
               time: duration(flight * pace),
@@ -91,6 +119,7 @@ export function ResultsSummary({
             },
             {
               label: "Sightline ranked queue",
+              note: "this survey",
               first: ranking.ranked.frames_to_first_hit,
               all: ranked,
               time: duration(ranked * pace),
@@ -345,16 +374,23 @@ function Limits() {
   );
 }
 
-/** Two bars racing to "everyone found", with a tick where the first person turns up. */
-function Race({
-  n,
-  rows,
-  source,
-}: {
-  n: number;
-  rows: { label: string; first: number; all: number; time: string; tone: "muted" | "accent" }[];
-  source: string;
-}) {
+interface RaceRowData {
+  label: string;
+  /** A short qualifier under the label ("expected value", "one layout"). */
+  note?: string;
+  first: number;
+  all: number;
+  /** A spread to draw behind the bar, e.g. the 10th-90th percentile of a random order. */
+  band?: [number, number];
+  /** Show "≈" before the count: an expected value, not an observed one. */
+  approx?: boolean;
+  time: string;
+  tone: "muted" | "accent";
+  source?: string;
+}
+
+/** Bars racing to "everyone found", with a tick where the first person turns up. */
+function Race({ n, rows, source }: { n: number; rows: RaceRowData[]; source: string }) {
   return (
     <div className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5" style={{ animationDelay: "60ms" }} title={source}>
       <div className="flex items-baseline justify-between gap-4">
@@ -364,25 +400,36 @@ function Race({
       {rows.map((row, i) => (
         <RaceRow key={row.label} n={n} row={row} delay={250 + i * 200} />
       ))}
+      <p className="text-label text-text-3">
+        The white tick marks the first person.
+        {rows.some((r) => r.band) &&
+          " The dashed box is where 8 in 10 random orders reach the last photo with a person (10th to 90th percentile, computed exactly)."}
+      </p>
     </div>
   );
 }
 
-function RaceRow({
-  n,
-  row,
-  delay,
-}: {
-  n: number;
-  row: { label: string; first: number; all: number; time: string; tone: "muted" | "accent" };
-  delay: number;
-}) {
+function RaceRow({ n, row, delay }: { n: number; row: RaceRowData; delay: number }) {
   const shown = useCountUp(row.all, 1400);
   const accent = row.tone === "accent";
   return (
-    <div className="grid grid-cols-[11rem_minmax(0,1fr)_9rem] items-center gap-4">
-      <span className={"text-small " + (accent ? "text-text" : "text-text-2")}>{row.label}</span>
-      <div className="relative h-3 rounded-full bg-surface-strong">
+    <div
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[13rem_minmax(0,1fr)_9rem]"
+      title={row.source}
+    >
+      <span className="flex flex-col">
+        <span className={"text-small " + (accent ? "text-text" : "text-text-2")}>{row.label}</span>
+        {row.note && <span className="text-label text-text-3">{row.note}</span>}
+      </span>
+      <div className="relative order-last col-span-2 h-3 rounded-full bg-surface-strong sm:order-none sm:col-span-1">
+        {row.band && (
+          <span
+            className="absolute -inset-y-1 rounded-sm border border-dashed border-text-3/60"
+            style={{ left: `${(row.band[0] / n) * 100}%`, width: `${((row.band[1] - row.band[0]) / n) * 100}%` }}
+            title={`10th to 90th percentile: ${row.band[0]} to ${row.band[1]} photos`}
+            aria-hidden="true"
+          />
+        )}
         <span
           className={"sl-grow absolute inset-y-0 left-0 rounded-full " + (accent ? "bg-accent shadow-[0_0_18px_-2px_var(--accent)]" : "bg-text-3/60")}
           style={{ width: `${Math.max(1.2, (row.all / n) * 100)}%`, animationDelay: `${delay}ms` }}
@@ -390,11 +437,12 @@ function RaceRow({
         <span
           className="absolute -top-1 h-5 w-0.5 rounded-full bg-text"
           style={{ left: `${(row.first / n) * 100}%` }}
-          title={`First person at photo ${row.first}`}
+          title={`First person at photo ${row.approx ? "≈" : ""}${Math.round(row.first)}`}
         />
       </div>
       <span className="flex items-baseline justify-end gap-2">
         <span className={"font-mono text-title " + (accent ? "text-accent-soft" : "text-text-2")}>
+          {row.approx ? "≈" : ""}
           {Math.round(shown)}
         </span>
         <span className="text-small text-text-3">&asymp; {row.time}</span>
