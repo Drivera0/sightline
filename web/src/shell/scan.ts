@@ -17,9 +17,9 @@ export interface ScanStop {
  * How long the scanner rests on an empty photo, a rejected look-alike, and a candidate. Kept well
  * under 3 changes a second (WCAG 2.3.1) and slow enough to read a box: this runs in front of judges.
  */
-export const CLEAR_MS = 700;
-export const REJECT_MS = 1200;
-export const HIT_MS = 1400;
+export const CLEAR_MS = 900;
+export const REJECT_MS = 1600;
+export const HIT_MS = 1800;
 
 /** Rest time for a stop. */
 export function stopMs(stop: Pick<ScanStop, "hits" | "rejected">): number {
