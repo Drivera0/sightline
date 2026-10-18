@@ -255,7 +255,7 @@ def real_position_survey(
     out: OutOption = Path("cache/real-gps"),
     web_out: WebOutOption = Path("web/public/cache/real-gps"),
     candidate_threshold: ThresholdOption = 0.29,
-    model_name: ModelNameOption = "yolo11s-heridal-tiled",
+    model_name: ModelNameOption = "yolo11s-heridal-tiled-run2",
 ) -> None:
     """Build and validate the coherent HERIDAL survey at recorded EXIF positions."""
     from sightline.pipeline.real import build_real_position_survey

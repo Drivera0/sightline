@@ -237,11 +237,7 @@ function BaseMapLayers(): ReactNode {
     <div className="pointer-events-none absolute bottom-4 left-4 flex flex-col items-start gap-2">
       {!bundle.survey.simulated_path && <Badge kind="info">Real EXIF positions</Badge>}
       {radiusLabel !== null && (
-        <Badge kind="info">
-          {bundle.survey.simulated_path
-            ? `${radiusLabel} m position uncertainty`
-            : `${radiusLabel} m measured label-relative offset (p90)`}
-        </Badge>
+        <Badge kind="info">{radiusLabel} m position uncertainty</Badge>
       )}
     </div>
   );
