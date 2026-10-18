@@ -1,8 +1,19 @@
 import type { ReactNode } from "react";
 import type { Metrics } from "../contract";
+import { useReview, type Answer } from "../review/store";
 import { Badge, Label } from "../shell/components";
-import { count, pct, seconds, speedup } from "./format";
+import { ablationDisplayRows, count, pct, seconds, speedup } from "./format";
 import { useCountUp } from "./motion";
+
+/** "4 min", "3 h 5 min": a span of time a person would spend. */
+export function duration(totalSeconds: number): string {
+  const mins = Math.round(totalSeconds / 60);
+  if (mins < 1) return `${Math.round(totalSeconds)} s`;
+  if (mins < 90) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
 
 /**
  * The finale: the one result to say out loud (how soon the ranked queue reaches every person),
@@ -10,7 +21,17 @@ import { useCountUp } from "./motion";
  * cards with their comparisons. Every number is
  * from metrics.json and carries its source as a tooltip; the full tables follow below this.
  */
-export function ResultsSummary({ metrics }: { metrics: Metrics }) {
+export function ResultsSummary({
+  metrics,
+  cellM,
+  candidateIds = [],
+}: {
+  metrics: Metrics;
+  /** The search grid's cell size, to turn simulated cells into ground area. */
+  cellM?: number;
+  /** The review queue's detections, for the live "your review" summary. */
+  candidateIds?: readonly string[];
+}) {
   const { detector, baseline_human: human, ranking, search_sim: sim } = metrics;
   const inside = sim.in_survey;
   const byName = (name: string) => inside?.methods.find((m) => m.name.startsWith(name));
@@ -22,6 +43,9 @@ export function ResultsSummary({ metrics }: { metrics: Metrics }) {
   const rankingSource = `This survey, ${ranking.n_frames} frames, ${ranking.n_positive} with a person (metrics.ranking)`;
   // When every photo has a person there is nothing for the ranking to reorder: say so, skip the race.
   const trivial = ranking.n_positive >= ranking.n_frames;
+  // Photos at the published human pace (Pyrrö et al. 2021): what the ranking saves in a person's time.
+  const pace = human.seconds_per_image;
+  const timeSource = `${rankingSource}; at the published ${seconds(pace)} per photo (${human.source})`;
 
   return (
     <section aria-label="Results" className="flex flex-col gap-5">
@@ -42,9 +66,12 @@ export function ResultsSummary({ metrics }: { metrics: Metrics }) {
             <h2 className="max-w-4xl text-[40px] font-semibold leading-[1.05]" title={rankingSource}>
               All {ranking.n_positive} {photos} were in the first {ranked} photos of the queue.
             </h2>
-            <p className="max-w-3xl text-title text-text-2" title={rankingSource}>
-              The first one is photo {ranking.ranked.frames_to_first_hit}. Paging through this flight in the
-              order it was flown (one layout, not an average) reaches the last one at photo {flight}.
+            <p className="max-w-3xl text-title text-text-2" title={timeSource}>
+              At the {seconds(pace)} a person spends on each photo, that is about{" "}
+              <span className="text-accent-soft">{duration(ranked * pace)}</span> of looking instead of about{" "}
+              <span className="text-text">{duration(flight * pace)}</span> paging through this flight in the order
+              it was flown (one layout, not an average). The first person is photo{" "}
+              {ranking.ranked.frames_to_first_hit} of the queue.
             </p>
           </>
         )}
@@ -55,8 +82,20 @@ export function ResultsSummary({ metrics }: { metrics: Metrics }) {
           n={ranking.n_frames}
           source={rankingSource}
           rows={[
-            { label: "This flight's order", first: ranking.flight_order.frames_to_first_hit, all: flight, tone: "muted" },
-            { label: "Sightline ranked queue", first: ranking.ranked.frames_to_first_hit, all: ranked, tone: "accent" },
+            {
+              label: "This flight's order",
+              first: ranking.flight_order.frames_to_first_hit,
+              all: flight,
+              time: duration(flight * pace),
+              tone: "muted",
+            },
+            {
+              label: "Sightline ranked queue",
+              first: ranking.ranked.frames_to_first_hit,
+              all: ranked,
+              time: duration(ranked * pace),
+              tone: "accent",
+            },
           ]}
         />
       )}
@@ -93,12 +132,17 @@ export function ResultsSummary({ metrics }: { metrics: Metrics }) {
             label="Cells to search"
             value={sightline.median_cells}
             format={(v) => count(Math.round(v))}
+            headline={fewer(sightline.median_cells, naive.median_cells)}
             ours={sightline.median_cells}
             theirs={naive.median_cells}
             oursLabel="Sightline"
             theirsLabel="Naive map"
             lowerIsBetter
-            note="Median cells a ground team checks inside the surveyed area"
+            note={
+              cellM
+                ? `Median ${count(cellM)} m cells a ground team checks inside the surveyed area: about ${hectares(sightline.median_cells, cellM)} of ground against ${hectares(naive.median_cells, cellM)}`
+                : "Median cells a ground team checks inside the surveyed area"
+            }
             source={`Simulated search, ${inside.trials} trials with the person in a photographed cell (metrics.search_sim.in_survey)`}
             badge={<Badge kind="simulated">Simulated</Badge>}
             delay={180}
@@ -111,7 +155,193 @@ export function ResultsSummary({ metrics }: { metrics: Metrics }) {
           </div>
         )}
       </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <YourReview candidateIds={candidateIds} />
+        <WhyTiling
+          ablations={metrics.ablations}
+          source={`HERIDAL test set, ${detector.test_images} images, same threshold rule for every row (metrics.ablations)`}
+        />
+      </div>
+
+      <Limits />
     </section>
+  );
+}
+
+/** Median seconds between consecutive timestamps (ms); null with fewer than two. */
+export function medianGapSeconds(atMs: readonly number[]): number | null {
+  if (atMs.length < 2) return null;
+  const sorted = [...atMs].sort((a, b) => a - b);
+  const gaps = sorted.slice(1).map((t, i) => (t - sorted[i]!) / 1000).sort((a, b) => a - b);
+  const mid = gaps.length >> 1;
+  return gaps.length % 2 ? gaps[mid]! : (gaps[mid - 1]! + gaps[mid]!) / 2;
+}
+
+/** "20% fewer": how much lower ours is than theirs, for lower-is-better numbers. */
+function fewer(ours: number, theirs: number): string | undefined {
+  if (theirs <= 0 || ours >= theirs) return undefined;
+  return `${Math.round((1 - ours / theirs) * 100)}% fewer`;
+}
+
+/** Cells of `cellM` metres as ground area: 98 cells of 20 m -> "3.9 ha". */
+function hectares(cells: number, cellM: number): string {
+  const ha = (cells * cellM * cellM) / 10_000;
+  return `${ha >= 10 ? Math.round(ha) : ha.toFixed(1)} ha`;
+}
+
+const ANSWER_ROWS: [Answer, string, string][] = [
+  ["person", "Confirmed people", "bg-accent"],
+  ["not_person", "Not a person", "bg-text-3"],
+  ["unsure", "Unsure", "bg-warn"],
+];
+
+/**
+ * The reviewer's own session, from this browser's saved answers: how many candidates they
+ * answered, what they said, and how long it took them. Measured live, never stored in the cache.
+ */
+function YourReview({ candidateIds }: { candidateIds: readonly string[] }) {
+  const answers = useReview((s) => s.answers);
+  const history = useReview((s) => s.history);
+  const ids = new Set(candidateIds);
+  const mine = history.filter((h) => ids.has(h.detectionId));
+  const answered = candidateIds.filter((id) => answers[id] !== undefined);
+  const tally = (a: Answer) => answered.filter((id) => answers[id] === a).length;
+  // The median gap between answers: a pause (or a break between sessions) doesn't inflate it.
+  const gapS = medianGapSeconds(mine.map((h) => h.at));
+  const total = candidateIds.length;
+
+  return (
+    <div
+      className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5"
+      style={{ animationDelay: "240ms" }}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <Label>Your review</Label>
+        <span className="text-label text-text-3">answers saved in this browser</span>
+      </div>
+      {total === 0 ? (
+        <p className="text-small text-text-3">This survey has no candidates to review.</p>
+      ) : answered.length === 0 ? (
+        <p className="text-body text-text-2">
+          You haven&apos;t answered any of the {total} candidates yet. Press <span className="font-mono">3</span> to
+          review them; your answers will be summarised here.
+        </p>
+      ) : (
+        <>
+          <p className="text-title text-text">
+            {answered.length === total ? "All" : answered.length} of {total} candidates answered
+            {gapS !== null && (
+              <span className="text-text-2">, a median of {seconds(gapS)} per answer</span>
+            )}
+          </p>
+          <div className="flex h-2.5 overflow-hidden rounded-full bg-surface-strong" role="img" aria-label="Answers by kind">
+            {ANSWER_ROWS.map(([a, , tone]) => (
+              <span key={a} className={`sl-grow h-full ${tone}`} style={{ width: `${(tally(a) / total) * 100}%` }} />
+            ))}
+          </div>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-small sm:grid-cols-4">
+            {ANSWER_ROWS.map(([a, label, tone]) => (
+              <div key={a} className="flex flex-col gap-0.5">
+                <dt className="flex items-center gap-1.5 text-text-3">
+                  <span aria-hidden="true" className={`size-2 rounded-full ${tone}`} />
+                  {label}
+                </dt>
+                <dd className="font-mono text-title text-text">{tally(a)}</dd>
+              </div>
+            ))}
+            <div className="flex flex-col gap-0.5">
+              <dt className="text-text-3">Not answered</dt>
+              <dd className="font-mono text-title text-text-2">{total - answered.length}</dd>
+            </div>
+          </dl>
+          <p className="text-small text-text-3">
+            Confirmed people are pinned on the map; each &ldquo;Not a person&rdquo; updated the search map where the
+            drone looked.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Recall by technique, as bars: the jump tiling makes is the story of the detector. */
+function WhyTiling({ ablations, source }: { ablations: Metrics["ablations"]; source: string }) {
+  const rows = ablationDisplayRows(ablations).flatMap((r) => (r.measured ? [r] : []));
+  if (rows.length === 0) return null;
+  const best = rows.reduce((b, r, i) => (r.voc.ap50 > rows[b]!.voc.ap50 ? i : b), 0);
+  return (
+    <div
+      className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5"
+      style={{ animationDelay: "300ms" }}
+      title={source}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <Label>Why tiling matters</Label>
+        <span className="text-label text-text-3">test set: recall, precision</span>
+      </div>
+      <p className="text-small text-text-2">
+        A person is a few dozen pixels in a full-size photo. Shrinking the photo to the model&apos;s input loses them;
+        reading it in overlapping tiles keeps them.
+      </p>
+      <div className="flex flex-col gap-2.5">
+        {rows.map((r, i) => (
+          <div key={r.name} className="grid grid-cols-[minmax(0,10.5rem)_minmax(0,1fr)_3rem_3rem] items-center gap-3">
+            <span className={"truncate text-small " + (i === best ? "text-text" : "text-text-2")} title={r.name}>
+              {r.name}
+            </span>
+            <span className="h-2 rounded-full bg-surface-strong">
+              <span
+                className={"sl-grow block h-full rounded-full " + (i === best ? "bg-accent" : "bg-text-3/60")}
+                style={{ width: `${Math.max(2, r.voc.recall * 100)}%`, animationDelay: `${350 + i * 120}ms` }}
+              />
+            </span>
+            <span className={"text-right font-mono text-small " + (i === best ? "text-accent-soft" : "text-text-2")}>
+              {pct(r.voc.recall)}
+            </span>
+            <span className="text-right font-mono text-small text-text-3" title="Precision">
+              {pct(r.voc.precision)}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="text-label text-text-3">
+        Bars show recall; the grey figure is precision. The highlighted row, the best AP50, is the detector in use:
+        hard negatives found slightly more people but raised more false alarms.
+      </p>
+    </div>
+  );
+}
+
+/** Where the detector still fails, from docs/DETECTOR_LIMITS.md: said up front, not buried. */
+function Limits() {
+  const items = [
+    ["Groups", "people standing close together, where one box covers the group and a neighbour is missed"],
+    ["Camouflage", "white or grey clothing on pale limestone, dark clothing on dark rock"],
+    ["Posture", "people sitting on benches or beside objects, or lying down"],
+  ];
+  return (
+    <div
+      className="sl-rise flex flex-col gap-3 rounded-lg border border-border bg-surface/60 p-5"
+      style={{ animationDelay: "360ms" }}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <Label>Where it still misses</Label>
+        <span className="text-label text-text-3">docs/DETECTOR_LIMITS.md</span>
+      </div>
+      <ul className="grid gap-3 md:grid-cols-3">
+        {items.map(([title, body]) => (
+          <li key={title} className="flex flex-col gap-1 border-l-2 border-warn/50 pl-3">
+            <span className="text-body text-text">{title}</span>
+            <span className="text-small text-text-2">{body}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-small text-text-3">
+        That is why Sightline ranks photos for a person to check instead of deciding on its own, and why the search map
+        never marks ground as cleared.
+      </p>
+    </div>
   );
 }
 
@@ -122,7 +352,7 @@ function Race({
   source,
 }: {
   n: number;
-  rows: { label: string; first: number; all: number; tone: "muted" | "accent" }[];
+  rows: { label: string; first: number; all: number; time: string; tone: "muted" | "accent" }[];
   source: string;
 }) {
   return (
@@ -144,13 +374,13 @@ function RaceRow({
   delay,
 }: {
   n: number;
-  row: { label: string; first: number; all: number; tone: "muted" | "accent" };
+  row: { label: string; first: number; all: number; time: string; tone: "muted" | "accent" };
   delay: number;
 }) {
   const shown = useCountUp(row.all, 1400);
   const accent = row.tone === "accent";
   return (
-    <div className="grid grid-cols-[11rem_minmax(0,1fr)_4.5rem] items-center gap-4">
+    <div className="grid grid-cols-[11rem_minmax(0,1fr)_9rem] items-center gap-4">
       <span className={"text-small " + (accent ? "text-text" : "text-text-2")}>{row.label}</span>
       <div className="relative h-3 rounded-full bg-surface-strong">
         <span
@@ -163,8 +393,11 @@ function RaceRow({
           title={`First person at photo ${row.first}`}
         />
       </div>
-      <span className={"text-right font-mono text-title " + (accent ? "text-accent-soft" : "text-text-2")}>
-        {Math.round(shown)}
+      <span className="flex items-baseline justify-end gap-2">
+        <span className={"font-mono text-title " + (accent ? "text-accent-soft" : "text-text-2")}>
+          {Math.round(shown)}
+        </span>
+        <span className="text-small text-text-3">&asymp; {row.time}</span>
       </span>
     </div>
   );
