@@ -229,6 +229,24 @@ export function Shell({
             </span>
             <button
               type="button"
+              onClick={() => setTryPhoto(true)}
+              title="Run the detector on a photo of your own, in your browser"
+              className="inline-flex items-center gap-1.5 rounded-sm text-text-2 hover:text-text"
+            >
+              <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden="true">
+                <path
+                  d="M8 10.5V2.5M5 5.5l3-3 3 3M2.5 10v2.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V10"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Try your own photo
+            </button>
+            <button
+              type="button"
               onClick={() => setShowShortcuts(true)}
               className="inline-flex items-center gap-2 rounded-sm text-text-2 hover:text-text"
             >
