@@ -141,6 +141,7 @@ export function Shell({
     <div className="relative h-full min-h-[24rem] overflow-hidden rounded-lg" data-testid="mount-map">
       <ScreenBoundary name="Map">
         <MapView
+          focusSelection={!withHeat}
           layers={
             withHeat ? (
               <div data-testid="mount-heat">
