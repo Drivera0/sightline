@@ -56,7 +56,7 @@ def _summary(ranks: np.ndarray) -> tuple[int, int]:
 def simulate(
     map_file: MapFile,
     frame_cells: Sequence[Mapping[int, tuple[float, float]]],
-    trials: int = 1000,
+    trials: int = 30_000,
     seed: int = 7,
     vis_noise: float = 0.15,
 ) -> SearchSim:
@@ -70,8 +70,15 @@ def simulate(
       cover it (a = overlap, c = canopy);
     - the final map of each method: "Prior only" = prior.p; "Naive: photographed = cleared"
       = replay with pod = min(pod_cap, pod_cap * a) per frame (pods < 0.001 omitted, like
-      the contract); "Sightline: canopy-aware" = replay of map_file.steps as written.
-      Cells are ranked by descending final p, ties broken by lower idx.
+      the contract); "Sightline: canopy-aware" = replay with pod = min(pod_cap,
+      recall * (1 - canopy) * a) per frame and cell (pods rounded to 4 decimals and pods
+      < 0.001 omitted, like build_map), computed here from frame_cells with
+      map_file.params.recall and pod_cap. map_file.steps is not used for this method.
+      It assumes every candidate detection was reviewed as "not a person", so each drone
+      look counts normally; holding cells for review is a workflow safety feature, not part
+      of the search ranking. (In the simulation the person stands in a random cell, so a
+      candidate is a false alarm, and replaying held cells with pod 0 would only keep wrong
+      cells at the top.) Cells are ranked by descending final p, ties broken by lower idx.
 
     Each trial:
     1. Draw the true cell from prior.p renormalised over the grid.
@@ -119,8 +126,10 @@ def simulate(
     prior_p = np.asarray(map_file.prior.p, dtype=np.float64)
     n = prior_p.size
 
-    # Per cell: overlaps in flight order, and the overlap-weighted mean canopy.
-    overlaps: list[list[float]] = [[] for _ in range(n)]
+    # Per cell: overlaps in flight order (flat, grouped by cell below), and the
+    # overlap-weighted mean canopy.
+    look_cells: list[int] = []
+    look_overlaps: list[float] = []
     weighted_canopy = np.zeros(n, dtype=np.float64)
     overlap_sum = np.zeros(n, dtype=np.float64)
     naive_steps: list[list[tuple[int, float]]] = []
@@ -132,7 +141,8 @@ def simulate(
             if overlap < 0:
                 raise ValueError(f"overlap must be >= 0, got {overlap} for cell {idx}")
             canopy = min(max(float(canopy), 0.0), 1.0)
-            overlaps[idx].append(float(overlap))
+            look_cells.append(idx)
+            look_overlaps.append(min(float(overlap), 1.0))
             weighted_canopy[idx] += overlap * canopy
             overlap_sum[idx] += overlap
             pod = min(pod_cap, pod_cap * float(overlap))
@@ -142,12 +152,16 @@ def simulate(
     mean_canopy = np.divide(
         weighted_canopy, overlap_sum, out=np.zeros(n, dtype=np.float64), where=overlap_sum > 0
     )
-    cover = [np.minimum(np.asarray(a, dtype=np.float64), 1.0) for a in overlaps]
+    # Looks grouped by cell (stable sort keeps flight order inside a cell).
+    order = np.argsort(np.asarray(look_cells, dtype=np.int64), kind="stable")
+    cover_flat = np.asarray(look_overlaps, dtype=np.float64)[order]
+    looks_per_cell = np.bincount(np.asarray(look_cells, dtype=np.int64), minlength=n)
+    cell_start = np.concatenate(([0], np.cumsum(looks_per_cell)[:-1]))
 
     # Final map of each method, then each cell's rank under it.
     outside = float(map_file.prior.outside)
     naive_p, _ = replay(prior_p, outside, naive_steps)
-    sightline_p, _ = replay(prior_p, outside, ([tuple(c) for c in s.cells] for s in map_file.steps))
+    sightline_p, _ = replay(prior_p, outside, _canopy_aware_steps(frame_cells, recall, pod_cap, n))
     names = (METHOD_PRIOR, METHOD_NAIVE, METHOD_SIGHTLINE)
     ranks_by_method = np.stack([_rank_of_cell(m) for m in (prior_p, naive_p, sightline_p)])
 
@@ -160,14 +174,19 @@ def simulate(
     visibility = np.clip(
         (1.0 - mean_canopy[true_cells]) + rng.normal(0.0, vis_noise, size=trials), 0.0, 1.0
     )
-    found = np.zeros(trials, dtype=bool)
-    for t in range(trials):
-        a = cover[true_cells[t]]
-        if a.size == 0:
-            continue
-        # Frames in flight order; the first success stops the trial. Only whether any look
-        # succeeds matters for the result, so all looks are drawn together.
-        found[t] = bool(np.any(rng.random(a.size) < recall * visibility[t] * a))
+    # Frames in flight order; the first success stops the trial. Only whether any look
+    # succeeds matters for the result, so all looks of all trials are drawn together (the
+    # same random stream as drawing trial by trial).
+    counts = looks_per_cell[true_cells]
+    total_looks = int(counts.sum())
+    trial_of_look = np.repeat(np.arange(trials), counts)
+    first_look = np.cumsum(counts) - counts
+    position = (
+        np.arange(total_looks) - first_look[trial_of_look] + cell_start[true_cells][trial_of_look]
+    )
+    probs = recall * visibility[trial_of_look] * cover_flat[position]
+    hits = rng.random(total_looks) < probs
+    found = np.bincount(trial_of_look[hits], minlength=trials) > 0
 
     not_found = true_cells[~found]
     methods = _methods(names, ranks_by_method, not_found)
@@ -195,6 +214,28 @@ def simulate(
         methods=methods,
         in_survey=in_survey,
     )
+
+
+# Canopy-aware steps from frame_cells: pod = min(pod_cap, recall * (1 - canopy) * overlap),
+# rounded to 4 decimals, pods < 0.001 omitted (the same rule as build_map and the contract).
+def _canopy_aware_steps(
+    frame_cells: Sequence[Mapping[int, tuple[float, float]]],
+    recall: float,
+    pod_cap: float,
+    n: int,
+) -> list[list[tuple[int, float]]]:
+    steps: list[list[tuple[int, float]]] = []
+    for cells in frame_cells:
+        step: list[tuple[int, float]] = []
+        for idx, (canopy, overlap) in sorted(cells.items()):
+            if not 0 <= idx < n:
+                raise IndexError(f"cell index {idx} outside grid of {n} cells")
+            canopy = min(max(float(canopy), 0.0), 1.0)
+            pod = round(min(pod_cap, recall * (1.0 - canopy) * float(overlap)), 4)
+            if pod >= MIN_POD:
+                step.append((idx, pod))
+        steps.append(step)
+    return steps
 
 
 # One SearchMethod per method: median and p90 of the true cells' ranks under it.
