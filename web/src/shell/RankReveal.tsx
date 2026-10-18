@@ -514,7 +514,7 @@ function DetectorDialog({ onClose, children }: { onClose: () => void; children: 
         aria-label="How the detector works"
         onKeyDown={onKeyDown}
         onClick={(event) => event.stopPropagation()}
-        className="flex max-h-full w-[min(96rem,100%)] flex-col gap-3 rounded-lg border border-border bg-bg/95 p-4 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] sm:p-6"
+        className="flex h-full max-h-full w-[min(96rem,100%)] flex-col gap-3 rounded-lg border border-border bg-bg/95 p-4 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] sm:p-6"
       >
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-title font-medium">How the detector works</h2>
@@ -527,7 +527,7 @@ function DetectorDialog({ onClose, children }: { onClose: () => void; children: 
             Close <KeyHint>Esc</KeyHint>
           </button>
         </div>
-        <div className="flex min-h-0 flex-col overflow-y-auto">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
       </div>
     </div>,
     document.body,
