@@ -94,7 +94,7 @@ describe("NextSearch", () => {
     expect(screen.queryByRole("list", { name: "Most likely cells" })).toBeNull();
     expect(screen.getByText("No cell photographed well enough yet")).toBeInTheDocument();
     // The shares still use the whole surveyed area.
-    expect(document.querySelector('[data-share="Inside surveyed area"]')).toHaveTextContent("55.00%");
+    expect(document.querySelector(`[data-share="${SHARE_LABELS.surveyed}"]`)).toHaveTextContent("55.00%");
   });
 
   it("leaves cells awaiting review out of the ranking and out of the average", () => {

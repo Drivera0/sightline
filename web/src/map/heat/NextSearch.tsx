@@ -52,7 +52,7 @@ interface Props {
  * Only photographed cells are ranked. Inside a 1 km grid a hiker prior is flat (Koester's hiker
  * distances are larger than the grid), so every unphotographed cell would outrank every
  * photographed one and the list would show the grid corners. Ranking the surveyed area shows where
- * the drone could not see well; the rest of the grid is the "Rest of grid" share below.
+ * the drone could not see well; the rest of the grid is the "Not yet searched" share below.
  */
 export function NextSearch({ map, state, covered, overlap, held, onSelect }: Props) {
   const eligible = eligibleCells(overlap, held);
@@ -104,10 +104,7 @@ export function NextSearch({ map, state, covered, overlap, held, onSelect }: Pro
                     <span className="flex flex-col items-end">
                       <span className="font-mono text-small text-text">{pct(p)}</span>
                       {mean > 0 && (
-                        <span
-                          className="font-mono text-label text-text-3"
-                          title="Compared with the average well-photographed cell"
-                        >
+                        <span className="font-mono text-label text-text-3" title="Compared with the average well-photographed cell">
                           {(p / mean).toFixed(1)}× avg
                         </span>
                       )}
@@ -130,7 +127,8 @@ export function NextSearch({ map, state, covered, overlap, held, onSelect }: Pro
         <ShareRow label={SHARE_LABELS.restOfGrid} swatch="bg-text-3" value={shares.restOfGrid} />
         <ShareRow label={SHARE_LABELS.outside} swatch="bg-text-3/30" value={shares.outside} />
         <p className="text-label text-text-3">
-          Dark ground on the map has not been photographed yet: it is unsearched, not cleared.
+          Darkened ground on the map is not yet searched (under half of the cell photographed): it is
+          unsearched, not cleared.
         </p>
       </div>
     </div>
@@ -138,8 +136,8 @@ export function NextSearch({ map, state, covered, overlap, held, onSelect }: Pro
 }
 
 export const SHARE_LABELS = {
-  surveyed: "Inside surveyed area",
-  restOfGrid: "Not yet searched (rest of grid)",
+  surveyed: "Photographed by the drone",
+  restOfGrid: "Not yet searched",
   outside: "Beyond the search grid",
 } as const;
 

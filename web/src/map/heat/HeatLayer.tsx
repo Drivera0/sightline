@@ -112,6 +112,8 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
   }, [bundle.survey.frames, mapFile.steps]);
   const stepRef = useRef(stepIndex);
   stepRef.current = stepIndex;
+  const pathRef = useRef(path);
+  pathRef.current = path;
   const [showPath, setShowPath] = useState(true);
   const showPathRef = useRef(showPath);
   showPathRef.current = showPath;
@@ -143,7 +145,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
         if (added) lastRef.current = new Float64Array(n).fill(Number.NaN);
         const current = stateRef.current;
         if (current) pushHeatState(map, current, lastRef.current, coveredRef.current, heldRef.current);
-        pushReplay(map, path, stepRef.current);
+        pushReplay(map, pathRef.current, stepRef.current);
         setFlightPathVisible(map, showPathRef.current);
       } catch {
         // Style not ready yet; the next 'styledata' or 'load' event tries again.
@@ -159,7 +161,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
       map.off("load", install);
       map.off("styledata", onStyleData);
     };
-  }, [map, mapFile, path]);
+  }, [map, mapFile]);
 
   // Recolour via feature state when the derived state changes. Never touches the GeoJSON.
   useEffect(() => {
@@ -227,10 +229,7 @@ function HeatOverlay({ bundle, mapCtx }: { bundle: CacheBundle; mapCtx: MapConte
           </span>
         )}
       </Panel>
-      <Panel
-        className="sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]"
-        style={{ animationDelay: "80ms" }}
-      >
+      <Panel className="sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)]" style={{ animationDelay: "80ms" }}>
         <Legend
           simulatedPath={bundle.survey.simulated_path}
           params={mapFile.params}
