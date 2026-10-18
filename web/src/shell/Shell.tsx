@@ -197,8 +197,8 @@ export function Shell({
               <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-full border border-border bg-surface px-4 py-2 text-small text-text-2">
                 <span className="text-text">Is this a person?</span>
                 <span>
-                  Confirmed people are pinned on the map; &ldquo;Not a person&rdquo; tells the search map the
-                  drone looked there.
+                  &ldquo;Person&rdquo; pins them on the map. &ldquo;Not a person&rdquo; tells the search map the
+                  drone looked there. Unsure leaves the map as it is.
                 </span>
               </p>
               <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
