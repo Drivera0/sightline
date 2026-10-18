@@ -30,6 +30,7 @@ __all__ = [
     "evaluate",
     "f_beta",
     "iou",
+    "predict_split",
     "score_sar",
     "score_voc",
     "write_detector_metrics",
@@ -235,6 +236,14 @@ def choose_threshold(detector: object, val: Sequence[LabeledImage], mode: Mode =
     This is ``candidate_threshold``. Never call this on the test split."""
     preds, truth, _ = _run(detector, val, mode, SAVE_THRESHOLD)
     return choose_threshold_from_preds(preds, truth)
+
+
+def predict_split(
+    detector: object, images: Sequence[LabeledImage], mode: Mode = "tiled"
+) -> tuple[Preds, Truth, float]:
+    """``(preds, truth, seconds_per_image)`` at ``SAVE_THRESHOLD``, for scoring several
+    operating points from one inference pass."""
+    return _run(detector, images, mode, SAVE_THRESHOLD)
 
 
 def evaluate(
