@@ -63,13 +63,33 @@ interface Props {
   /** With a handler, the legend shows a "Flight path (simulated)" switch. */
   showPath?: boolean;
   onShowPathChange?: (visible: boolean) => void;
+  /** With a handler (the folded legend below 1280 px), the header gets a "Hide" button. */
+  onCollapse?: () => void;
 }
 
-export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath = true, onShowPathChange }: Props) {
+export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath = true, onShowPathChange, onCollapse }: Props) {
   const swatches = rampSwatches();
   return (
     <div className="flex flex-col gap-3">
-      {!compact && <Label>Reading the map</Label>}
+      {!compact &&
+        (onCollapse ? (
+          <div className="flex items-center justify-between gap-2">
+            <Label>Reading the map</Label>
+            <button
+              type="button"
+              aria-expanded={true}
+              aria-controls="search-legend"
+              onClick={onCollapse}
+              // Opened from the pill: focus moves here so the keyboard user lands in the legend.
+              autoFocus
+              className="-my-1 min-h-8 rounded-sm px-2 text-small text-text-2 hover:text-text"
+            >
+              Hide
+            </button>
+          </div>
+        ) : (
+          <Label>Reading the map</Label>
+        ))}
       <div className="flex flex-col gap-1.5">
         <div className="flex h-2.5 w-full gap-px overflow-hidden rounded-full" data-testid="heat-ramp">
           {swatches.map((c) => (
