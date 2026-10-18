@@ -105,6 +105,11 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
           </button>
         )}
         {top.length === 0 && <p className="text-small text-text-2">No cell photographed well enough yet</p>}
+        {top.length > 0 && mean > 0 && (
+          <span className="px-2 text-label text-text-2" aria-hidden="true" data-testid="avg-key">
+            × avg: how many times as likely as the average photographed cell
+          </span>
+        )}
         {top.length > 0 && (
           <ol className="flex flex-col gap-0.5" aria-label="Most likely cells" onMouseLeave={() => onHover?.(null)}>
             {top.map((idx, rank) => {
@@ -149,7 +154,10 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
                       {mean > 0 ? (
                         <>
                           <span className="font-mono text-small text-text">{(p / mean).toFixed(1)}×</span>
-                          <span className="font-mono text-label text-text-2">avg photographed cell</span>
+                          {/* Short on screen (the key above the list says the rest), whole for screen readers. */}
+                          <span className="font-mono text-label text-text-2">
+                            avg<span className="sr-only"> photographed cell</span>
+                          </span>
                         </>
                       ) : (
                         <span className="font-mono text-small text-text">{pct(p)}</span>
