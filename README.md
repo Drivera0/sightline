@@ -20,7 +20,7 @@ A second survey, real HERIDAL photos at their recorded EXIF positions, is in the
 
 ## Results
 
-From `metrics.json` (the HERIDAL test set: 101 photos, 337 people, never used for training or tuning):
+From `metrics.json` (the HERIDAL test set: 101 photos, 337 people, never used for training or threshold tuning; see the disclosure below):
 
 | | Sightline detector | Human baseline |
 |---|---|---|
@@ -30,6 +30,8 @@ From `metrics.json` (the HERIDAL test set: 101 photos, 337 people, never used fo
 | Time per full 4000×3000 photo | 0.25 s (GPU) | 33 s |
 
 Human baseline: Pyrrö, Naseri & Jung 2021, arXiv:2111.09406.
+
+**Disclosure:** the threshold and every inference setting were chosen on the validation split, but two earlier model choices were made with test scores in view: keeping training run 2 over run 1, and dropping the hard-negative fine-tune (test F2 0.840 vs 0.850). The test numbers above are therefore slightly optimistic. Since then every choice is made on validation only ([scripts/README.md](scripts/README.md)).
 
 - **Ranking (demo survey):** all 6 photos with a person were in the first 7 photos of the review queue; the first one is photo 1.
 - **Search map (simulated, 1,536 trials with the person in a photographed cell):** a ground team needs a median of 98 cells with Sightline's map, against 123 for a naive "photographed = cleared" map (seed 7, the best of the three seeds tried). In lane C's robustness check it was better in all 15 runs: 12–20% fewer cells at the default noise, 9–12% with noise matching the canopy estimate's measured error (docs/LANE_C_SEARCH.md).
