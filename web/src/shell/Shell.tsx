@@ -446,7 +446,7 @@ export function Shell({
             <>
               <StepHeader
                 title="Where the person could still be"
-                subtitle="Darker red = more likely. Grey = not yet photographed."
+                subtitle="Darker red = more likely. Dimmed = not yet searched; grey = awaiting review."
                 info={
                   <>
                     The colours show probability per cell on ground the drone photographed, on one fixed scale
