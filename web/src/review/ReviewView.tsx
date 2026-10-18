@@ -21,6 +21,39 @@ const DECISIONS = [
   ["unsure", "Unsure", "U", "border-warn/40 text-warn hover:bg-warn/10 hover:border-warn"],
 ] as const;
 
+/**
+ * The pin as lane B's map draws it for each answer (map/base/layers.ts): an orange ring while
+ * unreviewed, filled for a person, amber with "?" when unsure, grey and dashed when not a person.
+ */
+export function PinMark({ state, size = 14 }: { state: Answer | "unreviewed"; size?: number }) {
+  const ring = {
+    unreviewed: { stroke: "var(--accent)", width: 2, dash: undefined, fill: "none" },
+    person: { stroke: "var(--accent-soft)", width: 3, dash: undefined, fill: "var(--accent)" },
+    unsure: { stroke: "var(--warn)", width: 2, dash: undefined, fill: "none" },
+    not_person: { stroke: "var(--text-2)", width: 2, dash: "3 3", fill: "none" },
+  }[state];
+  return (
+    <svg viewBox="0 0 20 20" width={size} height={size} aria-hidden="true" className="shrink-0">
+      <circle
+        cx="10"
+        cy="10"
+        r="7.5"
+        fill={ring.fill}
+        fillOpacity={state === "person" ? 0.65 : undefined}
+        stroke={ring.stroke}
+        strokeWidth={ring.width}
+        strokeDasharray={ring.dash}
+        strokeOpacity={state === "not_person" ? 0.7 : 0.95}
+      />
+      {state === "unsure" && (
+        <text x="10" y="14" textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--warn)">
+          ?
+        </text>
+      )}
+    </svg>
+  );
+}
+
 /** Four corner brackets over the crop, like a camera viewfinder. */
 function Viewfinder() {
   const corner = "absolute size-5 border-accent";
@@ -304,7 +337,7 @@ export function ReviewView({
                         {item.frame.id} <span className="text-text-3">· {item.detection.conf.toFixed(3)}</span>
                       </span>
                       <span className="flex items-center gap-1.5">
-                        <span aria-hidden="true" className={`size-1.5 rounded-full transition-colors ${STATUS[state].dot}`} />
+                        <PinMark state={state} size={12} />
                         <span data-testid="status" className={`text-label ${STATUS[state].className}`}>
                           {STATUS[state].label}
                         </span>
@@ -324,7 +357,7 @@ export function ReviewView({
                 Candidate {currentIndex + 1} of {items.length}
               </Label>
               <span className={`inline-flex items-center gap-1.5 text-label ${STATUS[answers[current.id] ?? "unreviewed"].className}`}>
-                <span aria-hidden="true" className={`size-1.5 rounded-full ${STATUS[answers[current.id] ?? "unreviewed"].dot}`} />
+                <PinMark state={answers[current.id] ?? "unreviewed"} size={12} />
                 {STATUS[answers[current.id] ?? "unreviewed"].label}
               </span>
             </div>
@@ -422,6 +455,26 @@ export function ReviewView({
                     </dd>
                   </div>
                 </dl>
+
+                {/* The key for the map beside this panel: each answer changes how the pin is drawn. */}
+                <div className="flex flex-col gap-2">
+                  <Label>On the map</Label>
+                  <ul className="grid grid-cols-2 gap-x-3 gap-y-2 text-small text-text-2">
+                    {(
+                      [
+                        ["unreviewed", "Not answered"],
+                        ["person", "Person, pinned"],
+                        ["unsure", "Unsure"],
+                        ["not_person", "Not a person"],
+                      ] as const
+                    ).map(([state, text]) => (
+                      <li key={state} className="flex items-center gap-2">
+                        <PinMark state={state} size={16} />
+                        {text}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
 
@@ -439,6 +492,7 @@ export function ReviewView({
                       (answers[current.id] === value ? " bg-surface-strong" : "")
                     }
                   >
+                    <PinMark state={value} size={16} />
                     {label} <KeyHint>{key}</KeyHint>
                   </button>
                 ))}
