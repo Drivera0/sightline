@@ -24,7 +24,8 @@ describe("Shell header", () => {
   it("shows the title and the simulated-flight-path badge", async () => {
     render(<Shell cache={await sample()} />);
 
-    expect(screen.getByRole("heading", { name: "Sightline · Mount Seymour survey" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sightline" })).toBeInTheDocument();
+    expect(screen.getByText("Mount Seymour survey")).toBeInTheDocument();
     expect(screen.getByText("Simulated flight path")).toBeInTheDocument();
   });
 
@@ -53,50 +54,18 @@ describe("Shell header", () => {
   });
 });
 
-describe("Shell tabs", () => {
-  it("offers Review, Map and Metrics with Review selected first", async () => {
+describe("Shell steps (replace the old tabs)", () => {
+  it("gives every lane a mount point on its step, heat layer inside the map", async () => {
     render(<Shell cache={await sample()} />);
-
-    const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
-    expect(tabs).toEqual(["Review", "Map", "Metrics"]);
-    expect(screen.getByRole("tab", { name: "Review" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tabpanel", { name: "Review" })).toBeInTheDocument();
-  });
-
-  it("switches panel on click", async () => {
-    render(<Shell cache={await sample()} />);
-
-    await userEvent.click(screen.getByRole("tab", { name: "Map" }));
-
-    expect(screen.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tabpanel", { name: "Map" })).toBeInTheDocument();
-    expect(screen.queryByRole("tabpanel", { name: "Review" })).not.toBeInTheDocument();
-  });
-
-  it("moves between tabs with the arrow keys, wrapping around", async () => {
-    render(<Shell cache={await sample()} />);
-    screen.getByRole("tab", { name: "Review" }).focus();
-
-    await userEvent.keyboard("{ArrowRight}");
-    expect(screen.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true");
-
-    await userEvent.keyboard("{ArrowRight}{ArrowRight}");
-    expect(screen.getByRole("tab", { name: "Review" })).toHaveAttribute("aria-selected", "true");
-
-    await userEvent.keyboard("{ArrowLeft}");
-    expect(screen.getByRole("tab", { name: "Metrics" })).toHaveAttribute("aria-selected", "true");
-  });
-
-  it("gives every lane an empty mount point to fill", async () => {
-    render(<Shell cache={await sample()} />);
-    await userEvent.click(screen.getByRole("tab", { name: "Map" }));
+    await userEvent.keyboard("3");
     expect(screen.getByTestId("mount-map")).toBeInTheDocument();
+    await userEvent.keyboard("4");
     expect(screen.getByTestId("mount-heat")).toBeInTheDocument();
     // The heat layer is inside the map, not a sibling of it.
     expect(within(screen.getByTestId("map-view")).getByTestId("mount-heat")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("tab", { name: "Metrics" }));
+    await userEvent.keyboard("5");
     expect(screen.getByTestId("mount-metrics")).toBeInTheDocument();
+    await userEvent.keyboard("1");
   });
 });
 
@@ -178,20 +147,12 @@ describe("shared components", () => {
   });
 });
 
-describe("Shell review tab", () => {
+describe("Shell review step", () => {
   it("shows the candidate list from the cache", async () => {
     render(<Shell cache={await sample()} />);
-
+    await userEvent.keyboard("3");
     expect(within(screen.getByRole("list", { name: "Candidates" })).getAllByRole("listitem")).toHaveLength(3);
-  });
-
-  it("M in the review tab switches to the Map tab", async () => {
-    render(<Shell cache={await sample()} />);
-
-    await userEvent.keyboard("m");
-
-    expect(screen.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByTestId("mount-map")).toBeInTheDocument();
+    await userEvent.keyboard("1");
   });
 });
 
@@ -218,8 +179,8 @@ describe("Shell credits", () => {
     const credit = screen.getByText(/HERIDAL/);
     expect(credit).toHaveTextContent(/Božić-Štulić/);
     expect(credit).toHaveTextContent(/CC BY 3\.0/);
-    for (const name of ["Map", "Metrics"]) {
-      await userEvent.click(screen.getByRole("tab", { name }));
+    for (const key of ["2", "3", "4", "5", "1"]) {
+      await userEvent.keyboard(key);
       expect(screen.getByText(/HERIDAL/)).toBeInTheDocument();
     }
   });

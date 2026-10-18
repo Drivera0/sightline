@@ -22,6 +22,9 @@ interface MapColors {
 
 type GeoJsonData = Parameters<GeoJSONSource["setData"]>[0];
 
+/** Chevrons hide at and above this zoom; the 1 km grid fits at about zoom 15 on a laptop screen. */
+export const FLIGHT_DIRECTION_MAX_ZOOM = 14.5;
+
 // Read the shared design tokens because MapLibre canvas paint cannot resolve CSS variables.
 export function readMapColors(root: Element = document.documentElement): MapColors {
   const styles = getComputedStyle(root);
@@ -82,9 +85,8 @@ export function syncBaseLayers(
       source: MAP_SOURCE_IDS.grid,
       paint: {
         "line-color": colors.textSecondary,
-        "line-opacity": 0.8,
-        "line-width": 2,
-        "line-dasharray": [4, 2],
+        "line-opacity": 0.45,
+        "line-width": 1,
       },
     });
   }
@@ -93,6 +95,7 @@ export function syncBaseLayers(
       id: MAP_LAYER_IDS.footprints,
       type: "line",
       source: MAP_SOURCE_IDS.footprints,
+      layout: { visibility: "none" },
       paint: { "line-color": colors.textSecondary, "line-opacity": 0.35, "line-width": 1 },
     });
   }
@@ -110,23 +113,27 @@ export function syncBaseLayers(
       id: MAP_LAYER_IDS.flightPath,
       type: "line",
       source: MAP_SOURCE_IDS.flightPath,
+      layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": colors.accentSoft,
-        "line-opacity": 0.8,
-        "line-width": 2,
-        "line-dasharray": [2, 2],
+        "line-color": colors.text,
+        "line-opacity": 0.1,
+        "line-width": 1,
       },
     });
   }
   if (!map.getLayer(MAP_LAYER_IDS.flightDirection)) {
+    // Direction chevrons only when zoomed out beyond the whole grid (they clutter the cells at
+    // survey zoom); the replay's moving drone shows direction up close.
     map.addLayer({
       id: MAP_LAYER_IDS.flightDirection,
       type: "line",
       source: MAP_SOURCE_IDS.flightDirection,
+      maxzoom: FLIGHT_DIRECTION_MAX_ZOOM,
+      layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        "line-color": colors.accentSoft,
-        "line-opacity": 0.9,
-        "line-width": 2,
+        "line-color": colors.text,
+        "line-opacity": 0.35,
+        "line-width": 1.25,
       },
     });
   }
@@ -184,7 +191,9 @@ export function syncBaseLayers(
       layout: {
         "text-field": ["get", "reviewLabel"],
         "text-font": ["Noto Sans Regular"],
-        "text-size": 13,
+        "text-size": 12,
+        "text-offset": [0, 1.3],
+        "text-anchor": "top",
         "text-allow-overlap": true,
       },
       paint: {
@@ -194,8 +203,8 @@ export function syncBaseLayers(
           colors.warning,
           colors.text,
         ],
-        "text-halo-color": colors.accent,
-        "text-halo-width": 1,
+        "text-halo-color": colors.background,
+        "text-halo-width": 1.5,
       },
     });
   }

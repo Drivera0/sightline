@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FoundBanner } from "./FoundBanner";
 import { isPlaceholderPrior, Legend, showsPlaceholderPrior } from "./Legend";
 import { MIN_OVERLAP } from "./coverage";
-import { NextSearch } from "./NextSearch";
+import { NextSearch, SHARE_LABELS } from "./NextSearch";
 import { StepSlider, stepText } from "./StepSlider";
 
 const grid = { origin_nw: { lat: 49.374492, lon: -122.951898 }, cell_m: 20, rows: 2, cols: 4 };
@@ -34,7 +34,7 @@ describe("NextSearch", () => {
     // Cell 1 centre is 10 m south, 30 m east of the LKP at the NW corner.
     expect(rows[0]).toHaveTextContent("32 m from LKP");
 
-    const shares = ["Inside surveyed area", "Rest of grid", "Outside the grid"].map((label) =>
+    const shares = [SHARE_LABELS.surveyed, SHARE_LABELS.restOfGrid, SHARE_LABELS.outside].map((label) =>
       Number.parseFloat(document.querySelector(`[data-share="${label}"]`)!.textContent!),
     );
     expect(shares[0]).toBeCloseTo(55, 2);
@@ -94,7 +94,7 @@ describe("NextSearch", () => {
     expect(screen.queryByRole("list", { name: "Most likely cells" })).toBeNull();
     expect(screen.getByText("No cell photographed well enough yet")).toBeInTheDocument();
     // The shares still use the whole surveyed area.
-    expect(document.querySelector('[data-share="Inside surveyed area"]')).toHaveTextContent("55.00%");
+    expect(document.querySelector(`[data-share="${SHARE_LABELS.surveyed}"]`)).toHaveTextContent("55.00%");
   });
 
   it("leaves cells awaiting review out of the ranking and out of the average", () => {
@@ -135,6 +135,17 @@ describe("StepSlider", () => {
 });
 
 describe("Legend", () => {
+  it("offers a labelled flight path switch when given a handler", () => {
+    const onChange = vi.fn();
+    render(
+      <Legend simulatedPath params={{ prior_source: "cited" }} manifest={{ notes: "" }} hasSurveyed showPath onShowPathChange={onChange} />,
+    );
+    const toggle = screen.getByRole("switch", { name: "Flight path (simulated)" });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
+
   it("detects a placeholder prior in the manifest notes", () => {
     expect(isPlaceholderPrior("SAMPLE: fake detections, placeholder uniform prior, ...")).toBe(true);
     expect(isPlaceholderPrior("Placeholder Prior")).toBe(true);

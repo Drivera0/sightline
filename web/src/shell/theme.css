@@ -61,7 +61,10 @@ body,
 
 body {
   margin: 0;
-  background: var(--bg);
+  background:
+    radial-gradient(1200px 500px at 50% -220px, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font);
   font-size: 15px;
@@ -71,3 +74,144 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Guided-flow motion (shell). Short, purposeful, and off for people who ask for less motion. */
+@keyframes sl-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sl-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sl-dim { to { opacity: 0.08; transform: scale(0.6); } }
+@keyframes sl-flag {
+  0% { box-shadow: 0 0 0 0 var(--accent); }
+  100% { box-shadow: 0 0 0 4px transparent; background: var(--accent); }
+}
+@keyframes sl-pop {
+  0% { opacity: 0; transform: scale(0.92); }
+  100% { opacity: 1; transform: none; }
+}
+.sl-rise { animation: sl-rise 500ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.sl-fade { animation: sl-fade 400ms ease-out both; }
+.sl-dim { animation: sl-dim 700ms ease-in both; }
+.sl-flag { animation: sl-flag 700ms ease-out both; }
+.sl-pop { animation: sl-pop 450ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-rise, .sl-fade, .sl-dim, .sl-flag, .sl-pop { animation-duration: 1ms; animation-delay: 0ms !important; }
+}
+
+/* Review: a decision toast that rises in, holds, and fades out on its own. */
+@keyframes sl-toast {
+  0% { opacity: 0; transform: translate(-50%, 6px); }
+  12%, 75% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+.sl-toast { animation: sl-toast 1800ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-toast { animation: none; opacity: 0; }
+}
+
+/* Rank scanner: calm on purpose (no flashing). A soft scan line, photos crossfading, boxes that
+   draw themselves, and a slow glow when a candidate is found. */
+@keyframes sl-scan {
+  from { top: -6rem; }
+  to { top: 100%; }
+}
+.sl-scan {
+  height: 6rem;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--accent) 10%, transparent) 80%, color-mix(in srgb, var(--accent) 55%, transparent));
+  animation: sl-scan 700ms cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+@keyframes sl-xfade { from { opacity: 0; } to { opacity: 1; } }
+.sl-xfade { animation: sl-xfade 450ms ease-out both; }
+@keyframes sl-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.sl-draw { stroke-dasharray: 1; animation: sl-draw 650ms cubic-bezier(0.4, 0, 0.2, 1) 250ms both; }
+@keyframes sl-glow {
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+  50% { box-shadow: 0 0 0 1px var(--accent), 0 0 40px -8px color-mix(in srgb, var(--accent) 60%, transparent); }
+}
+.sl-glow { animation: sl-glow 1400ms ease-in-out both; }
+@keyframes sl-blink { 50% { opacity: 0.35; } }
+.sl-blink { animation: sl-blink 1800ms ease-in-out infinite; }
+/* A box settles onto its target, then its tag fades in. */
+@keyframes sl-box {
+  from { opacity: 0; transform: scale(1.35); }
+  to { opacity: 1; transform: none; }
+}
+.sl-box { animation: sl-box 600ms cubic-bezier(0.2, 0.7, 0.2, 1) 300ms both; }
+@keyframes sl-tag {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.sl-tag { animation: sl-tag 350ms ease-out 750ms both; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-scan, .sl-xfade, .sl-draw, .sl-glow, .sl-blink, .sl-box, .sl-tag { animation: none; }
+  .sl-draw { stroke-dasharray: none; }
+}
+
+/* Bars grow from the left once (results). */
+@keyframes sl-grow { from { transform: scaleX(0); } to { transform: none; } }
+.sl-grow { transform-origin: left center; animation: sl-grow 1200ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-grow { animation: none; }
+}
+
+/* Step change: the new screen rises in slightly. */
+@keyframes sl-step {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.sl-step { animation: sl-step 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+/* Survey mosaic: a very slow drift, so the hero is alive without anything flashing. */
+@keyframes sl-drift {
+  from { transform: scale(1.04) translate3d(0, 0, 0); }
+  to { transform: scale(1.1) translate3d(-2%, -3%, 0); }
+}
+.sl-drift { animation: sl-drift 40s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-step, .sl-drift { animation: none; }
+}
+
+/* Survey photo wall: columns scroll forever, alternate columns the other way. Very slow. */
+@keyframes sl-wall { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, -50%, 0); } }
+.sl-wall { animation: sl-wall 140s linear infinite; will-change: transform; }
+.sl-wall-down { animation-direction: reverse; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-wall { animation: none; }
+}
+
+/* Range slider: a thin track filled up to the thumb (--sl-range-fill), and a round white thumb. */
+.sl-range {
+  appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+.sl-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--sl-range-fill, 0%), var(--surface-strong) var(--sl-range-fill, 0%));
+}
+.sl-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--sl-range-fill, 0%), var(--surface-strong) var(--sl-range-fill, 0%));
+}
+.sl-range::-webkit-slider-thumb {
+  appearance: none;
+  margin-top: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--text);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 150ms ease;
+}
+.sl-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+.sl-range:hover::-webkit-slider-thumb { transform: scale(1.15); }
