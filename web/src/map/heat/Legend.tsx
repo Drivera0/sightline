@@ -1,7 +1,7 @@
 import type { Manifest, Params } from "../../contract";
 import { Badge, Label } from "../../shell/components";
 import { HEAT_CEIL, HEAT_FLOOR } from "./geometry";
-import { REVIEW_OPACITY, UNSEARCHED_OPACITY } from "./layers";
+import { REVIEW_OPACITY, UNSEEN_OPACITY } from "./layers";
 
 /** Contract 1.1 §8: the value of `map.params.prior_source` when the pipeline used the placeholder prior. */
 export const PRIOR_FROM_PLACEHOLDER = "placeholder";
@@ -27,10 +27,11 @@ export function showsPlaceholderPrior(priorSource: Params["prior_source"], notes
 }
 
 const pct = (x: number) => Math.round(x * 100);
-const RAMP = `linear-gradient(to right, color-mix(in srgb, var(--accent) ${pct(HEAT_FLOOR)}%, transparent), color-mix(in srgb, var(--accent) ${pct(
+// Matches the map: warm and faint at the floor of the stretch, the accent at its ceiling.
+const RAMP = `linear-gradient(to right, color-mix(in srgb, var(--warn) ${pct(HEAT_FLOOR)}%, transparent), color-mix(in srgb, var(--accent) ${pct(
   HEAT_CEIL,
 )}%, transparent))`;
-const UNSEARCHED_FILL = `color-mix(in srgb, var(--bg) ${pct(UNSEARCHED_OPACITY)}%, transparent)`;
+const UNSEEN_FILL = `color-mix(in srgb, var(--bg) ${pct(UNSEEN_OPACITY)}%, transparent)`;
 const REVIEW_FILL = `color-mix(in srgb, var(--warn) ${pct(REVIEW_OPACITY)}%, transparent)`;
 
 interface Props {
@@ -47,8 +48,8 @@ export function Legend({ simulatedPath, params, manifest, hasSurveyed, showPath 
   const placeholder = showsPlaceholderPrior(params.prior_source, manifest.notes);
   return (
     <div className="flex flex-col gap-3">
-      <Label>Where the person could be</Label>
-      <div className="flex flex-col gap-1">
+      <Label>Reading the map</Label>
+      <div className="flex flex-col gap-1.5">
         <div className="h-2 w-full rounded-full" style={{ background: RAMP }} />
         <div className="flex justify-between text-label text-text-2">
           <span>Less likely</span>
@@ -56,33 +57,38 @@ export function Legend({ simulatedPath, params, manifest, hasSurveyed, showPath 
         </div>
         <span className="text-label text-text-3">Inside the surveyed area, relative to the other surveyed cells</span>
       </div>
-      <div className="flex items-center gap-2 text-small text-text-2">
-        <span
-          className="inline-block h-3 w-6 rounded-[4px] ring-1 ring-border"
-          style={{ background: UNSEARCHED_FILL }}
-          aria-hidden="true"
-        />
-        Not yet searched
-      </div>
-      <div className="flex items-center gap-2 text-small text-text-2">
-        <span
-          className="inline-block h-3 w-6 rounded-[4px] ring-1 ring-border"
-          style={{ background: REVIEW_FILL }}
-          aria-hidden="true"
-        />
-        Awaiting review
-      </div>
-      <div className="flex items-center gap-2 text-small text-text-2">
-        <span className="inline-block h-0 w-6 border-t border-text/60" aria-hidden="true" />
-        {hasSurveyed ? "Surveyed area (outline)" : "No cell photographed yet"}
-      </div>
-      <div className="flex items-center gap-2 text-small text-text-2">
-        <span className="relative inline-flex w-6 items-center" aria-hidden="true">
-          <span className="h-0.5 w-full rounded-full bg-text/80" />
-          <span className="absolute right-0 size-2 rounded-full bg-text ring-2 ring-bg" />
-        </span>
-        Drone, during replay
-      </div>
+      <ul className="flex flex-col gap-2 text-small text-text-2">
+        <li className="flex items-center gap-2.5">
+          <span className="inline-block h-0 w-5 border-t border-text/60" aria-hidden="true" />
+          {hasSurveyed ? "Surveyed area (outline)" : "No cell photographed yet"}
+        </li>
+        <li className="flex items-center gap-2.5">
+          <span
+            className="inline-block size-3 rounded-[3px] ring-1 ring-border"
+            style={{ background: UNSEEN_FILL }}
+            aria-hidden="true"
+          />
+          <span className="flex flex-col">
+            <span>Not yet searched</span>
+            <span className="text-label text-text-3">Under half of the cell photographed</span>
+          </span>
+        </li>
+        <li className="flex items-center gap-2.5">
+          <span
+            className="inline-block size-3 rounded-[3px] border border-dashed border-warn"
+            style={{ background: REVIEW_FILL }}
+            aria-hidden="true"
+          />
+          Awaiting review
+        </li>
+        <li className="flex items-center gap-2.5">
+          <span className="relative inline-flex w-5 items-center" aria-hidden="true">
+            <span className="h-0.5 w-full rounded-full bg-text/80" />
+            <span className="absolute right-0 size-2 rounded-full bg-text ring-2 ring-bg" />
+          </span>
+          Drone, during replay
+        </li>
+      </ul>
       {onShowPathChange && (
         <label className="flex cursor-pointer items-center justify-between gap-3 border-t border-border pt-3 text-small text-text-2">
           <span>Flight path{simulatedPath ? " (simulated)" : ""}</span>

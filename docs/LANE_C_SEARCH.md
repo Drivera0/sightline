@@ -195,6 +195,20 @@ def write_test_vectors(out: Path = Path("web/src/search/__fixtures__/update_vect
 - The canopy classifier has MAE 0.34 against the 20 hand-scored crops (`tests/search/fixtures/canopy_report.md`; the best of 180 threshold sets gives 0.32 on the same crops, so the defaults were kept). It finds green forest well, but misses pale, autumn and dry trees (it looks for green texture), reads dark lawn as shadow, and reads bright textured rock as canopy.
 - "Not a person" applies `review_pod` (0.9) within the radius. This over-clears, because a rejected crop covers only about 2.6 m (a 128 × 128 px window at 0.02 m/px, contract §7). The correct rule would release the frame's normal pod, but that needs the held pods in `map.json` (a contract change). Not done.
 
+## Robustness: does the gain survive the canopy error?
+
+`simulate` draws the person's true visibility from our own canopy estimate plus noise `vis_noise` (default 0.15). The measured canopy error is MAE 0.34, which for Gaussian noise is σ ≈ 0.34 / 0.80 ≈ 0.43. So we re-ran `simulate` (30,000 trials, seeds 7, 8, 9, in_survey with overlap ≥ 0.5) at higher noise. Maps: the 500-frame scratch runs without detections (blocks and shuffle layouts), not the demo cache.
+
+| Layout | `vis_noise` | Naive median (seeds 7 / 8 / 9) | Sightline median (seeds 7 / 8 / 9) | Mean gain |
+|---|---|---|---|---|
+| blocks | 0.15 | 121 / 114 / 120 | 97 / 102 / 103 | about 15% |
+| blocks | 0.43 | 123 / 115 / 120 | 105 / 111 / 108 | about 10% |
+| blocks | 0.55 | 124 / 116 / 118 | 108 / 113 / 110 | about 7% |
+| shuffle | 0.15 | 120 / 111 / 116 | 109 / 104 / 105 | about 8% |
+| shuffle | 0.43 | 120 / 114 / 117 | 115 / 108 / 109 | about 5% |
+
+Sightline beat Naive on the in-survey median and p90 in all 30 runs (2 layouts × 5 noise levels from 0.15 to 0.55 × 3 seeds), but the gain shrinks as the noise grows and varies with the seed (blocks at 0.43: 4 to 18 cells). Limit of this test: the noise is random, while the classifier's real errors are systematic (it always misses pale and autumn trees), so even the 0.43 result is somewhat optimistic.
+
 ---
 
 ## 6. Step by step
@@ -298,10 +312,12 @@ You own `web/src/map/heat/` and `web/src/search/`. B owns the map itself; you ad
   ```
 - **Heat layer** (`HeatLayer.tsx`): GeoJSON of all 2,500 cell polygons, built once, with layer ids prefixed `heat-`. Re-colour via feature state when the state or the step changes; don't rebuild the cell GeoJSON.
   - **Photographed set (step-aware).** For a slider position k, a cell is photographed when the summed footprint overlap of frames 0 to k-1 is at least 0.5 (`MIN_OVERLAP`, the same rule as Search next). Slivers the footprints only touched (overlap above 0 but below 0.5) count as not yet searched: no heat, not in the stretch bounds, not in the outline. At k = 0 nothing is photographed; at k = N it is the whole flight. The per-frame overlaps are computed once per survey from `survey.json` footprints, with a running total saved every 25 frames, so scrubbing only adds a few frames.
-  - **Opacity.** Relative stretch over the photographed cells: p between its 5th and 95th percentile over those cells maps to opacity 0.08 to 0.85 (values outside are clamped). Unphotographed cells have no heat.
-  - **"Not yet searched".** Cells not photographed at this step get a neutral fill (`--text-3`, own layer `heat-unsearched`, below the heat).
-  - **"Awaiting review".** Cells within `radius_m` of a candidate detection (`crop` set) whose latest review answer is not "Not a person" (no answer, "Unsure" or "Person") have pod 0 in the map. They are left out of the stretch bounds and drawn in their own layer `heat-review` (token `--warn`, between `heat-unsearched` and `heat-cells`). When a searcher answers "Not a person" the cells join the normal map. The set comes from D's `useReview` history (same latest-answer rule as the search store, `heldCells` in `store.ts`); no second copy of the answers.
+  - **Opacity and colour.** Relative stretch over the photographed cells: p between its 5th and 95th percentile over those cells maps to `o` = 0.08 to 0.85 (values outside are clamped). The fill colour runs from `--warn` (low `o`) to `--accent` (high `o`), at fill-opacity `o × 0.75` so the basemap shows through. Unphotographed cells have no heat.
+  - **"Not yet searched".** Cells not photographed at this step get a dark veil (`--bg` at opacity 0.62, own layer `heat-unsearched`, below the heat).
+  - **"Awaiting review".** Cells within `radius_m` of a candidate detection (`crop` set) whose latest review answer is not "Not a person" (no answer, "Unsure" or "Person") have pod 0 in the map. They are left out of the stretch bounds and drawn in their own layer `heat-review` (token `--warn` at 0.5, between `heat-unsearched` and `heat-cells`) plus a dashed `--warn` outline `heat-review-outline` above the heat, so they never look like a faint warm heat cell. When a searcher answers "Not a person" the cells join the normal map. The set comes from D's `useReview` history (same latest-answer rule as the search store, `heldCells` in `store.ts`); no second copy of the answers.
   - **Surveyed outline:** the outline of the photographed cells at this step.
+  - **Replay trail and drone:** during the replay, a line along the flight path flown so far and a drone marker at the current frame (`heat-trail`, `heat-drone`, on top of all layers).
+  - **Flight path switch:** the legend has a "Flight path (simulated)" switch that hides or shows lane B's path layers; lane B shows the direction chevrons only when zoomed out.
 - **Search next** ranks a cell only if its summed overlap so far is at least 0.5 (`MIN_OVERLAP`) and it is not awaiting review. The "× avg" average uses the same cells. A cell confirmed "Person" stays out of the ranking (the found banner covers it).
 - **Step slider** (`StepSlider.tsx`): 0…N frames, with play/pause. Shows "After frame 212 of 500".
 - **Search next panel** (`NextSearch.tsx`): the top 5 cells now, each with its probability as a percentage, canopy ("dense forest" / "open"), and distance from the LKP. Plus three shares: inside the surveyed area (photographed so far), rest of grid, outside the grid. Clicking a cell flies the map there.
