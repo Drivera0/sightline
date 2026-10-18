@@ -9,7 +9,7 @@ import type { MapFile } from "../../contract";
 import { HEAT_LAYER_PREFIX, MAP_LAYER_IDS } from "../base/layerIds";
 import { DRONE_IMAGE_ID, DRONE_ICON_SIZE } from "./droneImage";
 import { HOTSPOT_BADGE_COUNT, HOTSPOT_BADGE_PREFIX } from "./hotspotImages";
-import { cellCenter, surveyedBoundary } from "./geometry";
+import { surveyedBoundary, type LikelyPatch } from "./geometry";
 import { gridCorners, type HeatRaster } from "./raster";
 import type { LabelCandidate } from "./labelPlacement";
 import { sectorName, sectorRing, SECTOR_STATE_LABEL, type SectorStatus } from "./sectors";
@@ -39,6 +39,8 @@ export const HEAT_LAYER_IDS = {
   surveyed: `${HEAT_LAYER_PREFIX}surveyed`,
   sectorLine: `${HEAT_LAYER_PREFIX}sector-line`,
   sectorLabel: `${HEAT_LAYER_PREFIX}sector-label`,
+  hotspotPatchOutline: `${HEAT_LAYER_PREFIX}hotspot-patch-outline`,
+  hotspotPatchActive: `${HEAT_LAYER_PREFIX}hotspot-patch-active`,
   hotspotHalo: `${HEAT_LAYER_PREFIX}hotspot-halo`,
   hotspotPulse: `${HEAT_LAYER_PREFIX}hotspot-pulse`,
   hotspots: `${HEAT_LAYER_PREFIX}hotspots`,
@@ -290,15 +292,37 @@ export function ensureHeatLayers(
         paint: { "line-color": colors.accent, "line-opacity": 0, "line-width": 1.25 },
       });
     }
-    // The search-next circles: a near-white ring on a dark casing (it holds against the pale-yellow
+    // Patch outlines show the actual connected ground; centroid circles carry the matching list
+    // number. The near-white ring uses a dark casing (it holds against the pale-yellow
     // and the deep-red ends of the heat and against the trail), a numbered accent badge matching the
     // list, a slow pulse on the first (setHotspotPulse), and an accent ring on the one hovered or
     // picked in the list (setActiveHotspot).
+    if (!map.getLayer(HEAT_LAYER_IDS.hotspotPatchOutline)) {
+      map.addLayer({
+        id: HEAT_LAYER_IDS.hotspotPatchOutline,
+        type: "line",
+        source: HEAT_HOTSPOT_SOURCE_ID,
+        filter: ["==", ["get", "kind"], "outline"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": colors.outline, "line-opacity": 0.8, "line-width": 2 },
+      });
+    }
+    if (!map.getLayer(HEAT_LAYER_IDS.hotspotPatchActive)) {
+      map.addLayer({
+        id: HEAT_LAYER_IDS.hotspotPatchActive,
+        type: "line",
+        source: HEAT_HOTSPOT_SOURCE_ID,
+        filter: ["all", ["==", ["get", "kind"], "outline"], ["==", ["get", "idx"], -1]],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": colors.accent, "line-opacity": 1, "line-width": 4 },
+      });
+    }
     if (!map.getLayer(HEAT_LAYER_IDS.hotspotHalo)) {
       map.addLayer({
         id: HEAT_LAYER_IDS.hotspotHalo,
         type: "circle",
         source: HEAT_HOTSPOT_SOURCE_ID,
+        filter: ["==", ["get", "kind"], "marker"],
         paint: {
           "circle-radius": HOTSPOT_RADIUS_PX,
           "circle-color": colors.veil,
@@ -314,7 +338,7 @@ export function ensureHeatLayers(
         id: HEAT_LAYER_IDS.hotspotPulse,
         type: "circle",
         source: HEAT_HOTSPOT_SOURCE_ID,
-        filter: ["==", ["get", "rank"], 1],
+        filter: ["all", ["==", ["get", "kind"], "marker"], ["==", ["get", "rank"], 1]],
         paint: {
           "circle-radius": HOTSPOT_RADIUS_PX,
           "circle-opacity": 0,
@@ -329,6 +353,7 @@ export function ensureHeatLayers(
         id: HEAT_LAYER_IDS.hotspots,
         type: "circle",
         source: HEAT_HOTSPOT_SOURCE_ID,
+        filter: ["==", ["get", "kind"], "marker"],
         paint: {
           "circle-radius": HOTSPOT_RADIUS_PX,
           "circle-opacity": 0,
@@ -343,7 +368,7 @@ export function ensureHeatLayers(
         id: HEAT_LAYER_IDS.hotspotActive,
         type: "circle",
         source: HEAT_HOTSPOT_SOURCE_ID,
-        filter: ["==", ["get", "idx"], -1],
+        filter: ["all", ["==", ["get", "kind"], "marker"], ["==", ["get", "idx"], -1]],
         paint: {
           "circle-radius": HOTSPOT_RADIUS_PX + 6,
           "circle-opacity": 0,
@@ -358,6 +383,7 @@ export function ensureHeatLayers(
         id: HEAT_LAYER_IDS.hotspotBadge,
         type: "symbol",
         source: HEAT_HOTSPOT_SOURCE_ID,
+        filter: ["==", ["get", "kind"], "marker"],
         layout: {
           "icon-image": ["concat", HOTSPOT_BADGE_PREFIX, ["to-string", ["min", ["get", "rank"], HOTSPOT_BADGE_COUNT]]],
           // Up and to the right of the ring, so the cell inside it stays visible.
@@ -631,6 +657,8 @@ export function setReplayEmphasis(map: Map, { playing, highlight }: { playing: b
   set(HEAT_LAYER_IDS.hotspots, "circle-stroke-opacity", k);
   set(HEAT_LAYER_IDS.hotspotActive, "circle-stroke-opacity", k);
   set(HEAT_LAYER_IDS.hotspotBadge, "icon-opacity", k);
+  set(HEAT_LAYER_IDS.hotspotPatchOutline, "line-opacity", 0.8 * k);
+  set(HEAT_LAYER_IDS.hotspotPatchActive, "line-opacity", k);
   if (map.getLayer(HEAT_LAYER_IDS.hotspotPulse)) {
     map.setLayoutProperty?.(HEAT_LAYER_IDS.hotspotPulse, "visibility", playing ? "none" : "visible");
   }
@@ -706,14 +734,26 @@ export function setHotspotPulse(map: Map, tMs: number | null): void {
   map.setPaintProperty(HEAT_LAYER_IDS.hotspotPulse, "circle-stroke-opacity", opacity);
 }
 
-/** Ring the circle of cell `idx` in accent (hovered or picked in the list); null clears it. */
+/** Highlight the marker and outline of patch `idx`; null clears them. */
 export function setActiveHotspot(map: Map, idx: number | null): void {
-  if (!map.getLayer(HEAT_LAYER_IDS.hotspotActive)) return;
-  map.setFilter?.(HEAT_LAYER_IDS.hotspotActive, ["==", ["get", "idx"], idx ?? -1]);
+  if (map.getLayer(HEAT_LAYER_IDS.hotspotActive)) {
+    map.setFilter?.(HEAT_LAYER_IDS.hotspotActive, [
+      "all",
+      ["==", ["get", "kind"], "marker"],
+      ["==", ["get", "idx"], idx ?? -1],
+    ]);
+  }
+  if (map.getLayer(HEAT_LAYER_IDS.hotspotPatchActive)) {
+    map.setFilter?.(HEAT_LAYER_IDS.hotspotPatchActive, [
+      "all",
+      ["==", ["get", "kind"], "outline"],
+      ["==", ["get", "idx"], idx ?? -1],
+    ]);
+  }
 }
 
-/** The layers a pointer can hit on a search-next circle. */
-export const HOTSPOT_HIT_LAYERS = [HEAT_LAYER_IDS.hotspotHalo, HEAT_LAYER_IDS.hotspotBadge] as const;
+/** The layers a pointer can hit on a search-next patch. */
+export const HOTSPOT_HIT_LAYERS = [HEAT_LAYER_IDS.hotspotPatchOutline, HEAT_LAYER_IDS.hotspotHalo, HEAT_LAYER_IDS.hotspotBadge] as const;
 
 /**
  * Lift lane B's last-known-point marker and label above the heat, the trail and the photo highlight
@@ -731,20 +771,33 @@ export function raiseLkp(map: Map): void {
   }
 }
 
-/** Centres of the given cells (the Search next list), for the hotspot rings. */
-export function hotspotFeatures(grid: Grid, cells: readonly number[]): GeoJsonData {
+/** Patch boundaries plus probability-weighted centroids for their numbered map markers. */
+export function hotspotFeatures(grid: Grid, patches: readonly LikelyPatch[]): GeoJsonData {
+  const features: Record<string, unknown>[] = [];
+  const cellCount = grid.rows * grid.cols;
+  patches.forEach((patch, rank) => {
+    const mask = new Uint8Array(cellCount);
+    for (const idx of patch.cells) if (idx >= 0 && idx < cellCount) mask[idx] = 1;
+    features.push({
+      type: "Feature",
+      properties: { idx: patch.id, rank: rank + 1, kind: "outline" },
+      geometry: { type: "MultiLineString", coordinates: surveyedBoundary(grid, mask) },
+    });
+    features.push({
+      type: "Feature",
+      properties: { idx: patch.id, rank: rank + 1, kind: "marker" },
+      geometry: { type: "Point", coordinates: [patch.centroid.lon, patch.centroid.lat] },
+    });
+  });
   return {
     type: "FeatureCollection",
-    features: cells.map((idx, rank) => {
-      const c = cellCenter(grid, idx);
-      return { type: "Feature", properties: { idx, rank: rank + 1 }, geometry: { type: "Point", coordinates: [c.lon, c.lat] } };
-    }),
+    features,
   };
 }
 
 /** Redraw the hotspot outlines. Safe before the source exists (does nothing). */
-export function pushHotspots(map: Map, grid: Grid, cells: readonly number[]): void {
-  (map.getSource(HEAT_HOTSPOT_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(hotspotFeatures(grid, cells));
+export function pushHotspots(map: Map, grid: Grid, patches: readonly LikelyPatch[]): void {
+  (map.getSource(HEAT_HOTSPOT_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(hotspotFeatures(grid, patches));
 }
 
 /** Ripple: grows from RIPPLE_FROM_PX to RIPPLE_TO_PX and fades out over RIPPLE_MS. */

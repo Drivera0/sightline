@@ -234,6 +234,167 @@ export function topCellIndices(p: Float64Array, n: number, only?: Uint8Array): n
   return top;
 }
 
+/** Cells within 5% of the likeliest eligible cell form the candidate search patches. */
+export const LIKELY_PATCH_RATIO = 0.95;
+/** The panel and map show at most five patches; the remainder is reported separately. */
+export const MAX_LIKELY_PATCHES = 5;
+
+export interface LikelyPatch {
+  /** Stable identity for this replay state: the lowest grid index in the connected component. */
+  id: number;
+  cells: number[];
+  centroid: { lat: number; lon: number };
+  probability: number;
+  /** Patch probability divided by probability over all eligible surveyed cells. */
+  share: number;
+  /** Mean patch-cell probability divided by the mean over eligible surveyed cells. */
+  density: number;
+  areaHa: number;
+  canopy: number | null;
+  sectorIndex: number | null;
+}
+
+export interface LikelyPatchResult {
+  patches: LikelyPatch[];
+  surveyedProbability: number;
+  meanProbability: number;
+  /** Probability share outside the displayed patches, so displayed shares total exactly one. */
+  otherShare: number;
+}
+
+interface LikelyPatchOptions {
+  canopy?: readonly (number | null)[];
+  cellSector?: Int16Array;
+  thresholdRatio?: number;
+  maxPatches?: number;
+}
+
+/** Return the valid 8-connected neighbours of a grid cell in deterministic index order. */
+function neighbours8(grid: Grid, idx: number): number[] {
+  const row = Math.floor(idx / grid.cols);
+  const col = idx % grid.cols;
+  const neighbours: number[] = [];
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const r = row + dr;
+      const c = col + dc;
+      if (r >= 0 && r < grid.rows && c >= 0 && c < grid.cols) neighbours.push(r * grid.cols + c);
+    }
+  }
+  return neighbours.sort((a, b) => a - b);
+}
+
+/** Summarise one connected component as a field-search patch. */
+function summarisePatch(
+  grid: Grid,
+  cells: number[],
+  p: Float64Array,
+  surveyedProbability: number,
+  meanProbability: number,
+  options: LikelyPatchOptions,
+): LikelyPatch {
+  let probability = 0;
+  let weightedLat = 0;
+  let weightedLon = 0;
+  let canopySum = 0;
+  let canopyWeight = 0;
+  const sectorProbability = new Map<number, number>();
+  for (const idx of cells) {
+    const weight = p[idx] as number;
+    const center = cellCenter(grid, idx);
+    probability += weight;
+    weightedLat += center.lat * weight;
+    weightedLon += center.lon * weight;
+    const canopy = options.canopy?.[idx];
+    if (canopy !== null && canopy !== undefined) {
+      canopySum += canopy * weight;
+      canopyWeight += weight;
+    }
+    const sector = options.cellSector?.[idx];
+    if (sector !== undefined && sector >= 0) sectorProbability.set(sector, (sectorProbability.get(sector) ?? 0) + weight);
+  }
+  const sectorIndex = [...sectorProbability].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? null;
+  return {
+    id: cells[0] as number,
+    cells,
+    centroid: {
+      lat: probability > 0 ? weightedLat / probability : cellCenter(grid, cells[0] as number).lat,
+      lon: probability > 0 ? weightedLon / probability : cellCenter(grid, cells[0] as number).lon,
+    },
+    probability,
+    share: surveyedProbability > 0 ? probability / surveyedProbability : 0,
+    density: meanProbability > 0 ? probability / cells.length / meanProbability : 0,
+    areaHa: (cells.length * grid.cell_m * grid.cell_m) / 10_000,
+    canopy: canopyWeight > 0 ? canopySum / canopyWeight : null,
+    sectorIndex,
+  };
+}
+
+/**
+ * Group the likeliest eligible surveyed cells into 8-connected patches.
+ *
+ * A cell qualifies when its probability is at least 95% of the highest eligible probability. This
+ * relative rule keeps genuinely tied ground together instead of inventing an order between nearly
+ * identical cells. Patch shares use every eligible cell as the denominator; cells outside the five
+ * displayed patches are returned as `otherShare`, keeping the visible arithmetic honest.
+ */
+export function likelyPatches(
+  grid: Grid,
+  p: Float64Array,
+  eligible: Uint8Array,
+  options: LikelyPatchOptions = {},
+): LikelyPatchResult {
+  const n = Math.min(grid.rows * grid.cols, p.length, eligible.length);
+  let surveyedProbability = 0;
+  let eligibleCount = 0;
+  let highest = 0;
+  for (let idx = 0; idx < n; idx++) {
+    if (eligible[idx] !== 1) continue;
+    const probability = p[idx] as number;
+    surveyedProbability += probability;
+    eligibleCount++;
+    highest = Math.max(highest, probability);
+  }
+  const meanProbability = eligibleCount > 0 ? surveyedProbability / eligibleCount : 0;
+  if (!(highest > 0) || !(surveyedProbability > 0)) return { patches: [], surveyedProbability, meanProbability, otherShare: 0 };
+
+  const ratio = Math.min(1, Math.max(0, options.thresholdRatio ?? LIKELY_PATCH_RATIO));
+  const selected = new Uint8Array(n);
+  for (let idx = 0; idx < n; idx++) {
+    if (eligible[idx] === 1 && (p[idx] as number) >= highest * ratio) selected[idx] = 1;
+  }
+
+  const visited = new Uint8Array(n);
+  const components: number[][] = [];
+  for (let start = 0; start < n; start++) {
+    if (selected[start] !== 1 || visited[start] === 1) continue;
+    const cells: number[] = [];
+    const queue = [start];
+    visited[start] = 1;
+    for (let at = 0; at < queue.length; at++) {
+      const idx = queue[at] as number;
+      cells.push(idx);
+      for (const next of neighbours8(grid, idx)) {
+        if (next < n && selected[next] === 1 && visited[next] !== 1) {
+          visited[next] = 1;
+          queue.push(next);
+        }
+      }
+    }
+    cells.sort((a, b) => a - b);
+    components.push(cells);
+  }
+
+  const maxPatches = Math.max(0, Math.floor(options.maxPatches ?? MAX_LIKELY_PATCHES));
+  const patches = components
+    .map((cells) => summarisePatch(grid, cells, p, surveyedProbability, meanProbability, options))
+    .sort((a, b) => b.probability - a.probability || a.id - b.id)
+    .slice(0, maxPatches);
+  const shownShare = patches.reduce((sum, patch) => sum + patch.share, 0);
+  return { patches, surveyedProbability, meanProbability, otherShare: Math.max(0, 1 - shownShare) };
+}
+
 /** "dense forest" (canopy ≥ 0.5), "open" (< 0.5) or "not photographed" (null). */
 export function canopyLabel(canopy: number | null | undefined): string {
   if (canopy === null || canopy === undefined) return "not photographed";

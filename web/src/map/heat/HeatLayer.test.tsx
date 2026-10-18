@@ -224,8 +224,8 @@ describe("HeatLayer", () => {
     expect((m.heldDrawn.at(-1) as { geometry: { coordinates: unknown[] } }).geometry.coordinates).toHaveLength(0);
     expect(screen.getByText("After frame 2 of 2")).toBeInTheDocument();
 
-    // Clicking a "search next" cell flies there.
-    act(() => screen.getAllByRole("button").find((b) => b.hasAttribute("data-idx"))!.click());
+    // Clicking a Search next patch flies to its centroid.
+    act(() => screen.getAllByRole("button").find((b) => b.hasAttribute("data-patch-id"))!.click());
     expect(flyTo).toHaveBeenCalledTimes(1);
 
     // A basemap switch drops the layers; they come back.
@@ -463,7 +463,7 @@ describe("HeatLayer", () => {
     expect(sidePanel!.contains(banner)).toBe(true);
   });
 
-  it("links the Search next list and its circles: hover or click a row rings its circle", () => {
+  it("links the Search next list and its patch markers: hover or click a row rings its marker", () => {
     const m = mockMap(true);
     ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
     render(
@@ -471,20 +471,20 @@ describe("HeatLayer", () => {
         <HeatLayer />
       </CacheContext.Provider>,
     );
-    const rows = within(screen.getByRole("list", { name: "Most likely cells" })).getAllByRole("button");
-    const idx = Number(rows[0]!.getAttribute("data-idx"));
+    const rows = within(screen.getByRole("list", { name: "Most likely patches" })).getAllByRole("button");
+    const idx = Number(rows[0]!.getAttribute("data-patch-id"));
     const lastFilter = () => m.map.setFilter.mock.calls.filter((c) => c[0] === HEAT_LAYER_IDS.hotspotActive).at(-1)?.[1];
     act(() => {
       rows[0]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     });
-    expect(lastFilter()).toEqual(["==", ["get", "idx"], idx]);
+    expect(lastFilter()).toEqual(["all", ["==", ["get", "kind"], "marker"], ["==", ["get", "idx"], idx]]);
     expect(rows[0]).toHaveAttribute("data-active", "true");
     // Click picks it: it stays ringed after the pointer leaves.
     act(() => rows[0]!.click());
     act(() => {
       rows[0]!.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
     });
-    expect(lastFilter()).toEqual(["==", ["get", "idx"], idx]);
+    expect(lastFilter()).toEqual(["all", ["==", ["get", "kind"], "marker"], ["==", ["get", "idx"], idx]]);
   });
 
   it("side panel order: sightings, then Search next (unsure areas at its top), then the sectors", () => {
