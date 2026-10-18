@@ -42,13 +42,14 @@ interface DetectionProperties {
   reviewLabel: ReviewLabel;
 }
 
-/** Words, not a bare "?": the chip says what the answer means for the search. */
-export type ReviewLabel = "Person confirmed" | "Unsure · check again" | "";
+/** Words, not a bare "?": the hover chip says what the answer means for the search. */
+export type ReviewLabel = "Person confirmed" | "Unsure · check again" | "Not a person" | "Not answered";
 
 export function reviewLabelFor(state: Answer | "unreviewed"): ReviewLabel {
   if (state === "person") return "Person confirmed";
   if (state === "unsure") return "Unsure · check again";
-  return "";
+  if (state === "not_person") return "Not a person";
+  return "Not answered";
 }
 
 interface PinMarkerProperties {
@@ -56,6 +57,8 @@ interface PinMarkerProperties {
   frameId: string;
   reviewState: Answer | "unreviewed";
   reviewLabel: ReviewLabel;
+  /** The hover chip's text: the answer and the photo, e.g. "Person confirmed · f0336". */
+  chipText: string;
   /** Person first, then unsure: which label wins when two would collide. */
   labelRank: number;
 }
@@ -249,6 +252,7 @@ export function buildPinMarkerFeatures(
           frameId,
           reviewState,
           reviewLabel: reviewLabelFor(reviewState),
+          chipText: `${reviewLabelFor(reviewState)} · ${frameId}`,
           labelRank: reviewState === "person" ? 0 : 1,
         },
       });

@@ -88,10 +88,10 @@ describe("review-aware detection layers", () => {
         }),
         expect.objectContaining({
           id: MAP_LAYER_IDS.pinLabels,
-          // Only answered pins get a chip, and it moves to whichever side is free.
-          filter: ["!=", ["get", "reviewLabel"], ""],
+          // The chip shows only for the hovered pin, and moves to whichever side is free.
+          filter: ["==", ["get", "detectionId"], ""],
           layout: expect.objectContaining({
-            "text-field": ["get", "reviewLabel"],
+            "text-field": ["get", "chipText"],
             "icon-text-fit": "both",
             "text-variable-anchor": ["bottom", "top", "left", "right"],
           }),

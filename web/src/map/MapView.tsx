@@ -29,7 +29,7 @@ import {
   type BasemapMode,
 } from "./base/basemap";
 import { MAP_LAYER_IDS } from "./base/layerIds";
-import { setSelectedPin, syncBaseLayers, syncDetectionSource } from "./base/layers";
+import { setHoveredPin, setSelectedPin, syncBaseLayers, syncDetectionSource } from "./base/layers";
 
 const DEFAULT_CENTER: [number, number] = [-122.945, 49.37];
 const EMPTY_STYLE: StyleSpecification = {
@@ -192,21 +192,28 @@ function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean })
         : undefined;
       if (focusSelection && detection) map.flyTo({ center: [detection.lon, detection.lat], zoom: 17 });
       map.on("click", MAP_LAYER_IDS.pins, selectPin);
-      map.on("mouseenter", MAP_LAYER_IDS.pins, showPointer);
+      map.on("mousemove", MAP_LAYER_IDS.pins, showPointer);
       map.on("mouseleave", MAP_LAYER_IDS.pins, hidePointer);
+      // The centre icon too: zoomed out, the 10 m circle is only a few pixels across.
+      map.on("click", MAP_LAYER_IDS.pinMarkers, selectPin);
+      map.on("mousemove", MAP_LAYER_IDS.pinMarkers, showPointer);
+      map.on("mouseleave", MAP_LAYER_IDS.pinMarkers, hidePointer);
     };
     // Send a clicked detection through Lane D's shared selection store.
     const selectPin = (event: MapLayerMouseEvent) => {
       const detectionId = event.features?.[0]?.properties?.detectionId;
       if (typeof detectionId === "string") selectDetection(detectionId);
     };
-    // Indicate that detection polygons are interactive.
-    const showPointer = () => {
+    // Indicate that detection polygons are interactive, and show the hovered pin's label.
+    const showPointer = (event: MapLayerMouseEvent) => {
       map.getCanvas().style.cursor = "pointer";
+      const detectionId = event.features?.[0]?.properties?.detectionId;
+      setHoveredPin(map, typeof detectionId === "string" ? detectionId : null);
     };
-    // Restore the default cursor after leaving a detection polygon.
+    // Restore the default cursor and hide the label after leaving a detection polygon.
     const hidePointer = () => {
       map.getCanvas().style.cursor = "";
+      setHoveredPin(map, null);
     };
 
     if (map.isStyleLoaded()) renderLayers();
@@ -215,7 +222,10 @@ function BaseMapLayers({ focusSelection = false }: { focusSelection?: boolean })
     return () => {
       map.off("load", renderLayers);
       map.off("click", MAP_LAYER_IDS.pins, selectPin);
-      map.off("mouseenter", MAP_LAYER_IDS.pins, showPointer);
+      map.off("mousemove", MAP_LAYER_IDS.pins, showPointer);
+      map.off("click", MAP_LAYER_IDS.pinMarkers, selectPin);
+      map.off("mousemove", MAP_LAYER_IDS.pinMarkers, showPointer);
+      map.off("mouseleave", MAP_LAYER_IDS.pinMarkers, hidePointer);
       map.off("mouseleave", MAP_LAYER_IDS.pins, hidePointer);
     };
   }, [bundle, focusSelection, map, selectDetection]);
