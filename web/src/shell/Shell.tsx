@@ -450,7 +450,8 @@ export function Shell({
                 info={
                   <>
                     The colours show probability per cell on ground the drone photographed, on one fixed scale
-                    for the whole replay. The sectors list ranks the remaining work by probability. Press play to
+                    for the whole replay. Search next lists the most likely spots on ground the drone photographed
+                    well; the sectors list below it ranks the remaining work by probability. Press play to
                     watch the drone fly sector by sector: ground it saw clearly turns pale, forest it cannot see
                     into stays dark red.
                   </>
