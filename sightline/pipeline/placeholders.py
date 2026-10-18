@@ -31,9 +31,12 @@ PRIOR_OUTSIDE = 0.35
 POD_CAP = 0.95
 REVIEW_POD = 0.90
 PLACEHOLDER_MODEL = "PLACEHOLDER"
-ABLATION_NAMES = (
+ABLATION_NAMES = (  # lane A's rows, in order: sightline/ml/evaluate.py ABLATION_NAMES
     "Stock model, no tiling",
-    "Fine-tuned, no tiling",
+    "Fine-tuned on tiles, run on shrunk photos",
+    "Stock model, full-resolution photo",
+    "Fine-tuned on tiles, full-resolution photo",
+    "Trained and run on whole photos",
     "Fine-tuned + tiling",
     "+ hard negatives",
 )
