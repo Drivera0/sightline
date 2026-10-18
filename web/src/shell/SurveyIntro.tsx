@@ -3,6 +3,11 @@ import type { CacheBundle, Detection, Frame } from "../contract";
 import { cacheUrl } from "../lib/cache";
 import { Label } from "./components";
 
+/** "Mount Seymour, North Vancouver (simulated flight path)" -> "Mount Seymour, North Vancouver". */
+export function placeName(areaName: string): string {
+  return areaName.replace(/\s+\([^()]+\)\s*$/, "");
+}
+
 /**
  * Median width of the candidate boxes, in pixels, or null when there are none. Shows how small a
  * person is in these photos, measured from the detections rather than asserted.
@@ -130,7 +135,7 @@ export function SurveyIntro({
       <div className="relative flex w-full max-w-[52rem] flex-col gap-7 p-12">
         <Label className="sl-rise">Search and rescue · drone survey</Label>
         <h2 className="sl-rise text-[60px] font-semibold leading-[1.02] tracking-[-0.02em]" style={{ animationDelay: "80ms" }}>
-          {manifest.n_frames} drone photos from a search over Mount Seymour
+          {manifest.n_frames} drone photos {survey.simulated_path ? "from a search over" : "from"} {placeName(survey.area.name)}
         </h2>
         <p className="sl-rise max-w-[38rem] text-[19px] leading-relaxed text-text-2" style={{ animationDelay: "160ms" }}>
           Somewhere in them are a few people, each a speck in a forest. Sightline&apos;s detector reads
