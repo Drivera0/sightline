@@ -64,7 +64,7 @@ export function ResultsSummary({
         <Label>Results</Label>
         {trivial ? (
           <>
-            <h2 className="max-w-4xl text-[30px] font-semibold leading-[1.05] sm:text-[40px]">
+            <h2 className="max-w-4xl text-headline font-semibold sm:text-display">
               <Sourced source={rankingSource}>Every photo in this survey contains a person.</Sourced>
             </h2>
             <p className="max-w-3xl text-title text-text-2">
@@ -74,7 +74,7 @@ export function ResultsSummary({
           </>
         ) : (
           <>
-            <h2 className="max-w-4xl text-[30px] font-semibold leading-[1.05] sm:text-[40px]">
+            <h2 className="max-w-4xl text-headline font-semibold sm:text-display">
               All {ranking.n_positive} {photos} were in the{" "}
               <Sourced source={rankingSource}>first {ranked} photos</Sourced> of the queue.
             </h2>
@@ -189,7 +189,7 @@ export function ResultsSummary({
         ) : (
           <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-5">
             <Label>Cells to search</Label>
-            <span className="font-mono text-[44px] leading-none text-text-3">—</span>
+            <span className="font-mono text-display leading-none text-text-3">—</span>
             <span className="text-small text-text-3">Not yet measured (needs a contract 1.1 cache)</span>
           </div>
         )}
@@ -253,7 +253,7 @@ function hectares(cells: number, cellM: number): string {
 }
 
 const ANSWER_ROWS: [Answer, string, string][] = [
-  ["person", "Confirmed people", "bg-accent"],
+  ["person", "Confirmed people", "bg-ok"],
   ["not_person", "Not a person", "bg-text-3"],
   ["unsure", "Unsure", "bg-warn"],
 ];
@@ -538,7 +538,7 @@ function Card({
       </div>
       <div className="flex items-baseline gap-3">
         <Sourced source={source}>
-          <span className="font-mono text-[44px] leading-none text-text">{format(shown)}</span>
+          <span className="font-mono text-display leading-none text-text">{format(shown)}</span>
         </Sourced>
         {headline && <span className="text-small text-accent-soft">{headline}</span>}
       </div>

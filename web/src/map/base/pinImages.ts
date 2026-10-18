@@ -18,6 +18,7 @@ export const PIN_IMAGES = {
 
 interface PinColors {
   accent: string;
+  ok: string;
   background: string;
   text: string;
   textSecondary: string;
@@ -137,11 +138,12 @@ export function ensurePinImages(map: Map, colors: PinColors): void {
     if (data && !map.hasImage(id)) map.addImage(id, data, options);
   };
 
-  // Person: a filled disc with a check, the strongest mark on the map.
+  // Person: a green disc with a dark check, the strongest mark on the map, and never the heat's
+  // orange or red.
   let ctx = canvas(26, 26);
   if (ctx) {
-    disc(ctx, 13, 9.5, colors.accent, colors.text, 2);
-    stroke(ctx, colors.text, 2.4, [
+    disc(ctx, 13, 9.5, colors.ok, colors.text, 2);
+    stroke(ctx, colors.background, 2.4, [
       [
         [8.6, 13.3],
         [11.7, 16.3],
@@ -179,15 +181,15 @@ export function ensurePinImages(map: Map, colors: PinColors): void {
     add(PIN_IMAGES.notPerson, image(ctx));
   }
 
-  // Not answered yet: a small solid dot marking the candidate's centre.
+  // Not answered yet: a small neutral dot marking the candidate's centre.
   ctx = canvas(14, 14);
   if (ctx) {
-    disc(ctx, 7, 3.25, colors.accent, colors.accent, 0.5);
+    disc(ctx, 7, 3.25, colors.text, colors.text, 0.5);
     add(PIN_IMAGES.unreviewed, image(ctx));
   }
 
   for (const [id, color] of [
-    [PIN_IMAGES.chipPerson, colors.accent],
+    [PIN_IMAGES.chipPerson, colors.ok],
     [PIN_IMAGES.chipUnsure, colors.warning],
     [PIN_IMAGES.chipNeutral, colors.textSecondary],
   ] as const) {
