@@ -1,4 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { prefersReducedMotion } from "../metrics/motion";
+import { ModelGraph } from "./ModelGraph";
 import type { CacheBundle, Detection, Frame } from "../contract";
 import { cacheUrl } from "../lib/cache";
 import { Label } from "./components";
@@ -148,6 +150,36 @@ function WallTile({ tile, dir }: { tile: WallTileData; dir: string }) {
   );
 }
 
+/**
+ * Prototype, opt-in with ?bg=model in the address: the detector's layer graph, faded, over the
+ * photo wall, with a signal running through it every few seconds.
+ */
+function useModelBackground(): boolean {
+  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("bg") === "model";
+}
+
+function ModelBackground({ threshold }: { threshold: number }) {
+  const [motion] = useState(() => !prefersReducedMotion());
+  const [pulse, setPulse] = useState(0);
+  useEffect(() => {
+    if (!motion) return;
+    const id = window.setInterval(() => setPulse((n) => n + 1), 3200);
+    return () => window.clearInterval(id);
+  }, [motion]);
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-y-[8%] right-[2%] hidden w-[58%] opacity-[0.3] mix-blend-screen sm:block">
+      <ModelGraph
+        photo={undefined}
+        top={undefined}
+        threshold={threshold}
+        pulseKey={motion ? String(pulse) : undefined}
+        waveMs={2600}
+        onHover={() => {}}
+      />
+    </div>
+  );
+}
+
 /** Step 1: the job. A wall of the real photos, the size of the job, and one action. */
 export function SurveyIntro({
   cache,
@@ -169,6 +201,7 @@ export function SurveyIntro({
   const columns = useMemo(() => wallColumns(cache), [cache]);
   const personPx = medianPersonPx(cache);
   const copy = introCopy(cache);
+  const modelBg = useModelBackground();
   return (
     <div className="relative flex h-full min-h-0 items-center overflow-hidden rounded-lg border border-border">
       {/* The real photos, on a slow scrolling wall: what a searcher would have to go through. */}
@@ -190,6 +223,7 @@ export function SurveyIntro({
         </div>
       </div>
       <div className="absolute inset-0 bg-gradient-to-r from-bg from-30% via-bg/80 via-55% to-bg/10" aria-hidden="true" />
+      {modelBg && <ModelBackground threshold={cache.detections.candidate_threshold} />}
       {/* Phones: the text runs over the whole wall, so dim it all. */}
       <div className="absolute inset-0 bg-bg/75 sm:hidden" aria-hidden="true" />
 
