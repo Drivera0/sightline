@@ -12,7 +12,7 @@ export interface Step {
 export const STEPS: readonly Step[] = [
   { id: "survey", label: "Survey", hint: "The photos a drone brought back" },
   { id: "rank", label: "Rank", hint: "The detector scores every photo" },
-  { id: "review", label: "Review", hint: "Answer each candidate; confirmed people are pinned" },
+  { id: "review", label: "Review", hint: "Answer each candidate; people you mark are pinned as sightings" },
   { id: "search", label: "Search next", hint: "Where the person could still be" },
   { id: "results", label: "Results", hint: "How well it works, with sources" },
 ];

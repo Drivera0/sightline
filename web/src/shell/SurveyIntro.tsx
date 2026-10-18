@@ -151,13 +151,9 @@ function WallTile({ tile, dir }: { tile: WallTileData; dir: string }) {
 }
 
 /**
- * Prototype, opt-in with ?bg=model in the address: the detector's layer graph, faded, on the left
- * behind the text and clear of the photo wall, with a signal running through it every few seconds.
+ * The detector's layer graph, faded, in the top left behind the text and clear of the photo wall,
+ * with a slow signal running through it. On by default; the menu toggles it (see Shell).
  */
-function useModelBackground(): boolean {
-  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("bg") === "model";
-}
-
 /** Slow on purpose: it is ambient, not tied to a scan. One wave every 8 s, each taking 6 s to cross. */
 const BG_PULSE_MS = 8000;
 const BG_WAVE_MS = 6000;
@@ -191,6 +187,7 @@ export function SurveyIntro({
   onRank,
   onReview,
   onTour,
+  modelBackground = true,
 }: {
   cache: CacheBundle;
   dir: string;
@@ -199,13 +196,15 @@ export function SurveyIntro({
   onReview?: () => void;
   /** Starts the guided tour, for a viewer who doesn't know the keys. */
   onTour?: () => void;
+  /** Show the faded detector graph in the background. */
+  modelBackground?: boolean;
 }) {
   const { survey, manifest, metrics } = cache;
   const human = metrics.baseline_human;
   const columns = useMemo(() => wallColumns(cache), [cache]);
   const personPx = medianPersonPx(cache);
   const copy = introCopy(cache);
-  const modelBg = useModelBackground();
+  const modelBg = modelBackground;
   return (
     <div className="relative flex h-full min-h-0 items-center overflow-hidden rounded-lg border border-border">
       {/* The real photos, on a slow scrolling wall: what a searcher would have to go through. */}
