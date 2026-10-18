@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { CacheBundle } from "../contract";
 import { CACHE_DIR, cacheUrl, useCache } from "../lib/cache";
@@ -7,7 +7,7 @@ import { prefersReducedMotion } from "../metrics/motion";
 import { useSelection } from "../lib/selection";
 import { useMediaQuery } from "../map/heat/panelSlot";
 import { EmptyState, KeyHint, Label, Panel } from "../shell/components";
-import { reviewItems, reviewProgress, type ReviewItem } from "./items";
+import { itemLabels, queueCounts, reviewItems, reviewProgress, type ReviewItem } from "./items";
 import { ResetReview } from "./ResetReview";
 import { useReview, type Answer } from "./store";
 
@@ -36,6 +36,71 @@ function Check() {
 
 /** How long the "Marked ... Undo" toast stays, in ms. */
 const TOAST_MS = 5000;
+/** How long the "Undone" toast stays, in ms. */
+export const UNDONE_MS = 1500;
+
+/** Keyboard focus stays inside an open dialog: Tab and Shift+Tab wrap round its controls. */
+export function trapTab(event: ReactKeyboardEvent<HTMLElement>) {
+  if (event.key !== "Tab") return;
+  const focusables = [
+    ...event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'),
+  ];
+  const first = focusables[0];
+  const last = focusables.at(-1);
+  if (!first || !last) {
+    event.preventDefault();
+    return;
+  }
+  const active = document.activeElement;
+  if (event.shiftKey && (active === first || !event.currentTarget.contains(active))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && (active === last || !event.currentTarget.contains(active))) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+/**
+ * The photo at full size, with a caption, a visible Close (Esc) and focus kept inside while it is
+ * open; focus goes back where it was on close (the same pattern as the shortcuts overlay).
+ */
+function FullFrameDialog({ caption, onClose, children }: { caption: string; onClose: () => void; children: ReactNode }) {
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    closeButton.current?.focus();
+    return () => previous?.focus?.({ preventScroll: true });
+  }, []);
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-bg/80 p-4 backdrop-blur-sm sm:p-6" onClick={onClose}>
+      <Panel
+        role="dialog"
+        aria-modal="true"
+        aria-label="Full frame"
+        aria-describedby="full-frame-caption"
+        className="flex max-h-full w-full max-w-4xl flex-col gap-3 p-3 sm:p-4"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={trapTab}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <p id="full-frame-caption" className="font-mono text-small text-text-2">
+            {caption}
+          </p>
+          <button
+            ref={closeButton}
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-small text-text-2 transition-colors hover:bg-surface-strong hover:text-text"
+          >
+            Close <KeyHint>Esc</KeyHint>
+          </button>
+        </div>
+        <div className="min-h-0 overflow-auto">{children}</div>
+      </Panel>
+    </div>
+  );
+}
 
 /**
  * The marker as the map draws it for each answer (map/base/pinImages.ts): a check on a green
@@ -167,6 +232,9 @@ export function ReviewView({
   const loadedDir = useCache((s) => s.dir);
   const folder = dir ?? loadedDir ?? CACHE_DIR;
   const items = useMemo(() => reviewItems(cache), [cache]);
+  const labels = useMemo(() => itemLabels(items), [items]);
+  const counts = queueCounts(items);
+  const optionPrefix = `cand-${useId().replace(/:/g, "")}`;
 
   const answers = useReview((s) => s.answers);
   const bind = useReview((s) => s.bind);
@@ -175,7 +243,7 @@ export function ReviewView({
   const [cursorId, setCursorId] = useState<string | null>(null);
   const [fullFrame, setFullFrame] = useState(false);
   const selectedByQueue = useRef<string | null>(null);
-  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const rowRefs = useRef(new Map<string, HTMLLIElement>());
   // After an answer, focus moves here: never left on the answer button, where the next Enter would
   // re-click it and record the same answer for the next candidate.
   const candidateRef = useRef<HTMLDivElement>(null);
@@ -183,7 +251,9 @@ export function ReviewView({
   // Phones: the three answers sit in a bar fixed to the bottom of the screen, always in reach.
   const phoneBar = useMediaQuery("(max-width: 767px)", false) && compact;
   // The last decision, shown as a short-lived toast; `n` re-keys it so each answer animates.
-  const [lastDecision, setLastDecision] = useState<{ frameId: string; value: Answer; n: number } | null>(null);
+  const [lastDecision, setLastDecision] = useState<{ label: string; value: Answer; n: number } | null>(null);
+  // "Undone", briefly, after an undo (a count, so a second undo shows it again).
+  const [undone, setUndone] = useState(0);
 
   useEffect(() => bind(cache.survey.survey_id), [bind, cache.survey.survey_id]);
 
@@ -239,21 +309,31 @@ export function ReviewView({
     (value: Answer) => {
       if (!current) return;
       useReview.getState().answer(current.id, value);
-      setLastDecision((d) => ({ frameId: current.frame.id, value, n: (d?.n ?? 0) + 1 }));
+      setLastDecision((d) => ({ label: labels.get(current.id) ?? current.frame.id, value, n: (d?.n ?? 0) + 1 }));
+      setUndone(0);
       if (value === "person") select(current.id);
       const next = nextUnreviewed(items, { ...answers, [current.id]: value }, currentIndex);
       setCursorId((next ?? current).id);
       candidateRef.current?.focus({ preventScroll: true });
     },
-    [current, items, answers, currentIndex, select],
+    [current, items, answers, currentIndex, select, labels],
   );
 
   const undo = useCallback(() => {
     const last = useReview.getState().history.at(-1);
     useReview.getState().undo();
     setLastDecision(null);
-    if (last) setCursorId(last.detectionId);
+    if (last) {
+      setCursorId(last.detectionId);
+      setUndone((n) => n + 1);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!undone) return;
+    const timer = window.setTimeout(() => setUndone(0), UNDONE_MS);
+    return () => window.clearTimeout(timer);
+  }, [undone]);
 
   // The toast holds long enough to reach its Undo, then goes.
   useEffect(() => {
@@ -311,6 +391,7 @@ export function ReviewView({
   const progress = reviewProgress(items, answers);
   const allDone = progress.reviewed === progress.total;
   const people = progress.persons === 1 ? "person" : "people";
+  const threshold = cache.detections.candidate_threshold;
 
   const percent = Math.round((progress.reviewed / progress.total) * 100);
   const answerGrid = current ? (
@@ -341,15 +422,68 @@ export function ReviewView({
     </div>
   ) : null;
   const secondary =
-    "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-small text-text-2 transition-colors hover:bg-surface-strong hover:text-text";
+    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-small text-text-2 transition-colors hover:bg-surface-strong hover:text-text";
+  // Previous / Next: 36 px round icon buttons, 44 px where the pointer is a finger.
+  const stepButton =
+    "inline-flex size-9 items-center justify-center rounded-full border border-border text-title leading-none text-text-2 transition-colors hover:border-text-2 hover:bg-surface-strong hover:text-text disabled:pointer-events-none disabled:opacity-40 [@media(pointer:coarse)]:size-11";
+  const currentLabel = current ? (labels.get(current.id) ?? current.frame.id) : "";
+
+  const toast = lastDecision ? (
+    <p
+      key={`marked-${lastDecision.n}`}
+      role="status"
+      className="sl-toast-in absolute left-1/2 top-12 z-10 inline-flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-border bg-bg/90 py-1 pl-4 pr-1 text-small text-text-2 backdrop-blur"
+    >
+      Marked <span className="font-mono text-text">{lastDecision.label}</span> ·{" "}
+      <span className={STATUS[lastDecision.value].className}>{STATUS[lastDecision.value].label}</span>
+      <span aria-hidden="true" className="mx-1 text-text-3">
+        —
+      </span>
+      <button
+        type="button"
+        onClick={undo}
+        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-accent-soft hover:bg-surface-strong hover:text-text"
+      >
+        Undo <KeyHint>Z</KeyHint>
+      </button>
+    </p>
+  ) : undone ? (
+    <p
+      key={`undone-${undone}`}
+      role="status"
+      className="sl-toast-in absolute left-1/2 top-12 z-10 inline-flex -translate-x-1/2 items-center whitespace-nowrap rounded-full border border-border bg-bg/90 px-4 py-1.5 text-small text-text"
+    >
+      Undone
+    </p>
+  ) : null;
+
+  const focusAnswers = () => document.querySelector<HTMLButtonElement>('[data-answer="person"]')?.focus();
 
   return (
     <div className={"flex flex-col gap-4 lg:h-full lg:min-h-0" + (phoneBar ? " pb-24" : "")}>
+      {current && (
+        <a
+          href="#answer"
+          onClick={(event) => {
+            event.preventDefault();
+            focusAnswers();
+          }}
+          className="sr-only rounded-full bg-accent px-4 py-2 text-small font-medium text-bg focus:not-sr-only focus:absolute focus:z-50"
+        >
+          Skip to answer
+        </a>
+      )}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-4">
-          <p className="font-mono text-small text-text-2">
-            {`${progress.reviewed} of ${progress.total} reviewed · ${progress.persons} ${people} confirmed`}
-          </p>
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 font-mono text-small text-text-2">
+            <p data-testid="queue-counts" className="text-text-3">
+              {`${counts.photos} ${counts.photos === 1 ? "photo" : "photos"} · ${counts.boxes} ${counts.boxes === 1 ? "box" : "boxes"}`}
+            </p>
+            <span aria-hidden="true" className="text-text-3">
+              ·
+            </span>
+            <p>{`${progress.reviewed} of ${progress.total} reviewed · ${progress.persons} ${people} confirmed`}</p>
+          </div>
           <div className="flex items-center gap-3">
             {allDone && <p className="sl-fade text-small text-ok">All candidates reviewed</p>}
             <ResetReview />
@@ -377,54 +511,72 @@ export function ReviewView({
         }
       >
         <Panel ref={queueRef} className="relative max-h-64 overflow-y-auto overflow-x-hidden p-2 md:max-h-[70vh] lg:max-h-none lg:min-h-0">
-          <ul aria-label="Candidates" className="flex flex-col gap-1">
+          {/* One tab stop: the arrow keys (and J/K) move through the candidates. */}
+          <ul
+            role="listbox"
+            aria-label="Candidates"
+            tabIndex={0}
+            aria-activedescendant={current ? `${optionPrefix}-${current.id}` : undefined}
+            onKeyDown={(event) => {
+              if (event.key === "Home") goTo(0);
+              else if (event.key === "End") goTo(items.length - 1);
+              else return;
+              event.preventDefault();
+            }}
+            className="flex flex-col gap-1 rounded-sm focus-visible:outline-offset-[-2px]"
+          >
             {items.map((item, index) => {
               const state = answers[item.id] ?? "unreviewed";
               const isCurrent = item.id === current?.id;
+              const answered = state !== "unreviewed" && !isCurrent;
               return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    ref={(el) => {
-                      if (el) rowRefs.current.set(item.id, el);
-                      else rowRefs.current.delete(item.id);
-                    }}
-                    aria-current={isCurrent ? "true" : undefined}
-                    onClick={() => goTo(index)}
+                <li
+                  key={item.id}
+                  id={`${optionPrefix}-${item.id}`}
+                  role="option"
+                  aria-selected={isCurrent}
+                  ref={(el) => {
+                    if (el) rowRefs.current.set(item.id, el);
+                    else rowRefs.current.delete(item.id);
+                  }}
+                  onClick={() => goTo(index)}
+                  className={
+                    "relative flex w-full cursor-pointer items-center gap-3 rounded-sm p-2 text-left transition-[background-color] duration-200 " +
+                    (isCurrent ? "bg-accent/10 ring-1 ring-accent/60" : "hover:bg-surface-strong")
+                  }
+                >
+                  <span
+                    aria-hidden="true"
                     className={
-                      "relative flex w-full items-center gap-3 rounded-sm p-2 text-left transition-[background-color,opacity] duration-200 " +
-                      (isCurrent ? "bg-accent/10 ring-1 ring-accent/60" : "hover:bg-surface-strong") +
-                      (state !== "unreviewed" && !isCurrent ? " opacity-60" : "")
+                      "absolute inset-y-2 left-0 w-0.5 rounded-full bg-accent transition-transform duration-200 " +
+                      (isCurrent ? "scale-y-100" : "scale-y-0")
                     }
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={
-                        "absolute inset-y-2 left-0 w-0.5 rounded-full bg-accent transition-transform duration-200 " +
-                        (isCurrent ? "scale-y-100" : "scale-y-0")
-                      }
+                  />
+                  {item.detection.crop && (
+                    <img
+                      src={cacheUrl(folder, item.detection.crop)}
+                      alt=""
+                      loading="lazy"
+                      // Answered rows recede through the picture and a softer number; their text keeps 4.5:1.
+                      className={"size-11 shrink-0 rounded-[8px] object-cover transition-opacity " + (answered ? "opacity-50" : "")}
                     />
-                    {item.detection.crop && (
-                      <img
-                        src={cacheUrl(folder, item.detection.crop)}
-                        alt=""
-                        loading="lazy"
-                        className="size-11 shrink-0 rounded-[8px] object-cover"
-                      />
-                    )}
-                    <span className="flex min-w-0 flex-col">
-                      <span className="whitespace-nowrap text-body text-text" title={`Detector score ${item.detection.conf.toFixed(3)}`}>
-                        #{index + 1} <span className="text-text-3">·</span> {Math.round(item.detection.conf * 100)}%
-                      </span>
-                      <span className="font-mono text-label text-text-3">{item.frame.id}</span>
-                      <span className="mt-0.5 flex items-center gap-1.5">
-                        <PinMark state={state} size={12} />
-                        <span data-testid="status" className={`whitespace-nowrap text-label ${STATUS[state].className}`}>
-                          {STATUS[state].label}
-                        </span>
+                  )}
+                  <span className="flex min-w-0 flex-col">
+                    <span
+                      className={"whitespace-nowrap text-body " + (answered ? "text-text-2" : "text-text")}
+                      title={`Detector score ${item.detection.conf.toFixed(3)}`}
+                    >
+                      #{index + 1} <span className="text-text-3">·</span>{" "}
+                      <span className="font-mono">{item.detection.conf.toFixed(2)}</span>
+                    </span>
+                    <span className="truncate font-mono text-label text-text-3">{labels.get(item.id)}</span>
+                    <span className="mt-0.5 flex items-center gap-1.5">
+                      <PinMark state={state} size={12} />
+                      <span data-testid="status" className={`whitespace-nowrap text-label ${STATUS[state].className}`}>
+                        {STATUS[state].label}
                       </span>
                     </span>
-                  </button>
+                  </span>
                 </li>
               );
             })}
@@ -437,130 +589,57 @@ export function ReviewView({
             tabIndex={-1}
             aria-label={`Candidate ${currentIndex + 1} of ${items.length}`}
             data-testid="candidate-panel"
-            className="relative order-first flex flex-col gap-4 overflow-hidden outline-none md:order-none lg:min-h-0"
+            className="relative order-first flex flex-col gap-3 overflow-hidden p-4 outline-none md:order-none lg:min-h-0"
           >
             <div className="flex items-center justify-between gap-3">
-              <Label>
-                Candidate {currentIndex + 1} of {items.length}
-              </Label>
-              <span className={`inline-flex items-center gap-1.5 text-label ${STATUS[answers[current.id] ?? "unreviewed"].className}`}>
+              <span className="flex min-w-0 items-baseline gap-2">
+                <Label className="whitespace-nowrap">
+                  Candidate {currentIndex + 1} of {items.length}
+                </Label>
+                <span data-testid="candidate-label" className="truncate font-mono text-label text-text-2">
+                  {currentLabel}
+                </span>
+              </span>
+              <span className={`inline-flex shrink-0 items-center gap-1.5 text-label ${STATUS[answers[current.id] ?? "unreviewed"].className}`}>
                 <PinMark state={answers[current.id] ?? "unreviewed"} size={12} />
                 {STATUS[answers[current.id] ?? "unreviewed"].label}
               </span>
             </div>
 
-            <div className="contents sm:grid sm:grid-cols-[minmax(0,1fr)_18rem] sm:gap-6 md:contents lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-1 lg:content-start lg:overflow-y-auto 2xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:content-normal 2xl:overflow-visible">
-              {/* The crop, as large as the panel allows up to 1.5x its 256 px (any larger just blurs). */}
-              <div className="flex min-w-0 items-center justify-center p-2 lg:h-64 lg:min-h-0 lg:shrink-0 2xl:h-auto">
-                {current.detection.crop && (
-                  <div key={current.id} className="sl-pop relative aspect-square max-h-full w-full max-w-[24rem] lg:size-60 lg:max-h-none 2xl:size-auto 2xl:max-h-full 2xl:w-full 2xl:max-w-[24rem]">
-                    <img
-                      src={cacheUrl(folder, current.detection.crop)}
-                      alt={`Crop of detection ${current.id}`}
-                      className="h-full w-full rounded-md object-cover shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]"
-                    />
-                    <Viewfinder />
-                  </div>
-                )}
-              </div>
-
-              {/* Where it sits, and the facts a searcher weighs. */}
-              <div className="order-last flex flex-col gap-5 sm:order-none md:order-last lg:order-none lg:min-h-max lg:overflow-visible 2xl:min-h-0 2xl:overflow-y-auto">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-baseline justify-between">
-                    <Label>Where in the photo</Label>
-                    <span className="font-mono text-label text-text-3">Photo {current.frame.id}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setFullFrame(true)}
-                    className="group relative block overflow-hidden rounded-md ring-1 ring-border transition-shadow hover:ring-accent/70 focus-visible:ring-accent"
-                    title="Open the full frame (Enter)"
-                  >
-                    <FrameWithBox
-                      src={cacheUrl(folder, current.frame.file)}
-                      alt={`Frame ${current.frame.id} with the candidate boxed`}
-                      box={current.detection.box_px}
-                      testId="frame-context-box"
-                      width={current.frame.width_px}
-                      height={current.frame.height_px}
-                    />
-                    <span className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-full bg-bg/80 px-2.5 py-1 text-label text-text-2 backdrop-blur transition-colors group-hover:text-text">
-                      Full frame <KeyHint>Enter</KeyHint>
-                    </span>
-                  </button>
+            {/* The crop: about min(36vh, 280 px); on wide screens it gives way so nothing below is cut off (theme.css). */}
+            <div className="sl-crop-slot flex items-center justify-center p-2">
+              {current.detection.crop && (
+                <div key={current.id} className="sl-pop sl-crop relative aspect-square">
+                  <img
+                    src={cacheUrl(folder, current.detection.crop)}
+                    alt={`Crop of detection ${current.id}`}
+                    className="h-full w-full rounded-md object-cover shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]"
+                  />
+                  <Viewfinder />
                 </div>
-
-                <dl className="flex flex-col divide-y divide-border border-y border-border">
-                  <div className="flex flex-col gap-2.5 py-3">
-                    <div className="flex items-baseline justify-between">
-                      <dt>
-                        <Label>Detector score</Label>
-                      </dt>
-                      <dd className="font-mono text-title leading-none text-text">{current.detection.conf.toFixed(2)}</dd>
-                    </div>
-                    <div className="relative h-2 rounded-full bg-surface-strong">
-                      <span
-                        className="absolute inset-y-0 left-0 rounded-full bg-accent transition-[width] duration-300"
-                        style={{ width: `${Math.round(current.detection.conf * 100)}%` }}
-                      />
-                      <span
-                        aria-hidden="true"
-                        className="absolute -inset-y-1 w-0.5 rounded-full bg-text"
-                        style={{ left: `${cache.detections.candidate_threshold * 100}%` }}
-                      />
-                    </div>
-                    <div className="relative h-4 text-label text-text-3">
-                      <span
-                        className="absolute -translate-x-1/2 whitespace-nowrap font-mono"
-                        style={{ left: `${cache.detections.candidate_threshold * 100}%` }}
-                      >
-                        flagged from {cache.detections.candidate_threshold.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-baseline justify-between py-3">
-                    <dt>
-                      <Label>Photo rank</Label>
-                    </dt>
-                    <dd className="font-mono text-body text-text">
-                      #{current.frame.rank}
-                      <span className="text-text-3"> of {cache.survey.frames.length} photos</span>
-                    </dd>
-                  </div>
-                  <div className="flex flex-col gap-2 py-3">
-                    <dt>
-                      <Label>Estimated position</Label>
-                    </dt>
-                    <dd className="font-mono text-body text-text">
-                      {current.detection.lat.toFixed(5)}, {current.detection.lon.toFixed(5)}
-                    </dd>
-                    {/* The radius stays labelled simulated here too; the flight path is labelled once, on the map. */}
-                    <dd className="text-small text-accent-soft">±{current.detection.radius_m} m radius · simulated</dd>
-                  </div>
-                </dl>
-
-                {/* The key for the map beside this panel: each answer changes how the pin is drawn. */}
-                <div className="flex flex-col gap-2">
-                  <Label>On the map</Label>
-                  <ul className="grid grid-cols-2 gap-x-3 gap-y-2 text-small text-text-2">
-                    {(
-                      [
-                        ["unreviewed", "Not answered"],
-                        ["person", "Person, pinned"],
-                        ["unsure", "Unsure"],
-                        ["not_person", "Not a person"],
-                      ] as const
-                    ).map(([state, text]) => (
-                      <li key={state} className="flex items-center gap-2">
-                        <PinMark state={state} size={16} />
-                        {text}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+              )}
             </div>
+
+            {/* The facts a searcher weighs, on one line under the crop. */}
+            <p
+              data-testid="evidence"
+              className="flex flex-wrap items-baseline justify-center gap-x-1.5 text-center font-mono text-label text-text-2"
+            >
+              <span className="whitespace-nowrap" title={`Detector score ${current.detection.conf.toFixed(3)}; flagged from ${threshold.toFixed(2)}`}>
+                score <span className="text-text">{current.detection.conf.toFixed(2)}</span>
+              </span>
+              <span aria-hidden="true" className="text-text-3">·</span>
+              <span className="whitespace-nowrap">
+                photo rank <span className="text-text">#{current.frame.rank}</span>
+                <span className="text-text-3">/{cache.survey.frames.length}</span>
+              </span>
+              <span aria-hidden="true" className="text-text-3">·</span>
+              <span className="whitespace-nowrap">
+                {current.detection.lat.toFixed(5)}, {current.detection.lon.toFixed(5)}
+              </span>
+              {/* The radius stays labelled simulated here too; the flight path is labelled once, in the bar. */}
+              <span className="whitespace-nowrap text-accent-soft">±{current.detection.radius_m} m radius · simulated</span>
+            </p>
 
             <section aria-label="Review keys" className="flex flex-col gap-2">
               {phoneBar
@@ -577,50 +656,92 @@ export function ReviewView({
                     document.body,
                   )
                 : answerGrid}
-              <div className="flex flex-wrap items-center justify-center gap-1 text-small text-text-3">
-                <button type="button" onClick={undo} className={secondary}>
-                  Undo <KeyHint>Z</KeyHint>
-                </button>
-                <button type="button" onClick={() => setFullFrame(true)} className={secondary}>
-                  Full frame <KeyHint>Enter</KeyHint>
-                </button>
-                <button type="button" onClick={showOnMap} className={secondary}>
-                  Where to search next <KeyHint>M</KeyHint>
-                </button>
-                <button type="button" onClick={() => goTo(currentIndex - 1)} disabled={currentIndex <= 0} className={secondary + " disabled:opacity-40"}>
-                  Previous <KeyHint>K</KeyHint>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => goTo(currentIndex + 1)}
-                  disabled={currentIndex >= items.length - 1}
-                  className={secondary + " disabled:opacity-40"}
-                >
-                  Next <KeyHint>J</KeyHint>
-                </button>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-0.5">
+                  <button type="button" onClick={undo} className={secondary}>
+                    Undo <KeyHint>Z</KeyHint>
+                  </button>
+                  <button type="button" onClick={() => setFullFrame(true)} className={secondary}>
+                    Full frame <KeyHint>Enter</KeyHint>
+                  </button>
+                  <button type="button" onClick={showOnMap} className={secondary}>
+                    Show on map <KeyHint>M</KeyHint>
+                  </button>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => goTo(currentIndex - 1)}
+                    disabled={currentIndex <= 0}
+                    aria-label="Previous candidate"
+                    title="Previous candidate (K)"
+                    className={stepButton}
+                  >
+                    <span aria-hidden="true">‹</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => goTo(currentIndex + 1)}
+                    disabled={currentIndex >= items.length - 1}
+                    aria-label="Next candidate"
+                    title="Next candidate (J)"
+                    className={stepButton}
+                  >
+                    <span aria-hidden="true">›</span>
+                  </button>
+                </div>
               </div>
             </section>
 
-            {lastDecision && (
-              <p
-                key={lastDecision.n}
-                role="status"
-                className="sl-toast-in absolute left-1/2 top-12 z-10 inline-flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-border bg-bg/90 py-1 pl-4 pr-1 text-small text-text-2 backdrop-blur"
+            {/* Where it sits in the photo: fills whatever height is left, and steps aside when there is none. */}
+            <div className="sl-fit">
+              <div
+                className="sl-fit-item flex flex-col gap-1.5"
+                style={{ "--sl-ar": `${current.frame.width_px / current.frame.height_px}` } as CSSProperties}
               >
-                Marked <span className="font-mono text-text">{lastDecision.frameId}</span> ·{" "}
-                <span className={STATUS[lastDecision.value].className}>{STATUS[lastDecision.value].label}</span>
-                <span aria-hidden="true" className="mx-1 text-text-3">
-                  —
-                </span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <Label>Where in the photo</Label>
+                  <span className="font-mono text-label text-text-3">Photo {current.frame.id}</span>
+                </div>
                 <button
                   type="button"
-                  onClick={undo}
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-accent-soft hover:bg-surface-strong hover:text-text"
+                  onClick={() => setFullFrame(true)}
+                  className="group relative block overflow-hidden rounded-md ring-1 ring-border transition-shadow hover:ring-accent/70 focus-visible:ring-accent"
+                  title="Open the full frame (Enter)"
+                  aria-label={`Open the full frame of photo ${current.frame.id}`}
                 >
-                  Undo <KeyHint>Z</KeyHint>
+                  <FrameWithBox
+                    src={cacheUrl(folder, current.frame.file)}
+                    alt={`Frame ${current.frame.id} with the candidate boxed`}
+                    box={current.detection.box_px}
+                    testId="frame-context-box"
+                    width={current.frame.width_px}
+                    height={current.frame.height_px}
+                  />
                 </button>
-              </p>
-            )}
+              </div>
+              {/* The key for the map beside this panel: each answer changes how the pin is drawn. */}
+              <div className="sl-fit-alt h-full flex-col justify-end gap-2">
+                <Label>On the map</Label>
+                <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-small text-text-2">
+                  {(
+                    [
+                      ["unreviewed", "Not answered"],
+                      ["person", "Person, pinned"],
+                      ["unsure", "Unsure"],
+                      ["not_person", "Not a person"],
+                    ] as const
+                  ).map(([state, text]) => (
+                    <li key={state} className="flex items-center gap-2 whitespace-nowrap">
+                      <PinMark state={state} size={16} />
+                      {text}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {toast}
           </Panel>
         )}
 
@@ -655,75 +776,40 @@ export function ReviewView({
                     alt={`Crop of detection ${current.id}`}
                     width={384}
                     height={384}
-                    className={`${compact ? "size-72" : "size-96"} max-w-full rounded-md object-cover shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]`}
+                    className="size-96 max-w-full rounded-md object-cover shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]"
                   />
                   <Viewfinder />
                 </div>
               )}
               <p data-testid="detail" className="font-mono text-small text-text-3">
-                Frame {current.frame.id} · Rank {current.frame.rank} · Confidence{" "}
-                {current.detection.conf.toFixed(3)}
+                Frame {currentLabel} · Rank {current.frame.rank} · Confidence {current.detection.conf.toFixed(3)}
               </p>
             </div>
 
-            <div className="flex flex-col gap-3">
-              <div className="grid grid-cols-3 gap-2">
-                {DECISIONS.map(([value, label, key, tone, selectedTone]) => {
-                  const selected = answers[current.id] === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => answer(value)}
-                      data-answer={value}
-                      aria-pressed={selected}
-                      className={
-                        "inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-2 text-body md:px-3 transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +
-                        tone +
-                        (selected ? " " + selectedTone : "")
-                      }
-                    >
-                      {selected && <Check />}
-                      {label} <KeyHint>{key}</KeyHint>
-                    </button>
-                  );
-                })}
-              </div>
-              {compact && (
-                <div className="flex flex-wrap items-center justify-center gap-1">
-                  <button type="button" onClick={undo} className={secondary}>
-                    Undo <KeyHint>Z</KeyHint>
+            <div className="grid grid-cols-3 gap-2">
+              {DECISIONS.map(([value, label, key, tone, selectedTone]) => {
+                const selected = answers[current.id] === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => answer(value)}
+                    data-answer={value}
+                    aria-pressed={selected}
+                    className={
+                      "inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-2 text-body md:px-3 transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +
+                      tone +
+                      (selected ? " " + selectedTone : "")
+                    }
+                  >
+                    {selected && <Check />}
+                    {label} <KeyHint>{key}</KeyHint>
                   </button>
-                  <button type="button" onClick={() => setFullFrame(true)} className={secondary}>
-                    Full frame <KeyHint>Enter</KeyHint>
-                  </button>
-                  <button type="button" onClick={showOnMap} className={secondary}>
-                    Where to search next <KeyHint>M</KeyHint>
-                  </button>
-                </div>
-              )}
+                );
+              })}
             </div>
 
-            {lastDecision && (
-              <p
-                key={lastDecision.n}
-                role="status"
-                className="sl-toast-in absolute left-1/2 top-12 z-10 inline-flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-border bg-bg/90 py-1 pl-4 pr-1 text-small text-text-2 backdrop-blur"
-              >
-                Marked <span className="font-mono text-text">{lastDecision.frameId}</span> ·{" "}
-                <span className={STATUS[lastDecision.value].className}>{STATUS[lastDecision.value].label}</span>
-                <span aria-hidden="true" className="mx-1 text-text-3">
-                  —
-                </span>
-                <button
-                  type="button"
-                  onClick={undo}
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-accent-soft hover:bg-surface-strong hover:text-text"
-                >
-                  Undo <KeyHint>Z</KeyHint>
-                </button>
-              </p>
-            )}
+            {toast}
           </Panel>
         )}
 
@@ -758,27 +844,16 @@ export function ReviewView({
       </div>
 
       {fullFrame && current && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-bg/80 p-6 backdrop-blur-sm"
-          onClick={() => setFullFrame(false)}
-        >
-          <Panel
-            role="dialog"
-            aria-modal="true"
-            aria-label="Full frame"
-            className="w-full max-w-4xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <FrameWithBox
-              src={cacheUrl(folder, current.frame.file)}
-              alt={`Full frame ${current.frame.id}`}
-              box={current.detection.box_px}
-              testId="frame-box-large"
-              width={current.frame.width_px}
-              height={current.frame.height_px}
-            />
-          </Panel>
-        </div>
+        <FullFrameDialog caption={`${currentLabel} · photo rank #${current.frame.rank}`} onClose={() => setFullFrame(false)}>
+          <FrameWithBox
+            src={cacheUrl(folder, current.frame.file)}
+            alt={`Full frame ${current.frame.id}`}
+            box={current.detection.box_px}
+            testId="frame-box-large"
+            width={current.frame.width_px}
+            height={current.frame.height_px}
+          />
+        </FullFrameDialog>
       )}
     </div>
   );

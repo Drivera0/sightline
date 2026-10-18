@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CacheBundle } from "../contract";
 import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
-import { reviewItems, reviewProgress } from "./items";
+import { itemLabels, queueCounts, reviewItems, reviewProgress } from "./items";
 
 const sample = (): Promise<CacheBundle> => loadCache("sample", diskFetch());
 
@@ -69,5 +69,29 @@ describe("reviewProgress", () => {
 
   it("counts an unsure answer as reviewed", () => {
     expect(reviewProgress(ids(["a"]), { a: "unsure" })).toEqual({ reviewed: 1, total: 1, persons: 0 });
+  });
+});
+
+describe("queueCounts and itemLabels", () => {
+  it("counts photos and boxes separately when a photo holds two boxes", async () => {
+    const cache = await sample();
+    cache.detections.candidate_threshold = 0.09;
+    const items = reviewItems(cache);
+
+    expect(queueCounts(items)).toEqual({ photos: 4, boxes: 5 });
+  });
+
+  it("numbers the boxes of a repeated photo and leaves single-box photos as their id", async () => {
+    const cache = await sample();
+    cache.detections.candidate_threshold = 0.09;
+    const labels = itemLabels(reviewItems(cache));
+
+    expect(labels.get("f0005-d01")).toBe("f0005 · box 1");
+    expect(labels.get("f0005-d02")).toBe("f0005 · box 2");
+    expect(labels.get("f0012-d01")).toBe("f0012");
+  });
+
+  it("has as many photos as boxes when no photo repeats", async () => {
+    expect(queueCounts(reviewItems(await sample()))).toEqual({ photos: 3, boxes: 3 });
   });
 });

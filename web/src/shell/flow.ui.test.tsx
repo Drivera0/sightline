@@ -57,7 +57,7 @@ describe("guided flow", () => {
   it("shows the review queue and the map side by side, with the keys always visible", () => {
     window.location.hash = "#review";
     render(<Shell cache={cache} />);
-    expect(screen.getByRole("list", { name: "Candidates" })).toBeInTheDocument();
+    expect(screen.getByRole("listbox", { name: "Candidates" })).toBeInTheDocument();
     expect(screen.getByTestId("mount-map")).toBeInTheDocument();
     const hints = screen.getByRole("region", { name: "Review keys" });
     for (const label of ["Person", "Not a person", "Unsure", "Undo"]) {

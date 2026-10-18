@@ -135,6 +135,26 @@ body {
   .sl-toast-in { animation: none; }
 }
 
+/* Review card (compact): no inner scroll. The crop is about min(36vh, 280px); on wide screens,
+   where the card has a fixed height, the crop gives way first and the photo context below the
+   actions fills what is left, stepping aside when there is no room for it. */
+.sl-crop { width: min(100%, 36vh, 280px); }
+@media (min-width: 1024px) {
+  .sl-crop-slot { flex: 0 1 calc(min(36vh, 280px) + 1rem); min-height: 8rem; container-type: size; }
+  .sl-crop { width: min(100cqw - 1rem, 100cqh - 1rem, 280px); }
+  .sl-fit { flex: 1 1 0; min-height: 0; container-type: size; }
+  .sl-fit-item { width: min(100%, (100cqh - 1.75rem) * var(--sl-ar, 1.333)); margin-inline: auto; }
+}
+/* Too short for the photo: the pin key instead; too short for that: nothing. */
+.sl-fit-alt { display: none; }
+@container (max-height: 7.5rem) {
+  .sl-fit-item { display: none; }
+  .sl-fit-alt { display: flex; }
+}
+@container (max-height: 3.5rem) {
+  .sl-fit-alt { display: none; }
+}
+
 /* Rank scanner: calm on purpose (no flashing). A soft scan line, photos crossfading, boxes that
    draw themselves, and a slow glow when a candidate is found. */
 @keyframes sl-scan {

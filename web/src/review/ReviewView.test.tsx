@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,8 +18,8 @@ beforeEach(async () => {
   useSelection.getState().clear();
 });
 
-const queue = () => within(screen.getByRole("list", { name: "Candidates" })).getAllByRole("listitem");
-const current = () => queue().find((li) => li.querySelector('[aria-current="true"]'))!;
+const queue = () => within(screen.getByRole("listbox", { name: "Candidates" })).getAllByRole("option");
+const current = () => queue().find((li) => li.getAttribute("aria-selected") === "true")!;
 const status = (li: HTMLElement) => within(li).getByTestId("status").textContent;
 const show = () => render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} />);
 
@@ -30,7 +30,7 @@ describe("ReviewView list and progress", () => {
     const items = queue();
     expect(items).toHaveLength(3);
     expect(items[0]).toHaveTextContent("f0005");
-    expect(items[0]).toHaveTextContent("#1 · 87%");
+    expect(items[0]).toHaveTextContent("#1 · 0.87");
     expect(items[1]).toHaveTextContent("f0012");
     expect(items[2]).toHaveTextContent("f0008");
     expect(items.map(status)).toEqual(["Unreviewed", "Unreviewed", "Unreviewed"]);
@@ -216,7 +216,7 @@ describe("ReviewView moving and selecting", () => {
   it("clicking a candidate makes it current and selected", async () => {
     show();
 
-    await userEvent.click(within(queue()[2]!).getByRole("button"));
+    await userEvent.click(queue()[2]!);
 
     expect(current()).toHaveTextContent("f0008");
     expect(useSelection.getState().selectedDetectionId).toBe("f0008-d01");
@@ -318,7 +318,7 @@ describe("ReviewView answer states", () => {
     await userEvent.click(within(toast).getByRole("button", { name: /undo/i }));
 
     expect(useReview.getState().history).toEqual([]);
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("Undone");
     expect(current()).toHaveTextContent("f0005");
   });
 });
@@ -350,7 +350,7 @@ describe("ReviewView on phones", () => {
 describe("ReviewView compact layout", () => {
   it("drops the frame panel so the queue fits beside the map, keeping the full frame on Enter", async () => {
     render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
-    expect(screen.getByRole("list", { name: "Candidates" })).toBeInTheDocument();
+    expect(screen.getByRole("listbox", { name: "Candidates" })).toBeInTheDocument();
     expect(screen.queryByTestId("frame-box")).toBeNull();
     // Instead, the frame sits beside the crop as context, with the candidate boxed where the detector put it.
     const context = screen.getByTestId("frame-context-box");
@@ -375,5 +375,111 @@ describe("ReviewView reset", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(screen.getByText("2 of 3 reviewed · 1 person confirmed")).toBeInTheDocument();
+  });
+});
+
+describe("ReviewView full frame dialog", () => {
+  it("has a visible Close, a caption, takes focus, keeps Tab inside and gives focus back on close", async () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+    const panel = screen.getByTestId("candidate-panel");
+    panel.focus();
+
+    await userEvent.keyboard("{Enter}");
+    const dialog = screen.getByRole("dialog", { name: "Full frame" });
+    const close = within(dialog).getByRole("button", { name: /close/i });
+    expect(close).toHaveTextContent("Esc");
+    expect(document.activeElement).toBe(close);
+    expect(dialog).toHaveTextContent("f0005 · photo rank #1");
+
+    await userEvent.tab();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    await userEvent.tab({ shift: true });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
+    await userEvent.click(close);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(panel);
+  });
+});
+
+describe("ReviewView counts and labels", () => {
+  it("shows photos and boxes separately and names the boxes of a repeated photo", () => {
+    cache.detections.candidate_threshold = 0.09;
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+
+    expect(screen.getByTestId("queue-counts")).toHaveTextContent("4 photos · 5 boxes");
+    expect(queue()[0]).toHaveTextContent("f0005 · box 1");
+    expect(queue().at(-1)).toHaveTextContent("f0005 · box 2");
+    expect(screen.getByTestId("candidate-label")).toHaveTextContent("f0005 · box 1");
+  });
+
+  it("shows confidence as a 0-1 score, like Rank", () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+
+    expect(queue()[0]).toHaveTextContent("0.87");
+    expect(queue()[0]).not.toHaveTextContent("%");
+    expect(screen.getByTestId("evidence")).toHaveTextContent("score 0.87");
+  });
+
+  it("keeps score, photo rank, position and the simulated radius together under the crop", () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+
+    const evidence = screen.getByTestId("evidence");
+    expect(evidence).toHaveTextContent("photo rank #1/20");
+    expect(evidence).toHaveTextContent(/±\d+ m radius · simulated/);
+  });
+});
+
+describe("ReviewView undo feedback", () => {
+  it("says Undone for a moment after Z", async () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+    await userEvent.keyboard("p");
+
+    await userEvent.keyboard("z");
+
+    expect(screen.getByRole("status")).toHaveTextContent("Undone");
+    await waitFor(() => expect(screen.queryByText("Undone")).toBeNull(), { timeout: 2500 });
+  });
+
+  it("says nothing when there was nothing to undo", async () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+
+    await userEvent.keyboard("z");
+
+    expect(screen.queryByText("Undone")).toBeNull();
+  });
+});
+
+describe("ReviewView keyboard reach", () => {
+  it("makes the queue one tab stop that follows the current candidate", async () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+    const list = screen.getByRole("listbox", { name: "Candidates" });
+
+    expect(list).toHaveAttribute("tabindex", "0");
+    for (const option of queue()) expect(option).not.toHaveAttribute("tabindex");
+    expect(list.getAttribute("aria-activedescendant")).toBe(current().id);
+    list.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    expect(current()).toHaveTextContent("f0012");
+    expect(list.getAttribute("aria-activedescendant")).toBe(current().id);
+    await userEvent.keyboard("{End}");
+    expect(current()).toHaveTextContent("f0008");
+    await userEvent.keyboard("{Home}");
+    expect(current()).toHaveTextContent("f0005");
+  });
+
+  it("offers a Skip to answer link that focuses Person", async () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+
+    await userEvent.click(screen.getByRole("link", { name: "Skip to answer" }));
+
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /^person/i }));
+  });
+
+  it("names the M action Show on map", () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+
+    expect(screen.getByRole("button", { name: /show on map/i })).toBeInTheDocument();
+    expect(screen.queryByText(/where to search next/i)).toBeNull();
   });
 });
