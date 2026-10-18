@@ -29,6 +29,7 @@ threshold. Scoring: VOC, one box per person, IoU ≥ 0.5. Threshold 0.29, chosen
 | Precision | **59%** | same |
 | Recall | **68%** ("a third of people missed") | same |
 | 500 photos by hand | **4.6 h** | 500 × 33 s = 16,500 s (derived) |
+| Faster per photo than a person | **more than 130×** | 33 s / 0.245 s = 135 (derived) |
 
 Caveat to keep: the 33 s was measured on full 4000×3000 photos. Our 0.25 s is also per full photo,
 so that comparison is fair. In the demo, each 1000×750 frame stands for one photo.
@@ -62,6 +63,12 @@ photos did not find them.
 
 Do not claim a whole-grid win: Sightline ties naive there, because the survey covers only part of
 the grid and the prior is a flat placeholder (`map.json` `params.prior_source = "placeholder"`).
+
+## The project
+
+| Say | Value | Source |
+|---|---|---|
+| Automated tests | 886 (649 Python, 237 web) | `pytest --collect-only` and `pnpm test` on `pitch` at `b351597`'s parent `028479e` |
 
 ## The problem (context)
 

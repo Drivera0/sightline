@@ -1,14 +1,14 @@
 # 3-minute pitch (draft)
 
-About 430 spoken words at ~150 words a minute. Every number is in `NUMBERS.md`.
+About 390 spoken words: ~2:40 at 150 words a minute, which leaves ~20 s for pauses and clicks. Every number is in `NUMBERS.md`.
 Speaker names are suggestions; swap freely. Click steps live in `DEMO_60S.md` (Dan sends the final UI flow).
 
 ---
 
 ### 0:00–0:25 · Opener — Grace  *(slide: the "two people in this photo" haystack image)*
 
-> On Mount Seymour, a hypothermic hiker was found two kilometres from where searchers expected,
-> on the drone's last battery.
+> On Mount Seymour, a drone found a hypothermic hiker two kilometres away,
+> on its last battery.
 >
 > That drone flight is the easy part. What comes back is hundreds of photos like this one, and a
 > person has to look at every single one.

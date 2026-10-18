@@ -1,6 +1,6 @@
 # 60-second demo script (draft)
 
-For the live demo and the backup video. About 140 spoken words.
+For the live demo and the backup video. About 100 spoken words, so there is room to click.
 **Click steps are placeholders**: Dan is redesigning the UI flow and will send the final steps.
 Run it from the live site or from a local `pnpm build && pnpm preview` with Wi-Fi off.
 
