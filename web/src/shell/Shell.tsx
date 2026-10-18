@@ -115,7 +115,7 @@ export function SurveyPicker({
           </svg>
         )}
       </span>
-      {simulatedPath && <span className="truncate text-[11px] leading-4 text-accent-soft">Simulated flight path</span>}
+      {simulatedPath && <span className="truncate text-caption text-accent-soft">Simulated flight path</span>}
       {choosable && (
         <select
           aria-label="Survey"
@@ -364,7 +364,7 @@ export function Shell({
 
   return (
     <CacheContext.Provider value={cache}>
-      <div className="flex min-h-full flex-col gap-3 px-4 pb-4 lg:h-full">
+      <div className="flex min-h-full flex-col gap-4 px-4 pb-4 lg:h-full">
         <header className="relative flex h-14 shrink-0 items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-4">
             <h1 className="flex shrink-0 items-center gap-2 text-title font-medium">
@@ -396,7 +396,7 @@ export function Shell({
               <div className="flex flex-col gap-2 border-b border-border px-3 pb-3 pt-2 sm:hidden">
                 <span className="flex flex-col">
                   <span className="text-body text-text">{shortSurveyName(survey.area.name)}</span>
-                  {survey.simulated_path && <span className="text-[11px] leading-4 text-accent-soft">Simulated flight path</span>}
+                  {survey.simulated_path && <span className="text-caption text-accent-soft">Simulated flight path</span>}
                 </span>
                 {cacheDir && onCacheDirChange && surveyOptions.length > 0 && (
                   <SurveySelect options={surveyOptions} value={cacheDir} onChange={onCacheDirChange} />
@@ -410,7 +410,7 @@ export function Shell({
           </div>
         </header>
 
-        <main key={step} className="sl-step flex flex-1 flex-col gap-3 lg:min-h-0" aria-label={stepInfo.label}>
+        <main key={step} className="sl-step flex flex-1 flex-col gap-4 lg:min-h-0" aria-label={stepInfo.label}>
           {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onTour={startTour} onTryPhoto={canTryPhoto ? () => setTryPhoto(true) : undefined} />}
 
           {step === "rank" && <RankReveal cache={cache} dir={dir} onStart={() => setStep("review")} />}
@@ -421,7 +421,7 @@ export function Shell({
                 title="Is this a person?"
                 subtitle="Person pins them on the map. Not a person clears that ground. Unsure changes nothing."
               />
-              <div className="grid flex-1 grid-cols-1 gap-3 lg:min-h-0 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+              <div className="grid flex-1 grid-cols-1 gap-4 lg:min-h-0 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
                 <ScreenBoundary name="Review">
                   <ReviewView cache={cache} onShowMap={() => setStep("search")} compact />
                 </ScreenBoundary>
@@ -476,7 +476,7 @@ export function Shell({
         </main>
 
         <footer>
-          <p className="text-[11px] leading-4 text-text-3 sm:truncate" title={credit}>
+          <p className="text-caption text-text-3 sm:truncate" title={credit}>
             {credit}
           </p>
         </footer>

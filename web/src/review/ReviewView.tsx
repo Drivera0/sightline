@@ -36,17 +36,17 @@ function Check() {
 const TOAST_MS = 5000;
 
 /**
- * The marker as the map draws it for each answer (map/base/pinImages.ts): a check on an orange
- * disc for a person, "?" in an amber ring when unsure, a grey cross when not a person, and an
- * orange ring with a dot while unanswered.
+ * The marker as the map draws it for each answer (map/base/pinImages.ts): a check on a green
+ * disc for a person, "?" in an amber ring when unsure, a grey cross when not a person, and a
+ * neutral ring with a dot while unanswered.
  */
 export function PinMark({ state, size = 14 }: { state: Answer | "unreviewed"; size?: number }) {
   return (
     <svg viewBox="0 0 20 20" width={size} height={size} aria-hidden="true" className="shrink-0">
       {state === "person" && (
         <>
-          <circle cx="10" cy="10" r="8" fill="var(--accent)" stroke="var(--text)" strokeWidth="1.5" />
-          <path d="M6.4 10.3 8.9 12.8 13.8 7.6" fill="none" stroke="var(--text)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="10" cy="10" r="8" fill="var(--ok)" stroke="var(--text)" strokeWidth="1.5" />
+          <path d="M6.4 10.3 8.9 12.8 13.8 7.6" fill="none" stroke="var(--bg)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </>
       )}
       {state === "unsure" && (
@@ -62,8 +62,8 @@ export function PinMark({ state, size = 14 }: { state: Answer | "unreviewed"; si
       )}
       {state === "unreviewed" && (
         <>
-          <circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeOpacity="0.8" />
-          <circle cx="10" cy="10" r="2.75" fill="var(--accent)" />
+          <circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--text-2)" strokeWidth="1.5" strokeOpacity="0.8" />
+          <circle cx="10" cy="10" r="2.75" fill="var(--text-2)" />
         </>
       )}
     </svg>
@@ -306,7 +306,7 @@ export function ReviewView({
     "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-small text-text-2 transition-colors hover:bg-surface-strong hover:text-text";
 
   return (
-    <div className="flex flex-col gap-3 lg:h-full lg:min-h-0">
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-4">
           <p className="font-mono text-small text-text-2">
@@ -334,7 +334,7 @@ export function ReviewView({
 
       <div
         className={
-          "grid flex-1 grid-cols-1 gap-3 lg:min-h-0 " +
+          "grid flex-1 grid-cols-1 gap-4 lg:min-h-0 " +
           (compact ? "md:grid-cols-[14rem_minmax(0,1fr)] lg:grid-cols-[12rem_minmax(0,1fr)] 2xl:grid-cols-[14rem_minmax(0,1fr)]" : "lg:grid-cols-[18rem_1fr_20rem]")
         }
       >

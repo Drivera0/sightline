@@ -4,9 +4,11 @@ const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).j
 
 /** Glass panel over the map or background. Inner elements use `rounded-sm` (concentric corners). */
 export function Panel({ className, ...props }: ComponentProps<"div">) {
+  // 16 px on phones, 24 px from lg, unless the caller sets its own padding.
+  const ownPadding = /(^|\s)(p|px|py|pt|pb|pl|pr)-/.test(className ?? "");
   return (
     <div
-      className={cx("rounded-lg border border-border bg-surface p-5 backdrop-blur-[16px]", className)}
+      className={cx("rounded-lg border border-border bg-surface backdrop-blur-[16px]", !ownPadding && "p-4 lg:p-6", className)}
       {...props}
     />
   );

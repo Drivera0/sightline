@@ -31,6 +31,7 @@ const mapFile = {
 
 const colors = {
   accent: "accent",
+  ok: "ok",
   accentSoft: "accent-soft",
   background: "background",
   text: "text",

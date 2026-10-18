@@ -13,9 +13,9 @@
   --accent-soft: #ffb27a;
   --ok: #7ee2a0; /* "Person" */
   --warn: #ffc48f; /* "Unsure" */
-  --radius-lg: 28px;
-  --radius-md: 20px;
-  --radius-sm: 12px;
+  --radius-lg: 16px; /* panels */
+  --radius-md: 10px; /* inner elements: crops, frames */
+  --radius-sm: 10px; /* inner elements: rows, inputs (999px only for buttons and chips) */
   --font: "Geist Variable", system-ui, sans-serif;
   --mono: "Geist Mono Variable", ui-monospace, monospace;
   --hand: "Caveat Variable", cursive; /* annotations only */
@@ -43,13 +43,25 @@
   --font-hand: var(--hand);
 }
 
-/* Type scale: 32 / 20 / 15 / 13 px, plus the 12 px uppercase mono label. */
+/* Type scale (size / line height): caption 11/16, small 13/20, body 15/24, lead 17/26,
+   title 20/28, headline 28/34, display 40/44. `label` is the caption size for uppercase mono labels. */
 @theme {
-  --text-display: 32px;
-  --text-title: 20px;
-  --text-body: 15px;
+  --text-caption: 11px;
+  --text-caption--line-height: 16px;
+  --text-label: 11px;
+  --text-label--line-height: 16px;
   --text-small: 13px;
-  --text-label: 12px;
+  --text-small--line-height: 20px;
+  --text-body: 15px;
+  --text-body--line-height: 24px;
+  --text-lead: 17px;
+  --text-lead--line-height: 26px;
+  --text-title: 20px;
+  --text-title--line-height: 28px;
+  --text-headline: 28px;
+  --text-headline--line-height: 34px;
+  --text-display: 40px;
+  --text-display--line-height: 44px;
   --tracking-label: 0.08em;
 }
 

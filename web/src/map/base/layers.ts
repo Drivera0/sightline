@@ -15,6 +15,8 @@ import { ensurePinImages, PIN_IMAGES } from "./pinImages";
 
 interface MapColors {
   accent: string;
+  /** "Person" (--ok): confirmed finds are green everywhere, map included. */
+  ok: string;
   accentSoft: string;
   background: string;
   text: string;
@@ -32,6 +34,7 @@ export function readMapColors(root: Element = document.documentElement): MapColo
   const styles = getComputedStyle(root);
   return {
     accent: styles.getPropertyValue("--accent").trim(),
+    ok: styles.getPropertyValue("--ok").trim(),
     accentSoft: styles.getPropertyValue("--accent-soft").trim(),
     background: styles.getPropertyValue("--bg").trim(),
     text: styles.getPropertyValue("--text").trim(),
@@ -140,7 +143,8 @@ export function syncBaseLayers(
       type: "fill",
       source: MAP_SOURCE_IDS.pins,
       paint: {
-        "fill-color": ["match", ["get", "reviewState"], "unsure", colors.warning, colors.accent],
+        // Person green, unsure amber, unanswered neutral: never the heat's orange and red.
+        "fill-color": ["match", ["get", "reviewState"], "person", colors.ok, "unsure", colors.warning, colors.text],
         "fill-opacity": [
           "match",
           ["get", "reviewState"],
@@ -162,7 +166,7 @@ export function syncBaseLayers(
       source: MAP_SOURCE_IDS.pins,
       filter: ["!=", ["get", "reviewState"], "not_person"],
       paint: {
-        "line-color": ["match", ["get", "reviewState"], "unsure", colors.warning, colors.accent],
+        "line-color": ["match", ["get", "reviewState"], "person", colors.ok, "unsure", colors.warning, colors.text],
         "line-opacity": ["match", ["get", "reviewState"], "unreviewed", 0.8, 1],
         "line-width": ["match", ["get", "reviewState"], "person", 2.5, "unsure", 2, 1.5],
       },

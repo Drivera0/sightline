@@ -52,7 +52,7 @@ export function SimulatedLine({
   return (
     <p
       data-testid="simulated-line"
-      className="pointer-events-auto inline-flex flex-wrap items-center gap-x-1 rounded-full bg-bg/75 px-2.5 py-1 text-[11px] leading-4 text-text-2 backdrop-blur-md"
+      className="pointer-events-auto inline-flex flex-wrap items-center gap-x-1 rounded-full bg-bg/75 px-2.5 py-1 text-caption text-text-2 backdrop-blur-md"
     >
       <span className="text-accent-soft">Simulated:</span>
       {items.map((item, i) => (

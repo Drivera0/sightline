@@ -195,7 +195,7 @@ export function SurveyIntro({
             <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent-soft" aria-hidden="true" />
             {copy.provenance}
           </p>
-          <p className="text-[17px] leading-relaxed text-text-2 sm:text-[19px]">{copy.body}</p>
+          <p className="text-lead text-text-2">{copy.body}</p>
         </div>
 
         <dl className="sl-rise grid grid-cols-3 gap-3" style={{ animationDelay: "220ms" }}>
