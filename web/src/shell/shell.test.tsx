@@ -211,3 +211,16 @@ describe("Annotation", () => {
     expect(screen.getByText("this is where the team goes next")).toHaveClass("font-hand");
   });
 });
+
+describe("Shell credits", () => {
+  it("credits the HERIDAL imagery and its licence on every screen", async () => {
+    render(<Shell cache={await sample()} />);
+    const credit = screen.getByText(/HERIDAL/);
+    expect(credit).toHaveTextContent(/Božić-Štulić/);
+    expect(credit).toHaveTextContent(/CC BY 3\.0/);
+    for (const name of ["Map", "Metrics"]) {
+      await userEvent.click(screen.getByRole("tab", { name }));
+      expect(screen.getByText(/HERIDAL/)).toBeInTheDocument();
+    }
+  });
+});
