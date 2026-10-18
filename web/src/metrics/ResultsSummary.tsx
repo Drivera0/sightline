@@ -194,7 +194,7 @@ export function ResultsSummary({
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
         <YourReview candidateIds={candidateIds} />
         <WhyResolution
           ablations={metrics.ablations}

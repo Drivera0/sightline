@@ -204,7 +204,10 @@ function MetricsBody({ m }: { m: Metrics }) {
 
       {/* Ablation table. */}
       <Section title="What each technique adds" aside="every variant, test set">
-        <AblationTable rows={ablations} source={detectorSource} />
+        <AblationTable
+          rows={ablations}
+          source={`HERIDAL test set, ${detector.test_images} images (metrics.ablations)`}
+        />
       </Section>
 
       {/* Ranking block (D's numbers): the race above draws the same result. */}
@@ -631,7 +634,7 @@ function AblationTable({
                   pct(row.voc.recall, 1),
                   pct(row.voc.ap50, 1),
                 ]}
-                source={`${source}; same threshold rule for every row (metrics.ablations)`}
+                source={`${source}; each row at its own threshold, chosen on validation`}
                 highlight={inUse}
               />
             );
