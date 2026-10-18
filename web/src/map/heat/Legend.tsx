@@ -63,13 +63,43 @@ interface Props {
   /** With a handler, the legend shows a "Flight path (simulated)" switch. */
   showPath?: boolean;
   onShowPathChange?: (visible: boolean) => void;
+  /** A candidate sighting is on the map: add its entry, and say the heat is the "none of them" plan. */
+  hasSightings?: boolean;
+  /** With a handler (the folded legend below 1280 px), the header gets a "Hide" button. */
+  onCollapse?: () => void;
 }
 
-export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath = true, onShowPathChange }: Props) {
+export function Legend({
+  simulatedPath,
+  hasSurveyed,
+  compact = false,
+  showPath = true,
+  onShowPathChange,
+  onCollapse,
+  hasSightings = false,
+}: Props) {
   const swatches = rampSwatches();
   return (
     <div className="flex flex-col gap-3">
-      {!compact && <Label>Reading the map</Label>}
+      {!compact &&
+        (onCollapse ? (
+          <div className="flex items-center justify-between gap-2">
+            <Label>Reading the map</Label>
+            <button
+              type="button"
+              aria-expanded={true}
+              aria-controls="search-legend"
+              onClick={onCollapse}
+              // Opened from the pill: focus moves here so the keyboard user lands in the legend.
+              autoFocus
+              className="-my-1 min-h-8 rounded-sm px-2 text-small text-text-2 hover:text-text"
+            >
+              Hide
+            </button>
+          </div>
+        ) : (
+          <Label>Reading the map</Label>
+        ))}
       <div className="flex flex-col gap-1.5">
         <div className="flex h-2.5 w-full gap-px overflow-hidden rounded-full" data-testid="heat-ramp">
           {swatches.map((c) => (
@@ -81,10 +111,31 @@ export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath =
           <span>Higher probability</span>
         </div>
         {!compact && (
-          <span className="text-label text-text-3">Inside the surveyed area, relative to the other surveyed cells</span>
+          <span className="text-label text-text-2">
+            Chance per cell, on one fixed scale for the whole replay. Deepest red: as likely as the likeliest cell before
+            the flight.
+          </span>
         )}
       </div>
+      {hasSightings && (
+        <span className="text-label text-text-2">
+          With a sighting on the map, the colours are the plan if none of the sightings is the missing person.
+        </span>
+      )}
       <ul className="flex flex-col gap-2 text-small text-text-2">
+        {hasSightings && (
+          <li className="flex items-center gap-2.5">
+            <span
+              className="inline-block size-3 rounded-[3px] ring-2 ring-ok"
+              style={{ background: swatches.at(-1) }}
+              aria-hidden="true"
+            />
+            <span className="flex flex-col">
+              <span>Candidate sighting</span>
+              {!compact && <span className="text-label text-text-2">A person is there; maybe not the missing one</span>}
+            </span>
+          </li>
+        )}
         <li className="flex items-center gap-2.5">
           <span
             className="inline-block size-3 rounded-[3px] ring-1 ring-border"
@@ -93,7 +144,7 @@ export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath =
           />
           <span className="flex flex-col">
             <span>Not yet searched</span>
-            {!compact && <span className="text-label text-text-3">Under half of the cell photographed</span>}
+            {!compact && <span className="text-label text-text-2">Under half of the cell photographed</span>}
           </span>
         </li>
         <li className="flex items-center gap-2.5">
@@ -123,14 +174,14 @@ export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath =
               <span className="inline-block h-0 w-5 border-t border-text/30" aria-hidden="true" />
               <span className="flex flex-col">
                 <span>Search sectors</span>
-                <span className="text-label text-text-3">Orange: the sector the drone is in</span>
+                <span className="text-label text-text-2">Orange: the sector the drone is in</span>
               </span>
             </li>
             <li className="flex items-center gap-2.5">
               <DroneGlyph />
               <span className="flex flex-col">
                 <span>Drone, during replay</span>
-                <span className="text-label text-text-3">Orange box: the photo it is taking</span>
+                <span className="text-label text-text-2">Orange box: the photo it is taking</span>
               </span>
             </li>
           </ul>

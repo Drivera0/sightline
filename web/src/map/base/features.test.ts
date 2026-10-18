@@ -188,7 +188,7 @@ describe("base map GeoJSON", () => {
     ]);
     expect(collection.features.map((feature) => feature.properties.reviewLabel)).toEqual([
       "Not answered",
-      "Person confirmed",
+      "Person sighted",
       "Not a person",
       "Unsure · check again",
     ]);
@@ -202,7 +202,7 @@ describe("base map GeoJSON", () => {
       reviewedDetections.frames.f0001!.map((d) => [d.lon, d.lat]),
     );
     expect(markers.features.map((f) => f.properties.labelRank)).toEqual([1, 0, 1, 1]);
-    expect(markers.features[1]?.properties.chipText).toBe("Person confirmed · f0001");
+    expect(markers.features[1]?.properties.chipText).toBe("Person sighted · f0001");
   });
 
   it("uses the survey last-known point", () => {
@@ -228,5 +228,15 @@ describe("base map GeoJSON", () => {
     expect(viewBounds({ ...survey, simulated_path: false }, grid)).toEqual(
       surveyBounds(survey),
     );
+  });
+});
+
+describe("replay step", () => {
+  it("draws a pin only once its frame has been flown; null means every frame", () => {
+    const answers = { "f0001-d01": "person" as const };
+    expect(buildDetectionFeatures(detections, answers, new Set(["f0002"])).features).toHaveLength(0);
+    expect(buildPinMarkerFeatures(detections, answers, new Set(["f0002"])).features).toHaveLength(0);
+    expect(buildPinMarkerFeatures(detections, answers, new Set(["f0001"])).features).toHaveLength(1);
+    expect(buildPinMarkerFeatures(detections, answers, null).features).toHaveLength(1);
   });
 });

@@ -4,7 +4,16 @@ import { create } from "zustand";
 import type { Detection, Detections, MapFile } from "../contract";
 import { useCache } from "../lib/cache";
 import { useReview, type HistoryEntry } from "../review/store";
-import { applyReviewNotPerson, cellsWithinRadius, replay, type MapState } from "./update";
+import {
+  applyReviewNotPerson,
+  applyReviewPerson,
+  candidateShares,
+  cellsWithinRadius,
+  mergeSightings,
+  replay,
+  type CandidateShare,
+  type MapState,
+} from "./update";
 
 export interface SearchData {
   map: MapFile;
@@ -12,9 +21,15 @@ export interface SearchData {
 }
 
 export interface SearchDerived {
+  /** The map: replayed steps, "not a person" answers, and each flown sighting's own look undone. */
   state: MapState;
   found: boolean;
   foundDetectionId: string | null;
+  /**
+   * Candidate sightings: "Person" answers whose photo the replay has flown, merged where their areas
+   * overlap, with each area's share of the chance if the missing person is one of them.
+   */
+  sightings: CandidateShare[];
 }
 
 /** Replay checkpoints are kept every this many steps, so scrubbing never replays from the start. */
@@ -62,6 +77,32 @@ export function effectiveAnswers(history: readonly HistoryEntry[]): HistoryEntry
 
 const detectionIndexes = new WeakMap<Detections, Map<string, Detection>>();
 
+const frameIndexes = new WeakMap<Detections, Map<string, string>>();
+
+/** The frame a detection was found in (detections.json is keyed by frame). */
+export function frameOfDetection(detections: Detections, id: string): string | undefined {
+  let index = frameIndexes.get(detections);
+  if (!index) {
+    index = new Map();
+    for (const [frameId, list] of Object.entries(detections.frames)) for (const d of list) index.set(d.id, frameId);
+    frameIndexes.set(detections, index);
+  }
+  return index.get(id);
+}
+
+const stepIndexes = new WeakMap<MapFile, Map<string, number>>();
+
+/** The 0-based step of a frame in map.json (steps are in flight order), or -1. */
+export function stepOfFrame(map: MapFile, frameId: string): number {
+  let index = stepIndexes.get(map);
+  if (!index) {
+    index = new Map();
+    map.steps.forEach((s, i) => index!.set(s.frame_id, i));
+    stepIndexes.set(map, index);
+  }
+  return index.get(frameId) ?? -1;
+}
+
 export function detectionById(detections: Detections, id: string): Detection | undefined {
   let index = detectionIndexes.get(detections);
   if (!index) {
@@ -73,18 +114,23 @@ export function detectionById(detections: Detections, id: string): Detection | u
 }
 
 /**
- * Apply each still-valid "not a person" answer, in history order, to the step state, and find
- * the confirmed person (the most recent detection whose latest answer is "person").
+ * Apply each still-valid answer, in history order, to the state after `stepIndex` steps (default:
+ * the whole flight): "not a person" clears the cells around it; "person" is a candidate sighting, so
+ * once its photo is flown that photo's "nobody here" look at the cells around it is undone
+ * (applyReviewPerson). Then the flown sightings are merged into candidate areas with their shares.
+ * foundDetectionId is the most recent detection whose latest answer is "person".
  * Ids not in detections.json (for example an old saved history) are ignored.
  */
 export function applyReview(
   base: MapState,
   data: SearchData,
   history: readonly HistoryEntry[],
+  stepIndex: number = data.map.steps.length,
 ): SearchDerived {
   const { grid, params } = data.map;
   let state = base;
   let foundDetectionId: string | null = null;
+  const sighted: { detectionId: string; cells: number[] }[] = [];
   for (const entry of effectiveAnswers(history)) {
     const detection = detectionById(data.detections, entry.detectionId);
     if (!detection) continue;
@@ -100,9 +146,15 @@ export function applyReview(
       );
     } else if (entry.answer === "person") {
       foundDetectionId = entry.detectionId;
+      const frameId = frameOfDetection(data.detections, entry.detectionId);
+      const step = frameId === undefined ? -1 : stepOfFrame(data.map, frameId);
+      if (step < 0 || step >= stepIndex) continue;
+      state = applyReviewPerson(state, grid, detection.lat, detection.lon, detection.radius_m, data.map.steps[step] ?? null);
+      sighted.push({ detectionId: entry.detectionId, cells: cellsWithinRadius(grid, detection.lat, detection.lon, detection.radius_m) });
     }
   }
-  return { state, found: foundDetectionId !== null, foundDetectionId };
+  const sightings = sighted.length > 0 ? candidateShares(state, mergeSightings(sighted)) : [];
+  return { state, found: foundDetectionId !== null, foundDetectionId, sightings };
 }
 
 /**
@@ -134,7 +186,7 @@ export function deriveSearch(
   stepIndex: number,
   history: readonly HistoryEntry[],
 ): SearchDerived {
-  return applyReview(stateAtStep(data.map, stepIndex), data, history);
+  return applyReview(stateAtStep(data.map, stepIndex), data, history, stepIndex);
 }
 
 interface SearchStore {
@@ -145,6 +197,7 @@ interface SearchStore {
   state: MapState | null;
   found: boolean;
   foundDetectionId: string | null;
+  sightings: CandidateShare[];
   /** Use this cache. Resets the slider to the final map when the map file changes. */
   bind: (data: SearchData) => void;
   setStepIndex: (stepIndex: number) => void;
@@ -157,7 +210,7 @@ function derive(data: SearchData, stepIndex: number): SearchDerived {
   if (!baseCache || baseCache.map !== data.map || baseCache.stepIndex !== stepIndex) {
     baseCache = { map: data.map, stepIndex, state: stateAtStep(data.map, stepIndex) };
   }
-  return applyReview(baseCache.state, data, useReview.getState().history);
+  return applyReview(baseCache.state, data, useReview.getState().history, stepIndex);
 }
 
 export const useSearch = create<SearchStore>((set, get) => ({
@@ -167,6 +220,7 @@ export const useSearch = create<SearchStore>((set, get) => ({
   state: null,
   found: false,
   foundDetectionId: null,
+  sightings: [],
   bind: (data) => {
     const current = get().data;
     if (current && current.map === data.map && current.detections === data.detections) return;

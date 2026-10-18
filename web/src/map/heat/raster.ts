@@ -12,16 +12,20 @@
 // over the dark basemap.
 import type { MapFile } from "../../contract";
 import type { MapState } from "../../search/update";
-import { edgeLat, edgeLon, relativeHeatLevels } from "./geometry";
+import { edgeLat, edgeLon, fixedHeatLevels } from "./geometry";
 
 type Grid = MapFile["grid"];
 export type RGB = [number, number, number];
 
 /** Opacity of the "not yet searched" veil (cells not photographed at this step). */
 export const VEIL_ALPHA = 0.62;
-/** Heat opacity at the low and the high end of the ramp: the pale low end lets the basemap through, the dark high end is dense. */
-export const HEAT_ALPHA_MIN = 0.8;
-export const HEAT_ALPHA_MAX = 0.95;
+/**
+ * Heat opacity at the low and the high end of the ramp: the pale low end lets the basemap through, the
+ * dark high end is dense. (Was 0.5 to 0.9, too muddy at the pale end; then 0.8 to 0.95, which hid the
+ * basemap.) Multiplied by the layer's HEAT_BASE_OPACITY.
+ */
+export const HEAT_ALPHA_MIN = 0.7;
+export const HEAT_ALPHA_MAX = 0.92;
 /** Fill of a cell awaiting review: a neutral light tone (no update yet), outlined dashed on the map. */
 export const HELD_ALPHA = 0.3;
 /** Ramp resolution. */
@@ -146,9 +150,11 @@ export function buildEvenRamp(stops: readonly RGB[], steps = RAMP_STEPS): Uint8C
 /**
  * ColorBrewer YlOrRd (9 classes, Cynthia Brewer, colorbrewer2.org), less likely to more likely. The
  * palest class (#ffffcc) is left out: at partial opacity over the dark basemap it reads as grey.
- * The orange class #fd8d3c is replaced by the theme accent (see paletteFromTokens).
+ * The two palest stops used are lightened a little (#ffeda0 -> #fff4b8, #fed976 -> #fedc80) so they
+ * stay yellow, not olive, at the lower opacity that lets the basemap through. The orange class
+ * #fd8d3c is replaced by the theme accent (see paletteFromTokens).
  */
-export const YLORRD_STOPS = ["#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"] as const;
+export const YLORRD_STOPS = ["#fff4b8", "#fedc80", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"] as const;
 const ACCENT_STOP_INDEX = 3;
 
 export interface RasterPalette {
@@ -195,23 +201,36 @@ export function heatColor(palette: RasterPalette, t: number): [number, number, n
 /**
  * RGBA per cell (row-major, row 0 = north: the canvas's own pixel order).
  * - not photographed at this step: the background colour at VEIL_ALPHA ("not yet searched");
+ * - a candidate sighting (a "Person" answer whose photo is flown): the darkest class;
  * - photographed and awaiting review: the neutral held tone at HELD_ALPHA;
- * - photographed: the ramp at the cell's level among the photographed cells (relativeHeatLevels),
- *   rounded to one of HEAT_CLASSES classes (classLevel).
+ * - photographed: the ramp at the cell's level on the fixed scale p / scaleMax (fixedHeatLevels,
+ *   scaleMax = the prior's highest cell, the same at every replay step), rounded to one of
+ *   HEAT_CLASSES classes (classLevel). A fixed scale keeps the map and the sector list in step: a
+ *   searched sector with a small share is drawn pale, not stretched to dark red.
  */
 export function heatPixels(
   state: MapState,
   covered: Uint8Array,
   held: Uint8Array,
   palette: RasterPalette,
+  scaleMax: number,
+  candidate?: Uint8Array | null,
   out = new Uint8ClampedArray(state.p.length * 4),
 ): Uint8ClampedArray {
-  const levels = relativeHeatLevels(state.p, covered, held);
+  const levels = fixedHeatLevels(state.p, covered, scaleMax, held);
   const veilA = Math.round(VEIL_ALPHA * 255);
   const heldA = Math.round(HELD_ALPHA * 255);
+  const top = heatColor(palette, 1);
   for (let i = 0; i < state.p.length; i++) {
     const o = i * 4;
-    if (covered[i] !== 1) {
+    if (candidate?.[i] === 1) {
+      // A candidate sighting: someone is there. Drawn as the darkest class (ringed on the map); no
+      // probability is invented for it, the class only says "most likely point on the map".
+      out[o] = top[0];
+      out[o + 1] = top[1];
+      out[o + 2] = top[2];
+      out[o + 3] = top[3];
+    } else if (covered[i] !== 1) {
       out[o] = palette.veil[0];
       out[o + 1] = palette.veil[1];
       out[o + 2] = palette.veil[2];

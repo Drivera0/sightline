@@ -10,6 +10,7 @@ import { HEAT_LAYER_PREFIX, MAP_LAYER_IDS } from "../base/layerIds";
 import { DRONE_IMAGE_ID, DRONE_ICON_SIZE } from "./droneImage";
 import { cellCenter, surveyedBoundary } from "./geometry";
 import { gridCorners, type HeatRaster } from "./raster";
+import type { LabelCandidate } from "./labelPlacement";
 import { sectorName, sectorRing, SECTOR_STATE_LABEL, type SectorStatus } from "./sectors";
 
 type Grid = MapFile["grid"];
@@ -19,6 +20,7 @@ type LonLat = [number, number];
 export const HEAT_SOURCE_ID = `${HEAT_LAYER_PREFIX}cells`;
 export const HEAT_SURVEYED_SOURCE_ID = `${HEAT_LAYER_PREFIX}surveyed`;
 export const HEAT_HELD_SOURCE_ID = `${HEAT_LAYER_PREFIX}held`;
+export const HEAT_CANDIDATE_SOURCE_ID = `${HEAT_LAYER_PREFIX}candidates`;
 export const HEAT_TRAIL_SOURCE_ID = `${HEAT_LAYER_PREFIX}trail`;
 export const HEAT_DRONE_SOURCE_ID = `${HEAT_LAYER_PREFIX}drone`;
 export const HEAT_DRONE_FOOTPRINT_SOURCE_ID = `${HEAT_LAYER_PREFIX}drone-footprint`;
@@ -30,6 +32,7 @@ export const HEAT_LAYER_IDS = {
   cells: `${HEAT_LAYER_PREFIX}cells`,
   sectorFill: `${HEAT_LAYER_PREFIX}sector-fill`,
   reviewOutline: `${HEAT_LAYER_PREFIX}review-outline`,
+  candidateOutline: `${HEAT_LAYER_PREFIX}candidate-outline`,
   surveyed: `${HEAT_LAYER_PREFIX}surveyed`,
   sectorLine: `${HEAT_LAYER_PREFIX}sector-line`,
   sectorLabel: `${HEAT_LAYER_PREFIX}sector-label`,
@@ -78,8 +81,13 @@ function beforeId(map: Map): string | undefined {
 
 const EMPTY: GeoJsonData = { type: "FeatureCollection", features: [] };
 
-/** Heat raster opacity at rest: full on Search next, a little fainter beside the review queue so pins stay first (lower than 0.8 turns the pale low end muddy over the dark basemap). */
-export const HEAT_BASE_OPACITY = { search: 0.95, review: 0.8 } as const;
+/**
+ * Heat raster opacity at rest: nearly full on Search next, fainter beside the review queue so pins
+ * stay first. With the cells' own alpha (raster.ts) the palest class shows at about 0.62 (Search next)
+ * and 0.53 (Review), so roads and terrain show through; below about 0.5 the pale end turns muddy
+ * olive over the dark basemap (compared at 1440 px over the offline basemap).
+ */
+export const HEAT_BASE_OPACITY = { search: 0.88, review: 0.75 } as const;
 
 function lines(segments: LonLat[][]): GeoJsonData {
   return { type: "Feature", properties: {}, geometry: { type: "MultiLineString", coordinates: segments } };
@@ -111,7 +119,7 @@ export function ensureHeatLayers(
   if (!map.getSource(HEAT_SURVEYED_SOURCE_ID)) {
     map.addSource(HEAT_SURVEYED_SOURCE_ID, { type: "geojson", data: lines(surveyedBoundary(grid, covered)) });
   }
-  for (const id of [HEAT_HELD_SOURCE_ID, HEAT_SECTOR_SOURCE_ID, HEAT_SECTOR_LABEL_SOURCE_ID, HEAT_RIPPLE_SOURCE_ID]) {
+  for (const id of [HEAT_HELD_SOURCE_ID, HEAT_CANDIDATE_SOURCE_ID, HEAT_SECTOR_SOURCE_ID, HEAT_SECTOR_LABEL_SOURCE_ID, HEAT_RIPPLE_SOURCE_ID]) {
     if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: EMPTY });
   }
 
@@ -159,6 +167,18 @@ export function ensureHeatLayers(
           "line-width": 1.5,
           "line-dasharray": REVIEW_OUTLINE_DASH,
         },
+      },
+      beforeId(map),
+    );
+  }
+  // Candidate sightings: a solid ring in the "Person" colour around their cells (drawn darkest).
+  if (!map.getLayer(HEAT_LAYER_IDS.candidateOutline)) {
+    map.addLayer(
+      {
+        id: HEAT_LAYER_IDS.candidateOutline,
+        type: "line",
+        source: HEAT_CANDIDATE_SOURCE_ID,
+        paint: { "line-color": colors.ok, "line-opacity": 1, "line-width": 2.5 },
       },
       beforeId(map),
     );
@@ -321,6 +341,11 @@ export function setSurveyedBoundary(map: Map, grid: Grid, photographed: Uint8Arr
   (map.getSource(HEAT_SURVEYED_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(lines(surveyedBoundary(grid, photographed)));
 }
 
+/** Redraw the ring around the candidate sighting cells. */
+export function setCandidateBoundary(map: Map, grid: Grid, candidate: Uint8Array): void {
+  (map.getSource(HEAT_CANDIDATE_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(lines(surveyedBoundary(grid, candidate)));
+}
+
 /** Redraw the dashed outline of the photographed cells awaiting review. */
 export function setHeldBoundary(map: Map, grid: Grid, covered: Uint8Array, held: Uint8Array): void {
   const shown = Uint8Array.from(held, (h, i) => (h === 1 && covered[i] === 1 ? 1 : 0));
@@ -328,44 +353,81 @@ export function setHeldBoundary(map: Map, grid: Grid, covered: Uint8Array, held:
 }
 
 /**
+ * Where a sector's label may go, best first (see labelPlacement.ts). Flight sectors are thin strips
+ * under the heat: just outside their west edge, like row labels, else just inside it. Outer sectors:
+ * next to the photographed area they surround (their corners are often far off screen), else their
+ * north-west corner. Lattice sectors: inside the north-west corner, else the south-east one.
+ */
+export function labelCandidates(grid: Grid, s: SectorStatus, all: readonly SectorStatus[]): LabelCandidate[] {
+  const ring = sectorRing(grid, s.sector);
+  const [nw, ne, se, sw] = ring as [LonLat, LonLat, LonLat, LonLat];
+  const nwCorner: LabelCandidate = { at: nw, anchor: "top-left", offset: [0.45, 0.35] };
+  const midLat = (nw[1] + sw[1]) / 2;
+  if (s.sector.kind === "flight") {
+    return [
+      { at: [nw[0], midLat], anchor: "right", offset: [-0.7, 0] },
+      { at: [nw[0], midLat], anchor: "left", offset: [0.7, 0] },
+    ];
+  }
+  if (s.sector.kind === "lattice") return [nwCorner, { at: se, anchor: "bottom-right", offset: [-0.45, -0.35] }];
+  const flights = all.filter((x) => x.sector.kind === "flight");
+  const surveyWestLon = flights.length > 0 ? Math.min(...flights.map((x) => sectorRing(grid, x.sector)[0]![0])) : nw[0];
+  switch (s.sector.id) {
+    case "N":
+      return [{ at: [surveyWestLon, sw[1]], anchor: "bottom-left", offset: [0.45, -0.35] }, nwCorner];
+    case "S":
+      return [{ at: [surveyWestLon, nw[1]], anchor: "top-left", offset: [0.45, 0.35] }, nwCorner];
+    case "W":
+      return [{ at: ne, anchor: "top-right", offset: [-0.45, 0.35] }, nwCorner];
+    default:
+      return [nwCorner];
+  }
+}
+
+/** Picks one of a label's candidates, or null to hide it (labelPlacement.placeLabel on the live map). */
+export type PlaceLabel = (candidates: readonly LabelCandidate[], text: string) => LabelCandidate | null;
+
+/**
  * Sector outlines and labels, with the current / hovered sector marked. A resting label is just the
  * sector's name (the Sectors list has every state); the current and the hovered sector add their state.
+ * Without `place` each label takes its first candidate; with it, a label no candidate fits is left out.
  */
 export function sectorFeatures(
   grid: Grid,
   statuses: readonly SectorStatus[],
   currentId: string | null,
   hoverId: string | null,
+  place?: PlaceLabel,
 ): { areas: GeoJsonData; labels: GeoJsonData } {
   const areas = statuses.map((s) => ({
     type: "Feature" as const,
     properties: { id: s.sector.id, current: s.sector.id === currentId, hover: s.sector.id === hoverId },
     geometry: { type: "Polygon" as const, coordinates: [sectorRing(grid, s.sector)] },
   }));
-  const labels = statuses.map((s) => {
-    const ring = sectorRing(grid, s.sector);
-    // Flight sectors are thin strips under the heat: label them just outside, west of the strip,
-    // like row labels. Other sectors: inside their north-west corner.
-    const flight = s.sector.kind === "flight";
-    const at: LonLat = flight
-      ? [(ring[0] as LonLat)[0], ((ring[0] as LonLat)[1] + (ring[3] as LonLat)[1]) / 2]
-      : (ring[0] as LonLat);
+  const labels = statuses.flatMap((s) => {
     const active = s.sector.id === currentId || s.sector.id === hoverId;
     const state = s.sector.id === currentId ? "Drone here" : SECTOR_STATE_LABEL[s.state];
     const name = sectorName(s.sector).toUpperCase();
-    return {
-      type: "Feature" as const,
-      properties: {
-        id: s.sector.id,
-        text: active ? `${name}\n${state}` : name,
-        current: s.sector.id === currentId,
-        hover: s.sector.id === hoverId,
-        anchor: flight ? "right" : "top-left",
-        justify: flight ? "right" : "left",
-        offset: flight ? [-0.7, 0] : [0.45, 0.35],
+    const text = active ? `${name}\n${state}` : name;
+    const candidates = labelCandidates(grid, s, statuses);
+    const chosen = place ? place(candidates, text) : (candidates[0] ?? null);
+    if (!chosen) return [];
+    const right = chosen.anchor.endsWith("right");
+    return [
+      {
+        type: "Feature" as const,
+        properties: {
+          id: s.sector.id,
+          text,
+          current: s.sector.id === currentId,
+          hover: s.sector.id === hoverId,
+          anchor: chosen.anchor,
+          justify: right ? "right" : "left",
+          offset: chosen.offset,
+        },
+        geometry: { type: "Point" as const, coordinates: chosen.at },
       },
-      geometry: { type: "Point" as const, coordinates: at },
-    };
+    ];
   });
   return { areas: { type: "FeatureCollection", features: areas }, labels: { type: "FeatureCollection", features: labels } };
 }
@@ -376,9 +438,23 @@ export function pushSectors(
   statuses: readonly SectorStatus[],
   currentId: string | null,
   hoverId: string | null,
+  place?: PlaceLabel,
 ): void {
-  const { areas, labels } = sectorFeatures(grid, statuses, currentId, hoverId);
+  const { areas, labels } = sectorFeatures(grid, statuses, currentId, hoverId, place);
   (map.getSource(HEAT_SECTOR_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(areas);
+  (map.getSource(HEAT_SECTOR_LABEL_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(labels);
+}
+
+/** Only the label layer: on every camera move the labels are re-placed, the outlines stay. */
+export function pushSectorLabels(
+  map: Map,
+  grid: Grid,
+  statuses: readonly SectorStatus[],
+  currentId: string | null,
+  hoverId: string | null,
+  place?: PlaceLabel,
+): void {
+  const { labels } = sectorFeatures(grid, statuses, currentId, hoverId, place);
   (map.getSource(HEAT_SECTOR_LABEL_SOURCE_ID) as GeoJSONSource | undefined)?.setData?.(labels);
 }
 

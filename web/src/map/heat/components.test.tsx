@@ -171,7 +171,7 @@ describe("Legend", () => {
     expect(screen.queryByText("Simulated flight path")).not.toBeInTheDocument();
     expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
     expect(screen.getByText("Surveyed area (outline)")).toBeInTheDocument();
-    expect(screen.getByText(/Inside the surveyed area/)).toBeInTheDocument();
+    expect(screen.getByText(/one fixed scale for the whole replay/)).toBeInTheDocument();
     expect(screen.getByText("Not yet searched")).toBeInTheDocument();
   });
 
@@ -185,7 +185,7 @@ describe("Legend", () => {
 describe("FoundBanner", () => {
   it("names one find with its photo, coordinates to 6 decimals and the position uncertainty", () => {
     render(<FoundBanner finds={[{ id: "f0005-d01", lat: 49.3712345678, lon: -122.9461234, radius_m: 10 }]} />);
-    expect(screen.getByText("Person confirmed: dispatch ground team")).toBeInTheDocument();
+    expect(screen.getByText("Person sighted: send ground team to check")).toBeInTheDocument();
     expect(screen.getByText("Photo f0005")).toBeInTheDocument();
     expect(screen.getByText("49.371235, -122.946123")).toBeInTheDocument();
     expect(screen.getByText("±10 m position uncertainty")).toBeInTheDocument();
@@ -197,8 +197,9 @@ describe("FoundBanner", () => {
       { id: "f0005-d01", lat: 49.371, lon: -122.946, radius_m: 10 },
       { id: "f0120-d02", lat: 49.369, lon: -122.944, radius_m: 10 },
     ];
-    render(<FoundBanner finds={finds} simulatedRadius onFlyTo={onFlyTo} />);
-    expect(screen.getByText("2 people confirmed: dispatch ground teams")).toBeInTheDocument();
+    render(<FoundBanner finds={finds} simulatedRadius onFlyTo={onFlyTo} readingFor={(id) => (id === "f0005-d01" ? "R1" : undefined)} />);
+    expect(screen.getByText("R1")).toBeInTheDocument();
+    expect(screen.getByText("2 people sighted: send ground teams to check")).toBeInTheDocument();
     expect(screen.getAllByText("±10 m radius · simulated")).toHaveLength(2);
     screen.getAllByRole("button", { name: "Fly to it" })[1]!.click();
     expect(onFlyTo).toHaveBeenCalledWith(finds[1]);

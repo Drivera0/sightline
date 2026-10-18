@@ -9,6 +9,7 @@ import type { MapContextValue } from "../MapView";
 import { MAP_LAYER_IDS } from "../base/layerIds";
 import { HeatLayer } from "./HeatLayer";
 import {
+  HEAT_CANDIDATE_SOURCE_ID,
   HEAT_DRONE_SOURCE_ID,
   HEAT_HELD_SOURCE_ID,
   HEAT_LAYER_IDS,
@@ -18,7 +19,7 @@ import {
   HEAT_TRAIL_SOURCE_ID,
 } from "./layers";
 import { PanelSlotContext } from "./panelSlot";
-import { HELD_ALPHA, rasterForCanvas, VEIL_ALPHA } from "./raster";
+import { HEAT_ALPHA_MAX, HELD_ALPHA, rasterForCanvas, VEIL_ALPHA } from "./raster";
 
 const ctx: { value: MapContextValue | null } = { value: null };
 vi.mock("../MapView", () => ({
@@ -202,7 +203,10 @@ describe("HeatLayer", () => {
 
     // A confirmed person shows the banner; the slider keeps working.
     act(() => useReview.getState().answer("f0001-d01", "person", 1));
-    expect(screen.getByText("Person confirmed: dispatch ground team")).toBeInTheDocument();
+    // ...but only once the replay has flown its photo (frame f0001 is step 1).
+    expect(screen.queryByText("Person sighted: send ground team to check")).not.toBeInTheDocument();
+    act(() => useSearch.getState().setStepIndex(1));
+    expect(screen.getByText("Person sighted: send ground team to check")).toBeInTheDocument();
     // Answering "Not a person" releases the held cell into the normal map and clears its outline.
     act(() => useSearch.getState().setStepIndex(2));
     act(() => useReview.getState().answer("f0001-d01", "not_person", 2));
@@ -346,6 +350,31 @@ describe("HeatLayer", () => {
     expect(m.layers.find((l) => l.id === HEAT_LAYER_IDS.cells)?.before).toBeUndefined();
   });
 
+  it("draws a flown 'Person' answer as a candidate sighting: darkest, ringed, with its reading", () => {
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    act(() => useSearch.getState().setStepIndex(2));
+    expect(m.kind(1275)).toBe("held");
+    act(() => useReview.getState().answer("f0001-d01", "person", 1));
+    // Not "awaiting review" any more: the darkest class, ringed in the Person colour.
+    expect(m.alpha(1275)).toBe(Math.round(HEAT_ALPHA_MAX * 255));
+    const ring = m.replayDrawn.get(HEAT_CANDIDATE_SOURCE_ID) as { geometry: { coordinates: unknown[] } };
+    expect(ring.geometry.coordinates.length).toBeGreaterThan(0);
+    expect(screen.getByText(/if this is the missing person, the search ends here \(100%\)/)).toBeInTheDocument();
+    expect(screen.getByText("Candidate sighting")).toBeInTheDocument();
+    expect(useSearch.getState().sightings).toHaveLength(1);
+    // Undo restores everything.
+    act(() => useReview.getState().undo());
+    expect(m.kind(1275)).toBe("held");
+    expect(useSearch.getState().sightings).toHaveLength(0);
+    expect(screen.queryByText("Candidate sighting")).toBeNull();
+  });
+
   it("shows the found banner inside the side panel, not over the map", () => {
     const m = mockMap(true);
     ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
@@ -355,7 +384,7 @@ describe("HeatLayer", () => {
       </CacheContext.Provider>,
     );
     act(() => useReview.getState().answer("f0001-d01", "person", 1));
-    const banner = screen.getByText("Person confirmed: dispatch ground team");
+    const banner = screen.getByText("Person sighted: send ground team to check");
     const sidePanel = screen.getByText("Search next in the surveyed area").closest(".w-80");
     expect(sidePanel).not.toBeNull();
     expect(sidePanel!.contains(banner)).toBe(true);
@@ -391,6 +420,72 @@ describe("HeatLayer", () => {
       expect(within(slot).getByRole("list", { name: "Sectors by remaining probability" })).toBeInTheDocument();
       expect(tabs[1]).toHaveAttribute("aria-selected", "true");
       slot.remove();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  /** matchMedia with fixed answers per query and a reduced-motion flag that can flip live. */
+  function fakeMedia(answers: { wide: boolean; roomy: boolean; reduced: boolean }) {
+    const listeners = new Set<() => void>();
+    const state = { ...answers };
+    const matches = (q: string) =>
+      q.includes("reduced-motion") ? state.reduced : q.includes("1280") ? state.roomy : q.includes("1024") ? state.wide : false;
+    const media = ((query: string) => ({
+      get matches() {
+        return matches(query);
+      },
+      media: query,
+      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    })) as unknown as typeof window.matchMedia;
+    const setReduced = (v: boolean) => {
+      state.reduced = v;
+      listeners.forEach((fn) => fn());
+    };
+    return { media, setReduced };
+  }
+
+  it("shows the Skip pill only while the map builds up, and never under reduced motion", () => {
+    const original = window.matchMedia;
+    const fake = fakeMedia({ wide: true, roomy: true, reduced: false });
+    window.matchMedia = fake.media;
+    try {
+      const m = mockMap(true);
+      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+      render(
+        <CacheContext.Provider value={cache}>
+          <HeatLayer />
+        </CacheContext.Provider>,
+      );
+      expect(screen.getByRole("button", { name: /Building the map/ })).toBeInTheDocument();
+      // Reduced motion switched on mid build-up: the (invisible-by-CSS) pill must not stay focusable.
+      act(() => fake.setReduced(true));
+      expect(screen.queryByRole("button", { name: /Building the map/ })).toBeNull();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it("folds the legend into a pill below 1280 px and opens it on click", () => {
+    const original = window.matchMedia;
+    window.matchMedia = fakeMedia({ wide: true, roomy: false, reduced: true }).media;
+    try {
+      const m = mockMap(true);
+      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+      render(
+        <CacheContext.Provider value={cache}>
+          <HeatLayer />
+        </CacheContext.Provider>,
+      );
+      expect(screen.queryByText("Lower probability")).toBeNull();
+      const pill = screen.getByRole("button", { name: "Reading the map" });
+      expect(pill).toHaveAttribute("aria-expanded", "false");
+      expect(pill).toHaveAttribute("data-map-overlay", "corner");
+      act(() => pill.click());
+      expect(screen.getByText("Lower probability")).toBeInTheDocument();
+      act(() => screen.getByRole("button", { name: "Hide" }).click());
+      expect(screen.queryByText("Lower probability")).toBeNull();
     } finally {
       window.matchMedia = original;
     }

@@ -43,10 +43,10 @@ interface DetectionProperties {
 }
 
 /** Words, not a bare "?": the hover chip says what the answer means for the search. */
-export type ReviewLabel = "Person confirmed" | "Unsure · check again" | "Not a person" | "Not answered";
+export type ReviewLabel = "Person sighted" | "Unsure · check again" | "Not a person" | "Not answered";
 
 export function reviewLabelFor(state: Answer | "unreviewed"): ReviewLabel {
-  if (state === "person") return "Person confirmed";
+  if (state === "person") return "Person sighted";
   if (state === "unsure") return "Unsure · check again";
   if (state === "not_person") return "Not a person";
   return "Not answered";
@@ -57,7 +57,7 @@ interface PinMarkerProperties {
   frameId: string;
   reviewState: Answer | "unreviewed";
   reviewLabel: ReviewLabel;
-  /** The hover chip's text: the answer and the photo, e.g. "Person confirmed · f0336". */
+  /** The hover chip's text: the answer and the photo, e.g. "Person sighted · f0336". */
   chipText: string;
   /** Person first, then unsure: which label wins when two would collide. */
   labelRank: number;
@@ -207,13 +207,27 @@ export function gridBounds(grid: Grid): [[number, number], [number, number]] {
   return [outline[3] as [number, number], outline[1] as [number, number]];
 }
 
+/**
+ * The frames the replay has flown so far (Search next), or null for "every frame" (Review, or no
+ * replay). A pin is only drawn once the drone has taken its photo.
+ */
+export type FlownFrames = ReadonlySet<string> | null;
+
+/** The frames of the first `stepIndex` replay steps, or null when every step is applied. */
+export function flownFrames(steps: readonly { frame_id: string }[], stepIndex: number): FlownFrames {
+  if (stepIndex >= steps.length) return null;
+  return new Set(steps.slice(0, Math.max(0, stepIndex)).map((s) => s.frame_id));
+}
+
 // Build metre-scaled polygons for candidate detections only.
 export function buildDetectionFeatures(
   detections: Detections,
   answers: Readonly<Record<string, Answer>> = {},
+  flown: FlownFrames = null,
 ): FeatureCollection<Feature<PolygonGeometry, DetectionProperties>> {
   const features: Feature<PolygonGeometry, DetectionProperties>[] = [];
   for (const [frameId, frameDetections] of Object.entries(detections.frames)) {
+    if (flown && !flown.has(frameId)) continue;
     for (const detection of frameDetections) {
       if (detection.conf < detections.candidate_threshold) continue;
       const reviewState = answers[detection.id] ?? "unreviewed";
@@ -238,9 +252,11 @@ export function buildDetectionFeatures(
 export function buildPinMarkerFeatures(
   detections: Detections,
   answers: Readonly<Record<string, Answer>> = {},
+  flown: FlownFrames = null,
 ): FeatureCollection<Feature<PointGeometry, PinMarkerProperties>> {
   const features: Feature<PointGeometry, PinMarkerProperties>[] = [];
   for (const [frameId, frameDetections] of Object.entries(detections.frames)) {
+    if (flown && !flown.has(frameId)) continue;
     for (const detection of frameDetections) {
       if (detection.conf < detections.candidate_threshold) continue;
       const reviewState = answers[detection.id] ?? "unreviewed";
