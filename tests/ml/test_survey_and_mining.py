@@ -143,3 +143,12 @@ def test_load_split(tmp_path: Path) -> None:
     assert [i.path.stem for i in items] == ["a", "b"]
     assert items[0].boxes == [Box(10, 20, 50, 60)] and items[0].width == 400
     assert items[1].boxes == []
+
+
+def test_mine_skips_photos_with_no_annotations(tmp_path: Path) -> None:
+    img = tmp_path / "train_X_0002.jpg"
+    Image.new("RGB", (2000, 1500), (40, 60, 40)).save(img, quality=50)
+    fake = FakeDetector({"train_X_0002": [RawDetection(Box(300, 300, 360, 360), 0.9)]})
+    unlabelled = [LabeledImage(img, 2000, 1500, [])]
+    assert mine(fake, unlabelled, out_dir=tmp_path / "a") == []
+    assert len(mine(fake, unlabelled, out_dir=tmp_path / "b", skip_unlabelled=False)) == 1
