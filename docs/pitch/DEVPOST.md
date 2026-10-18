@@ -17,7 +17,7 @@ searches. On Mount Seymour, a hypothermic hiker was found two kilometres away on
 last battery.
 
 Flying is the fast part. Every flight brings back hundreds of 12-megapixel photos, and a lost
-person is about 60 pixels wide in each one. Research on real search imagery measured people at
+person is about 70 pixels wide in each one. Research on real search imagery measured people at
 33 seconds a photo, and they still missed about a third of the people. One 500-photo survey is
 four and a half hours of careful looking.
 
@@ -35,6 +35,8 @@ Sightline is one loop for the person reviewing drone photos:
    see clearly fades; forest the camera could not see into stays bright. Saying "not a person" on
    a false alarm updates the map live. That is where the ground team should walk next.
 
+A second survey shows real HERIDAL photos at their recorded GPS positions.
+
 It assists searchers. It never decides on its own that a person is safe or that an area is clear.
 
 ## How we built it
@@ -47,7 +49,7 @@ It assists searchers. It never decides on its own that a person is safe or that 
 - **Geo (Python, NumPy).** Camera math turns a pixel into a GPS position from the drone's pose,
   height and heading, and builds each photo's ground footprint. The demo flies a simulated
   lawnmower path over Mount Seymour.
-- **Search map (Python, NumPy, OpenCV).** A 1 km grid of 20 m cells. A canopy classifier estimates
+- **Search map (Python, NumPy, OpenCV).** A 1 km grid of 5 m cells (40,000 cells). A canopy classifier estimates
   how much of each cell is under trees, which sets the probability of detection; each photo then
   applies a Bayesian update. A simulation of 30,000 lost hikers compares search strategies.
 - **Pipeline (Python, Pydantic, Typer).** Eight stages run every lane's code in order and write a
@@ -62,30 +64,47 @@ It assists searchers. It never decides on its own that a person is safe or that 
 
 On the 101 HERIDAL test photos (337 people) the model never saw in training:
 
-| | Recall | Precision | Time per photo |
+Scored the way the human study scored people (SAR-APD matching):
+
+| | Recall | Precision | Time per full photo |
 |---|---|---|---|
 | Published human baseline | 68% | 59% | 33 s |
-| Stock YOLO11s, photo shrunk | 19.6% | 42.0% | — |
-| **Sightline (tiled, fine-tuned)** | **86.4%** | **80.2%** | **0.25 s** |
+| **Sightline** | **89.6%** | **89.8%** | **0.25 s** (131× faster) |
 
-Scored one box per person at IoU ≥ 0.5, threshold chosen on validation photos. The 86.4% is after
-correcting a label error in 4 test photos: their label files gave the wrong image size, so 42
-person boxes sat above the people. Against the published labels, the same predictions score
-76.9% / 71.3%. With the looser search-and-rescue matching used in the human-baseline paper we get
-89.6% recall at 89.8% precision.
+Under strict scoring (one box per person, IoU ≥ 0.5) the same detector scores **86.4% recall,
+80.2% precision**, AP50 0.868. Those are the numbers behind every other result. They are after
+correcting a label error in 4 test photos: their label files gave the wrong image size, so 42 person
+boxes sat above the people (against the published labels: 76.9% / 71.3%).
 
-Search map, **simulated** (30,000 simulated lost hikers). In our simulation, even when the drone
-flies right over a hiker, the photos miss them about half the time, so "not found" can't mean
-"clear". In the demo run, Sightline's map needs 98 cells against 123 for a naive map inside the
-surveyed area (median cells a ground team checks before reaching the hiker; 137 with no photos);
-across seeds and with our canopy estimate's measured error it stays at least 10% better, in every
-run. Over the whole 1 km grid it ties the naive map, because the drone only photographed part of
-it.
+What each technique adds (strict scoring, test set):
+
+| Variant | Recall | Precision |
+|---|---|---|
+| Stock YOLO11s, photo shrunk | 19.6% | 42.0% |
+| Fine-tuned on tiles, run on shrunk photos | 23.4% | 38.0% |
+| Trained and run on whole photos (1920 px) | 80.4% | 72.7% |
+| Fine-tuned, one full-resolution 4000 px pass (about 20× the GPU memory) | 90.5% | 72.3% |
+| **Fine-tuned + tiling (in use)** | **86.4%** | **80.2%** |
+| + hard negatives (not kept) | 86.9% | 73.8% |
+
+**Disclosure:** the threshold and every inference setting were chosen on validation photos, but two
+earlier model choices (keeping training run 2, dropping hard negatives) were made with test scores
+in view, so the test numbers are slightly optimistic.
+
+Ranking: all 6 photos with a person were in the first 7 of the 500-photo queue (a random order
+needs about 429).
+
+Search map, **simulated** (30,000 simulated lost hikers, 5 m cells). Inside the area the drone
+photographed, a ground team checks a median of 1,213 cells with Sightline's map against 1,743 with a
+naive "photographed = cleared" map: 30% fewer, about 3.0 ha of ground instead of 4.4 (seed 7, the
+best of three seeds). With noise matching our canopy estimate's measured error, it is 19–23% fewer
+on every seed. Over the whole 1 km grid it ties the naive map, because the drone only photographed
+part of it.
 
 ## Challenges we ran into
 
-- **Tiny people.** A stock detector found one person in five. Tiling plus fine-tuning took recall
-  to 86%.
+- **Tiny people.** A stock detector found one person in five. Keeping full resolution (tiling)
+  plus fine-tuning took strict recall to 86%.
 - **A scoring bug that wasn't ours.** Four test photos are 4000×2250 but their label files say
   4000×3000, so 42 of the 337 test people were scored against boxes squashed above them. We now read
   the size from the image itself; recall went from 76.9% to 86.4% with the same predictions.
@@ -107,7 +126,8 @@ it.
 
 ## What we learned
 
-- Most of a small-object detector's accuracy came from how we fed it images, not from the model.
+- Most of a small-object detector's accuracy came from keeping native resolution, not from the
+  model: the same weights on a shrunk photo find 23% of people; on tiles, 86%.
 - "Not found" is information: a photo of open ground that shows nobody lowers the odds there, but a
   photo of dense forest barely does.
 - Check the dataset before trusting it.
