@@ -2,8 +2,12 @@
 
 Rule: no number goes on a slide, in a script or on Devpost unless it is in this table.
 "Live" = `https://sightline-iota-sandy.vercel.app/cache/demo/metrics.json`, built from commit
-`3800633` at 2026-10-18 07:00 UTC (`manifest.json`). Checked against the live file on 18 Oct and
-confirmed by lane C. If the demo cache is rebuilt, re-check this table.
+`2b3a85f` at 2026-10-18 10:08 UTC (`manifest.json`). Checked against the live file and the Results
+page on 18 Oct. If the demo cache is rebuilt, re-check this table.
+
+**Headline rule (matches the site and README):** compare with people using the human study's own
+scoring (SAR-APD): **90% recall vs 68%**. Everywhere else (ablations, threshold, search map) use
+strict VOC: **86.4%**.
 
 ## Detector (lane A)
 
@@ -12,15 +16,30 @@ threshold. Scoring: VOC, one box per person, IoU ≥ 0.5. Threshold 0.29, chosen
 
 | Say | Value | Source |
 |---|---|---|
-| Recall | **86.4%** | Live `detector.voc.recall` 0.864 |
-| Precision | **80.2%** | Live `detector.voc.precision` 0.802 |
+| **Headline vs people** — recall / precision, SAR-APD scoring (the human study's own rule) | **90%** (89.6%) / **89.8%** vs people 68% / 59% | Live `detector.sar`; Results page "Recall 90%"; README table |
+| Recall, strict VOC (one box per person, IoU ≥ 0.5) | **86.4%** | Live `detector.voc.recall` 0.864 |
+| Precision, strict VOC | **80.2%** | Live `detector.voc.precision` 0.802 |
 | AP50 | 0.868 | Live `detector.voc.ap50` |
-| Recall / precision with SAR-style (looser) matching, as in the AIR paper | 89.6% / 89.8% | Live `detector.sar` |
 | Time per full 4000×3000 photo | **0.25 s** (0.251) | Live `detector.seconds_per_image` (RTX 4080 SUPER) |
-| Stock model (COCO YOLO11s, photo shrunk to 1024 px) recall | **19.6%** (precision 42.0%) | Live `ablations[0]` |
-| Fine-tuned, no tiling, recall | 23.4% | Live `ablations[1]` |
-| Fine-tuned + tiling recall (our model) | 86.4% | Live `ablations[2]` |
-| + hard negatives (measured, **not kept**: test F2 0.840 vs 0.850) | recall 86.9%, precision 73.8% | Live `ablations[3]`; `scripts/README.md` |
+
+Ablations (strict VOC, test set; live `ablations`, in this order):
+
+| Variant | Recall | Precision |
+|---|---|---|
+| Stock model, photo shrunk | **19.6%** | 42.0% |
+| Fine-tuned on tiles, run on shrunk photos | 23.4% | 38.0% |
+| Stock model, full-resolution photo | 18.1% | 67.8% |
+| Fine-tuned on tiles, one full-resolution pass (not used: about 20× the GPU memory) | 90.5% | 72.3% |
+| Trained and run on whole photos (1920 px) | 80.4% | 72.7% |
+| **Fine-tuned + tiling (the model in use)** | **86.4%** | **80.2%** |
+| + hard negatives (**not kept**: test F2 0.840 vs 0.850) | 86.9% | 73.8% |
+
+Lesson the site draws: native resolution is what pays off; tiling is the way that fits a small GPU.
+
+**Disclosure — say it if asked about overfitting** (README "Disclosure"): the threshold and every
+inference setting were chosen on validation, but two earlier choices were made with test scores in
+view (keeping training run 2 over run 1; dropping hard negatives). So the test numbers are
+**slightly optimistic**. Every later choice was made on validation only.
 
 **The label correction — always say it with the number.** Four test photos (`test_MED_0001/2/4/6`)
 are 4000×2250 but their label files say 4000×3000, so their 42 person boxes were squashed and sat
@@ -55,32 +74,34 @@ so that comparison is fair. In the demo, each 1000×750 frame stands for one pho
 
 Do **not** compare against "photo 336 in flight order" as if it were a baseline: 336 is this one
 flight's order (one layout, one seed), the same reason we quote 71.6 for the first hit. If you use it,
-say "in this flight's order (one layout)". The random-order average for the last of 6 people
-(about 429) is **not** in `metrics.json`, so don't quote it. (Lane C, 18 Oct.)
+say "in this flight's order (one layout)", as the Results page does. The Results page now also shows
+the random-order expected value for the last of 6 people: **about 429** (10–90%: 342–492), computed
+exactly on the page. It is not in `metrics.json`; quote it only as "a random order needs about 429",
+pointing at the Results page.
 
 ## Search map (lane C) — always say "simulated"
 
-30,000 simulated lost hikers (seed 7). Cells are 20 m × 20 m; fewer cells checked is better.
-`in_survey` = the 1,536 trials where the person was in ground the drone photographed (overlap ≥ 0.5)
+30,000 simulated lost hikers (seed 7). The map now uses **5 m × 5 m cells** (40,000 cells over
+1 km²; it was 20 m until 18 Oct, so every older number is void). Fewer cells checked is better.
+`in_survey` = the 1,341 trials where the person was in ground the drone photographed (overlap ≥ 0.5)
 but the photos did not find them.
 
 | Say | Value | Source |
 |---|---|---|
-| Median cells a ground team checks, inside the surveyed area (demo run) | Sightline **98**, naive ("photographed = cleared") **123**, prior only **137** | Live `search_sim.in_survey.methods[*].median_cells` |
-| 90th percentile, same | 216 / 228 / 236 | Live `search_sim.in_survey.methods[*].p90_cells` |
-| Robust claim | **beats naive in all 15 live-cache runs** (5 canopy-noise levels × 3 seeds). At noise matching our measured canopy error (σ 0.43): naive 125 / 119 / 120 vs Sightline 112 / 108 / 106, so **"at least 10% better"** (naive needs 10–13% more cells). At the highest noise tried (0.55) the gain is only 8–9%. | `docs/LANE_C_SEARCH.md` "Robustness" (lane C, `origin/lane-c`) |
-| Over the whole 1 km grid | Sightline 1,197 = naive 1,197; prior only 1,262 | Live `search_sim.methods` |
-| How often the drone misses a hiker it flew over | **about half the time** — never an exact % (the two counts use different rules) | Lane C, 18 Oct |
-| Survey found the person itself | 5% of all trials | Live `search_sim.found_by_drone_rate` |
+| Median cells a ground team checks, inside the surveyed area (demo run) | Sightline **1,213**, naive ("photographed = cleared") **1,743**, prior only 2,038 → **30% fewer** | Live `search_sim.in_survey.methods[*].median_cells`; Results page |
+| Same, as ground area | **about 3.0 ha vs 4.4 ha** (1,213 / 1,743 × 25 m²) | Results page (derived) |
+| 90th percentile, same | 2,940 / 3,348 / 3,560 | Live `search_sim.in_survey.methods[*].p90_cells` |
+| Robust claim | Beats naive in **all 15 runs** (3 seeds × 5 canopy-noise levels). With noise matching our canopy estimate's measured error (σ 0.43): **19–23% fewer cells** on every seed (1,395 vs 1,810 · 1,407 vs 1,775 · 1,516 vs 1,879). Even at the highest noise tried (0.55): 17–21% fewer. | `docs/LANE_C_SEARCH.md` "Robustness", 5 m table (`origin/main`) |
+| Over the whole 1 km grid | Sightline 19,103 = naive 19,103; prior only 20,224 (a tie) | Live `search_sim.methods` |
+| How often the drone misses a hiker it flew over | **about half the time** — never an exact %. ⚠ Lane C gave this on the 20 m map; **ask Harvir to confirm it still holds at 5 m** before saying it. | Lane C, 18 Oct |
+| Survey found the person itself | 5% of all trials (0.051) | Live `search_sim.found_by_drone_rate` |
 
-Lane C's suggested line: **"In the demo run, Sightline's map needs 98 cells against 123 for a naive
-map inside the surveyed area (simulated); across seeds and with our canopy estimate's measured
-error it stays at least 10% better, in every run."** 98 vs 123 is seed 7 at default noise, the best
-of the three seeds, so always pair it with "at least 10% better".
-
-Say **"10% better"**, not **"10% fewer cells"**: at seed 8 with the measured error, Sightline checks
-108 cells against 119, which is 9.2% fewer (naive needs 10.2% more). And "in every run" holds only up
-to the measured error, not at the highest noise tried.
+Suggested line: **"In the demo run, inside the area the drone photographed, Sightline's map has the
+ground team check 30% fewer cells than a naive map: about 3 hectares instead of 4.4 (simulated).
+With our canopy estimate's measured error it is still about a fifth fewer, on every seed."**
+30% is seed 7 at default noise, the best of the three seeds, so always pair it with the "about a
+fifth" line. Limit lane C states: the noise is random while the classifier's real errors are
+systematic (it misses pale and autumn trees), so even 19–23% is somewhat optimistic.
 
 Do not claim a whole-grid win: Sightline ties naive there, because the survey covers only part of
 the grid and the prior is a flat placeholder (`map.json` `params.prior_source = "placeholder"`).
@@ -110,7 +131,7 @@ the grid and the prior is a flat placeholder (`map.json` `params.prior_source = 
 | North Shore Rescue | 100+ people rescued a year, Canada's busiest volunteer SAR team | DroneXL, 22 Apr 2025 (dronexl.co/2025/04/22/drones-ai-thermal-transform-search-and-rescue); deck slide 2 |
 | Mount Seymour | a hypothermic hiker found 2 km away on the drone's last battery | DroneXL / CBC 2025; deck slide 2 |
 | 13 h | ground search when the subject heard the drone but was not spotted | DroneXL / CBC 2025; deck slide 2 |
-| Person size | about 60 px wide, about 0.03% of a 12-MP photo | deck slide 3 (HERIDAL) |
+| Person size | **about 70 px wide** in a full 4000×3000 photo (about 0.04% of it); about 65 px in a 1000 px demo frame | README "How the detector works"; Results page; home page |
 | Data | HERIDAL, Božić-Štulić, Marušić & Gotovac 2019; VOC copy by Pyrrö 2021, CC BY 3.0 | `README.md` |
 
 Check before stage: the three problem facts come from the original deck's research; re-open the
