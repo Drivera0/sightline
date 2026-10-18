@@ -145,12 +145,15 @@ export function SurveyIntro({
   dir,
   onRank,
   onTour,
+  onTryPhoto,
 }: {
   cache: CacheBundle;
   dir: string;
   onRank: () => void;
   /** Starts the guided tour, for a viewer who doesn't know the keys. */
   onTour?: () => void;
+  /** Opens "Try your own photo" (the detector in the browser). */
+  onTryPhoto?: () => void;
 }) {
   const { survey, manifest, metrics } = cache;
   const human = metrics.baseline_human;
@@ -246,6 +249,17 @@ export function SurveyIntro({
             )}
           </span>
         </div>
+
+        {onTryPhoto && (
+          <button
+            type="button"
+            onClick={onTryPhoto}
+            className="sl-rise -mt-2 inline-flex w-fit items-center gap-2 text-small text-text-2 underline decoration-border underline-offset-4 hover:text-text hover:decoration-accent"
+            style={{ animationDelay: "340ms" }}
+          >
+            Try the detector on your own photo (runs in your browser)
+          </button>
+        )}
 
         <ol className="sl-rise grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-5 sm:grid-cols-4 [@media(max-height:860px)]:hidden" style={{ animationDelay: "380ms" }}>
           {HOW.map(([title, body], i) => (

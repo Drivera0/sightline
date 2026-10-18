@@ -15,6 +15,11 @@ const ALLOWED_URLS = [
   "https://github.com/protomaps/PMTiles/tree/main/js",
   "https://protomaps.com",
   "https://www.openstreetmap.org/copyright",
+  // onnxruntime-web ("Try your own photo", src/detect/): a warning message about threads, and the
+  // bundler's error text for a Node-only `require`. Neither is fetched; the runtime's .wasm and the
+  // model are served from this site.
+  "https://web.dev/cross-origin-isolation-guide/",
+  "https://rolldown.rs/in-depth/bundling-cjs#require-external-modules",
 ];
 const dir = process.argv[2] ?? "dist";
 const found = scanDirectory(dir, ALLOWED_HOSTS, ALLOWED_URLS);

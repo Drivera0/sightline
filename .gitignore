@@ -13,6 +13,9 @@ cache/demo/
 cache/real-gps/
 web/public/cache/demo/
 web/public/cache/real-gps/
+# The in-browser detector (ONNX export of the weights): fetched by web/scripts/fetch-model.sh
+web/public/models/
+*.onnx
 *.pt
 weights/
 runs/
