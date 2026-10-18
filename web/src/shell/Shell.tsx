@@ -4,6 +4,7 @@ import { CACHE_DIR, CacheContext, useCache } from "../lib/cache";
 import { isTyping } from "../lib/keys";
 import { HeatLayer } from "../map/heat/HeatLayer";
 import { MapView } from "../map/MapView";
+import { TryPhoto } from "../detect/TryPhoto";
 import { MetricsView } from "../metrics/MetricsView";
 import { prefersReducedMotion } from "../metrics/motion";
 import { ResultsSummary } from "../metrics/ResultsSummary";
@@ -105,6 +106,7 @@ export function Shell({
   const bindReview = useReview((s) => s.bind);
   useEffect(() => bindReview(cache.survey.survey_id), [bindReview, cache.survey.survey_id]);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [tryPhoto, setTryPhoto] = useState(false);
   const loadedDir = useCache((s) => s.dir);
   const dir = loadedDir ?? CACHE_DIR;
 
@@ -236,7 +238,7 @@ export function Shell({
         </header>
 
         <main key={step} className="sl-step flex flex-1 flex-col gap-3 lg:min-h-0" aria-label={stepInfo.label}>
-          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onTour={startTour} />}
+          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onTour={startTour} onTryPhoto={() => setTryPhoto(true)} />}
 
           {step === "rank" && <RankReveal cache={cache} dir={dir} onStart={() => setStep("review")} />}
 
@@ -321,6 +323,7 @@ export function Shell({
         </footer>
 
         {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} onTour={startTour} />}
+        {tryPhoto && <TryPhoto cache={cache} dir={dir} onClose={() => setTryPhoto(false)} />}
         {touring && (
           <TourOverlay stops={stops} state={tour} run={tourRun} dispatch={dispatchTour} onAction={onTourAction} />
         )}
