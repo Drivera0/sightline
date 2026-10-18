@@ -35,9 +35,12 @@ interface Props {
   params: Pick<Params, "prior_source">;
   manifest: Pick<Manifest, "notes">;
   hasSurveyed: boolean;
+  /** With a handler, the legend shows a "Flight path (simulated)" switch. */
+  showPath?: boolean;
+  onShowPathChange?: (visible: boolean) => void;
 }
 
-export function Legend({ simulatedPath, params, manifest, hasSurveyed }: Props) {
+export function Legend({ simulatedPath, params, manifest, hasSurveyed, showPath = true, onShowPathChange }: Props) {
   const placeholder = showsPlaceholderPrior(params.prior_source, manifest.notes);
   return (
     <div className="flex flex-col gap-3">
@@ -66,6 +69,28 @@ export function Legend({ simulatedPath, params, manifest, hasSurveyed }: Props) 
           Drone, during replay
         </li>
       </ul>
+      {onShowPathChange && (
+        <label className="flex cursor-pointer items-center justify-between gap-3 border-t border-border pt-3 text-small text-text-2">
+          <span>Flight path{simulatedPath ? " (simulated)" : ""}</span>
+          <span className="relative inline-flex">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={showPath}
+              onChange={(e) => onShowPathChange(e.target.checked)}
+              className="peer sr-only"
+            />
+            <span
+              aria-hidden="true"
+              className="h-5 w-9 rounded-full bg-surface-strong ring-1 ring-border transition-colors peer-checked:bg-accent peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-accent"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute left-0.5 top-0.5 size-4 rounded-full bg-text shadow transition-transform peer-checked:translate-x-4"
+            />
+          </span>
+        </label>
+      )}
       {(simulatedPath || placeholder) && (
         <div className="flex flex-wrap gap-2">
           {simulatedPath && <Badge kind="simulated">Simulated flight path</Badge>}

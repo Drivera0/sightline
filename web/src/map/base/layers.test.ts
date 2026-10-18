@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Detections, MapFile, Survey } from "../../contract";
 import type { LayerSpecification, Map as MapLibreMap } from "maplibre-gl";
-import { syncBaseLayers } from "./layers";
+import { FLIGHT_DIRECTION_MAX_ZOOM, syncBaseLayers } from "./layers";
 import { MAP_LAYER_IDS } from "./layerIds";
 
 const survey: Survey = {
@@ -87,6 +87,19 @@ describe("review-aware detection layers", () => {
         }),
       ]),
     );
+  });
+
+  it("keeps the flight path quiet: thin, faint, and chevrons only when zoomed out", () => {
+    const { map, layers } = mapRecorder();
+    syncBaseLayers(map, { survey, detections, map: mapFile }, {}, colors);
+    const path = layers.find((l) => l.id === MAP_LAYER_IDS.flightPath) as unknown as { paint: Record<string, number> };
+    expect(path.paint["line-opacity"]).toBeLessThanOrEqual(0.15);
+    expect(path.paint["line-width"]).toBeLessThanOrEqual(1);
+    const chevrons = layers.find((l) => l.id === MAP_LAYER_IDS.flightDirection) as unknown as { maxzoom: number };
+    expect(chevrons.maxzoom).toBe(FLIGHT_DIRECTION_MAX_ZOOM);
+    // Unselected footprints never draw a second grid over the heat cells.
+    const footprints = layers.find((l) => l.id === MAP_LAYER_IDS.footprints) as unknown as { layout: { visibility: string } };
+    expect(footprints.layout.visibility).toBe("none");
   });
 
   it("installs grid, direction and LKP label layers in display order", () => {
