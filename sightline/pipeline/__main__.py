@@ -237,6 +237,48 @@ def sample(
     typer.echo(f"wrote {out} and {web_out}")
 
 
+# Build the map-ready HERIDAL survey from real EXIF/XMP poses and measured detections.
+@app.command(name="real")
+def real_position_survey(
+    test_dir: Annotated[
+        Path,
+        typer.Option(help="HERIDAL YOLO test folder containing images/ and labels/."),
+    ] = Path("data/heridal/yolo_full/test"),
+    weights: Annotated[Path, typer.Option(help="Lane A weights-v2 checkpoint.")] = Path(
+        "data/weights/yolo11s_tiles_run1_best.pt"
+    ),
+    detector_metrics: Annotated[
+        Path,
+        typer.Option(help="Detector metrics JSON released with the selected weights."),
+    ] = Path("data/weights/detector_metrics.json"),
+    data: DataOption = Path("data/real-gps"),
+    out: OutOption = Path("cache/real-gps"),
+    web_out: WebOutOption = Path("web/public/cache/real-gps"),
+    candidate_threshold: ThresholdOption = 0.29,
+    model_name: ModelNameOption = "yolo11s-heridal-tiled-run2",
+) -> None:
+    """Build and validate the coherent HERIDAL survey at recorded EXIF positions."""
+    from sightline.pipeline.real import build_real_position_survey
+
+    try:
+        result = build_real_position_survey(
+            test_dir=test_dir,
+            weights=weights,
+            detector_metrics=detector_metrics,
+            data=data,
+            out=out,
+            web_out=web_out,
+            candidate_threshold=candidate_threshold,
+            model_name=model_name,
+        )
+    except (FileNotFoundError, ValueError, CacheValidationError) as error:
+        raise _fail(f"real: {error}") from error
+    typer.echo(
+        f"wrote {result.cache}: {len(result.site_images)} real-position frames, "
+        f"{result.pin_error.n_matches} matched pins, p90 {result.pin_error.p90_m:.3f} m"
+    )
+
+
 @app.command()
 def serve(
     host: Annotated[

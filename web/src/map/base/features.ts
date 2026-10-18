@@ -78,6 +78,13 @@ export function buildFootprintFeatures(
 export function buildFlightPathFeature(
   survey: Survey,
 ): Feature<LineStringGeometry, Record<string, never>> {
+  if (!survey.simulated_path) {
+    return {
+      type: "Feature",
+      geometry: { type: "LineString", coordinates: [] },
+      properties: {},
+    };
+  }
   const orderedFrames = [...survey.frames].sort((left, right) => {
     return left.flight_index - right.flight_index;
   });
@@ -99,6 +106,7 @@ export function buildFlightDirectionFeatures(
   if (!Number.isInteger(everyFrames) || everyFrames < 1) {
     throw new RangeError("everyFrames must be a positive integer");
   }
+  if (!survey.simulated_path) return { type: "FeatureCollection", features: [] };
   const orderedFrames = [...survey.frames].sort((left, right) => {
     return left.flight_index - right.flight_index;
   });
@@ -215,7 +223,7 @@ export function buildLkpFeature(
       type: "Point",
       coordinates: [survey.area.lkp.lon, survey.area.lkp.lat],
     },
-    properties: { label: "Last known point" },
+    properties: { label: survey.simulated_path ? "Last known point" : "Survey centre" },
   };
 }
 
@@ -238,4 +246,13 @@ export function surveyBounds(survey: Survey): [[number, number], [number, number
     [minLon, minLat],
     [maxLon, maxLat],
   ];
+}
+
+// Frame simulated searches by their grid, but frame real-position surveys by actual footprints.
+export function viewBounds(
+  survey: Survey,
+  grid: Grid,
+): [[number, number], [number, number]] {
+  if (survey.simulated_path) return gridBounds(grid);
+  return surveyBounds(survey) ?? gridBounds(grid);
 }

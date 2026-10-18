@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Folder under public/cache/ to load: "sample" (default) or "demo". */
+  /** Initial folder under public/cache/: "sample" (default), "demo", or "real-gps". */
   readonly VITE_CACHE_DIR?: string;
 }

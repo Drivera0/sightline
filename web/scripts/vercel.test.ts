@@ -4,13 +4,21 @@ import { describe, expect, it } from "vitest";
 
 // vitest runs from web/
 const config = JSON.parse(readFileSync(join(process.cwd(), "vercel.json"), "utf8"));
+const fetchCaches = readFileSync(join(process.cwd(), "scripts/fetch-caches.sh"), "utf8");
 
 describe("vercel.json (the auto-deployed site)", () => {
   it("downloads the demo cache from its release before building, since cache/demo is git-ignored", () => {
-    expect(config.buildCommand).toContain(
+    expect(fetchCaches).toContain(
       "https://github.com/Drivera0/sightline/releases/download/demo-cache/demo-cache.tar.gz",
     );
-    expect(config.buildCommand).toContain("tar -xz -C public/cache");
+    expect(fetchCaches).toContain("tar -xz -C public/cache");
+  });
+
+  it("downloads the real-position cache beside the demo cache", () => {
+    expect(fetchCaches).toContain(
+      "https://github.com/Drivera0/sightline/releases/download/real-gps-cache/real-gps-cache.tar.gz",
+    );
+    expect(config.buildCommand).toContain("bash scripts/fetch-caches.sh");
   });
 
   it("builds the demo cache, not the sample, into dist", () => {
@@ -20,7 +28,7 @@ describe("vercel.json (the auto-deployed site)", () => {
   });
 
   it("fails the build if the download fails, rather than shipping an empty demo", () => {
-    expect(config.buildCommand).toMatch(/curl -fsSL/);
-    expect(config.buildCommand).toMatch(/set -o pipefail|bash -o pipefail/);
+    expect(fetchCaches).toMatch(/curl -fsSL/);
+    expect(fetchCaches).toContain("set -euo pipefail");
   });
 });
