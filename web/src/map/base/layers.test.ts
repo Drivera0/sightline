@@ -59,7 +59,7 @@ function mapRecorder(): {
 }
 
 describe("review-aware detection layers", () => {
-  it("installs person fill, state outlines, rejected dashes and review labels", () => {
+  it("installs state fills and outlines, rejected dashes, centre icons and label chips", () => {
     const { map, layers } = mapRecorder();
 
     syncBaseLayers(map, { survey, detections, map: mapFile }, {}, colors);
@@ -69,7 +69,7 @@ describe("review-aware detection layers", () => {
         expect.objectContaining({
           id: MAP_LAYER_IDS.pins,
           paint: expect.objectContaining({
-            "fill-opacity": ["case", ["==", ["get", "reviewState"], "person"], 0.65, 0],
+            "fill-opacity": ["match", ["get", "reviewState"], "person", 0.3, "unsure", 0.12, "unreviewed", 0.06, 0],
           }),
         }),
         expect.objectContaining({
@@ -82,8 +82,19 @@ describe("review-aware detection layers", () => {
           paint: expect.objectContaining({ "line-dasharray": [2, 2] }),
         }),
         expect.objectContaining({
+          id: MAP_LAYER_IDS.pinMarkers,
+          type: "symbol",
+          layout: expect.objectContaining({ "icon-allow-overlap": true }),
+        }),
+        expect.objectContaining({
           id: MAP_LAYER_IDS.pinLabels,
-          layout: expect.objectContaining({ "text-field": ["get", "reviewLabel"] }),
+          // Only answered pins get a chip, and it moves to whichever side is free.
+          filter: ["!=", ["get", "reviewLabel"], ""],
+          layout: expect.objectContaining({
+            "text-field": ["get", "reviewLabel"],
+            "icon-text-fit": "both",
+            "text-variable-anchor": ["bottom", "top", "left", "right"],
+          }),
         }),
       ]),
     );
@@ -116,6 +127,7 @@ describe("review-aware detection layers", () => {
       MAP_LAYER_IDS.pins,
       MAP_LAYER_IDS.pinOutlines,
       MAP_LAYER_IDS.rejectedPins,
+      MAP_LAYER_IDS.pinMarkers,
       MAP_LAYER_IDS.pinLabels,
       MAP_LAYER_IDS.lkp,
       MAP_LAYER_IDS.lkpLabel,

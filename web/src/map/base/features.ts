@@ -39,7 +39,25 @@ interface DetectionProperties {
   confidence: number;
   radiusM: number;
   reviewState: Answer | "unreviewed";
-  reviewLabel: "Person" | "?" | "";
+  reviewLabel: ReviewLabel;
+}
+
+/** Words, not a bare "?": the chip says what the answer means for the search. */
+export type ReviewLabel = "Person confirmed" | "Unsure · check again" | "";
+
+export function reviewLabelFor(state: Answer | "unreviewed"): ReviewLabel {
+  if (state === "person") return "Person confirmed";
+  if (state === "unsure") return "Unsure · check again";
+  return "";
+}
+
+interface PinMarkerProperties {
+  detectionId: string;
+  frameId: string;
+  reviewState: Answer | "unreviewed";
+  reviewLabel: ReviewLabel;
+  /** Person first, then unsure: which label wins when two would collide. */
+  labelRank: number;
 }
 
 const METRES_PER_DEGREE = 111_320;
@@ -205,7 +223,33 @@ export function buildDetectionFeatures(
           confidence: detection.conf,
           radiusM: detection.radius_m,
           reviewState,
-          reviewLabel: reviewState === "person" ? "Person" : reviewState === "unsure" ? "?" : "",
+          reviewLabel: reviewLabelFor(reviewState),
+        },
+      });
+    }
+  }
+  return { type: "FeatureCollection", features };
+}
+
+// One point per candidate at its centre, carrying the state icon and its label chip.
+export function buildPinMarkerFeatures(
+  detections: Detections,
+  answers: Readonly<Record<string, Answer>> = {},
+): FeatureCollection<Feature<PointGeometry, PinMarkerProperties>> {
+  const features: Feature<PointGeometry, PinMarkerProperties>[] = [];
+  for (const [frameId, frameDetections] of Object.entries(detections.frames)) {
+    for (const detection of frameDetections) {
+      if (detection.conf < detections.candidate_threshold) continue;
+      const reviewState = answers[detection.id] ?? "unreviewed";
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [detection.lon, detection.lat] },
+        properties: {
+          detectionId: detection.id,
+          frameId,
+          reviewState,
+          reviewLabel: reviewLabelFor(reviewState),
+          labelRank: reviewState === "person" ? 0 : 1,
         },
       });
     }

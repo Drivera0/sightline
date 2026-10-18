@@ -10,6 +10,7 @@ export const MAP_LAYER_IDS = {
   pins: "detection-pins",
   pinOutlines: "detection-pin-outlines",
   rejectedPins: "rejected-detection-pins",
+  pinMarkers: "detection-pin-markers",
   pinLabels: "detection-pin-labels",
   lkp: "last-known-point",
   lkpLabel: "last-known-point-label",
@@ -21,6 +22,7 @@ export const MAP_SOURCE_IDS = {
   flightPath: "survey-flight-path",
   flightDirection: "survey-flight-direction",
   pins: "candidate-detections",
+  pinMarkers: "candidate-detection-markers",
   lkp: "survey-lkp",
 } as const;
 
@@ -33,6 +35,7 @@ export const MAP_LAYER_ORDER = [
   MAP_LAYER_IDS.pins,
   MAP_LAYER_IDS.pinOutlines,
   MAP_LAYER_IDS.rejectedPins,
+  MAP_LAYER_IDS.pinMarkers,
   MAP_LAYER_IDS.pinLabels,
   MAP_LAYER_IDS.lkp,
   MAP_LAYER_IDS.lkpLabel,
