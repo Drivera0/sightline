@@ -1,8 +1,8 @@
-# Lane interfaces: what lane D's pipeline calls (DRAFT, change freely)
+# Lane interfaces: what lane D's pipeline calls
 
-> Written by lane D before lanes B and C published their functions. **These are proposals.**
-> If your function looks different, tell lane D or edit the matching method in
-> `sightline/pipeline/lanes.py`. No pipeline stage needs to change.
+> Every function below now exists in its lane (`sightline/ml`, `sightline/geo`, `sightline/search`).
+> The adapters are in `sightline/pipeline/lanes.py`; if you change a signature, change the matching
+> method there. No pipeline stage needs to change.
 
 The pipeline looks for each function by name. If it is missing, the stage writes a **placeholder**
 (labelled `PLACEHOLDER`) and records it in `manifest.json` notes, so the full run works today.

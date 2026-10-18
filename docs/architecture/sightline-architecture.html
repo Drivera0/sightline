@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sightline architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --paper:#0a0b0d; --paper-2:#16171b; --ink:#f2f2f0; --muted:#a1a1aa; --soft:#8a8a93; --rule:rgba(242,242,240,0.12); --accent:#ff7a1a;
+             --font-sans:'Geist',system-ui,sans-serif; --font-serif:'Instrument Serif',serif; --font-mono:'Geist Mono',ui-monospace,monospace; }
+    body { font-family: var(--font-sans); background: var(--paper); color: var(--ink); min-height: 100vh; padding: 3rem 2rem; }
+    .container { max-width: 1240px; margin: 0 auto; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem; }
+    h1 { font-family: var(--font-serif); font-size: clamp(1.75rem, 3vw + 1rem, 2.6rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 0.6rem; }
+    h2 { font-family: var(--font-serif); font-size: 1.6rem; font-weight: 400; letter-spacing: -0.01em; margin: 2.75rem 0 0.4rem; }
+    .subtitle { font-size: 1rem; line-height: 1.55; color: var(--muted); max-width: 66ch; }
+    .diagram-container { overflow-x: auto; margin-top: 1rem; }
+    svg { width: 100%; min-width: 1120px; display: block; }
+    @media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+    .cards { display: grid; grid-template-columns: 1.1fr 1fr 0.9fr; gap: 1rem; margin-top: 2.5rem; }
+    @media (max-width: 820px) { .cards { grid-template-columns: 1fr; } }
+    .card { background: var(--paper-2); border-radius: 6px; border: 1px solid var(--rule); padding: 1.25rem; }
+    .card-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.875rem; padding-bottom: 0.875rem; border-bottom: 1px solid var(--rule); }
+    .card-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .card-dot.ink { background: var(--ink); } .card-dot.muted { background: var(--muted); } .card-dot.coral { background: var(--accent); }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card p, .card ul { color: var(--muted); font-size: 0.8125rem; line-height: 1.55; list-style: none; }
+    .card li { margin-bottom: 0.3rem; padding-left: 0.875rem; position: relative; }
+    .card li::before { content: '·'; position: absolute; left: 0.2rem; color: var(--soft); }
+    .footer { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.06em; color: var(--soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <p class="eyebrow">Architecture · Sightline</p>
+    <h1>From drone photos to where to search next</h1>
+    <p class="subtitle">A detector reads every drone photo and ranks them for a human searcher; each confirmed person becomes a pin on the map, and a Bayesian probability map shows where the person could still be. Four lanes, one contract between them.</p>
+
+    <h2>The system</h2>
+    <p class="subtitle">Lane D's pipeline calls the other three lanes, writes one validated cache, and the website only ever reads it.</p>
+    <div class="diagram-container">
+      <svg viewBox="0 48 1120 552" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="system-title system-desc">
+        <title id="system-title">Sightline system architecture</title>
+        <desc id="system-desc">Architecture of Sightline: survey photos go through lane D's pipeline, which calls the detector, georeferencing and the search map, writes a validated cache that is published as a GitHub release and built into the website a searcher reviews.</desc>
+        <defs><marker id="system-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a1a1aa"/></marker><marker id="system-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#ff7a1a"/></marker><marker id="system-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#8fb4ff"/></marker></defs>
+        <rect width="100%" height="100%" fill="#0a0b0d"/>
+        <rect x="248" y="80" width="624" height="128" rx="8" fill="rgba(242,242,240,0.02)" stroke="rgba(242,242,240,0.1)" stroke-width="0.8"/><rect x="264" y="84" width="192" height="12" rx="2" fill="#0a0b0d"/><text x="360.0" y="93" fill="#8a8a93" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">LANES A · B · C · CALLED BY THE PIPELINE</text>
+        <path d="M 208,332 H 264" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#system-arrow)"/>
+        <path d="M 304,296 V 184" fill="none" stroke="#ff7a1a" stroke-width="1.4" marker-end="url(#system-arrow-accent)"/>
+        <path d="M 344,296 V 248 Q 344,240 352,240 H 552 Q 560,240 560,232 V 184" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#system-arrow)"/>
+        <path d="M 384,296 V 264 Q 384,256 392,256 H 768 Q 776,256 776,248 V 184" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#system-arrow)"/>
+        <path d="M 424,332 H 480" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#system-arrow)"/>
+        <path d="M 560,368 V 448" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#system-arrow)"/>
+        <path d="M 640,484 H 768 Q 776,484 776,476 V 368" fill="none" stroke="#8fb4ff" stroke-width="1.2" marker-end="url(#system-arrow-link)"/>
+        <path d="M 856,320 H 912" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#system-arrow)"/>
+        <path d="M 912,344 H 856" fill="none" stroke="#a1a1aa" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#system-arrow)"/>
+        <rect x="216" y="312" width="40" height="12" rx="2" fill="#0a0b0d"/><text x="236" y="321" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PHOTOS</text>
+        <rect x="256" y="262" width="40" height="12" rx="2" fill="#0a0b0d"/><text x="276" y="271" fill="#ff7a1a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">DETECT</text>
+        <rect x="432" y="220" width="40" height="12" rx="2" fill="#0a0b0d"/><text x="452" y="229" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">GEOREF</text>
+        <rect x="674" y="264" width="28" height="12" rx="2" fill="#0a0b0d"/><text x="688" y="273" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MAP</text>
+        <rect x="432" y="312" width="40" height="12" rx="2" fill="#0a0b0d"/><text x="452" y="321" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">WRITES</text>
+        <rect x="568" y="402" width="48" height="12" rx="2" fill="#0a0b0d"/><text x="592" y="411" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PUBLISH</text>
+        <rect x="784" y="420" width="36" height="12" rx="2" fill="#0a0b0d"/><text x="802" y="429" fill="#8fb4ff" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">BUILD</text>
+        <rect x="866" y="300" width="36" height="12" rx="2" fill="#0a0b0d"/><text x="884" y="309" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">QUEUE</text>
+        <rect x="860" y="352" width="48" height="12" rx="2" fill="#0a0b0d"/><text x="884" y="361" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ANSWERS</text>
+        <rect x="264" y="112" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="264" y="112" width="160" height="72" rx="6" fill="rgba(255,122,26,0.1)" stroke="#ff7a1a" stroke-width="1"/><rect x="272" y="118" width="40" height="12" rx="2" fill="transparent" stroke="rgba(255,122,26,0.55)" stroke-width="0.8"/><text x="292.0" y="127" fill="#ff7a1a" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LANE A</text><text x="344.0" y="149" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Detector</text><text x="344.0" y="164" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">YOLO11s · tiled</text><text x="344.0" y="176" fill="#ff7a1a" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">recall 0.864</text>
+        <rect x="480" y="112" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="480" y="112" width="160" height="72" rx="6" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/><rect x="488" y="118" width="40" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="508.0" y="127" fill="#f2f2f0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LANE B</text><text x="560.0" y="149" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Geo</text><text x="560.0" y="164" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">EXIF pose → footprints</text><text x="560.0" y="176" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">pins ± 10 m</text>
+        <rect x="696" y="112" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="696" y="112" width="160" height="72" rx="6" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/><rect x="704" y="118" width="40" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="724.0" y="127" fill="#f2f2f0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LANE C</text><text x="776.0" y="149" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Search map</text><text x="776.0" y="164" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Bayesian grid</text><text x="776.0" y="176" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">updates every photo</text>
+        <rect x="48" y="296" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="48" y="296" width="160" height="72" rx="6" fill="rgba(242,242,240,0.02)" stroke="rgba(242,242,240,0.3)" stroke-width="1"/><rect x="56" y="302" width="32" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.25)" stroke-width="0.8"/><text x="72.0" y="311" fill="#8a8a93" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">INPUT</text><text x="128.0" y="333" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Drone survey</text><text x="128.0" y="348" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">500 photos (demo)</text><text x="128.0" y="360" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">or real EXIF photos</text>
+        <rect x="264" y="296" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="264" y="296" width="160" height="72" rx="6" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/><rect x="272" y="302" width="40" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="292.0" y="311" fill="#f2f2f0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LANE D</text><text x="344.0" y="333" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Pipeline</text><text x="344.0" y="348" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">8 stages · Typer CLI</text><text x="344.0" y="360" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">frames → export</text>
+        <rect x="480" y="296" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="480" y="296" width="160" height="72" rx="6" fill="rgba(242,242,240,0.05)" stroke="#a1a1aa" stroke-width="1"/><rect x="488" y="302" width="32" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="504.0" y="311" fill="#a1a1aa" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CACHE</text><text x="560.0" y="333" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Cache</text><text x="560.0" y="348" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">contract 1.1 · 5 JSON</text><text x="560.0" y="360" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">validated on export</text>
+        <rect x="696" y="296" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="696" y="296" width="160" height="72" rx="6" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/><rect x="704" y="302" width="28" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="718.0" y="311" fill="#f2f2f0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SITE</text><text x="776.0" y="333" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Website</text><text x="776.0" y="348" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">React · MapLibre</text><text x="776.0" y="360" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">reads the cache only</text>
+        <rect x="912" y="296" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="912" y="296" width="160" height="72" rx="6" fill="rgba(242,242,240,0.02)" stroke="rgba(242,242,240,0.3)" stroke-width="1"/><rect x="920" y="302" width="32" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.25)" stroke-width="0.8"/><text x="936.0" y="311" fill="#8a8a93" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">HUMAN</text><text x="992.0" y="333" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Searcher</text><text x="992.0" y="348" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">reviews the queue</text><text x="992.0" y="360" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">P · N · U keys</text>
+        <rect x="480" y="448" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="480" y="448" width="160" height="72" rx="6" fill="rgba(242,242,240,0.05)" stroke="#a1a1aa" stroke-width="1"/><rect x="488" y="454" width="48" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="512.0" y="463" fill="#a1a1aa" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">RELEASES</text><text x="560.0" y="485" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">GitHub releases</text><text x="560.0" y="500" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">demo · real-gps · weights</text><text x="560.0" y="512" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">pulled by the Vercel build</text>
+        <line x1="48" y1="560" x2="1072" y2="560" stroke="rgba(242,242,240,0.1)" stroke-width="0.8"/><text x="48" y="576" fill="#a1a1aa" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.18em">LEGEND</text>
+        <rect x="120" y="568" width="14" height="10" rx="2" fill="rgba(255,122,26,0.1)" stroke="#ff7a1a" stroke-width="1"/>
+        <text x="140" y="577" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Focal: the model</text>
+        <rect x="252" y="568" width="14" height="10" rx="2" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/>
+        <text x="272" y="577" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Component</text>
+        <rect x="348" y="568" width="14" height="10" rx="2" fill="rgba(242,242,240,0.05)" stroke="#a1a1aa" stroke-width="1"/>
+        <text x="368" y="577" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Data</text>
+        <rect x="420" y="568" width="14" height="10" rx="2" fill="rgba(242,242,240,0.02)" stroke="rgba(242,242,240,0.3)" stroke-width="1"/>
+        <text x="440" y="577" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Outside the system</text>
+        <line x1="560" y1="573" x2="584" y2="573" stroke="#ff7a1a" stroke-width="1.2" marker-end="url(#system-arrow-accent)"/>
+        <text x="590" y="577" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Detection call</text>
+        <line x1="690" y1="573" x2="714" y2="573" stroke="#8fb4ff" stroke-width="1.2" marker-end="url(#system-arrow-link)"/>
+        <text x="720" y="577" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">HTTPS download</text>
+        <line x1="820" y1="573" x2="844" y2="573" stroke="#a1a1aa" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#system-arrow)"/>
+        <text x="850" y="577" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Searcher answers</text>
+      </svg>
+    </div>
+
+    <h2>The ML pipeline</h2>
+    <p class="subtitle">Trained and tested once on HERIDAL, then the same weights and the same 0.29 threshold score every survey.</p>
+    <div class="diagram-container">
+      <svg viewBox="0 48 1120 432" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ml-title ml-desc">
+        <title id="ml-title">Sightline ML pipeline</title>
+        <desc id="ml-desc">The detector's pipeline: HERIDAL photos are tiled to train YOLO11s, a threshold is chosen on validation and the model is tested once, then every survey is scored with tiled inference, filtered at the threshold and ranked for review.</desc>
+        <defs><marker id="ml-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a1a1aa"/></marker><marker id="ml-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#ff7a1a"/></marker><marker id="ml-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#8fb4ff"/></marker></defs>
+        <rect width="100%" height="100%" fill="#0a0b0d"/>
+        <rect x="32" y="80" width="1056" height="128" rx="8" fill="rgba(242,242,240,0.02)" stroke="rgba(242,242,240,0.1)" stroke-width="0.8"/><rect x="48" y="84" width="188" height="12" rx="2" fill="#0a0b0d"/><text x="142.0" y="93" fill="#8a8a93" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">OFFLINE · TRAIN AND EVALUATE ONCE (GPU)</text>
+        <rect x="32" y="280" width="1056" height="128" rx="8" fill="rgba(242,242,240,0.02)" stroke="rgba(242,242,240,0.1)" stroke-width="0.8"/><rect x="48" y="284" width="164" height="12" rx="2" fill="#0a0b0d"/><text x="130.0" y="293" fill="#8a8a93" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">EVERY SURVEY · INSIDE THE PIPELINE</text>
+        <path d="M 208,148 H 264" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#ml-arrow)"/>
+        <path d="M 424,148 H 480" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#ml-arrow)"/>
+        <path d="M 640,148 H 696" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#ml-arrow)"/>
+        <path d="M 856,148 H 912" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#ml-arrow)"/>
+        <path d="M 208,348 H 480" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#ml-arrow)"/>
+        <path d="M 640,348 H 696" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#ml-arrow)"/>
+        <path d="M 856,348 H 912" fill="none" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#ml-arrow)"/>
+        <path d="M 560,184 V 312" fill="none" stroke="#ff7a1a" stroke-width="1.4" marker-end="url(#ml-arrow-accent)"/>
+        <path d="M 776,184 V 312" fill="none" stroke="#a1a1aa" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ml-arrow)"/>
+        <rect x="220" y="128" width="32" height="12" rx="2" fill="#0a0b0d"/><text x="236" y="137" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TILE</text>
+        <rect x="434" y="128" width="36" height="12" rx="2" fill="#0a0b0d"/><text x="452" y="137" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TRAIN</text>
+        <rect x="654" y="128" width="28" height="12" rx="2" fill="#0a0b0d"/><text x="668" y="137" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">VAL</text>
+        <rect x="868" y="128" width="32" height="12" rx="2" fill="#0a0b0d"/><text x="884" y="137" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TEST</text>
+        <rect x="310" y="328" width="68" height="12" rx="2" fill="#0a0b0d"/><text x="344" y="337" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SCORE EVERY</text>
+        <rect x="648" y="328" width="40" height="12" rx="2" fill="#0a0b0d"/><text x="668" y="337" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">FILTER</text>
+        <rect x="868" y="328" width="32" height="12" rx="2" fill="#0a0b0d"/><text x="884" y="337" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RANK</text>
+        <rect x="568" y="242" width="60" height="12" rx="2" fill="#0a0b0d"/><text x="598" y="251" fill="#ff7a1a" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">WEIGHTS-V2</text>
+        <rect x="784" y="242" width="32" height="12" rx="2" fill="#0a0b0d"/><text x="800" y="251" fill="#8a8a93" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">0.29</text>
+        <rect x="48" y="112" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="48" y="112" width="160" height="72" rx="6" fill="rgba(242,242,240,0.05)" stroke="#a1a1aa" stroke-width="1"/><rect x="56" y="118" width="28" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="70.0" y="127" fill="#a1a1aa" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DATA</text><text x="128.0" y="149" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">HERIDAL photos</text><text x="128.0" y="164" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">1,391 train · 155 val</text><text x="128.0" y="176" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">101 test · 4000×3000</text>
+        <rect x="264" y="112" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="264" y="112" width="160" height="72" rx="6" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/><rect x="272" y="118" width="28" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="286.0" y="127" fill="#f2f2f0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PREP</text><text x="344.0" y="149" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Tiler</text><text x="344.0" y="164" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">1024 px · 20% overlap</text><text x="344.0" y="176" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">890 labelled photos</text>
+        <rect x="480" y="112" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="480" y="112" width="160" height="72" rx="6" fill="rgba(255,122,26,0.1)" stroke="#ff7a1a" stroke-width="1"/><rect x="488" y="118" width="32" height="12" rx="2" fill="transparent" stroke="rgba(255,122,26,0.55)" stroke-width="0.8"/><text x="504.0" y="127" fill="#ff7a1a" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MODEL</text><text x="560.0" y="149" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">YOLO11s fine-tune</text><text x="560.0" y="164" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">80 epochs · from COCO</text><text x="560.0" y="176" fill="#ff7a1a" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">9.43 M parameters</text>
+        <rect x="696" y="112" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="696" y="112" width="160" height="72" rx="6" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/><rect x="704" y="118" width="28" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="718.0" y="127" fill="#f2f2f0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TUNE</text><text x="776.0" y="149" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Threshold</text><text x="776.0" y="164" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">max F2 on validation</text><text x="776.0" y="176" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">candidate ≥ 0.29</text>
+        <rect x="912" y="112" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="912" y="112" width="160" height="72" rx="6" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/><rect x="920" y="118" width="28" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="934.0" y="127" fill="#f2f2f0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TEST</text><text x="992.0" y="149" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Test evaluation</text><text x="992.0" y="164" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">101 photos · 337 people</text><text x="992.0" y="176" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">P 0.802 · R 0.864</text>
+        <rect x="48" y="312" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="48" y="312" width="160" height="72" rx="6" fill="rgba(242,242,240,0.02)" stroke="rgba(242,242,240,0.3)" stroke-width="1"/><rect x="56" y="318" width="32" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.25)" stroke-width="0.8"/><text x="72.0" y="327" fill="#8a8a93" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">INPUT</text><text x="128.0" y="349" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Survey photos</text><text x="128.0" y="364" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">500 frames (demo)</text><text x="128.0" y="376" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">or 10 real EXIF photos</text>
+        <rect x="480" y="312" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="480" y="312" width="160" height="72" rx="6" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/><rect x="488" y="318" width="32" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="504.0" y="327" fill="#f2f2f0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">INFER</text><text x="560.0" y="349" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Tiled inference</text><text x="560.0" y="364" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">SAHI · 1024 px slices</text><text x="560.0" y="376" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">NMS 0.5 · 0.25 s/photo</text>
+        <rect x="696" y="312" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="696" y="312" width="160" height="72" rx="6" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/><rect x="704" y="318" width="28" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="718.0" y="327" fill="#f2f2f0" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">KEEP</text><text x="776.0" y="349" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Candidates</text><text x="776.0" y="364" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">boxes ≥ 0.29</text><text x="776.0" y="376" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">crops + map pins</text>
+        <rect x="912" y="312" width="160" height="72" rx="6" fill="#0a0b0d"/><rect x="912" y="312" width="160" height="72" rx="6" fill="rgba(242,242,240,0.05)" stroke="#a1a1aa" stroke-width="1"/><rect x="920" y="318" width="40" height="12" rx="2" fill="transparent" stroke="rgba(242,242,240,0.3)" stroke-width="0.8"/><text x="940.0" y="327" fill="#a1a1aa" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OUTPUT</text><text x="992.0" y="349" fill="#f2f2f0" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Ranked queue</text><text x="992.0" y="364" fill="#a1a1aa" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">most confident first</text><text x="992.0" y="376" fill="#8a8a93" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">6 of 6 by photo 7</text>
+        <line x1="48" y1="440" x2="1072" y2="440" stroke="rgba(242,242,240,0.1)" stroke-width="0.8"/><text x="48" y="456" fill="#a1a1aa" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.18em">LEGEND</text>
+        <rect x="120" y="448" width="14" height="10" rx="2" fill="rgba(255,122,26,0.1)" stroke="#ff7a1a" stroke-width="1"/>
+        <text x="140" y="457" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Focal: the model</text>
+        <rect x="252" y="448" width="14" height="10" rx="2" fill="#16171b" stroke="rgba(242,242,240,0.55)" stroke-width="1"/>
+        <text x="272" y="457" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Step</text>
+        <rect x="324" y="448" width="14" height="10" rx="2" fill="rgba(242,242,240,0.05)" stroke="#a1a1aa" stroke-width="1"/>
+        <text x="344" y="457" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Data</text>
+        <rect x="396" y="448" width="14" height="10" rx="2" fill="rgba(242,242,240,0.02)" stroke="rgba(242,242,240,0.3)" stroke-width="1"/>
+        <text x="416" y="457" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Input</text>
+        <line x1="472" y1="453" x2="496" y2="453" stroke="#ff7a1a" stroke-width="1.2" marker-end="url(#ml-arrow-accent)"/>
+        <text x="502" y="457" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Trained weights</text>
+        <line x1="610" y1="453" x2="634" y2="453" stroke="#a1a1aa" stroke-width="1.2" marker-end="url(#ml-arrow)"/>
+        <text x="640" y="457" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Data flow</text>
+        <line x1="716" y1="453" x2="740" y2="453" stroke="#a1a1aa" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#ml-arrow)"/>
+        <text x="746" y="457" fill="#a1a1aa" font-size="8.5" font-family="'Geist', sans-serif">Threshold reused</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><span class="card-dot coral"></span><h3>Why tiles</h3></div>
+        <p>A person is about 70 px wide in a 4000×3000 photo. Shrinking the photo to the model's input loses them, so the detector trains and runs on overlapping 1024 px tiles at full resolution. Tiling takes fine-tuned recall from 0.234 to 0.864 on the test set.</p>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-dot ink"></span><h3>Honest by construction</h3></div>
+        <ul>
+          <li>The threshold is chosen on validation, never on test</li>
+          <li>Ground truth never enters the cache</li>
+          <li>Every cache file is checked against contract 1.1</li>
+          <li>Simulated parts are labelled on screen</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-dot muted"></span><h3>Where the numbers come from</h3></div>
+        <p>metrics.json (HERIDAL test set, 101 photos, 337 people; demo ranking), the weights-v2 release, and scripts/README.md. Limits and failure cases: docs/DETECTOR_LIMITS.md.</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>sightline · architecture</span>
+      <span>drawn to the diagram design rules (MIT, cathrynlavery/diagram-design)</span>
+    </div>
+  </div>
+</body>
+</html>
