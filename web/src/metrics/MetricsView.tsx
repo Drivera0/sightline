@@ -245,13 +245,18 @@ function MetricsBody({ m }: { m: Metrics }) {
               contract 1.1).
             </p>
           )}
-          <SearchTable
-            label="Search simulation"
-            caption="Whole 1 km grid"
-            methods={sim.methods}
-            source={simSource(sim)}
-            secondary={Boolean(sim.in_survey)}
-          />
+          <details className="group mt-3">
+            <summary className="cursor-pointer text-small text-text-3 hover:text-text-2">
+              The whole 1 km grid, and why the methods nearly tie there
+            </summary>
+            <SearchTable
+              label="Search simulation"
+              caption="Whole 1 km grid"
+              methods={sim.methods}
+              source={simSource(sim)}
+              secondary={Boolean(sim.in_survey)}
+            />
+          </details>
           <Source>
             {simSource(sim)}. The drone itself found the person in{" "}
             <Num source={simSource(sim)}>{pct(sim.found_by_drone_rate)}</Num> of
