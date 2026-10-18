@@ -158,12 +158,16 @@ function useModelBackground(): boolean {
   return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("bg") === "model";
 }
 
+/** Slow on purpose: it is ambient, not tied to a scan. One wave every 8 s, each taking 6 s to cross. */
+const BG_PULSE_MS = 8000;
+const BG_WAVE_MS = 6000;
+
 function ModelBackground({ threshold }: { threshold: number }) {
   const [motion] = useState(() => !prefersReducedMotion());
   const [pulse, setPulse] = useState(0);
   useEffect(() => {
     if (!motion) return;
-    const id = window.setInterval(() => setPulse((n) => n + 1), 3200);
+    const id = window.setInterval(() => setPulse((n) => n + 1), BG_PULSE_MS);
     return () => window.clearInterval(id);
   }, [motion]);
   return (
@@ -173,7 +177,7 @@ function ModelBackground({ threshold }: { threshold: number }) {
         top={undefined}
         threshold={threshold}
         pulseKey={motion ? String(pulse) : undefined}
-        waveMs={2600}
+        waveMs={BG_WAVE_MS}
         onHover={() => {}}
       />
     </div>
