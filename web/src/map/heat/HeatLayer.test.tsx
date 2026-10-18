@@ -69,6 +69,15 @@ function mockMap(withGridOutline: boolean) {
     }),
     setPaintProperty: vi.fn(),
     setLayoutProperty: vi.fn(),
+    setFilter: vi.fn(),
+    moveLayer: vi.fn((id: string, before?: string) => {
+      const at = layers.findIndex((l) => l.id === id);
+      if (at < 0) return;
+      const [entry] = layers.splice(at, 1);
+      const to = before ? layers.findIndex((l) => l.id === before) : -1;
+      if (to >= 0) layers.splice(to, 0, entry!);
+      else layers.push(entry!);
+    }),
     hasImage: () => false,
     addImage: vi.fn(),
     fitBounds: vi.fn(),
@@ -452,6 +461,30 @@ describe("HeatLayer", () => {
     const sidePanel = screen.getByText("Search next in the surveyed area").closest(".w-80");
     expect(sidePanel).not.toBeNull();
     expect(sidePanel!.contains(banner)).toBe(true);
+  });
+
+  it("links the Search next list and its circles: hover or click a row rings its circle", () => {
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={cache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    const rows = within(screen.getByRole("list", { name: "Most likely cells" })).getAllByRole("button");
+    const idx = Number(rows[0]!.getAttribute("data-idx"));
+    const lastFilter = () => m.map.setFilter.mock.calls.filter((c) => c[0] === HEAT_LAYER_IDS.hotspotActive).at(-1)?.[1];
+    act(() => {
+      rows[0]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
+    expect(lastFilter()).toEqual(["==", ["get", "idx"], idx]);
+    expect(rows[0]).toHaveAttribute("data-active", "true");
+    // Click picks it: it stays ringed after the pointer leaves.
+    act(() => rows[0]!.click());
+    act(() => {
+      rows[0]!.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
+    });
+    expect(lastFilter()).toEqual(["==", ["get", "idx"], idx]);
   });
 
   it("side panel order: sightings, then Search next (unsure areas at its top), then the sectors", () => {

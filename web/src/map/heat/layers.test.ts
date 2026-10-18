@@ -18,7 +18,15 @@ import {
   BREATH_PERIOD_MS,
   breathFactor,
   HEAT_BASE_OPACITY,
-  HOTSPOT_OPACITY,
+  HOTSPOT_HIT_LAYERS,
+  HOTSPOT_PULSE_MS,
+  HOTSPOT_RADIUS_PX,
+  HOTSPOT_STYLE,
+  hotspotPulseFrame,
+  raiseLkp,
+  setActiveHotspot,
+  setHotspotPulse,
+  setReplayEmphasis,
   hotspotFeatures,
   pushHotspots,
   setBreath,
@@ -220,7 +228,7 @@ describe("breathing", () => {
     expect(breathFactor(BREATH_PERIOD_MS / 4)).toBeCloseTo(1 + BREATH_AMPLITUDE, 9);
   });
 
-  it("scales the heat and the hotspot outline together, and skips layers not drawn yet", () => {
+  it("breathes only the heat (the circles stay steady), and skips layers not drawn yet", () => {
     const setPaintProperty = vi.fn();
     const drawn = new Set<string>([HEAT_LAYER_IDS.cells, HEAT_LAYER_IDS.hotspots]);
     const map = { getLayer: (id: string) => (drawn.has(id) ? {} : undefined), setPaintProperty } as unknown as Map;
@@ -228,8 +236,7 @@ describe("breathing", () => {
     const heat = setPaintProperty.mock.calls.find((c) => c[0] === HEAT_LAYER_IDS.cells)!;
     expect(heat[1]).toBe("raster-opacity");
     expect(heat[2]).toBeCloseTo(Math.min(1, HEAT_BASE_OPACITY.search * (1 + BREATH_AMPLITUDE)), 9);
-    const glow = setPaintProperty.mock.calls.find((c) => c[0] === HEAT_LAYER_IDS.hotspots && c[1] === "circle-stroke-opacity")!;
-    expect(glow[2]).toBeCloseTo(HOTSPOT_OPACITY.high, 9);
+    expect(setPaintProperty.mock.calls.some((c) => c[0] === HEAT_LAYER_IDS.hotspots)).toBe(false);
     setPaintProperty.mockClear();
     drawn.clear();
     setBreath(map, 1);
@@ -258,5 +265,88 @@ describe("breathing", () => {
     // Before the layers are installed there is no source: pushing does nothing and does not throw.
     const map = { getSource: () => undefined } as unknown as Map;
     expect(() => pushHotspots(map, grid, [1, 2, 3])).not.toThrow();
+  });
+});
+
+describe("search-next circles", () => {
+  const colors = { accent: "#acc", outline: "#out", veil: "#bg", review: "#rev", ok: "#ok" };
+  const grid = { origin_nw: { lat: 49.37, lon: -122.95 }, cell_m: 10, rows: 2, cols: 1 };
+  function install() {
+    const layers: { id: string; type: string; filter?: unknown; paint?: Record<string, unknown>; layout?: Record<string, unknown> }[] = [];
+    const sources = new globalThis.Map<string, Record<string, unknown>>();
+    const map = {
+      getSource: (id: string) => sources.get(id),
+      addSource: (id: string, spec: Record<string, unknown>) => sources.set(id, spec),
+      getLayer: (id: string) => layers.find((l) => l.id === id),
+      addLayer: (layer: (typeof layers)[number]) => layers.push(layer),
+    } as unknown as Map;
+    ensureHeatLayers(map, { canvas: { width: 1, height: 2 } as unknown as HTMLCanvasElement }, grid, new Uint8Array(2), colors, "search");
+    return { ids: layers.map((l) => l.id), layer: (id: string) => layers.find((l) => l.id === id)! };
+  }
+
+  it("draws a near-white ring on a dark casing, a numbered badge and an active ring, above the trail and the photo", () => {
+    const { ids, layer } = install();
+    const at = (id: string) => ids.indexOf(id);
+    for (const id of [HEAT_LAYER_IDS.hotspotHalo, HEAT_LAYER_IDS.hotspots, HEAT_LAYER_IDS.hotspotBadge, HEAT_LAYER_IDS.hotspotActive]) {
+      expect(at(id)).toBeGreaterThan(at(HEAT_LAYER_IDS.trail));
+      expect(at(id)).toBeGreaterThan(at(HEAT_LAYER_IDS.droneFootprintLine));
+      expect(at(id)).toBeLessThan(at(HEAT_LAYER_IDS.drone));
+    }
+    expect(at(HEAT_LAYER_IDS.hotspotHalo)).toBeLessThan(at(HEAT_LAYER_IDS.hotspots));
+    const halo = layer(HEAT_LAYER_IDS.hotspotHalo).paint!;
+    const ring = layer(HEAT_LAYER_IDS.hotspots).paint!;
+    expect(halo["circle-stroke-color"]).toBe("#bg");
+    expect(ring["circle-stroke-color"]).toBe("#out");
+    // The casing is wider than the ring, so dark shows on both sides of the light stroke.
+    expect(halo["circle-stroke-width"] as number).toBeGreaterThan((ring["circle-stroke-width"] as number) + 3);
+    expect(ring["circle-radius"]).toBe(HOTSPOT_RADIUS_PX);
+    expect(layer(HEAT_LAYER_IDS.hotspotActive).paint!["circle-stroke-color"]).toBe("#acc");
+    expect(layer(HEAT_LAYER_IDS.hotspotPulse).filter).toEqual(["==", ["get", "rank"], 1]);
+    const badge = layer(HEAT_LAYER_IDS.hotspotBadge);
+    expect(badge.type).toBe("symbol");
+    expect(JSON.stringify(badge.layout!["icon-image"])).toContain("rank");
+    expect(HOTSPOT_HIT_LAYERS).toContain(HEAT_LAYER_IDS.hotspotBadge);
+    // Not in the candidate (green) or unsure (amber) colours.
+    for (const p of [halo, ring]) expect([p["circle-stroke-color"]]).not.toContain("#ok");
+  });
+
+  it("pulses the first circle out and fades it, and stops cleanly", () => {
+    expect(hotspotPulseFrame(0)).toEqual({ radius: HOTSPOT_RADIUS_PX, opacity: 0.7 });
+    const late = hotspotPulseFrame(HOTSPOT_PULSE_MS * 0.9);
+    expect(late.radius).toBeGreaterThan(HOTSPOT_RADIUS_PX);
+    expect(late.opacity).toBeLessThan(0.1);
+    expect(hotspotPulseFrame(HOTSPOT_PULSE_MS + 1).radius).toBeCloseTo(hotspotPulseFrame(1).radius, 9);
+    const setPaintProperty = vi.fn();
+    const map = { getLayer: () => ({}), setPaintProperty } as unknown as Map;
+    setHotspotPulse(map, null);
+    expect(setPaintProperty).toHaveBeenCalledWith(HEAT_LAYER_IDS.hotspotPulse, "circle-stroke-opacity", 0);
+  });
+
+  it("rings the active circle by cell, and quiets the circles while the drone flies", () => {
+    const setFilter = vi.fn();
+    const setPaintProperty = vi.fn();
+    const setLayoutProperty = vi.fn();
+    const map = { getLayer: () => ({}), setFilter, setPaintProperty, setLayoutProperty } as unknown as Map;
+    setActiveHotspot(map, 42);
+    expect(setFilter).toHaveBeenLastCalledWith(HEAT_LAYER_IDS.hotspotActive, ["==", ["get", "idx"], 42]);
+    setActiveHotspot(map, null);
+    expect(setFilter).toHaveBeenLastCalledWith(HEAT_LAYER_IDS.hotspotActive, ["==", ["get", "idx"], -1]);
+    setReplayEmphasis(map, { playing: true, highlight: true }, false);
+    const ring = setPaintProperty.mock.calls.filter((c) => c[0] === HEAT_LAYER_IDS.hotspots && c[1] === "circle-stroke-opacity").at(-1)!;
+    expect(ring[2]).toBe(HOTSPOT_STYLE.replayOpacity);
+    expect(setLayoutProperty).toHaveBeenLastCalledWith(HEAT_LAYER_IDS.hotspotPulse, "visibility", "none");
+    setReplayEmphasis(map, { playing: false, highlight: false }, false);
+    const rest = setPaintProperty.mock.calls.filter((c) => c[0] === HEAT_LAYER_IDS.hotspots && c[1] === "circle-stroke-opacity").at(-1)!;
+    expect(rest[2]).toBe(1);
+  });
+
+  it("lifts the last known point above the heat, the trail and the photo, just under the circles", () => {
+    const moveLayer = vi.fn();
+    const map = { getLayer: () => ({}), moveLayer } as unknown as Map;
+    raiseLkp(map);
+    expect(moveLayer).toHaveBeenCalledWith(MAP_LAYER_IDS.lkp, HEAT_LAYER_IDS.hotspotHalo);
+    expect(moveLayer).toHaveBeenCalledWith(MAP_LAYER_IDS.lkpLabel, HEAT_LAYER_IDS.hotspotHalo);
+    const none = { getLayer: () => undefined, moveLayer: vi.fn() } as unknown as Map;
+    expect(() => raiseLkp(none)).not.toThrow();
   });
 });

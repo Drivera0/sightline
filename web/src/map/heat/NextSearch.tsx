@@ -40,7 +40,12 @@ interface Props {
   held?: Uint8Array;
   /** A person is confirmed: the list is for the remaining search if that is not the missing person. */
   found?: boolean;
-  onSelect: (lon: number, lat: number) => void;
+  /** Click on a spot: fly there (`idx` is its cell, the same as the circle on the map). */
+  onSelect: (lon: number, lat: number, idx: number) => void;
+  /** The cell whose circle is hovered or picked (on the map or here): its row is highlighted. */
+  activeIdx?: number | null;
+  /** Hover or focus on a row (null on leave): the map rings its circle. */
+  onHover?: (idx: number | null) => void;
   /**
    * Flown "Unsure" answers: an entry at the top of the list, before the ranked spots, with their
    * count and the sectors holding them. Clicking it flies to the next unsure area.
@@ -62,7 +67,7 @@ interface Props {
  * photographed one and the list would show the grid corners. Ranking the surveyed area shows where
  * the drone could not see well; the rest of the grid is the "Not yet searched" share below.
  */
-export function NextSearch({ map, state, covered, overlap, held, found = false, onSelect, unsure }: Props) {
+export function NextSearch({ map, state, covered, overlap, held, found = false, onSelect, activeIdx = null, onHover, unsure }: Props) {
   const eligible = eligibleCells(overlap, held);
   const top = topCellIndices(state.p, 5, eligible);
   const shares = probabilityShares(state, covered);
@@ -101,7 +106,7 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
         )}
         {top.length === 0 && <p className="text-small text-text-2">No cell photographed well enough yet</p>}
         {top.length > 0 && (
-          <ol className="flex flex-col gap-0.5" aria-label="Most likely cells">
+          <ol className="flex flex-col gap-0.5" aria-label="Most likely cells" onMouseLeave={() => onHover?.(null)}>
             {top.map((idx, rank) => {
               const c = cellCenter(map.grid, idx);
               const dist = distanceM(map.lkp.lat, map.lkp.lon, c.lat, c.lon);
@@ -111,16 +116,19 @@ export function NextSearch({ map, state, covered, overlap, held, found = false, 
                   <button
                     type="button"
                     data-idx={idx}
-                    onClick={() => onSelect(c.lon, c.lat)}
-                    title="Fly to this cell"
-                    className="grid w-full grid-cols-[1.25rem_1fr_auto] items-center gap-3 rounded-sm px-2 py-2 text-left transition-colors hover:bg-surface-strong"
+                    data-active={idx === activeIdx ? "true" : undefined}
+                    aria-current={idx === activeIdx ? "true" : undefined}
+                    onClick={() => onSelect(c.lon, c.lat, idx)}
+                    onMouseEnter={() => onHover?.(idx)}
+                    onFocus={() => onHover?.(idx)}
+                    onBlur={() => onHover?.(null)}
+                    title={`Fly to this cell (circle ${rank + 1} on the map)`}
+                    className={`grid w-full grid-cols-[1.25rem_1fr_auto] items-center gap-3 rounded-sm px-2 py-2 text-left transition-colors hover:bg-surface-strong ${
+                      idx === activeIdx ? "bg-surface-strong ring-1 ring-accent/70" : ""
+                    }`}
                   >
-                    <span
-                      className={
-                        "inline-flex size-5 items-center justify-center rounded-full font-mono text-label " +
-                        (rank === 0 ? "bg-accent text-bg" : "bg-surface-strong text-text-2")
-                      }
-                    >
+                    {/* The same number and fill as the circle's badge on the map. */}
+                    <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent font-mono text-label font-semibold text-bg">
                       {rank + 1}
                     </span>
                     <span className="flex min-w-0 flex-col gap-1">

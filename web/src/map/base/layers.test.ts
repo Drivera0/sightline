@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Detections, MapFile, Survey } from "../../contract";
 import type { LayerSpecification, Map as MapLibreMap } from "maplibre-gl";
 import { FLIGHT_DIRECTION_MAX_ZOOM, syncBaseLayers } from "./layers";
+import { PIN_IMAGES } from "./pinImages";
 import { MAP_LAYER_IDS } from "./layerIds";
 
 const survey: Survey = {
@@ -137,5 +138,26 @@ describe("review-aware detection layers", () => {
       type: "symbol",
       layout: { "text-field": ["get", "label"] },
     });
+  });
+
+  it("draws the last known point as a cased diamond with a haloed label, not an orange-ringed dot", () => {
+    const { map, layers } = mapRecorder();
+    syncBaseLayers(map, { survey, detections, map: mapFile }, {}, colors);
+    const marker = layers.find((layer) => layer.id === MAP_LAYER_IDS.lkp) as unknown as {
+      type: string;
+      layout: Record<string, unknown>;
+      paint?: Record<string, unknown>;
+    };
+    expect(marker.type).toBe("symbol");
+    expect(marker.layout["icon-image"]).toBe(PIN_IMAGES.lkp);
+    expect(marker.layout["icon-allow-overlap"]).toBe(true);
+    expect(JSON.stringify(marker.paint ?? {})).not.toContain(colors.accent);
+    const label = layers.find((layer) => layer.id === MAP_LAYER_IDS.lkpLabel) as unknown as { paint: Record<string, unknown> };
+    expect(label.paint["text-halo-width"] as number).toBeGreaterThanOrEqual(2.5);
+    // The label moves to a free side rather than covering a search-next badge.
+    const labelLayout = (layers.find((layer) => layer.id === MAP_LAYER_IDS.lkpLabel) as unknown as { layout: Record<string, unknown> })
+      .layout;
+    expect(labelLayout["text-variable-anchor"]).toEqual(["top", "bottom", "right", "left"]);
+    expect(labelLayout["text-allow-overlap"]).toBeUndefined();
   });
 });

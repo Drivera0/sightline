@@ -14,6 +14,7 @@ export const PIN_IMAGES = {
   chipPerson: "pin-chip-person",
   chipUnsure: "pin-chip-unsure",
   chipNeutral: "pin-chip-neutral",
+  lkp: "last-known-point-marker",
 } as const;
 
 interface PinColors {
@@ -186,6 +187,32 @@ export function ensurePinImages(map: Map, colors: PinColors): void {
   if (ctx) {
     disc(ctx, 7, 3.25, colors.text, colors.text, 0.5);
     add(PIN_IMAGES.unreviewed, image(ctx));
+  }
+
+  // Last known point: a near-white diamond on a dark rim with a dark centre. Its own shape (the
+  // candidates are discs, the search-next spots are numbered rings) and no orange or red, so it holds
+  // on both ends of the heat and on the flight path.
+  ctx = canvas(32, 32);
+  if (ctx) {
+    const diamond = (r: number) => {
+      ctx!.beginPath();
+      ctx!.moveTo(16, 16 - r);
+      ctx!.lineTo(16 + r, 16);
+      ctx!.lineTo(16, 16 + r);
+      ctx!.lineTo(16 - r, 16);
+      ctx!.closePath();
+    };
+    ctx.lineJoin = "round";
+    diamond(14.5);
+    ctx.fillStyle = RIM;
+    ctx.fill();
+    diamond(11);
+    ctx.fillStyle = colors.text;
+    ctx.fill();
+    diamond(3.75);
+    ctx.fillStyle = colors.background;
+    ctx.fill();
+    add(PIN_IMAGES.lkp, image(ctx));
   }
 
   for (const [id, color] of [
