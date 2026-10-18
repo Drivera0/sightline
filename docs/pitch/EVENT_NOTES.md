@@ -15,8 +15,10 @@ The rules page states only dates and eligibility; it has **no rule about code wr
 event**. Our record is clean anyway:
 - The first commit in the repo is 17 Oct 1:35 PM PDT, after the 1:00 PM start; every code commit
   is later (`git log`).
-- Before the event we only had the idea deck (16 Oct) and planning docs; the test data and weights
-  were produced during the event.
+- Before the event we had the idea deck (16 Oct) and planning docs. The test-split release
+  (`data-v1`, 17 Oct 2:48 PM) and both weight releases (`weights-v1` 17 Oct 5:42 PM, `weights-v2`
+  later) are dated during the event. Ask Daniel whether any data prep or training ran before 1:00 PM;
+  the lane A plan allowed data download and conversion as pre-event prep.
 - Third-party parts we use, and should credit: HERIDAL data (CC BY 3.0), YOLO11s pretrained weights
   (Ultralytics), open-source libraries, the published human baseline.
 
