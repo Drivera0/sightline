@@ -132,7 +132,8 @@ describe("StepSlider", () => {
     expect(screen.getByText("After frame 212 of 500")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("slider"), { target: { value: "13" } });
     expect(onScrub).toHaveBeenCalledWith(13);
-    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+    // A label that changes (Play / Pause) and no toggle state, so it is never read "Pause, not pressed".
+    expect(screen.getByRole("button", { name: "Play" })).not.toHaveAttribute("aria-pressed");
   });
 
   it("is only the controls: play, pause and skip call back; the clock moves the thumb while playing", () => {

@@ -32,7 +32,7 @@ export function StepSlider({ value, max, playing = false, onTogglePlay, onScrub,
       <button
         type="button"
         onClick={onTogglePlay}
-        aria-pressed={playing}
+        // The label says what a press does; no aria-pressed as well, or it reads "Pause, not pressed".
         aria-label={playing ? "Pause" : "Play"}
         className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-text text-bg lg:size-9 transition-transform duration-150 hover:scale-105 active:scale-95"
       >
