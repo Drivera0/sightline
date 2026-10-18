@@ -292,6 +292,13 @@ body {
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
 }
 .sl-range:hover::-webkit-slider-thumb { transform: scale(1.15); }
+/* Phones and tablets (the panels-below layout) and touch screens: a 44 px tall hit area and a
+   24 px thumb (Apple HIG 44 pt, WCAG 2.5.8); the visible track stays 4 px. */
+@media (max-width: 1023.98px), (pointer: coarse) {
+  .sl-range { height: 44px; }
+  .sl-range::-webkit-slider-thumb { width: 24px; height: 24px; margin-top: -10px; }
+  .sl-range::-moz-range-thumb { width: 24px; height: 24px; }
+}
 
 /* Rank: "Inside the detector". A soft glow runs through the layer stacks once per photo and
    fades back to the resting look (so a new photo never makes the graph jump); the grid cell of the
