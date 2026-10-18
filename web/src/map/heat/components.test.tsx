@@ -150,7 +150,15 @@ describe("StepSlider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Skip to the end of the flight" }));
     expect(onSkip).toHaveBeenCalledTimes(1);
     rerender(<StepSlider value={500} max={500} onScrub={vi.fn()} onTogglePlay={onTogglePlay} onSkip={onSkip} />);
-    expect(screen.getByRole("button", { name: "Skip to the end of the flight" })).toBeDisabled();
+    // At the end it is marked unavailable but stays focusable, so keyboard focus is not dropped
+    // to the page after a skip, and a second press does nothing.
+    const skip = screen.getByRole("button", { name: "Skip to the end of the flight" });
+    expect(skip).toHaveAttribute("aria-disabled", "true");
+    expect(skip).not.toBeDisabled();
+    skip.focus();
+    fireEvent.click(skip);
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    expect(skip).toHaveFocus();
   });
 
   it("is hidden when there are no steps", () => {
