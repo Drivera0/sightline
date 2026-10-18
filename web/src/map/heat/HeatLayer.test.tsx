@@ -606,8 +606,11 @@ describe("HeatLayer", () => {
       const pill = screen.getByRole("button", { name: "Reading the map" });
       expect(pill).toHaveAttribute("aria-expanded", "false");
       expect(pill).toHaveAttribute("data-map-overlay", "corner");
+      // Both sit above the map's attribution row (OpenStreetMap credit), like the simulated line.
+      expect(pill.className).toContain("bottom-7");
       act(() => pill.click());
       expect(screen.getByText("Lower probability")).toBeInTheDocument();
+      expect(document.getElementById("search-legend")!.className).toContain("bottom-7");
       act(() => screen.getByRole("button", { name: "Hide" }).click());
       expect(screen.queryByText("Lower probability")).toBeNull();
     } finally {
