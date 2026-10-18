@@ -12,7 +12,7 @@
 // over the dark basemap.
 import type { MapFile } from "../../contract";
 import type { MapState } from "../../search/update";
-import { edgeLat, edgeLon, relativeHeatLevels } from "./geometry";
+import { edgeLat, edgeLon, fixedHeatLevels } from "./geometry";
 
 type Grid = MapFile["grid"];
 export type RGB = [number, number, number];
@@ -196,17 +196,20 @@ export function heatColor(palette: RasterPalette, t: number): [number, number, n
  * RGBA per cell (row-major, row 0 = north: the canvas's own pixel order).
  * - not photographed at this step: the background colour at VEIL_ALPHA ("not yet searched");
  * - photographed and awaiting review: the neutral held tone at HELD_ALPHA;
- * - photographed: the ramp at the cell's level among the photographed cells (relativeHeatLevels),
- *   rounded to one of HEAT_CLASSES classes (classLevel).
+ * - photographed: the ramp at the cell's level on the fixed scale p / scaleMax (fixedHeatLevels,
+ *   scaleMax = the prior's highest cell, the same at every replay step), rounded to one of
+ *   HEAT_CLASSES classes (classLevel). A fixed scale keeps the map and the sector list in step: a
+ *   searched sector with a small share is drawn pale, not stretched to dark red.
  */
 export function heatPixels(
   state: MapState,
   covered: Uint8Array,
   held: Uint8Array,
   palette: RasterPalette,
+  scaleMax: number,
   out = new Uint8ClampedArray(state.p.length * 4),
 ): Uint8ClampedArray {
-  const levels = relativeHeatLevels(state.p, covered, held);
+  const levels = fixedHeatLevels(state.p, covered, scaleMax, held);
   const veilA = Math.round(VEIL_ALPHA * 255);
   const heldA = Math.round(HELD_ALPHA * 255);
   for (let i = 0; i < state.p.length; i++) {

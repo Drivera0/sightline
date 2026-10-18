@@ -101,7 +101,10 @@ export function Legend({ simulatedPath, hasSurveyed, compact = false, showPath =
           <span>Higher probability</span>
         </div>
         {!compact && (
-          <span className="text-label text-text-3">Inside the surveyed area, relative to the other surveyed cells</span>
+          <span className="text-label text-text-3">
+            Chance per cell, on one fixed scale for the whole replay. Deepest red: as likely as the likeliest cell before
+            the flight.
+          </span>
         )}
       </div>
       <ul className="flex flex-col gap-2 text-small text-text-2">

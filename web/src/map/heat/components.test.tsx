@@ -171,7 +171,7 @@ describe("Legend", () => {
     expect(screen.queryByText("Simulated flight path")).not.toBeInTheDocument();
     expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
     expect(screen.getByText("Surveyed area (outline)")).toBeInTheDocument();
-    expect(screen.getByText(/Inside the surveyed area/)).toBeInTheDocument();
+    expect(screen.getByText(/one fixed scale for the whole replay/)).toBeInTheDocument();
     expect(screen.getByText("Not yet searched")).toBeInTheDocument();
   });
 
