@@ -124,6 +124,15 @@ def _first_parameter(function: Callable[..., Any]) -> str | None:
     return names[0] if names else None
 
 
+def _is_native_simulate(function: Callable[..., Any]) -> bool:
+    """Lane C's native `simulate(map_file, frame_cells, trials, seed, vis_noise)` has these extras."""
+    try:
+        names = inspect.signature(function).parameters
+    except (TypeError, ValueError):
+        return False
+    return "trials" in names or "vis_noise" in names
+
+
 def _accepts_positional(function: Callable[..., Any], count: int) -> bool:
     """True if `function` can be called with `count` positional arguments."""
     try:
@@ -430,5 +439,18 @@ class Lanes:
         if function is None:
             self._fallback("simulate", "a labelled placeholder (zeros, 0 trials)")
             return placeholder_search_sim()
-        result = function(map_file, frame_cells)
+        if _is_native_simulate(function):
+            ordered = [frame_cells[frame_id] for frame_id in sorted(frame_cells)]
+            result = function(
+                map_file,
+                [
+                    {
+                        idx: (0.0 if canopy is None else canopy, overlap)
+                        for idx, canopy, overlap in cells
+                    }
+                    for cells in ordered
+                ],
+            )
+        else:
+            result = function(map_file, frame_cells)
         return result if isinstance(result, SearchSim) else SearchSim.model_validate(result)
