@@ -33,11 +33,14 @@ from sightline.pipeline.lanes import RECALL_FROM_DETECTOR, Lanes, MapFrame
 from sightline.pipeline.mapmath import normalise_map
 from sightline.pipeline.placeholders import placeholder_detector_metrics
 from sightline.pipeline.rank import rank_frames, ranking_metrics
-from sightline.pipeline.survey import build_survey, write_survey
+from sightline.pipeline.survey import build_block_survey, build_survey, write_survey
 
 PLACEHOLDER_RECALL = 0.80  # used by `map` until lane A has written detector_metrics.json
 RECALL_FROM_PLACEHOLDER = "placeholder"
 DEFAULT_NOTES = "Real HERIDAL test imagery on a simulated flight path over Mount Seymour."
+
+
+SURVEY_LAYOUTS = {"shuffle": build_survey, "blocks": build_block_survey}
 
 
 @dataclass
@@ -56,6 +59,9 @@ class Context:
     test_dir: Path | None = None
     # Demo surveys have hidden ground truth. Uploaded photos do not, so ranking is not measured.
     require_truth: bool = True
+    # How frames are laid on the flight: "shuffle" (each frame a random crop) or "blocks"
+    # (neighbouring crops of one photo stay neighbours on the ground; see build_block_survey).
+    layout: str = "shuffle"
 
     def __post_init__(self) -> None:
         if self.test_dir is None:
@@ -83,7 +89,9 @@ def _frame_ids(ctx: Context) -> list[str]:
 def frames_stage(ctx: Context) -> None:
     """Cut frames from the HERIDAL test photos; write the JPEGs, `frames.json` and `truth.json`."""
     images = ctx.lanes.test_images(ctx.test_dir or _default_test_dir(ctx.data))
-    frames, truth = build_survey(
+    if ctx.layout not in SURVEY_LAYOUTS:
+        raise ValueError(f"unknown layout {ctx.layout!r}; choose one of {sorted(SURVEY_LAYOUTS)}")
+    frames, truth = SURVEY_LAYOUTS[ctx.layout](
         images, ctx.n_frames, ctx.n_positive, ctx.seed, survey_dir=ctx.survey_dir
     )
     write_survey(frames, truth, images, ctx.survey_dir)
