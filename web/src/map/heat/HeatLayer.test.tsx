@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CacheBundle } from "../../contract";
+import type { CacheBundle, Frame } from "../../contract";
 import { CacheContext, loadCache } from "../../lib/cache";
 import { diskFetch } from "../../lib/diskFetch";
 import { useReview } from "../../review/store";
@@ -8,7 +8,6 @@ import { useSearch } from "../../search/store";
 import type { MapContextValue } from "../MapView";
 import { MAP_LAYER_IDS } from "../base/layerIds";
 import { HeatLayer } from "./HeatLayer";
-import { coveredCells } from "./geometry";
 import { HEAT_LAYER_IDS, HEAT_SOURCE_ID } from "./layers";
 
 const ctx: { value: MapContextValue | null } = { value: null };
@@ -28,11 +27,15 @@ interface Recorded {
 function mockMap(withGridOutline: boolean) {
   const sources = new Map<string, unknown>();
   const layers: Recorded[] = withGridOutline ? [{ id: MAP_LAYER_IDS.gridOutline, before: undefined }] : [];
-  const featureState = new Map<number, { o: number }>();
+  const featureState = new Map<number, { o: number; u: number; h: number }>();
+  const boundaryDrawn: unknown[] = [];
   const handlers = new Map<string, Set<() => void>>();
   const map = {
     isStyleLoaded: () => true,
-    getSource: (id: string) => sources.get(id),
+    getSource: (id: string) => {
+      const spec = sources.get(id);
+      return spec ? { ...(spec as object), setData: (data: unknown) => boundaryDrawn.push(data) } : undefined;
+    },
     addSource: vi.fn((id: string, spec: unknown) => {
       sources.set(id, spec);
     }),
@@ -43,7 +46,7 @@ function mockMap(withGridOutline: boolean) {
       if (at >= 0) layers.splice(at, 0, entry);
       else layers.push(entry);
     }),
-    setFeatureState: vi.fn((target: { source: string; id: number }, value: { o: number }) => {
+    setFeatureState: vi.fn((target: { source: string; id: number }, value: { o: number; u: number; h: number }) => {
       featureState.set(target.id, value);
     }),
     on: (event: string, fn: () => void) => {
@@ -63,7 +66,7 @@ function mockMap(withGridOutline: boolean) {
       handlers.get("styledata")?.forEach((fn) => fn());
     },
   };
-  return { map, sources, layers, featureState };
+  return { map, sources, layers, featureState, boundaryDrawn };
 }
 
 let cache: CacheBundle;
@@ -78,6 +81,28 @@ async function sampleWithSteps(): Promise<CacheBundle> {
       { frame_id: "f0002", cells: [[1277, 0.5]] },
     ],
   };
+  // Footprints that match the steps: frame 1 covers cells 1275 and 1276, frame 2 covers cell 1277
+  // (row 25, columns 25 to 27; each footprint is 1 m inside its cells).
+  const g = c.map.grid;
+  const mLon = 111_320 * Math.cos((g.origin_nw.lat * Math.PI) / 180);
+  const lat = (m: number) => g.origin_nw.lat - (25 * 20 + m) / 111_320;
+  const lon = (col: number, m: number) => g.origin_nw.lon + (col * 20 + m) / mLon;
+  const box = (c0: number, c1: number): Frame["footprint"] => [
+    [lon(c0, 1), lat(1)],
+    [lon(c1, 19), lat(1)],
+    [lon(c1, 19), lat(19)],
+    [lon(c0, 1), lat(19)],
+  ];
+  c.survey = {
+    ...c.survey,
+    frames: [
+      { ...(c.survey.frames[0] as Frame), footprint: box(25, 26) },
+      { ...(c.survey.frames[1] as Frame), footprint: box(27, 27) },
+    ],
+  };
+  // One candidate at the centre of cell 1275, to be held until answered.
+  const candidate = { id: "f0001-d01", box_px: [0, 0, 10, 10] as [number, number, number, number], conf: 0.9, crop: "crops/f0001-d01.jpg", lat: lat(10), lon: lon(25, 10), radius_m: 1 };
+  c.detections = { ...c.detections, frames: { f0001: [candidate] } };
   return c;
 }
 
@@ -111,6 +136,8 @@ describe("HeatLayer", () => {
 
     const ids = m.layers.map((l) => l.id);
     expect(ids.indexOf(HEAT_LAYER_IDS.cells)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
+    expect(ids.indexOf(HEAT_LAYER_IDS.unsearched)).toBeLessThan(ids.indexOf(HEAT_LAYER_IDS.cells));
+    expect(ids.indexOf(HEAT_LAYER_IDS.unsearched)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
     expect(ids.indexOf(HEAT_LAYER_IDS.surveyed)).toBeLessThan(ids.indexOf(MAP_LAYER_IDS.gridOutline));
     expect(m.sources.get(HEAT_SOURCE_ID)).toMatchObject({ type: "geojson", promoteId: "idx" });
     const spec = m.sources.get(HEAT_SOURCE_ID) as { data: { features: unknown[] } };
@@ -118,22 +145,41 @@ describe("HeatLayer", () => {
     expect(m.featureState.size).toBe(2500);
     const addSourceCalls = m.map.addSource.mock.calls.length;
 
-    // Heat only on photographed ground: an unphotographed cell sits under the veil at 0.
-    const covered = coveredCells(cache.map);
-    const unseen = covered.findIndex((c) => c === 0);
-    expect(m.featureState.get(unseen)!.o).toBe(0);
-    // Final map: a cell the drone saw well is dimmer than one it saw less well.
-    expect(m.featureState.get(1275)!.o).toBeLessThan(m.featureState.get(1277)!.o);
+    // Final map: cell 1275 was photographed (heat, not flagged), cell 0 was not (no heat, flagged).
+    expect(m.featureState.get(1276)).toMatchObject({ u: 0, h: 0 });
+    expect(m.featureState.get(1276)!.o).toBeGreaterThan(0);
+    expect(m.featureState.get(0)).toEqual({ o: 0, u: 1, h: 0 });
     expect(screen.getByText("After frame 2 of 2")).toBeInTheDocument();
+    // The candidate at cell 1275 is awaiting review: its own category, no heat.
+    expect(m.featureState.get(1275)).toEqual({ o: 0, u: 0, h: 1 });
+    expect(m.featureState.get(1277)!.h).toBe(0);
+    expect(m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.review)).toBeGreaterThan(
+      m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.unsearched),
+    );
+    expect(m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.review)).toBeLessThan(
+      m.layers.map((l) => l.id).indexOf(HEAT_LAYER_IDS.cells),
+    );
+
+    // Only what the first frame photographed is photographed at step 1.
+    act(() => useSearch.getState().setStepIndex(1));
+    expect(m.featureState.get(1276)).toMatchObject({ u: 0 });
+    expect(m.featureState.get(1277)).toEqual({ o: 0, u: 1, h: 0 });
+    expect(m.boundaryDrawn.length).toBeGreaterThan(0);
 
     act(() => useSearch.getState().setStepIndex(0));
     expect(screen.getByText("Before the first frame")).toBeInTheDocument();
-    expect(m.featureState.get(1275)!.o).toBeCloseTo(m.featureState.get(1277)!.o, 9);
+    expect(m.featureState.get(1275)).toEqual({ o: 0, u: 1, h: 0 });
+    expect(m.featureState.get(0)).toEqual({ o: 0, u: 1, h: 0 });
     expect(m.map.addSource.mock.calls.length).toBe(addSourceCalls);
 
     // A confirmed person shows the banner; the slider keeps working.
-    act(() => useReview.getState().answer("f0003-d01", "person", 1));
+    act(() => useReview.getState().answer("f0001-d01", "person", 1));
     expect(screen.getByText("Person confirmed: dispatch ground team")).toBeInTheDocument();
+    // Answering "Not a person" releases the held cell into the normal map.
+    act(() => useSearch.getState().setStepIndex(2));
+    act(() => useReview.getState().answer("f0001-d01", "not_person", 2));
+    expect(m.featureState.get(1275)).toMatchObject({ u: 0, h: 0 });
+    expect(m.featureState.get(1275)!.o).toBeGreaterThan(0);
     act(() => useSearch.getState().setStepIndex(2));
     expect(screen.getByText("After frame 2 of 2")).toBeInTheDocument();
 
@@ -145,6 +191,46 @@ describe("HeatLayer", () => {
     act(() => m.map.reloadStyle());
     expect(m.layers.map((l) => l.id)).toContain(HEAT_LAYER_IDS.cells);
     expect(m.map.setFeatureState.mock.calls.length).toBeGreaterThanOrEqual(2500 * 2);
+  });
+
+  it("draws a sliver cell (overlap below MIN_OVERLAP) as not yet searched, with no heat and no outline", () => {
+    // A third frame that only grazes cell 1325 (row 26, col 25): 4 m of its 20 m width, so overlap 0.2.
+    const g = cache.map.grid;
+    const mLon = 111_320 * Math.cos((g.origin_nw.lat * Math.PI) / 180);
+    const lat = (m: number) => g.origin_nw.lat - (26 * 20 + m) / 111_320;
+    const lon = (m: number) => g.origin_nw.lon + (25 * 20 + m) / mLon;
+    const sliver: Frame["footprint"] = [[lon(0), lat(0)], [lon(4), lat(0)], [lon(4), lat(20)], [lon(0), lat(20)]];
+    const sliverCache: CacheBundle = {
+      ...cache,
+      map: { ...cache.map, steps: [...cache.map.steps, { frame_id: "f0003", cells: [[1325, 0.01]] }] },
+      survey: {
+        ...cache.survey,
+        frames: [...cache.survey.frames, { ...(cache.survey.frames[0] as Frame), footprint: sliver }],
+      },
+    };
+    const m = mockMap(true);
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    render(
+      <CacheContext.Provider value={sliverCache}>
+        <HeatLayer />
+      </CacheContext.Provider>,
+    );
+    act(() => useReview.getState().answer("f0001-d01", "not_person", 1));
+    act(() => useSearch.getState().setStepIndex(3));
+    // The sliver cell has almost the top p (barely searched) but is not searched: no heat, flagged.
+    const p = useSearch.getState().state!.p;
+    expect(p[1325]).toBeGreaterThan(p[1276] as number);
+    expect(m.featureState.get(1325)).toEqual({ o: 0, u: 1, h: 0 });
+    // Well-photographed cells keep their heat.
+    expect(m.featureState.get(1276)!.o).toBeGreaterThan(0);
+    // The outline does not include the sliver cell: it is the same drawing as at step 2.
+    const drawn = m.boundaryDrawn.at(-1) as { geometry: { coordinates: unknown[] } };
+    act(() => useSearch.getState().setStepIndex(2));
+    const atTwo = m.boundaryDrawn.at(-1) as { geometry: { coordinates: unknown[] } };
+    expect(drawn.geometry.coordinates).toEqual(atTwo.geometry.coordinates);
+    // At step 0 nothing is coloured.
+    act(() => useSearch.getState().setStepIndex(0));
+    for (const i of [1275, 1276, 1277, 1325]) expect(m.featureState.get(i)).toEqual({ o: 0, u: 1, h: 0 });
   });
 
   it("adds the layers on top when lane B has not drawn yet", () => {
@@ -186,9 +272,9 @@ describe("HeatLayer", () => {
         <HeatLayer />
       </CacheContext.Provider>,
     );
-    act(() => useReview.getState().answer("f0003-d01", "person", 1));
+    act(() => useReview.getState().answer("f0001-d01", "person", 1));
     const banner = screen.getByText("Person confirmed: dispatch ground team");
-    const sidePanel = screen.getByText("Search next").closest(".w-72");
+    const sidePanel = screen.getByText("Search next in the surveyed area").closest(".w-72");
     expect(sidePanel).not.toBeNull();
     expect(sidePanel!.contains(banner)).toBe(true);
   });
