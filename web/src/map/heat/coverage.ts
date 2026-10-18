@@ -96,3 +96,62 @@ export function summedOverlap(grid: Grid, footprints: readonly (readonly LonLat[
   }
   return out;
 }
+
+/** Per frame, the cells its footprint touches as [idx, overlap] (overlap in cell areas). Flight order. */
+export function frameOverlaps(grid: Grid, footprints: readonly (readonly LonLat[])[]): [number, number][][] {
+  return footprints.map((fp) => {
+    const cells: [number, number][] = [];
+    summedOverlap(grid, [fp]).forEach((v, idx) => {
+      if (v > 0) cells.push([idx, v]);
+    });
+    return cells;
+  });
+}
+
+/** Save the running total every this many frames, so scrubbing adds at most CHECKPOINT_EVERY - 1 frames. */
+const CHECKPOINT_EVERY = 25;
+
+export interface OverlapIndex {
+  frames: readonly (readonly [number, number][])[];
+  /** checkpoints[i] = summed overlap of frames 0 .. i * CHECKPOINT_EVERY - 1. */
+  checkpoints: Float64Array[];
+  cellCount: number;
+}
+
+/** Precompute once per survey. */
+export function buildOverlapIndex(frames: readonly (readonly [number, number][])[], cellCount: number): OverlapIndex {
+  const checkpoints = [new Float64Array(cellCount)];
+  let running = new Float64Array(cellCount);
+  frames.forEach((cells, k) => {
+    for (const [idx, v] of cells) running[idx] = (running[idx] as number) + v;
+    if ((k + 1) % CHECKPOINT_EVERY === 0) {
+      checkpoints.push(running);
+      running = Float64Array.from(running);
+    }
+  });
+  return { frames, checkpoints, cellCount };
+}
+
+/**
+ * Summed overlap of frames 0 .. k-1 (k is clamped to 0 .. frames). Returns a new array. Frames are
+ * added in flight order, so at k = frames.length it equals summedOverlap() over all footprints.
+ */
+export function overlapAtStep(index: OverlapIndex, k: number): Float64Array {
+  const n = Math.max(0, Math.min(index.frames.length, Math.floor(k)));
+  const base = Math.floor(n / CHECKPOINT_EVERY);
+  const out = Float64Array.from(index.checkpoints[base] as Float64Array);
+  for (let f = base * CHECKPOINT_EVERY; f < n; f++) {
+    for (const [idx, v] of index.frames[f] as readonly [number, number][]) out[idx] = (out[idx] as number) + v;
+  }
+  return out;
+}
+
+/** 1 where some frame so far touched the cell (summed overlap > 0). */
+export function photographedCells(overlap: Float64Array): Uint8Array {
+  return Uint8Array.from(overlap, (v) => (v > 0 ? 1 : 0));
+}
+
+/** 1 where "Search next" may rank the cell: summed overlap >= MIN_OVERLAP and not awaiting review. */
+export function eligibleCells(overlap: Float64Array, held?: Uint8Array): Uint8Array {
+  return Uint8Array.from(overlap, (v, i) => (v >= MIN_OVERLAP && held?.[i] !== 1 ? 1 : 0));
+}

@@ -1,7 +1,7 @@
 import type { Manifest, Params } from "../../contract";
 import { Badge, Label } from "../../shell/components";
 import { HEAT_CEIL, HEAT_FLOOR } from "./geometry";
-import { UNSEARCHED_OPACITY } from "./layers";
+import { REVIEW_OPACITY, UNSEARCHED_OPACITY } from "./layers";
 
 /** Contract 1.1 §8: the value of `map.params.prior_source` when the pipeline used the placeholder prior. */
 export const PRIOR_FROM_PLACEHOLDER = "placeholder";
@@ -31,6 +31,7 @@ const RAMP = `linear-gradient(to right, color-mix(in srgb, var(--accent) ${pct(H
   HEAT_CEIL,
 )}%, transparent))`;
 const UNSEARCHED_FILL = `color-mix(in srgb, var(--text-3) ${pct(UNSEARCHED_OPACITY)}%, transparent)`;
+const REVIEW_FILL = `color-mix(in srgb, var(--warn) ${pct(REVIEW_OPACITY)}%, transparent)`;
 
 interface Props {
   simulatedPath: boolean;
@@ -60,6 +61,14 @@ export function Legend({ simulatedPath, params, manifest, hasSurveyed }: Props) 
           aria-hidden="true"
         />
         Not yet searched
+      </div>
+      <div className="flex items-center gap-2 text-small text-text-2">
+        <span
+          className="inline-block h-3 w-6 rounded-sm border border-border"
+          style={{ background: REVIEW_FILL }}
+          aria-hidden="true"
+        />
+        Awaiting review
       </div>
       <div className="flex items-center gap-2 text-small text-text-2">
         <span className="inline-block h-0 w-6 border-t-2 border-text" aria-hidden="true" />

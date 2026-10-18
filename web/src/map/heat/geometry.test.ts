@@ -137,3 +137,24 @@ describe("panel maths", () => {
     expect(s.outside).toBeCloseTo(0.4);
   });
 });
+
+describe("relativeHeatOpacities with held cells", () => {
+  it("keeps held cells out of the stretch bounds and gives them no heat", () => {
+    const p = Float64Array.from([1, 2, 3, 4, 1000]);
+    const covered = Uint8Array.from([1, 1, 1, 1, 1]);
+    const held = Uint8Array.from([0, 0, 0, 0, 1]);
+    const o = relativeHeatOpacities(p, covered, held);
+    expect(o[4]).toBe(0);
+    // Without the held cell the stretch is over 1..4: the top cell reaches the ceiling.
+    expect(o[3]).toBeCloseTo(HEAT_CEIL, 9);
+    expect(o[0]).toBeCloseTo(HEAT_FLOOR, 9);
+  });
+
+  it("gives the same result as before when nothing is held", () => {
+    const p = Float64Array.from([1, 2, 3, 4]);
+    const covered = Uint8Array.from([1, 1, 1, 0]);
+    expect(Array.from(relativeHeatOpacities(p, covered, new Uint8Array(4)))).toEqual(
+      Array.from(relativeHeatOpacities(p, covered)),
+    );
+  });
+});

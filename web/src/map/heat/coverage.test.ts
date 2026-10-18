@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { MapFile } from "../../contract";
-import { clipConvex, type Point, polygonArea, summedOverlap, toLocalM } from "./coverage";
+import {
+  buildOverlapIndex,
+  clipConvex,
+  eligibleCells,
+  frameOverlaps,
+  MIN_OVERLAP,
+  overlapAtStep,
+  photographedCells,
+  type Point,
+  polygonArea,
+  summedOverlap,
+  toLocalM,
+} from "./coverage";
 
 type Grid = MapFile["grid"];
 type Footprint = [[number, number], [number, number], [number, number], [number, number]];
@@ -70,5 +82,49 @@ describe("summedOverlap", () => {
   it("gives zeros for a footprint outside the grid and clips one on the edge", () => {
     expect(total(summedOverlap(grid, [box(500, 500, 20, 15)]))).toBe(0);
     expect(total(summedOverlap(grid, [box(0, 50, 20, 20)]))).toBeCloseTo(0.5, 6); // half outside the west edge
+  });
+});
+
+describe("step-aware overlap", () => {
+  // Frame 0 covers cells 0 and 1 (row 0), frame 1 covers cell 1 again and cell 2, frame 2 covers row 3.
+  const footprints = [box(20, 10, 38, 18), box(40, 10, 38, 18), box(50, 70, 18, 18)];
+  const n = grid.rows * grid.cols;
+
+  it("frameOverlaps lists only the cells each footprint touches", () => {
+    const frames = frameOverlaps(grid, footprints);
+    expect(frames).toHaveLength(3);
+    expect(frames[0]!.map(([i]) => i).sort((a, b) => a - b)).toEqual([0, 1]);
+    for (const [, v] of frames[0]!) expect(v).toBeGreaterThan(0.8);
+  });
+
+  it("is empty at step 0 and equals summedOverlap at the last step", () => {
+    const index = buildOverlapIndex(frameOverlaps(grid, footprints), n);
+    expect(Array.from(overlapAtStep(index, 0))).toEqual(new Array(n).fill(0));
+    expect(Array.from(overlapAtStep(index, 3))).toEqual(Array.from(summedOverlap(grid, footprints)));
+  });
+
+  it("sums the first k frames only, in any scrub order, across checkpoints", () => {
+    const many = Array.from({ length: 60 }, (_, k) => box(10 + (k % 5) * 20, 10 + Math.floor(k / 12) * 20, 18, 18));
+    const index = buildOverlapIndex(frameOverlaps(grid, many), n);
+    for (const k of [60, 7, 59, 25, 26, 0, 50, 24]) {
+      expect(Array.from(overlapAtStep(index, k))).toEqual(Array.from(summedOverlap(grid, many.slice(0, k))));
+    }
+    expect(Array.from(overlapAtStep(index, 999))).toEqual(Array.from(summedOverlap(grid, many)));
+    expect(Array.from(overlapAtStep(index, -3))).toEqual(new Array(n).fill(0));
+  });
+
+  it("does not change an earlier result when a later step is asked for", () => {
+    const index = buildOverlapIndex(frameOverlaps(grid, footprints), n);
+    const a = overlapAtStep(index, 1);
+    const copy = Array.from(a);
+    overlapAtStep(index, 3);
+    expect(Array.from(a)).toEqual(copy);
+  });
+
+  it("photographed means overlap above 0; eligible means at least MIN_OVERLAP and not held", () => {
+    const overlap = Float64Array.from([0, 0.1, MIN_OVERLAP, 1.4]);
+    expect(Array.from(photographedCells(overlap))).toEqual([0, 1, 1, 1]);
+    expect(Array.from(eligibleCells(overlap))).toEqual([0, 0, 1, 1]);
+    expect(Array.from(eligibleCells(overlap, Uint8Array.from([0, 0, 0, 1])))).toEqual([0, 0, 1, 0]);
   });
 });
