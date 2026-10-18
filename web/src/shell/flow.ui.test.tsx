@@ -29,15 +29,15 @@ describe("guided flow", () => {
   it("opens on the survey, with the size of the job and one clear action", () => {
     render(<Shell cache={cache} />);
     expect(current()).toHaveTextContent("Survey");
-    expect(screen.getByRole("heading", { name: /20 sections of real drone photos, on a simulated search over/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /20 photos from a simulated drone search over/ })).toBeInTheDocument();
     // The human miss rate comes from metrics.baseline_human.recall.
     expect(screen.getByText(/of people missed by eye/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Rank with Sightline" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start: rank 20 photos" })).toBeInTheDocument();
   });
 
   it("ranks, then reveals the queue headline from the ranking metrics", async () => {
     render(<Shell cache={cache} />);
-    await userEvent.click(screen.getByRole("button", { name: "Rank with Sightline" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start: rank 20 photos" }));
     expect(current()).toHaveTextContent("Rank");
     // sample metrics: ranked.frames_to_first_hit = 1
     expect(await screen.findByText(/first photo you see/)).toBeInTheDocument();
@@ -140,7 +140,7 @@ describe("guided flow", () => {
 
   it("plays a guided tour from the survey: captions per step, Next by hand, Esc to leave", async () => {
     render(<Shell cache={cache} />);
-    await userEvent.click(screen.getByRole("button", { name: "Watch the 60-second tour" }));
+    await userEvent.click(screen.getByRole("button", { name: "Watch 60-second tour" }));
     const tour = () => screen.getByRole("dialog", { name: "Guided tour" });
     // jsdom can't tell the motion preference, so the tour runs captions-only with Next.
     expect(tour()).toHaveTextContent("Tour · 1 of 5");

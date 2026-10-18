@@ -411,7 +411,7 @@ export function Shell({
         </header>
 
         <main key={step} className="sl-step flex flex-1 flex-col gap-4 lg:min-h-0" aria-label={stepInfo.label}>
-          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onTour={startTour} onTryPhoto={canTryPhoto ? () => setTryPhoto(true) : undefined} />}
+          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onTour={startTour} />}
 
           {step === "rank" && <RankReveal cache={cache} dir={dir} onStart={() => setStep("review")} />}
 
