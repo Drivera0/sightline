@@ -13,6 +13,7 @@ export const PIN_IMAGES = {
   unreviewed: "pin-unreviewed",
   chipPerson: "pin-chip-person",
   chipUnsure: "pin-chip-unsure",
+  chipNeutral: "pin-chip-neutral",
 } as const;
 
 interface PinColors {
@@ -188,6 +189,7 @@ export function ensurePinImages(map: Map, colors: PinColors): void {
   for (const [id, color] of [
     [PIN_IMAGES.chipPerson, colors.accent],
     [PIN_IMAGES.chipUnsure, colors.warning],
+    [PIN_IMAGES.chipNeutral, colors.textSecondary],
   ] as const) {
     const pill = chip(color, colors.background);
     if (pill) add(id, pill.data, pill.options);
