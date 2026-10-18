@@ -76,6 +76,8 @@ class Context:
     # How frames are laid on the flight: "shuffle" (each frame a random crop) or "blocks"
     # (neighbouring crops of one photo stay neighbours on the ground; see build_block_survey).
     layout: str = "shuffle"
+    # Search-grid cell size in metres. The grid always covers 1 km around the LKP.
+    cell_m: float = 20.0
 
     def __post_init__(self) -> None:
         if self.test_dir is None:
@@ -229,7 +231,7 @@ def map_stage(ctx: Context) -> None:
         )
         for frame_id, index in sorted(flight_index.items(), key=lambda item: item[1])
     ]
-    map_file, cells = ctx.lanes.build_map(frames, place.lkp, recall, recall_source)
+    map_file, cells = ctx.lanes.build_map(frames, place.lkp, recall, recall_source, ctx.cell_m)
     write_json(ctx.work / "map" / "map.json", normalise_map(map_file))
     write_json(ctx.work / "map" / "frame_cells.json", FrameCellsFile(frames=cells))
 
