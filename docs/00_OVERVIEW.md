@@ -15,7 +15,7 @@ Sightline does three things, in one loop:
 
 1. **Rank.** A detector trained on real aerial search photos (HERIDAL) scores every photo and puts the likeliest crops at the top of a review queue.
 2. **Pin.** Each detection becomes a GPS position on a map.
-3. **Search next.** A probability map, using Bayesian search theory, updates after every photo. Open ground the drone saw clearly fades; forest the camera can't see into stays bright. That's where the ground team goes next.
+3. **Search next.** A probability map, using Bayesian search theory, updates after every photo. Open ground the drone saw clearly turns pale; forest the camera can't see into stays dark red. That's where the ground team goes next.
 
 It assists searchers. **It never decides on its own that an area is clear.**
 
@@ -154,7 +154,7 @@ Lane-specific prep is in each lane file under "Before the event".
 1. Open the survey: "500 photos over Mount Seymour. At 33 seconds each, that's over four hours for one person."
 2. **Review queue:** the likeliest crops come first. Press `P` on a real person.
 3. **Map:** the pin drops. Press `N` on a backpack and the map updates live.
-4. **Scrub the map** through the flight: open ground fades, forest stays bright. "This is where the team goes next."
+4. **Scrub the map** through the flight: open ground turns pale, forest stays dark red. "This is where the team goes next."
 5. **Metrics:** our detector vs. the human baseline, the ablation table, and frames reviewed before the first hit, ranked vs. flight order.
 
 Details and timing are in `05_FRONTEND_SHARED.md`.

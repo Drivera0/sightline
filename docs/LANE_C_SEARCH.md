@@ -334,7 +334,7 @@ You own `web/src/map/heat/` and `web/src/search/`. B owns the map itself; you ad
   ```
 - **Heat layer** (`HeatLayer.tsx`): GeoJSON of all 2,500 cell polygons, built once, with layer ids prefixed `heat-`. Re-colour via feature state when the state or the step changes; don't rebuild the cell GeoJSON.
   - **Photographed set (step-aware).** For a slider position k, a cell is photographed when the summed footprint overlap of frames 0 to k-1 is at least 0.5 (`MIN_OVERLAP`, the same rule as Search next). Slivers the footprints only touched (overlap above 0 but below 0.5) count as not yet searched: no heat, not in the stretch bounds, not in the outline. At k = 0 nothing is photographed; at k = N it is the whole flight. The per-frame overlaps are computed once per survey from `survey.json` footprints, with a running total saved every 25 frames, so scrubbing only adds a few frames.
-  - **Opacity and colour.** Relative stretch over the photographed cells: p between its 5th and 95th percentile over those cells maps to `o` = 0.08 to 0.85 (values outside are clamped). The fill colour runs from `--warn` (low `o`) to `--accent` (high `o`), at fill-opacity `o × 0.75` so the basemap shows through. Unphotographed cells have no heat.
+  - **Opacity and colour.** Relative stretch over the photographed cells: p between its 5th and 95th percentile over those cells maps to `o` = 0.08 to 0.85 (values outside are clamped). The fill colour runs from `--warn` (low `o`) to `--accent` (high `o`), at fill-opacity `o × 0.75` so the basemap shows through. *(Superseded 2026-10-18: the heat is now a 7-class ColorBrewer YlOrRd ramp, pale yellow = lower, deep red = higher; see `web/src/map/heat/raster.ts`.)* Unphotographed cells have no heat.
   - **"Not yet searched".** Cells not photographed at this step get a dark veil (`--bg` at opacity 0.62, own layer `heat-unsearched`, below the heat).
   - **"Awaiting review".** Cells within `radius_m` of a candidate detection (`crop` set) whose latest review answer is not "Not a person" (no answer, "Unsure" or "Person") have pod 0 in the map. They are left out of the stretch bounds and drawn in their own layer `heat-review` (token `--warn` at 0.5, between `heat-unsearched` and `heat-cells`) plus a dashed `--warn` outline `heat-review-outline` above the heat, so they never look like a faint warm heat cell. When a searcher answers "Not a person" the cells join the normal map. The set comes from D's `useReview` history (same latest-answer rule as the search store, `heldCells` in `store.ts`); no second copy of the answers.
   - **Surveyed outline:** the outline of the photographed cells at this step.
@@ -350,7 +350,7 @@ You own `web/src/map/heat/` and `web/src/search/`. B owns the map itself; you ad
 
 ## 10. Your part of the pitch
 
-About 20 seconds, the reveal: "Finding nobody still tells you something." Scrub the slider so open ground fades and forest stays bright. Then the simulated result: cells to search with our map vs. the naive map, clearly labelled simulated.
+About 20 seconds, the reveal: "Finding nobody still tells you something." Scrub the slider so open ground turns pale and forest stays dark red. Then the simulated result: cells to search with our map vs. the naive map, clearly labelled simulated.
 
 ---
 
