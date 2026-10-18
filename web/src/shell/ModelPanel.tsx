@@ -1,217 +1,398 @@
+import { memo, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CacheBundle, Detection, Frame } from "../contract";
 import { cacheUrl } from "../lib/cache";
+import {
+  architectureName,
+  boxValuesPerLocation,
+  detectorSpec,
+  formatMillions,
+  formatShape,
+  gridLocations,
+  inputsOf,
+  pyramidLevels,
+  stageOf,
+  type SpecLayer,
+} from "../metrics/detectorSpec";
+import { prefersReducedMotion } from "../metrics/motion";
 import { Badge, Label } from "./components";
+import { scoreHistogram, surveyScores, topDetection, type ScoreHistogram } from "./detectorViz";
+import { layerTitle, ModelGraph } from "./ModelGraph";
+import { ModelGrids } from "./ModelGrids";
 
-/** One stage of the schematic: x position, block heights (one per block), caption. */
-const STAGES = [
-  { key: "backbone", x: 78, blocks: [64, 50, 36], caption: "Backbone", sub: "3 scales" },
-  { key: "neck", x: 166, blocks: [56, 56], caption: "Neck", sub: "merges scales" },
-  { key: "head", x: 232, blocks: [44], caption: "Head", sub: "box + score" },
-] as const;
-const BLOCK_W = 16;
-const BLOCK_GAP = 6;
-const MID_Y = 52;
-
-/** Where the training facts come from (not in the cache; quoted from lane A's release record). */
-const TRAINING_SOURCE = "scripts/README.md and the weights-v2 release notes (lane A)";
+/** Where the training facts come from (not in the cache). */
+const TRAINING_SOURCE = "scripts/README.md and the weights-v2 release notes";
+const SPEED_SOURCE =
+  "metrics.detector.seconds_per_image: mean wall time of tiled detection on a full 4000×3000 HERIDAL test photo, on an RTX 4080 SUPER (docs/LANE_A_ML.md, scripts/README.md)";
+const CLASS_SOURCE =
+  "nc = 1 in the weights. Trained with single_cls on the HERIDAL person labels (scripts/tile_dataset.py names class 0 'person'; Ultralytics stores a single_cls class as 'item').";
+/** The training set size is quoted from scripts/README.md (it is not stored in the weights). */
+const TRAINING_PHOTOS = 890;
 
 interface Props {
   cache: CacheBundle;
   dir: string;
-  /** The photo being scored, or undefined once the scan is done. */
+  /** The photo being scored (or the lead candidate's photo once the scan is done). */
   frame: Frame | undefined;
   /** Every box the model kept for that photo (at or above the save threshold). */
   boxes: Detection[];
-  /** Changes on every photo, so the signal sweeps again. */
+  /** Changes on every photo, so the signal runs again. */
   pulseKey: string;
+  /** How long the scanner rests on this photo, in milliseconds. */
+  stopMs: number;
   done: boolean;
 }
 
 /**
- * "Inside the detector": a schematic of the network the scanner is running (YOLO11s, 1024 px
- * input, features at three scales, neck, detection head), with a signal sweeping through it for
- * each photo, and the real scores for that photo from detections.json against the flag
- * threshold. The diagram is a schematic, labelled as such: the model does not run in the browser.
+ * "Inside the detector": the network the scanner runs, drawn from our weights' real layer table
+ * (detectorSpec.json), with a signal running through it for every photo the scan stops on; the
+ * photo at the head's three prediction grids; and the photo's real top score against every box
+ * in detections.json and the flag threshold. The graph is a schematic, labelled as such: the
+ * model does not run in the browser.
  */
-export function ModelPanel({ cache, dir, frame, boxes, pulseKey, done }: Props) {
+export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, pulseKey, stopMs, done }: Props) {
   const { detections, metrics } = cache;
+  const spec = detectorSpec;
   const threshold = detections.candidate_threshold;
-  const top = boxes.reduce((m, d) => Math.max(m, d.conf), 0);
-  const flagged = boxes.filter((d) => d.conf >= threshold).length;
-  const allBoxes = Object.values(detections.frames).flat();
-  const allFlagged = allBoxes.filter((d) => d.conf >= threshold).length;
-  const flaggedPhotos = Object.values(detections.frames).filter((ds) => ds.some((d) => d.conf >= threshold)).length;
+  const [motion] = useState(() => !prefersReducedMotion());
+  const [view, setView] = useState<"graph" | "table">("graph");
+  const [hover, setHover] = useState<SpecLayer | "input" | undefined>(undefined);
+
+  const best = topDetection(boxes);
+  const top = best?.conf;
+  const photo = frame ? cacheUrl(dir, frame.file) : undefined;
+  const locations = gridLocations(spec.imgsz, spec.strides);
+  const levels = pyramidLevels(spec);
   const seconds = metrics.detector.seconds_per_image;
+
+  const readout =
+    hover === "input"
+      ? `Input · ${spec.imgsz}²×3: the photo, letterboxed to ${spec.imgsz} px`
+      : hover
+        ? layerTitle(hover, spec)
+        : undefined;
 
   return (
     <section
       aria-label="Inside the detector"
-      className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 [box-shadow:inset_0_1px_0_0_var(--surface-strong)]"
+      className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-4 [box-shadow:inset_0_1px_0_0_var(--surface-strong)]"
     >
-      <div className="flex items-center justify-between gap-3">
-        <Label>Inside the detector</Label>
-        <span className="font-mono text-label text-text-3">{detections.model}</span>
+      {/* Header */}
+      <div className="flex shrink-0 flex-col gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <Label className="text-text-2">Inside the detector</Label>
+          <span className="truncate font-mono text-label text-text-3" title="detections.model">
+            {detections.model}
+          </span>
+        </div>
+        <ul className="flex flex-wrap gap-1.5" aria-label="Detector facts">
+          <Chip title={`Base model: ${spec.train_base_model ?? "yolo11s"} (Ultralytics)`}>{architectureName(spec)}</Chip>
+          <Chip title="Input size: sightline/ml/detect.py runs the detector at imgsz=1024">{spec.imgsz} px</Chip>
+          <Chip title={`${spec.total_params.toLocaleString("en-US")} parameters, counted from the weights`}>
+            {formatMillions(spec.total_params)} parameters
+          </Chip>
+          <Chip title="Layers in the weights' model table">{spec.n_layers} layers</Chip>
+          <Chip title={CLASS_SOURCE}>{spec.nc} class: person</Chip>
+        </ul>
       </div>
 
-      {/* The schematic. Re-keyed per photo so the sweep plays once for each. */}
-      <svg key={pulseKey} viewBox="0 0 320 112" className="mx-auto h-auto max-h-[190px] w-full" role="img" aria-label="Schematic of the detector: input, backbone, neck, head, score">
-        <defs>
-          <clipPath id="sl-model-input">
-            <rect x="2" y="24" width="56" height="56" rx="6" />
-          </clipPath>
-        </defs>
-        {/* Wires */}
-        {[
-          [58, 78],
-          [78 + 3 * BLOCK_W + 2 * BLOCK_GAP, 166],
-          [166 + 2 * BLOCK_W + BLOCK_GAP, 232],
-          [232 + BLOCK_W, 284],
-        ].map(([x1, x2], i) => (
-          <g key={i}>
-            <line x1={x1} y1={MID_Y} x2={x2} y2={MID_Y} stroke="var(--border)" strokeWidth="1.5" />
-            {!done && (
-              <line
-                x1={x1}
-                y1={MID_Y}
-                x2={x2}
-                y2={MID_Y}
-                stroke="var(--accent)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                pathLength={1}
-                className="sl-wire"
-                style={{ animationDelay: `${120 + i * 170}ms` }}
-              />
-            )}
-          </g>
-        ))}
-
-        {/* Input: the photo being scored */}
-        {frame ? (
-          <image href={cacheUrl(dir, frame.file)} x="2" y="24" width="56" height="56" preserveAspectRatio="xMidYMid slice" clipPath="url(#sl-model-input)" />
-        ) : (
-          <rect x="2" y="24" width="56" height="56" rx="6" fill="var(--surface-strong)" />
-        )}
-        <rect x="2" y="24" width="56" height="56" rx="6" fill="none" stroke="var(--border)" />
-        <text x="30" y="96" textAnchor="middle" className="fill-[var(--text-2)] font-mono" fontSize="8">
-          1024 px
-        </text>
-
-        {/* Backbone, neck, head */}
-        {STAGES.map((stage, s) => (
-          <g key={stage.key}>
-            {stage.blocks.map((h, b) => (
-              <rect
-                key={b}
-                x={stage.x + b * (BLOCK_W + BLOCK_GAP)}
-                y={MID_Y - h / 2}
-                width={BLOCK_W}
-                height={h}
-                rx="3"
-                fill="var(--surface-strong)"
-                stroke="var(--border)"
-                className={done ? undefined : "sl-node"}
-                style={{ animationDelay: `${200 + s * 170 + b * 60}ms` }}
-              />
+      {/* Architecture */}
+      <div className="flex flex-col gap-1.5 xl:flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <Label>Architecture</Label>
+          <div className="flex rounded-full border border-border p-0.5 text-[11px]" role="group" aria-label="Architecture view">
+            {(["graph", "table"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={view === v}
+                onClick={() => setView(v)}
+                className={
+                  "rounded-full px-2.5 py-0.5 font-mono transition-colors " +
+                  (view === v ? "bg-surface-strong text-text" : "text-text-3 hover:text-text-2")
+                }
+              >
+                {v === "graph" ? "Graph" : "Layer table"}
+              </button>
             ))}
-            <text
-              x={stage.x + (stage.blocks.length * (BLOCK_W + BLOCK_GAP) - BLOCK_GAP) / 2}
-              y="96"
-              textAnchor="middle"
-              className="fill-[var(--text)]"
-              fontSize="8.5"
-            >
-              {stage.caption}
-            </text>
-            <text
-              x={stage.x + (stage.blocks.length * (BLOCK_W + BLOCK_GAP) - BLOCK_GAP) / 2}
-              y="106"
-              textAnchor="middle"
-              className="fill-[var(--text-3)]"
-              fontSize="7"
-            >
-              {stage.sub}
-            </text>
-          </g>
-        ))}
-
-        {/* Score */}
-        <circle
-          cx="300"
-          cy={MID_Y}
-          r="16"
-          fill="var(--surface-strong)"
-          stroke={!done && top >= threshold ? "var(--accent)" : "var(--border)"}
-          strokeWidth="1.5"
-          className={done ? undefined : "sl-node"}
-          style={{ animationDelay: "760ms" }}
-        />
-        <text x="300" y={MID_Y + 3} textAnchor="middle" className="fill-[var(--text)] font-mono" fontSize="9">
-          {done ? "✓" : boxes.length ? top.toFixed(2) : "–"}
-        </text>
-        <text x="300" y="96" textAnchor="middle" className="fill-[var(--text)]" fontSize="8.5">
-          Score
-        </text>
-      </svg>
-
-      {/* Real numbers for this photo (or the whole survey once done). */}
-      {done ? (
-        <p className="text-small text-text-2">
-          <span className="font-mono text-text">{allBoxes.length}</span> boxes scored across all{" "}
-          {cache.survey.frames.length} photos; <span className="font-mono text-accent-soft">{allFlagged}</span> above{" "}
-          {threshold}, in {flaggedPhotos} photos. Those are the review queue.
+          </div>
+        </div>
+        {/* Fixed height in the stacked layout; in the three-column layout it takes the room left. */}
+        <div className="relative h-[min(250px,52vw)] w-full shrink-0 xl:h-auto xl:min-h-[140px] xl:flex-1 xl:shrink">
+          {view === "graph" ? (
+            <div key="graph" className="sl-fade absolute inset-0">
+              <ModelGraph
+                photo={photo}
+                top={top}
+                threshold={threshold}
+                pulseKey={motion && !done ? pulseKey : undefined}
+                waveMs={Math.round(stopMs * 0.8)}
+                onHover={setHover}
+                spec={spec}
+              />
+            </div>
+          ) : (
+            <div key="table" className="sl-fade absolute inset-0">
+              <LayerTable />
+            </div>
+          )}
+        </div>
+        <p className="text-[12px] leading-snug text-text-3">
+          <span className="text-text-2" title="Drawn from detectorSpec.json (every layer's type, links and output shape). The model does not run in the browser.">
+            Schematic of our weights&apos; real layers, not live activations.
+          </span>{" "}
+          {view === "graph" && readout ? (
+            <span className="font-mono text-[11px] text-text-2">{readout}</span>
+          ) : (
+            <span title={`Detect output at a ${spec.imgsz}² input: ${spec.layers[spec.layers.length - 1]?.out_shape.join(" × ")}`}>
+              <span className="font-mono text-text-2">{locations.toLocaleString("en-US")}</span> grid locations per{" "}
+              {spec.imgsz} px pass ({levels.map((l) => `${spec.imgsz / l.stride}²`).join(" + ")}), each with{" "}
+              {boxValuesPerLocation(spec)} box values and {spec.nc} person score.
+            </span>
+          )}
         </p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-baseline justify-between text-small">
-            <span className="text-text-2">Boxes scored in this photo</span>
-            <span className="font-mono text-text">{boxes.length}</span>
-          </div>
-          <Gauge key={pulseKey} value={top} threshold={threshold} hasBox={boxes.length > 0} />
-          <div className="flex items-baseline justify-between text-small">
-            <span className="text-text-2">Verdict</span>
-            {flagged > 0 ? (
-              <span className="text-accent-soft">Flagged for review</span>
-            ) : boxes.length > 0 ? (
-              <span className="text-text-3">Below {threshold}: not flagged</span>
-            ) : (
-              <span className="text-text-3">Nothing to score</span>
-            )}
-          </div>
+      </div>
+
+      {/* Prediction grids */}
+      {frame && (
+        <div className="shrink-0">
+          <ModelGrids
+            frame={frame}
+            photo={photo}
+            top={best}
+            imgsz={spec.imgsz}
+            strides={spec.strides}
+            pulseKey={pulseKey}
+            caption={
+              <p
+                className="flex flex-col gap-1 self-start text-[11px] leading-snug text-text-3"
+                title={`Cells for one ${spec.imgsz} px pass of this ${frame.width_px}×${frame.height_px} photo. Demo frames are scored in one pass; full-size photos are scored in ${spec.imgsz} px tiles, where each cell covers less of the photo.`}
+              >
+                <Label className="text-text-3">Grids</Label>
+                <span>
+                  One square per prediction location, pixelated for scale.{" "}
+                </span>
+                {best ? (
+                  <span className="text-accent-soft">Orange: cell containing the top box&apos;s centre.</span>
+                ) : (
+                  <span>No box, so no cell is highlighted.</span>
+                )}
+              </p>
+            }
+          />
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-label text-text-3">
+      {/* Score distribution and verdict (in the scanner column on wide screens, where there is room) */}
+      <ScoreStrip cache={cache} boxes={boxes} done={done} className="xl:hidden" />
+
+      {/* Sources */}
+      <div className="flex shrink-0 items-start gap-2.5 border-t border-border pt-3">
         <Badge kind="info">Schematic</Badge>
-        <span title={TRAINING_SOURCE}>
-          YOLO11s fine-tuned 80 epochs on 1024 px tiles from 890 labelled HERIDAL photos.
-        </span>
-        <span title="metrics.detector.seconds_per_image">{seconds.toFixed(2)} s per full photo.</span>
+        <p className="text-[11px] leading-snug text-text-3">
+          <span title={`${spec.source} on ${spec.weights_file}, sha256 ${spec.weights_sha256}`}>
+            Layers: {spec.source.replace("scripts/analysis/", "")} ({spec.weights_sha256.slice(0, 8)}…)
+          </span>
+          {" · "}
+          <span title="Ultralytics YOLO11 model and architecture guides">docs.ultralytics.com/models/yolo11</span>
+          {" · "}
+          <span title={TRAINING_SOURCE}>
+            {spec.train_epochs} epochs on {spec.train_imgsz} px tiles, {TRAINING_PHOTOS} labelled HERIDAL photos
+          </span>
+          {" · "}
+          <span title={SPEED_SOURCE}>{seconds.toFixed(2)} s/photo</span>
+        </p>
       </div>
     </section>
   );
+});
+
+/**
+ * Every box's score with the flag threshold and the current photo's top score, and the verdict
+ * for the photo (or the survey totals once the scan is done).
+ */
+export const ScoreStrip = memo(function ScoreStrip({
+  cache,
+  boxes,
+  done,
+  className = "",
+}: {
+  cache: CacheBundle;
+  boxes: Detection[];
+  done: boolean;
+  className?: string;
+}) {
+  const { detections, survey } = cache;
+  const threshold = detections.candidate_threshold;
+  const totals = useMemo(() => surveyScores(detections), [detections]);
+  const hist = useMemo(
+    () => scoreHistogram(totals.confs, threshold, detections.save_threshold, 1, 0.05),
+    [totals, threshold, detections.save_threshold],
+  );
+  const top = topDetection(boxes)?.conf;
+  return (
+    <div className={"flex shrink-0 flex-col gap-3 " + className}>
+        <ScoreDistribution hist={hist} threshold={threshold} top={done ? undefined : top} nPhotos={survey.frames.length} />
+
+        <p className="shrink-0 text-small text-text-2">
+          {done ? (
+            <>
+              <span className="font-mono text-text">{totals.boxes}</span> boxes kept across {survey.frames.length} photos ·{" "}
+              <span className="font-mono text-accent-soft">{totals.above}</span> at or above {threshold} ·{" "}
+              <span className="font-mono text-accent-soft">{totals.photosFlagged}</span>{" "}
+              {totals.photosFlagged === 1 ? "photo" : "photos"} flagged for review.
+            </>
+          ) : top === undefined ? (
+            <>
+              No box at or above {detections.save_threshold} · <span className="text-text-3">Nothing to score</span>
+            </>
+          ) : top >= threshold ? (
+            <>
+              Top score <span className="font-mono text-text">{top.toFixed(2)}</span> ≥ {threshold} ·{" "}
+              <span className="text-accent-soft">Flagged for review</span>
+            </>
+          ) : (
+            <>
+              Top score <span className="font-mono text-text">{top.toFixed(2)}</span> &lt; {threshold} ·{" "}
+              <span className="text-text-3">Not flagged</span>
+            </>
+          )}
+        </p>
+    </div>
+  );
+});
+
+function Chip({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <li title={title} className="rounded-full border border-border bg-surface-strong px-2 py-0.5 font-mono text-[10.5px] text-text-2">
+      {children}
+    </li>
+  );
 }
 
-/** 0–1 confidence bar with a tick at the flag threshold; fills to the photo's top score. */
-function Gauge({ value, threshold, hasBox }: { value: number; threshold: number; hasBox: boolean }) {
-  const above = value >= threshold;
+/** Every layer of the weights: index, type, inputs, output shape, parameters. */
+function LayerTable() {
+  const spec = detectorSpec;
+  const levelOf = new Map(pyramidLevels(spec).map((l) => [l.layer.index, l.name] as const));
   return (
-    <div className="flex flex-col gap-1">
-      <div className="relative h-2 rounded-full bg-surface-strong" role="meter" aria-label="Top score" aria-valuemin={0} aria-valuemax={1} aria-valuenow={value}>
-        {hasBox && (
-          <span
-            className={"sl-gauge absolute inset-y-0 left-0 rounded-full " + (above ? "bg-accent" : "bg-text-3/70")}
-            style={{ width: `${Math.round(value * 100)}%` }}
-          />
-        )}
-        <span className="absolute -top-1 h-4 w-px bg-text" style={{ left: `${threshold * 100}%` }} aria-hidden="true" />
+    <div className="absolute inset-0 overflow-auto rounded-sm border border-border">
+      <table className="w-full border-collapse text-left font-mono text-[11px]">
+        <caption className="sr-only">Every layer of the detector weights</caption>
+        <thead className="sticky top-0 bg-bg text-text-3">
+          <tr>
+            <th className="px-2 py-1 font-normal">#</th>
+            <th className="px-2 py-1 font-normal">Layer</th>
+            <th className="px-2 py-1 font-normal">From</th>
+            <th className="px-2 py-1 font-normal">Output</th>
+            <th className="px-2 py-1 text-right font-normal">Params</th>
+          </tr>
+        </thead>
+        <tbody>
+          {spec.layers.map((layer) => {
+            const level = levelOf.get(layer.index);
+            return (
+              <tr key={layer.index} className="border-t border-border/60 text-text-2">
+                <td className="px-2 py-0.5 text-text-3">{layer.index}</td>
+                <td className="px-2 py-0.5 text-text">
+                  {layer.type}
+                  <span className="ml-1.5 text-text-3">{stageOf(layer, spec)}</span>
+                </td>
+                <td className="px-2 py-0.5">
+                  {inputsOf(layer)
+                    .map((i) => (i < 0 ? "in" : i))
+                    .join(", ")}
+                </td>
+                <td className="px-2 py-0.5">
+                  {layer.type === "Detect" ? layer.out_shape.join("×") : formatShape(layer.out_shape)}
+                  {level && <span className="ml-1.5 text-accent-soft">{level}</span>}
+                </td>
+                <td className="px-2 py-0.5 text-right">{layer.params.toLocaleString("en-US")}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Histogram of every box in detections.json, coloured box by box against the flag threshold, with
+ * the threshold line and a marker that slides to the current photo's top score.
+ */
+function ScoreDistribution({
+  hist,
+  threshold,
+  top,
+  nPhotos,
+}: {
+  hist: ScoreHistogram;
+  threshold: number;
+  top: number | undefined;
+  nPhotos: number;
+}) {
+  const pct = (v: number) => ((Math.min(hist.hi, Math.max(hist.lo, v)) - hist.lo) / (hist.hi - hist.lo)) * 100;
+  const t = pct(threshold);
+  const m = top === undefined ? undefined : pct(top);
+  // With no box the marker fades out where it was, instead of sliding to the left edge.
+  const last = useRef({ at: 0, label: "" });
+  if (m !== undefined && top !== undefined) last.current = { at: m, label: top.toFixed(2) };
+  const at = m ?? last.current.at;
+  return (
+    <figure className="flex shrink-0 flex-col gap-1" aria-label={`Scores of all ${hist.total} boxes kept`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <Label>Every box kept</Label>
+        <span className="font-mono text-[11px] text-text-3" title="detections.json: every box at or above save_threshold">
+          {hist.total} boxes ≥ {hist.lo} in {nPhotos} photos
+        </span>
       </div>
-      <div className="relative h-3 font-mono text-[10px] text-text-3">
-        <span className="absolute" style={{ left: `${threshold * 100}%`, transform: "translateX(-50%)" }}>
+      {/* The marker's label, kept inside the chart at either end. */}
+      <div className="relative h-3.5 font-mono text-[10px] leading-none">
+        <span
+          className="absolute whitespace-nowrap text-accent-soft transition-[left,transform,opacity] duration-700 ease-out motion-reduce:transition-none"
+          style={{ left: `${at}%`, transform: `translateX(-${at}%)`, opacity: m === undefined ? 0 : 1 }}
+        >
+          this photo {last.current.label}
+        </span>
+      </div>
+      <div className="relative h-10">
+        <div className="absolute inset-0 flex items-end gap-px">
+          {hist.bins.map((b) => {
+            const n = b.above + b.below;
+            return (
+              <div
+                key={b.lo}
+                className="flex h-full min-w-0 flex-1 flex-col justify-end"
+                title={`${b.lo.toFixed(2)}–${b.hi.toFixed(2)}: ${n} ${n === 1 ? "box" : "boxes"}${b.above && b.below ? ` (${b.above} at or above ${threshold})` : ""}`}
+              >
+                {b.above > 0 && (
+                  <span className="w-full rounded-t-[2px] bg-accent" style={{ height: `max(2px, ${(b.above / hist.max) * 100}%)` }} />
+                )}
+                {b.below > 0 && (
+                  <span
+                    className={"w-full bg-text-3/45 " + (b.above > 0 ? "" : "rounded-t-[2px]")}
+                    style={{ height: `max(2px, ${(b.below / hist.max) * 100}%)` }}
+                  />
+                )}
+                {n === 0 && <span className="h-px w-full bg-border" />}
+              </div>
+            );
+          })}
+        </div>
+        <span aria-hidden="true" className="absolute -inset-y-1 w-px bg-text" style={{ left: `${t}%` }} />
+        <span
+          aria-hidden="true"
+          data-testid="score-marker"
+          className="absolute -top-1 bottom-0 w-0.5 -translate-x-1/2 rounded-full bg-accent-soft shadow-[0_0_8px_color-mix(in_srgb,var(--accent)_70%,transparent)] transition-[left,opacity] duration-700 ease-out motion-reduce:transition-none"
+          style={{ left: `${at}%`, opacity: m === undefined ? 0 : 1 }}
+        />
+      </div>
+      <div className="relative h-3.5 font-mono text-[10px] text-text-3">
+        <span className="absolute left-0">{hist.lo}</span>
+        <span className="absolute whitespace-nowrap text-text-2" style={{ left: `${t}%`, transform: "translateX(-50%)" }}>
           flag at {threshold}
         </span>
-        <span className="absolute right-0">top {hasBox ? value.toFixed(2) : "–"}</span>
+        <span className="absolute right-0">{hist.hi.toFixed(1)}</span>
       </div>
-    </div>
+    </figure>
   );
 }

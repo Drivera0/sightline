@@ -1,0 +1,306 @@
+{
+  "source": "scripts/analysis/export_model_spec.py",
+  "weights_file": "yolo11s_tiles_run1_best.pt",
+  "weights_sha256": "cba1f7230294570c2928e0345141f3fb98895aa03f1819fe0b588490915698a5",
+  "imgsz": 1024,
+  "nc": 1,
+  "names": [
+    "item"
+  ],
+  "strides": [
+    8,
+    16,
+    32
+  ],
+  "n_layers": 24,
+  "total_params": 9428179,
+  "detect_from": [
+    16,
+    19,
+    22
+  ],
+  "train_epochs": 80,
+  "train_imgsz": 1024,
+  "train_base_model": "yolo11s.pt",
+  "layers": [
+    {
+      "index": 0,
+      "type": "Conv",
+      "from": -1,
+      "params": 928,
+      "out_shape": [
+        32,
+        512,
+        512
+      ]
+    },
+    {
+      "index": 1,
+      "type": "Conv",
+      "from": -1,
+      "params": 18560,
+      "out_shape": [
+        64,
+        256,
+        256
+      ]
+    },
+    {
+      "index": 2,
+      "type": "C3k2",
+      "from": -1,
+      "params": 26080,
+      "out_shape": [
+        128,
+        256,
+        256
+      ]
+    },
+    {
+      "index": 3,
+      "type": "Conv",
+      "from": -1,
+      "params": 147712,
+      "out_shape": [
+        128,
+        128,
+        128
+      ]
+    },
+    {
+      "index": 4,
+      "type": "C3k2",
+      "from": -1,
+      "params": 103360,
+      "out_shape": [
+        256,
+        128,
+        128
+      ]
+    },
+    {
+      "index": 5,
+      "type": "Conv",
+      "from": -1,
+      "params": 590336,
+      "out_shape": [
+        256,
+        64,
+        64
+      ]
+    },
+    {
+      "index": 6,
+      "type": "C3k2",
+      "from": -1,
+      "params": 346112,
+      "out_shape": [
+        256,
+        64,
+        64
+      ]
+    },
+    {
+      "index": 7,
+      "type": "Conv",
+      "from": -1,
+      "params": 1180672,
+      "out_shape": [
+        512,
+        32,
+        32
+      ]
+    },
+    {
+      "index": 8,
+      "type": "C3k2",
+      "from": -1,
+      "params": 1380352,
+      "out_shape": [
+        512,
+        32,
+        32
+      ]
+    },
+    {
+      "index": 9,
+      "type": "SPPF",
+      "from": -1,
+      "params": 656896,
+      "out_shape": [
+        512,
+        32,
+        32
+      ]
+    },
+    {
+      "index": 10,
+      "type": "C2PSA",
+      "from": -1,
+      "params": 990976,
+      "out_shape": [
+        512,
+        32,
+        32
+      ]
+    },
+    {
+      "index": 11,
+      "type": "Upsample",
+      "from": -1,
+      "params": 0,
+      "out_shape": [
+        512,
+        64,
+        64
+      ]
+    },
+    {
+      "index": 12,
+      "type": "Concat",
+      "from": [
+        -1,
+        6
+      ],
+      "params": 0,
+      "out_shape": [
+        768,
+        64,
+        64
+      ]
+    },
+    {
+      "index": 13,
+      "type": "C3k2",
+      "from": -1,
+      "params": 443776,
+      "out_shape": [
+        256,
+        64,
+        64
+      ]
+    },
+    {
+      "index": 14,
+      "type": "Upsample",
+      "from": -1,
+      "params": 0,
+      "out_shape": [
+        256,
+        128,
+        128
+      ]
+    },
+    {
+      "index": 15,
+      "type": "Concat",
+      "from": [
+        -1,
+        4
+      ],
+      "params": 0,
+      "out_shape": [
+        512,
+        128,
+        128
+      ]
+    },
+    {
+      "index": 16,
+      "type": "C3k2",
+      "from": -1,
+      "params": 127680,
+      "out_shape": [
+        128,
+        128,
+        128
+      ]
+    },
+    {
+      "index": 17,
+      "type": "Conv",
+      "from": -1,
+      "params": 147712,
+      "out_shape": [
+        128,
+        64,
+        64
+      ]
+    },
+    {
+      "index": 18,
+      "type": "Concat",
+      "from": [
+        -1,
+        13
+      ],
+      "params": 0,
+      "out_shape": [
+        384,
+        64,
+        64
+      ]
+    },
+    {
+      "index": 19,
+      "type": "C3k2",
+      "from": -1,
+      "params": 345472,
+      "out_shape": [
+        256,
+        64,
+        64
+      ]
+    },
+    {
+      "index": 20,
+      "type": "Conv",
+      "from": -1,
+      "params": 590336,
+      "out_shape": [
+        256,
+        32,
+        32
+      ]
+    },
+    {
+      "index": 21,
+      "type": "Concat",
+      "from": [
+        -1,
+        10
+      ],
+      "params": 0,
+      "out_shape": [
+        768,
+        32,
+        32
+      ]
+    },
+    {
+      "index": 22,
+      "type": "C3k2",
+      "from": -1,
+      "params": 1511424,
+      "out_shape": [
+        512,
+        32,
+        32
+      ]
+    },
+    {
+      "index": 23,
+      "type": "Detect",
+      "from": [
+        16,
+        19,
+        22
+      ],
+      "params": 819795,
+      "out_shape": [
+        5,
+        21504
+      ]
+    }
+  ]
+}
