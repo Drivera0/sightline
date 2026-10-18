@@ -370,6 +370,28 @@ def test_the_manifest_says_which_lanes_were_placeholders(ctx, tmp_path):
         assert name in notes
 
 
+def test_real_position_export_notes_do_not_claim_a_simulated_mount_seymour_path(ctx, tmp_path):
+    out = tmp_path / "cache" / "real-gps"
+    run_chain(ctx)
+    place_path = ctx.work / "place" / "poses.json"
+    place = read_json(place_path, PlaceFile)
+    write_json(
+        place_path,
+        place.model_copy(
+            update={
+                "simulated_path": False,
+                "area_name": "HERIDAL SB site (real EXIF positions)",
+            }
+        ),
+    )
+
+    export_stage(ctx, out, survey_id="heridal-real-gps")
+
+    notes = json.loads((out / "manifest.json").read_text())["notes"]
+    assert notes.startswith("Real photos at recorded EXIF positions: HERIDAL SB site")
+    assert "simulated flight path over Mount Seymour" not in notes
+
+
 def test_the_whole_chain_with_detections_and_crops_gives_a_valid_cache(ctx, tmp_path):
     out = tmp_path / "cache" / "demo"
     for stage in (frames_stage, place_stage):

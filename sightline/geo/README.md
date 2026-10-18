@@ -2,7 +2,10 @@
 
 This file tracks the Lane B functions that exist today and the work that still
 needs to be completed. The shared data shapes remain defined by
-`lane-b/01_CONTRACT.md`; this README describes implementation status only.
+`docs/01_CONTRACT.md`; this README describes implementation status only.
+
+The current canonical lane specification, including the real-EXIF survey and
+measured label-relative pin error, is `docs/LANE_B_GEO.md`.
 
 ## Processing flow
 
@@ -120,6 +123,30 @@ must not be passed to the flat-ground projection model.
 | `_as_float(value)` | Safely normalizes EXIF rationals and numeric values. | Float or `None` |
 
 `RealPoseInfo` contains `pose`, `pitch_deg`, `camera_model`, and `nadir`.
+
+### `real.py`
+
+Status: implemented and audited on all 101 HERIDAL test photos.
+
+| Function | Purpose | Output |
+|---|---|---|
+| `select_real_photos(images)` | Keeps complete nadir poses and explicitly flags oblique or incomplete photos. | `RealPhotoSelection` |
+| `cluster_real_photos(photos, max_separation_m=500)` | Separates unrelated collection sites so the map never invents a cross-site flight. | Geographic photo clusters, largest first |
+
+### `position_error.py`
+
+Status: implemented and run with weights-v2 at threshold 0.29.
+
+| Function | Purpose | Output |
+|---|---|---|
+| `measure_pin_errors(detections, truth, pose, threshold)` | Greedily matches VOC true positives and converts box-centre offsets into metres. | `PinErrorSummary` |
+| `summarize_pin_errors(errors_m)` | Computes mean, median, p90, and maximum without inventing values for empty input. | `PinErrorSummary` |
+
+Across all 28 nadir images, 92 strict true-positive matches gave a median
+label-relative offset of 0.046 m and a p90 of 0.126 m (on the corrected test labels). The
+real-position cache reports this offset but uses the standard 10 m radius for its pins. These values do not
+include absolute EXIF GPS, altitude, or terrain error; see
+`docs/LANE_B_GEO.md` before quoting them.
 
 ## Map functions
 
@@ -239,8 +266,9 @@ Status: cache-backed base layers implemented.
 ### Map validation notes
 
 - The initial camera fits the complete contract grid, not only the smaller
-  surveyed footprint area. Queue selection still flies to a detection at zoom
-  18.
+  surveyed footprint area for the simulated demo. Real-position surveys fit
+  their actual footprints instead. Queue selection still flies to a detection
+  at zoom 18.
 - The local PMTiles archive passes the PMTiles verifier, contains the source
   layers used by the style, and is emitted by the production build with its
   local Latin glyph range.
@@ -249,6 +277,5 @@ Status: cache-backed base layers implemented.
 - Live responsive and queue-to-map visual QA remains pending because no browser
   session was available in this workspace. Satellite visual QA also requires
   the deferred `VITE_MAPTILER_KEY`.
-- The complete jsdom suite currently stops before loading tests under Node
-  20.17 because of the existing jsdom transitive ESM mismatch. Use Node 20.19+
-  or 22.12+ when completing browser-level QA.
+- The complete jsdom suite passes under Node 22.20. The installed Node 20.17 is
+  too old for the current Vite/jsdom dependency set.

@@ -2,6 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "bash -o pipefail -c \"mkdir -p public/cache && curl -fsSL https://github.com/Drivera0/sightline/releases/download/demo-cache/demo-cache.tar.gz | tar -xz -C public/cache\" && VITE_CACHE_DIR=demo pnpm build",
+  "buildCommand": "bash scripts/fetch-caches.sh && VITE_CACHE_DIR=demo pnpm build",
   "outputDirectory": "dist"
 }

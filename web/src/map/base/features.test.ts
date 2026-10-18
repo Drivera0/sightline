@@ -9,6 +9,7 @@ import {
   buildLkpFeature,
   gridBounds,
   surveyBounds,
+  viewBounds,
 } from "./features";
 
 const survey: Survey = {
@@ -106,6 +107,14 @@ describe("base map GeoJSON", () => {
     ]);
   });
 
+  it("does not invent a flight line between real-position source photos", () => {
+    const realSurvey = { ...survey, simulated_path: false };
+
+    expect(buildFlightPathFeature(realSurvey).geometry.coordinates).toEqual([]);
+    expect(buildFlightDirectionFeatures(realSurvey).features).toEqual([]);
+    expect(buildLkpFeature(realSurvey).properties.label).toBe("Survey centre");
+  });
+
   it("builds flight-direction chevrons from each sampled frame heading", () => {
     const collection = buildFlightDirectionFeatures(survey, 1);
 
@@ -193,5 +202,19 @@ describe("base map GeoJSON", () => {
       [-122.9461, 49.3699],
       [-122.9439, 49.3701],
     ]);
+  });
+
+  it("frames simulated surveys by grid and real-position surveys by footprints", () => {
+    const grid = {
+      origin_nw: { lat: 49, lon: -123 },
+      cell_m: 20,
+      rows: 2,
+      cols: 3,
+    };
+
+    expect(viewBounds(survey, grid)).toEqual(gridBounds(grid));
+    expect(viewBounds({ ...survey, simulated_path: false }, grid)).toEqual(
+      surveyBounds(survey),
+    );
   });
 });
