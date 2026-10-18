@@ -56,3 +56,44 @@ export function bestByAp50(rows: readonly { voc: { ap50: number } }[]): number {
 export function isResizedRow(name: string): boolean {
   return /no tiling/i.test(name);
 }
+
+/** The four ablation rows, in order (LANE_A_ML.md §6.3, contract §9). */
+export const ABLATION_NAMES = [
+  "Stock model, no tiling",
+  "Fine-tuned, no tiling",
+  "Fine-tuned + tiling",
+  "+ hard negatives",
+] as const;
+
+type Voc = { precision: number; recall: number; ap50: number };
+
+/** All three scores exactly zero: a stand-in, never a measurement. */
+export function isPlaceholderVoc(voc: Voc): boolean {
+  return voc.precision === 0 && voc.recall === 0 && voc.ap50 === 0;
+}
+
+export type AblationDisplayRow =
+  | { name: string; measured: true; voc: Voc }
+  | { name: string; measured: false };
+
+/**
+ * Rows to show: every canonical name in order, then any extra rows. A name missing from
+ * metrics.json, or present with all-zero scores (e.g. a pipeline placeholder), is "not measured".
+ */
+export function ablationDisplayRows(
+  rows: readonly { name: string; voc: Voc }[],
+): AblationDisplayRow[] {
+  const byName = new Map(rows.map((r) => [r.name, r]));
+  const names = [
+    ...ABLATION_NAMES,
+    ...rows
+      .map((r) => r.name)
+      .filter((n) => !(ABLATION_NAMES as readonly string[]).includes(n)),
+  ];
+  return names.map((name) => {
+    const row = byName.get(name);
+    return row && !isPlaceholderVoc(row.voc)
+      ? { name, measured: true, voc: row.voc }
+      : { name, measured: false };
+  });
+}
