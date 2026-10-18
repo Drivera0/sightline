@@ -74,6 +74,10 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* Containers that take focus only from code (Review's candidate after an answer) draw no ring. */
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}
 
 /* Guided-flow motion (shell). Short, purposeful, and off for people who ask for less motion. */
 @keyframes sl-rise {
@@ -108,6 +112,15 @@ body {
 .sl-toast { animation: sl-toast 1800ms ease-out both; }
 @media (prefers-reduced-motion: reduce) {
   .sl-toast { animation: none; opacity: 0; }
+}
+/* Review's "Marked ... Undo" toast: rises in and stays (it holds a button); the component removes it. */
+@keyframes sl-toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.sl-toast-in { animation: sl-toast-in 220ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-toast-in { animation: none; }
 }
 
 /* Rank scanner: calm on purpose (no flashing). A soft scan line, photos crossfading, boxes that

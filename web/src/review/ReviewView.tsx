@@ -16,11 +16,24 @@ const STATUS: Record<Answer | "unreviewed", { label: string; className: string; 
   unsure: { label: "Unsure", className: "text-warn", dot: "bg-warn" },
 };
 
+// [answer, label, key, resting tone, selected tone]. Selected: a 16% fill and a 1 px border in the
+// answer's colour (10% text for "Not a person"), plus a check, so the state never rests on colour alone.
 const DECISIONS = [
-  ["person", "Person", "P", "border-ok/40 text-ok hover:bg-ok/10 hover:border-ok"],
-  ["not_person", "Not a person", "N", "border-border text-text hover:bg-surface-strong hover:border-text-2"],
-  ["unsure", "Unsure", "U", "border-warn/40 text-warn hover:bg-warn/10 hover:border-warn"],
+  ["person", "Person", "P", "border-ok/40 text-ok hover:bg-ok/10 hover:border-ok", "bg-ok/16 border-ok"],
+  ["not_person", "Not a person", "N", "border-border text-text hover:bg-surface-strong hover:border-text-2", "bg-text/10 border-text-2"],
+  ["unsure", "Unsure", "U", "border-warn/40 text-warn hover:bg-warn/10 hover:border-warn", "bg-warn/16 border-warn"],
 ] as const;
+
+function Check() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4 shrink-0" aria-hidden="true" data-testid="selected-check">
+      <path d="M3.5 8.5 6.5 11.5 12.5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** How long the "Marked ... Undo" toast stays, in ms. */
+const TOAST_MS = 5000;
 
 /**
  * The marker as the map draws it for each answer (map/base/pinImages.ts): a check on an orange
@@ -227,8 +240,16 @@ export function ReviewView({
   const undo = useCallback(() => {
     const last = useReview.getState().history.at(-1);
     useReview.getState().undo();
+    setLastDecision(null);
     if (last) setCursorId(last.detectionId);
   }, []);
+
+  // The toast holds long enough to reach its Undo, then goes.
+  useEffect(() => {
+    if (!lastDecision) return;
+    const timer = window.setTimeout(() => setLastDecision(null), TOAST_MS);
+    return () => window.clearTimeout(timer);
+  }, [lastDecision]);
 
   const showOnMap = useCallback(() => {
     if (!current) return;
@@ -507,29 +528,30 @@ export function ReviewView({
             </div>
 
             <section aria-label="Review keys" className="flex flex-col gap-2">
-              <div className="grid grid-cols-3 gap-2">
-                {DECISIONS.map(([value, label, key, tone]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => answer(value)}
-                    data-answer={value}
-                    aria-pressed={answers[current.id] === value}
-                    className={
-                      "inline-flex h-12 items-center justify-center gap-2.5 rounded-full border px-2 text-body leading-tight transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] sm:text-title lg:text-body 2xl:text-title " +
-                      tone +
-                      (answers[current.id] === value ? " bg-surface-strong" : "")
-                    }
-                  >
-                    <span className="hidden sm:contents lg:hidden 2xl:contents">
-                      <PinMark state={value} size={16} />
-                    </span>
-                    {label}{" "}
-                    <span className="hidden sm:contents lg:hidden 2xl:contents">
-                      <KeyHint>{key}</KeyHint>
-                    </span>
-                  </button>
-                ))}
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)] gap-2">
+                {DECISIONS.map(([value, label, key, tone, selectedTone]) => {
+                  const selected = answers[current.id] === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => answer(value)}
+                      data-answer={value}
+                      aria-pressed={selected}
+                      className={
+                        "inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-3 text-body transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +
+                        tone +
+                        (selected ? " " + selectedTone : "")
+                      }
+                    >
+                      {selected && <Check />}
+                      {label}
+                      <span className="hidden md:contents">
+                        <KeyHint>{key}</KeyHint>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
               <div className="flex flex-wrap items-center justify-center gap-1 text-small text-text-3">
                 <button type="button" onClick={undo} className={secondary}>
@@ -559,12 +581,20 @@ export function ReviewView({
               <p
                 key={lastDecision.n}
                 role="status"
-                className="sl-toast pointer-events-none absolute left-1/2 top-12 rounded-full border border-border bg-bg/90 px-4 py-1.5 text-small text-text-2 backdrop-blur"
+                className="sl-toast-in absolute left-1/2 top-12 z-10 inline-flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-border bg-bg/90 py-1 pl-4 pr-1 text-small text-text-2 backdrop-blur"
               >
-                {lastDecision.frameId} marked{" "}
-                <span className={STATUS[lastDecision.value].className}>
-                  {STATUS[lastDecision.value].label.toLowerCase()}
+                Marked <span className="font-mono text-text">{lastDecision.frameId}</span> ·{" "}
+                <span className={STATUS[lastDecision.value].className}>{STATUS[lastDecision.value].label}</span>
+                <span aria-hidden="true" className="mx-1 text-text-3">
+                  —
                 </span>
+                <button
+                  type="button"
+                  onClick={undo}
+                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-accent-soft hover:bg-surface-strong hover:text-text"
+                >
+                  Undo <KeyHint>Z</KeyHint>
+                </button>
               </p>
             )}
           </Panel>
@@ -614,22 +644,26 @@ export function ReviewView({
 
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-3 gap-2">
-                {DECISIONS.map(([value, label, key, tone]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => answer(value)}
-                    data-answer={value}
-                    aria-pressed={answers[current.id] === value}
-                    className={
-                      "inline-flex items-center justify-center gap-2 rounded-full border px-3 py-2.5 text-body transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +
-                      tone +
-                      (answers[current.id] === value ? " bg-surface-strong" : "")
-                    }
-                  >
-                    {label} <KeyHint>{key}</KeyHint>
-                  </button>
-                ))}
+                {DECISIONS.map(([value, label, key, tone, selectedTone]) => {
+                  const selected = answers[current.id] === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => answer(value)}
+                      data-answer={value}
+                      aria-pressed={selected}
+                      className={
+                        "inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border px-3 text-body transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] " +
+                        tone +
+                        (selected ? " " + selectedTone : "")
+                      }
+                    >
+                      {selected && <Check />}
+                      {label} <KeyHint>{key}</KeyHint>
+                    </button>
+                  );
+                })}
               </div>
               {compact && (
                 <div className="flex flex-wrap items-center justify-center gap-1">
@@ -650,12 +684,20 @@ export function ReviewView({
               <p
                 key={lastDecision.n}
                 role="status"
-                className="sl-toast pointer-events-none absolute left-1/2 top-12 rounded-full border border-border bg-bg/90 px-4 py-1.5 text-small text-text-2 backdrop-blur"
+                className="sl-toast-in absolute left-1/2 top-12 z-10 inline-flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-border bg-bg/90 py-1 pl-4 pr-1 text-small text-text-2 backdrop-blur"
               >
-                {lastDecision.frameId} marked{" "}
-                <span className={STATUS[lastDecision.value].className}>
-                  {STATUS[lastDecision.value].label.toLowerCase()}
+                Marked <span className="font-mono text-text">{lastDecision.frameId}</span> ·{" "}
+                <span className={STATUS[lastDecision.value].className}>{STATUS[lastDecision.value].label}</span>
+                <span aria-hidden="true" className="mx-1 text-text-3">
+                  —
                 </span>
+                <button
+                  type="button"
+                  onClick={undo}
+                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-accent-soft hover:bg-surface-strong hover:text-text"
+                >
+                  Undo <KeyHint>Z</KeyHint>
+                </button>
               </p>
             )}
           </Panel>

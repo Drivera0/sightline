@@ -285,6 +285,44 @@ describe("ReviewView focus after an answer", () => {
   });
 });
 
+describe("ReviewView answer states", () => {
+  it("marks the chosen answer as selected with its colour fill, border and a check", async () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+    await userEvent.keyboard("p");
+    await userEvent.keyboard("k");
+
+    const person = screen.getByRole("button", { name: /^person/i, pressed: true });
+    expect(person).toHaveClass("bg-ok/16", "border-ok");
+    expect(within(person).getByTestId("selected-check")).toBeInTheDocument();
+    const others = screen.getAllByRole("button", { pressed: false }).filter((b) => b.hasAttribute("data-answer"));
+    expect(others).toHaveLength(2);
+    for (const b of others) expect(within(b).queryByTestId("selected-check")).toBeNull();
+  });
+
+  it("uses warn for Unsure and a 10% text fill for Not a person", async () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+    await userEvent.keyboard("u");
+    await userEvent.keyboard("k");
+    expect(screen.getByRole("button", { name: /unsure/i, pressed: true })).toHaveClass("bg-warn/16", "border-warn");
+    await userEvent.keyboard("n");
+    await userEvent.keyboard("k");
+    expect(screen.getByRole("button", { name: /not a person/i, pressed: true })).toHaveClass("bg-text/10", "border-text-2");
+  });
+
+  it("says what was marked in a toast whose Undo button takes the answer back", async () => {
+    render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
+    await userEvent.keyboard("n");
+
+    const toast = screen.getByRole("status");
+    expect(toast).toHaveTextContent("Marked f0005 · Not a person");
+    await userEvent.click(within(toast).getByRole("button", { name: /undo/i }));
+
+    expect(useReview.getState().history).toEqual([]);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(current()).toHaveTextContent("f0005");
+  });
+});
+
 describe("ReviewView compact layout", () => {
   it("drops the frame panel so the queue fits beside the map, keeping the full frame on Enter", async () => {
     render(<ReviewView cache={cache} dir="sample" onShowMap={() => {}} compact />);
