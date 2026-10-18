@@ -275,6 +275,7 @@ export function Shell({
                 metrics={cache.metrics}
                 cellM={cache.map.grid.cell_m}
                 candidateIds={reviewItems(cache).map((i) => i.id)}
+                surveyId={cache.survey.survey_id}
               />
               <div className="mt-4 flex items-center gap-4">
                 <Label>The details</Label>

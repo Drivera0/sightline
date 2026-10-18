@@ -5,7 +5,7 @@ import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import { placeName } from "../shell/SurveyIntro";
 import { useReview } from "../review/store";
-import { duration, medianGapSeconds, ResultsSummary } from "./ResultsSummary";
+import { duration, fewer, medianGapSeconds, ResultsSummary, seedNote } from "./ResultsSummary";
 
 let cache: CacheBundle;
 
@@ -124,5 +124,23 @@ describe("placeName", () => {
     expect(placeName("Mount Seymour, North Vancouver (simulated flight path)")).toBe("Mount Seymour, North Vancouver");
     expect(placeName("HERIDAL SB site (real EXIF positions)")).toBe("HERIDAL SB site");
     expect(placeName("Somewhere")).toBe("Somewhere");
+  });
+});
+
+describe("fewer", () => {
+  it("gives a percentage only when it means something", () => {
+    expect(fewer(98, 123)).toBe("20% fewer");
+    expect(fewer(11, 13)).toBeUndefined(); // the real-GPS survey: 2 cells is not "15% fewer"
+    expect(fewer(5, 20)).toBe("75% fewer"); // a gap of 15 cells
+    expect(fewer(123, 98)).toBeUndefined();
+  });
+});
+
+describe("seedNote", () => {
+  it("names the seed, and 'best of 3' only for the run the docs describe", () => {
+    expect(seedNote(7, "seymour-demo", 98, 123)).toBe("Seed 7, the best of 3 seeds tried (docs/LANE_C_SEARCH.md)");
+    expect(seedNote(7, "seymour-demo", 99, 123)).toBe("Seed 7");
+    expect(seedNote(7, "heridal-sb", 11, 13)).toBe("Seed 7");
+    expect(seedNote(7, undefined, 98, 123)).toBe("Seed 7");
   });
 });

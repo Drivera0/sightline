@@ -29,8 +29,11 @@ export function ResultsSummary({
   metrics,
   cellM,
   candidateIds = [],
+  surveyId,
 }: {
   metrics: Metrics;
+  /** The survey's id, for notes the docs make about one survey's runs (the seed). */
+  surveyId?: string;
   /** The search grid's cell size, to turn simulated cells into ground area. */
   cellM?: number;
   /** The review queue's detections, for the live "your review" summary. */
@@ -173,8 +176,9 @@ export function ResultsSummary({
                 ? `Median ${count(cellM)} m cells a ground team checks inside the surveyed area: about ${hectares(sightline.median_cells, cellM)} of ground against ${hectares(naive.median_cells, cellM)}`
                 : "Median cells a ground team checks inside the surveyed area"
             }
-            source={`Simulated search, ${inside.trials} trials with the person in a photographed cell (metrics.search_sim.in_survey)`}
+            source={`Simulated search, ${inside.trials} trials with the person in a photographed cell, seed ${sim.seed} (metrics.search_sim.in_survey)`}
             badge={<Badge kind="simulated">Simulated</Badge>}
+            footnote={seedNote(sim.seed, surveyId, sightline.median_cells, naive.median_cells)}
             delay={180}
           />
         ) : (
@@ -208,10 +212,31 @@ export function medianGapSeconds(atMs: readonly number[]): number | null {
   return gaps.length % 2 ? gaps[mid]! : (gaps[mid - 1]! + gaps[mid]!) / 2;
 }
 
-/** "20% fewer": how much lower ours is than theirs, for lower-is-better numbers. */
-function fewer(ours: number, theirs: number): string | undefined {
+/**
+ * "20% fewer": how much lower ours is than theirs, for lower-is-better counts. Only when the
+ * percentage means something: on small counts (11 vs 13 cells is "15% fewer") it says nothing, so
+ * both must be at least 30 or the gap at least 10.
+ */
+export function fewer(ours: number, theirs: number): string | undefined {
   if (theirs <= 0 || ours >= theirs) return undefined;
+  const meaningful = (ours >= 30 && theirs >= 30) || theirs - ours >= 10;
+  if (!meaningful) return undefined;
   return `${Math.round((1 - ours / theirs) * 100)}% fewer`;
+}
+
+/**
+ * Which seed the headline search run is, where the docs say so. docs/LANE_C_SEARCH.md (live-cache
+ * re-run): "The demo's 98 vs 123 is seed 7 at the default noise, the best of the three seeds."
+ */
+const SEED_NOTES: Record<string, { ours: number; theirs: number; note: string }> = {
+  // Only for that exact run: a regenerated cache with other numbers gets no note.
+  "seymour-demo": { ours: 98, theirs: 123, note: "the best of 3 seeds tried (docs/LANE_C_SEARCH.md)" },
+};
+
+/** "Seed 7, the best of 3 seeds tried (...)" when the docs describe this run, else "Seed 7". */
+export function seedNote(seed: number, surveyId: string | undefined, ours: number, theirs: number): string {
+  const known = surveyId ? SEED_NOTES[surveyId] : undefined;
+  return known && known.ours === ours && known.theirs === theirs ? `Seed ${seed}, ${known.note}` : `Seed ${seed}`;
 }
 
 /** Cells of `cellM` metres as ground area: 98 cells of 20 m -> "3.9 ha". */
@@ -469,6 +494,7 @@ function Card({
   note,
   source,
   badge,
+  footnote,
   delay,
 }: {
   label: string;
@@ -483,6 +509,8 @@ function Card({
   note: string;
   source: string;
   badge?: ReactNode;
+  /** A plain qualifier under the note, e.g. which seed a simulated run used. */
+  footnote?: string;
   delay: number;
 }) {
   const shown = useCountUp(value, 1100);
@@ -509,6 +537,7 @@ function Card({
         {note}
         {lowerIsBetter ? " (lower is better)" : ""}
       </span>
+      {footnote && <span className="font-mono text-label text-text-3">{footnote}</span>}
     </div>
   );
 }
