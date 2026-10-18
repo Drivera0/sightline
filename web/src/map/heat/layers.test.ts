@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
 import type { Map } from "maplibre-gl";
 import { MAP_LAYER_IDS } from "../base/layerIds";
-import { maxCovered, replayFeatures, setFlightPathVisible } from "./layers";
+import { replayFeatures, setFlightPathVisible } from "./layers";
 
 const path: [number, number][] = [
   [0, 0],
@@ -31,12 +31,6 @@ describe("replayFeatures", () => {
 
   it("clamps a step past the end to the last frame", () => {
     expect(replayFeatures(path, 9).drone).toMatchObject({ geometry: { coordinates: [2, 0] } });
-  });
-});
-
-describe("maxCovered", () => {
-  it("ignores unphotographed cells, so they cannot wash out the heat", () => {
-    expect(maxCovered(Float64Array.from([0.9, 0.2, 0.3]), Uint8Array.from([0, 1, 1]))).toBe(0.3);
   });
 });
 
