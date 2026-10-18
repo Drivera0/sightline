@@ -1,6 +1,7 @@
 import type { MapFile } from "../../contract";
 import type { MapState } from "../../search/update";
 import { Label } from "../../shell/components";
+import { MIN_OVERLAP } from "./coverage";
 import {
   canopyLabel,
   cellCenter,
@@ -15,12 +16,12 @@ const pct = (fraction: number) => {
   return `${percent > 0 && percent < 0.1 ? percent.toPrecision(3) : percent.toFixed(2)}%`;
 };
 
-/** Mean probability over the photographed cells (0 when none are photographed). */
-function surveyedMean(p: ArrayLike<number>, covered: Uint8Array): number {
+/** Mean probability over the eligible cells (0 when there are none). */
+function eligibleMean(p: ArrayLike<number>, eligible: Uint8Array): number {
   let sum = 0;
   let n = 0;
-  for (let i = 0; i < covered.length; i++) {
-    if (covered[i]) {
+  for (let i = 0; i < eligible.length; i++) {
+    if (eligible[i]) {
       sum += p[i] ?? 0;
       n++;
     }
@@ -32,26 +33,33 @@ interface Props {
   map: Pick<MapFile, "grid" | "lkp" | "canopy">;
   state: MapState;
   covered: Uint8Array;
+  /** Per cell, summed footprint overlap in cell areas (coverage.ts). */
+  overlap: Float64Array;
   onSelect: (lon: number, lat: number) => void;
 }
 
 /**
- * "Search next": the 5 most likely PHOTOGRAPHED cells now, and where the probability sits.
+ * "Search next": the 5 most likely WELL-PHOTOGRAPHED cells now, and where the probability sits.
+ *
+ * Only cells the footprints covered at least MIN_OVERLAP times are ranked ("eligible"), so edge
+ * slivers the camera barely touched do not fill the list. The "× avg" average is over the same
+ * eligible cells. The shares below still use `covered` (the whole surveyed area).
  *
  * Only photographed cells are ranked. Inside a 1 km grid a hiker prior is flat (Koester's hiker
  * distances are larger than the grid), so every unphotographed cell would outrank every
  * photographed one and the list would show the grid corners. Ranking the surveyed area shows where
  * the drone could not see well; the rest of the grid is the "Rest of grid" share below.
  */
-export function NextSearch({ map, state, covered, onSelect }: Props) {
-  const top = topCellIndices(state.p, 5, covered);
+export function NextSearch({ map, state, covered, overlap, onSelect }: Props) {
+  const eligible = Uint8Array.from(overlap, (v) => (v >= MIN_OVERLAP ? 1 : 0));
+  const top = topCellIndices(state.p, 5, eligible);
   const shares = probabilityShares(state, covered);
-  const mean = surveyedMean(state.p, covered);
+  const mean = eligibleMean(state.p, eligible);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label>Search next in the surveyed area</Label>
-        {top.length === 0 && <p className="text-small text-text-2">No cell photographed yet</p>}
+        {top.length === 0 && <p className="text-small text-text-2">No cell photographed well enough yet</p>}
         {top.length > 0 && (
         <ol className="flex flex-col gap-1" aria-label="Most likely cells">
           {top.map((idx, rank) => {
@@ -77,7 +85,7 @@ export function NextSearch({ map, state, covered, onSelect }: Props) {
                       {pct(state.p[idx] as number)}
                     </span>
                     {mean > 0 && (
-                      <span className="font-mono text-label text-text-3" title="Compared with the average photographed cell">
+                      <span className="font-mono text-label text-text-3" title="Compared with the average well-photographed cell">
                         {((state.p[idx] as number) / mean).toFixed(1)}× avg
                       </span>
                     )}
