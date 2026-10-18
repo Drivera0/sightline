@@ -58,11 +58,16 @@ VOC scoring (greedy one-to-one, IoU ≥ 0.5); precision/recall at the threshold,
 | Stock model, no tiling (COCO yolo11s, resized to 1024) | 0.420 | 0.196 | 0.142 | 0.06 |
 | Fine-tuned, no tiling (resized to 1024) | 0.230 | 0.122 | 0.046 | 0.06 |
 | Fine-tuned + tiling | **0.681** | **0.754** | **0.711** | 0.25 |
-| + hard negatives | pending | | | |
+| + hard negatives | not yet measured (row omitted from the file) | | | |
 
 Human baseline (Pyrrö et al. 2021): precision 0.59, recall 0.68, 33 s per photo.
 SAR-style loose matching (approx. AIR) for the tiled model: precision 0.796, recall 0.801.
-`metrics.detector.recall` for lane C's POD: **0.754**. Trained and evaluated 2026-10-17 on an RTX 4080 SUPER.
+`metrics.detector.recall` for lane C's POD: **0.754**.
+
+**Why "Fine-tuned, no tiling" scores below the stock model:** trained only on full-resolution 1024 px tiles, where a person is about 50 px tall, the fine-tuned model still finds people in a whole photo shrunk to 1024 px (a person becomes about 13 px) but draws boxes about twice too big, so they fail the IoU 0.5 test; tiling is what makes fine-tuning pay off.
+(Checked: both rows use the same 1024 px input, the same F2 threshold rule and the same scoring. The fine-tuned weights are run 1 `best.pt`, MD5 2f38d69c… Median predicted box height on test: 115 px fine-tuned vs 73 px stock vs 52 px true. People found with a sloppy box, IoU 0.1–0.5: 70 fine-tuned vs 34 stock.)
+
+**Rows that weren't run are omitted, never zero-filled.** `write_detector_metrics` refuses an all-zero row, and the metrics screen shows any missing or all-zero row as "Not yet measured". Trained and evaluated 2026-10-17 on an RTX 4080 SUPER.
 
 ## Training (timing run, then run 1)
 

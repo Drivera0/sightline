@@ -12,6 +12,7 @@ from sightline.ml.evaluate import (
     DetectorMetrics,
     SarScores,
     VocScores,
+    check_ablation_rows,
     choose_threshold_from_preds,
     f_beta,
     iou,
@@ -167,5 +168,48 @@ def test_write_detector_metrics_shape(tmp_path: Path) -> None:
     assert data["detector"]["voc"]["precision"] == 0.812
     assert data["detector"]["seconds_per_image"] == 1.235
     assert [r["name"] for r in data["ablations"]] == [r.name for r in rows]
+    # A variant that wasn't run is omitted: three measured rows are fine.
+    write_detector_metrics(d, rows[:3], out)
+    assert [r["name"] for r in json.loads(out.read_text())["ablations"]] == [
+        r.name for r in rows[:3]
+    ]
+    # Wrong order or unknown names are rejected.
     with pytest.raises(ValueError):
-        write_detector_metrics(d, rows[:3], out)
+        write_detector_metrics(d, [rows[1], rows[0]], out)
+    with pytest.raises(ValueError):
+        write_detector_metrics(d, [Ablation(name="Mystery row", voc=voc)], out)
+
+
+def test_all_zero_ablation_row_is_refused_as_a_placeholder(tmp_path: Path) -> None:
+    """An all-zero row reads as a real result on the metrics screen. It must be omitted instead."""
+    voc = VocScores(precision=0.7, recall=0.7, ap50=0.7)
+    zero = VocScores(precision=0.0, recall=0.0, ap50=0.0)
+    d = DetectorMetrics(
+        model="m",
+        test_images=101,
+        tiled=True,
+        threshold=0.2,
+        voc=voc,
+        sar=SarScores(precision=0.8, recall=0.8, ap=0.8),
+        recall=0.7,
+        seconds_per_image=0.25,
+    )
+    rows = [
+        Ablation(name="Stock model, no tiling", voc=voc),
+        Ablation(name="Fine-tuned, no tiling", voc=voc),
+        Ablation(name="Fine-tuned + tiling", voc=voc),
+        Ablation(name="+ hard negatives", voc=zero),
+    ]
+    with pytest.raises(ValueError, match="all zeros"):
+        write_detector_metrics(d, rows, tmp_path / "m.json")
+    assert not (tmp_path / "m.json").exists()
+
+
+def test_published_detector_metrics_has_no_placeholder_rows() -> None:
+    """Guards the real file on this machine (skipped elsewhere, where data/ doesn't exist)."""
+    path = Path("data/work/detect/detector_metrics.json")
+    if not path.exists():
+        pytest.skip("no detector_metrics.json on this machine")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    rows = [Ablation(**r) for r in data["ablations"]]
+    check_ablation_rows(rows)
