@@ -11,6 +11,7 @@ import {
   HEAT_FLOOR,
   HEAT_CEIL,
   topCellIndices,
+  likelyPatches,
   percentile,
   relativeHeatOpacities,
   probabilityShares,
@@ -199,5 +200,46 @@ describe("topCellIndices", () => {
       }
     }
     expect(topCellIndices(Float64Array.from([0.1, 0.2]), 5)).toEqual([1, 0]);
+  });
+});
+
+describe("likelyPatches", () => {
+  const patchGrid = { origin_nw: { lat: 49, lon: -123 }, cell_m: 5, rows: 3, cols: 4 };
+
+  it("groups threshold cells with 8-connectivity and ranks patches by surveyed-area share", () => {
+    const p = Float64Array.from([10, 9.6, 1, 9.7, 1, 10, 1, 9.6, 1, 1, 1, 1]);
+    const eligible = Uint8Array.from({ length: 12 }, () => 1);
+    const result = likelyPatches(patchGrid, p, eligible);
+
+    expect(result.patches.map((patch) => patch.cells)).toEqual([[0, 1, 5], [3, 7]]);
+    expect(result.patches.map((patch) => patch.id)).toEqual([0, 3]);
+    expect(result.patches[0]!.share).toBeCloseTo(29.6 / 55.9);
+    expect(result.patches[1]!.share).toBeCloseTo(19.3 / 55.9);
+    expect(result.otherShare).toBeCloseTo(7 / 55.9);
+    expect(result.patches.reduce((sum, patch) => sum + patch.share, result.otherShare)).toBeCloseTo(1);
+  });
+
+  it("uses probability-weighted metadata and excludes ineligible cells from every denominator", () => {
+    const p = Float64Array.from([1, 1, 99, 0.2]);
+    const eligible = Uint8Array.from([1, 1, 0, 1]);
+    const canopy = [0.8, 0.6, 0, 0.1];
+    const sectors = Int16Array.from([2, 2, 0, 1]);
+    const result = likelyPatches(
+      { ...patchGrid, rows: 1 },
+      p,
+      eligible,
+      { canopy, cellSector: sectors },
+    );
+
+    expect(result.surveyedProbability).toBeCloseTo(2.2);
+    expect(result.meanProbability).toBeCloseTo(2.2 / 3);
+    expect(result.patches).toHaveLength(1);
+    expect(result.patches[0]).toMatchObject({ cells: [0, 1], sectorIndex: 2, canopy: 0.7, areaHa: 0.005 });
+    expect(result.patches[0]!.density).toBeCloseTo(1 / (2.2 / 3));
+    expect(result.patches[0]!.centroid.lon).toBeGreaterThan(patchGrid.origin_nw.lon);
+  });
+
+  it("returns no patches when no cell is eligible or has positive probability", () => {
+    expect(likelyPatches(patchGrid, new Float64Array(12), new Uint8Array(12)).patches).toEqual([]);
   });
 });
