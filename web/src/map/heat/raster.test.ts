@@ -134,13 +134,24 @@ describe("heatPixels", () => {
   it("veils unphotographed cells, marks held cells, and ramps the rest by their level", () => {
     const covered = Uint8Array.from([0, 1, 1, 1]);
     const held = Uint8Array.from([0, 1, 0, 0]);
-    const px = heatPixels(state, covered, held, palette);
+    // Fixed scale: 0.4 is the top. Cell 2 (0.3) is class 5 of 7, cell 3 (0.4) the darkest class.
+    const px = heatPixels(state, covered, held, palette, 0.4);
     expect(px[3]).toBe(Math.round(VEIL_ALPHA * 255));
     expect([px[0], px[1], px[2]]).toEqual(palette.veil);
     expect(px[7]).toBe(Math.round(HELD_ALPHA * 255));
-    // Cells 2 and 3 are the lowest and highest heat: alpha from HEAT_ALPHA_MIN to HEAT_ALPHA_MAX.
-    expect(px[11]).toBe(Math.round(HEAT_ALPHA_MIN * 255));
     expect(px[15]).toBe(Math.round(HEAT_ALPHA_MAX * 255));
+    expect(px[11]).toBe(Math.round((HEAT_ALPHA_MIN + (HEAT_ALPHA_MAX - HEAT_ALPHA_MIN) * (5 / 6)) * 255));
+  });
+
+  it("keeps a cell's colour when other cells get photographed (the scale does not stretch)", () => {
+    const held = new Uint8Array(4);
+    const few = heatPixels(state, Uint8Array.from([0, 0, 1, 1]), held, palette, 0.4);
+    const all = heatPixels(state, Uint8Array.from([1, 1, 1, 1]), held, palette, 0.4);
+    expect(Array.from(few.slice(8, 16))).toEqual(Array.from(all.slice(8, 16)));
+    // A low cell on the fixed scale stays pale even when it is the only one photographed.
+    const alone = heatPixels(state, Uint8Array.from([1, 0, 0, 0]), held, palette, 0.4);
+    // 0.1 / 0.4 = 0.25: class 1 of 7, not stretched to the darkest class.
+    expect(alone[3]).toBe(Math.round((HEAT_ALPHA_MIN + (HEAT_ALPHA_MAX - HEAT_ALPHA_MIN) / 6) * 255));
   });
 
   it("puts the canvas on the grid's corners (NW, NE, SE, SW)", () => {

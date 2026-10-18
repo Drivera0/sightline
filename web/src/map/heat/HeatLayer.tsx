@@ -4,15 +4,20 @@
 // the pins), the review ripple and a small readout, without the replay and the side panel.
 import { type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { MapMouseEvent } from "maplibre-gl";
 import type { CacheBundle } from "../../contract";
+import type { CandidateShare } from "../../search/update";
 import { CacheContext, useCache } from "../../lib/cache";
 import { useReview, type HistoryEntry } from "../../review/store";
 import { prefersReducedMotion } from "../../metrics/motion";
 import { detectionById, effectiveAnswers, heldCells, stateAtStep, useSearch } from "../../search/store";
 import { Panel } from "../../shell/components";
 import { useMap, type MapContextValue } from "../MapView";
+import { flownFrames } from "../base/features";
+import { OVERLAY_ATTR, readOverlays } from "../base/camera";
+import { placeLabel } from "./labelPlacement";
 import { FoundBanner } from "./FoundBanner";
-import { probabilityShares, topCellIndices } from "./geometry";
+import { heatScaleMax, probabilityShares, topCellIndices } from "./geometry";
 import {
   buildOverlapIndex,
   eligibleCells,
@@ -31,22 +36,35 @@ import {
   pushDrone,
   pushHotspots,
   pushRipple,
+  pushSectorLabels,
   pushSectors,
+  type PlaceLabel,
   readHeatColors,
   refreshHeatSource,
   RIPPLE_MS,
   setBreath,
   setFlightPathVisible,
+  setCandidateBoundary,
   setHeldBoundary,
   setRippleFrame,
   setSurveyedBoundary,
 } from "./layers";
-import { Legend } from "./Legend";
+import { Legend, rampSwatches } from "./Legend";
 import { SimulatedLine, simulatedLineFor } from "../base/SimulatedLine";
 import { NextSearch } from "./NextSearch";
-import { PanelSlotContext, useMediaQuery, WIDE_LAYOUT_QUERY } from "./panelSlot";
+import { PanelSlotContext, ROOMY_LAYOUT_QUERY, useMediaQuery, WIDE_LAYOUT_QUERY } from "./panelSlot";
 import { HeatRaster, heatPixels, paletteFromTokens, readRasterTokens, sweepDelays } from "./raster";
 import { SectorList } from "./SectorList";
+import {
+  candidateMask,
+  cellAt,
+  sectorsWithSightings,
+  sightingAreaText,
+  sightingAtCell,
+  sightingOf,
+  sightingReading,
+  withoutCandidates,
+} from "./sightings";
 import { buildSectors, currentSector, sectorBounds, sectorStatuses } from "./sectors";
 import { StepSlider } from "./StepSlider";
 
@@ -63,13 +81,14 @@ const PANEL_TABS: readonly { id: PanelTab; label: string }[] = [
  * of the heat ramp under a 5 % white glass left their secondary text unreadable (Apple HIG,
  * Materials: thicker materials give better contrast for text over bright content).
  */
-const OVER_MAP = "bg-bg/80!";
+const OVER_MAP = "bg-bg/90!";
 
 /** How long an answer's change to the map takes to settle, and the Search next build-up. */
 export const ANSWER_TWEEN_MS = 650;
 export const BUILD_UP_MS = 1500;
 /** Share of the build-up timeline each cell takes to fade in (the rest is its place in the flight). */
 export const BUILD_UP_FADE = 0.2;
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 /** useMap() without throwing, so a mount outside MapProvider renders nothing instead of crashing. */
 function useOptionalMap(): MapContextValue | null {
@@ -78,6 +97,19 @@ function useOptionalMap(): MapContextValue | null {
   } catch {
     return null;
   }
+}
+
+const frameIndexes = new WeakMap<CacheBundle["detections"], Map<string, string>>();
+
+/** The frame a detection was found in (detections.json is keyed by frame). */
+export function frameOfDetection(detections: CacheBundle["detections"], detectionId: string): string | undefined {
+  let index = frameIndexes.get(detections);
+  if (!index) {
+    index = new Map();
+    for (const [frameId, list] of Object.entries(detections.frames)) for (const d of list) index.set(d.id, frameId);
+    frameIndexes.set(detections, index);
+  }
+  return index.get(detectionId);
 }
 
 function isUsableMapFile(bundle: CacheBundle): boolean {
@@ -114,6 +146,32 @@ export function HeatLayer({ variant = "search" }: { variant?: HeatVariant }) {
   return <HeatOverlay bundle={bundle} mapCtx={mapCtx} variant={variant} />;
 }
 
+/**
+ * Sector label placement on the live map: a label goes where its text box is fully inside the map and
+ * clear of every panel drawn over it (marked with OVERLAY_ATTR), or is hidden (labelPlacement.ts).
+ */
+function livePlacement(map: MapContextValue["map"]): PlaceLabel | undefined {
+  if (!map) return undefined;
+  try {
+    const container = map.getContainer();
+    const c = container.getBoundingClientRect();
+    if (!(c.width > 0 && c.height > 0)) return undefined;
+    const view = { left: 0, top: 0, right: c.width, bottom: c.height };
+    const blockers = readOverlays(container.parentElement).map(({ rect }) => ({
+      left: rect.left - c.left,
+      top: rect.top - c.top,
+      right: rect.right - c.left,
+      bottom: rect.bottom - c.top,
+    }));
+    return (candidates, text) => placeLabel(candidates, text, (at) => map.project(at), view, blockers);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Mark a panel drawn over the map, so the camera frames around it and labels avoid it (camera.ts). */
+const overlay = (side: "left" | "right" | "top" | "bottom" | "corner") => ({ [OVERLAY_ATTR]: side });
+
 function Overlay({ children }: { children: ReactNode }) {
   return <div className="pointer-events-none absolute inset-0 z-10">{children}</div>;
 }
@@ -139,7 +197,9 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const stepCount = useSearch((s) => s.stepCount);
   const setStepIndex = useSearch((s) => s.setStepIndex);
   const foundDetectionId = useSearch((s) => s.foundDetectionId);
-  const reduced = useMemo(() => prefersReducedMotion(), []);
+  const sightings = useSearch((s) => s.sightings);
+  // Follows the system setting live, so the build-up (and its Skip pill) never runs under reduced motion.
+  const reduced = useMediaQuery(REDUCED_MOTION_QUERY, prefersReducedMotion());
 
   useEffect(() => {
     bind({ map: bundle.map, detections: bundle.detections });
@@ -160,9 +220,11 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     });
   }, [bundle.survey.frames, mapFile.steps]);
 
-  // Summed overlap of the first `stepIndex` frames: precomputed once per survey, then cheap per step.
+  // Per cell, the largest share of it inside any one of the first `stepIndex` photos (coverage.ts):
+  // precomputed once per survey, then cheap per step.
   const overlapIndex = useMemo(
-    () => buildOverlapIndex(frameOverlaps(grid, bundle.survey.frames.map((f) => f.footprint)), grid.rows * grid.cols),
+    () =>
+      buildOverlapIndex(frameOverlaps(grid, bundle.survey.frames.map((f) => f.footprint)), grid.rows * grid.cols, "max"),
     [grid, bundle.survey.frames],
   );
   const firstStep = useMemo(() => firstPhotographedStep(overlapIndex), [overlapIndex]);
@@ -177,8 +239,50 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const path = useMemo(() => stepFrames.map((f) => [f.pose.lon, f.pose.lat] as [number, number]), [stepFrames]);
   const ready = data?.map === mapFile && state !== null;
 
+  // Hover (or tap) a candidate sighting's area or pin: its reading in a small card by the pointer.
+  const [hoverSighting, setHoverSighting] = useState<{ sighting: CandidateShare; x: number; y: number; flip: boolean } | null>(
+    null,
+  );
+  const sightingsRef = useRef(sightings);
+  sightingsRef.current = ready ? sightings : [];
+  useEffect(() => {
+    if (!map) return undefined;
+    const at = (e: MapMouseEvent) => {
+      const s = sightingAtCell(sightingsRef.current, cellAt(grid, [e.lngLat.lng, e.lngLat.lat]));
+      if (!s) return setHoverSighting(null);
+      let width = 0;
+      try {
+        width = map.getContainer().clientWidth;
+      } catch {
+        /* map gone */
+      }
+      setHoverSighting({ sighting: s, x: e.point.x, y: e.point.y, flip: width > 0 && e.point.x > width - 300 });
+    };
+    const leave = () => setHoverSighting(null);
+    map.on?.("mousemove", at);
+    map.on?.("click", at);
+    map.on?.("mouseout", leave);
+    return () => {
+      map.off?.("mousemove", at);
+      map.off?.("click", at);
+      map.off?.("mouseout", leave);
+    };
+  }, [map, grid]);
+  useEffect(() => {
+    // An undone or not-yet-flown sighting closes its card.
+    setHoverSighting((h) => (h && !sightings.some((s) => s.cells.includes(h.sighting.cells[0] ?? -1)) ? null : h));
+  }, [sightings]);
+
+  // Candidate sightings (flown "Person" answers): drawn darkest and ringed, not as awaiting review.
+  const candidate = useMemo(() => candidateMask(grid.rows * grid.cols, ready ? sightings : []), [grid, ready, sightings]);
+  const heldShown = useMemo(() => withoutCandidates(held, candidate), [held, candidate]);
+
   // Sectors (computed in the browser; see sectors.ts).
   const sectorLayout = useMemo(() => buildSectors(grid, frames), [grid, frames]);
+  const sightedSectors = useMemo(
+    () => sectorsWithSightings(sectorLayout.cellSector, sectorLayout.sectors.map((s) => s.id), candidate),
+    [sectorLayout, candidate],
+  );
   const statuses = useMemo(
     () => (ready && state ? sectorStatuses(sectorLayout, state, covered) : []),
     [ready, state, sectorLayout, covered],
@@ -190,6 +294,10 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const wide = useMediaQuery(WIDE_LAYOUT_QUERY, true);
   const panelSlot = isSearch && !wide ? slot : null;
   const [panelTab, setPanelTab] = useState<PanelTab>("legend");
+  // Below 1280 px the floating legend folds into a pill, so it does not cover the photographed area.
+  const roomy = useMediaQuery(ROOMY_LAYOUT_QUERY, true);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const legendPillRef = useRef<HTMLButtonElement>(null);
 
   // The Search next cells (same rule as the panel), ringed on the map.
   const hotspots = useMemo(
@@ -200,15 +308,17 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   // --- the raster ---------------------------------------------------------------------------
   const palette = useMemo(() => paletteFromTokens(readRasterTokens()), []);
   const raster = useMemo(() => new HeatRaster(grid), [grid]);
+  // One colour scale for the whole replay: the top is the prior's likeliest cell (geometry.ts).
+  const scaleMax = useMemo(() => heatScaleMax(mapFile.prior.p), [mapFile.prior.p]);
   const pixels = useMemo(
-    () => (ready && state ? heatPixels(state, covered, held, palette) : null),
-    [ready, state, covered, held, palette],
+    () => (ready && state ? heatPixels(state, covered, heldShown, palette, scaleMax, candidate) : null),
+    [ready, state, covered, heldShown, palette, scaleMax, candidate],
   );
   const [building, setBuilding] = useState(false);
 
   // The latest values, for the style-reload installer.
-  const latest = useRef({ covered, held, hotspots, statuses, currentId, hoverId });
-  latest.current = { covered, held, hotspots, statuses, currentId, hoverId };
+  const latest = useRef({ covered, heldShown, candidate, hotspots, statuses, currentId, hoverId });
+  latest.current = { covered, heldShown, candidate, hotspots, statuses, currentId, hoverId };
   const [showPath, setShowPath] = useState(true);
   const showPathRef = useRef(showPath);
   showPathRef.current = showPath;
@@ -248,8 +358,9 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         ensureHeatLayers(map, raster, grid, now.covered, colors, variant);
         if (isSearch) ensureDroneImage(map, colors.outline);
         refreshHeatSource(map, raster.animating);
-        setHeldBoundary(map, grid, now.covered, now.held);
-        pushSectors(map, grid, now.statuses, now.currentId, now.hoverId);
+        setHeldBoundary(map, grid, now.covered, now.heldShown);
+        setCandidateBoundary(map, grid, now.candidate);
+        pushSectors(map, grid, now.statuses, now.currentId, now.hoverId, livePlacement(map));
         if (isSearch) {
           setSurveyedBoundary(map, grid, now.covered);
           setFlightPathVisible(map, showPathRef.current);
@@ -288,7 +399,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         raster.show(pixels);
       } else if (isSearch) {
         // Cells sweep in from "not yet searched" in the order the flight photographed them.
-        const from = heatPixels(state, new Uint8Array(covered.length), held, palette);
+        const from = heatPixels(state, new Uint8Array(covered.length), heldShown, palette, scaleMax, candidate);
         setBuilding(true);
         raster.animate(pixels, { durationMs: BUILD_UP_MS, delays: sweepDelays(firstStep, stepCount), fade: BUILD_UP_FADE }, from);
       } else {
@@ -303,9 +414,15 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pixels]);
 
-  // The build-up ends by itself; any interaction with the map finishes it at once.
+  // The build-up ends by itself; any interaction with the map finishes it at once, and so does
+  // switching reduced motion on.
   useEffect(() => {
     if (!building) return undefined;
+    if (reduced) {
+      raster.finish();
+      setBuilding(false);
+      return undefined;
+    }
     const end = window.setTimeout(() => setBuilding(false), BUILD_UP_MS + 50);
     const skip = () => {
       raster.finish();
@@ -319,7 +436,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       for (const e of events) map?.off?.(e, skip);
       window.removeEventListener("keydown", skip);
     };
-  }, [building, map, raster]);
+  }, [building, map, raster, reduced]);
 
   // A ripple at the pin that was just answered (or undone).
   useEffect(() => {
@@ -360,11 +477,12 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   useEffect(() => {
     if (!map) return;
     try {
-      setHeldBoundary(map, grid, covered, held);
+      setHeldBoundary(map, grid, covered, heldShown);
+      setCandidateBoundary(map, grid, candidate);
     } catch {
       /* style reloading */
     }
-  }, [map, grid, covered, held]);
+  }, [map, grid, covered, heldShown, candidate]);
 
   // The outline follows the photographed cells.
   useEffect(() => {
@@ -379,11 +497,37 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   useEffect(() => {
     if (!map) return;
     try {
-      pushSectors(map, grid, statuses, currentId, hoverId);
+      pushSectors(map, grid, statuses, currentId, hoverId, livePlacement(map));
     } catch {
       /* style reloading */
     }
   }, [map, grid, statuses, currentId, hoverId]);
+
+  // Re-place the sector labels as the camera moves (once per frame at most), so none is drawn
+  // half off the map or under a panel.
+  useEffect(() => {
+    if (!map) return undefined;
+    let frame = 0;
+    const replace = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const now = latest.current;
+        try {
+          pushSectorLabels(map, grid, now.statuses, now.currentId, now.hoverId, livePlacement(map));
+        } catch {
+          /* style reloading */
+        }
+      });
+    };
+    map.on?.("move", replace);
+    map.on?.("resize", replace);
+    return () => {
+      cancelAnimationFrame(frame);
+      map.off?.("move", replace);
+      map.off?.("resize", replace);
+    };
+  }, [map, grid]);
 
   // The legend switch; re-applied by install() after a basemap switch rebuilds lane B's layers.
   useEffect(() => {
@@ -450,13 +594,19 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     };
   }, [map, isSearch, reduced]);
 
-  const shares = useMemo(() => (ready && state ? probabilityShares(state, covered) : null), [ready, state, covered]);
+  // Candidate sighting cells are not "photographed and cleared": the readout leaves them out.
+  const coveredClear = useMemo(() => withoutCandidates(covered, candidate), [covered, candidate]);
+  const shares = useMemo(
+    () => (ready && state ? probabilityShares(state, coveredClear) : null),
+    [ready, state, coveredClear],
+  );
   // Before any review answer: the same step with no answers (from the store's own inputs).
   const baseShares = useMemo(
-    () => (ready && data ? probabilityShares(stateAtStep(data.map, stepIndex), covered) : null),
-    [ready, data, stepIndex, covered],
+    () => (ready && data ? probabilityShares(stateAtStep(data.map, stepIndex), coveredClear) : null),
+    [ready, data, stepIndex, coveredClear],
   );
-  // Every detection whose latest answer is "Person", newest first.
+  // Every detection whose latest answer is "Person" and whose photo the replay has flown, newest first.
+  const flown = useMemo(() => flownFrames(mapFile.steps, stepIndex), [mapFile.steps, stepIndex]);
   const finds = useMemo(
     () =>
       foundDetectionId
@@ -465,10 +615,11 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
             .reverse()
             .flatMap((e) => {
               const d = detectionById(bundle.detections, e.detectionId);
-              return d ? [d] : [];
+              const frameId = d ? frameOfDetection(bundle.detections, d.id) : undefined;
+              return d && (!flown || (frameId !== undefined && flown.has(frameId))) ? [d] : [];
             })
         : [],
-    [foundDetectionId, history, bundle.detections],
+    [foundDetectionId, history, bundle.detections, flown],
   );
   // Below the map (narrow screens) a list click also brings the map back into view.
   const flyToPoint = (lon: number, lat: number) => {
@@ -492,11 +643,27 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     }
   };
 
+  const sightingCard = hoverSighting && (
+    <div
+      role="tooltip"
+      data-testid="sighting-card"
+      className={`pointer-events-none absolute z-20 w-64 rounded-[var(--radius-sm)] border border-ok/60 p-3 text-small shadow-lg backdrop-blur-md ${OVER_MAP}`}
+      style={{
+        left: hoverSighting.x,
+        top: hoverSighting.y,
+        transform: `translate(${hoverSighting.flip ? "calc(-100% - 14px)" : "14px"}, 14px)`,
+      }}
+    >
+      <p className="text-text">{sightingReading(hoverSighting.sighting, sightings.length)}</p>
+      <p className="mt-1 text-label text-text-2">{sightingAreaText(hoverSighting.sighting)}</p>
+    </div>
+  );
+
   if (!isSearch) {
     const answered = shares !== null && baseShares !== null && Math.abs(baseShares.surveyed - shares.surveyed) > 1e-12;
     return (
       <Overlay>
-        <Panel className={`sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
+        <Panel {...overlay("corner")} className={`sl-rise pointer-events-auto absolute bottom-3 right-3 w-64 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
           <div className="flex flex-col gap-3">
             {shares && baseShares ? (
               <div className="flex flex-col gap-1" aria-live="polite">
@@ -506,9 +673,15 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
                     ? `${pct2(baseShares.surveyed)} → ${pct2(shares.surveyed)}`
                     : pct2(shares.surveyed)}
                 </span>
-                <span className="text-label text-text-3">
+                <span className="text-label text-text-2">
                   {answered ? "Before review → now. " : ""}Each &ldquo;Not a person&rdquo; lowers it around that pin.
                 </span>
+                {sightings.length > 0 && (
+                  <span className="text-label text-ok" data-testid="review-sightings">
+                    {sightings.length === 1 ? "1 candidate sighting" : `${sightings.length} candidate sightings`}, not counted
+                    as cleared: send a ground team to check.
+                  </span>
+                )}
               </div>
             ) : (
               <span className="text-small text-text-2" role="status">
@@ -519,17 +692,27 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
               compact
               simulatedPath={bundle.survey.simulated_path}
               hasSurveyed={hasSurveyed}
+              hasSightings={sightings.length > 0}
             />
             {/* Review's map is narrow: its one simulated line lives here, not in a corner the card covers. */}
             <SimulatedLine {...simulatedLineFor(bundle)} plain />
           </div>
         </Panel>
+        {sightingCard}
       </Overlay>
     );
   }
 
   const foundBanner = finds.length > 0 && (
-    <FoundBanner finds={finds} simulatedRadius={bundle.survey.simulated_path} onFlyTo={(f) => flyToPoint(f.lon, f.lat)} />
+    <FoundBanner
+      finds={finds}
+      simulatedRadius={bundle.survey.simulated_path}
+      onFlyTo={(f) => flyToPoint(f.lon, f.lat)}
+      readingFor={(id) => {
+        const s = sightingOf(sightings, id);
+        return s ? `${sightingReading(s, sightings.length)}. ${sightingAreaText(s)}.` : undefined;
+      }}
+    />
   );
   const computing = (
     <span className="text-small text-text-2" role="status">
@@ -546,6 +729,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         onHover={setHoverId}
         onSelect={(s) => flyToSector(s.id)}
         layout={sectorLayout.kind}
+        sighted={sightedSectors}
       />
     ) : null;
   const nextSearch =
@@ -560,16 +744,26 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         onSelect={flyToPoint}
       />
     ) : null;
+  const legendFolds = !panelSlot && !roomy;
   const legend = (
     <Legend
       simulatedPath={bundle.survey.simulated_path}
       hasSurveyed={hasSurveyed}
+      hasSightings={sightings.length > 0}
       showPath={showPath}
       onShowPathChange={setShowPath}
+      onCollapse={
+        legendFolds
+          ? () => {
+              setLegendOpen(false);
+              requestAnimationFrame(() => legendPillRef.current?.focus());
+            }
+          : undefined
+      }
     />
   );
   const slider = stepCount > 0 ? <StepSlider value={stepIndex} max={stepCount} onChange={setStepIndex} /> : null;
-  const buildingToast = building && (
+  const buildingToast = building && !reduced && (
     <div className="pointer-events-auto absolute left-1/2 top-3 -translate-x-1/2">
       <button
         type="button"
@@ -577,7 +771,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
           raster.finish();
           setBuilding(false);
         }}
-        className="sl-toast rounded-full border border-border bg-bg/85 px-4 py-1.5 text-small text-text-2 backdrop-blur hover:text-text"
+        className="sl-toast rounded-full border border-border bg-bg/90 px-4 py-1.5 text-small text-text-2 backdrop-blur hover:text-text"
       >
         Building the map along the flight… <span className="text-text">Skip</span>
       </button>
@@ -591,7 +785,10 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       panelTab === "legend" ? legend : panelTab === "sectors" ? (sectorList ?? computing) : (nextSearch ?? computing);
     return (
       <>
-        <Overlay>{buildingToast}</Overlay>
+        <Overlay>
+          {buildingToast}
+          {sightingCard}
+        </Overlay>
         {createPortal(
           <div className="flex flex-col gap-3" data-testid="search-panels-below">
             {slider && <Panel className="rounded-full px-3 py-2">{slider}</Panel>}
@@ -630,7 +827,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
 
   return (
     <Overlay>
-      <Panel className={`sl-rise pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
+      <Panel {...overlay("left")} className={`sl-rise pointer-events-auto absolute left-3 top-3 max-h-[calc(100%-6.5rem)] w-80 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
         {/* In the side panel rather than over the map, so it never hides the grid. */}
         {foundBanner && <div className="mb-4 border-b border-border pb-4">{foundBanner}</div>}
         {sectorList && nextSearch ? (
@@ -642,19 +839,41 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
           computing
         )}
       </Panel>
-      <Panel
-        // Capped below the basemap switch (top right), so the two never overlap on short screens.
-        className={`sl-rise pointer-events-auto absolute bottom-3 right-3 max-h-[calc(100%-4.5rem)] w-64 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}
-        style={{ animationDelay: "80ms" }}
-      >
-        {legend}
-      </Panel>
+      {legendFolds && !legendOpen ? (
+        <button
+          type="button"
+          ref={legendPillRef}
+          {...overlay("corner")}
+          aria-expanded={false}
+          aria-controls="search-legend"
+          onClick={() => setLegendOpen(true)}
+          className={`pointer-events-auto absolute bottom-3 right-3 inline-flex h-8 items-center gap-2 rounded-full border border-border px-3 font-mono text-label uppercase tracking-wider text-text-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md transition-colors hover:text-text ${OVER_MAP}`}
+        >
+          <span aria-hidden="true" className="flex h-1.5 w-6 overflow-hidden rounded-full">
+            {rampSwatches().map((c) => (
+              <span key={c} className="h-full flex-1" style={{ background: c }} />
+            ))}
+          </span>
+          Reading the map
+        </button>
+      ) : (
+        <Panel
+          {...overlay("corner")}
+          id="search-legend"
+          // Capped below the basemap switch (top right), so the two never overlap on short screens.
+          className={`sl-rise pointer-events-auto absolute bottom-3 right-3 max-h-[calc(100%-4.5rem)] w-64 overflow-y-auto p-4 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}
+          style={{ animationDelay: legendFolds ? undefined : "80ms" }}
+        >
+          {legend}
+        </Panel>
+      )}
       {slider && (
-        <Panel className={`pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-38rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
+        <Panel {...overlay("bottom")} className={`pointer-events-auto absolute bottom-3 left-1/2 w-[min(34rem,calc(100%-38rem))] min-w-72 -translate-x-1/2 rounded-full px-3 py-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] ${OVER_MAP}`}>
           {slider}
         </Panel>
       )}
       {buildingToast}
+      {sightingCard}
     </Overlay>
   );
 }

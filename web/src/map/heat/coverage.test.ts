@@ -7,6 +7,7 @@ import {
   frameOverlaps,
   MIN_OVERLAP,
   overlapAtStep,
+  firstPhotographedStep,
   photographedCells,
   type Point,
   polygonArea,
@@ -111,6 +112,25 @@ describe("step-aware overlap", () => {
     }
     expect(Array.from(overlapAtStep(index, 999))).toEqual(Array.from(summedOverlap(grid, many)));
     expect(Array.from(overlapAtStep(index, -3))).toEqual(new Array(n).fill(0));
+  });
+
+  it('"max" counts the most of a cell any one photo holds, so a seam at the edge is no extra cell', () => {
+    // Two photos overlap at x 20..40; both cut the edge row (y 0..20) at y 14, so 30 % of it is seen.
+    const seam = [box(20, 27, 40, 26), box(40, 27, 40, 26)];
+    const frames = frameOverlaps(grid, seam);
+    const summed = overlapAtStep(buildOverlapIndex(frames, n), 2);
+    const max = overlapAtStep(buildOverlapIndex(frames, n, "max"), 2);
+    // Edge cell (0, 1) under the seam: summed 0.6 would count as photographed; it is really 0.3.
+    expect(summed[1]).toBeCloseTo(0.6, 6);
+    expect(max[1]).toBeCloseTo(0.3, 6);
+    expect(photographedCells(summed)[1]).toBe(1);
+    expect(photographedCells(max)[1]).toBe(0);
+    // Interior cells are whole in one photo either way.
+    expect(max[grid.cols + 1]).toBeCloseTo(1, 6);
+    expect(photographedCells(max)[grid.cols + 1]).toBe(1);
+    // Checkpoints and the first-photographed step follow the same rule.
+    expect(firstPhotographedStep(buildOverlapIndex(frames, n, "max"))[1]).toBe(0);
+    expect(firstPhotographedStep(buildOverlapIndex(frames, n))[1]).toBe(2);
   });
 
   it("does not change an earlier result when a later step is asked for", () => {

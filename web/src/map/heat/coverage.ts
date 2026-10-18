@@ -13,7 +13,7 @@ const M_PER_DEG_LAT = 111_320;
  * this much of it, counted in cell areas (1 = the whole cell seen once). 0.5 = half the cell seen once.
  *
  * It is a threshold on overlap, not on pod: dense forest has a low pod because of the canopy, and
- * those are the cells we want to list. Demo cache (500 frames, 288 cells with overlap > 0):
+ * those are the cells we want to list. Demo cache on the earlier 20 m grid, summed overlap (500 frames, 288 cells with overlap > 0):
  * min 0.055, p10 0.131, median 1.557, p90 1.691, max 1.698. 32 cells are below 0.25 (edge slivers),
  * none lie between 0.25 and 0.5, 31 lie in 0.5 to 0.75 (edge cells, still half seen) and 225 are at
  * 0.75 or more (interior, 1.38 to 1.70). So 0.5 drops every sliver and keeps every interior cell.
@@ -142,37 +142,60 @@ function summedInto(out: Float64Array, grid: Grid, fp: readonly LonLat[]): numbe
 /** Save the running total every this many frames, so scrubbing adds at most CHECKPOINT_EVERY - 1 frames. */
 const CHECKPOINT_EVERY = 25;
 
+/**
+ * How the frames' overlaps add up per cell. "sum": total looks in cell areas (two photos of the
+ * whole cell = 2). "max": the largest share of the cell inside any one photo, the cell's coverage.
+ *
+ * The heat map and Search next use "max". With "sum", an edge cell that two overlapping photos each
+ * cut at about 30 % counted 0.6 although only the same 30 % of it was ever seen, which drew a fringe
+ * of single photographed cells at every seam along the survey's edge (demo cache: 68 cells, summed
+ * 0.50 to 0.62, none above 0.5 in any one photo). Where photos overlap, one of them holds the whole
+ * cell, so interior cells and real edge cells (at least half inside one photo) are unchanged.
+ */
+export type OverlapCombine = "sum" | "max";
+
 export interface OverlapIndex {
   frames: readonly (readonly [number, number][])[];
+  combine: OverlapCombine;
   /** checkpoints[i] = summed overlap of frames 0 .. i * CHECKPOINT_EVERY - 1. */
   checkpoints: Float64Array[];
   cellCount: number;
 }
 
+const add = (combine: OverlapCombine) =>
+  combine === "max" ? (a: number, b: number) => Math.max(a, b) : (a: number, b: number) => a + b;
+
 /** Precompute once per survey. */
-export function buildOverlapIndex(frames: readonly (readonly [number, number][])[], cellCount: number): OverlapIndex {
+export function buildOverlapIndex(
+  frames: readonly (readonly [number, number][])[],
+  cellCount: number,
+  combine: OverlapCombine = "sum",
+): OverlapIndex {
+  const op = add(combine);
   const checkpoints = [new Float64Array(cellCount)];
   let running = new Float64Array(cellCount);
   frames.forEach((cells, k) => {
-    for (const [idx, v] of cells) running[idx] = (running[idx] as number) + v;
+    for (const [idx, v] of cells) running[idx] = op(running[idx] as number, v);
     if ((k + 1) % CHECKPOINT_EVERY === 0) {
       checkpoints.push(running);
       running = Float64Array.from(running);
     }
   });
-  return { frames, checkpoints, cellCount };
+  return { frames, combine, checkpoints, cellCount };
 }
 
 /**
- * Summed overlap of frames 0 .. k-1 (k is clamped to 0 .. frames). Returns a new array. Frames are
- * added in flight order, so at k = frames.length it equals summedOverlap() over all footprints.
+ * Overlap of frames 0 .. k-1 (k is clamped to 0 .. frames), combined by the index's rule. Returns a
+ * new array. Frames are added in flight order, so for "sum" at k = frames.length it equals
+ * summedOverlap() over all footprints.
  */
 export function overlapAtStep(index: OverlapIndex, k: number): Float64Array {
   const n = Math.max(0, Math.min(index.frames.length, Math.floor(k)));
   const base = Math.floor(n / CHECKPOINT_EVERY);
   const out = Float64Array.from(index.checkpoints[base] as Float64Array);
+  const op = add(index.combine);
   for (let f = base * CHECKPOINT_EVERY; f < n; f++) {
-    for (const [idx, v] of index.frames[f] as readonly [number, number][]) out[idx] = (out[idx] as number) + v;
+    for (const [idx, v] of index.frames[f] as readonly [number, number][]) out[idx] = op(out[idx] as number, v);
   }
   return out;
 }
@@ -194,9 +217,10 @@ export function photographedCells(overlap: Float64Array): Uint8Array {
 export function firstPhotographedStep(index: OverlapIndex): Int32Array {
   const first = new Int32Array(index.cellCount);
   const running = new Float64Array(index.cellCount);
+  const op = add(index.combine);
   index.frames.forEach((cells, k) => {
     for (const [idx, v] of cells) {
-      running[idx] = (running[idx] as number) + v;
+      running[idx] = op(running[idx] as number, v);
       if (first[idx] === 0 && (running[idx] as number) >= MIN_OVERLAP) first[idx] = k + 1;
     }
   });
