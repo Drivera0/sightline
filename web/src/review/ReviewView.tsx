@@ -191,6 +191,12 @@ export function ReviewView({
     useSelection.getState().selectDetection(id);
   }, []);
 
+  // The map follows the candidate under review: after an answer, an undo, J/K or a click.
+  const currentId = current?.id;
+  useEffect(() => {
+    if (currentId && useSelection.getState().selectedDetectionId !== currentId) select(currentId);
+  }, [currentId, select]);
+
   const goTo = useCallback(
     (index: number) => {
       const item = items[Math.min(Math.max(index, 0), items.length - 1)];
