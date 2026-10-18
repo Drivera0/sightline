@@ -26,6 +26,7 @@ export function StepSlider({ value, max, playing = false, onTogglePlay, onScrub,
   if (max <= 0) return null;
 
   const percent = (value / max) * 100;
+  const atEnd = value >= max && !playing;
   return (
     <div className="flex items-center gap-3">
       <button
@@ -72,11 +73,15 @@ export function StepSlider({ value, max, playing = false, onTogglePlay, onScrub,
       {onSkip && (
         <button
           type="button"
-          onClick={onSkip}
-          disabled={value >= max && !playing}
+          onClick={() => {
+            if (!atEnd) onSkip();
+          }}
+          // aria-disabled, not disabled: a disabled button drops keyboard focus to the page body
+          // right after it is used (WCAG 2.4.3), so it stays focusable and only does nothing at the end.
+          aria-disabled={atEnd}
           aria-label="Skip to the end of the flight"
           title="Skip to the end of the flight"
-          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-text-2 transition-colors hover:bg-surface-strong hover:text-text disabled:opacity-40 disabled:hover:bg-transparent lg:size-9"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-text-2 transition-colors hover:bg-surface-strong hover:text-text aria-disabled:cursor-default aria-disabled:opacity-40 aria-disabled:hover:bg-transparent aria-disabled:hover:text-text-2 lg:size-9"
         >
           <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden="true">
             <path d="M3 3.2v9.6a.7.7 0 0 0 1.1.6l6.4-4.8a.7.7 0 0 0 0-1.2L4.1 2.6a.7.7 0 0 0-1.1.6Z" fill="currentColor" />
