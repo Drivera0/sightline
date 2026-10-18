@@ -31,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tiles", type=Path, default=ROOT / "data/heridal/yolo_tiles")
     ap.add_argument("--out", type=Path, default=ROOT / "data/heridal/hard_negatives")
     ap.add_argument("--yaml", type=Path, default=ROOT / "data/heridal/dataset_hn.yaml")
-    ap.add_argument("--device", default="cuda:0")
+    ap.add_argument("--device", default="auto", help="auto = cuda, then mps, then cpu")
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args(argv)
 
@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     from sightline.ml.detect import Detector
     from sightline.ml.hard_negatives import mine, write_dataset_yaml
 
-    train = load_split("train", args.data_root)[: args.limit]
+    train = load_split("train", args.data_root, annotated_only=True)[: args.limit]
     det = Detector(args.weights, device=args.device)
     written = mine(
         det, train, conf=args.conf, max_tiles=args.max_tiles, seed=args.seed, out_dir=args.out

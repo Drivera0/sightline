@@ -12,7 +12,9 @@ Split = Literal["train", "val", "test"]
 DEFAULT_ROOT = Path("data/heridal/yolo_full")
 
 
-def load_split(split: Split, root: Path = DEFAULT_ROOT) -> list[LabeledImage]:
+def load_split(
+    split: Split, root: Path = DEFAULT_ROOT, annotated_only: bool = False
+) -> list[LabeledImage]:
     """Reads ``<root>/<split>/{images,labels}``. Sorted by filename.
 
     Used by D's survey builder (test split) and by evaluation. Image sizes come from the
@@ -26,5 +28,7 @@ def load_split(split: Split, root: Path = DEFAULT_ROOT) -> list[LabeledImage]:
     for jpg in sorted(images_dir.glob("*.jpg")):
         width, height = image_size(jpg)
         boxes = read_yolo_labels(labels_dir / f"{jpg.stem}.txt", width, height)
+        if annotated_only and not boxes:
+            continue  # empty annotation stub in the Zenodo copy (train/val only; test is clean)
         out.append(LabeledImage(path=jpg, width=width, height=height, boxes=boxes))
     return out
