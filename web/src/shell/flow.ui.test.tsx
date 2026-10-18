@@ -29,7 +29,7 @@ describe("guided flow", () => {
   it("opens on the survey, with the size of the job and one clear action", () => {
     render(<Shell cache={cache} />);
     expect(current()).toHaveTextContent("Survey");
-    expect(screen.getByRole("heading", { name: /20 drone photos/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /20 sections of real drone photos, on a simulated search over/ })).toBeInTheDocument();
     // The human miss rate comes from metrics.baseline_human.recall.
     expect(screen.getByText(/of people missed by eye/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rank with Sightline" })).toBeInTheDocument();

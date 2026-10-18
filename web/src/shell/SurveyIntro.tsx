@@ -23,6 +23,49 @@ export function medianPersonPx(cache: Pick<CacheBundle, "detections">): number |
   return Math.round(widths.length % 2 ? (widths[mid] as number) : ((widths[mid - 1] as number) + (widths[mid] as number)) / 2);
 }
 
+/** A full HERIDAL photo, in pixels (the dataset's 4000×3000 camera frames; the survey cuts them up). */
+export const FULL_PHOTO_PX = { w: 4000, h: 3000 } as const;
+
+export interface IntroCopy {
+  headline: string;
+  /** Where the photos come from, said up front: real HERIDAL photos, cut into sections. */
+  provenance: string;
+  /** What is in them and what Sightline does with them. */
+  body: string;
+}
+
+/**
+ * The Survey hero's words, from the cache: how many photos, that they are sections of real
+ * HERIDAL photos from Croatia, whether the flight path is simulated, and whether there is anything
+ * to rank (on the real-GPS survey every photo has a person).
+ */
+export function introCopy(cache: Pick<CacheBundle, "manifest" | "survey" | "metrics">): IntroCopy {
+  const n = cache.manifest.n_frames;
+  const place = placeName(cache.survey.area.name);
+  const first = cache.survey.frames[0];
+  const w = first?.width_px ?? FULL_PHOTO_PX.w;
+  const h = first?.height_px ?? FULL_PHOTO_PX.h;
+  const isSection = w < FULL_PHOTO_PX.w || h < FULL_PHOTO_PX.h;
+  const perPhoto = Math.round((FULL_PHOTO_PX.w / w) * (FULL_PHOTO_PX.h / h));
+  const units = isSection ? "sections of real drone photos" : "real drone photos";
+  const shortPlace = place.split(",")[0] ?? place;
+  const headline = cache.survey.simulated_path
+    ? `${n} ${units}, on a simulated search over ${shortPlace}`
+    : `${n} ${units} from ${place}, at their recorded positions`;
+  const cut = isSection
+    ? `, each ${FULL_PHOTO_PX.w}×${FULL_PHOTO_PX.h} photo cut into ${perPhoto} sections of ${w}×${h}`
+    : "";
+  const provenance = cache.survey.simulated_path
+    ? `HERIDAL search-and-rescue photos from Croatia${cut}. Only the flight path over ${place} is simulated.`
+    : `HERIDAL search-and-rescue photos from Croatia${cut}, placed at their recorded EXIF positions.`;
+  const { n_positive: k, n_frames: nRanked } = cache.metrics.ranking;
+  const body =
+    k >= nRanked
+      ? "Every photo in this survey contains a person, so there is nothing to rank: it shows the detector's pins and the search map on real positions."
+      : "Somewhere in them are a few people, each a speck a few dozen pixels wide. Sightline's detector reads every photo, puts the likeliest people first, and keeps a live map of where else to look.";
+  return { headline, provenance, body };
+}
+
 const HOW: [string, string][] = [
   ["Detect", "A detector trained on drone photos scores every photo"],
   ["Rank", "Likeliest people first in the review queue"],
@@ -113,6 +156,7 @@ export function SurveyIntro({
   const human = metrics.baseline_human;
   const columns = useMemo(() => wallColumns(cache), [cache]);
   const personPx = medianPersonPx(cache);
+  const copy = introCopy(cache);
   return (
     <div className="relative flex h-full min-h-0 items-center overflow-hidden rounded-lg border border-border">
       {/* The real photos, on a slow scrolling wall: what a searcher would have to go through. */}
@@ -135,15 +179,21 @@ export function SurveyIntro({
       </div>
       <div className="absolute inset-0 bg-gradient-to-r from-bg from-30% via-bg/80 via-55% to-bg/10" aria-hidden="true" />
 
-      <div className="relative flex w-full max-w-[52rem] flex-col gap-7 p-12">
+      <div className="relative flex max-h-full w-full max-w-[52rem] flex-col gap-5 overflow-y-auto p-6 sm:p-10 xl:gap-6 xl:p-12">
         <Label className="sl-rise">Search and rescue · drone survey</Label>
-        <h2 className="sl-rise text-[60px] font-semibold leading-[1.02] tracking-[-0.02em]" style={{ animationDelay: "80ms" }}>
-          {manifest.n_frames} drone photos {survey.simulated_path ? "from a search over" : "from"} {placeName(survey.area.name)}
+        <h2
+          className="sl-rise text-[34px] font-semibold leading-[1.04] tracking-[-0.02em] sm:text-[42px] xl:text-[48px]"
+          style={{ animationDelay: "80ms" }}
+        >
+          {copy.headline}
         </h2>
-        <p className="sl-rise max-w-[38rem] text-[19px] leading-relaxed text-text-2" style={{ animationDelay: "160ms" }}>
-          Somewhere in them are a few people, each a speck in a forest. Sightline&apos;s detector reads
-          every photo, puts the likeliest people first, and keeps a live map of where else to look.
-        </p>
+        <div className="sl-rise flex max-w-[40rem] flex-col gap-2" style={{ animationDelay: "160ms" }}>
+          <p className="flex items-start gap-2 text-small text-text-2">
+            <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent-soft" aria-hidden="true" />
+            {copy.provenance}
+          </p>
+          <p className="text-[17px] leading-relaxed text-text-2 sm:text-[19px]">{copy.body}</p>
+        </div>
 
         <dl className="sl-rise grid grid-cols-3 gap-3" style={{ animationDelay: "220ms" }}>
           <Fact value={String(manifest.n_frames)} label="photos to check" source={`manifest.n_frames`} />
@@ -197,7 +247,7 @@ export function SurveyIntro({
           </span>
         </div>
 
-        <ol className="sl-rise grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-5 sm:grid-cols-4" style={{ animationDelay: "380ms" }}>
+        <ol className="sl-rise grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-5 sm:grid-cols-4 [@media(max-height:860px)]:hidden" style={{ animationDelay: "380ms" }}>
           {HOW.map(([title, body], i) => (
             <li key={title} className="flex flex-col gap-1">
               <span className="font-mono text-label text-accent-soft">0{i + 1}</span>
