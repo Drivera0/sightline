@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CacheBundle } from "../contract";
 import { CACHE_DIR, CacheContext, useCache } from "../lib/cache";
 import { isTyping } from "../lib/keys";
 import { HeatLayer } from "../map/heat/HeatLayer";
 import { MapView } from "../map/MapView";
 import { MetricsView } from "../metrics/MetricsView";
+import { prefersReducedMotion } from "../metrics/motion";
 import { ResultsSummary } from "../metrics/ResultsSummary";
 import { reviewItems } from "../review/items";
 import { useReview } from "../review/store";
@@ -16,6 +17,8 @@ import { ScreenBoundary } from "./ScreenBoundary";
 import { ShortcutOverlay } from "./ShortcutOverlay";
 import { StepBar } from "./StepBar";
 import { SurveyIntro } from "./SurveyIntro";
+import { TOUR_IDLE, isTouring, tourReducer, tourStops, type TourEvent, type TourStop } from "./tour";
+import { TourOverlay, pressForTour } from "./TourOverlay";
 
 export interface SurveyOption {
   dir: string;
@@ -110,6 +113,39 @@ export function Shell({
     if (window.location.hash !== `#${id}`) window.history.replaceState(null, "", `#${id}`);
   }, []);
 
+  // The guided tour: the stops' captions come from this cache; the tour drives the step.
+  const stops = useMemo(() => tourStops(cache), [cache]);
+  const [tour, setTour] = useState(TOUR_IDLE);
+  const [tourRun, setTourRun] = useState(0);
+  const touring = isTouring(tour);
+  const dispatchTour = useCallback(
+    (event: TourEvent) => {
+      if (event.type === "start") setTourRun((r) => r + 1);
+      setTour((state) => tourReducer(state, event, stops.length));
+    },
+    [stops.length],
+  );
+  const startTour = useCallback(() => {
+    setShowShortcuts(false);
+    dispatchTour({ type: "start", reducedMotion: prefersReducedMotion() });
+  }, [dispatchTour]);
+  const tourStep = touring ? stops[tour.index]?.step : undefined;
+  useEffect(() => {
+    if (tourStep) setStep(tourStep);
+    // The demo answer lives only while the tour shows its effect (Review, Search next).
+    if (tourStep !== "review" && tourStep !== "search") useReview.getState().endDemo();
+  }, [tourStep, tourRun, setStep]);
+  useEffect(() => () => useReview.getState().endDemo(), []);
+  const onTourAction = useCallback((stop: TourStop) => {
+    if (stop.action === "demoAnswer") {
+      useReview.getState().beginDemo();
+      // The queue's own "P" key, so the viewer sees the real toast, pin and queue move.
+      pressForTour("p");
+    } else if (stop.action === "playFlight") {
+      document.querySelector<HTMLButtonElement>('[data-testid="mount-heat"] button[aria-label="Play"], button[aria-label="Play"]')?.click();
+    }
+  }, []);
+
   useEffect(() => {
     const onHash = () => setStepState(readStep());
     window.addEventListener("hashchange", onHash);
@@ -119,6 +155,11 @@ export function Shell({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (isTyping(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === "t" || event.key === "T") {
+        startTour();
+        event.preventDefault();
+        return;
+      }
       if (event.key === "?") {
         setShowShortcuts((open) => !open);
         return;
@@ -135,7 +176,7 @@ export function Shell({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [setStep]);
+  }, [setStep, startTour]);
 
   const { manifest, survey, detections } = cache;
   const stepInfo = STEPS.find((s) => s.id === step) ?? STEPS[0]!;
@@ -195,7 +236,7 @@ export function Shell({
         </header>
 
         <main key={step} className="sl-step flex min-h-0 flex-1 flex-col gap-3" aria-label={stepInfo.label}>
-          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} />}
+          {step === "survey" && <SurveyIntro cache={cache} dir={dir} onRank={() => setStep("rank")} onTour={startTour} />}
 
           {step === "rank" && <RankReveal cache={cache} dir={dir} onStart={() => setStep("review")} />}
 
@@ -278,7 +319,10 @@ export function Shell({
           </div>
         </footer>
 
-        {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}
+        {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} onTour={startTour} />}
+        {touring && (
+          <TourOverlay stops={stops} state={tour} run={tourRun} dispatch={dispatchTour} onAction={onTourAction} />
+        )}
       </div>
     </CacheContext.Provider>
   );

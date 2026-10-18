@@ -101,10 +101,13 @@ export function SurveyIntro({
   cache,
   dir,
   onRank,
+  onTour,
 }: {
   cache: CacheBundle;
   dir: string;
   onRank: () => void;
+  /** Starts the guided tour, for a viewer who doesn't know the keys. */
+  onTour?: () => void;
 }) {
   const { survey, manifest, metrics } = cache;
   const human = metrics.baseline_human;
@@ -170,7 +173,28 @@ export function SurveyIntro({
               <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
-          <span className="text-small text-text-3">or press 2</span>
+          {onTour && (
+            <button
+              type="button"
+              onClick={onTour}
+              className="group inline-flex items-center gap-2.5 rounded-full border border-border bg-surface px-5 py-3 text-body text-text backdrop-blur transition-colors hover:border-accent/60 hover:bg-surface-strong"
+            >
+              <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent/20 text-accent-soft" aria-hidden="true">
+                <svg viewBox="0 0 16 16" className="size-2.5">
+                  <path d="M5 3.5v9l7-4.5z" fill="currentColor" />
+                </svg>
+              </span>
+              Watch the 60-second tour
+            </button>
+          )}
+          <span className="text-small text-text-3">
+            or press <span className="font-mono">2</span>
+            {onTour && (
+              <>
+                {" "}to rank, <span className="font-mono">T</span> for the tour
+              </>
+            )}
+          </span>
         </div>
 
         <ol className="sl-rise grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-5 sm:grid-cols-4" style={{ animationDelay: "380ms" }}>
