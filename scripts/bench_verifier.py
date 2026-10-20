@@ -35,10 +35,7 @@ from openai import OpenAI
 from PIL import Image
 
 PROMPTS = {
-    "basic": (
-        "Is there a person in this aerial image? Answer with only `person` or "
-        "`not_person`."
-    ),
+    "basic": ("Is there a person in this aerial image? Answer with only `person` or `not_person`."),
     "strict": (
         "This is a crop from a drone photo taken during a search-and-rescue mission. "
         "Decide whether a real human is visible. Rocks, logs, stumps, shadows, bushes, "
@@ -68,7 +65,7 @@ def make_person_crops(n: int, size: int, rng: random.Random) -> list[Crop]:
     out = OUT_DIR / "crops"
     out.mkdir(parents=True, exist_ok=True)
     for lbl in labels:
-        rows = [r.split() for r in open(lbl).read().splitlines() if r.strip()]
+        rows = [r.split() for r in Path(lbl).read_text().splitlines() if r.strip()]
         if not rows:
             continue
         base = lbl.replace("/labels/", "/images/").rsplit(".", 1)[0]
@@ -114,14 +111,17 @@ def make_negative_crops(n: int, size: int, rng: random.Random) -> list[Crop]:
         W, H = im.size
         people = [
             (float(r.split()[1]) * W, float(r.split()[2]) * H)
-            for r in open(lbl).read().splitlines() if r.strip()
+            for r in Path(lbl).read_text().splitlines()
+            if r.strip()
         ]
         for _ in range(50):  # try a few random spots in this photo
             x = rng.uniform(half, W - half)
             y = rng.uniform(half, H - half)
             if all((px - x) ** 2 + (py - y) ** 2 > (1.5 * size) ** 2 for px, py in people):
                 p = out / f"neg_{len(crops):03d}_{Path(img).stem}_{int(x)}_{int(y)}.jpg"
-                im.crop((int(x - half), int(y - half), int(x + half), int(y + half))).save(p, quality=95)
+                im.crop((int(x - half), int(y - half), int(x + half), int(y + half))).save(
+                    p, quality=95
+                )
                 crops.append(Crop(p, "not_person", img))
                 break
         if len(crops) >= n:
@@ -155,7 +155,7 @@ def make_hard_negative_crops(n: int, size: int, rng: random.Random) -> list[Crop
         cx, cy = w / 2, h / 2
         half = size // 2
         near = False
-        for r in open(lbl).read().splitlines():
+        for r in Path(lbl).read_text().splitlines():
             if not r.strip():
                 continue
             px, py = float(r.split()[1]) * W - x0, float(r.split()[2]) * H - y0
@@ -165,7 +165,9 @@ def make_hard_negative_crops(n: int, size: int, rng: random.Random) -> list[Crop
         if near:
             continue
         p = out / f"hneg_{len(crops):03d}_{Path(src).stem}.jpg"
-        patch.crop((int(cx - half), int(cy - half), int(cx + half), int(cy + half))).save(p, quality=95)
+        patch.crop((int(cx - half), int(cy - half), int(cx + half), int(cy + half))).save(
+            p, quality=95
+        )
         crops.append(Crop(p, "not_person", src))
         if len(crops) >= n:
             break
@@ -197,10 +199,18 @@ def ask(client: OpenAI, model: str, prompt: str, crop: Crop, no_think: bool) -> 
     try:
         r = client.chat.completions.create(
             model=model,
-            messages=[{"role": "user", "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_jpeg(crop.path)}"}},
-            ]}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{b64_jpeg(crop.path)}"},
+                        },
+                    ],
+                }
+            ],
             max_tokens=1024,
             temperature=0,
             extra_body=extra,
@@ -208,14 +218,20 @@ def ask(client: OpenAI, model: str, prompt: str, crop: Crop, no_think: bool) -> 
         text = r.choices[0].message.content
         usage = r.usage.total_tokens if r.usage else None
         err = ""
-    except Exception as e:  # keep going; record the failure
+    except Exception as e:  # noqa: BLE001 - keep going; record the failure
         text, usage, err = None, None, f"{type(e).__name__}: {e}"[:200]
     secs = time.perf_counter() - t0
     pred, conf = parse(text)
     return {
-        "crop": str(crop.path), "source": crop.source, "label": crop.label,
-        "pred": pred, "conf": conf, "secs": round(secs, 2), "tokens": usage,
-        "answer": (text or "").strip().replace("\n", " ")[:200], "error": err,
+        "crop": str(crop.path),
+        "source": crop.source,
+        "label": crop.label,
+        "pred": pred,
+        "conf": conf,
+        "secs": round(secs, 2),
+        "tokens": usage,
+        "answer": (text or "").strip().replace("\n", " ")[:200],
+        "error": err,
     }
 
 
@@ -246,9 +262,9 @@ def summarize(name: str, rows: list[dict]) -> None:
     if errs:
         print(f"  first error:    {errs[0]}")
     if secs:
-        print(f"  latency         median {secs[len(secs)//2]:.1f}s   max {secs[-1]:.1f}s")
+        print(f"  latency         median {secs[len(secs) // 2]:.1f}s   max {secs[-1]:.1f}s")
     if toks:
-        print(f"  tokens / crop   avg {sum(toks)/len(toks):.0f}")
+        print(f"  tokens / crop   avg {sum(toks) / len(toks):.0f}")
 
 
 def main() -> None:
@@ -259,8 +275,12 @@ def main() -> None:
     ap.add_argument("--no-think", action="store_true", help="disable Nemotron thinking")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--negatives", choices=["random", "hard", "both"], default="both",
-                    help="random empty ground, mined hard negatives (centre-cropped), or both")
+    ap.add_argument(
+        "--negatives",
+        choices=["random", "hard", "both"],
+        default="both",
+        help="random empty ground, mined hard negatives (centre-cropped), or both",
+    )
     args = ap.parse_args()
 
     load_dotenv()
@@ -284,7 +304,11 @@ def main() -> None:
     all_rows = []
     for name in args.prompts:
         with ThreadPoolExecutor(args.workers) as pool:
-            rows = list(pool.map(lambda c: ask(client, model, PROMPTS[name], c, args.no_think), crops))
+            rows = list(
+                pool.map(
+                    lambda c, name=name: ask(client, model, PROMPTS[name], c, args.no_think), crops
+                )
+            )
         for r in rows:
             r["prompt"] = name
         summarize(name, rows)
@@ -298,7 +322,9 @@ def main() -> None:
     print("mistakes:")
     for r in all_rows:
         if r["pred"] != r["label"]:
-            print(f"  [{r['prompt']}] {r['label']:>10} -> {r['pred']:<10} {r['crop']}  \"{r['answer'][:60]}\"")
+            print(
+                f'  [{r["prompt"]}] {r["label"]:>10} -> {r["pred"]:<10} {r["crop"]}  "{r["answer"][:60]}"'
+            )
 
 
 if __name__ == "__main__":
