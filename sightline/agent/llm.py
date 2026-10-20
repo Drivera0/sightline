@@ -26,6 +26,7 @@ MODEL_VISION = os.environ.get("SIGHTLINE_MODEL_VISION", "nvidia/Nemotron-3.5-Sup
 DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1/"
 # Contract §14 says 800; the reasoning models can spend most of that thinking.
 DEFAULT_MAX_TOKENS = 2048
+FAKE_LLM_REPLY = "{}"  # valid JSON, so JSON-schema callers parse it and find no fields
 NO_THINKING: dict[str, Any] = {"chat_template_kwargs": {"enable_thinking": False}}
 
 TIMEOUT_S = 60.0
@@ -42,7 +43,7 @@ class LLMError(RuntimeError):
 @dataclass(frozen=True)
 class ChatResult:
     text: str
-    tool_calls: list[dict]  # [{"name": str, "arguments": dict}]
+    tool_calls: list[dict]  # [{"id": str, "name": str, "arguments": dict}]
     model: str
     ms: int
     tokens_in: int
@@ -107,8 +108,30 @@ def _parse_tool_calls(raw: list[Any] | None) -> list[dict]:
             raise LLMError(f"tool call {tc.function.name}: arguments are not valid JSON") from e
         if not isinstance(args, dict):
             raise LLMError(f"tool call {tc.function.name}: arguments are not a JSON object")
-        calls.append({"name": tc.function.name, "arguments": args})
+        calls.append({"id": tc.id, "name": tc.function.name, "arguments": args})
     return calls
+
+
+def assistant_message(result: ChatResult) -> dict:
+    """The assistant turn to append to ``messages`` before the tool results, so the next call can
+    answer them (the API matches each ``tool`` message to a call by ``id``)."""
+    msg: dict[str, Any] = {"role": "assistant", "content": result.text or None}
+    if result.tool_calls:
+        msg["tool_calls"] = [
+            {
+                "id": c["id"],
+                "type": "function",
+                "function": {"name": c["name"], "arguments": json.dumps(c["arguments"])},
+            }
+            for c in result.tool_calls
+        ]
+    return msg
+
+
+def tool_message(call_id: str, content: object) -> dict:
+    """A tool's result for the call ``call_id``; non-strings are sent as JSON."""
+    text = content if isinstance(content, str) else json.dumps(content)
+    return {"role": "tool", "tool_call_id": call_id, "content": text}
 
 
 def _retryable(e: Exception) -> bool:
@@ -201,8 +224,13 @@ class TokenFactoryClient:
         )
 
 
-def token_factory_client(*, extra_body: dict | None = None) -> TokenFactoryClient:
-    """The client from env: ``NEBIUS_API_KEY`` (required), ``NEBIUS_BASE_URL`` (optional)."""
+def token_factory_client(*, extra_body: dict | None = None) -> TokenFactoryClient | FakeChatClient:
+    """The client from env: ``NEBIUS_API_KEY`` (required), ``NEBIUS_BASE_URL`` (optional).
+
+    With ``SIGHTLINE_FAKE_LLM=1`` (D's smoke test, demos without a key) it returns a
+    ``FakeChatClient`` that answers every prompt with ``FAKE_LLM_REPLY`` and needs no key."""
+    if os.environ.get("SIGHTLINE_FAKE_LLM") == "1":
+        return FakeChatClient(default=FAKE_LLM_REPLY)
     api_key = os.environ.get("NEBIUS_API_KEY")
     if not api_key:
         raise LLMError("NEBIUS_API_KEY is not set (put it in your environment or .env)")
