@@ -201,7 +201,9 @@ def fake_detector(monkeypatch, tmp_path) -> tuple[CvDetector, _FakeNet, list[int
     monkeypatch.setattr(cv2, "setNumThreads", threads.append)
     onnx = tmp_path / "m.onnx"
     onnx.write_bytes(b"")
-    return CvDetector(onnx, threads=2), net, threads
+    det = CvDetector(onnx, threads=2)
+    net.blobs.clear()  # drop the one-time dynamic-input check
+    return det, net, threads
 
 
 def test_threads_are_set(fake_detector) -> None:
@@ -224,3 +226,51 @@ def test_detect_array_slices_a_2x_upscaled_window(fake_detector) -> None:
     dets = det.detect_array(np.zeros((1024, 2048, 3), np.uint8))
     assert len(net.blobs) == len(slice_boxes(2048, 1024)) == 3
     assert sorted(d.box.x1 for d in dets) == [502, 1322, 1526]  # slices at x 0, 820, 1024
+
+
+# --- rect letterbox (dynamic ONNX), as YOLO.predict pads a .pt model ----------------------------
+
+
+def test_rect_letterbox_pads_only_to_a_multiple_of_32() -> None:
+    assert letterbox(1000, 750, stride=32) == Letterbox(1.024, 0, 0, 1024, 768, 1024, 768)
+    assert letterbox(1024, 1024, stride=32) == letterbox(1024, 1024)
+    lb = letterbox(600, 1000, stride=32)  # 614 px wide: 26 px to the next multiple of 32
+    assert (lb.width, lb.pad_x, lb.canvas_w, lb.canvas_h) == (614, 13, 640, 1024)
+
+
+def test_rect_letterbox_matches_ultralytics_when_installed() -> None:
+    augment = pytest.importorskip("ultralytics.data.augment")
+    for w, h in [(1000, 750), (600, 1000), (1024, 1024), (333, 517)]:
+        img = np.zeros((h, w, 3), np.uint8)
+        want = augment.LetterBox((1024, 1024), auto=True, stride=32)(image=img)
+        lb = letterbox(w, h, stride=32)
+        assert (lb.canvas_h, lb.canvas_w) == want.shape[:2]
+
+
+class _DynamicNet(_FakeNet):
+    """Accepts any input size: one anchor per cell of strides 8/16/32, box at the input centre."""
+
+    def forward(self) -> np.ndarray:
+        h, w = self.blobs[-1].shape[2:]
+        n = sum((w // s) * (h // s) for s in (8, 16, 32))
+        out = np.zeros((1, 5, n), np.float32)
+        out[0, :, 0] = [w / 2, h / 2, 20, 40, 0.9]
+        return out
+
+
+def test_dynamic_onnx_is_detected_and_runs_frames_unpadded(monkeypatch, tmp_path: Path) -> None:
+    net = _DynamicNet()
+    monkeypatch.setattr(cv2.dnn, "readNetFromONNX", lambda _: net)
+    onnx = tmp_path / "m.onnx"
+    onnx.write_bytes(b"")
+    det = CvDetector(onnx)
+    assert det.rect
+    frame = tmp_path / "f.png"
+    cv2.imwrite(str(frame), np.zeros((750, 1000, 3), np.uint8))
+    dets = det.detect_frame(frame)
+    assert net.blobs[-1].shape == (1, 3, 768, 1024)  # no grey bands
+    assert dets == [RawDetection(Box(490, 355, 510, 395), pytest.approx(0.9))]
+
+
+def test_fixed_size_onnx_keeps_square_padding(fake_detector) -> None:
+    assert not fake_detector[0].rect

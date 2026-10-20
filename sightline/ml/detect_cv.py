@@ -33,6 +33,7 @@ MERGE_NMS_IOU = MERGE_THRESHOLD  # SAHI's merge across slices
 SLICE_NMS_IOU = 0.7  # Ultralytics' default NMS IoU inside one slice
 MAX_DET = 300  # Ultralytics' default max detections per slice
 PAD_VALUE = 114  # Ultralytics' letterbox grey
+STRIDE = 32  # the model's largest stride: a variable-size input must be a multiple of it
 
 Xyxy = tuple[float, float, float, float]
 
@@ -46,6 +47,8 @@ class Letterbox:
     pad_y: int
     width: int
     height: int
+    canvas_w: int = INPUT_PX
+    canvas_h: int = INPUT_PX
 
 
 def slice_boxes(
@@ -71,18 +74,26 @@ def slice_boxes(
     return out
 
 
-def letterbox(width: int, height: int, input_px: int = INPUT_PX) -> Letterbox:
-    """Ultralytics' LetterBox(auto=False, centred): keep aspect ratio, pad the rest."""
+def letterbox(
+    width: int, height: int, input_px: int = INPUT_PX, stride: int | None = None
+) -> Letterbox:
+    """Ultralytics' LetterBox, centred: keep aspect ratio, pad the rest. ``stride=None`` pads to
+    the full ``input_px`` square (auto=False, what a fixed-size ONNX needs); ``stride=32`` pads
+    only up to a multiple of 32 (auto=True, what ``YOLO.predict`` does with a ``.pt`` model), so
+    a 1000×750 frame becomes a 1024×768 input with no padding."""
     scale = min(input_px / width, input_px / height)
     w, h = round(width * scale), round(height * scale)
-    pad_x = max(0, round((input_px - w) / 2 - 0.1))
-    pad_y = max(0, round((input_px - h) / 2 - 0.1))
-    return Letterbox(scale, pad_x, pad_y, w, h)
+    dw, dh = (input_px - w) / 2, (input_px - h) / 2
+    if stride is not None:
+        dw, dh = (input_px - w) % stride / 2, (input_px - h) % stride / 2
+    left, right = max(0, round(dw - 0.1)), max(0, round(dw + 0.1))
+    top, bottom = max(0, round(dh - 0.1)), max(0, round(dh + 0.1))
+    return Letterbox(scale, left, top, w, h, w + left + right, h + top + bottom)
 
 
-def letterboxed(bgr: np.ndarray, lb: Letterbox, input_px: int = INPUT_PX) -> np.ndarray:
-    """The slice resized and placed on a grey ``input_px`` canvas (BGR, uint8)."""
-    canvas = np.full((input_px, input_px, 3), PAD_VALUE, dtype=np.uint8)
+def letterboxed(bgr: np.ndarray, lb: Letterbox) -> np.ndarray:
+    """The slice resized and placed on a grey ``canvas_w × canvas_h`` canvas (BGR, uint8)."""
+    canvas = np.full((lb.canvas_h, lb.canvas_w, 3), PAD_VALUE, dtype=np.uint8)
     if (bgr.shape[1], bgr.shape[0]) != (lb.width, lb.height):
         bgr = cv2.resize(bgr, (lb.width, lb.height), interpolation=cv2.INTER_LINEAR)
     canvas[lb.pad_y : lb.pad_y + lb.height, lb.pad_x : lb.pad_x + lb.width] = bgr
@@ -184,8 +195,16 @@ class CvDetector:
     """The weights-v2 detector run through ``cv2.dnn`` on its ONNX export."""
 
     def __init__(
-        self, onnx_path: Path, input_px: int = INPUT_PX, threads: int | None = None
+        self,
+        onnx_path: Path,
+        input_px: int = INPUT_PX,
+        threads: int | None = None,
+        rect: bool | None = None,
     ) -> None:
+        """``rect``: pad like ``YOLO.predict`` (to a multiple of 32) instead of to the square.
+        Needs an ONNX exported with ``dynamic=True`` (``scripts/export_onnx.py``); ``None`` checks
+        once whether this one accepts a non-square input. Full 1024 px slices are the same either
+        way; smaller or non-square slices (1000×750 demo frames) match Torch only with ``rect``."""
         self.onnx_path = Path(onnx_path)
         if not self.onnx_path.exists():
             raise FileNotFoundError(self.onnx_path)
@@ -193,11 +212,21 @@ class CvDetector:
         if threads is not None:
             cv2.setNumThreads(threads)  # process-wide in OpenCV
         self.net = cv2.dnn.readNetFromONNX(str(self.onnx_path))
+        self.rect = self._accepts_rect() if rect is None else rect
+
+    def _accepts_rect(self) -> bool:
+        """True if the network runs a ``input_px × 3/4`` input and returns one anchor per cell of
+        each stride (8, 16, 32): an ONNX exported with dynamic axes."""
+        w, h = self.input_px, self.input_px * 3 // 4 // STRIDE * STRIDE
+        try:
+            out = self._forward(np.zeros((h, w, 3), np.uint8))
+        except cv2.error:
+            return False
+        return out.shape[-1] == sum((w // s) * (h // s) for s in (8, 16, 32))
 
     def _forward(self, canvas_bgr: np.ndarray) -> np.ndarray:
-        blob = cv2.dnn.blobFromImage(
-            canvas_bgr, scalefactor=1 / 255, size=(self.input_px, self.input_px), swapRB=True
-        )
+        h, w = canvas_bgr.shape[:2]
+        blob = cv2.dnn.blobFromImage(canvas_bgr, scalefactor=1 / 255, size=(w, h), swapRB=True)
         self.net.setInput(blob)
         out = self.net.forward()
         return np.asarray(out)[0]  # [4 + nc, anchors]
@@ -205,13 +234,13 @@ class CvDetector:
     def detect_slice(self, bgr: np.ndarray, conf: float = 0.05) -> list[tuple[Xyxy, float]]:
         """One slice (BGR pixels of any size up to ``input_px``), boxes in slice pixels."""
         h, w = bgr.shape[:2]
-        lb = letterbox(w, h, self.input_px)
-        return decode_slice(self._forward(letterboxed(bgr, lb, self.input_px)), lb, w, h, conf)
+        lb = letterbox(w, h, self.input_px, STRIDE if self.rect else None)
+        return decode_slice(self._forward(letterboxed(bgr, lb)), lb, w, h, conf)
 
     def detect_frame(self, image: Path, conf: float = MIN_CONF) -> list[RawDetection]:
         """One pass with the whole image letterboxed to ``input_px``, like ``Detector.detect_frame``
-        (demo frames, 1000×750, fit in one pass). Ultralytics pads a ``.pt`` model only to a
-        multiple of 32; the fixed-size ONNX needs the full square, so edges can differ slightly."""
+        (demo frames, 1000×750, fit in one pass). Matches Torch box for box only when ``rect``
+        (a dynamic ONNX); with the fixed-size export, boxes near the top and bottom edges differ."""
         bgr = _read(image)
         height, width = bgr.shape[:2]
         dets = self.detect_slice(bgr, conf)  # already NMS'd; no merge across slices

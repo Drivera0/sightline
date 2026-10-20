@@ -89,3 +89,10 @@ def test_default_weights_onnx_is_found(files, monkeypatch) -> None:
     pt, onnx = files
     monkeypatch.setattr(backend, "DEFAULT_WEIGHTS", pt)
     assert backend.make_detector().onnx_path == onnx
+
+
+def test_dynamic_export_is_preferred(files) -> None:
+    pt, _ = files
+    dynamic = pt.with_name("w-dynamic.onnx")
+    dynamic.write_bytes(b"onnx")
+    assert backend.make_detector(weights=pt).onnx_path == dynamic

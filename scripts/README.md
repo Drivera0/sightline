@@ -42,6 +42,7 @@ Logic lives in `sightline/ml/voc.py` and `sightline/ml/tiling.py`; tests in `tes
 
 | Script | What it does | Output |
 |---|---|---|
+| `export_onnx.py` | Exports the weights to ONNX with a variable input size (`dynamic=True`, imgsz 1024, opset 17) as `<stem>-dynamic.onnx`, so cv2.dnn pads frames like `YOLO.predict`. | `data/weights/release_v2/yolo11s_tiles_run1_best-dynamic.onnx` |
 | `parity_table.py` | OpenCV 5 `cv2.dnn` vs Torch on the same photos at the frozen threshold: scores, box agreement, speed (A-X3). Tunes nothing; reads test once to check agreement. | `runs/parity/<timestamp>.json`, Markdown table |
 | `evaluate_model.py` | Chooses `candidate_threshold` on **val** (max F2, tiled inference), then scores the 4 ablation rows on the full **test** set with VOC and SAR-style matching. | `data/work/detect/detector_metrics.json` (contract `DetectorMetrics` + the 4 core `Ablation` rows), `evaluate_details.json` |
 | `tune_on_val.py` | Validation-only sweep of SAHI merge settings (overlap 0.1/0.2/0.3 × NMS/NMM/GREEDYNMM × IOU/IOS × match 0.3–0.7), threshold re-chosen by max F2 for each; paired bootstrap (2,000 resamples over val photos, seed 7) against the current default; the secondary high-recall threshold. Never reads test. | `data/work/tune/val_tuning.json` |
@@ -174,6 +175,17 @@ below the threshold: one extra Torch box on test and a 0.2 % share on val that m
 Speed is not a like-for-like comparison: the pip OpenCV wheels have no CUDA, so cv2.dnn runs on the CPU
 (about 0.5 s per 1024 px slice, 20 slices per full photo); demo frames are one slice each.
 Run: `runs/parity/20261020-163532.json` (local).
+
+**Demo frames (W2: demo cache re-detected on the cv2 path).** A 1000×750 frame is one slice smaller than the model
+input. `YOLO.predict` pads it only to a multiple of 32 (1024×768); the fixed-size ONNX export needs the full
+1024×1024 square, so cv2.dnn saw 128 px grey bands top and bottom and boxes near those edges changed (13 vs 12
+candidate frames, 11 shared, on the 500-frame demo cache). `export_onnx.py` writes a variable-size export
+(`<stem>-dynamic.onnx`, same weights, `dynamic=True`), `CvDetector` detects that it accepts non-square input and
+pads like `YOLO.predict`, and `make_detector` prefers it. With it, `run_survey` on the cv2 path reproduces the
+published `demo-cache` detections exactly: the same 36 boxes to the pixel, the same confidences to 3 decimals,
+the same 14 crops. Full 1024 px slices are unchanged (5 val photos: 100 % of boxes at IoU ≥ 0.95).
+The browser copy (`web/src/detect/tiling.ts`) still pads to the square, so in-browser results on non-square
+photos can differ slightly from Torch near the top and bottom edges.
 
 ## Training (timing run, then run 1)
 

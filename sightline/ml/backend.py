@@ -34,15 +34,17 @@ def _abs(p: Path | str) -> Path:
 
 def onnx_candidates(onnx: Path | None, weights: Path | None) -> list[Path]:
     """Where to look for the ONNX export, first match wins: the argument, ``SIGHTLINE_ONNX``,
-    the weights with a ``.onnx`` suffix (the release_v2 folder ships both), then
-    ``DEFAULT_ONNX``."""
+    the variable-size export next to the weights (``<stem>-dynamic.onnx``), the fixed-size one
+    (``<stem>.onnx``, the release_v2 folder ships it), then ``DEFAULT_ONNX``."""
     if onnx is not None:
         return [_abs(onnx)]
     out = []
     if env := os.environ.get("SIGHTLINE_ONNX"):
         out.append(_abs(env))
     if weights is not None:
-        out.append(_abs(weights).with_suffix(".onnx"))
+        pt = _abs(weights)
+        out.append(pt.with_name(f"{pt.stem}-dynamic.onnx"))  # scripts/export_onnx.py
+        out.append(pt.with_suffix(".onnx"))
     out.append(DEFAULT_ONNX)
     return out
 
