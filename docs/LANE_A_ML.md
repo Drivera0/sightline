@@ -235,6 +235,35 @@ The detect stage needs the GPU, so it runs on the desktop. Copy `data/work/detec
 
 ResNet-18 on 128×128 crops: positives = crops of true boxes, negatives = mined false positives. Re-score each detection as `conf × p_person`. Report it as a fifth ablation row (needs a contract bump to 1.1, so agree with D first). First on the cut list.
 
+### 6.7 OpenCV 5 runtime and the Nemotron verifier (2026-10-20, val only)
+
+**OpenCV 5 detector parity.** `sightline/ml/detect_cv.py` (`CvDetector`) runs weights-v2 through `cv2.dnn` (opencv-python 5.0.0.93) on its ONNX export (imgsz 1024, opset 17), with the same slicing, letterbox and NMS as `Detector.detect_tiled` (single view). Checked against Ultralytics + SAHI on the first 12 val photos:
+
+```bash
+uv run --extra ml python scripts/compare_cv_detector.py --pt data/weights/release_v2/yolo11s_tiles_run1_best.pt --photos 12
+```
+
+At threshold 0.25 each detector found 19 boxes, with the same count on every photo. All 19 matched one-to-one at IoU ≥ 0.9, and the largest confidence difference on a matched box was 0.0012. Seconds per photo: Ultralytics + SAHI on the 4080 SUPER 0.54 s, OpenCV DNN on the CPU 10.92 s. The two times use different hardware, so they don't compare speed fairly; the OpenCV path is the CPU-only fallback, with no torch.
+
+**Verifier benchmark.** Nemotron-3.5-Super-VL (`nvidia/Nemotron-3.5-Super-VL` on Nebius Token Factory) answers `person` / `not_person` for 256 px crops, with thinking off.
+
+```bash
+uv run python scripts/bench_verifier.py -n 50 --prompts basic strict --no-think
+```
+
+The run used 150 crops (seed 0): 50 people and 50 empty-ground crops from the **val** split, plus 50 hard negatives. Per-crop results are in `runs/bench_verifier/20261020-134015.csv`.
+
+| Prompt | Accuracy | Recall (people) | FP rate, empty ground | FP rate, hard negatives | Median latency | Tokens / crop |
+|---|---|---|---|---|---|---|
+| basic | 92.7 % (139/150) | **96 %** (48/50) | 0 % (0/50) | 18 % (9/50) | 1.0 s | 297 |
+| strict | 92.0 % (138/150) | 86 % (43/50) | 0 % (0/50) | **10 %** (5/50) | 1.0 s | 363 |
+
+The two prompts' mistakes are nested. Strict misses both people basic misses plus 5 more, and basic flags all 5 of strict's false positives plus 4 more. Under the lane's recall-first rule (F2, §6.3) basic is ahead, so **basic is the prompt for now**. The sample is small, though: a two-sided sign test on the 5 people only basic found gives p ≈ 0.06. Four of the missed people were looked at. Two are clearly visible: a person on snow with a long shadow, which only strict missed and rejected with confidence 95 (`train_GOR_2058`), and a small person in white on grass, which both prompts missed (`train_JAS_0150`). One is in deep tree shade but visible (`train_VRD_3004`, strict only). In one, missed by both, no person can be seen against the rocks (`train_GOR_3049`; the label is about 64 px). The verifier re-ranks and flags detections; it never removes them.
+
+Caveats:
+- **The hard negatives come from the train split.** They are 50 centre crops of patches the detector fired on, from `data/heridal/hard_negatives_v2/` (245 train photos, none in val). The detector was trained on these photos, so they may not look like the false positives it makes on new photos. 8 of basic's 9 hard-negative false positives come from one site (ZRI).
+- **The earlier numbers were measured on test.** The 20-crop runs `20261020-124918` and `20261020-125216`, including the strict figures quoted before (87 % accuracy, 75 % recall, 3/20 hard-negative false positives) and the choice of strict over basic, used person and empty-ground crops from the **test** split. This run on val supersedes them. `bench_verifier.py` now takes those crops from `--split` (default val) and has no fallback to test.
+
 ---
 
 ## 7. Tests and acceptance checks
