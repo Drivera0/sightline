@@ -42,6 +42,7 @@ Logic lives in `sightline/ml/voc.py` and `sightline/ml/tiling.py`; tests in `tes
 
 | Script | What it does | Output |
 |---|---|---|
+| `parity_table.py` | OpenCV 5 `cv2.dnn` vs Torch on the same photos at the frozen threshold: scores, box agreement, speed (A-X3). Tunes nothing; reads test once to check agreement. | `runs/parity/<timestamp>.json`, Markdown table |
 | `evaluate_model.py` | Chooses `candidate_threshold` on **val** (max F2, tiled inference), then scores the 4 ablation rows on the full **test** set with VOC and SAR-style matching. | `data/work/detect/detector_metrics.json` (contract `DetectorMetrics` + the 4 core `Ablation` rows), `evaluate_details.json` |
 | `tune_on_val.py` | Validation-only sweep of SAHI merge settings (overlap 0.1/0.2/0.3 × NMS/NMM/GREEDYNMM × IOU/IOS × match 0.3–0.7), threshold re-chosen by max F2 for each; paired bootstrap (2,000 resamples over val photos, seed 7) against the current default; the secondary high-recall threshold. Never reads test. | `data/work/tune/val_tuning.json` |
 | `tta_on_val.py` | Validation-only test of test-time augmentation: 1, 2, 4 or 8 flip/rotation views fused by pooled NMS or weighted box fusion, with seconds per photo and a paired bootstrap against no TTA. | `data/work/tune/val_tta.json` |
@@ -139,6 +140,40 @@ memory. The reported model and the demo are unchanged (single-view tiled, thresh
 inference is lane A's call. Its test score has been seen, so if it is adopted, say so.
 
 **Rows that weren't run are omitted, never zero-filled.** `write_detector_metrics` refuses an all-zero row, and the metrics screen shows any missing or all-zero row as "Not yet measured". Trained and evaluated 2026-10-17 on an RTX 4080 SUPER.
+
+## OpenCV 5 parity (A-X3, 2026-10-20)
+
+`parity_table.py` runs the same weights-v2 detector two ways on the same photos, tiled as in the pipeline: Torch
+(Ultralytics + SAHI, `detect.py`) and OpenCV 5 `cv2.dnn` on the ONNX export (`detect_cv.py`, opencv-python 5.0.0.93).
+Threshold **0.29, frozen** (chosen on val in sprint 1; nothing re-chosen). Annotated val photos and the full test set;
+**test was read once, only to check the two backends agree**, and no setting was changed after seeing it.
+
+```bash
+uv run --extra ml python scripts/parity_table.py      # ~45 min: cv2.dnn runs on the CPU
+```
+
+| Split | Backend | Device | VOC P / R / AP50 | SAR P / R | s per 4000×3000 photo | s per demo frame (1000×750) |
+|---|---|---|---|---|---|---|
+| val (95) | Torch | RTX 4080 SUPER | 0.735 / 0.859 / 0.861 | 0.887 / 0.922 | 0.33 | — |
+| val (95) | cv2.dnn | Ryzen 9 9950X CPU, 32 threads | 0.735 / 0.859 / 0.861 | 0.887 / 0.922 | 10.19 | — |
+| test (101) | Torch | RTX 4080 SUPER | **0.802 / 0.864 / 0.868** | **0.898 / 0.896** | 0.30 | 0.011 |
+| test (101) | cv2.dnn | Ryzen 9 9950X CPU, 32 threads | **0.802 / 0.864 / 0.868** | **0.898 / 0.896** | 9.98 | 0.512 |
+
+Box agreement (each photo's boxes matched one-to-one between backends, highest IoU first):
+
+| Split | Boxes | Torch / cv2 | Matched at IoU ≥ 0.95 | Max conf diff on a match |
+|---|---|---|---|---|
+| val | all saved (conf ≥ 0.05) | 646 / 646 | 99.8 % | 0.0015 |
+| val | at or above 0.29 | 389 / 389 | 100 % | 0.0015 |
+| test | all saved (conf ≥ 0.05) | 539 / 538 | 99.8 % of Torch's | 0.0013 |
+| test | at or above 0.29 | 363 / 363 | 100 % | 0.0009 |
+
+Every score is identical to three decimals, and the test row reproduces the published Torch numbers exactly
+(acceptance: AP50 within ±0.005 and ≥ 99 % box agreement). The only differences are low-confidence boxes
+below the threshold: one extra Torch box on test and a 0.2 % share on val that move slightly (IoU < 0.95).
+Speed is not a like-for-like comparison: the pip OpenCV wheels have no CUDA, so cv2.dnn runs on the CPU
+(about 0.5 s per 1024 px slice, 20 slices per full photo); demo frames are one slice each.
+Run: `runs/parity/20261020-163532.json` (local).
 
 ## Training (timing run, then run 1)
 
