@@ -68,6 +68,16 @@ def square_window(box: Xyxy, side: int, width: int, height: int) -> tuple[int, i
     return x1, y1, x1 + side_x, y1 + side_y
 
 
+def zoom_window(
+    box: Xyxy, width: int, height: int, context: float = 2.5
+) -> tuple[int, int, int, int]:
+    """The square ``zoom_native`` cuts: ``context`` × the box's long side, at least
+    ``MIN_ZOOM_SIDE``, and never larger than the image's short side, so it stays square."""
+    long_side = max(box[2] - box[0], box[3] - box[1])
+    side = min(max(MIN_ZOOM_SIDE, round(long_side * context)), width, height)
+    return square_window(box, side, width, height)
+
+
 def enhance_contrast(crop_bgr: np.ndarray, clip: float = 2.0, tiles: int = 8) -> np.ndarray:
     """CLAHE on the L channel (LAB) so colour is kept, then a light unsharp mask."""
     lab = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2LAB)
@@ -87,9 +97,7 @@ def zoom_native(
     """A square of ``context`` × the box's long side around it, cut from the original photo and
     resized to ``out_px`` (INTER_CUBIC up, INTER_AREA down)."""
     height, width = orig_bgr.shape[:2]
-    long_side = max(box_px_orig[2] - box_px_orig[0], box_px_orig[3] - box_px_orig[1])
-    side = max(MIN_ZOOM_SIDE, round(long_side * context))
-    x1, y1, x2, y2 = square_window(box_px_orig, side, width, height)
+    x1, y1, x2, y2 = zoom_window(box_px_orig, width, height, context)
     window = orig_bgr[y1:y2, x1:x2]
     interp = cv2.INTER_CUBIC if out_px >= max(window.shape[:2]) else cv2.INTER_AREA
     return cv2.resize(window, (out_px, out_px), interpolation=interp)
@@ -143,10 +151,8 @@ def draw_boxes(
     """``zoom_native`` of the spot with ``dets`` outlined: the image the VL model sees for
     ``redetect_region``. Draws on a copy of the window only, never on the photo."""
     height, width = orig_bgr.shape[:2]
-    long_side = max(box_px_orig[2] - box_px_orig[0], box_px_orig[3] - box_px_orig[1])
-    side = max(MIN_ZOOM_SIDE, round(long_side * context))
-    x1, y1, x2, y2 = square_window(box_px_orig, side, width, height)
-    scale = out_px / max(x2 - x1, y2 - y1)
+    x1, y1, x2, _ = zoom_window(box_px_orig, width, height, context)
+    scale = out_px / (x2 - x1)
     out = zoom_native(orig_bgr, box_px_orig, out_px, context).copy()
     for d in dets:
         p1 = (round((d.box.x1 - x1) * scale), round((d.box.y1 - y1) * scale))

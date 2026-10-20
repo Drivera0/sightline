@@ -15,6 +15,7 @@ from sightline.agent.relook import (
     square_window,
     to_orig,
     zoom_native,
+    zoom_window,
 )
 from sightline.contract import LatLon
 from sightline.ml.types import Box, RawDetection
@@ -105,6 +106,18 @@ def test_redetect_region_on_a_demo_frame_smaller_than_the_window() -> None:
     out = redetect_region(det, np.zeros((750, 1000, 3), np.uint8), (490, 355, 510, 395))
     assert det.shapes == [(750, 1000, 3), (1024, 1024, 3)]
     assert all(0 <= d.box.x1 and d.box.x2 <= 1000 and d.box.y2 <= 750 for d in out)
+
+
+def test_zoom_of_a_big_box_in_a_short_frame_stays_square() -> None:
+    """A 400 px box in a 750 px tall frame: the window is cut square (750), not 1000x750
+    stretched to a square, so draw_boxes' outline lands on the box."""
+    orig = np.zeros((750, 1000, 3), np.uint8)
+    box = (300, 175, 700, 575)
+    x1, y1, x2, y2 = zoom_window(box, 1000, 750)
+    assert x2 - x1 == y2 - y1 == 750
+    img = draw_boxes(orig, box, [RawDetection(Box(*box), 0.6)])
+    scale = 384 / 750
+    assert img[round((175 - y1) * scale), round((500 - x1) * scale)].any()  # top edge, centre
 
 
 def test_draw_boxes_outlines_detections_on_the_zoom_only() -> None:
