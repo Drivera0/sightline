@@ -247,6 +247,8 @@ At threshold 0.25 each detector found 19 boxes, with the same count on every pho
 
 **Full parity on val and test (A-X3).** `scripts/parity_table.py` at the frozen threshold 0.29: VOC P / R / AP50 and SAR P / R are identical to three decimals on val (0.735 / 0.859 / 0.861) and test (0.802 / 0.864 / 0.868; SAR 0.898 / 0.896, the published numbers). At or above the threshold, 100 % of boxes match one-to-one at IoU ≥ 0.95 on both splits (max confidence difference 0.0015); among all saved boxes 99.8 %. Test was read once for this check and nothing was changed after it. Table and timings: `scripts/README.md`, "OpenCV 5 parity".
 
+**Demo cache on the cv2 path.** With the variable-size ONNX (`scripts/export_onnx.py`), `run_survey` on cv2.dnn reproduces the published 500-frame demo cache exactly (36 boxes, confidences to 3 decimals, 14 crops). With the fixed-size export it did not: 1000×750 frames were padded to a 1024×1024 square instead of 1024×768 as `YOLO.predict` does, which changed boxes near the top and bottom edges.
+
 **Verifier benchmark.** Nemotron-3.5-Super-VL (`nvidia/Nemotron-3.5-Super-VL` on Nebius Token Factory) answers `person` / `not_person` for 256 px crops, with thinking off.
 
 ```bash

@@ -27,15 +27,16 @@ def run_survey(
     detection with ``conf ≥ candidate_threshold`` → ``out_dir/crops/<frame_id>-dNN.jpg``;
     writes ``out_dir/config.json``.
 
-    ``detector`` is injectable for tests; by default a ``Detector`` is built from ``weights``.
+    ``detector`` is injectable for tests; by default ``make_detector(weights=weights)`` picks the
+    backend (``SIGHTLINE_BACKEND``: cv2.dnn by default, Torch with ``torch``).
     """
     frames = sorted(Path(frames_dir).glob("*.jpg"))
     if not frames:
         raise FileNotFoundError(f"no .jpg frames in {frames_dir}")
     if detector is None:
-        from sightline.ml.detect import Detector
+        from sightline.ml.backend import make_detector
 
-        detector = Detector(Path(weights))
+        detector = make_detector(weights=Path(weights))
 
     out_dir = Path(out_dir)
     crops_dir = out_dir / "crops"
