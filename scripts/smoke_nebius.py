@@ -25,7 +25,7 @@ print(
     (getattr(m, "reasoning_content", None) or "")[:150],
 )
 # 2. Verifier: one image
-img = sys.argv[1] if len(sys.argv) > 1 else "bus.jpg"
+img = sys.argv[1] if len(sys.argv) > 1 else "images/bus.jpg"
 b64 = base64.b64encode(Path(img).read_bytes()).decode()
 r = client.chat.completions.create(
     model=os.environ["NEMOTRON_VERIFIER_MODEL"],

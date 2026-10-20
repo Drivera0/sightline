@@ -27,6 +27,8 @@ datasets/
 
 # Local YOLO smoke-test leftovers
 bus.jpg
+# Local test images (smoke tests, verifier crops, icons): never committed
+/images/
 test.txt
 requirements.txt
 
