@@ -17,6 +17,7 @@ sightline/ml/hard_negatives.py, so it drops into the pipeline in place of ``Dete
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +28,8 @@ from sightline.ml.detect import MERGE_THRESHOLD, SLICE_OVERLAP, SLICE_PX
 from sightline.ml.types import Box, RawDetection
 
 INPUT_PX = 1024  # the model's square input (export imgsz)
+MIN_CONF = 0.05  # detect_tiled's default conf: boxes below it are dropped before merging
+MERGE_NMS_IOU = MERGE_THRESHOLD  # SAHI's merge across slices
 SLICE_NMS_IOU = 0.7  # Ultralytics' default NMS IoU inside one slice
 MAX_DET = 300  # Ultralytics' default max detections per slice
 PAD_VALUE = 114  # Ultralytics' letterbox grey
@@ -94,14 +97,28 @@ def iou(a: Xyxy, b: Xyxy) -> float:
     return inter / union if union > 0 else 0.0
 
 
-def nms_inclusive(dets: list[tuple[Xyxy, float]], threshold: float) -> list[tuple[Xyxy, float]]:
-    """Greedy NMS, highest confidence first, suppressing at IoU >= ``threshold`` (SAHI's merge).
-    Ties keep the earlier box (Python's sort is stable)."""
+def nms(
+    dets: list[tuple[Xyxy, float]],
+    iou_threshold: float,
+    max_det: float = math.inf,
+    inclusive: bool = False,
+) -> list[tuple[Xyxy, float]]:
+    """Greedy NMS, highest confidence first; ties keep the earlier box (Python's sort is stable).
+    Ultralytics (torchvision) suppresses at IoU above the threshold; SAHI's merge suppresses at
+    or above it (``inclusive``). tiling.ts ``nms``."""
     kept: list[tuple[Xyxy, float]] = []
     for box, conf in sorted(dets, key=lambda d: d[1], reverse=True):
-        if not any(iou(k[0], box) >= threshold for k in kept):
+        if len(kept) >= max_det:
+            break
+        overlaps = (iou(k[0], box) for k in kept)
+        if not any(v >= iou_threshold if inclusive else v > iou_threshold for v in overlaps):
             kept.append((box, conf))
     return kept
+
+
+def nms_inclusive(dets: list[tuple[Xyxy, float]], threshold: float) -> list[tuple[Xyxy, float]]:
+    """SAHI's merge: suppress at IoU >= ``threshold``."""
+    return nms(dets, threshold, inclusive=True)
 
 
 def decode_slice(
@@ -135,14 +152,46 @@ def int_box(box: Xyxy, width: int, height: int) -> Box | None:
     return Box(x1, y1, x2, y2)
 
 
+def offset(
+    dets: list[tuple[Xyxy, float]], window: tuple[int, int, int, int]
+) -> list[tuple[Xyxy, float]]:
+    """Shift a slice's boxes into photo pixels (tiling.ts ``offset``)."""
+    dx, dy = window[0], window[1]
+    return [((x1 + dx, y1 + dy, x2 + dx, y2 + dy), c) for (x1, y1, x2, y2), c in dets]
+
+
+def merge_slices(
+    per_slice: list[list[tuple[Xyxy, float]]],
+    width: int,
+    height: int,
+    iou_threshold: float = MERGE_NMS_IOU,
+) -> list[RawDetection]:
+    """Every slice's boxes (photo pixels) merged with SAHI's inclusive NMS, rounded like
+    ``_int_box``, highest confidence first (tiling.ts ``mergeSlices``)."""
+    merged = nms([d for dets in per_slice for d in dets], iou_threshold, inclusive=True)
+    out = [RawDetection(box=b, conf=c) for box, c in merged if (b := int_box(box, width, height))]
+    return sorted(out, key=lambda d: d.conf, reverse=True)
+
+
+def _read(image: Path | str) -> np.ndarray:
+    bgr = cv2.imread(str(image), cv2.IMREAD_COLOR)
+    if bgr is None:
+        raise FileNotFoundError(image)
+    return bgr
+
+
 class CvDetector:
     """The weights-v2 detector run through ``cv2.dnn`` on its ONNX export."""
 
-    def __init__(self, onnx_path: Path, input_px: int = INPUT_PX) -> None:
+    def __init__(
+        self, onnx_path: Path, input_px: int = INPUT_PX, threads: int | None = None
+    ) -> None:
         self.onnx_path = Path(onnx_path)
         if not self.onnx_path.exists():
             raise FileNotFoundError(self.onnx_path)
         self.input_px = input_px
+        if threads is not None:
+            cv2.setNumThreads(threads)  # process-wide in OpenCV
         self.net = cv2.dnn.readNetFromONNX(str(self.onnx_path))
 
     def _forward(self, canvas_bgr: np.ndarray) -> np.ndarray:
@@ -159,26 +208,34 @@ class CvDetector:
         lb = letterbox(w, h, self.input_px)
         return decode_slice(self._forward(letterboxed(bgr, lb, self.input_px)), lb, w, h, conf)
 
+    def detect_frame(self, image: Path, conf: float = MIN_CONF) -> list[RawDetection]:
+        """One pass with the whole image letterboxed to ``input_px``, like ``Detector.detect_frame``
+        (demo frames, 1000×750, fit in one pass). Ultralytics pads a ``.pt`` model only to a
+        multiple of 32; the fixed-size ONNX needs the full square, so edges can differ slightly."""
+        bgr = _read(image)
+        height, width = bgr.shape[:2]
+        dets = self.detect_slice(bgr, conf)  # already NMS'd; no merge across slices
+        out = [RawDetection(box=b, conf=c) for box, c in dets if (b := int_box(box, width, height))]
+        return sorted(out, key=lambda d: d.conf, reverse=True)
+
     def detect_tiled(
         self,
         image: Path | np.ndarray,
-        conf: float = 0.05,
+        conf: float = MIN_CONF,
         slice_px: int = SLICE_PX,
         overlap: float = SLICE_OVERLAP,
         match_threshold: float = MERGE_THRESHOLD,
     ) -> list[RawDetection]:
         """Tiled detection on a full photo (path or BGR array), highest confidence first."""
-        bgr = cv2.imread(str(image), cv2.IMREAD_COLOR) if isinstance(image, Path | str) else image
-        if bgr is None:
-            raise FileNotFoundError(image)
+        bgr = _read(image) if isinstance(image, Path | str) else image
         height, width = bgr.shape[:2]
-        dets: list[tuple[Xyxy, float]] = []
-        for sx1, sy1, sx2, sy2 in slice_boxes(width, height, slice_px, overlap):
-            for (x1, y1, x2, y2), c in self.detect_slice(bgr[sy1:sy2, sx1:sx2], conf):
-                dets.append(((x1 + sx1, y1 + sy1, x2 + sx1, y2 + sy1), c))
-        out: list[RawDetection] = []
-        for box, c in nms_inclusive(dets, match_threshold):
-            ib = int_box(box, width, height)
-            if ib is not None:
-                out.append(RawDetection(box=ib, conf=c))
-        return sorted(out, key=lambda d: d.conf, reverse=True)
+        per_slice = [
+            offset(self.detect_slice(bgr[y1:y2, x1:x2], conf), (x1, y1, x2, y2))
+            for x1, y1, x2, y2 in slice_boxes(width, height, slice_px, overlap)
+        ]
+        return merge_slices(per_slice, width, height, match_threshold)
+
+    def detect_array(self, img_bgr: np.ndarray, conf: float = MIN_CONF) -> list[RawDetection]:
+        """Tiled detection on BGR pixels already in memory (the re-look's native window and its
+        2× upscale: the upscale only helps if it is sliced, not shrunk back to one input)."""
+        return self.detect_tiled(img_bgr, conf)
