@@ -150,7 +150,7 @@ def test_fake_client_raises_scripted_exceptions() -> None:
         fake.chat([{"role": "user", "content": "x"}], model="m")
 
 
-LAZY_MODULES = ["sightline.agent.llm", "sightline.agent.trace"]
+LAZY_MODULES = ["sightline.agent.llm", "sightline.agent.trace", "sightline.agent.hooks"]
 
 
 def test_importing_lane_a_does_not_import_openai_or_torch() -> None:
