@@ -268,6 +268,34 @@ Caveats:
 - **The hard negatives come from the train split.** They are 50 centre crops of patches the detector fired on, from `data/heridal/hard_negatives_v2/` (245 train photos, none in val). The detector was trained on these photos, so they may not look like the false positives it makes on new photos. 8 of basic's 9 hard-negative false positives come from one site (ZRI).
 - **The earlier numbers were measured on test.** The 20-crop runs `20261020-124918` and `20261020-125216`, including the strict figures quoted before (87 % accuracy, 75 % recall, 3/20 hard-negative false positives) and the choice of strict over basic, used person and empty-ground crops from the **test** split. This run on val supersedes them. `bench_verifier.py` now takes those crops from `--split` (default val) and has no fallback to test.
 
+### 6.8 The verifier on val (A-V2, 2026-10-20, val only)
+
+`sightline/agent/verify.py` gives each uncertain detection a second look: re-look tools chosen by heuristic failure mode (`relook.py`), then Nemotron-3.5-Super-VL on Token Factory (thinking off, temperature 0, JSON schema, prompt `verify-v1`) on the crop plus up to two tool images. `scripts/eval_verifier.py` builds each val photo into a mission the way the pipeline will (1000×750 display frame, original kept for the zoom), labels every detection with VOC matching, and runs `verify()` on the 170 detections the rules can change: all 87 near-misses (0.15–0.29) and the 83 queue items below 0.5.
+
+```bash
+uv run --extra ml python scripts/eval_verifier.py      # ~2 min, 170 model calls
+```
+
+| Rule (95 val photos, 333 people) | Precision | Recall | F2 | ΔF2 vs (a), 95 % CI | Δ recall, 95 % CI |
+|---|---|---|---|---|---|
+| (a) threshold 0.29 only | 0.735 | 0.859 | 0.831 | — | — |
+| (b) + promote near-misses the verifier calls `yes` | 0.667 | **0.892** | 0.836 | +0.005 [−0.009, +0.021] | **+0.033 [+0.016, +0.052]** |
+| (c) (b) + demote `no` below 0.5 (reported, never applied) | 0.672 | 0.892 | 0.837 | +0.006 [−0.007, +0.022] | +0.033 [+0.017, +0.052] |
+
+Paired bootstrap over val photos, 2,000 resamples, seed 7. **Rule (b) is the one we use**: it finds 11 more of the 333 people (recall +3.3 points, clearly above zero) at the cost of 45 more false alarms to dismiss (precision −6.8 points); F2 is not clearly better either way. Under the recall-first rule (§6.3) and because each promotion is only a proposal a person approves, (b) is worth it. Demotion barely changes anything (3 false alarms) and the agent never dismisses detections in v1, so (c) is reported only.
+
+What the verifier says (170 verified detections):
+
+| Set | n | people called `yes` | false positives called `no` | `unclear` |
+|---|---|---|---|---|
+| near-misses | 87 (12 people) | 92 % | 11 % | 26 % |
+| queue items below 0.5 | 83 (28 people) | 89 % | 5 % | 13 % |
+| boxes under 60 px | 75 (16 people) | 94 % | 3 % | 23 % |
+
+It rarely misses a person but is lenient: it calls `yes` on 45 of the 75 near-miss false positives. Some of those "false positives" are unlabelled people or second boxes on a labelled person (`DETECTOR_LIMITS.md` §3), so the true precision is somewhat better than measured, but the verdict badge is weak evidence of a false alarm. Cost per detection: 830 tokens in, 65 out, median 1.35 s model time (1.4 s with the re-look tools); no invalid JSON in 170 calls. Per-detection results: `runs/verifier/val-20261020-165346.csv`.
+
+**Not yet done:** the single test score of rule (b). Test has not been read for the verifier.
+
 ---
 
 ## 7. Tests and acceptance checks

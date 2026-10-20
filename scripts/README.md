@@ -42,6 +42,7 @@ Logic lives in `sightline/ml/voc.py` and `sightline/ml/tiling.py`; tests in `tes
 
 | Script | What it does | Output |
 |---|---|---|
+| `eval_verifier.py` | The verifier (`sightline/agent/verify.py`, Nemotron VL on Token Factory) on the detections its rules can change; compares promote/demote rules by F2 and reports accuracy, small-crop accuracy, tokens and latency. Val by default; test only once, after the rule is chosen. Results: `docs/LANE_A_ML.md` §6.8. | `runs/verifier/<split>-<timestamp>.csv`, `.json` |
 | `export_onnx.py` | Exports the weights to ONNX with a variable input size (`dynamic=True`, imgsz 1024, opset 17) as `<stem>-dynamic.onnx`, so cv2.dnn pads frames like `YOLO.predict`. | `data/weights/release_v2/yolo11s_tiles_run1_best-dynamic.onnx` |
 | `parity_table.py` | OpenCV 5 `cv2.dnn` vs Torch on the same photos at the frozen threshold: scores, box agreement, speed (A-X3). Tunes nothing; reads test once to check agreement. | `runs/parity/<timestamp>.json`, Markdown table |
 | `evaluate_model.py` | Chooses `candidate_threshold` on **val** (max F2, tiled inference), then scores the 4 ablation rows on the full **test** set with VOC and SAR-style matching. | `data/work/detect/detector_metrics.json` (contract `DetectorMetrics` + the 4 core `Ablation` rows), `evaluate_details.json` |
