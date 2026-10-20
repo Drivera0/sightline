@@ -8,7 +8,7 @@ Usage:
 
 All crops are the same size. Negatives come from two places, both checked against
 the labels so no labelled person is within 1.5 crop-widths:
-  - neg_*  : random empty ground from the same test photos as the people
+  - neg_*  : random empty ground from the same split as the people (--split, default val)
   - hneg_* : centre of mined hard-negative patches (what the detector fired on)
 
 Writes per-crop results to runs/bench_verifier/<timestamp>.csv and keeps the crops
@@ -55,11 +55,17 @@ class Crop:
     source: str
 
 
-def make_person_crops(n: int, size: int, rng: random.Random) -> list[Crop]:
-    """Crop `size` px squares around labelled people in yolo_full (test split first)."""
-    labels = sorted(glob.glob("data/heridal/yolo_full/test/labels/*.txt")) or sorted(
-        glob.glob("data/heridal/yolo_full/*/labels/*.txt")
-    )
+def split_labels(split: str) -> list[str]:
+    """Label files of one yolo_full split; no fallback to another split."""
+    labels = sorted(glob.glob(f"data/heridal/yolo_full/{split}/labels/*.txt"))
+    if not labels:
+        raise SystemExit(f"no labels in data/heridal/yolo_full/{split}/labels")
+    return labels
+
+
+def make_person_crops(n: int, size: int, rng: random.Random, split: str) -> list[Crop]:
+    """Crop `size` px squares around labelled people in one yolo_full split."""
+    labels = split_labels(split)
     rng.shuffle(labels)
     crops: list[Crop] = []
     out = OUT_DIR / "crops"
@@ -88,15 +94,13 @@ def make_person_crops(n: int, size: int, rng: random.Random) -> list[Crop]:
     return crops
 
 
-def make_negative_crops(n: int, size: int, rng: random.Random) -> list[Crop]:
-    """Same-size crops from the same test photos, at spots with no labelled person.
+def make_negative_crops(n: int, size: int, rng: random.Random, split: str) -> list[Crop]:
+    """Same-size crops from photos of the same split, at spots with no labelled person.
 
     A crop is kept only if no labelled person centre lies within `size` px of it,
     so a person at the crop edge can't leak in.
     """
-    labels = sorted(glob.glob("data/heridal/yolo_full/test/labels/*.txt")) or sorted(
-        glob.glob("data/heridal/yolo_full/*/labels/*.txt")
-    )
+    labels = split_labels(split)
     rng.shuffle(labels)
     out = OUT_DIR / "crops"
     out.mkdir(parents=True, exist_ok=True)
@@ -276,6 +280,12 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument(
+        "--split",
+        choices=["train", "val", "test"],
+        default="val",
+        help="yolo_full split for person and empty-ground crops (val; keep test for final reporting)",
+    )
+    ap.add_argument(
         "--negatives",
         choices=["random", "hard", "both"],
         default="both",
@@ -292,9 +302,9 @@ def main() -> None:
     if out.exists():
         for old in out.glob("*.jpg"):
             old.unlink()
-    crops = make_person_crops(args.n, args.crop, rng)
+    crops = make_person_crops(args.n, args.crop, rng, args.split)
     if args.negatives in ("random", "both"):
-        crops += make_negative_crops(args.n, args.crop, rng)
+        crops += make_negative_crops(args.n, args.crop, rng, args.split)
     if args.negatives in ("hard", "both"):
         crops += make_hard_negative_crops(args.n, args.crop, rng)
     print(f"model {model} | {len(crops)} crops | thinking {'off' if args.no_think else 'on'}")
