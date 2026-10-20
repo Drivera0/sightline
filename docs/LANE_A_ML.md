@@ -245,6 +245,8 @@ uv run --extra ml python scripts/compare_cv_detector.py --pt data/weights/releas
 
 At threshold 0.25 each detector found 19 boxes, with the same count on every photo. All 19 matched one-to-one at IoU ≥ 0.9, and the largest confidence difference on a matched box was 0.0012. Seconds per photo: Ultralytics + SAHI on the 4080 SUPER 0.54 s, OpenCV DNN on the CPU 10.92 s. The two times use different hardware, so they don't compare speed fairly; the OpenCV path is the CPU-only fallback, with no torch.
 
+**Full parity on val and test (A-X3).** `scripts/parity_table.py` at the frozen threshold 0.29: VOC P / R / AP50 and SAR P / R are identical to three decimals on val (0.735 / 0.859 / 0.861) and test (0.802 / 0.864 / 0.868; SAR 0.898 / 0.896, the published numbers). At or above the threshold, 100 % of boxes match one-to-one at IoU ≥ 0.95 on both splits (max confidence difference 0.0015); among all saved boxes 99.8 %. Test was read once for this check and nothing was changed after it. Table and timings: `scripts/README.md`, "OpenCV 5 parity".
+
 **Verifier benchmark.** Nemotron-3.5-Super-VL (`nvidia/Nemotron-3.5-Super-VL` on Nebius Token Factory) answers `person` / `not_person` for 256 px crops, with thinking off.
 
 ```bash
