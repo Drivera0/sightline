@@ -155,6 +155,7 @@ LAZY_MODULES = [
     "sightline.agent.trace",
     "sightline.agent.hooks",
     "sightline.ml.backend",
+    "sightline.agent.relook",
 ]
 
 
