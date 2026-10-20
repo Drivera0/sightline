@@ -27,6 +27,8 @@ datasets/
 
 # Local YOLO smoke-test leftovers
 bus.jpg
+# Local test images (smoke tests, verifier crops, icons): never committed
+/images/
 test.txt
 requirements.txt
 
@@ -62,3 +64,4 @@ message.txt
 # Experimental caches (test branches): same rule as cache/demo, never committed.
 cache/demo-*/
 web/public/cache/demo-*/
+crop_*.jpg
