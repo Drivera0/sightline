@@ -3,6 +3,8 @@ name = "sightline"
 version = "0.1.0"
 description = "Finds people in search-and-rescue drone photos and keeps a Bayesian search map."
 requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 dependencies = [
     "numpy",
     "pillow",

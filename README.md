@@ -129,3 +129,7 @@ path, the search-map evaluation, the 10 m position uncertainty) is labelled simu
 ## Attribution
 
 Imagery from the HERIDAL dataset (Božić-Štulić, Marušić & Gotovac, 2019), VOC-format copy by Pyrrö (2021), CC BY 3.0.
+
+## License
+
+Code is licensed under the [Apache License 2.0](LICENSE). The HERIDAL imagery keeps its own CC BY 3.0 license (see Attribution).
