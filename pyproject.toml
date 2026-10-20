@@ -8,17 +8,27 @@ license-files = ["LICENSE"]
 dependencies = [
     "numpy",
     "pillow",
-    "opencv-python-headless",
     "shapely",
     "pydantic>=2",
     "typer",
     "fastapi",
     "uvicorn",
     "python-multipart",
+    "openai>=3.35.1",
+    "tavily-python>=0.8.5",
+    "python-dotenv>=1.2.4",
+    "opencv-python==5.0.0.93",
 ]
 
 [project.optional-dependencies]
-ml = ["torch", "torchvision", "ultralytics", "sahi"]
+ml = [
+    "torch",
+    "torchvision",
+    "ultralytics",
+    "sahi",
+    "onnx>=1.23.2",
+    "onnxslim>=0.1.98",
+]
 
 [dependency-groups]
 dev = ["pytest", "ruff", "matplotlib", "httpx"]
