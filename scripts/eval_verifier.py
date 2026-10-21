@@ -79,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--pt", type=Path, default=ROOT / "data/weights/release_v2/yolo11s_tiles_run1_best.pt"
     )
+    ap.add_argument("--prompt", default=None, help="prompt version (default: verify.py's)")
     ap.add_argument("--max-conf", type=float, default=max(DEMOTE_AT))
     ap.add_argument("--workers", type=int, default=4, help="concurrent model calls (LANE_A: 4)")
     ap.add_argument("--limit", type=int, default=None, help="debug: first N photos")
@@ -88,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
     import cv2
     from dotenv import load_dotenv
 
+    from sightline.agent import prompts
     from sightline.agent.llm import NO_THINKING, token_factory_client
     from sightline.agent.verify import verify
     from sightline.contract import Detection, Frame, LatLon, Pose, Source
@@ -98,8 +100,12 @@ def main(argv: list[str] | None = None) -> int:
     from tests.agent.fake_store import FakeMissionStore
 
     load_dotenv(ROOT / ".env")
+    prompt = args.prompt or prompts.VERIFY_VERSION
     client = token_factory_client(extra_body=NO_THINKING)
-    images = load_split(args.split, ROOT / "data/heridal/yolo_full", annotated_only=True)
+    # Annotated val photos (as the threshold was chosen); the full test split (as it is scored).
+    images = load_split(
+        args.split, ROOT / "data/heridal/yolo_full", annotated_only=args.split == "val"
+    )
     images = images[: args.limit]
     preds, truth, _ = predict_split(Detector(args.pt), images, "tiled")
     labels = label_preds(preds, truth)
@@ -166,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
             id="f0001-d01", box_px=fbox, conf=r["conf"], crop=None, lat=0, lon=0, radius_m=10
         )
         store.append_detections(mid, "f0001", [det], {})
-        v = verify(store, mid, "f0001-d01", client, detector())
+        v = verify(store, mid, "f0001-d01", client, detector(), prompt=prompt)
         calls = [e for e in store.trace_entries(mid) if e.kind == "model_call"]
         r.update(
             person=v.person,
@@ -215,6 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     done = [r for r in todo if "person" in r]
     summary = {
         "split": args.split,
+        "prompt": prompt,
         "photos": len(images),
         "people": n_truth,
         "verified": len(done),
@@ -229,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
         "retries": sum(r["calls"] - 1 for r in done if r["calls"] > 1),
     }
     args.out.mkdir(parents=True, exist_ok=True)
-    stem = args.out / f"{args.split}-{time.strftime('%Y%m%d-%H%M%S')}"
+    stem = args.out / f"{args.split}-{prompt}-{time.strftime('%Y%m%d-%H%M%S')}"
     fields = ["photo", "index", "conf", "tp", "long_px", "person", "posture", "group_size"]
     fields += ["tools", "ms", "model_ms", "tokens_in", "tokens_out", "calls", "reason"]
     with open(f"{stem}.csv", "w", newline="", encoding="utf-8") as f:

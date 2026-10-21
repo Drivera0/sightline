@@ -164,13 +164,13 @@ def _crop_path(store: Any, mission_id: str, det: Any, frame_bgr: np.ndarray) -> 
 
 
 def _ask(
-    client: ChatClient, model: str, labels: list[str], image_files: list[Path]
+    client: ChatClient, model: str, labels: list[str], image_files: list[Path], prompt: str
 ) -> tuple[list[ChatResult], dict | None]:
     """One model call, and one retry if the reply isn't valid JSON for the schema."""
     images_text = "\n".join(f"Image {i}: {label}." for i, label in enumerate(labels, 1))
     messages: list[dict] = [
-        {"role": "system", "content": prompts.VERIFY_SYSTEM},
-        {"role": "user", "content": prompts.VERIFY_USER.format(images=images_text)},
+        {"role": "system", "content": prompts.VERIFY_PROMPTS[prompt][0]},
+        {"role": "user", "content": prompts.VERIFY_PROMPTS[prompt][1].format(images=images_text)},
     ]
     results = []
     for attempt in range(2):
@@ -201,6 +201,7 @@ def verify(
     detector: ArrayDetector,
     *,
     model: str = MODEL_VISION,
+    prompt: str = prompts.VERIFY_VERSION,
 ) -> Verdict:
     """Second look at one detection; stores and returns the ``Verdict``.
 
@@ -255,7 +256,7 @@ def verify(
             f.write_bytes(store.read_file(mission_id, rel))
             files.append(f)
         try:
-            results, answer = _ask(client, model, labels, files)
+            results, answer = _ask(client, model, labels, files, prompt)
         except Exception as e:  # timeouts, HTTP errors, LLMError: logged, never raised
             log.exception("verifier model call failed for %s", detection_id)
             results, failure = [], type(e).__name__
@@ -267,7 +268,7 @@ def verify(
             actor="verifier",
             kind="model_call",
             summary=f"VL verdict for {detection_id}",
-            input={"prompt": prompts.VERIFY_VERSION, "images": paths, "tools": tools},
+            input={"prompt": prompt, "images": paths, "tools": tools},
             result=r,
             refs=[detection_id],
         )

@@ -294,7 +294,24 @@ What the verifier says (170 verified detections):
 
 It rarely misses a person but is lenient: it calls `yes` on 45 of the 75 near-miss false positives. Some of those "false positives" are unlabelled people or second boxes on a labelled person (`DETECTOR_LIMITS.md` §3), so the true precision is somewhat better than measured, but the verdict badge is weak evidence of a false alarm. Cost per detection: 830 tokens in, 65 out, median 1.35 s model time (1.4 s with the re-look tools); no invalid JSON in 170 calls. Per-detection results: `runs/verifier/val-20261020-165346.csv`.
 
-**Not yet done:** the single test score of rule (b). Test has not been read for the verifier.
+**A stricter prompt, chosen on val.** `verify-v2` adds: answer `yes` only for a visible human shape (head with body, limbs, outline and shadow), lists the common false alarms (rocks, logs, stumps, shadows, bushes, bags, clothing on the ground), and sends doubt to `unclear` rather than `no`. Same 170 val detections:
+
+| Rule (val) | Prompt | Precision | Recall | F2 | ΔF2 vs (a) | Δ recall vs (a) |
+|---|---|---|---|---|---|---|
+| (b) promote `yes` | v1 | 0.667 | 0.892 | 0.836 | +0.005 [−0.009, +0.021] | +0.033 [+0.016, +0.052] |
+| (b) promote `yes` | **v2** | 0.699 | 0.886 | **0.841** | +0.010 [−0.003, +0.024] | +0.027 [+0.009, +0.046] |
+
+v2 promotes 24 false alarms instead of 45 and keeps 9 of the 12 near-miss people instead of 11 (v2 − v1: recall −0.006 [−0.019, +0.005], F2 +0.005 [−0.005, +0.015]). **Chosen: v2 + rule (b)**, the highest val F2 (now the default, `prompts.VERIFY_VERSION`). Two prompts were compared, both on val only.
+
+**The single test score** (101 photos, 337 people; v2 + rule (b), fixed before test was read; 121 detections verified):
+
+| Rule (test) | Precision | Recall | F2 | Kept |
+|---|---|---|---|---|
+| (a) threshold 0.29 only | 0.802 | 0.864 | 0.850 | 363 |
+| **(b) + promote near-misses called `yes`** | 0.772 | **0.875** | 0.853 | 382 |
+| (c) (b) + demote `no` below 0.5 (reported, never applied) | 0.780 | 0.875 | 0.855 | 378 |
+
+On test the verifier finds 4 more of the 337 people (recall +0.012, 95 % CI [+0.003, +0.023]) for 15 more false alarms; F2 +0.002 [−0.006, +0.011], so no clear change. The gain is smaller than on val because v2 was more cautious on test: it called 4 of the 11 near-miss people `yes` (36 %, against 75 % on val) and 59 % of near-misses `unclear`. On boxes under 60 px it called 2 of 8 people `yes` and 65 % of all such crops `unclear`: on the smallest people the VL model mostly abstains rather than guesses. That is the honest headline for the report and the Nebius feedback: **a small, real recall gain, human-approved, at about 920 tokens in / 68 out and 1.4 s per detection; weak on the smallest crops.** Test was read once for the verifier; nothing was changed after it. Results: `runs/verifier/test-verify-v2-20261020-170158.csv`.
 
 ---
 
