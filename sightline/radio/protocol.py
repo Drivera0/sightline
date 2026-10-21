@@ -25,6 +25,25 @@ SPOKEN_DIGITS = ["zero", "one", "two", "three", "four", "five", "six", "seven", 
 # Team id -> callsign; LANE_E default roster (T1..T4). Pass the mission's roster to override.
 DEFAULT_CALLSIGNS = {"T1": "Team One", "T2": "Team Two", "T3": "Team Three", "T4": "Team Four"}
 
+# Speech recognition often hears a callsign's number as a sound-alike word ("Team Two" → "team to",
+# seen live with Parakeet). Only directly after "team", so "to" and "for" elsewhere are untouched.
+_TEAM_SOUNDALIKES = [
+    (re.compile(r"\bteam (to|too)\b"), "team two"),
+    (re.compile(r"\bteam (for|fore)\b"), "team four"),
+    (re.compile(r"\bteam won\b"), "team one"),
+    (re.compile(r"\bteam (tree|free)\b"), "team three"),
+    (re.compile(r"\bteam ate\b"), "team eight"),
+]
+
+
+def fix_callsign_words(text: str) -> str:
+    """``text`` with sound-alike callsign numbers corrected ("team to" → "Team Two"), otherwise
+    unchanged: what the model reads (the turn keeps the transcript as heard)."""
+    for pattern, fixed in _TEAM_SOUNDALIKES:
+        text = re.compile(pattern.pattern, re.IGNORECASE).sub(fixed.title(), text)
+    return text
+
+
 _AFFIRMATIVE = {"affirmative", "affirm", "correct", "confirmed", "that is correct"}
 _NEGATIVE = {"negative", "incorrect", "wrong", "that is wrong"}
 _SAY_AGAIN = {"say again", "repeat", "say again all"}
@@ -35,6 +54,8 @@ def normalize(text: str) -> str:
     "minus one two two" → "-122", "Team Two" → "team 2"), "sight line" → "sightline", punctuation
     other than inside numbers removed."""
     t = text.lower().replace("sight line", "sightline").replace("sight-line", "sightline")
+    for pattern, fixed in _TEAM_SOUNDALIKES:
+        t = pattern.sub(fixed, t)
     t = re.sub(r"(?<=\d),(?=\d{3}\b)", "", t)  # 1,200 -> 1200
     # A comma is the pause between two numbers ("..., minus one two two"): keep it as a boundary.
     tokens = re.findall(r"-?\d+(?:\.\d+)?|[a-z]+|,", t)

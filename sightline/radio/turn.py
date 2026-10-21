@@ -30,6 +30,7 @@ from sightline.radio.mission_api import MissionApi
 from sightline.radio.protocol import (
     DEFAULT_CALLSIGNS,
     classify_reply,
+    fix_callsign_words,
     parse_callsign,
     spoken_coord,
     spoken_number,
@@ -91,7 +92,7 @@ def _speak_numbers(text: str) -> str:
 # Replies that describe an action instead of taking it ("calling get_sector_boundary", "drafting
 # clue"): seen live from Nemotron 3 Super; they get one retry and are never spoken.
 _DESCRIBED_ACTION = re.compile(
-    r"\b(drafting|calling|logging|logged|requesting|retrieving|fetching|checking|looking up)\b",
+    r"\b(drafting|calling|logging|logged|requesting|retrieving|fetching|checking|looking up|getting)\b",
     re.IGNORECASE,
 )
 
@@ -273,7 +274,7 @@ def handle_inbound(
             + prompts.speaker_context(team_id, callsign, sector),
         },
         *history[-2 * HISTORY_TURNS :],
-        {"role": "user", "content": text},
+        {"role": "user", "content": fix_callsign_words(text)},
     ]
     actions: list[str] = []
     retried = False
@@ -317,7 +318,10 @@ def handle_inbound(
         reply, notes = postcheck(reply, callsign)
         actions += [f"postcheck: {n}" for n in notes]
         state_name = "answered"
-    history += [{"role": "user", "content": text}, {"role": "assistant", "content": reply}]
+    history += [
+        {"role": "user", "content": fix_callsign_words(text)},
+        {"role": "assistant", "content": reply},
+    ]
     turn = _turn(session, "in", team_id, text, reply, state_name, actions, asr_ms, llm_ms)
     turn, out = _with_audio(turn, tts, reply)
     return TurnResult(turn, out)

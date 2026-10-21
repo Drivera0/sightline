@@ -21,7 +21,11 @@ Rules:
 def speaker_context(team_id: str, callsign: str, sector: tuple[str, str] | None = None) -> str:
     """Added to every turn: without the team id (and its sector) the model asks for them instead of
     calling a tool (radio spike, docs/feedback/radio.md, finding 2)."""
-    text = f"The speaker is team {team_id} (callsign {callsign}); use team_id {team_id} with tools."
+    text = (
+        f"The speaker is team {team_id} (callsign {callsign}); use team_id {team_id} with tools."
+        " The callsign is already known from the radio, even if the transcript mishears it:"
+        " never ask the team to confirm or repeat its callsign."
+    )
     if sector is not None:
         text += (
             f" {callsign} is assigned sector {sector[0]} ({sector[1]}); use sector_id {sector[0]}."

@@ -16,6 +16,7 @@ import pytest
 from sightline.radio.asr import FakeAsr
 from sightline.radio.protocol import (
     classify_reply,
+    fix_callsign_words,
     normalize,
     parse_callsign,
     spoken_coord,
@@ -60,6 +61,7 @@ def test_spoken_number_examples() -> None:
             "team 2 sightline new assignment sector bravo 3",
         ),
         ("we are at 1,200 metres", "we are at 1200 metres"),
+        ("we went to the creek for water", "we went to the creek for water"),
         ("minus one two two point niner four zero", "-122.940"),
     ],
 )
@@ -79,6 +81,11 @@ def test_normalize(heard: str, normal: str) -> None:
         ("Team Four returning to base, over", "T4"),
         ("Sightline, radio check, over", None),
         ("Team Twenty", None),
+        ("Sightline team to say again the sector boundary over", "T2"),  # heard live
+        ("Sightline, team too, over", "T2"),
+        ("Team for returning, over", "T4"),
+        ("Team won, over", "T1"),
+        ("we went to the creek for water", None),  # sound-alikes only right after "team"
     ],
 )
 def test_parse_callsign(text: str, team: str | None) -> None:
@@ -130,3 +137,10 @@ def test_radio_core_imports_without_nemo_or_torch() -> None:
         [sys.executable, "-c", code], check=False, cwd=root, capture_output=True, text=True
     )
     assert r.returncode == 0, r.stderr or r.stdout
+
+
+def test_fix_callsign_words_corrects_only_the_callsign() -> None:
+    assert fix_callsign_words("Sightline team to say again the sector boundary over") == (
+        "Sightline Team Two say again the sector boundary over"
+    )
+    assert fix_callsign_words("We went to the creek for water") == "We went to the creek for water"
