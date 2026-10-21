@@ -377,3 +377,25 @@ def test_a_fast_turn_gets_no_standby(client) -> None:
     c, _, _ = client
     body = c.post(f"/missions/{MID}/radio/turn", data={"text": QUESTION}).json()
     assert "standby" not in body and body["state"] == "answered"
+
+
+def test_a_cached_phrase_does_not_wait_for_the_model() -> None:
+    import threading
+    import time
+
+    from sightline.radio.tts import CachedTts
+
+    class Slow(FakeTts):
+        def speak(self, text, voice="en_female"):
+            time.sleep(0.5)
+            return super().speak(text, voice)
+
+    tts = CachedTts(Slow())
+    tts.warm(["Team Two, Sightline. Standby."])
+    busy = threading.Thread(target=tts.speak, args=("A long answer being generated.",))
+    busy.start()
+    time.sleep(0.05)  # the model is busy with that answer
+    t0 = time.perf_counter()
+    tts.speak("Team Two, Sightline. Standby.")
+    assert time.perf_counter() - t0 < 0.1
+    busy.join()
