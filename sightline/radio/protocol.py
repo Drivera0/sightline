@@ -144,6 +144,7 @@ _LOCAL_TIME = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b")
 _SPOKEN_UNITS = [
     (re.compile(r"(?<=\d)\s?mm/h\b"), " millimetres per hour"),
     (re.compile(r"(?<=\d)\s?km/h\b"), " kilometres per hour"),
+    (re.compile(r"\bkph\b", re.IGNORECASE), "kilometres per hour"),
     (re.compile(r"(?<=\d)\s?°C\b"), " degrees Celsius"),
     (re.compile(r"\s?°"), " degrees"),
     (re.compile(r"(?<=\d)\s?km\b"), " kilometres"),

@@ -62,6 +62,13 @@ approves it. `nemotron-3-super-120b-a12b` is wired for planning text.
 the tool call plus the reply. For tool use we route to Super; the model cards should say which
 models are reliable at tool calling with thinking off.
 
+**Reasoning leaking into the reply.** With thinking off (`chat_template_kwargs.enable_thinking=false`),
+Nemotron 3 Super sometimes wrote its reasoning into `content` after a tool call: "Now respond per
+rules, start with callsign then Sightline … Keep brief.`</think>`Team Two, Sightline. Sector …". Our
+radio spoke it aloud before we noticed (`docs/feedback/radio.md`). We now drop everything up to the last
+`</think>` in our client (`sightline/agent/llm.py: strip_reasoning`). Expected: with thinking off, no
+reasoning in `content`; or reasoning always in `reasoning_content`, never mixed into the answer.
+
 **What worked.** All 5 live briefings passed the post-check on the first call, and with
 the instruction "write numbers as digits, only numbers in the facts" it kept to the facts.
 

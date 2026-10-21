@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -34,6 +35,20 @@ RETRIES = 3  # after the first attempt, on 429 / 5xx / timeouts / connection err
 BACKOFF_S = 1.0  # 1 s, 2 s, 4 s
 
 _MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+
+
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+def strip_reasoning(content: str) -> str:
+    """The reply without the model's reasoning. With thinking off, Nemotron 3 Super still sometimes
+    writes its reasoning into the content after a tool call, ending with ``</think>`` ("Now respond
+    per rules ... Keep brief.</think>Team Two, ..."); the radio spoke it aloud. Everything up to the
+    last ``</think>`` (and any ``<think>...</think>`` block) is dropped."""
+    text = _THINK_BLOCK.sub("", content)
+    if "</think>" in text:
+        text = text.rsplit("</think>", 1)[1]
+    return text.strip()
 
 
 class LLMError(RuntimeError):
@@ -206,7 +221,7 @@ class TokenFactoryClient:
         ms = round((time.perf_counter() - start) * 1000)
 
         choice = resp.choices[0]
-        text = (choice.message.content or "").strip()
+        text = strip_reasoning(choice.message.content or "")
         tool_calls = _parse_tool_calls(choice.message.tool_calls)
         if not text and not tool_calls and choice.finish_reason == "length":
             raise LLMError(

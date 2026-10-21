@@ -176,3 +176,9 @@ def test_spoken_time() -> None:
     assert spoken_time(18, 12) == "eighteen twelve"
     assert spoken_time(6, 5) == "six oh five"
     assert spoken_time(0, 45) == "zero forty five"
+
+
+def test_speakable_kph() -> None:
+    from sightline.radio.protocol import speakable
+
+    assert speakable("wind eighteen kph") == "wind eighteen kilometres per hour"
