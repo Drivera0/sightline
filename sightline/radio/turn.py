@@ -106,16 +106,26 @@ def postcheck(reply: str, callsign: str) -> tuple[str, list[str]]:
     """The reply as it may be spoken, and what was changed (for the trace)."""
     notes = []
     if _CLEAR.search(reply):
-        return f"{callsign}, Sightline, standby, over.", ['model said "clear": replaced by standby']
+        return f"{opening(callsign)} Standby, over.", ['model said "clear": replaced by standby']
     for pattern, words in _UNITS:
         reply = pattern.sub(words, reply)
     if _NUMBER.search(reply):
         reply = _speak_numbers(reply)
         notes.append("digits spoken as words")
-    if not reply.lower().startswith(callsign.lower()):
-        reply = f"{callsign}, Sightline. {reply}"
+    opener = re.match(
+        rf"\s*{re.escape(callsign)}\s*[,:.]?\s*(sightline\s*[,:.]?)?\s*", reply, re.IGNORECASE
+    )
+    if opener and opener.group(0):
+        body = reply[opener.end() :]
+    else:
+        body = reply
         notes.append("callsign prefixed")
-    return reply.strip(), notes
+    # Always the same opening sentence: it is pre-spoken, so it plays at once (CachedTts.warm).
+    return opening(callsign) + (" " + body[:1].upper() + body[1:] if body else ""), notes
+
+
+def opening(callsign: str) -> str:
+    return f"{callsign}, Sightline."
 
 
 def readback(callsign: str, draft: dict, team_position: dict | None) -> str:
@@ -128,7 +138,7 @@ def readback(callsign: str, draft: dict, team_position: dict | None) -> str:
         )
     else:
         where = f"at {spoken_coord(draft['lat'], draft['lon'])}"
-    return f"{callsign}, copy {draft['kind']}, {draft['text']}, {where}. Confirm, over."
+    return f"{opening(callsign)} Copy {draft['kind']}, {draft['text']}, {where}. Confirm, over."
 
 
 def _turn(
@@ -158,8 +168,12 @@ def _turn(
     )
 
 
-def _with_audio(turn: RadioTurn, tts: Tts, text: str | None) -> tuple[RadioTurn, bytes | None]:
-    if not text:
+def _with_audio(
+    turn: RadioTurn, tts: Tts | None, text: str | None
+) -> tuple[RadioTurn, bytes | None]:
+    """Speak ``text`` now; with ``tts=None`` the caller speaks it (``api.py`` does, sentence by
+    sentence)."""
+    if not text or tts is None:
         return turn, None
     r = tts.speak(text)
     return turn.model_copy(update={"tts_ms": r.ms, "audio": f"radio/{turn.id}.wav"}), r.wav
@@ -170,7 +184,7 @@ def handle_inbound(
     mission_id: str,
     session: RadioSession,
     asr: Asr | None,
-    tts: Tts,
+    tts: Tts | None,
     llm: ChatClient | None,
     api: MissionApi,
     work_dir: Path,
@@ -228,7 +242,7 @@ def handle_inbound(
                 "in",
                 team_id,
                 text,
-                f"{callsign}, clue logged. Out.",
+                f"{opening(callsign)} Clue logged. Out.",
                 "committed",
                 ["post_clue"],
                 asr_ms,
@@ -239,10 +253,10 @@ def handle_inbound(
             return TurnResult(turn, out, clue)
         if kind == "negative":
             session.pending.pop(team_id)
-            reply = f"{callsign}, clue discarded. Say again the report, over."
+            reply = f"{opening(callsign)} Clue discarded. Say again the report, over."
             turn = _turn(session, "in", team_id, text, reply, "discarded", ["discard_clue"], asr_ms)
         else:
-            reply = f"{callsign}, confirm or negative, over."
+            reply = f"{opening(callsign)} Confirm or negative, over."
             turn = _turn(session, "in", team_id, text, reply, "awaiting_confirm", [], asr_ms)
         turn, out = _with_audio(turn, tts, turn.reply)
         return TurnResult(turn, out)
@@ -264,7 +278,7 @@ def handle_inbound(
     actions: list[str] = []
     retried = False
     t0 = time.perf_counter()
-    reply = f"{callsign}, Sightline, say again, over."
+    reply = f"{opening(callsign)} Say again, over."
     try:
         if llm is None:
             raise RuntimeError("no model client")
@@ -339,7 +353,7 @@ def outbound(mission_id: str, session: RadioSession, api: MissionApi) -> list[di
 
 
 def transmit(
-    mission_id: str, proposal_id: str, session: RadioSession, api: MissionApi, tts: Tts
+    mission_id: str, proposal_id: str, session: RadioSession, api: MissionApi, tts: Tts | None
 ) -> TurnResult:
     """Speak an approved briefing: "<Callsign>, Sightline. <briefing>, over." ("All teams" for
     ``{"team": "all"}``). Only approved proposals can be transmitted."""
@@ -350,7 +364,7 @@ def transmit(
     callsigns = {t["id"]: t["callsign"] for t in api.state(mission_id)["teams"]}
     who = "All teams" if team == "all" else callsigns.get(team, team)
     body = _speak_numbers(p["briefing"].rstrip(". "))
-    text = f"{who}, Sightline. {body}, over."
+    text = f"{opening(who)} {body}, over."
     session.handled.add(proposal_id)
     turn = _turn(
         session,

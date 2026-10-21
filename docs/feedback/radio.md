@@ -56,6 +56,11 @@ in code (`sightline/radio/turn.py`, `prompts.py`):
 
 After the fixes: 8 / 8 tool use on both inbound beats; Nemotron time p50 1.4–2.4 s per turn. Full voice
 turn: ASR 51–139 ms, TTS 4.6–10.4 s depending on reply length: **TTS is the bottleneck** for the 5 s target.
+Magpie's speed options didn't help (CFG off and bf16 were not faster; about 0.66× real time throughout).
+Speaking sentence by sentence with a pre-spoken "<Callsign>, Sightline." opener brought **time to first
+audio to 3.6–3.7 s** for model turns and 0.1 s for a confirmation, longest pause between chunks 1.3 s
+(`sightline/radio/README.md`). For the feedback form: a streaming TTS API (first audio in < 300 ms) would
+matter more for voice agents than raw throughput.
 
 ## How to reproduce
 

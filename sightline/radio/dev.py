@@ -22,7 +22,7 @@ from sightline.agent._contract_v12 import RadioTurn
 from sightline.agent.llm import NO_THINKING, FakeChatClient, LLMError, token_factory_client
 from sightline.radio.api import RadioContext, radio_router
 from sightline.radio.mission_api import InMemoryMissionApi, demo_mission
-from sightline.radio.tts import FakeTts
+from sightline.radio.tts import CachedTts, FakeTts
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data" / "radio"  # gitignored (data/)
@@ -63,9 +63,13 @@ def create_app() -> FastAPI:
         from sightline.radio.asr import ParakeetAsr
         from sightline.radio.tts import MagpieTts
 
-        asr, tts = ParakeetAsr(), MagpieTts()
+        asr, tts = ParakeetAsr(), CachedTts(MagpieTts())
+        # Every reply opens with "<Callsign>, Sightline.": say each once now, so it plays at once.
+        tts.warm(
+            [f"{t['callsign']}, Sightline." for t in state["teams"]] + ["All teams, Sightline."]
+        )
     else:
-        asr, tts = None, FakeTts()
+        asr, tts = None, CachedTts(FakeTts())
     app = FastAPI(title="Sightline radio desk (dev)")
     app.state.radio = RadioContext(
         api=InMemoryMissionApi(state, cards),

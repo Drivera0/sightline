@@ -9,6 +9,8 @@ LANE_E §8.2 was not needed in the spike and is not built.
 from __future__ import annotations
 
 import io
+import re
+import threading
 import time
 import wave
 from dataclasses import dataclass
@@ -84,3 +86,66 @@ class FakeTts:
             sample_rate=self.sample_rate,
             ms=0,
         )
+
+
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def split_sentences(text: str, max_words: int = 10) -> list[str]:
+    """Chunks to speak one by one, so the first plays while the rest are generated (Magpie runs at
+    about 0.66× real time, so time to first sound grows with chunk length): sentences, and any
+    sentence over ``max_words`` cut at commas into pieces of at most about that many words."""
+    chunks: list[str] = []
+    for sentence in (p.strip() for p in _SENTENCE_END.split(text.strip()) if p.strip()):
+        if len(sentence.split()) <= max_words:
+            chunks.append(sentence)
+            continue
+        piece: list[str] = []
+        for part in re.split(r"(?<=[,;:])\s+", sentence):
+            if piece and len(" ".join(piece + [part]).split()) > max_words:
+                chunks.append(" ".join(piece))
+                piece = []
+            piece.append(part)
+        chunks.append(" ".join(piece))
+    return chunks
+
+
+def concat_wavs(chunks: list[bytes]) -> bytes:
+    """One WAV from several with the same format."""
+    frames, params = [], None
+    for c in chunks:
+        with wave.open(io.BytesIO(c)) as w:
+            params = params or w.getparams()
+            frames.append(w.readframes(w.getnframes()))
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as out:
+        out.setparams(params)
+        for f in frames:
+            out.writeframes(f)
+    return buf.getvalue()
+
+
+class CachedTts:
+    """A ``Tts`` that remembers what it has said (callsign openings repeat on every turn) and lets
+    one call at a time reach the model. ``warm`` pre-speaks phrases at start-up."""
+
+    def __init__(self, tts: Tts, max_items: int = 256) -> None:
+        self.tts = tts
+        self.max_items = max_items
+        self._cache: dict[tuple[str, str], TtsResult] = {}
+        self._lock = threading.Lock()
+
+    def speak(self, text: str, voice: str = "en_female") -> TtsResult:
+        key = (text, voice)
+        with self._lock:
+            hit = self._cache.get(key)
+            if hit is not None:
+                return TtsResult(wav=hit.wav, sample_rate=hit.sample_rate, ms=0)
+            result = self.tts.speak(text, voice)
+            if len(self._cache) < self.max_items:
+                self._cache[key] = result
+            return result
+
+    def warm(self, texts: list[str]) -> None:
+        for t in texts:
+            self.speak(t)
