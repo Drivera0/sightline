@@ -88,6 +88,18 @@ answer. These are text turns (ASR adds 45–153 ms). For the feedback form: tool
 needs code-side guards for anything safety-relevant; a "tool_choice: required" that the model honours, or
 a structured-output mode that forces a tool call, would remove most of them.
 
+## Voice and text didn't match (fixed)
+
+Reported in the second real-voice session; two causes, both fixed:
+
+10. **Audio from an earlier server run.** Turn ids restart at r0001 with every run and audio chunks were
+    named by turn id, so a chunk not generated yet could be served from an earlier run's file of the same
+    name. Audio names now carry a per-run token, and audio is served `no-store`.
+11. **The model's reasoning in the reply.** With thinking off, Nemotron 3 Super sometimes put its
+    reasoning before the answer after a tool call ("Now respond per rules … Keep brief.`</think>`"), and the
+    radio spoke it. Found by transcribing every generated chunk with Parakeet and comparing it with the
+    text it should say; the client now strips everything up to the last `</think>`.
+
 ## WER with three voices (E-18, still to record)
 
 `tests/radio/phrases.txt` has the 20 phrases. Each teammate records them as `data/radio/wer/<name>/01.wav`

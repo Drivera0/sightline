@@ -210,3 +210,16 @@ def test_importing_lane_a_does_not_import_openai_or_torch() -> None:
         [sys.executable, "-c", code], check=False, cwd=root, capture_output=True, text=True
     )
     assert r.returncode == 0, r.stderr or r.stdout
+
+
+def test_leaked_reasoning_is_stripped_from_the_reply() -> None:
+    """Seen live after a tool call, thinking off: the radio spoke the model's reasoning."""
+    leaked = (
+        "Team Two, Sightline. Now respond per rules, start with callsign then Sightline. Keep brief.\n"
+        "</think>\nTeam Two, Sightline. Sector Bravo Three, entry east ridge, over."
+    )
+    client, _ = _client(_resp(leaked))
+    r = client.chat([{"role": "user", "content": "x"}], model="m")
+    assert r.text == "Team Two, Sightline. Sector Bravo Three, entry east ridge, over."
+    client, _ = _client(_resp("<think>plan the answer</think> Copy, over."))
+    assert client.chat([{"role": "user", "content": "x"}], model="m").text == "Copy, over."
