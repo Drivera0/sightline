@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OutboundItem, TurnResponse } from "./api";
+import type { OutboundItem, TurnResponse, TurnStandby } from "./api";
 import { RadioDesk, SAFETY_FRAME, type RadioDeps } from "./RadioDesk";
 import { MicDenied } from "./recorder";
 import { useRadio } from "./store";
@@ -40,7 +40,8 @@ const BRIEFING: OutboundItem = {
 
 function deps(over: Partial<RadioDeps> = {}): RadioDeps {
   return {
-    postTurn: vi.fn(async () => turn()),
+    postTurn: vi.fn(async (): Promise<TurnResponse | TurnStandby> => turn()),
+    pollTurn: vi.fn(async () => turn()),
     getOutbound: vi.fn(async () => []),
     transmit: vi.fn(async () => turn({ id: "r0002", direction: "out", callsign: "T2", transcript: "", state: "transmitted" })),
     skip: vi.fn(async () => {}),
@@ -122,6 +123,32 @@ describe("RadioDesk", () => {
     render(<RadioDesk api={API} deps={d2} />);
     await userEvent.click((await screen.findAllByRole("button", { name: "Skip" })).at(-1)!);
     await waitFor(() => expect(d2.skip).toHaveBeenCalledWith(API, "p014"));
+  });
+});
+
+describe("standby", () => {
+  it("plays standby at once, waits for the answer, then plays and logs it", async () => {
+    const standby: TurnStandby = {
+      standby: true,
+      reply: "Team Two, Sightline. Standby.",
+      audio_chunks: ["/missions/demo0001/radio/audio/s0001.wav"],
+      poll: "/missions/demo0001/radio/turn/pending/abc123def456",
+    };
+    const d = deps({
+      postTurn: vi.fn(async () => standby),
+      pollTurn: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValue(turn()),
+    });
+    render(<RadioDesk api={API} deps={d} />);
+    await userEvent.type(screen.getByPlaceholderText(/type what the team says/), "say again the sector boundary");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByText("Standby sent · thinking…")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Answered")).toBeInTheDocument(), { timeout: 3000 });
+    expect(d.pollTurn).toHaveBeenCalledTimes(3);
+    const played = (d.playChunks as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0][0]);
+    expect(played).toEqual([
+      "http://radio.test/missions/demo0001/radio/audio/s0001.wav", // standby first
+      "http://radio.test/missions/demo0001/radio/audio/r0001-0.wav", // then the answer
+    ]);
   });
 });
 

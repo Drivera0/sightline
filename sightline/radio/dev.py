@@ -66,7 +66,9 @@ def create_app() -> FastAPI:
         asr, tts = ParakeetAsr(), CachedTts(MagpieTts())
         # Every reply opens with "<Callsign>, Sightline.": say each once now, so it plays at once.
         tts.warm(
-            [f"{t['callsign']}, Sightline." for t in state["teams"]] + ["All teams, Sightline."]
+            [f"{t['callsign']}, Sightline." for t in state["teams"]]
+            + [f"{t['callsign']}, Sightline. Standby." for t in state["teams"]]
+            + ["All teams, Sightline.", "Sightline. Standby."]
         )
     else:
         asr, tts = None, CachedTts(FakeTts())

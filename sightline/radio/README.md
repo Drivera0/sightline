@@ -62,6 +62,14 @@ Parakeet needs 16 kHz mono; Magpie returns 22.05 kHz, so resample (the spike use
   (boundary question), 3.6 s (clue report), 0.1 s (confirmation)**, under the 5 s target; the longest pause
   between chunks was 1.3 s.
 
+**Standby when the model is slow.** Token Factory's response time varies (1.9–3.4 s most of the
+evening, 3–9 s later). If a turn isn't answered within 2 s (`STANDBY_AFTER_S`), `/turn` answers at once
+with `{"standby": true, "reply": "<Callsign>, Sightline. Standby.", "audio_chunks": [...], "poll": ...}`
+(the phrase is pre-spoken, so it plays immediately, which is also proper radio procedure). The turn keeps
+running; `GET poll` returns 202 until it is done, then the normal turn response. The desk plays the
+standby, shows "Standby sent · thinking…", polls every 300 ms, then plays and logs the answer. So the team
+always hears something within about 2 s.
+
 ## For the radio desk UI (lane E, E-14): playing a reply
 
 `POST /turn` and `POST /outbound/{id}/transmit` return the turn plus **`audio_chunks`**: URLs in order.

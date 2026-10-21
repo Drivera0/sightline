@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Badge, KeyHint, Label, Panel } from "../shell/components";
 import * as defaultApi from "./api";
-import type { OutboundItem, RadioApi, RadioTurn, TurnResponse } from "./api";
+import { isStandby, type OutboundItem, type RadioApi, type RadioTurn, type TurnResponse, type TurnStandby } from "./api";
 import { playChunks as defaultPlay } from "./player";
 import { MicDenied, startRecording as defaultRecord, type Recording } from "./recorder";
 import { DEMO_TEAMS, useRadio, type Team } from "./store";
@@ -23,8 +23,12 @@ const STATE_WORDS: Record<RadioTurn["state"], string> = {
   say_again: "Say again",
 };
 
+const POLL_MS = 300;
+const POLL_LIMIT_MS = 60_000;
+
 export interface RadioDeps {
   postTurn: typeof defaultApi.postTurn;
+  pollTurn: typeof defaultApi.pollTurn;
   getOutbound: typeof defaultApi.getOutbound;
   transmit: typeof defaultApi.transmit;
   skip: typeof defaultApi.skip;
@@ -34,6 +38,7 @@ export interface RadioDeps {
 
 const DEFAULT_DEPS: RadioDeps = {
   postTurn: defaultApi.postTurn,
+  pollTurn: defaultApi.pollTurn,
   getOutbound: defaultApi.getOutbound,
   transmit: defaultApi.transmit,
   skip: defaultApi.skip,
@@ -94,18 +99,39 @@ export function RadioDesk({
     [api, deps, r],
   );
 
+  /** The model is slow: play "standby" now, then wait for the answer and play that. */
+  const standby = useCallback(
+    async (res: TurnStandby) => {
+      r().setStage("standby");
+      const playing = deps
+        .playChunks(res.audio_chunks.map((p) => defaultApi.chunkUrl(api, p)), r().radioSound)
+        .catch(() => {});
+      const started = Date.now();
+      let answer: TurnResponse | null = null;
+      while (!answer) {
+        if (Date.now() - started > POLL_LIMIT_MS) throw new Error("No answer from the model after 60 s.");
+        await new Promise((ok) => setTimeout(ok, POLL_MS));
+        answer = await deps.pollTurn(api, res.poll);
+      }
+      await playing;
+      await received(answer);
+    },
+    [api, deps, r, received],
+  );
+
   const send = useCallback(
     async (input: { audio: Blob } | { text: string }) => {
       r().setError(null);
       r().setStage("sending");
       try {
-        await received(await deps.postTurn(api, input, r().speakingAs));
+        const res = await deps.postTurn(api, input, r().speakingAs);
+        await (isStandby(res) ? standby(res) : received(res));
       } catch (e) {
         r().setError((e as Error).message);
         r().setStage("idle");
       }
     },
-    [api, deps, r, received],
+    [api, deps, r, received, standby],
   );
 
   const pressTalk = useCallback(async () => {
@@ -168,7 +194,13 @@ export function RadioDesk({
 
   const pending = [...turns].reverse().find((t) => t.direction === "in" && t.callsign);
   const awaiting = pending?.state === "awaiting_confirm" ? pending : null;
-  const stageWord = { idle: "Ready", recording: "Recording…", sending: "Transcribing and thinking…", speaking: "Speaking…" }[stage];
+  const stageWord = {
+    idle: "Ready",
+    recording: "Recording…",
+    sending: "Transcribing and thinking…",
+    standby: "Standby sent · thinking…",
+    speaking: "Speaking…",
+  }[stage];
 
   return (
     <Panel className="flex flex-col gap-4" aria-label="Radio desk">
@@ -190,7 +222,7 @@ export function RadioDesk({
         <button
           type="button"
           className="rounded-full border border-accent bg-accent/15 px-6 py-3 text-body text-text disabled:opacity-50"
-          disabled={stage === "sending" || stage === "speaking"}
+          disabled={stage === "sending" || stage === "standby" || stage === "speaking"}
           onMouseDown={() => void pressTalk()}
           onMouseUp={() => void releaseTalk()}
           onMouseLeave={() => stage === "recording" && void releaseTalk()}

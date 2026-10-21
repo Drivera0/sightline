@@ -24,6 +24,17 @@ export interface TurnResponse extends RadioTurn {
   audio_chunks: string[];
 }
 
+/** What /turn returns when the model is slow (over ~2 s): "<Callsign>, Sightline. Standby." to play
+ * now, and where to collect the answer (`pollTurn`). */
+export interface TurnStandby {
+  standby: true;
+  reply: string;
+  audio_chunks: string[];
+  poll: string;
+}
+
+export const isStandby = (r: TurnResponse | TurnStandby): r is TurnStandby => "standby" in r && r.standby === true;
+
 /** An approved proposal with a briefing, waiting to be transmitted (contract §12.2 Proposal, subset). */
 export interface OutboundItem {
   id: string;
@@ -60,7 +71,7 @@ export async function postTurn(
   a: RadioApi,
   input: { audio: Blob; mime?: string } | { text: string },
   callsignHint?: string,
-): Promise<TurnResponse> {
+): Promise<TurnResponse | TurnStandby> {
   const form = new FormData();
   if ("audio" in input) {
     form.append("audio", input.audio, "turn.webm");
@@ -69,7 +80,14 @@ export async function postTurn(
     form.append("text", input.text);
   }
   if (callsignHint) form.append("callsign_hint", callsignHint);
-  return json<TurnResponse>(await fetch(`${root(a)}/turn`, { method: "POST", body: form }));
+  return json<TurnResponse | TurnStandby>(await fetch(`${root(a)}/turn`, { method: "POST", body: form }));
+}
+
+/** Collect a standby turn's answer: `null` while it is still running (202). */
+export async function pollTurn(a: RadioApi, path: string): Promise<TurnResponse | null> {
+  const res = await fetch(chunkUrl(a, path));
+  if (res.status === 202) return null;
+  return json<TurnResponse>(res);
 }
 
 export async function getOutbound(a: RadioApi): Promise<OutboundItem[]> {

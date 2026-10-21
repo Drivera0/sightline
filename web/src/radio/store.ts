@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import type { OutboundItem, RadioTurn } from "./api";
 
-export type Stage = "idle" | "recording" | "sending" | "speaking";
+export type Stage = "idle" | "recording" | "sending" | "standby" | "speaking";
 
 export interface Team {
   id: string;
