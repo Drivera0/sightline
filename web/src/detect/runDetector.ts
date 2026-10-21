@@ -4,7 +4,7 @@
 // nothing leaves the device and nothing is fetched from another origin.
 
 import type * as Ort from "onnxruntime-web";
-import { INPUT_PX, decodeSlice, letterbox, mergeSlices, offset, sliceBoxes, type Detection } from "./tiling";
+import { STRIDE, decodeSlice, letterbox, mergeSlices, offset, sliceBoxes, type Detection } from "./tiling";
 
 export const MODEL_FILE = "sightline-detector-v2.onnx";
 export const MODEL_URL = `${import.meta.env.BASE_URL}models/${MODEL_FILE}`;
@@ -15,6 +15,12 @@ export interface LoadedDetector {
   ort: typeof Ort;
   session: Ort.InferenceSession;
   backend: Backend;
+  /**
+   * Whether the model takes a non-square input, so slices are padded like YOLO.predict (only to a
+   * multiple of 32). Unknown (null) until the first slice that isn't square: a variable-size export
+   * (sightline-detector-v2-dynamic.onnx) accepts it; the fixed-size one fails and we pad to the square.
+   */
+  rect: boolean | null;
 }
 
 /** True when this deployment ships the model file. */
@@ -72,13 +78,13 @@ export function loadDetector(onProgress: (loaded: number, total: number | null) 
     if (hasGpu) {
       try {
         const session = await ort.InferenceSession.create(model, { executionProviders: ["webgpu"] });
-        return { ort, session, backend: "webgpu" as const };
+        return { ort, session, backend: "webgpu" as const, rect: null };
       } catch {
         /* no usable adapter: fall back to WebAssembly */
       }
     }
     const session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"] });
-    return { ort, session, backend: "wasm" as const };
+    return { ort, session, backend: "wasm" as const, rect: null };
   })();
   loading.catch(() => {
     loading = null;
@@ -86,9 +92,9 @@ export function loadDetector(onProgress: (loaded: number, total: number | null) 
   return loading;
 }
 
-/** Pixels of one letterboxed slice as the model's [1, 3, 1024, 1024] float input (RGB, 0..1). */
-function toInput(rgba: Uint8ClampedArray): Float32Array {
-  const n = INPUT_PX * INPUT_PX;
+/** Pixels of one letterboxed slice as the model's [1, 3, h, w] float input (RGB, 0..1). */
+function toInput(rgba: Uint8ClampedArray, w: number, h: number): Float32Array {
+  const n = w * h;
   const out = new Float32Array(3 * n);
   for (let i = 0; i < n; i++) {
     out[i] = rgba[i * 4]! / 255;
@@ -100,8 +106,8 @@ function toInput(rgba: Uint8ClampedArray): Float32Array {
 
 /**
  * Tiled detection on one photo, as detect_tiled does in Python: every slice letterboxed onto a
- * grey (114) 1024 px canvas, run, decoded, then merged. Returns every box >= 0.05; the caller
- * applies the survey's threshold.
+ * grey (114) canvas (1024 px square, or padded only to a multiple of 32 when the model allows it),
+ * run, decoded, then merged. Returns every box >= 0.05; the caller applies the survey's threshold.
  */
 export async function detectPhoto(
   detector: LoadedDetector,
@@ -111,29 +117,49 @@ export async function detectPhoto(
   const { ort, session } = detector;
   const slices = sliceBoxes(image.width, image.height);
   const canvas = document.createElement("canvas");
-  canvas.width = INPUT_PX;
-  canvas.height = INPUT_PX;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) throw new Error("This browser cannot read image pixels.");
   const perSlice: Detection[][] = [];
   const inputName = session.inputNames[0]!;
   const outputName = session.outputNames[0]!;
-  onSlice(0, slices.length);
-  for (const [i, s] of slices.entries()) {
+
+  const run = async (s: (typeof slices)[number], rect: boolean) => {
     const sw = s[2] - s[0];
     const sh = s[3] - s[1];
-    const lb = letterbox(sw, sh);
+    const lb = letterbox(sw, sh, undefined, rect ? STRIDE : undefined);
+    canvas.width = lb.canvasW;
+    canvas.height = lb.canvasH;
     ctx.fillStyle = "rgb(114,114,114)";
-    ctx.fillRect(0, 0, INPUT_PX, INPUT_PX);
+    ctx.fillRect(0, 0, lb.canvasW, lb.canvasH);
     ctx.drawImage(image, s[0], s[1], sw, sh, lb.padX, lb.padY, lb.width, lb.height);
-    const pixels = ctx.getImageData(0, 0, INPUT_PX, INPUT_PX).data;
-    const input = new ort.Tensor("float32", toInput(pixels), [1, 3, INPUT_PX, INPUT_PX]);
-    const result = await session.run({ [inputName]: input });
-    const out = result[outputName]!;
-    const anchors = out.dims[2]!;
-    perSlice.push(offset(decodeSlice(out.data as Float32Array, anchors, lb, sw, sh), s));
-    input.dispose?.();
-    out.dispose?.();
+    const pixels = ctx.getImageData(0, 0, lb.canvasW, lb.canvasH).data;
+    const dims = [1, 3, lb.canvasH, lb.canvasW];
+    const input = new ort.Tensor("float32", toInput(pixels, lb.canvasW, lb.canvasH), dims);
+    try {
+      const result = await session.run({ [inputName]: input });
+      const out = result[outputName]!;
+      const dets = decodeSlice(out.data as Float32Array, out.dims[2]!, lb, sw, sh);
+      out.dispose?.();
+      return offset(dets, s);
+    } finally {
+      input.dispose?.();
+    }
+  };
+
+  onSlice(0, slices.length);
+  for (const [i, s] of slices.entries()) {
+    const square = s[2] - s[0] === s[3] - s[1];
+    if (detector.rect === null && !square) {
+      try {
+        perSlice.push(await run(s, true));
+        detector.rect = true;
+      } catch {
+        detector.rect = false; // a fixed-size export: pad to the square from now on
+        perSlice.push(await run(s, false));
+      }
+    } else {
+      perSlice.push(await run(s, detector.rect === true));
+    }
     onSlice(i + 1, slices.length);
     // Let the page paint the progress between slices.
     await new Promise((r) => setTimeout(r, 0));
