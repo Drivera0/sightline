@@ -97,7 +97,7 @@ def test_postcheck() -> None:
         "Team Two, Sightline. Sector B3, bearing 270, 600 metres, over.", "Team Two"
     )
     assert "two seven zero" in r and "six zero zero" in r and not any(c.isdigit() for c in r)
-    assert notes == ["digits spoken as words"]
+    assert notes == ["made speakable (numbers, units, times, abbreviations)"]
     r, _ = postcheck("The sector is clear now.", "Team Two")
     assert r == "Team Two, Sightline. Standby, over."
     r, _ = postcheck("Team Two, Sightline. Bearing 270°, 600 m, gusts 30 km/h, over.", "Team Two")
@@ -473,3 +473,13 @@ def test_conditions_never_looked_up_are_not_answered(tmp_path: Path) -> None:
     api, session, _ = _setup(llm)
     r = _inbound(api, session, llm, CONDITIONS_Q, tmp_path)
     assert r.turn.reply == "Team Two, Sightline. Conditions not available, standby, over."
+
+
+def test_conditions_come_in_plain_words() -> None:
+    state, cards = demo_mission()
+    c = RadioTools(InMemoryMissionApi(state, cards), MID, drafts={}).call("get_conditions", {})
+    assert c["wind"] == "18 kilometres per hour" and c["gusts"] == "30 kilometres per hour"
+    assert c["rain"] == "light rain" and c["drones_can_fly"] == "yes"
+    assert c["daylight_until"] in ("18:12 local", "17:12 local")  # 01:12 UTC in Vancouver
+    assert c["alerts"] == ["Lower Seymour trail closed"]
+    assert not any("mm" in str(v) or "Z" in str(v) for v in c.values())

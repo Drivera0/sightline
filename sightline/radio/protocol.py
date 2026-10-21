@@ -126,3 +126,93 @@ def spoken_number(n: float, decimals: int) -> str:
 def spoken_coord(lat: float, lon: float, decimals: int = 3) -> str:
     """Latitude then longitude, each digit by digit (3 decimals ≈ 100 m)."""
     return f"{spoken_number(lat, decimals)}, {spoken_number(lon, decimals)}"
+
+
+# --- text as it is spoken ------------------------------------------------------------------------
+# Magpie reads text literally: "mm/h", "01:12Z", "NE" and "°" come out as noise. Everything spoken goes
+# through ``speakable`` first. Times are spoken radio style in local time; the demo area is BC.
+
+LOCAL_TZ = "America/Vancouver"  # TODO (lane E): the mission's time zone once missions carry one
+
+_ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+         "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]  # fmt: skip
+_TENS = {2: "twenty", 3: "thirty", 4: "forty", 5: "fifty"}
+
+_ISO_TIME = re.compile(r"\b\d{4}-\d{2}-\d{2}T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?Z\b")
+_Z_TIME = re.compile(r"\b(\d{1,2}):(\d{2})\s?Z\b")
+_LOCAL_TIME = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b")
+_SPOKEN_UNITS = [
+    (re.compile(r"(?<=\d)\s?mm/h\b"), " millimetres per hour"),
+    (re.compile(r"(?<=\d)\s?km/h\b"), " kilometres per hour"),
+    (re.compile(r"(?<=\d)\s?°C\b"), " degrees Celsius"),
+    (re.compile(r"\s?°"), " degrees"),
+    (re.compile(r"(?<=\d)\s?km\b"), " kilometres"),
+    (re.compile(r"(?<=\d)\s?m\b"), " metres"),
+    (re.compile(r"(?<=\d)\s?%"), " percent"),
+]
+_COMPASS = {"NE": "north-east", "NW": "north-west", "SE": "south-east", "SW": "south-west"}
+_NUMBER_IN_TEXT = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def number_words(n: int) -> str:
+    """0–59 as words ("forty five"), for spoken times."""
+    if n < 20:
+        return _ONES[n]
+    tens, ones = divmod(n, 10)
+    return _TENS[tens] + (f" {_ONES[ones]}" if ones else "")
+
+
+def spoken_time(hour: int, minute: int) -> str:
+    """Radio style: 18:12 → "eighteen twelve", 06:05 → "six oh five", 14:00 → "fourteen hundred"."""
+    if minute == 0:
+        return f"{number_words(hour)} hundred"
+    return (
+        f"{number_words(hour)} {('oh ' + _ONES[minute]) if minute < 10 else number_words(minute)}"
+    )
+
+
+def _utc_to_local(hour: int, minute: int, date: str | None = None) -> tuple[int, int]:
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    day = datetime.fromisoformat(date) if date else datetime.now(UTC)
+    t = day.replace(hour=hour, minute=minute, second=0, microsecond=0, tzinfo=UTC)
+    local = t.astimezone(ZoneInfo(LOCAL_TZ))
+    return local.hour, local.minute
+
+
+def local_clock(iso_utc: str) -> str:
+    """ "2026-10-25T01:12:00Z" → "18:12" in ``LOCAL_TZ`` (24 h, as said on the radio)."""
+    m = _ISO_TIME.search(iso_utc)
+    if not m:
+        return iso_utc
+    h, mi = _utc_to_local(int(m.group(1)), int(m.group(2)), iso_utc[:10])
+    return f"{h:02d}:{mi:02d}"
+
+
+def speakable(text: str) -> str:
+    """``text`` as it should be spoken: UTC times as local radio time ("eighteen twelve local"), local
+    times as words, units and compass abbreviations as words, colons and semicolons as pauses, and
+    every other number digit by digit ("one eight"), as ``spoken_number`` does."""
+
+    def iso(m: re.Match) -> str:
+        h, mi = _utc_to_local(int(m.group(1)), int(m.group(2)), m.group(0)[:10])
+        return f"{spoken_time(h, mi)} local"
+
+    def zulu(m: re.Match) -> str:
+        h, mi = _utc_to_local(int(m.group(1)), int(m.group(2)))
+        return f"{spoken_time(h, mi)} local"
+
+    text = _ISO_TIME.sub(iso, text)
+    text = _Z_TIME.sub(zulu, text)
+    text = _LOCAL_TIME.sub(lambda m: spoken_time(int(m.group(1)), int(m.group(2))), text)
+    for pattern, words in _SPOKEN_UNITS:
+        text = pattern.sub(words, text)
+    text = re.sub(r"\b(NE|NW|SE|SW)\b", lambda m: _COMPASS[m.group(1)], text)
+    text = re.sub(r"\s*[;:]\s*", ", ", text)
+
+    def digits(m: re.Match) -> str:
+        s = m.group()
+        return spoken_number(float(s), len(s.split(".")[1]) if "." in s else 0)
+
+    return re.sub(r"\s{2,}", " ", _NUMBER_IN_TEXT.sub(digits, text)).strip()

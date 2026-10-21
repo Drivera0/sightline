@@ -154,18 +154,36 @@ class RadioTools:
         }
 
     def get_conditions(self) -> dict:
+        """Conditions in plain words, ready to say on the radio (no units codes or UTC stamps)."""
         c = self.api.state(self.mission_id).get("conditions")
         if not c:
             return {"conditions": None}
-        keep = (
-            "fetched_at",
-            "wind_kmh",
-            "gust_kmh",
-            "precip_mm_h",
-            "flyable",
-            "civil_twilight_end",
-        )
-        return {**{k: c.get(k) for k in keep}, "alerts": [a["title"] for a in c.get("alerts", [])]}
+        out: dict[str, Any] = {}
+        if c.get("wind_kmh") is not None:
+            out["wind"] = f"{round(c['wind_kmh'])} kilometres per hour"
+        if c.get("gust_kmh") is not None:
+            out["gusts"] = f"{round(c['gust_kmh'])} kilometres per hour"
+        rain = c.get("precip_mm_h")
+        if rain is not None:  # the usual rain-rate bands
+            out["rain"] = (
+                "none"
+                if rain == 0
+                else "light rain"
+                if rain < 2.5
+                else "moderate rain"
+                if rain < 7.6
+                else "heavy rain"
+            )
+        if c.get("flyable") is not None:
+            out["drones_can_fly"] = "yes" if c["flyable"] else "no"
+        if c.get("civil_twilight_end"):
+            from sightline.radio.protocol import local_clock
+
+            out["daylight_until"] = f"{local_clock(c['civil_twilight_end'])} local"
+        out["alerts"] = [a["title"] for a in c.get("alerts", [])]
+        if c.get("fetched_at"):
+            out["as_of"] = f"{local_clock(c['fetched_at'])} local"
+        return out
 
     def get_updates_since(self, team_id: str, minutes: int = 30) -> list[dict]:
         since = _iso(_now() - timedelta(minutes=minutes))
