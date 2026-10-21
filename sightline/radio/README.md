@@ -11,6 +11,13 @@ start these files again.** Update the checklist below as pieces land.
 | `protocol.py` | `normalize` (number words → digits, "niner" → 9, "point" → ".", "minus" → "-", commas as the pause between numbers, "sight line" → "sightline"), `parse_callsign` (→ team id, default roster T1–T4 or the mission's), `classify_reply` (only an explicit affirmative confirms; "copy"/"roger" don't), `spoken_number`, `spoken_coord` (digit by digit, so the model never speaks a coordinate) | `tests/radio/`: 30 coordinates round-trip, callsign and reply fixtures |
 | `asr.py` | `Asr` protocol, `AsrResult` (text, ms, word timestamps), `ParakeetAsr` (Parakeet TDT 0.6B v2 via NeMo, lazy, warm-up on load), `FakeAsr` | fake in tests; real class run on the RTX 4080: 76 ms for a 5 s phrase, 13 word timestamps |
 | `tts.py` | `Tts` protocol, `TtsResult` (WAV bytes, rate, ms), `MagpieTts` (Magpie 357M via NeMo `do_tts`, lazy), `FakeTts`, `wav_bytes` | fake in tests; real class run on the RTX 4080: 3.95 s for the same phrase, 22.05 kHz |
+| `audio.py` | `to_mono16k` (ffmpeg: browser webm/opus, ogg, wav → 16 kHz mono 16-bit), `duration_s`, `check_length` (0.4–30 s, else "say again") | test 6 (webm made with ffmpeg) |
+| `mission_api.py` | `MissionApi`: how the radio reads and writes the mission. `HttpMissionApi` (lane D's REST API, contract §13: state, cards, `PATCH /teams`, `POST /clues`), `InMemoryMissionApi` + `demo_mission()` (the LANE_E §8.7 demo mission) | used by every turn test |
+| `tools.py` | `RadioTools` + `TOOL_SPECS`: `get_assignment`, `get_sector_boundary` (accepts "B3" or "Bravo Three"), `get_conditions`, `get_updates_since`, `draft_clue` (stored, **not** posted), `report_position`, `report_status` (searching / returning only) | test 5: no tool changes an assignment |
+| `prompts.py` | `RADIO_SYSTEM` (LANE_E §8.3, `radio-v1`) and `speaker_context` (team id, its sector, "never ask for coordinates") | |
+| `turn.py` | `handle_inbound`: audio or text → callsign → readback confirmation (no model call) or Nemotron 3 Super with tools (≤ 3 rounds) → post-check (callsign prefix, units and digits spoken as words, "clear" → standby, a described-not-called tool gets one retry) → speech. The clue readback is built in code; the clue is posted only after "affirmative", with `confirmed_by_turn`. `transmit`: approved briefings only | tests 3–4, plus failure paths |
+| `api.py` | `radio_router` (`/turn`, `/audio/{id}.wav`, `/outbound`, `/transmit`, `/skip`) and `RadioContext` (put it on `app.state.radio`) | test 7 |
+| `dev.py` | the router alone with the demo mission: `uv run uvicorn sightline.radio.dev:app --port 8010`; live Nemotron if `NEBIUS_API_KEY` is set; `SIGHTLINE_RADIO_MODELS=real` loads Parakeet + Magpie | run live (below) |
 
 NeMo and torch are imported lazily: the package imports on any laptop, and `tests/radio/` runs with no
 GPU, network or NeMo.
@@ -30,15 +37,27 @@ From code (in that environment, with the repo on `PYTHONPATH`):
 ```python
 from sightline.radio.asr import ParakeetAsr
 from sightline.radio.tts import MagpieTts
-tts, asr = MagpieTts(), ParakeetAsr()          # ~57 s + ~32 s to load on the 4080; load once at startup
-reply = tts.speak("Team Two, Sightline. Copy. Over.")   # TtsResult: .wav bytes, .sample_rate 22050, .ms
-heard = asr.transcribe(wav_16k_mono_path)              # AsrResult: .text, .ms, .words
+
+tts, asr = MagpieTts(), ParakeetAsr()  # ~57 s + ~32 s to load on the 4080; load once at startup
+reply = tts.speak(
+    "Team Two, Sightline. Copy. Over."
+)  # TtsResult: .wav bytes, .sample_rate 22050, .ms
+heard = asr.transcribe(wav_16k_mono_path)  # AsrResult: .text, .ms, .words
 ```
 
 Parakeet needs 16 kHz mono; Magpie returns 22.05 kHz, so resample (the spike uses
 `scipy.signal.resample_poly`). Browser audio (webm/opus) needs ffmpeg, which `audio.py` will call.
 
-## Decisions already made (from the spike, `docs/feedback/radio.md`)
+## Measured live (2026-10-20, Nemotron 3 Super on Token Factory, RTX 4080)
+
+- The LANE_E §8.7 demo script runs end to end through the API: transmit the assignment → "say again the
+  sector boundary" → "found a blue backpack, our position" → readback → "affirmative" → clue posted.
+- Tool reliability on the two inbound beats, after the fixes above: **8 / 8 and 8 / 8**; Nemotron time p50
+  1.4 s (clue report, one call) and 2.4 s (boundary, two calls).
+- Full voice turns (Magpie speaking the team, encoded as webm like a browser, then `/turn`): ASR 51–139 ms;
+  **TTS is the bottleneck**: 4.6 s for a 15-word reply, 10.4 s for a 25-word boundary answer.
+
+## Decisions already made (from the spike and the live runs, `docs/feedback/radio.md`)
 
 - **Reasoning model: Nemotron 3 Super, thinking off**, through `sightline.agent.llm` (tool-call ids
   and `assistant_message` / `tool_message` helpers are there). Nano made 0 / 3 tool calls and once
@@ -52,9 +71,10 @@ Parakeet needs 16 kHz mono; Magpie returns 22.05 kHz, so resample (the spike use
 ## Still to do (lane E)
 
 - [ ] `VOICES` in `tts.py`: listen to Magpie's speakers and pick one female and one male English voice
-- [ ] `audio.py`: `to_mono16k` (ffmpeg; `sudo apt install ffmpeg` on the desktop), `duration_s`, test 6
-- [ ] `tools.py`: `RadioTools` (read-mostly; nothing changes assignments), test 5
-- [ ] `turn.py`: `RadioSession`, `handle_inbound` (readback → `POST /clues` only after "affirmative"), `transmit`, tests 3–4
-- [ ] `prompts.py`: the radio system prompt (LANE_E §8.3; the spike's `RADIO_SYSTEM` is a start)
-- [ ] `api.py`: `radio_router` (`/turn`, `/audio/{id}.wav`, `/outbound`, transmit, skip), `dev.py`, test 7
+- [x] `audio.py`, `tools.py`, `turn.py`, `prompts.py`, `api.py`, `dev.py`, tests 3–7 (lane A, issue #30)
+- [ ] **Shorten spoken replies** (TTS time grows with length): e.g. one fact per reply, or play Magpie's
+      output in chunks while it generates (`create_chunk_state` / `generate_speech`)
+- [ ] Lane D: mount `radio_router` with a `RadioContext` (D-R4) whose `api` is `HttpMissionApi` (or an
+      in-process equivalent) and whose `on_turn` writes `trace_call(actor="radio", kind="radio_turn")` + a `radio.turn` event
+- [ ] Real roster callsigns for `parse_callsign` come from the mission's teams (already passed in `turn.py`)
 - [ ] E-14 onward: the radio desk UI in `web/src/radio/`, outbound queue, WER and latency scripts
