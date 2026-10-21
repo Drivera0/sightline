@@ -323,3 +323,57 @@ def test_cached_tts_speaks_each_phrase_once() -> None:
     tts = CachedTts(Counting())
     tts.warm(["Team Two, Sightline."])
     assert tts.speak("Team Two, Sightline.").ms == 0 and calls == ["Team Two, Sightline."]
+
+
+class _SlowLlm(FakeChatClient):
+    """A model that takes ``delay`` seconds to answer (Token Factory on a slow evening)."""
+
+    def __init__(self, delay: float, **kw) -> None:
+        super().__init__(**kw)
+        self.delay = delay
+
+    def chat(self, messages, **kw):
+        import time
+
+        time.sleep(self.delay)
+        return super().chat(messages, **kw)
+
+
+def test_a_slow_turn_gets_standby_then_the_answer(tmp_path: Path) -> None:
+    import time
+
+    state, cards = demo_mission()
+    app = FastAPI()
+    app.state.radio = RadioContext(
+        api=InMemoryMissionApi(state, cards), tts=FakeTts(), audio_dir=tmp_path,
+        llm=_SlowLlm(0.6, replies={"boundary": "Team Two, Sightline. Entry east ridge, over."}),
+    )  # fmt: skip
+    app.state.radio.standby_after_s = 0.2
+    app.include_router(radio_router)
+    c = TestClient(app)
+
+    t0 = time.perf_counter()
+    first = c.post(f"/missions/{MID}/radio/turn", data={"text": QUESTION}).json()
+    assert time.perf_counter() - t0 < 0.5  # did not wait for the model
+    assert first["standby"] is True and first["reply"] == "Team Two, Sightline. Standby."
+    assert c.get(first["audio_chunks"][0]).content[:4] == b"RIFF"
+
+    assert c.get(first["poll"]).status_code == 202  # still thinking
+    for _ in range(50):
+        r = c.get(first["poll"])
+        if r.status_code == 200:
+            break
+        time.sleep(0.05)
+    answer = r.json()
+    assert (
+        answer["state"] == "answered"
+        and answer["reply"] == "Team Two, Sightline. Entry east ridge, over."
+    )
+    assert c.get(first["poll"]).json() == answer  # asking again returns the same, spoken once
+    assert c.get(f"/missions/{MID}/radio/turn/pending/nope").status_code == 404
+
+
+def test_a_fast_turn_gets_no_standby(client) -> None:
+    c, _, _ = client
+    body = c.post(f"/missions/{MID}/radio/turn", data={"text": QUESTION}).json()
+    assert "standby" not in body and body["state"] == "answered"

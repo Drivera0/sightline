@@ -6,6 +6,11 @@
     GET  /missions/{id}/radio/audio/{turn}.wav   the whole reply or transmission (once all spoken)
     GET  /missions/{id}/radio/audio/{turn}-{k}.wav  sentence k: play 0, 1, ... in order
 
+When the model is slow, a turn that isn't answered within ``STANDBY_AFTER_S`` returns a
+**standby** response instead: ``{"standby": true, "audio_chunks": ["…/audio/sNNNN.wav"], "poll":
+"/missions/{id}/radio/turn/pending/{key}"}``. The chunk says "<Callsign>, Sightline. Standby." (pre-spoken,
+so instant); ``GET poll`` answers 202 until the turn is done, then 200 with the normal turn response.
+
 Replies are spoken sentence by sentence: the response returns once sentence 0 is ready, with
 ``audio_chunks`` (URLs in order); the rest are generated in the background, so a chunk may 404
 for a moment: retry it. Time to first sound is ASR + model + one short sentence.
@@ -16,8 +21,10 @@ for a moment: retry it. Time to first sound is ASR + model + one short sentence.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import threading
+import uuid
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -25,17 +32,27 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from sightline.agent._contract_v12 import RadioTurn
 from sightline.agent.llm import ChatClient
 from sightline.radio.asr import Asr
 from sightline.radio.mission_api import MissionApi
+from sightline.radio.protocol import parse_callsign
 from sightline.radio.tts import Tts, concat_wavs, split_sentences
-from sightline.radio.turn import RadioSession, TurnResult, handle_inbound, outbound, transmit
+from sightline.radio.turn import (
+    RadioSession,
+    TurnResult,
+    handle_inbound,
+    opening,
+    outbound,
+    transmit,
+)
 
 radio_router = APIRouter(prefix="/missions/{mission_id}/radio", tags=["radio"])
-_AUDIO_ID = re.compile(r"^r\d{4,}(-\d+)?$")
+_AUDIO_ID = re.compile(r"^(r\d{4,}(-\d+)?|s\d{4,})$")
+_PENDING_KEY = re.compile(r"^[0-9a-f]{12}$")
+STANDBY_AFTER_S = 2.0  # radio procedure: "standby" when the answer will take a while
 
 
 @dataclass
@@ -52,6 +69,12 @@ class RadioContext:
     executor: ThreadPoolExecutor = field(default_factory=lambda: ThreadPoolExecutor(1))
     _pending: list[Future] = field(default_factory=list)
     _lock: threading.Lock = field(default_factory=threading.Lock)
+    # Turns run here, one at a time (a mission's radio session is not shared between threads).
+    turn_executor: ThreadPoolExecutor = field(default_factory=lambda: ThreadPoolExecutor(1))
+    standby_after_s: float = STANDBY_AFTER_S
+    # Turns answered with "standby": key -> (mission id, the running turn, its response once spoken).
+    _slow: dict[str, list[Any]] = field(default_factory=dict)
+    _standby_count: int = 0
 
     def session(self, mission_id: str) -> RadioSession:
         return self.sessions.setdefault(mission_id, RadioSession())
@@ -95,6 +118,26 @@ def _ctx(request: Request) -> RadioContext:
     return ctx
 
 
+def _standby(
+    ctx: RadioContext, mission_id: str, future: Future, callsign: str | None
+) -> dict[str, Any]:
+    """Speak "<Callsign>, Sightline. Standby." now and hand back where to collect the answer."""
+    ctx._standby_count += 1
+    name = f"s{ctx._standby_count:04d}"
+    d = ctx.audio_dir / mission_id
+    d.mkdir(parents=True, exist_ok=True)
+    text = f"{opening(callsign)} Standby." if callsign else "Sightline. Standby."
+    (d / f"{name}.wav").write_bytes(ctx.tts.speak(text).wav)
+    key = uuid.uuid4().hex[:12]
+    ctx._slow[key] = [mission_id, future, None]
+    return {
+        "standby": True,
+        "reply": text,
+        "audio_chunks": [f"/missions/{mission_id}/radio/audio/{name}.wav"],
+        "poll": f"/missions/{mission_id}/radio/turn/pending/{key}",
+    }
+
+
 def _finish(ctx: RadioContext, mission_id: str, result: TurnResult) -> dict[str, Any]:
     turn, chunks = ctx.speak_chunked(mission_id, result.turn)
     if ctx.on_turn is not None:
@@ -116,7 +159,9 @@ async def post_turn(
         raise HTTPException(422, "send either audio or text")
     if audio is not None and ctx.asr is None:
         raise HTTPException(503, "speech recognition is not loaded; send text")
-    result = handle_inbound(
+    audio_bytes = await audio.read() if audio is not None else None
+    future = ctx.turn_executor.submit(
+        handle_inbound,
         mission_id=mission_id,
         session=ctx.session(mission_id),
         asr=ctx.asr,
@@ -124,12 +169,39 @@ async def post_turn(
         llm=ctx.llm,
         api=ctx.api,
         work_dir=ctx.audio_dir / mission_id / "in",
-        audio=await audio.read() if audio is not None else None,
+        audio=audio_bytes,
         mime=audio.content_type or mime if audio is not None else mime,
         text=text,
         callsign_hint=callsign_hint,
     )
+    try:
+        # shield: the timeout only stops waiting; the turn keeps running for the poll.
+        result = await asyncio.wait_for(
+            asyncio.shield(asyncio.wrap_future(future)), ctx.standby_after_s
+        )
+    except TimeoutError:
+        teams = {t["id"]: t["callsign"] for t in ctx.api.state(mission_id)["teams"]}
+        team = (parse_callsign(text, teams) if text else None) or callsign_hint
+        return _standby(ctx, mission_id, future, teams.get(team) if team else None)
     return _finish(ctx, mission_id, result)
+
+
+@radio_router.get("/turn/pending/{key}")
+def get_pending(mission_id: str, key: str, request: Request) -> Any:
+    """The answer to a turn that got "standby": 202 while it runs, then the turn response."""
+    ctx = _ctx(request)
+    slot = ctx._slow.get(key) if _PENDING_KEY.match(key) else None
+    if slot is None or slot[0] != mission_id:
+        raise HTTPException(404, "no such pending turn")
+    if slot[2] is None:
+        if not slot[1].done():
+            return JSONResponse({"pending": True}, status_code=202)
+        try:
+            result = slot[1].result()
+        except Exception as e:  # the turn failed after "standby": say so, don't hang the desk
+            raise HTTPException(500, f"radio turn failed: {type(e).__name__}") from e
+        slot[2] = _finish(ctx, mission_id, result)
+    return slot[2]
 
 
 @radio_router.get("/audio/{turn_id}.wav")
