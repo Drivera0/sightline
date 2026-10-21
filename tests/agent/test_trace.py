@@ -5,9 +5,9 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
-from sightline.agent._contract_v12 import TraceEntry
 from sightline.agent.llm import ChatResult
 from sightline.agent.trace import REDACTED, trace_call, trim
+from sightline.contract import TraceEntry
 
 B64 = base64.b64encode(bytes(range(256)) * 4).decode()
 

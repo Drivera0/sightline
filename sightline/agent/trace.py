@@ -17,8 +17,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from sightline.agent._contract_v12 import TraceActor, TraceEntry, TraceKind
 from sightline.agent.llm import ChatResult
+from sightline.contract import TraceActor, TraceEntry, TraceKind
 
 SECRET_ENV = ("NEBIUS_API_KEY", "TAVILY_API_KEY", "NVIDIA_API_KEY", "AWS_SECRET_ACCESS_KEY")
 REDACTED = "[redacted]"

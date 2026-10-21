@@ -24,11 +24,10 @@ import re
 import threading
 from typing import Any
 
-from sightline.agent._contract_v12 import Conditions, EvidenceRef, Leg, Proposal
 from sightline.agent.llm import MODEL_FAST, ChatClient
 from sightline.agent.trace import now_iso, trace_call
 from sightline.agent.verify import VERIFY_BAND, verify
-from sightline.contract import LatLon
+from sightline.contract import Conditions, EvidenceRef, LatLon, Leg, Proposal
 from sightline.search.grid import cell_containing
 
 try:  # lane C (C-S1, C-P1); the stubs until they land

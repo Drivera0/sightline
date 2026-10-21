@@ -34,8 +34,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
-from sightline.agent._contract_v12 import RadioTurn
 from sightline.agent.llm import ChatClient
+from sightline.contract import RadioTurn
 from sightline.radio.asr import Asr
 from sightline.radio.mission_api import MissionApi
 from sightline.radio.protocol import parse_callsign

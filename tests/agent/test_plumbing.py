@@ -11,11 +11,10 @@ from pathlib import Path
 import pytest
 
 from sightline.agent import hooks
-from sightline.agent._contract_v12 import Leg, Proposal
 from sightline.agent.llm import MODEL_VISION, FakeChatClient, with_images
 from sightline.agent.runner import Runner
 from sightline.agent.trace import trace_call
-from sightline.contract import LatLon
+from sightline.contract import LatLon, Leg, Proposal
 from tests.agent.fake_store import FakeMissionStore
 
 KEY = "nb-test-key-0123456789abcdef"

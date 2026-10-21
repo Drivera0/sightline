@@ -10,10 +10,9 @@ import cv2
 import numpy as np
 import pytest
 
-from sightline.agent._contract_v12 import Verdict
 from sightline.agent.llm import ChatResult, FakeChatClient
 from sightline.agent.verify import choose_tools, frame_meta, parse_verdict, verify
-from sightline.contract import Detection, Frame, LatLon, Pose, Source
+from sightline.contract import Detection, Frame, LatLon, Pose, Source, Verdict
 from sightline.ml.types import Box, RawDetection
 from tests.agent.fake_store import FakeMissionStore
 

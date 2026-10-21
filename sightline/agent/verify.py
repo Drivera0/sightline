@@ -22,7 +22,6 @@ import cv2
 import numpy as np
 
 from sightline.agent import prompts
-from sightline.agent._contract_v12 import Verdict
 from sightline.agent.llm import MODEL_VISION, ChatClient, ChatResult
 from sightline.agent.relook import (
     ArrayDetector,
@@ -34,6 +33,7 @@ from sightline.agent.relook import (
     zoom_native,
 )
 from sightline.agent.trace import now_iso, trace_call
+from sightline.contract import Verdict
 
 VERIFY_BAND = (0.15, 0.29)  # near-miss band below candidate_threshold (0.29)
 MAX_TOOLS = 2  # with the crop, at most three images per model call

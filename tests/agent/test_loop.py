@@ -13,11 +13,22 @@ import numpy as np
 import pytest
 
 from sightline.agent import loop
-from sightline.agent._contract_v12 import Clue, Conditions, Drone, FleetState, Leg, Team
 from sightline.agent._stubs import StubLiveMap, lattice_sectors
 from sightline.agent.llm import ChatResult, FakeChatClient
 from sightline.agent.runner import BudgetClient, BudgetExceeded
-from sightline.contract import Detection, Frame, LatLon, Pose, Source
+from sightline.contract import (
+    Clue,
+    Conditions,
+    Detection,
+    Drone,
+    FleetState,
+    Frame,
+    LatLon,
+    Leg,
+    Pose,
+    Source,
+    Team,
+)
 from sightline.ml.types import Box, RawDetection
 from sightline.search.grid import cell_center, make_grid
 from tests.agent.fake_store import FakeMissionStore
