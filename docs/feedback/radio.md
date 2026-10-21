@@ -41,6 +41,22 @@ clip recorded once.
 4. **Super's replies didn't always start with "<callsign>, Sightline"**: enforce the opening in
    code (prefix it) rather than trusting the prompt, as §8.4 already does for outbound.
 
+## Live runs of the turn handler (after the spike)
+
+With the real `handle_inbound` and Nemotron 3 Super, three more failure modes showed up, each now handled
+in code (`sightline/radio/turn.py`, `prompts.py`):
+
+5. **A tool result without the id it needs**: `get_assignment` returned only "Bravo Three"; the model
+   then called `get_sector_boundary("Bravo Three")`. Tools now return ids and accept spoken names.
+6. **Asking the team for coordinates** instead of using the tool (3 of 5 runs, for boundary questions;
+   once for a found object "at our position"). Fixed by putting the team's sector in the turn and saying
+   the system knows the team's position.
+7. **Describing a tool call instead of making it** ("calling get_sector_boundary…", "drafting clue",
+   "requesting sector boundary"). Such replies get one retry and are never spoken.
+
+After the fixes: 8 / 8 tool use on both inbound beats; Nemotron time p50 1.4–2.4 s per turn. Full voice
+turn: ASR 51–139 ms, TTS 4.6–10.4 s depending on reply length: **TTS is the bottleneck** for the 5 s target.
+
 ## How to reproduce
 
 ```bash
@@ -57,6 +73,6 @@ doesn't need. `ffmpeg` is not installed on the desktop yet; `to_mono16k` (webm f
 
 - [x] E-13 part 1 (lane A, issue #30): `protocol.py`, `asr.py` (`ParakeetAsr`), `tts.py` (`MagpieTts`)
       with tests 1–2; see `sightline/radio/README.md`
-- [ ] E-13 part 2: `audio.py`, `api.py` / `radio_router`, `dev.py` (checklist in `sightline/radio/README.md`)
-- [ ] E-16: `turn.py` + `tools.py` with Nemotron 3 Super (findings 1–2 above)
+- [x] E-13 part 2 + E-16 (lane A, issue #30): `audio.py`, `tools.py`, `turn.py`, `prompts.py`, `api.py`,
+      `dev.py`, tests 3–7; the demo script runs end to end (see `sightline/radio/README.md`, "Measured live")
 - [ ] E-18: WER with 3 voices on 20 phrases (`tests/radio/phrases.txt`), latency p50/p90 over 30 turns
