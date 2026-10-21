@@ -50,7 +50,9 @@ from sightline.radio.turn import (
 )
 
 radio_router = APIRouter(prefix="/missions/{mission_id}/radio", tags=["radio"])
-_AUDIO_ID = re.compile(r"^(r\d{4,}(-\d+)?|s\d{4,})$")
+# <run>-r0001, <run>-r0001-2, <run>-s0001. Turn ids restart at r0001 with every server run, so each run
+# names its audio with its own token: a later run can never serve an earlier run's file.
+_AUDIO_ID = re.compile(r"^[0-9a-f]{6}-(r\d{4,}(-\d+)?|s\d{4,})$")
 _PENDING_KEY = re.compile(r"^[0-9a-f]{12}$")
 # Radio procedure: "standby" when the answer will take a while. 3 s = the model's p90 over 30 live turns
 # (p50 2.2 s): at 2 s, 63 % of turns got a standby that the answer followed 0.3 s later.
@@ -77,6 +79,7 @@ class RadioContext:
     # Turns answered with "standby": key -> (mission id, the running turn, its response once spoken).
     _slow: dict[str, list[Any]] = field(default_factory=dict)
     _standby_count: int = 0
+    run: str = field(default_factory=lambda: uuid.uuid4().hex[:6])
 
     def session(self, mission_id: str) -> RadioSession:
         return self.sessions.setdefault(mission_id, RadioSession())
@@ -94,23 +97,22 @@ class RadioContext:
         d = self.audio_dir / mission_id
         d.mkdir(parents=True, exist_ok=True)
         sentences = split_sentences(turn.reply)
+        name = f"{self.run}-{turn.id}"
         first = self.tts.speak(sentences[0])
-        (d / f"{turn.id}-0.wav").write_bytes(first.wav)
+        (d / f"{name}-0.wav").write_bytes(first.wav)
 
         def rest() -> None:
             wavs = [first.wav]
             for k, sentence in enumerate(sentences[1:], 1):
                 wav = self.tts.speak(sentence).wav
-                (d / f"{turn.id}-{k}.wav").write_bytes(wav)
+                (d / f"{name}-{k}.wav").write_bytes(wav)
                 wavs.append(wav)
-            (d / f"{turn.id}.wav").write_bytes(concat_wavs(wavs))
+            (d / f"{name}.wav").write_bytes(concat_wavs(wavs))
 
         with self._lock:
             self._pending.append(self.executor.submit(rest))
-        urls = [
-            f"/missions/{mission_id}/radio/audio/{turn.id}-{k}.wav" for k in range(len(sentences))
-        ]
-        return turn.model_copy(update={"tts_ms": first.ms, "audio": f"radio/{turn.id}.wav"}), urls
+        urls = [f"/missions/{mission_id}/radio/audio/{name}-{k}.wav" for k in range(len(sentences))]
+        return turn.model_copy(update={"tts_ms": first.ms, "audio": f"radio/{name}.wav"}), urls
 
 
 def _ctx(request: Request) -> RadioContext:
@@ -125,7 +127,7 @@ def _standby(
 ) -> dict[str, Any]:
     """Speak "<Callsign>, Sightline. Standby." now and hand back where to collect the answer."""
     ctx._standby_count += 1
-    name = f"s{ctx._standby_count:04d}"
+    name = f"{ctx.run}-s{ctx._standby_count:04d}"
     d = ctx.audio_dir / mission_id
     d.mkdir(parents=True, exist_ok=True)
     text = f"{opening(callsign)} Standby." if callsign else "Sightline. Standby."
@@ -213,7 +215,8 @@ def get_audio(mission_id: str, turn_id: str, request: Request) -> FileResponse:
     path = _ctx(request).audio_dir / mission_id / f"{turn_id}.wav"
     if not path.is_file():
         raise HTTPException(404, "no audio for that turn")
-    return FileResponse(path, media_type="audio/wav")
+    # Never from the browser cache: the same turn id can mean a different reply after a restart.
+    return FileResponse(path, media_type="audio/wav", headers={"Cache-Control": "no-store"})
 
 
 @radio_router.get("/outbound")

@@ -213,11 +213,11 @@ def test_text_turn_returns_a_valid_radio_turn(client) -> None:
     assert turn.direction == "in" and turn.callsign == "T2" and seen == [turn]
     # "Team Two, Sightline. Entry east ridge, over." -> two sentences, sentence 0 ready at once
     assert body["audio_chunks"] == [
-        f"/missions/{MID}/radio/audio/{turn.id}-{k}.wav" for k in (0, 1)
+        f"/missions/{MID}/radio/audio/{ctx.run}-{turn.id}-{k}.wav" for k in (0, 1)
     ]
     assert c.get(body["audio_chunks"][0]).content[:4] == b"RIFF"
     ctx.wait()
-    for url in body["audio_chunks"] + [f"/missions/{MID}/radio/audio/{turn.id}.wav"]:
+    for url in body["audio_chunks"] + [f"/missions/{MID}/radio/audio/{ctx.run}-{turn.id}.wav"]:
         assert c.get(url).status_code == 200
 
 
@@ -483,3 +483,28 @@ def test_conditions_come_in_plain_words() -> None:
     assert c["daylight_until"] in ("18:12 local", "17:12 local")  # 01:12 UTC in Vancouver
     assert c["alerts"] == ["Lower Seymour trail closed"]
     assert not any("mm" in str(v) or "Z" in str(v) for v in c.values())
+
+
+def test_a_restart_never_plays_the_previous_runs_audio(tmp_path: Path) -> None:
+    """Seen live: after a restart, turn r0001's chunk 2 came from an earlier run's r0001 (same file
+    name, still on disk), so the voice and the text didn't match."""
+
+    def run_once():
+        state, cards = demo_mission()
+        app = FastAPI()
+        app.state.radio = RadioContext(
+            api=InMemoryMissionApi(state, cards), tts=FakeTts(), audio_dir=tmp_path,
+            llm=FakeChatClient({"boundary": "Team Two, Sightline. Entry east ridge, over."}),
+        )  # fmt: skip
+        app.include_router(radio_router)
+        c = TestClient(app)
+        body = c.post(f"/missions/{MID}/radio/turn", data={"text": QUESTION}).json()
+        app.state.radio.wait()
+        return c, body
+
+    _, first = run_once()
+    c2, second = run_once()
+    assert first["id"] == second["id"] == "r0001"  # turn ids restart...
+    assert set(first["audio_chunks"]).isdisjoint(second["audio_chunks"])  # ...audio names don't
+    r = c2.get(second["audio_chunks"][0])
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
