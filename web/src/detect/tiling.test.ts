@@ -38,13 +38,36 @@ describe("sliceBoxes (SAHI get_slice_bboxes, 1024 px, overlap 0.2)", () => {
 
 describe("letterbox", () => {
   it("is the identity for a full 1024 px slice", () => {
-    expect(letterbox(1024, 1024)).toEqual({ scale: 1, padX: 0, padY: 0, width: 1024, height: 1024 });
+    expect(letterbox(1024, 1024)).toEqual({
+      scale: 1,
+      padX: 0,
+      padY: 0,
+      width: 1024,
+      height: 1024,
+      canvasW: 1024,
+      canvasH: 1024,
+    });
   });
   it("scales up and centres a 1000×750 survey photo", () => {
     const lb = letterbox(1000, 750);
     expect(lb.scale).toBeCloseTo(1.024);
     expect([lb.width, lb.height]).toEqual([1024, 768]);
     expect([lb.padX, lb.padY]).toEqual([0, 128]);
+    expect([lb.canvasW, lb.canvasH]).toEqual([1024, 1024]);
+  });
+  it("with stride 32 pads only to a multiple of 32, like YOLO.predict (and detect_cv.py)", () => {
+    expect(letterbox(1000, 750, 1024, 32)).toEqual({
+      scale: 1.024,
+      padX: 0,
+      padY: 0,
+      width: 1024,
+      height: 768,
+      canvasW: 1024,
+      canvasH: 768,
+    });
+    expect(letterbox(1024, 1024, 1024, 32)).toEqual(letterbox(1024, 1024));
+    const lb = letterbox(600, 1000, 1024, 32); // 614 px wide: 26 px to the next multiple of 32
+    expect([lb.width, lb.padX, lb.canvasW, lb.canvasH]).toEqual([614, 13, 640, 1024]);
   });
 });
 

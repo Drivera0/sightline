@@ -9,6 +9,8 @@ export const SLICE_PX = 1024;
 export const OVERLAP = 0.2;
 /** The model's square input (detectorSpec.imgsz). */
 export const INPUT_PX = 1024;
+/** The model's largest stride: a variable-size input must be a multiple of it. */
+export const STRIDE = 32;
 /** detect_tiled's default `conf`: boxes below this are dropped before merging. */
 export const MIN_CONF = 0.05;
 /** Ultralytics' default NMS IoU inside one slice (SAHI calls predict with it). */
@@ -65,17 +67,33 @@ export interface Letterbox {
   /** The slice's size after scaling, in input pixels. */
   width: number;
   height: number;
+  /** The model input's size: the full square, or with `stride` only the padding up to a multiple of it. */
+  canvasW: number;
+  canvasH: number;
 }
 
-/** Ultralytics' LetterBox (auto=False, centred): fit inside `input` keeping the aspect ratio, pad the rest. */
-export function letterbox(width: number, height: number, input = INPUT_PX): Letterbox {
+/**
+ * Ultralytics' LetterBox, centred: fit inside `input` keeping the aspect ratio, pad the rest. Without
+ * `stride` it pads to the full square (auto=False, what a fixed-size ONNX needs); with `stride` (32) only
+ * up to a multiple of it (auto=True, what YOLO.predict does), so a 1000×750 frame becomes 1024×768.
+ * Same as sightline/ml/detect_cv.py `letterbox`.
+ */
+export function letterbox(width: number, height: number, input = INPUT_PX, stride?: number): Letterbox {
   const scale = Math.min(input / width, input / height);
   const w = Math.round(width * scale);
   const h = Math.round(height * scale);
+  let dw = (input - w) / 2;
+  let dh = (input - h) / 2;
+  if (stride !== undefined) {
+    dw = ((input - w) % stride) / 2;
+    dh = ((input - h) % stride) / 2;
+  }
   // Ultralytics splits the padding in half and rounds each side (round(dw - 0.1), round(dw + 0.1)).
-  const padX = Math.max(0, Math.round((input - w) / 2 - 0.1));
-  const padY = Math.max(0, Math.round((input - h) / 2 - 0.1));
-  return { scale, padX, padY, width: w, height: h };
+  const padX = Math.max(0, Math.round(dw - 0.1));
+  const padY = Math.max(0, Math.round(dh - 0.1));
+  const canvasW = w + padX + Math.max(0, Math.round(dw + 0.1));
+  const canvasH = h + padY + Math.max(0, Math.round(dh + 0.1));
+  return { scale, padX, padY, width: w, height: h, canvasW, canvasH };
 }
 
 export function iou(a: Xyxy, b: Xyxy): number {
