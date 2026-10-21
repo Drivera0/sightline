@@ -42,6 +42,8 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
 - **OpenCV 5 re-look tools** and a Nemotron VL second look on uncertain detections (§4.2, §5);
 - the **agent loop**: verdicts, planner legs, clues and conditions become proposals a person
   approves, every step traced (§5);
+- the **radio desk**: ground teams talk to Sightline on a secondary channel; questions answered
+  from the mission, clues reported by voice and logged only after a readback (§5.1);
 - live missions: photos uploaded one at a time, processed as they arrive (**TODO (lane D)**);
 - the AWS deployment (§6, **TODO (lane D)**);
 - the command view and front door (**TODO (lane E)**), the information-gain planner (**TODO (lane C)**),
@@ -130,9 +132,16 @@ contrast on a low-contrast fixture; the zoom reads the right native pixels for a
 
 ### 4.3 OpenCV elsewhere
 
-**TODO (lane C, lane B):** the search map's canopy and coverage use OpenCV (`cv2.blur` in
-`sightline/search/canopy.py`, `cv2.fillPoly` in `sightline/search/pod.py`); add any new uses
-(sector rasterisation, footprints) with one line each.
+- **Canopy** (`sightline/search/canopy.py`): the local grey-level spread that separates tree cover
+  from open ground is two `cv2.blur` box means (of the grey image and of its square) with mirrored
+  borders, the standard deviation in a window without a Python loop.
+- **Coverage** (`sightline/search/pod.py`): each photo's footprint is rasterised onto the canopy map
+  with `cv2.fillPoly` at sub-pixel precision (`shift`), to read how much of it was under trees.
+- **Choosing the re-look tool** (`sightline/agent/verify.py`): `cv2.cvtColor` to grey for the
+  contrast measure; crops go to the model through `cv2.imencode`.
+
+**TODO (lane C, lane B):** add any new uses this sprint (sector rasterisation, footprints) with one
+line each.
 
 ## 5. The agent (Agentic Vision)
 
@@ -161,6 +170,39 @@ the trace). The review crop is a blur; the OpenCV zoom shows the person:
 | ![crop](../architecture/av-chain/crop.jpg) | ![zoom](../architecture/av-chain/zoom_native.jpg) |
 
 The trace excerpt (`scripts/trace_excerpt.py`) is in `docs/architecture/agent.md`.
+
+### 5.1 Every channel: the radio desk
+
+Ground teams don't watch a screen. The radio desk puts Sightline on a **secondary voice channel
+under the comms operator** (`sightline/radio/`, `web/src/radio/`): a team asks "say again the sector
+boundary" or reports "found a blue backpack by the creek, our position", and Sightline answers by
+voice from the same mission state the command view shows. Three NVIDIA models, one per step:
+Parakeet TDT 0.6B v2 (speech to text, on the GPU desktop), Nemotron 3 Super with tools on Token
+Factory (thinking off), Magpie TTS (text to speech, spoken sentence by sentence).
+
+**Safety lives in code, not in the prompt.** Live runs found the model saying it had logged a clue
+it never drafted, inventing the weather, describing a tool call instead of making it, and speaking
+its own reasoning (`docs/feedback/radio.md`, findings 5–11). Each is now checked in code:
+
+- a clue is **read back, built in code from the draft**, and posted only when the team answers
+  "affirmative" (the turn id is stored as `confirmed_by_turn`); a report that wasn't drafted gets
+  one retry, then "say again your report";
+- conditions must come from `get_conditions` that turn, and "what are the conditions" is answered
+  in sentences built from it;
+- outbound, it **transmits only briefings the search manager approved**, and only when the
+  operator presses Transmit; it never initiates orders;
+- a reply that says "clear" becomes "standby"; one that names a tool or a placeholder is retried
+  and never spoken.
+
+**Measured** (RTX 4080 SUPER for speech, Token Factory for the model; text turns, so speech
+recognition adds 45–153 ms): over 30 live turns, first sound p50 2.0 s and p90 3.0 s (a spoken
+"standby" when the model takes over 3 s), 6 / 6 clue reports drafted, read back and committed, 6 / 6
+conditions answers from the tool (`runs/radio/latency-20261020-202733.json`). The demo script
+(transmit the assignment, ask for the boundary, report a clue, confirm) ran **5 / 5 times as
+scripted** with real voices (`scripts/radio_rehearse.py`). **TODO (lane E/A):** word error rate on
+three human voices (`scripts/radio_wer.py`).
+
+### 5.2 Re-tasking a drone
 
 **TODO (lane A, after C-P1):** a second chain where an OpenCV/VL result leads to a drone
 `retask_drone` proposal through the planner, recorded on the live mission.
@@ -221,7 +263,7 @@ per million tokens in / out); 461 of 461 replies were valid JSON.
   mission's `trace.jsonl`; images by path, never base64; API keys redacted (tested).
 - **Human control:** proposals only; no dismissals; the fleet and the radio act only on approved
   proposals; every decision records who and when.
-- **Tests:** `uv run pytest tests/ml tests/agent`, no network or keys needed.
+- **Tests:** `uv run pytest tests/ml tests/agent tests/radio`, no network or keys needed.
 
 ### 7.4 Search map and planner
 
@@ -245,6 +287,10 @@ AWS from CloudWatch.
   neutral prompt it called many false alarms a person. It is advice that a person approves, never
   a decision.
 - **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.3 s).
+- **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
+  so long replies are spoken sentence by sentence and the first sound depends on the model's time;
+  if the model fails or times out, the team hears "say again" and nothing changes. Its numbers so
+  far use typed team lines (§5.1).
 - **Simulated parts:** the demo flight path over Mount Seymour, the search-map evaluation and the
   fleet are simulated and labelled so on screen. **TODO (lane C/D):** list any others.
 
@@ -252,7 +298,10 @@ AWS from CloudWatch.
 
 - **Never "clear":** no text the system writes says an area is clear or cleared; searched sectors
   say how well they were searched ("searched at POD 60 %"). Lane A's tests check every verdict,
-  proposal and briefing for it; **TODO (lanes C, D, E):** name your tests.
+  proposal and briefing for it (`test_the_word_clear_never_reaches_the_mission`,
+  `test_never_dismisses_and_never_says_clear`); the radio replaces a spoken "clear" with "standby"
+  (`tests/radio/test_turn_api.py::test_postcheck`) and its screen copy is checked for the word
+  (`web/src/radio/RadioDesk.test.tsx`); **TODO (lanes C, D):** name your tests.
 - **Every action is approved by a person and logged** with who and when.
 - **No secrets in the browser, the repo or the trace**; keys come from environment variables
   (and AWS Secrets Manager, **TODO (lane D)**).
@@ -271,7 +320,9 @@ AWS from CloudWatch.
 4. **This sprint:** the parity check and the verifier rule each read test once, after every
    choice was fixed on val.
 5. **The AV chain's approval is scripted** for the recording, and the trace says so.
-6. **AI assistance:** parts of the code and docs were written with an AI coding assistant; the
+6. **Radio measurements** use typed team lines (and, for full voice turns, team lines spoken by
+   Magpie); the radio demo's mission is a fixture until the live mission API is mounted.
+7. **AI assistance:** parts of the code and docs were written with an AI coding assistant; the
    agent described in §5 is Sightline's own runtime agent.
 
 ## 11. Reproduce
@@ -280,10 +331,13 @@ AWS from CloudWatch.
 uv sync --extra ml                                        # Python, with the Torch path for parity
 gh release download weights-v2   -R Drivera0/sightline -D data/weights/release_v2
 gh release download model-onnx-v2 -R Drivera0/sightline -D data/weights/release_v2
-uv run pytest tests/ml tests/agent                         # no GPU, network or keys needed
+uv run pytest tests/ml tests/agent tests/radio             # no GPU, network or keys needed
 uv run --extra ml python scripts/parity_table.py           # §4.1 (needs the HERIDAL data, scripts/README.md)
 uv run --extra ml python scripts/eval_verifier.py          # §7.2 (needs NEBIUS_API_KEY)
 uv run --extra ml python scripts/av_chain.py               # §5 chain, then scripts/trace_excerpt.py
+uv run python scripts/radio_rehearse.py --runs 5           # §5.1, against a running radio server
 ```
+
+The radio server needs the NeMo environment for real voices (`sightline/radio/README.md`).
 
 **TODO (lane D):** run the app and the AWS deployment (`deploy/aws/README.md`).
