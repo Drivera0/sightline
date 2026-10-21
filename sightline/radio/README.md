@@ -92,4 +92,5 @@ turn is the time to chunk 0. In `dev.py` (and when D mounts the router), wrap th
 - [ ] Lane D: mount `radio_router` with a `RadioContext` (D-R4) whose `api` is `HttpMissionApi` (or an
       in-process equivalent) and whose `on_turn` writes `trace_call(actor="radio", kind="radio_turn")` + a `radio.turn` event
 - [ ] Real roster callsigns for `parse_callsign` come from the mission's teams (already passed in `turn.py`)
-- [ ] E-14 onward: the radio desk UI in `web/src/radio/`, outbound queue, WER and latency scripts
+- [x] E-14: the radio desk UI in `web/src/radio/` (lane A, issue #36; see its README)
+- [ ] E-18: WER with 3 voices on 20 phrases, latency p50/p90 over 30 turns (`scripts/radio_wer.py`, `scripts/radio_latency.py`)

@@ -80,6 +80,15 @@ def create_app() -> FastAPI:
         on_turn=_local_trace,
     )
     app.include_router(radio_router)
+    # web/radio.html runs on Vite's port during development (pnpm dev): let it call this API.
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+        allow_methods=["GET", "POST"],
+        allow_headers=["*"],
+    )
     return app
 
 

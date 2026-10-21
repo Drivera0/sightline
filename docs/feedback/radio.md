@@ -80,4 +80,5 @@ doesn't need. `ffmpeg` is not installed on the desktop yet; `to_mono16k` (webm f
       with tests 1–2; see `sightline/radio/README.md`
 - [x] E-13 part 2 + E-16 (lane A, issue #30): `audio.py`, `tools.py`, `turn.py`, `prompts.py`, `api.py`,
       `dev.py`, tests 3–7; the demo script runs end to end (see `sightline/radio/README.md`, "Measured live")
+- [x] E-14: the radio desk screen, `web/src/radio/` (lane A, issue #36; see its README)
 - [ ] E-18: WER with 3 voices on 20 phrases (`tests/radio/phrases.txt`), latency p50/p90 over 30 turns
