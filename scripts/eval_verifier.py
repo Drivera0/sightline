@@ -71,6 +71,48 @@ def scores(rows: list[dict], n_truth: int, keep) -> dict[str, float]:
     return {"precision": p, "recall": r_, "f2": f2, "kept": kept, "tp": tp}
 
 
+def photo_mission(path: Path, box, conf: float, name: str = "eval"):
+    """An in-memory mission holding one photo the way D's pipeline stores it: a 1000×750
+    display frame, the original at ``frames/orig/``, and one detection ``f0001-d01`` with
+    ``box`` (original pixels) scaled to the frame. Returns ``(store, mission_id)``."""
+    import cv2
+
+    from sightline.contract import Detection, Frame, LatLon, Pose, Source
+    from tests.agent.fake_store import FakeMissionStore
+
+    orig = cv2.imread(str(path))
+    h, w = orig.shape[:2]
+    sx, sy = FRAME_WH[0] / w, FRAME_WH[1] / h
+    frame_img = cv2.resize(orig, FRAME_WH, interpolation=cv2.INTER_AREA)
+    fbox = (
+        int(box.x1 * sx),
+        int(box.y1 * sy),
+        max(int(box.x1 * sx) + 1, round(box.x2 * sx)),
+        max(int(box.y1 * sy) + 1, round(box.y2 * sy)),
+    )
+    store = FakeMissionStore()
+    mid = store.create(name, "HERIDAL", LatLon(lat=0, lon=0), "demo").mission_id
+    corners = ((0.0, 0.0), (0.001, 0.0), (0.001, -0.001), (0.0, -0.001))
+    frame = Frame(
+        id="f0001",
+        file="frames/f0001.jpg",
+        width_px=FRAME_WH[0],
+        height_px=FRAME_WH[1],
+        flight_index=0,
+        source=Source(image=path.name, x0=0, y0=0),
+        pose=Pose(lat=0, lon=0, alt_agl_m=None, heading_deg=0, gsd_m=0.02),
+        footprint=corners,
+        score=0.5,
+        rank=1,
+        n_candidates=1,
+    )
+    store.append_frame(mid, frame, cv2.imencode(".jpg", frame_img)[1].tobytes())
+    store.put_file(mid, "frames/orig/f0001.jpg", path.read_bytes())
+    det = Detection(id="f0001-d01", box_px=fbox, conf=conf, crop=None, lat=0, lon=0, radius_m=10)
+    store.append_detections(mid, "f0001", [det], {})
+    return store, mid
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -86,18 +128,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", type=Path, default=ROOT / "runs/verifier")
     args = ap.parse_args(argv)
 
-    import cv2
     from dotenv import load_dotenv
 
     from sightline.agent import prompts
     from sightline.agent.llm import NO_THINKING, token_factory_client
     from sightline.agent.verify import verify
-    from sightline.contract import Detection, Frame, LatLon, Pose, Source
     from sightline.ml.backend import make_detector
     from sightline.ml.data import load_split
     from sightline.ml.detect import Detector
     from sightline.ml.evaluate import predict_split
-    from tests.agent.fake_store import FakeMissionStore
 
     load_dotenv(ROOT / ".env")
     prompt = args.prompt or prompts.VERIFY_VERSION
@@ -139,39 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         return local.det
 
     def run(r: dict) -> None:
-        orig = cv2.imread(str(r["path"]))
-        h, w = orig.shape[:2]
-        sx, sy = FRAME_WH[0] / w, FRAME_WH[1] / h
-        frame_img = cv2.resize(orig, FRAME_WH, interpolation=cv2.INTER_AREA)
-        b = r["box"]
-        fbox = (
-            int(b.x1 * sx),
-            int(b.y1 * sy),
-            max(int(b.x1 * sx) + 1, round(b.x2 * sx)),
-            max(int(b.y1 * sy) + 1, round(b.y2 * sy)),
-        )
-        store = FakeMissionStore()
-        mid = store.create("eval", "HERIDAL", LatLon(lat=0, lon=0), "demo").mission_id
-        corners = ((0.0, 0.0), (0.001, 0.0), (0.001, -0.001), (0.0, -0.001))
-        frame = Frame(
-            id="f0001",
-            file="frames/f0001.jpg",
-            width_px=FRAME_WH[0],
-            height_px=FRAME_WH[1],
-            flight_index=0,
-            source=Source(image=r["path"].name, x0=0, y0=0),
-            pose=Pose(lat=0, lon=0, alt_agl_m=None, heading_deg=0, gsd_m=0.02),
-            footprint=corners,
-            score=0.5,
-            rank=1,
-            n_candidates=1,
-        )
-        store.append_frame(mid, frame, cv2.imencode(".jpg", frame_img)[1].tobytes())
-        store.put_file(mid, "frames/orig/f0001.jpg", r["path"].read_bytes())
-        det = Detection(
-            id="f0001-d01", box_px=fbox, conf=r["conf"], crop=None, lat=0, lon=0, radius_m=10
-        )
-        store.append_detections(mid, "f0001", [det], {})
+        store, mid = photo_mission(r["path"], r["box"], r["conf"])
         v = verify(store, mid, "f0001-d01", client, detector(), prompt=prompt)
         calls = [e for e in store.trace_entries(mid) if e.kind == "model_call"]
         r.update(
