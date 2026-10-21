@@ -94,6 +94,19 @@ TOOL_SPECS = [
 ]  # fmt: skip
 
 
+# How the team said it, not what was found: live, the model drafted "Found a blue backpack by the
+# creek" and the readback said "Copy object, Found a blue backpack...".
+_REPORT_LEAD = re.compile(
+    r"^\s*(?:(?:we(?:'ve| have)?|i(?:'ve| have)?)\s+)?(?:found|spotted|located|seen|see|have)\s+",
+    re.IGNORECASE,
+)
+
+
+def clue_text(text: str) -> str:
+    """The clue as it goes in the log and the readback: no "Found ..." lead, no trailing stop."""
+    return _REPORT_LEAD.sub("", text).strip().rstrip(".")
+
+
 @dataclass
 class RadioTools:
     api: MissionApi
@@ -245,7 +258,7 @@ class RadioTools:
             at_team_position = True  # no place given: where the team is (LANE_E §8.7 beat 3)
         self.drafts[team_id] = {
             "kind": kind,
-            "text": text,
+            "text": clue_text(text),
             "lat": None if at_team_position else lat,
             "lon": None if at_team_position else lon,
             "at_team_position": at_team_position,

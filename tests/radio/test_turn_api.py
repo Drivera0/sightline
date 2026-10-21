@@ -20,7 +20,7 @@ from sightline.radio.api import RadioContext, radio_router
 from sightline.radio.asr import FakeAsr
 from sightline.radio.audio import AudioError, check_length, to_mono16k
 from sightline.radio.mission_api import InMemoryMissionApi, demo_mission
-from sightline.radio.tools import RadioTools
+from sightline.radio.tools import RadioTools, clue_text
 from sightline.radio.tts import FakeTts
 from sightline.radio.turn import RadioSession, handle_inbound, outbound, postcheck, transmit
 
@@ -92,6 +92,16 @@ def test_negative_discards_and_other_asks_again(tmp_path: Path) -> None:
 
 
 # --- test 4: replies with digits or "clear" are rewritten or rejected ----------------------------
+
+
+@pytest.mark.parametrize(
+    "said",
+    ["Found a blue backpack by the creek", "found a blue backpack by the creek.",
+     "We found a blue backpack by the creek", "spotted a blue backpack by the creek"],
+)  # fmt: skip
+def test_the_clue_text_drops_how_it_was_reported(said: str) -> None:
+    assert clue_text(said) == "a blue backpack by the creek"
+    assert clue_text("blue backpack by the creek") == "blue backpack by the creek"
 
 
 def test_postcheck() -> None:

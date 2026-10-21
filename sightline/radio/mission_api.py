@@ -96,7 +96,7 @@ def demo_mission() -> tuple[dict, dict[str, dict]]:
         "clues": [],
         "proposals": [
             {"id": "p014", "kind": "assign_sector", "summary": "Assign sector B3 to Team Two", "status": "approved",
-             "briefing": "New assignment, sector Bravo Three. Enter from the east ridge. Looking for a red jacket, possibly lying down.",
+             "briefing": "New assignment, sector Bravo Three. Enter from the east ridge, bearing 270, 600 metres. Looking for a red jacket, possibly lying down. Two hours forty of daylight.",
              "target": {"team": "T2", "sector": "B3"}, "decided_at": "2026-10-24T21:36:00Z", "decided_by": "Search manager"},
         ],
         "conditions": {"fetched_at": "2026-10-24T21:30:00Z", "wind_kmh": 18, "gust_kmh": 30, "precip_mm_h": 0.4, "flyable": True,

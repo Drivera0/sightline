@@ -34,5 +34,5 @@ Real voices need the NeMo environment: `SIGHTLINE_RADIO_MODELS=real ~/radio-env/
       command view's right rail or `#radio`; pass the mission's teams from `useMission` (D-M1) instead of `DEMO_TEAMS`
 - [ ] Lane D (D-R4): mount `radio_router` with a `RadioContext` (backend README)
 - [x] Input level meter while recording, silent-clip warning, first sound measured in the browser, log newest first
-- [ ] Lane E: "radio sound" also on the outbound playback in the video
+- [x] "Radio sound" for the video: the desk already applies it to transmitted briefings; `scripts/radio_rehearse.py --audio --radio-sound` bakes it into the rehearsal WAVs
 - [ ] Lane E: the radio exchange in the Nebius video (LANE_E §8.7 demo script; rehearse with real voices)
