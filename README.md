@@ -52,6 +52,32 @@ A person is about 70 px wide in a 4000×3000 photo, so shrinking the photo to th
 
 Both diagrams, with notes: [docs/architecture/sightline-architecture.html](docs/architecture/sightline-architecture.html). They are drawn to the [Diagram Design](https://github.com/cathrynlavery/diagram-design) rules by `docs/architecture/build_architecture.py`.
 
+## Built with NVIDIA + Nebius
+
+Every language and vision model call goes through **Nebius Token Factory** at run time (OpenAI-compatible API, key on the server only, never in the browser), and every model is an NVIDIA open model. All calls go through one client, `sightline/agent/llm.py`.
+
+| What Sightline does | NVIDIA model | Runs on | Code |
+|---|---|---|---|
+| Second look at uncertain detections: the crop plus OpenCV 5 re-look images in, a JSON verdict out (person, posture, group size, clothing, reason) | Nemotron-3.5-Super-VL (`nvidia/Nemotron-3.5-Super-VL`) | Token Factory | `sightline/agent/verify.py` |
+| Radio-style briefings for ground teams, written only from given facts and post-checked (≤ 60 words, never "clear", no invented numbers) | Nemotron 3 Nano (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`) | Token Factory | `sightline/agent/loop.py` |
+| Planning text and tool calls | Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b`) | Token Factory | `sightline/agent/llm.py` (`MODEL_REASON`) |
+| **Coming (lane E):** the radio desk: speech in, an answer, speech out | Parakeet TDT 0.6B v2 (speech to text), Nemotron with tools, Magpie TTS | GPU desktop / Token Factory | `sightline/radio/` |
+| **Coming (A-N1, Oct 27):** batch detection of the simulated fleet's photos | the Sightline detector on OpenCV 5 `cv2.dnn` | Nebius Serverless Job | `scripts/nebius_batch_detect.py`, `deploy/nebius/` |
+
+How the models fit together, and a real trace of one decision: [docs/architecture/agent.md](docs/architecture/agent.md). Measured on 461 live verifier calls: p50 1.35 s and p90 1.65 s per call, about 890 tokens in and 67 out, every reply valid JSON. What worked and what didn't: [docs/feedback/nebius.md](docs/feedback/nebius.md).
+
+Setup:
+
+```bash
+export NEBIUS_API_KEY=...                                        # from the Token Factory console; or put it in .env
+export NEBIUS_BASE_URL=https://api.tokenfactory.nebius.com/v1/   # the default
+# optional: SIGHTLINE_MODEL_VISION / _FAST / _REASON to change model ids
+uv run python -c "from sightline.agent.llm import MODEL_FAST, token_factory_client; print(token_factory_client().chat([{'role': 'user', 'content': 'Reply with: ready'}], model=MODEL_FAST).text)"
+SIGHTLINE_FAKE_LLM=1 ...                                         # run anything without a key (scripted replies)
+```
+
+The Nemotron models think before they answer, and the thinking counts against `max_tokens`; our client defaults to 2048 and can turn thinking off with `extra_body={"chat_template_kwargs": {"enable_thinking": False}}` (`NO_THINKING` in `llm.py`).
+
 ## Team and lanes
 
 | Lane | Owns | Code |
