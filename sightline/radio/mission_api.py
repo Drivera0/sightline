@@ -107,7 +107,7 @@ def demo_mission() -> tuple[dict, dict[str, dict]]:
         "B3": {
             "sector_id": "B3", "sector_label": "Bravo Three", "team_id": "T2",
             "entry": {"name": "east ridge", "lat": 49.3741, "lon": -122.9301},
-            "bearing_deg_from_team": 270, "distance_m_from_team": 600,
+            "bearing_deg_from_team": 270, "distance_m_from_team": 600, "area_m2": 62500.0,
             "waypoints": [{"name": n} for n in ("NW corner", "NE corner", "SE corner", "SW corner")],
             "look_for": ["adult, red jacket, day hiker", "possibly lying down"],
             "conditions_line": "gusts 30 km/h, light rain",

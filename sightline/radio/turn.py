@@ -100,8 +100,13 @@ def _bare_reply(text: str) -> bool:
     return classify_reply(text) in ("affirmative", "negative") and len(words) <= 2
 
 
+# Template placeholders instead of data ("Here is the sector boundary, [tool output], over."), seen live.
+_PLACEHOLDER = re.compile(r"\[[^\]]*\]|\{[^}]*\}|<[^>]*>")
+
+
 def _names_a_tool(text: str) -> bool:
-    return bool(_DESCRIBED_ACTION.search(text)) or any(
+    """The reply describes an action, or holds a placeholder, instead of the result of a tool."""
+    return bool(_DESCRIBED_ACTION.search(text) or _PLACEHOLDER.search(text)) or any(
         spec["function"]["name"] in text for spec in TOOL_SPECS
     )
 

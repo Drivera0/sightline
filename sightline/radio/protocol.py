@@ -163,6 +163,44 @@ def number_words(n: int) -> str:
     return _TENS[tens] + (f" {_ONES[ones]}" if ones else "")
 
 
+def _below_thousand(n: int) -> str:
+    hundreds, rest = divmod(n, 100)
+    words = [f"{_ONES[hundreds]} hundred"] if hundreds else []
+    if rest or not words:
+        words.append(number_words(rest) if rest < 60 else _tens_words(rest))
+    return " ".join(words)
+
+
+def _tens_words(n: int) -> str:
+    tens, ones = divmod(n, 10)
+    name = {6: "sixty", 7: "seventy", 8: "eighty", 9: "ninety"}.get(tens) or _TENS[tens]
+    return name + (f" {_ONES[ones]}" if ones else "")
+
+
+def _digit_by_digit(s: str) -> str:
+    """Each character as written, so a bearing keeps its leading zero: "095" → "zero niner five"."""
+    words = ["minus" if c == "-" else "point" if c == "." else SPOKEN_DIGITS[int(c)] for c in s]
+    return " ".join(words)
+
+
+def natural_number(n: float, decimals: int = 0) -> str:
+    """As said in speech: 600 → "six hundred", 18 → "eighteen", 1250 → "one thousand two hundred
+    fifty", 0.4 → "zero point four" (decimals digit by digit), -5 → "minus five"."""
+    sign = "minus " if n < 0 else ""
+    whole = int(abs(n))
+    thousands, rest = divmod(whole, 1000)
+    words = []
+    if thousands:
+        words.append(f"{_below_thousand(thousands)} thousand")
+    if rest or not words:
+        words.append(_below_thousand(rest))
+    text = " ".join(words)
+    if decimals:
+        frac = f"{abs(n):.{decimals}f}".split(".")[1]
+        text += " point " + " ".join(SPOKEN_DIGITS[int(d)] for d in frac)
+    return sign + text
+
+
 def spoken_time(hour: int, minute: int) -> str:
     """Radio style: 18:12 → "eighteen twelve", 06:05 → "six oh five", 14:00 → "fourteen hundred"."""
     if minute == 0:
@@ -212,8 +250,20 @@ def speakable(text: str) -> str:
     text = re.sub(r"\b(NE|NW|SE|SW)\b", lambda m: _COMPASS[m.group(1)], text)
     text = re.sub(r"\s*[;:]\s*", ", ", text)
 
-    def digits(m: re.Match) -> str:
-        s = m.group()
-        return spoken_number(float(s), len(s.split(".")[1]) if "." in s else 0)
+    def number(m: re.Match) -> str:
+        s, before = m.group(), text[max(0, m.start() - 12) : m.start()].lower()
+        after = text[m.end() : m.end() + 12].lower()
+        decimals = len(s.split(".")[1]) if "." in s else 0
+        # Digit by digit where a misheard digit changes a place or direction (radio procedure):
+        # bearings and headings, coordinates (2+ decimals), and anything we can't classify safely.
+        if (
+            "bearing" in before
+            or "heading" in before
+            or decimals >= 2
+            or (after.lstrip().startswith("degrees") and "celsius" not in after)
+        ):
+            return _digit_by_digit(s)
+        # Quantities (distances, speeds, temperatures, counts) as said in speech: "six hundred".
+        return natural_number(float(s), decimals)
 
-    return re.sub(r"\s{2,}", " ", _NUMBER_IN_TEXT.sub(digits, text)).strip()
+    return re.sub(r"\s{2,}", " ", _NUMBER_IN_TEXT.sub(number, text)).strip()

@@ -161,7 +161,7 @@ def test_speakable_units_times_and_compass() -> None:
         == "corners north-west, north-east, south-east, south-west"
     )
     assert speakable("bearing 270°, 600 m, 8 °C") == (
-        "bearing two seven zero degrees, six zero zero metres, eight degrees Celsius"
+        "bearing two seven zero degrees, six hundred metres, eight degrees Celsius"
     )
     assert speakable("daylight until 18:30") == "daylight until eighteen thirty"
     assert (
@@ -182,3 +182,30 @@ def test_speakable_kph() -> None:
     from sightline.radio.protocol import speakable
 
     assert speakable("wind eighteen kph") == "wind eighteen kilometres per hour"
+
+
+@pytest.mark.parametrize(
+    ("text", "spoken"),
+    [
+        # bearings, headings and coordinates: digit by digit (radio procedure)
+        ("bearing 270", "bearing two seven zero"),
+        ("heading 095", "heading zero niner five"),
+        ("turn to 045 degrees", "turn to zero four five degrees"),
+        (
+            "at 49.374, -122.936",
+            "at four niner point three seven four, minus one two two point niner three six",
+        ),
+        # quantities: as said in speech
+        ("600 m", "six hundred metres"),
+        ("wind 18 km/h", "wind eighteen kilometres per hour"),
+        ("about 250 metres across", "about two hundred fifty metres across"),
+        ("1250 m", "one thousand two hundred fifty metres"),
+        ("light rain 0.4 mm/h", "light rain zero point four millimetres per hour"),
+        ("8 °C", "eight degrees Celsius"),
+        ("3 people", "three people"),
+    ],
+)
+def test_numbers_spoken_by_kind(text: str, spoken: str) -> None:
+    from sightline.radio.protocol import speakable
+
+    assert speakable(text) == spoken
