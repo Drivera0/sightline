@@ -5,6 +5,7 @@ confirms the readback (``turn.py``). ``report_position`` / ``report_status`` upd
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -140,18 +141,25 @@ class RadioTools:
         }
 
     def get_sector_boundary(self, sector_id: str, from_team: str | None = None) -> dict:
+        """The sector's size and named landmarks (not generic "NW corner" names, which tell a team
+        nothing on the radio), and the way to its entry from the team."""
         sector_id = sector_id_from(sector_id)
         card = self.api.card(self.mission_id, sector_id)
-        return {
-            "sector_id": sector_id,
-            "sector": card["sector_label"],
-            "corners": [
-                w["name"] for w in card.get("waypoints", []) if "corner" in w["name"].lower()
-            ],
-            "entry": card["entry"]["name"],
-            "bearing_deg": card.get("bearing_deg_from_team") if from_team else None,
-            "distance_m": card.get("distance_m_from_team") if from_team else None,
-        }
+        out: dict[str, Any] = {"sector_id": sector_id, "sector": card["sector_label"]}
+        if card.get("area_m2"):
+            out["size"] = f"about {round(card['area_m2'] ** 0.5 / 50) * 50} metres across"
+        landmarks = [
+            w["name"]
+            for w in card.get("waypoints", [])
+            if not re.fullmatch(r"(N|S)(E|W) corner", w["name"])
+        ]
+        if landmarks:
+            out["landmarks"] = landmarks
+        out["entry"] = card["entry"]["name"]
+        if from_team:
+            out["bearing_deg"] = card.get("bearing_deg_from_team")
+            out["distance_m"] = card.get("distance_m_from_team")
+        return out
 
     def get_conditions(self) -> dict:
         """Conditions in plain words, ready to say on the radio (no units codes or UTC stamps)."""

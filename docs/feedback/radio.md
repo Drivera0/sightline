@@ -100,6 +100,17 @@ Reported in the second real-voice session; two causes, both fixed:
     radio spoke it. Found by transcribing every generated chunk with Parakeet and comparing it with the
     text it should say; the client now strips everything up to the last `</think>`.
 
+## How numbers are spoken
+
+Radio procedure: **digit by digit only where one misheard digit changes a place or a direction**:
+bearings and headings ("bearing two seven zero", "heading zero niner five") and coordinates. Everything
+else is said as in speech: distances, speeds, temperatures, counts ("six hundred metres", "eighteen
+kilometres per hour"). Times are radio style in local time ("eighteen twelve local"). The sector-boundary
+answer gives the sector's size and the way to its entry instead of four generic corner names:
+"Sector Bravo Three, about two hundred fifty metres across, entry east ridge, bearing two seven zero
+degrees, distance six hundred metres, over." (8 / 8 live). Replies holding a template placeholder
+("[tool output]", seen once) get one retry and are never spoken.
+
 ## WER with three voices (E-18, still to record)
 
 `tests/radio/phrases.txt` has the 20 phrases. Each teammate records them as `data/radio/wer/<name>/01.wav`

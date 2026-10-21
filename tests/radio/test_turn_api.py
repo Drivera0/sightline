@@ -96,13 +96,13 @@ def test_postcheck() -> None:
     r, notes = postcheck(
         "Team Two, Sightline. Sector B3, bearing 270, 600 metres, over.", "Team Two"
     )
-    assert "two seven zero" in r and "six zero zero" in r and not any(c.isdigit() for c in r)
+    assert "two seven zero" in r and "six hundred" in r and not any(c.isdigit() for c in r)
     assert notes == ["made speakable (numbers, units, times, abbreviations)"]
     r, _ = postcheck("The sector is clear now.", "Team Two")
     assert r == "Team Two, Sightline. Standby, over."
     r, _ = postcheck("Team Two, Sightline. Bearing 270°, 600 m, gusts 30 km/h, over.", "Team Two")
     assert (
-        "two seven zero degrees" in r and "six zero zero metres" in r and "kilometres per hour" in r
+        "two seven zero degrees" in r and "six hundred metres" in r and "kilometres per hour" in r
     )
     r, notes = postcheck("Copy, over.", "Team Two")
     assert r == "Team Two, Sightline. Copy, over." and notes == ["callsign prefixed"]
@@ -508,3 +508,20 @@ def test_a_restart_never_plays_the_previous_runs_audio(tmp_path: Path) -> None:
     assert set(first["audio_chunks"]).isdisjoint(second["audio_chunks"])  # ...audio names don't
     r = c2.get(second["audio_chunks"][0])
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
+
+
+def test_a_placeholder_reply_is_retried_never_spoken(tmp_path: Path) -> None:
+    placeholder = (
+        "Team Two, Sightline. Here is the sector boundary for Bravo Three, [tool output], over."
+    )
+    good = "Team Two, Sightline. Sector Bravo Three, about 250 metres across, over."
+    boundary = _tool("get_sector_boundary", {"sector_id": "B3", "from_team": "T2"})
+    llm = FakeChatClient({"boundary": placeholder, "Call the tool": [boundary, good]})
+    api, session, _ = _setup(llm)
+    r = _inbound(api, session, llm, QUESTION, tmp_path)
+    assert "[" not in r.turn.reply and "two hundred fifty" in r.turn.reply
+
+    stubborn = FakeChatClient({"boundary": placeholder, "Call the tool": placeholder})
+    api, session, _ = _setup(stubborn)
+    r = _inbound(api, session, stubborn, QUESTION, tmp_path)
+    assert r.turn.reply == "Team Two, Sightline. Say again, over."
