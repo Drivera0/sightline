@@ -73,6 +73,8 @@ def turn(api: str, mission: str, text: str) -> dict:
         "state": r.get("state"),
         "actions": [a for a in r.get("actions", []) if not a.startswith("postcheck")],
         "reply": r.get("reply"),
+        "audio": r.get("audio"),
+        "clue": r.get("clue"),
     }
 
 

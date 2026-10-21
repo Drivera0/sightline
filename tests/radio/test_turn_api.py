@@ -4,6 +4,7 @@ network, no NeMo)."""
 from __future__ import annotations
 
 import io
+import re
 import shutil
 import subprocess
 import wave
@@ -19,7 +20,7 @@ from sightline.radio.api import RadioContext, radio_router
 from sightline.radio.asr import FakeAsr
 from sightline.radio.audio import AudioError, check_length, to_mono16k
 from sightline.radio.mission_api import InMemoryMissionApi, demo_mission
-from sightline.radio.tools import RadioTools
+from sightline.radio.tools import RadioTools, clue_text
 from sightline.radio.tts import FakeTts
 from sightline.radio.turn import RadioSession, handle_inbound, outbound, postcheck, transmit
 
@@ -91,6 +92,16 @@ def test_negative_discards_and_other_asks_again(tmp_path: Path) -> None:
 
 
 # --- test 4: replies with digits or "clear" are rewritten or rejected ----------------------------
+
+
+@pytest.mark.parametrize(
+    "said",
+    ["Found a blue backpack by the creek", "found a blue backpack by the creek.",
+     "We found a blue backpack by the creek", "spotted a blue backpack by the creek"],
+)  # fmt: skip
+def test_the_clue_text_drops_how_it_was_reported(said: str) -> None:
+    assert clue_text(said) == "a blue backpack by the creek"
+    assert clue_text("blue backpack by the creek") == "blue backpack by the creek"
 
 
 def test_postcheck() -> None:
@@ -483,8 +494,23 @@ def test_invented_conditions_get_a_retry_and_the_answer_comes_from_the_tool(tmp_
     )
     api, session, _ = _setup(llm)
     r = _inbound(api, session, llm, CONDITIONS_Q, tmp_path)
-    assert "get_conditions" in r.turn.actions and r.turn.reply == grounded
-    assert "twelve" not in r.turn.reply.lower()
+    assert "get_conditions" in r.turn.actions
+    # Short sentences, built in code: the voice pauses at each full stop.
+    assert re.fullmatch(
+        r"Team Two, Sightline\. Wind eighteen kilometres per hour, gusts thirty\. Light rain\. "
+        r"Drones can fly\. Daylight until \w+ \w+ local\. Alert, Lower Seymour trail closed\. "
+        r"As of \w+ thirty local\. Over\.",
+        r.turn.reply,
+    ), r.turn.reply
+    assert "twelve celsius" not in r.turn.reply.lower()
+
+
+def test_a_specific_conditions_question_keeps_the_models_answer(tmp_path: Path) -> None:
+    sunset = "Team Two, Sightline. Daylight until eighteen twelve local, over."
+    llm = FakeChatClient({"sunset": [_tool("get_conditions", {}), sunset]})
+    api, session, _ = _setup(llm)
+    r = _inbound(api, session, llm, "Sightline, Team Two, when is sunset, over.", tmp_path)
+    assert r.turn.reply == sunset
 
 
 def test_conditions_never_looked_up_are_not_answered(tmp_path: Path) -> None:

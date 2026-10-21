@@ -48,6 +48,24 @@ heard = asr.transcribe(wav_16k_mono_path)  # AsrResult: .text, .ms, .words
 Parakeet needs 16 kHz mono; Magpie returns 22.05 kHz, so resample (the spike uses
 `scipy.signal.resample_poly`). Browser audio (webm/opus) needs ffmpeg, which `audio.py` will call.
 
+## Rehearse the demo (2026-10-21)
+
+`scripts/radio_rehearse.py` plays the LANE_E §8.7 script against a running server (`dev.py`), checks
+every step (state, tool, the words the script needs, first sound ≤ 5 s), and with `--audio` keeps the
+replies as WAVs plus one `demo.wav` per run (`--radio-sound` adds a copy with the desk's radio filter,
+for the video), under `runs/radio/rehearsal-<timestamp>/`. Run it before recording the video:
+
+```bash
+SIGHTLINE_RADIO_MODELS=real <radio-env>/bin/uvicorn sightline.radio.dev:app --port 8010
+uv run python scripts/radio_rehearse.py --runs 5 --audio --radio-sound
+```
+
+Last result, real voices: **5 / 5 runs as scripted**, first sound mean 1.3 s, max 3.0 s (the standby).
+It found "Copy object, Found a blue backpack…" in a readback (fixed: `tools.clue_text`). The demo
+briefing now matches the script word for word ("bearing two seven zero, six hundred metres … Two hours
+forty of daylight"), and "what are the conditions" is answered in short sentences built in code
+(`RadioTools.conditions_summary`), so the voice pauses in the right places.
+
 ## Measured live (2026-10-20, Nemotron 3 Super on Token Factory, RTX 4080)
 
 - The LANE_E §8.7 demo script runs end to end through the API: transmit the assignment → "say again the

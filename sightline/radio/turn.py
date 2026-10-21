@@ -91,6 +91,9 @@ _NEEDS_CONDITIONS = re.compile(
     r"\b(conditions|weather|wind|rain|daylight|temperature|visibility|forecast|sunset)\b",
     re.IGNORECASE,
 )
+# "What are the conditions?" gets the summary built in code (tools.conditions_summary); a specific
+# question ("when is sunset?") keeps the model's answer, from the same tool.
+_ALL_CONDITIONS = re.compile(r"\b(conditions|weather)\b", re.IGNORECASE)
 _FILLER = {"sightline", "team", "over", "out", "one", "two", "three", "four", "1", "2", "3", "4"}
 
 
@@ -389,6 +392,11 @@ def handle_inbound(
             "awaiting_confirm",
         )
     else:
+        if _ALL_CONDITIONS.search(text) and "get_conditions" in actions:
+            summary = tools.conditions_summary()
+            if summary:
+                reply = f"{opening(callsign)} {summary} Over."
+                actions.append("conditions: summary built in code")
         reply, notes = postcheck(reply, callsign)
         actions += [f"postcheck: {n}" for n in notes]
         state_name = "answered"

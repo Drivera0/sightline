@@ -140,3 +140,4 @@ doesn't need. `ffmpeg` is not installed on the desktop yet; `to_mono16k` (webm f
 - [x] E-14: the radio desk screen, `web/src/radio/` (lane A, issue #36; see its README)
 - [x] E-18 latency over 30 turns (lane A; table above); scripts `radio_latency.py`, `radio_wer.py`
 - [ ] E-18 WER: record 3 voices (instructions above), then run `radio_wer.py`
+- [x] Demo script rehearsal (lane A): `scripts/radio_rehearse.py`, 5 / 5 runs as scripted with real voices, first sound ≤ 3.0 s; WAVs for the video with `--audio --radio-sound` (`sightline/radio/README.md`)
