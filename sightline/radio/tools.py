@@ -193,6 +193,32 @@ class RadioTools:
             out["as_of"] = f"{local_clock(c['fetched_at'])} local"
         return out
 
+    def conditions_summary(self) -> str | None:
+        """The conditions as short radio sentences, built here so the punctuation (and so the
+        voice's pauses) never depends on the model: live it ran them together ("gust thirty
+        kilometres per hour light rain drones can fly yes")."""
+        c = self.get_conditions()
+        if c.get("conditions", True) is None:
+            return None
+        parts = []
+        if "wind" in c:
+            gusts = (
+                f", gusts {c['gusts'].removesuffix(' kilometres per hour')}" if "gusts" in c else ""
+            )
+            parts.append(f"Wind {c['wind']}{gusts}.")
+        elif "gusts" in c:
+            parts.append(f"Gusts {c['gusts']}.")
+        if "rain" in c:
+            parts.append("No rain." if c["rain"] == "none" else f"{c['rain'].capitalize()}.")
+        if "drones_can_fly" in c:
+            parts.append("Drones can fly." if c["drones_can_fly"] == "yes" else "Drones grounded.")
+        if "daylight_until" in c:
+            parts.append(f"Daylight until {c['daylight_until']}.")
+        parts += [f"Alert, {a}." for a in c.get("alerts", [])]
+        if "as_of" in c:
+            parts.append(f"As of {c['as_of']}.")
+        return " ".join(parts) or None
+
     def get_updates_since(self, team_id: str, minutes: int = 30) -> list[dict]:
         since = _iso(_now() - timedelta(minutes=minutes))
         return [
