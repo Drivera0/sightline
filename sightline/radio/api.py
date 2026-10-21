@@ -52,7 +52,9 @@ from sightline.radio.turn import (
 radio_router = APIRouter(prefix="/missions/{mission_id}/radio", tags=["radio"])
 _AUDIO_ID = re.compile(r"^(r\d{4,}(-\d+)?|s\d{4,})$")
 _PENDING_KEY = re.compile(r"^[0-9a-f]{12}$")
-STANDBY_AFTER_S = 2.0  # radio procedure: "standby" when the answer will take a while
+# Radio procedure: "standby" when the answer will take a while. 3 s = the model's p90 over 30 live turns
+# (p50 2.2 s): at 2 s, 63 % of turns got a standby that the answer followed 0.3 s later.
+STANDBY_AFTER_S = 3.0
 
 
 @dataclass

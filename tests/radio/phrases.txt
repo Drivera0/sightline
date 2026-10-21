@@ -1,0 +1,22 @@
+# 20 scripted radio phrases (LANE_E §8.6): callsigns, numbers, coordinates, prowords, clue reports.
+# One per line. Recorders read them as written; coordinates are spoken digit by digit.
+Sightline, Team Two, say again the sector boundary, over.
+Sightline, Team One, radio check, over.
+Sightline, Team Three, we are at four niner point three seven four, minus one two two point niner three six, over.
+Sightline, Team Four, returning to base, over.
+Sightline, Team Two. Found a blue backpack by the creek, our position, over.
+Affirmative, over.
+Negative, over.
+Say again, over.
+Sightline, Team One, what are the conditions, over.
+Sightline, Team Three, we heard a whistle to the north, over.
+Sightline, Team Two, searching sector Bravo Three, over.
+Sightline, Team Four, found footprints heading east at four niner point three eight one, minus one two two point niner four zero, over.
+Sightline, Team One, how much daylight is left, over.
+Sightline, Team Two, we are at the east ridge entry, over.
+Sightline, Team Three, found a red jacket on the trail, our position, over.
+Copy, Team Four out.
+Sightline, Team Two, request a new assignment, over.
+Sightline, Team One, we have a sighting near the creek fork, over.
+Sightline, Team Three, wind is picking up, over.
+Sightline, Team Four, say again my sector, over.

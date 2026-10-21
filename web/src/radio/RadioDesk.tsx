@@ -85,12 +85,14 @@ export function RadioDesk({
 
   /** Show the turn, then play its reply. */
   const received = useCallback(
-    async (res: TurnResponse) => {
+    async (res: TurnResponse, skipOpener = false) => {
       const { clue: _clue, audio_chunks, ...turn } = res;
       r().addTurn(turn);
       r().setStage("speaking");
+      // After "<Callsign>, Sightline. Standby." the answer's own opening chunk would repeat it.
+      const chunks = skipOpener ? audio_chunks.slice(1) : audio_chunks;
       try {
-        await deps.playChunks(audio_chunks.map((p) => defaultApi.chunkUrl(api, p)), r().radioSound);
+        await deps.playChunks(chunks.map((p) => defaultApi.chunkUrl(api, p)), r().radioSound);
       } catch (e) {
         r().setError(`Playback: ${(e as Error).message}`);
       }
@@ -114,7 +116,8 @@ export function RadioDesk({
         answer = await deps.pollTurn(api, res.poll);
       }
       await playing;
-      await received(answer);
+      const opener = res.reply.replace(/\s*Standby\.$/, "");
+      await received(answer, !!answer.reply && answer.audio_chunks.length > 1 && answer.reply.startsWith(opener));
     },
     [api, deps, r, received],
   );

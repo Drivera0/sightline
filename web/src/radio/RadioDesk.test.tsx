@@ -147,7 +147,7 @@ describe("standby", () => {
     const played = (d.playChunks as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0][0]);
     expect(played).toEqual([
       "http://radio.test/missions/demo0001/radio/audio/s0001.wav", // standby first
-      "http://radio.test/missions/demo0001/radio/audio/r0001-0.wav", // then the answer
+      "http://radio.test/missions/demo0001/radio/audio/r0001-1.wav", // then the answer, without repeating "Team Two, Sightline."
     ]);
   });
 });

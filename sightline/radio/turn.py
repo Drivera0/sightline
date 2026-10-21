@@ -31,6 +31,7 @@ from sightline.radio.protocol import (
     DEFAULT_CALLSIGNS,
     classify_reply,
     fix_callsign_words,
+    normalize,
     parse_callsign,
     spoken_coord,
     spoken_number,
@@ -95,6 +96,26 @@ _DESCRIBED_ACTION = re.compile(
     r"\b(drafting|calling|logging|logged|requesting|retrieving|fetching|checking|looking up|getting)\b",
     re.IGNORECASE,
 )
+
+
+# A report of something found or heard must become a clue draft (then a readback). Live, the model
+# sometimes *said* "Drafted clue: ..." without calling draft_clue, and the team would have believed it
+# was being logged. Strong report words only, so ordinary questions aren't treated as reports.
+_REPORT = re.compile(r"\b(found|spotted|sighting|heard|footprints?|tracks)\b", re.IGNORECASE)
+_CLAIMS_CLUE = re.compile(r"\b(drafted|logged|recorded|noted)\b", re.IGNORECASE)
+# Conditions change and must come from the tool this turn: live, the model once answered "partly cloudy,
+# twelve Celsius" with no tool call while the mission had gusts of 30 km/h and rain.
+_NEEDS_CONDITIONS = re.compile(
+    r"\b(conditions|weather|wind|rain|daylight|temperature|visibility|forecast|sunset)\b",
+    re.IGNORECASE,
+)
+_FILLER = {"sightline", "team", "over", "out", "one", "two", "three", "four", "1", "2", "3", "4"}
+
+
+def _bare_reply(text: str) -> bool:
+    """Just "affirmative"/"negative" (plus callsign and prowords): an answer to a readback."""
+    words = [w for w in normalize(fix_callsign_words(text)).split() if w not in _FILLER]
+    return classify_reply(text) in ("affirmative", "negative") and len(words) <= 2
 
 
 def _names_a_tool(text: str) -> bool:
@@ -262,6 +283,16 @@ def handle_inbound(
         turn, out = _with_audio(turn, tts, turn.reply)
         return TurnResult(turn, out)
 
+    # An "affirmative"/"negative" with nothing to confirm: say so in code. ("Copy that, out." from
+    # the model would let a team believe a clue had been logged.)
+    if _bare_reply(text):
+        reply = f"{opening(callsign)} Nothing awaiting confirmation. Say again your report, over."
+        turn = _turn(
+            session, "in", team_id, text, reply, "say_again", ["nothing to confirm"], asr_ms
+        )
+        turn, out = _with_audio(turn, tts, turn.reply)
+        return TurnResult(turn, out)
+
     # 4. Nemotron with tools, at most MAX_TOOL_ROUNDS rounds
     tools = RadioTools(api, mission_id, session.pending)
     sector = _assigned_sector(api, mission_id, state, team_id)
@@ -303,6 +334,53 @@ def handle_inbound(
                 messages.append(tool_message(c["id"], tools.call(c["name"], c["arguments"])))
             if team_id in session.pending:
                 break  # a clue was drafted: the reply is the readback, built below; no more calls
+        # A report that wasn't drafted, or a reply claiming a clue that doesn't exist: one explicit
+        # retry, then "say again your report". Never let a clue be claimed without the tool.
+        unreported = team_id not in session.pending and (
+            _REPORT.search(text) or _CLAIMS_CLUE.search(reply)
+        )
+        if unreported:
+            actions.append("retry: report not drafted")
+            messages += [
+                {"role": "assistant", "content": reply},
+                {
+                    "role": "user",
+                    "content": "That was a report of something found or heard: call draft_clue now.",
+                },
+            ]
+            r = llm.chat(messages, model=model, tools=tools.spec(), temperature=0.2)
+            for c in r.tool_calls:
+                actions.append(c["name"])
+                tools.call(c["name"], c["arguments"])
+            if team_id not in session.pending:
+                reply = f"{opening(callsign)} Say again your report, over."
+                actions.append("report not drafted: say again")
+        if (
+            _NEEDS_CONDITIONS.search(text)
+            and "get_conditions" not in actions
+            and team_id not in session.pending
+        ):
+            actions.append("retry: conditions not looked up")
+            messages += [
+                {"role": "assistant", "content": reply},
+                {
+                    "role": "user",
+                    "content": "Call get_conditions and answer only from what it returns.",
+                },
+            ]
+            reply = f"{opening(callsign)} Conditions not available, standby, over."
+            for _ in range(2):
+                r = llm.chat(messages, model=model, tools=tools.spec(), temperature=0.2)
+                if not r.tool_calls:
+                    if "get_conditions" in actions and not _names_a_tool(r.text):
+                        reply = r.text
+                    break
+                messages.append(assistant_message(r))
+                for c in r.tool_calls:
+                    actions.append(c["name"])
+                    messages.append(tool_message(c["id"], tools.call(c["name"], c["arguments"])))
+            if "get_conditions" not in actions:
+                actions.append("conditions not looked up: not answered")
     except Exception:  # offline, timeouts, budget: the team hears "say again", nothing changes
         log.exception("radio model call failed")
         actions.append("model_failed")

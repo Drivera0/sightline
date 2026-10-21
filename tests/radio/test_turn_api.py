@@ -399,3 +399,77 @@ def test_a_cached_phrase_does_not_wait_for_the_model() -> None:
     tts.speak("Team Two, Sightline. Standby.")
     assert time.perf_counter() - t0 < 0.1
     busy.join()
+
+
+# --- a clue is never claimed without being drafted (seen live: "Drafted clue: ..." with no tool call) --
+
+
+FAKED = (
+    "Team Two, Sightline. Drafted clue: object, blue backpack by the creek, at your position, over."
+)
+
+
+def test_a_faked_draft_gets_one_retry_then_a_real_readback(tmp_path: Path) -> None:
+    llm = FakeChatClient({"backpack": FAKED, "call draft_clue now": _tool("draft_clue", CLUE)})
+    api, session, _ = _setup(llm)
+    r = _inbound(api, session, llm, REPORT, tmp_path)
+    assert r.turn.state == "awaiting_confirm" and "retry: report not drafted" in r.turn.actions
+    assert r.turn.reply.startswith("Team Two, Sightline. Copy object, blue backpack")
+    assert "T2" in session.pending
+
+
+def test_a_draft_that_never_happens_is_never_claimed(tmp_path: Path) -> None:
+    llm = FakeChatClient({"backpack": FAKED, "call draft_clue now": FAKED})
+    api, session, _ = _setup(llm)
+    r = _inbound(api, session, llm, REPORT, tmp_path)
+    assert r.turn.reply == "Team Two, Sightline. Say again your report, over."
+    assert session.pending == {} and not any(c[0] == "post_clue" for c in api.calls)
+
+
+def test_affirmative_with_nothing_pending_is_said_plainly_without_a_model_call(
+    tmp_path: Path,
+) -> None:
+    llm = FakeChatClient(default="Team Two, Sightline. Copy that, out.")
+    api, session, _ = _setup(llm)
+    r = _inbound(api, session, llm, "Team Two, affirmative, over", tmp_path)
+    assert (
+        r.turn.reply
+        == "Team Two, Sightline. Nothing awaiting confirmation. Say again your report, over."
+    )
+    assert llm.calls == [] and not any(c[0] == "post_clue" for c in api.calls)
+
+
+def test_an_ordinary_question_is_not_forced_into_a_clue(tmp_path: Path) -> None:
+    llm = FakeChatClient(
+        {"anything new": "Team Two, Sightline. No new updates in the last thirty minutes, over."}
+    )
+    api, session, _ = _setup(llm)
+    r = _inbound(api, session, llm, "Sightline, Team Two, anything new for us, over.", tmp_path)
+    assert r.turn.state == "answered" and "retry: report not drafted" not in r.turn.actions
+
+
+# --- weather comes from the tool, never from the model (seen live: invented "twelve Celsius") -------
+
+CONDITIONS_Q = "Sightline, Team Two, what are the conditions, over."
+INVENTED = "Team Two, Sightline. Partly cloudy, light wind, twelve Celsius, over."
+
+
+def test_invented_conditions_get_a_retry_and_the_answer_comes_from_the_tool(tmp_path: Path) -> None:
+    grounded = "Team Two, Sightline. Wind eighteen, gusts thirty, light rain, over."
+    llm = FakeChatClient(
+        {
+            "conditions, over": INVENTED,
+            "Call get_conditions": [_tool("get_conditions", {}), grounded],
+        }
+    )
+    api, session, _ = _setup(llm)
+    r = _inbound(api, session, llm, CONDITIONS_Q, tmp_path)
+    assert "get_conditions" in r.turn.actions and r.turn.reply == grounded
+    assert "twelve" not in r.turn.reply.lower()
+
+
+def test_conditions_never_looked_up_are_not_answered(tmp_path: Path) -> None:
+    llm = FakeChatClient({"conditions, over": INVENTED, "Call get_conditions": INVENTED})
+    api, session, _ = _setup(llm)
+    r = _inbound(api, session, llm, CONDITIONS_Q, tmp_path)
+    assert r.turn.reply == "Team Two, Sightline. Conditions not available, standby, over."

@@ -62,6 +62,40 @@ audio to 3.6–3.7 s** for model turns and 0.1 s for a confirmation, longest pau
 (`sightline/radio/README.md`). For the feedback form: a streaming TTS API (first audio in < 300 ms) would
 matter more for voice agents than raw throughput.
 
+## Safety checks found by measuring 30 live turns (E-18, `scripts/radio_latency.py`)
+
+Repeated runs of the demo questions in conversation (5 turns per mission) found two failures the
+one-off tests hadn't, both now enforced in code (`sightline/radio/turn.py`), not left to the prompt:
+
+8. **A clue claimed but never drafted.** Late in a conversation the model sometimes *said* "Drafted clue:
+   blue backpack…" without calling `draft_clue` (3 of 6 reports), then answered the team's "affirmative"
+   with "Copy that, out.": the team would have believed a clue was logged that wasn't. Now a report
+   ("found", "spotted", "heard", "footprints", "tracks") or a reply claiming one ("drafted", "logged") with
+   no real draft gets one explicit retry, then "say again your report"; a bare "affirmative" with nothing
+   pending gets "nothing awaiting confirmation" from code, with no model call.
+9. **Invented weather.** Asked for the conditions in a fresh session, the model answered "partly cloudy,
+   light wind, twelve Celsius" without calling `get_conditions`, while the mission had gusts of 30 km/h and
+   rain. Conditions questions now must call the tool that turn (one retry), else "conditions not available".
+
+After the fixes, 30 live turns (Nemotron 3 Super on Token Factory, `runs/radio/latency-20261020-202733.json`):
+
+| Turns | First sound p50 / p90 | Answer p50 / p90 | Model p50 / p90 | Standby played | Clue reports | Conditions from the tool |
+|---|---|---|---|---|---|---|
+| 30 | 2.0 / 3.0 s | 2.0 / 3.3 s | 2.3 / 3.2 s | 13 % of turns | 6 / 6 drafted, read back, committed | 6 / 6 |
+
+Standby plays after 3 s (the model's p90); at 2 s it fired on 63 % of turns, mostly 0.3 s before the
+answer. These are text turns (ASR adds 45–153 ms). For the feedback form: tool calling with thinking off
+needs code-side guards for anything safety-relevant; a "tool_choice: required" that the model honours, or
+a structured-output mode that forces a tool call, would remove most of them.
+
+## WER with three voices (E-18, still to record)
+
+`tests/radio/phrases.txt` has the 20 phrases. Each teammate records them as `data/radio/wer/<name>/01.wav`
+… `20.wav` (any recorder; the radio desk's push-to-talk works) and, with radio sound on, `01.radio.wav` …;
+then `~/radio-env/bin/python scripts/radio_wer.py` prints WER (normalised, so "Team 2" = "Team Two") and
+the coordinate exact-match rate per voice and condition. `--synthetic` runs the same on Magpie's voices as
+a labelled baseline until the recordings exist.
+
 ## How to reproduce
 
 ```bash
@@ -81,4 +115,5 @@ doesn't need. `ffmpeg` is not installed on the desktop yet; `to_mono16k` (webm f
 - [x] E-13 part 2 + E-16 (lane A, issue #30): `audio.py`, `tools.py`, `turn.py`, `prompts.py`, `api.py`,
       `dev.py`, tests 3–7; the demo script runs end to end (see `sightline/radio/README.md`, "Measured live")
 - [x] E-14: the radio desk screen, `web/src/radio/` (lane A, issue #36; see its README)
-- [ ] E-18: WER with 3 voices on 20 phrases (`tests/radio/phrases.txt`), latency p50/p90 over 30 turns
+- [x] E-18 latency over 30 turns (lane A; table above); scripts `radio_latency.py`, `radio_wer.py`
+- [ ] E-18 WER: record 3 voices (instructions above), then run `radio_wer.py`
