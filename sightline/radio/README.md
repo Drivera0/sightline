@@ -54,8 +54,22 @@ Parakeet needs 16 kHz mono; Magpie returns 22.05 kHz, so resample (the spike use
   sector boundary" → "found a blue backpack, our position" → readback → "affirmative" → clue posted.
 - Tool reliability on the two inbound beats, after the fixes above: **8 / 8 and 8 / 8**; Nemotron time p50
   1.4 s (clue report, one call) and 2.4 s (boundary, two calls).
-- Full voice turns (Magpie speaking the team, encoded as webm like a browser, then `/turn`): ASR 51–139 ms;
-  **TTS is the bottleneck**: 4.6 s for a 15-word reply, 10.4 s for a 25-word boundary answer.
+- Full voice turns (Magpie speaking the team, encoded as webm like a browser, then `/turn`): ASR 51–139 ms.
+  Magpie runs at about 0.66× real time whatever the setting (CFG off and bf16 were not faster), so speaking
+  a whole 25-word reply took 10.4 s. **Fixed by speaking sentence by sentence**: every reply opens with
+  "<Callsign>, Sightline." (pre-spoken at start-up, plays at once), long sentences are cut at commas into
+  ≤ 10-word chunks, and the rest are generated while the first plays. **Time to first audio: 3.7 s
+  (boundary question), 3.6 s (clue report), 0.1 s (confirmation)**, under the 5 s target; the longest pause
+  between chunks was 1.3 s.
+
+## For the radio desk UI (lane E, E-14): playing a reply
+
+`POST /turn` and `POST /outbound/{id}/transmit` return the turn plus **`audio_chunks`**: URLs in order.
+Chunk 0 is ready when the response arrives; later chunks appear while it plays. Play them one after the
+other; if a chunk returns 404, it is still being generated: retry after ~100 ms. The whole reply is also at
+`/missions/{id}/radio/audio/{turn}.wav` once every chunk is done (for the log or a replay). `tts_ms` in the
+turn is the time to chunk 0. In `dev.py` (and when D mounts the router), wrap the TTS in `CachedTts` and
+`warm()` it with `"<Callsign>, Sightline."` for every team plus `"All teams, Sightline."`.
 
 ## Decisions already made (from the spike and the live runs, `docs/feedback/radio.md`)
 
@@ -72,8 +86,9 @@ Parakeet needs 16 kHz mono; Magpie returns 22.05 kHz, so resample (the spike use
 
 - [ ] `VOICES` in `tts.py`: listen to Magpie's speakers and pick one female and one male English voice
 - [x] `audio.py`, `tools.py`, `turn.py`, `prompts.py`, `api.py`, `dev.py`, tests 3–7 (lane A, issue #30)
-- [ ] **Shorten spoken replies** (TTS time grows with length): e.g. one fact per reply, or play Magpie's
-      output in chunks while it generates (`create_chunk_state` / `generate_speech`)
+- [x] Time to first audio under 5 s: chunked speech + cached openers (lane A, above)
+- [ ] Optional: stream within a chunk with Magpie's chunked inference (`create_chunk_state` /
+      `generate_speech`) to shorten the ~1 s pauses between chunks
 - [ ] Lane D: mount `radio_router` with a `RadioContext` (D-R4) whose `api` is `HttpMissionApi` (or an
       in-process equivalent) and whose `on_turn` writes `trace_call(actor="radio", kind="radio_turn")` + a `radio.turn` event
 - [ ] Real roster callsigns for `parse_callsign` come from the mission's teams (already passed in `turn.py`)

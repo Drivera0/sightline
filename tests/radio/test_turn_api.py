@@ -3,6 +3,7 @@ network, no NeMo)."""
 
 from __future__ import annotations
 
+import io
 import shutil
 import subprocess
 import wave
@@ -58,7 +59,7 @@ def test_clue_is_read_back_and_posted_once_on_affirmative(tmp_path: Path) -> Non
     first = _inbound(api, session, llm, REPORT, tmp_path)
     assert first.turn.state == "awaiting_confirm" and first.turn.actions == ["draft_clue"]
     assert first.turn.reply.startswith(
-        "Team Two, copy object, blue backpack by the creek, at your position"
+        "Team Two, Sightline. Copy object, blue backpack by the creek, at your position"
     )
     assert "four niner point three seven four" in first.turn.reply  # team's position, spoken
     assert not any(c[0] == "post_clue" for c in api.calls)  # nothing posted before the confirmation
@@ -69,7 +70,10 @@ def test_clue_is_read_back_and_posted_once_on_affirmative(tmp_path: Path) -> Non
     draft = posts[0][2]
     assert draft["confirmed_by_turn"] == second.turn.id and draft["source"] == "radio"
     ClueDraft.model_validate(draft)  # what D's /clues receives is a valid contract draft
-    assert second.clue["id"] == "c001" and second.turn.reply == "Team Two, clue logged. Out."
+    assert (
+        second.clue["id"] == "c001"
+        and second.turn.reply == "Team Two, Sightline. Clue logged. Out."
+    )
     assert len(llm.calls) == 1  # the confirmation turn made no model call
 
 
@@ -77,7 +81,9 @@ def test_negative_discards_and_other_asks_again(tmp_path: Path) -> None:
     api, session, llm = _setup(FakeChatClient({"backpack": _tool("draft_clue", CLUE)}))
     _inbound(api, session, llm, REPORT, tmp_path)
     again = _inbound(api, session, llm, "Sightline, Team Two, copy", tmp_path)
-    assert again.turn.state == "awaiting_confirm" and "confirm or negative" in again.turn.reply
+    assert (
+        again.turn.state == "awaiting_confirm" and "confirm or negative" in again.turn.reply.lower()
+    )
     no = _inbound(api, session, llm, "Team Two, negative, over", tmp_path)
     assert no.turn.state == "discarded" and session.pending == {}
     assert not any(c[0] == "post_clue" for c in api.calls)
@@ -93,7 +99,7 @@ def test_postcheck() -> None:
     assert "two seven zero" in r and "six zero zero" in r and not any(c.isdigit() for c in r)
     assert notes == ["digits spoken as words"]
     r, _ = postcheck("The sector is clear now.", "Team Two")
-    assert r == "Team Two, Sightline, standby, over."
+    assert r == "Team Two, Sightline. Standby, over."
     r, _ = postcheck("Team Two, Sightline. Bearing 270°, 600 m, gusts 30 km/h, over.", "Team Two")
     assert (
         "two seven zero degrees" in r and "six zero zero metres" in r and "kilometres per hour" in r
@@ -122,7 +128,7 @@ def test_model_failure_is_say_again(tmp_path: Path) -> None:
     api, session, llm = _setup(FakeChatClient(default=TimeoutError("slow")))
     r = _inbound(api, session, llm, QUESTION, tmp_path)
     assert (
-        r.turn.reply == "Team Two, Sightline, say again, over." and "model_failed" in r.turn.actions
+        r.turn.reply == "Team Two, Sightline. Say again, over." and "model_failed" in r.turn.actions
     )
 
 
@@ -193,22 +199,30 @@ def client(tmp_path: Path):
         on_turn=lambda mid, turn: seen.append(turn),
     )  # fmt: skip
     app.include_router(radio_router)
-    return TestClient(app), seen
+    return TestClient(app), seen, app.state.radio
 
 
 def test_text_turn_returns_a_valid_radio_turn(client) -> None:
-    c, seen = client
+    c, seen, ctx = client
     r = c.post(f"/missions/{MID}/radio/turn", data={"text": QUESTION})
     assert r.status_code == 200
     body = r.json()
-    turn = RadioTurn.model_validate({k: v for k, v in body.items() if k != "clue"})
+    turn = RadioTurn.model_validate(
+        {k: v for k, v in body.items() if k not in ("clue", "audio_chunks")}
+    )
     assert turn.direction == "in" and turn.callsign == "T2" and seen == [turn]
-    wav = c.get(f"/missions/{MID}/radio/audio/{turn.id}.wav")
-    assert wav.status_code == 200 and wav.content[:4] == b"RIFF"
+    # "Team Two, Sightline. Entry east ridge, over." -> two sentences, sentence 0 ready at once
+    assert body["audio_chunks"] == [
+        f"/missions/{MID}/radio/audio/{turn.id}-{k}.wav" for k in (0, 1)
+    ]
+    assert c.get(body["audio_chunks"][0]).content[:4] == b"RIFF"
+    ctx.wait()
+    for url in body["audio_chunks"] + [f"/missions/{MID}/radio/audio/{turn.id}.wav"]:
+        assert c.get(url).status_code == 200
 
 
 def test_outbound_transmit_and_skip(client) -> None:
-    c, _ = client
+    c, _, _ = client
     out = c.get(f"/missions/{MID}/radio/outbound").json()
     assert [p["id"] for p in out] == ["p014"]
     t = c.post(f"/missions/{MID}/radio/outbound/p014/transmit").json()
@@ -228,7 +242,7 @@ def test_only_approved_briefings_are_transmitted() -> None:
 
 
 def test_turn_needs_audio_or_text(client) -> None:
-    c, _ = client
+    c, _, _ = client
     assert c.post(f"/missions/{MID}/radio/turn", data={}).status_code == 422
 
 
@@ -256,10 +270,16 @@ def test_a_described_tool_call_is_retried_never_spoken(tmp_path: Path) -> None:
     r = _inbound(api, session, llm, QUESTION, tmp_path)
     assert r.turn.reply == good and "retry: tool described, not called" in r.turn.actions
 
-    stubborn = FakeChatClient({"boundary": described})  # keeps describing: never spoken
+    stubborn = FakeChatClient(
+        {"boundary": described, "Call the tool": described}
+    )  # keeps describing
     api, session, _ = _setup(stubborn)
     r = _inbound(api, session, stubborn, QUESTION, tmp_path)
-    assert "get_sector_boundary" not in r.turn.reply and r.turn.reply.endswith("say again, over.")
+    assert (
+        "get_sector_boundary" not in r.turn.reply
+        and r.turn.reply == "Team Two, Sightline. Say again, over."
+    )
+    assert "model_failed" not in r.turn.actions
 
 
 def test_a_described_draft_is_retried(tmp_path: Path) -> None:
@@ -272,3 +292,34 @@ def test_a_described_draft_is_retried(tmp_path: Path) -> None:
     api, session, _ = _setup(llm)
     r = _inbound(api, session, llm, REPORT, tmp_path)
     assert r.turn.state == "awaiting_confirm" and "draft_clue" in r.turn.actions
+
+
+def test_split_sentences_and_concat() -> None:
+    from sightline.radio.tts import concat_wavs, split_sentences, wav_bytes
+
+    assert split_sentences(
+        "Team Two, Sightline. Entry east ridge, bearing two seven zero, over."
+    ) == [
+        "Team Two, Sightline.",
+        "Entry east ridge, bearing two seven zero, over.",
+    ]
+    import numpy as np
+
+    a, b = wav_bytes(np.zeros(100), 22050), wav_bytes(np.zeros(50), 22050)
+    with wave.open(io.BytesIO(concat_wavs([a, b]))) as w:
+        assert w.getnframes() == 150
+
+
+def test_cached_tts_speaks_each_phrase_once() -> None:
+    from sightline.radio.tts import CachedTts
+
+    calls = []
+
+    class Counting(FakeTts):
+        def speak(self, text, voice="en_female"):
+            calls.append(text)
+            return super().speak(text, voice)
+
+    tts = CachedTts(Counting())
+    tts.warm(["Team Two, Sightline."])
+    assert tts.speak("Team Two, Sightline.").ms == 0 and calls == ["Team Two, Sightline."]
