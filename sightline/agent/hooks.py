@@ -1,8 +1,8 @@
-"""Agent hooks D's pipeline and API call after each event (contract §14, LANE_A §5.4).
+"""Agent hooks D's pipeline and API call after each event (contract §14, LANE_A §5.4, §5.6).
 
-Day-1 version (A-H1): every hook writes one trace ``note`` and returns. The real behaviour
-(enqueue for ``sightline.agent.runner``) arrives in A-G1 behind the same signatures, so D wires
-these once. A hook never raises into the caller: a failure is logged and dropped.
+Each hook puts one job on the agent's queue (``sightline.agent.runner``) and returns, well
+under 5 ms; the work happens on the agent's own thread. A hook never raises into the caller.
+``configure`` swaps the runner (tests, or a runner with other settings).
 """
 
 from __future__ import annotations
@@ -10,40 +10,49 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sightline.agent.trace import trace_call
+from sightline.agent.runner import Job, Runner
 
 log = logging.getLogger(__name__)
 
+_runner: Runner | None = None
 
-def _note(store: Any, mission_id: str, hook: str, detail: str, refs: list[str]) -> None:
+
+def configure(runner: Runner | None) -> None:
+    """Use ``runner`` for every hook from now on (``None``: a default one, built on first use)."""
+    global _runner
+    _runner = runner
+
+
+def _submit(event: str, store: Any, mission_id: str, ref: str, answer: str | None = None) -> None:
+    global _runner
     try:
-        trace_call(
-            store,
-            mission_id,
-            actor="agent",
-            kind="note",
-            summary=f"{hook}({detail}) received; agent loop not running yet (stub)",
-            refs=refs,
-        )
+        if _runner is None:
+            _runner = Runner()
+        _runner.submit(Job(event, store, mission_id, ref, answer))
     except Exception:
-        log.exception("agent hook %s failed for mission %s", hook, mission_id)
+        log.exception("agent hook %s failed for mission %s", event, mission_id)
 
 
 def on_detection(store: Any, mission_id: str, detection_id: str) -> None:
-    _note(store, mission_id, "on_detection", detection_id, [detection_id])
+    _submit("detection", store, mission_id, detection_id)
 
 
 def on_review(store: Any, mission_id: str, detection_id: str, answer: str) -> None:
-    _note(store, mission_id, "on_review", f"{detection_id}, {answer}", [detection_id])
+    _submit("review", store, mission_id, detection_id, answer)
 
 
 def on_clue(store: Any, mission_id: str, clue_id: str) -> None:
-    _note(store, mission_id, "on_clue", clue_id, [clue_id])
+    _submit("clue", store, mission_id, clue_id)
 
 
 def on_conditions(store: Any, mission_id: str) -> None:
-    _note(store, mission_id, "on_conditions", mission_id, [])
+    _submit("conditions", store, mission_id, mission_id)
 
 
 def on_leg_done(store: Any, mission_id: str, leg_id: str) -> None:
-    _note(store, mission_id, "on_leg_done", leg_id, [leg_id])
+    _submit("leg_done", store, mission_id, leg_id)
+
+
+def on_tick(store: Any, mission_id: str) -> None:
+    """Every 5 min or 25 photos (D's scheduler): standby teams get ``assign_sector`` proposals."""
+    _submit("tick", store, mission_id, mission_id)
