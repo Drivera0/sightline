@@ -3,9 +3,10 @@ import { create } from "zustand";
 import type { CacheBundle } from "../contract";
 
 export const CACHE_FILES = ["manifest", "survey", "detections", "map", "metrics"] as const;
-export const SUPPORTED_CONTRACT_VERSION = "1.1";
-/** 1.1 only adds optional fields, so 1.0 caches still load (the new fields read as null). */
-export const READABLE_CONTRACT_VERSIONS: readonly string[] = ["1.0", "1.1"];
+export const SUPPORTED_CONTRACT_VERSION = "1.2";
+/** 1.1 only adds optional fields, so 1.0 caches still load (the new fields read as null); 1.2 only
+ * adds live-mission files, so the cache files are the same. */
+export const READABLE_CONTRACT_VERSIONS: readonly string[] = ["1.0", "1.1", "1.2"];
 
 /** Folder under public/cache/ that the app reads: VITE_CACHE_DIR, or "sample". */
 export const CACHE_DIR = import.meta.env.VITE_CACHE_DIR || "sample";

@@ -1,8 +1,9 @@
-# 01 · The Data Contract (v1.1)
+# 01 · The Data Contract (v1.2)
 
 > **Read this before writing any code that reads or writes the cache.**
 > This file is the single source of truth for every file the lanes exchange.
 > If your code and this file disagree, this file wins. Change it only by team agreement (see §10).
+> §5–§9 are the static cache files; §12–§14 (v1.2) are live missions, the mission API and the in-process interfaces.
 
 ---
 
@@ -32,7 +33,7 @@ Rules that follow from this:
 | File paths in JSON | Relative to the cache folder root, forward slashes, e.g. `"frames/f0042.jpg"`. |
 | Floats in JSON | Lat/lon: 6 decimals. In `map.json`: step `pod`, `canopy` and `top_cells.p` to 4 decimals, but **`prior` and `final` probabilities unrounded** (full float64; cell values are around 1e-4, so rounding would break the sum checks). Everything else: 3 decimals. |
 | Missing values | `null`, never omitted, never `NaN`. |
-| Version | Every top-level JSON file the pipeline writes has `"contract_version": "1.1"`. Readers also accept `"1.0"`: 1.1 only adds optional fields, which read as `null` in a 1.0 file. |
+| Version | Every top-level JSON file the pipeline writes has `"contract_version": "1.2"`. Readers also accept `"1.0"` and `"1.1"`: 1.1 only adds optional fields, which read as `null` in a 1.0 file, and 1.2 only adds live-mission files (§12). |
 
 ---
 
@@ -69,7 +70,7 @@ Written last by the pipeline. Used for debugging and for the website's "about th
 
 ```json
 {
-  "contract_version": "1.1",
+  "contract_version": "1.2",
   "survey_id": "seymour-demo",
   "generated_at": "2026-11-07T18:30:00Z",
   "git_sha": "a1b2c3d",
@@ -104,7 +105,7 @@ One entry per frame. **Writers:** D (frame list, flight order, ranking) using B'
 
 ```json
 {
-  "contract_version": "1.1",
+  "contract_version": "1.2",
   "survey_id": "seymour-demo",
   "simulated_path": true,
   "area": {
@@ -161,7 +162,7 @@ All detections for all frames, in one file. **Writers:** D, using A's detector o
 
 ```json
 {
-  "contract_version": "1.1",
+  "contract_version": "1.2",
   "model": "yolo11s-heridal-tiled-hn",
   "save_threshold": 0.05,
   "candidate_threshold": 0.25,
@@ -213,7 +214,7 @@ The search grid. **Writer:** D, using C's functions. The website replays the ste
 
 ```json
 {
-  "contract_version": "1.1",
+  "contract_version": "1.2",
   "grid": {
     "origin_nw": {"lat": 49.374492, "lon": -122.951898},
     "cell_m": 20,
@@ -283,7 +284,7 @@ Everything the metrics screen and the pitch quote. **Writers:** D, from A's, C's
 
 ```json
 {
-  "contract_version": "1.1",
+  "contract_version": "1.2",
   "detector": {
     "model": "yolo11s-heridal-tiled-hn",
     "test_images": 101,
@@ -355,6 +356,7 @@ All zeros above are placeholders; the sample cache uses plausible fake numbers, 
 ### Changelog
 
 - **1.1** (additive, agreed by lanes C and D): `map.json` `params.prior_source: string | null`; `metrics.json` `search_sim.in_survey: {trials, methods} | null`. Writers stamp `"1.1"`; readers accept `"1.0"` and `"1.1"`.
+- **1.2** (2026-10-21, additive): live missions (§12–§14): mission files, `MapUpdate` (step + reweight), verdicts, tasks, teams, clues, proposals, fleet, conditions, assignment cards, events, agent trace, radio turns; the mission API; the in-process interfaces. The static cache files (§5–§9) are unchanged: writers stamp `"1.2"`, readers accept `"1.0"`–`"1.2"`. Merged from the v1.2 draft by lane A for lane D (issue #51).
 
 **Frozen at hour 3.** After that, only additive changes (new optional fields) unless the whole team agrees.
 
@@ -372,3 +374,411 @@ All zeros above are placeholders; the sample cache uses plausible fake numbers, 
 - [ ] `len(steps) == n_frames` and the steps are in flight order.
 - [ ] Replaying `steps` (pods as written) on `prior` in Python reproduces `final` within 1e-9.
 - [ ] No ground-truth data anywhere in the cache.
+
+---
+
+## 12. Live mission files
+
+### 12.1 Where they live
+
+A **mission** is a live search created through the API (`POST /missions`). Static demo caches stay as they are.
+
+```
+missions/<mission_id>/              # server side, written only by sightline.mission.MissionStore (D)
+  mission.json                      # Mission
+  survey.json                       # Survey (§6), frames appended as photos arrive
+  detections.json                   # Detections (§7), appended
+  map_base.json                     # MapBase: grid, lkp, params, prior, canopy (no steps)
+  map_updates.jsonl                 # one MapUpdate per line, in seq order
+  tasks.json  teams.json  clues.json  proposals.json  verdicts.json
+  fleet.json  conditions.json
+  events.jsonl                      # one MissionEvent per line
+  trace.jsonl                       # one TraceEntry per line (the agent trace)
+  frames/  crops/  relook/  radio/  # images and audio referenced by the files above
+web/src/command/__fixtures__/        # demo mode: the same shapes as static fixtures (E owns them; D's useMission imports them)
+```
+
+Detection crops follow §7 unchanged: `crop` is set exactly when `conf >= candidate_threshold` (0.29). Near-miss crops (0.15 ≤ conf < 0.29) for A's verifier are stored as files at `crops/nearmiss/<detection_id>.jpg` and are **not** referenced from `detections.json`.
+
+Rules (same spirit as §2): **only `MissionStore` writes mission files**; lanes call its methods (§14), never `open(..., "w")` on these paths. Every write validates against the models below. `*.jsonl` files are append-only. Times are ISO 8601 UTC strings ending in `Z`. Ids are short strings with a kind prefix and a zero-padded counter per mission (`p014`, `c003`, `v0021`, `L007`, `e00412`, `t000131`).
+
+### 12.2 Models (Python names; `web/src/contract.ts` is generated)
+
+```python
+# --- mission -----------------------------------------------------------------------------
+class Mission(_Model):
+    contract_version: ContractVersion
+    mission_id: str                     # 8 hex chars
+    name: str                           # "Seymour — missing hiker"
+    area: Area                          # §6 (name + lkp); POST /missions takes area_name + lkp
+    created_at: str
+    mode: Literal["live", "demo", "replay"]   # replay = a real flight pushed at drone pace (labelled)
+    last_seen_at: str | None            # when the subject was last seen (urgency clock, B)
+    subject: str | None                 # free text: "adult, red jacket, day hiker"
+
+# --- map (C) -----------------------------------------------------------------------------
+class MapBase(_Model):                  # map.json (§8) minus steps/final/top_cells
+    contract_version: ContractVersion
+    grid: Grid
+    lkp: LatLon
+    params: Params
+    prior: Distribution
+    canopy: list[Probability | None]
+
+class MapUpdate(_Model):
+    seq: int = Field(ge=1)              # 1, 2, 3 ... with no gaps
+    kind: Literal["step", "reweight"]
+    # step     = "looked here, nobody found":  p_i *= (1 - pod_i), renormalise (existing apply_step)
+    # reweight = "evidence points here":       p_i *= factor_i,    renormalise (new apply_reweight)
+    source: Literal["frame", "review", "ground", "clue", "conditions"]
+    ref: str | None                     # frame id, detection id, sector id, clue id
+    cells: list[tuple[int, float]]      # step: (idx, pod in [0, pod_cap]); reweight: (idx, factor > 0)
+    canopy: list[tuple[int, float, float]] | None = None   # frame steps only: (idx, canopy, overlap) for every covered cell,
+                                        # so LiveMap rebuilt from the log keeps the overlap-weighted canopy estimate
+    at: str
+
+# --- detections second look (A) ------------------------------------------------------------
+class Verdict(_Model):
+    id: str                             # "v0021"
+    detection_id: str
+    tools: list[str]                    # ["enhance_contrast", "zoom_native"]
+    relook_crops: list[str]             # paths under relook/
+    person: Literal["yes", "no", "unclear"]
+    posture: Literal["standing", "sitting", "lying", "unknown"]
+    group_size: int | None
+    clothing: str | None                # "red jacket, dark trousers"
+    reason: str
+    model: str                          # Token Factory model id
+    ms: int
+    at: str
+
+# --- operations (E shows, D stores) --------------------------------------------------------
+SectorTaskState = Literal["proposed", "assigned", "in_progress", "searched"]   # never "cleared"
+
+class SectorTask(_Model):
+    sector_id: str                      # C's sector ids: demo caches "S1".."Sn", "N", "E", "S", "W"; live/replay missions "A1".."D4"
+    state: SectorTaskState
+    team_id: str | None
+    poa: Probability
+    pod: Probability | None = Field(default=None, le=0.9)   # only when state == "searched"
+    note: str | None
+    updated_at: str
+
+class Team(_Model):
+    id: str                             # "T1"
+    callsign: str                       # "Team One"
+    members: int = Field(ge=1)
+    status: Literal["standby", "assigned", "searching", "returning", "off_duty"]
+    position: LatLon | None
+    position_at: str | None
+    note: str | None
+
+class ClueDraft(_Model):
+    kind: Literal["object", "track", "sighting", "sound", "other"]
+    text: str
+    lat: float | None
+    lon: float | None
+    at_team_position: bool = False
+    radius_m: float | None = Field(default=None, gt=0)   # None → B's default for the kind
+    reliability: Literal["low", "medium", "high"] = "medium"
+    reported_by: str                    # team id or "command"
+    source: Literal["form", "radio"]
+    confirmed_by_turn: str | None = None   # radio: id of the radio turn where the team said "affirmative" (required)
+
+class Clue(ClueDraft):
+    id: str                             # "c003"
+    lat: float
+    lon: float
+    radius_m: float = Field(gt=0)
+    at: str
+    confirmed: bool                     # server sets it: True for "form"; for "radio" only with confirmed_by_turn (else 422)
+
+class EvidenceRef(_Model):
+    kind: Literal["crop", "frame", "relook", "trace", "clue", "conditions", "map", "leg"]
+    ref: str
+    caption: str
+
+class Proposal(_Model):
+    id: str                             # "p014"
+    kind: Literal["drone_leg", "retask_drone", "assign_sector", "promote_detection", "dismiss_detection", "alert"]
+    summary: str                        # "Send Drone 2 to sector C3 (2.1× expected clearance)"
+    reason: str
+    briefing: str | None                # radio-ready text; only the approved version (after any edits) is ever transmitted
+    target: dict[str, str]              # {"drone": "D2", "leg": "L007"} | {"team": "T2", "sector": "B3"} | {"detection": "f0042-d01"} | {"team": "all"}
+    leg: "Leg | None" = None            # drone_leg / retask_drone: the proposed leg lives here until approved
+    evidence: list[EvidenceRef]
+    status: Literal["pending", "approved", "rejected", "expired", "superseded"]
+    created_by: Literal["agent", "planner", "verifier", "command"]
+    created_at: str
+    decided_at: str | None
+    decided_by: str | None
+    decision_reason: str | None
+    edits: dict[str, str] | None        # what the human changed before approving (e.g. {"team": "T3", "briefing": "..."})
+
+# --- fleet (C plans, B draws, D stores) ----------------------------------------------------
+class Drone(_Model):
+    id: str                             # "D1"
+    name: str
+    simulated: bool
+    position: LatLon | None
+    altitude_m: float = Field(gt=0)
+    speed_ms: float = Field(gt=0)
+    battery_pct: float = Field(ge=0, le=100)
+    max_wind_kmh: float = Field(gt=0)
+    status: Literal["idle", "flying", "returning", "charging", "offline"]
+    leg_id: str | None
+
+class Leg(_Model):
+    id: str                             # "L007"
+    drone_id: str
+    sector_id: str | None
+    waypoints: list[LonLat]             # lawnmower path, [lon, lat] like footprints
+    altitude_m: float
+    est_minutes: float
+    expected_clearance: Probability     # probability mass the leg is expected to rule out
+    score_per_min: float
+    reason: str
+    status: Literal["proposed", "approved", "flying", "done", "cancelled"]
+
+class FleetState(_Model):                # written only by D: legs enter on approval (from Proposal.leg)
+    simulated: bool
+    drones: list[Drone]
+    legs: list[Leg]
+    updated_at: str
+
+class FleetTelemetry(_Model):           # what the fleet sim (or a real drone bridge) reports; D merges it into FleetState
+    drones: list[Drone]                 # position, battery, status; leg_id is ignored (D owns assignment)
+    leg_status: dict[str, Literal["flying", "done"]]
+    at: str
+
+# --- conditions (B) ------------------------------------------------------------------------
+class ConditionAlert(_Model):
+    kind: Literal["closure", "warning", "advisory", "other"]
+    title: str
+    text: str
+    url: str
+
+class Conditions(_Model):
+    fetched_at: str
+    stale: bool                         # true when served from cache older than 60 min or offline
+    area: str
+    sources: list[str]                  # URLs Tavily returned and we used
+    wind_kmh: float | None
+    gust_kmh: float | None
+    wind_dir_deg: float | None
+    precip_mm_h: float | None
+    precip_prob: Probability | None
+    temp_c: float | None
+    visibility_km: float | None
+    sunset: str | None                  # computed locally (astral), not scraped
+    civil_twilight_end: str | None
+    alerts: list[ConditionAlert]
+    flyable: bool | None                # gust vs the fleet's lowest max_wind_kmh
+    flyable_until: str | None
+    flyability_reason: str
+    visibility_factor: Probability      # 1.0 = clear; C multiplies photo PODs by it
+    exposure_band: Literal["low", "moderate", "high", "severe"] | None   # heuristic, labelled
+    exposure_note: str
+
+# --- assignment cards (B builds, D serves, E shows) ------------------------------------------
+class Waypoint(_Model):
+    name: str
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    note: str | None = None
+
+class AssignmentCard(_Model):
+    mission_id: str
+    sector_id: str
+    sector_label: str
+    team_id: str | None
+    team_callsign: str | None
+    polygon: list[LonLat]
+    area_m2: float = Field(gt=0)
+    entry: Waypoint
+    bearing_deg_from_team: float | None
+    distance_m_from_team: float | None
+    waypoints: list[Waypoint] = Field(max_length=40)
+    poa: Probability
+    drone_coverage: Probability
+    look_for: list[str]
+    evidence_crops: list[str]
+    conditions_line: str | None
+    daylight_remaining_min: int | None
+    radio: str
+    generated_at: str
+
+# --- events and trace ----------------------------------------------------------------------
+EventType = Literal[
+    "photo.processed", "detection.new", "verdict", "map.updated",
+    "proposal.new", "proposal.decided", "clue.added", "task.updated", "team.updated",
+    "fleet.updated", "conditions.updated", "radio.turn", "mission.note",
+]
+
+class MissionEvent(_Model):
+    id: str                             # "e00412"
+    type: EventType
+    at: str
+    summary: str                        # one human-readable line for the feed
+    ref: str | None
+    data: dict | None                   # the new/updated object (Proposal, Clue, MapUpdate, ...) so clients needn't refetch
+
+class TraceEntry(_Model):
+    id: str                             # "t000131"
+    at: str
+    actor: Literal["agent", "verifier", "planner", "conditions", "radio", "pipeline", "human"]
+    kind: Literal["model_call", "tool_call", "verdict", "proposal", "decision", "radio_turn", "note"]
+    summary: str
+    input: dict | None                  # trimmed; images by path, never base64
+    output: dict | None
+    model: str | None
+    ms: int | None
+    tokens_in: int | None
+    tokens_out: int | None
+    refs: list[str]                     # ids this entry concerns
+
+class RadioTurn(_Model):                # E; stored as TraceEntry(kind="radio_turn", output=RadioTurn)
+    id: str
+    direction: Literal["in", "out"]
+    callsign: str | None
+    transcript: str
+    reply: str | None
+    audio: str | None
+    state: Literal["answered", "awaiting_confirm", "committed", "discarded", "transmitted", "say_again"]
+    actions: list[str]
+    asr_ms: int | None
+    llm_ms: int | None
+    tts_ms: int | None
+    at: str
+```
+
+### 12.3 Invariants (D's `validate_mission()` checks these; tests in `tests/pipeline/test_mission.py`)
+
+1. `map_updates.seq` is 1..n with no gaps; replaying every update on `prior` keeps `sum(p) + outside = 1` within 1e-9.
+2. A `step` never has `pod > params.pod_cap`; a `reweight` never has `factor <= 0` or `> 20`.
+3. `SectorTask.pod` is set iff `state == "searched"`, and is ≤ 0.9.
+4. No string field anywhere in a mission says an area is "clear"/"cleared" (regex over every `summary`, `reason`, `briefing`, `note`).
+5. Every `Proposal` with `status != "pending"` has `decided_at` and `decided_by`. `briefing` text is only ever transmitted (radio turn `direction: "out"`) for proposals with `status == "approved"`.
+6. Every `Clue` with `source == "radio"` has `confirmed == true` and a `confirmed_by_turn` that matches a `radio_turn` trace entry with state `committed`. Unconfirmed voice reports never become clues.
+7. No truth (same rule as §2) in any mission file.
+8. Only `MissionStore` changes leg status to `approved`/`cancelled` (on a decision); telemetry may only move a leg `approved → flying → done`.
+
+---
+
+## 13. Mission API (D: `sightline/api/`; E's radio router mounted at the same prefix)
+
+All JSON bodies are the models above. Errors: `{"detail": str}` with 4xx. No auth (hackathon): bind to localhost or put behind the AWS security group; never expose an API key to the browser.
+
+| Method + path | Body / query | Returns | Who calls it |
+|---|---|---|---|
+| `POST /missions` | `{name, area_name, lkp, last_seen_at?, subject?, mode}` | `Mission` | D ingest UI, B replay, C fleet sim |
+| `GET /missions/{id}/state` | — | `{mission, tasks, teams, clues, proposals, verdicts, fleet, conditions, events (last 200)}` | D `useMission` on connect |
+| `GET /missions/{id}/events` | SSE; `Last-Event-ID` resumes | stream of `MissionEvent` (`event: <type>`, `id: <id>`, `data: <json>`) | D `useMission` |
+| `POST /missions/{id}/photos` | multipart, 1..50 JPEGs (field `files`) | `{accepted: [frame_id], rejected: [{name, reason}]}` (202) | ingest UI, B `watch`/`replay`, D worker |
+| `GET /missions/{id}/survey` / `detections` / `map_base` / `map_updates?after=<seq>` | — | §6 / §7 / `MapBase` / `list[MapUpdate]` | web (C heat, D review) |
+| `POST /missions/{id}/reviews` | `{detection_id, answer: person\|not_person\|unsure}` | `MapUpdate \| null` | D review queue (live mode) |
+| `POST /missions/{id}/proposals/{pid}/decide` | `{decision: approve\|reject, by, reason?, edits?}` | `Proposal` | E approval inbox |
+| `POST /missions/{id}/tasks/{sector_id}` | `{state, team_id?, pod?, note?}` | `SectorTask` | E task board |
+| `POST /missions/{id}/teams` / `PATCH /missions/{id}/teams/{tid}` | `Team` / partial | `Team` | E roster, E radio |
+| `POST /missions/{id}/clues` | `ClueDraft` (radio drafts only after readback "affirmative", with `confirmed_by_turn`) | `Clue` | E clue form, E radio |
+| `POST /missions/{id}/conditions/refresh` | — | `Conditions` | E header button, A agent |
+| `GET /missions/{id}/cards/{sector_id}` / `.gpx` / `.kml` | — | `AssignmentCard` / file | E assignment card |
+| `PUT /missions/{id}/fleet` | `FleetTelemetry` | merged `FleetState`; D emits `fleet.updated` and calls `hooks.on_leg_done` for legs that turned `done` | C fleet sim |
+| `GET /missions/{id}/debrief.md` | — | markdown from C's `debrief()` | E debrief button |
+| `GET /missions/{id}/files/{path}` | — | frames, crops, relook crops, radio audio | web |
+| `/missions/{id}/radio/...` | see `LANE_E_OPS_VOICE.md` §8.3 | | E |
+| `GET /health` | — | `{"status":"ok", "contract_version":"1.2", "backend": "cv2"\|"torch"}` | smoke test |
+
+Fleet in v1.2 is simulated only: legs are approved through proposals; there is no "fly" endpoint for real hardware.
+
+---
+
+## 14. In-process interfaces (Python; lanes call each other through these, never through files)
+
+```python
+# sightline/mission/store.py (D) — the only writer of mission files
+class MissionStore:
+    def __init__(self, root: Path = Path("missions")) -> None: ...
+    def create(self, name: str, area_name: str, lkp: LatLon, mode: str, last_seen_at: str | None = None,
+               subject: str | None = None) -> Mission: ...
+    def put_map_base(self, mission_id: str, base: MapBase) -> None: ...
+    def live(self, mission_id: str) -> "LiveMap": ...          # the in-memory LiveMap rebuilt from map_updates.jsonl
+    def next_id(self, mission_id: str, kind: str) -> str: ...  # "L" → "L007", "p" → "p014", ...
+    def get(self, mission_id: str) -> Mission: ...
+    def state(self, mission_id: str) -> dict: ...
+    def append_frame(self, mission_id: str, frame: Frame, image_bytes: bytes) -> None: ...
+    def set_frames(self, mission_id: str, frames: list[Frame]) -> None: ...      # rewrite survey frames (re-ranking)
+    def survey(self, mission_id: str) -> Survey: ...
+    def detections(self, mission_id: str) -> Detections: ...
+    def get_detection(self, mission_id: str, detection_id: str) -> tuple[Detection, Frame]: ...
+    def map_updates(self, mission_id: str, after_seq: int = 0) -> list[MapUpdate]: ...
+    def read_file(self, mission_id: str, rel_path: str) -> bytes: ...
+    def append_detections(self, mission_id: str, frame_id: str, dets: list[Detection], crops: dict[str, bytes]) -> None: ...
+    def append_map_update(self, mission_id: str, update: MapUpdate) -> None: ...   # assigns seq
+    def put_verdict(self, mission_id: str, v: Verdict) -> None: ...
+    def add_proposal(self, mission_id: str, p: Proposal) -> Proposal: ...          # assigns id, emits event
+    def decide_proposal(self, mission_id: str, pid: str, decision: str, by: str,
+                        reason: str | None = None, edits: dict | None = None) -> Proposal: ...
+    def set_proposal_status(self, mission_id: str, pid: str, status: Literal["superseded", "expired"],
+                            by: str) -> Proposal: ...
+    def upsert_task(self, mission_id: str, task: SectorTask) -> None: ...
+    def upsert_team(self, mission_id: str, team: Team) -> None: ...
+    def add_clue(self, mission_id: str, clue: Clue) -> Clue: ...
+    def put_fleet(self, mission_id: str, fleet: FleetState) -> None: ...          # D's effects only
+    def merge_telemetry(self, mission_id: str, t: FleetTelemetry) -> tuple[FleetState, list[str]]: ...  # → legs newly done
+    def put_conditions(self, mission_id: str, c: Conditions) -> None: ...
+    def trace(self, mission_id: str, entry: TraceEntry) -> TraceEntry: ...          # assigns id
+    def emit(self, mission_id: str, type: EventType, summary: str,
+             ref: str | None = None, data: dict | None = None) -> MissionEvent: ...
+    def subscribe(self, mission_id: str, after_event_id: str | None = None) -> AsyncIterator[MissionEvent]: ...
+    def put_file(self, mission_id: str, rel_path: str, data: bytes) -> str: ...     # returns rel_path
+
+# sightline/search/live.py (C) — live map, pure math, no I/O
+class LiveMap:
+    @classmethod
+    def start(cls, lkp: LatLon, *, cell_m: float = 5.0, size_m: float = 1000.0,
+              prior: Literal["placeholder"] = "placeholder") -> "LiveMap": ...   # labelled placeholder prior (no invented ring numbers)
+    base: MapBase
+    def frame_update(self, frame: FrameInput, recall: float, held: list[tuple[LatLon, float]],
+                     visibility_factor: float = 1.0) -> MapUpdate: ...
+    def review_update(self, detection_id: str, frame_id: str, at: LatLon, radius_m: float,
+                      answer: str) -> MapUpdate | None: ...   # "person" undoes that frame's step on the cells
+    def ground_update(self, sector_cells: list[int], pod: float, sector_id: str) -> MapUpdate: ...
+    def clue_update(self, clue: Clue) -> MapUpdate: ...
+    def conditions_update(self, c: Conditions) -> MapUpdate | None: ...
+    def apply(self, u: MapUpdate) -> None: ...          # used to rebuild from map_updates.jsonl
+    def p(self) -> tuple[np.ndarray, float]: ...
+    def sector_poa(self, layout: "SectorLayout") -> dict[str, float]: ...
+
+# sightline/search/planner.py (C)
+def propose_legs(live: LiveMap, layout: SectorLayout, fleet: FleetState, conditions: Conditions | None,
+                 now: str, k: int = 3) -> list[Leg]: ...             # ranked, status "proposed"
+def propose_assignments(live: LiveMap, layout: SectorLayout, tasks: list[SectorTask],
+                        teams: list[Team]) -> list[tuple[str, str, str]]: ...   # (team_id, sector_id, reason)
+
+# sightline/geo/conditions.py (B)
+def fetch_conditions(area: Area, *, fleet_max_wind_kmh: float | None, last_seen_at: str | None,
+                     cache_dir: Path, now: str | None = None) -> Conditions: ...
+# sightline/geo/cards.py (B)
+def assignment_card(mission_id: str, sector_id: str, store: MissionStore, layout: SectorLayout,
+                    now: str | None = None) -> AssignmentCard: ...
+def to_gpx(card: AssignmentCard) -> str: ...
+def to_kml(card: AssignmentCard) -> str: ...
+
+# sightline/agent/llm.py (A) — the only Token Factory client
+class ChatClient(Protocol):
+    def chat(self, messages: list[dict], *, model: str, tools: list[dict] | None = None,
+             response_format: dict | None = None, images: list[Path] | None = None,
+             max_tokens: int = 800, temperature: float = 0.2) -> ChatResult: ...
+@dataclass(frozen=True)
+class ChatResult: text: str; tool_calls: list[dict]; model: str; ms: int; tokens_in: int; tokens_out: int
+def token_factory_client() -> ChatClient: ...      # NEBIUS_API_KEY from env; base_url from env
+# sightline/agent/hooks.py (A) — called by D's pipeline after each event that may need the agent
+def on_detection(store: MissionStore, mission_id: str, detection_id: str) -> None: ...
+def on_review(store: MissionStore, mission_id: str, detection_id: str, answer: str) -> None: ...
+def on_clue(store: MissionStore, mission_id: str, clue_id: str) -> None: ...
+def on_conditions(store: MissionStore, mission_id: str) -> None: ...
+def on_leg_done(store: MissionStore, mission_id: str, leg_id: str) -> None: ...
+```
+
+Hooks must return fast: D's pipeline calls them on a background worker; the agent does its work asynchronously, gets the map with `store.live(mission_id)`, and reports only through `MissionStore`.

@@ -24,6 +24,7 @@ datasets/
 # Secrets and environment
 .env
 .env*
+!.env.example
 
 # Local YOLO smoke-test leftovers
 bus.jpg

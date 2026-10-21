@@ -14,8 +14,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from sightline.agent._contract_v12 import ClueDraft, RadioTurn
 from sightline.agent.llm import ChatResult, FakeChatClient
+from sightline.contract import ClueDraft, RadioTurn
 from sightline.radio.api import RadioContext, radio_router
 from sightline.radio.asr import FakeAsr
 from sightline.radio.audio import AudioError, check_length, to_mono16k

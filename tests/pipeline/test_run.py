@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from sightline.contract import Manifest
+from sightline.contract import CONTRACT_VERSION, Manifest
 from sightline.pipeline.export import validate_cache
 from sightline.pipeline.formats import RawDetectionsFile, write_json
 from sightline.pipeline.lanes import Lanes
@@ -261,7 +261,7 @@ def test_manifest_json_is_valid_json_with_the_contract_version(tmp_path):
 
     run_pipeline(ctx, out=out, survey_id="demo")
 
-    assert json.loads((out / "manifest.json").read_text())["contract_version"] == "1.1"
+    assert json.loads((out / "manifest.json").read_text())["contract_version"] == CONTRACT_VERSION
 
 
 def test_raw_detection_files_stay_out_of_the_cache(tmp_path):

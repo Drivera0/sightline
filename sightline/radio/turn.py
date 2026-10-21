@@ -21,8 +21,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sightline.agent._contract_v12 import RadioTurn
 from sightline.agent.llm import MODEL_REASON, ChatClient, assistant_message, tool_message
+from sightline.contract import RadioTurn
 from sightline.radio import prompts
 from sightline.radio.asr import Asr
 from sightline.radio.audio import AudioError, check_length, to_mono16k

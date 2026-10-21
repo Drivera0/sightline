@@ -14,9 +14,10 @@ export interface CacheBundle {
   detections: Detections;
   map: MapFile;
   metrics: Metrics;
+  mission?: MissionBundle | null;
 }
 export interface Manifest {
-  contract_version: "1.0" | "1.1";
+  contract_version: "1.0" | "1.1" | "1.2";
   survey_id: string;
   generated_at: string;
   git_sha: string | null;
@@ -43,7 +44,7 @@ export interface StageResult {
   seconds: number;
 }
 export interface Survey {
-  contract_version: "1.0" | "1.1";
+  contract_version: "1.0" | "1.1" | "1.2";
   survey_id: string;
   simulated_path: boolean;
   area: Area;
@@ -87,7 +88,7 @@ export interface Pose {
   gsd_m: number;
 }
 export interface Detections {
-  contract_version: "1.0" | "1.1";
+  contract_version: "1.0" | "1.1" | "1.2";
   model: string;
   save_threshold: number;
   candidate_threshold: number;
@@ -113,7 +114,7 @@ export interface Detection {
   radius_m: number;
 }
 export interface MapFile {
-  contract_version: "1.0" | "1.1";
+  contract_version: "1.0" | "1.1" | "1.2";
   grid: Grid;
   lkp: LatLon;
   params: Params;
@@ -155,7 +156,7 @@ export interface TopCell {
   canopy: number | null;
 }
 export interface Metrics {
-  contract_version: "1.0" | "1.1";
+  contract_version: "1.0" | "1.1" | "1.2";
   detector: DetectorMetrics;
   baseline_human: BaselineHuman;
   ablations: Ablation[];
@@ -228,4 +229,286 @@ export interface SearchMethod {
 export interface InSurvey {
   trials: number;
   methods: SearchMethod[];
+}
+/**
+ * Root type used only to export the live-mission models (section 12) to the JSON Schema.
+ */
+export interface MissionBundle {
+  mission: Mission;
+  map_base: MapBase;
+  map_update: MapUpdate;
+  verdict: Verdict;
+  task: SectorTask;
+  team: Team;
+  clue_draft: ClueDraft;
+  clue: Clue;
+  proposal: Proposal;
+  fleet: FleetState;
+  telemetry: FleetTelemetry;
+  conditions: Conditions;
+  card: AssignmentCard;
+  event: MissionEvent;
+  trace: TraceEntry;
+  radio_turn: RadioTurn;
+}
+export interface Mission {
+  contract_version: "1.0" | "1.1" | "1.2";
+  mission_id: string;
+  name: string;
+  area: Area;
+  created_at: string;
+  mode: "live" | "demo" | "replay";
+  last_seen_at: string | null;
+  subject: string | null;
+}
+export interface MapBase {
+  contract_version: "1.0" | "1.1" | "1.2";
+  grid: Grid;
+  lkp: LatLon;
+  params: Params;
+  prior: Distribution;
+  canopy: (number | null)[];
+}
+export interface MapUpdate {
+  seq: number;
+  kind: "step" | "reweight";
+  source: "frame" | "review" | "ground" | "clue" | "conditions";
+  ref: string | null;
+  cells: [number, number][];
+  canopy?: [number, number, number][] | null;
+  at: string;
+}
+export interface Verdict {
+  id: string;
+  detection_id: string;
+  tools: string[];
+  relook_crops: string[];
+  person: "yes" | "no" | "unclear";
+  posture: "standing" | "sitting" | "lying" | "unknown";
+  group_size: number | null;
+  clothing: string | null;
+  reason: string;
+  model: string;
+  ms: number;
+  at: string;
+}
+export interface SectorTask {
+  sector_id: string;
+  state: "proposed" | "assigned" | "in_progress" | "searched";
+  team_id: string | null;
+  poa: number;
+  pod?: number | null;
+  note: string | null;
+  updated_at: string;
+}
+export interface Team {
+  id: string;
+  callsign: string;
+  members: number;
+  status: "standby" | "assigned" | "searching" | "returning" | "off_duty";
+  position: LatLon | null;
+  position_at: string | null;
+  note: string | null;
+}
+export interface ClueDraft {
+  kind: "object" | "track" | "sighting" | "sound" | "other";
+  text: string;
+  lat: number | null;
+  lon: number | null;
+  at_team_position?: boolean;
+  radius_m?: number | null;
+  reliability?: "low" | "medium" | "high";
+  reported_by: string;
+  source: "form" | "radio";
+  confirmed_by_turn?: string | null;
+}
+export interface Clue {
+  kind: "object" | "track" | "sighting" | "sound" | "other";
+  text: string;
+  lat: number;
+  lon: number;
+  at_team_position?: boolean;
+  radius_m: number;
+  reliability?: "low" | "medium" | "high";
+  reported_by: string;
+  source: "form" | "radio";
+  confirmed_by_turn?: string | null;
+  id: string;
+  at: string;
+  confirmed: boolean;
+}
+export interface Proposal {
+  id: string;
+  kind: "drone_leg" | "retask_drone" | "assign_sector" | "promote_detection" | "dismiss_detection" | "alert";
+  summary: string;
+  reason: string;
+  briefing: string | null;
+  target: {
+    [k: string]: string;
+  };
+  leg?: Leg | null;
+  evidence: EvidenceRef[];
+  status: "pending" | "approved" | "rejected" | "expired" | "superseded";
+  created_by: "agent" | "planner" | "verifier" | "command";
+  created_at: string;
+  decided_at: string | null;
+  decided_by: string | null;
+  decision_reason: string | null;
+  edits: {
+    [k: string]: string;
+  } | null;
+}
+export interface Leg {
+  id: string;
+  drone_id: string;
+  sector_id: string | null;
+  waypoints: [number, number][];
+  altitude_m: number;
+  est_minutes: number;
+  expected_clearance: number;
+  score_per_min: number;
+  reason: string;
+  status: "proposed" | "approved" | "flying" | "done" | "cancelled";
+}
+export interface EvidenceRef {
+  kind: "crop" | "frame" | "relook" | "trace" | "clue" | "conditions" | "map" | "leg";
+  ref: string;
+  caption: string;
+}
+export interface FleetState {
+  simulated: boolean;
+  drones: Drone[];
+  legs: Leg[];
+  updated_at: string;
+}
+export interface Drone {
+  id: string;
+  name: string;
+  simulated: boolean;
+  position: LatLon | null;
+  altitude_m: number;
+  speed_ms: number;
+  battery_pct: number;
+  max_wind_kmh: number;
+  status: "idle" | "flying" | "returning" | "charging" | "offline";
+  leg_id: string | null;
+}
+export interface FleetTelemetry {
+  drones: Drone[];
+  leg_status: {
+    [k: string]: "flying" | "done";
+  };
+  at: string;
+}
+export interface Conditions {
+  fetched_at: string;
+  stale: boolean;
+  area: string;
+  sources: string[];
+  wind_kmh: number | null;
+  gust_kmh: number | null;
+  wind_dir_deg: number | null;
+  precip_mm_h: number | null;
+  precip_prob: number | null;
+  temp_c: number | null;
+  visibility_km: number | null;
+  sunset: string | null;
+  civil_twilight_end: string | null;
+  alerts: ConditionAlert[];
+  flyable: boolean | null;
+  flyable_until: string | null;
+  flyability_reason: string;
+  visibility_factor: number;
+  exposure_band: ("low" | "moderate" | "high" | "severe") | null;
+  exposure_note: string;
+}
+export interface ConditionAlert {
+  kind: "closure" | "warning" | "advisory" | "other";
+  text: string;
+  url: string;
+}
+export interface AssignmentCard {
+  mission_id: string;
+  sector_id: string;
+  sector_label: string;
+  team_id: string | null;
+  team_callsign: string | null;
+  polygon: [number, number][];
+  area_m2: number;
+  entry: Waypoint;
+  bearing_deg_from_team: number | null;
+  distance_m_from_team: number | null;
+  /**
+   * @maxItems 40
+   */
+  waypoints: Waypoint[];
+  poa: number;
+  drone_coverage: number;
+  look_for: string[];
+  evidence_crops: string[];
+  conditions_line: string | null;
+  daylight_remaining_min: number | null;
+  radio: string;
+  generated_at: string;
+}
+export interface Waypoint {
+  name: string;
+  lat: number;
+  lon: number;
+  note?: string | null;
+}
+export interface MissionEvent {
+  id: string;
+  type:
+    | "photo.processed"
+    | "detection.new"
+    | "verdict"
+    | "map.updated"
+    | "proposal.new"
+    | "proposal.decided"
+    | "clue.added"
+    | "task.updated"
+    | "team.updated"
+    | "fleet.updated"
+    | "conditions.updated"
+    | "radio.turn"
+    | "mission.note";
+  at: string;
+  summary: string;
+  ref: string | null;
+  data: {
+    [k: string]: unknown;
+  } | null;
+}
+export interface TraceEntry {
+  id: string;
+  at: string;
+  actor: "agent" | "verifier" | "planner" | "conditions" | "radio" | "pipeline" | "human";
+  kind: "model_call" | "tool_call" | "verdict" | "proposal" | "decision" | "radio_turn" | "note";
+  summary: string;
+  input: {
+    [k: string]: unknown;
+  } | null;
+  output: {
+    [k: string]: unknown;
+  } | null;
+  model: string | null;
+  ms: number | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  refs: string[];
+}
+export interface RadioTurn {
+  id: string;
+  direction: "in" | "out";
+  callsign: string | null;
+  transcript: string;
+  reply: string | null;
+  audio: string | null;
+  state: "answered" | "awaiting_confirm" | "committed" | "discarded" | "transmitted" | "say_again";
+  actions: string[];
+  asr_ms: number | null;
+  llm_ms: number | null;
+  tts_ms: number | null;
+  at: string;
 }

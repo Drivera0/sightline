@@ -14,23 +14,28 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from sightline.agent._contract_v12 import (
+from sightline.contract import (
+    Area,
     Clue,
     Conditions,
+    Detection,
+    Detections,
     EventType,
     FleetState,
     FleetTelemetry,
+    Frame,
+    LatLon,
     MapBase,
     MapUpdate,
     Mission,
     MissionEvent,
     Proposal,
     SectorTask,
+    Survey,
     Team,
     TraceEntry,
     Verdict,
 )
-from sightline.contract import Area, Detection, Detections, Frame, LatLon, Survey
 
 ID_WIDTH = {"p": 3, "c": 3, "v": 4, "L": 3, "e": 5, "t": 6}  # "p014", "v0021", "e00412", ...
 

@@ -18,8 +18,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from sightline.agent._contract_v12 import RadioTurn
 from sightline.agent.llm import NO_THINKING, FakeChatClient, LLMError, token_factory_client
+from sightline.contract import RadioTurn
 from sightline.radio.api import RadioContext, radio_router
 from sightline.radio.mission_api import InMemoryMissionApi, demo_mission
 from sightline.radio.tts import CachedTts, FakeTts

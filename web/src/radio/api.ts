@@ -1,21 +1,10 @@
 // The radio desk's calls to the radio API (sightline/radio/api.py). Mounted by lane D under the
 // mission API (D-R4); until then `uvicorn sightline.radio.dev:app --port 8010` serves it alone.
 
-/** Contract §12.2 RadioTurn. TODO: import from ../contract once D-C1 regenerates it with v1.2. */
-export interface RadioTurn {
-  id: string;
-  direction: "in" | "out";
-  callsign: string | null;
-  transcript: string;
-  reply: string | null;
-  audio: string | null;
-  state: "answered" | "awaiting_confirm" | "committed" | "discarded" | "transmitted" | "say_again";
-  actions: string[];
-  asr_ms: number | null;
-  llm_ms: number | null;
-  tts_ms: number | null;
-  at: string;
-}
+import type { RadioTurn } from "../contract";
+
+/** Contract §12.2 RadioTurn (generated in ../contract.ts). */
+export type { RadioTurn };
 
 /** What /turn and /transmit return: the turn, the clue it committed (if any), and the reply's audio
  * chunk URLs in order (chunk 0 ready now, later ones may 404 for a moment while they are generated). */

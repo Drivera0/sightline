@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from sightline.contract import Detections, MapFile, Metrics, Survey
+from sightline.contract import CONTRACT_VERSION, Detections, MapFile, Metrics, Survey
 from sightline.pipeline.export import validate_cache
 from sightline.pipeline.sample import write_sample
 
@@ -112,4 +112,4 @@ def test_sample_json_has_no_nan_and_a_contract_version(tmp_path):
 
     for name in ("manifest", "survey", "detections", "map", "metrics"):
         data = json.loads(read(tmp_path / "sample", f"{name}.json"))
-        assert data["contract_version"] == "1.1"
+        assert data["contract_version"] == CONTRACT_VERSION

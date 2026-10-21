@@ -12,8 +12,7 @@ from typing import Literal
 
 import numpy as np
 
-from sightline.agent._contract_v12 import Leg
-from sightline.contract import Grid
+from sightline.contract import Grid, Leg
 from sightline.search.grid import local_m_to_latlon
 
 LATTICE_SIZE = 4  # 4 x 4 sectors, A1..D4 (LANE_C §5.1)

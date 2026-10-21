@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+from typing import get_args
+
 import pytest
 from pydantic import ValidationError
 
-from sightline.contract import CONTRACT_VERSION, InSurvey, LatLon, Params, SearchMethod, SearchSim
+from sightline.contract import (
+    CONTRACT_VERSION,
+    ContractVersion,
+    InSurvey,
+    LatLon,
+    Params,
+    SearchMethod,
+    SearchSim,
+)
 from sightline.pipeline.lanes import Lanes, MapFrame
 from sightline.pipeline.placeholders import PRIOR_FROM_PLACEHOLDER, placeholder_map
 
@@ -23,8 +33,8 @@ def _sim(**extra: object) -> dict[str, object]:
     }
 
 
-def test_version_is_1_1() -> None:
-    assert CONTRACT_VERSION == "1.1"
+def test_1_1_files_stay_readable() -> None:
+    assert CONTRACT_VERSION == "1.2" and "1.1" in get_args(ContractVersion)
 
 
 def test_new_fields_default_to_null_so_1_0_files_still_parse() -> None:

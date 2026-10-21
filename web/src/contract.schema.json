@@ -34,6 +34,162 @@
       "title": "Area",
       "type": "object"
     },
+    "AssignmentCard": {
+      "additionalProperties": false,
+      "properties": {
+        "mission_id": {
+          "type": "string"
+        },
+        "sector_id": {
+          "type": "string"
+        },
+        "sector_label": {
+          "type": "string"
+        },
+        "team_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "team_callsign": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "polygon": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "items": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "additionalItems": false,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "area_m2": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "entry": {
+          "$ref": "#/$defs/Waypoint"
+        },
+        "bearing_deg_from_team": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "distance_m_from_team": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "waypoints": {
+          "items": {
+            "$ref": "#/$defs/Waypoint"
+          },
+          "maxItems": 40,
+          "type": "array"
+        },
+        "poa": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "drone_coverage": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "look_for": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "evidence_crops": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "conditions_line": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "daylight_remaining_min": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "radio": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mission_id",
+        "sector_id",
+        "sector_label",
+        "team_id",
+        "team_callsign",
+        "polygon",
+        "area_m2",
+        "entry",
+        "bearing_deg_from_team",
+        "distance_m_from_team",
+        "waypoints",
+        "poa",
+        "drone_coverage",
+        "look_for",
+        "evidence_crops",
+        "conditions_line",
+        "daylight_remaining_min",
+        "radio",
+        "generated_at"
+      ],
+      "title": "AssignmentCard",
+      "type": "object"
+    },
     "BaselineHuman": {
       "additionalProperties": false,
       "properties": {
@@ -62,6 +218,402 @@
         "source"
       ],
       "title": "BaselineHuman",
+      "type": "object"
+    },
+    "Clue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "object",
+            "track",
+            "sighting",
+            "sound",
+            "other"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "lat": {
+          "type": "number"
+        },
+        "lon": {
+          "type": "number"
+        },
+        "at_team_position": {
+          "default": false,
+          "type": "boolean"
+        },
+        "radius_m": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "reliability": {
+          "default": "medium",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "reported_by": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "form",
+            "radio"
+          ],
+          "type": "string"
+        },
+        "confirmed_by_turn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "confirmed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "text",
+        "lat",
+        "lon",
+        "radius_m",
+        "reported_by",
+        "source",
+        "id",
+        "at",
+        "confirmed"
+      ],
+      "title": "Clue",
+      "type": "object"
+    },
+    "ClueDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "object",
+            "track",
+            "sighting",
+            "sound",
+            "other"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "lat": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lon": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "at_team_position": {
+          "default": false,
+          "type": "boolean"
+        },
+        "radius_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reliability": {
+          "default": "medium",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "reported_by": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "form",
+            "radio"
+          ],
+          "type": "string"
+        },
+        "confirmed_by_turn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind",
+        "text",
+        "lat",
+        "lon",
+        "reported_by",
+        "source"
+      ],
+      "title": "ClueDraft",
+      "type": "object"
+    },
+    "ConditionAlert": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "closure",
+            "warning",
+            "advisory",
+            "other"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "title",
+        "text",
+        "url"
+      ],
+      "title": "ConditionAlert",
+      "type": "object"
+    },
+    "Conditions": {
+      "additionalProperties": false,
+      "properties": {
+        "fetched_at": {
+          "type": "string"
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "area": {
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "wind_kmh": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gust_kmh": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "wind_dir_deg": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "precip_mm_h": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "precip_prob": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "temp_c": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "visibility_km": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sunset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "civil_twilight_end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "alerts": {
+          "items": {
+            "$ref": "#/$defs/ConditionAlert"
+          },
+          "type": "array"
+        },
+        "flyable": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "flyable_until": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "flyability_reason": {
+          "type": "string"
+        },
+        "visibility_factor": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "exposure_band": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "moderate",
+                "high",
+                "severe"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exposure_note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "fetched_at",
+        "stale",
+        "area",
+        "sources",
+        "wind_kmh",
+        "gust_kmh",
+        "wind_dir_deg",
+        "precip_mm_h",
+        "precip_prob",
+        "temp_c",
+        "visibility_km",
+        "sunset",
+        "civil_twilight_end",
+        "alerts",
+        "flyable",
+        "flyable_until",
+        "flyability_reason",
+        "visibility_factor",
+        "exposure_band",
+        "exposure_note"
+      ],
+      "title": "Conditions",
       "type": "object"
     },
     "Detection": {
@@ -139,7 +691,8 @@
         "contract_version": {
           "enum": [
             "1.0",
-            "1.1"
+            "1.1",
+            "1.2"
           ],
           "type": "string"
         },
@@ -248,6 +801,174 @@
         "outside"
       ],
       "title": "Distribution",
+      "type": "object"
+    },
+    "Drone": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "simulated": {
+          "type": "boolean"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LatLon"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "altitude_m": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "speed_ms": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "battery_pct": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_wind_kmh": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "status": {
+          "enum": [
+            "idle",
+            "flying",
+            "returning",
+            "charging",
+            "offline"
+          ],
+          "type": "string"
+        },
+        "leg_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "simulated",
+        "position",
+        "altitude_m",
+        "speed_ms",
+        "battery_pct",
+        "max_wind_kmh",
+        "status",
+        "leg_id"
+      ],
+      "title": "Drone",
+      "type": "object"
+    },
+    "EvidenceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "crop",
+            "frame",
+            "relook",
+            "trace",
+            "clue",
+            "conditions",
+            "map",
+            "leg"
+          ],
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "caption": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "ref",
+        "caption"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "FleetState": {
+      "additionalProperties": false,
+      "properties": {
+        "simulated": {
+          "type": "boolean"
+        },
+        "drones": {
+          "items": {
+            "$ref": "#/$defs/Drone"
+          },
+          "type": "array"
+        },
+        "legs": {
+          "items": {
+            "$ref": "#/$defs/Leg"
+          },
+          "type": "array"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "simulated",
+        "drones",
+        "legs",
+        "updated_at"
+      ],
+      "title": "FleetState",
+      "type": "object"
+    },
+    "FleetTelemetry": {
+      "additionalProperties": false,
+      "properties": {
+        "drones": {
+          "items": {
+            "$ref": "#/$defs/Drone"
+          },
+          "type": "array"
+        },
+        "leg_status": {
+          "additionalProperties": {
+            "enum": [
+              "flying",
+              "done"
+            ],
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "drones",
+        "leg_status",
+        "at"
+      ],
+      "title": "FleetTelemetry",
       "type": "object"
     },
     "Frame": {
@@ -462,13 +1183,93 @@
       "title": "LatLon",
       "type": "object"
     },
+    "Leg": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "drone_id": {
+          "type": "string"
+        },
+        "sector_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "waypoints": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "items": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "additionalItems": false,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "altitude_m": {
+          "type": "number"
+        },
+        "est_minutes": {
+          "type": "number"
+        },
+        "expected_clearance": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "score_per_min": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "approved",
+            "flying",
+            "done",
+            "cancelled"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "drone_id",
+        "sector_id",
+        "waypoints",
+        "altitude_m",
+        "est_minutes",
+        "expected_clearance",
+        "score_per_min",
+        "reason",
+        "status"
+      ],
+      "title": "Leg",
+      "type": "object"
+    },
     "Manifest": {
       "additionalProperties": false,
       "properties": {
         "contract_version": {
           "enum": [
             "1.0",
-            "1.1"
+            "1.1",
+            "1.2"
           ],
           "type": "string"
         },
@@ -516,13 +1317,64 @@
       "title": "Manifest",
       "type": "object"
     },
+    "MapBase": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "enum": [
+            "1.0",
+            "1.1",
+            "1.2"
+          ],
+          "type": "string"
+        },
+        "grid": {
+          "$ref": "#/$defs/Grid"
+        },
+        "lkp": {
+          "$ref": "#/$defs/LatLon"
+        },
+        "params": {
+          "$ref": "#/$defs/Params"
+        },
+        "prior": {
+          "$ref": "#/$defs/Distribution"
+        },
+        "canopy": {
+          "items": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "contract_version",
+        "grid",
+        "lkp",
+        "params",
+        "prior",
+        "canopy"
+      ],
+      "title": "MapBase",
+      "type": "object"
+    },
     "MapFile": {
       "additionalProperties": false,
       "properties": {
         "contract_version": {
           "enum": [
             "1.0",
-            "1.1"
+            "1.1",
+            "1.2"
           ],
           "type": "string"
         },
@@ -583,13 +1435,108 @@
       "title": "MapFile",
       "type": "object"
     },
+    "MapUpdate": {
+      "additionalProperties": false,
+      "properties": {
+        "seq": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "step",
+            "reweight"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "frame",
+            "review",
+            "ground",
+            "clue",
+            "conditions"
+          ],
+          "type": "string"
+        },
+        "ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cells": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "items": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "additionalItems": false,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "canopy": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 3,
+                "minItems": 3,
+                "items": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "additionalItems": false,
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "seq",
+        "kind",
+        "source",
+        "ref",
+        "cells",
+        "at"
+      ],
+      "title": "MapUpdate",
+      "type": "object"
+    },
     "Metrics": {
       "additionalProperties": false,
       "properties": {
         "contract_version": {
           "enum": [
             "1.0",
-            "1.1"
+            "1.1",
+            "1.2"
           ],
           "type": "string"
         },
@@ -640,6 +1587,208 @@
         "ranked_first"
       ],
       "title": "MinutesAtHumanPace",
+      "type": "object"
+    },
+    "Mission": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "enum": [
+            "1.0",
+            "1.1",
+            "1.2"
+          ],
+          "type": "string"
+        },
+        "mission_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "area": {
+          "$ref": "#/$defs/Area"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "live",
+            "demo",
+            "replay"
+          ],
+          "type": "string"
+        },
+        "last_seen_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "contract_version",
+        "mission_id",
+        "name",
+        "area",
+        "created_at",
+        "mode",
+        "last_seen_at",
+        "subject"
+      ],
+      "title": "Mission",
+      "type": "object"
+    },
+    "MissionBundle": {
+      "additionalProperties": false,
+      "description": "Root type used only to export the live-mission models (section 12) to the JSON Schema.",
+      "properties": {
+        "mission": {
+          "$ref": "#/$defs/Mission"
+        },
+        "map_base": {
+          "$ref": "#/$defs/MapBase"
+        },
+        "map_update": {
+          "$ref": "#/$defs/MapUpdate"
+        },
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
+        },
+        "task": {
+          "$ref": "#/$defs/SectorTask"
+        },
+        "team": {
+          "$ref": "#/$defs/Team"
+        },
+        "clue_draft": {
+          "$ref": "#/$defs/ClueDraft"
+        },
+        "clue": {
+          "$ref": "#/$defs/Clue"
+        },
+        "proposal": {
+          "$ref": "#/$defs/Proposal"
+        },
+        "fleet": {
+          "$ref": "#/$defs/FleetState"
+        },
+        "telemetry": {
+          "$ref": "#/$defs/FleetTelemetry"
+        },
+        "conditions": {
+          "$ref": "#/$defs/Conditions"
+        },
+        "card": {
+          "$ref": "#/$defs/AssignmentCard"
+        },
+        "event": {
+          "$ref": "#/$defs/MissionEvent"
+        },
+        "trace": {
+          "$ref": "#/$defs/TraceEntry"
+        },
+        "radio_turn": {
+          "$ref": "#/$defs/RadioTurn"
+        }
+      },
+      "required": [
+        "mission",
+        "map_base",
+        "map_update",
+        "verdict",
+        "task",
+        "team",
+        "clue_draft",
+        "clue",
+        "proposal",
+        "fleet",
+        "telemetry",
+        "conditions",
+        "card",
+        "event",
+        "trace",
+        "radio_turn"
+      ],
+      "title": "MissionBundle",
+      "type": "object"
+    },
+    "MissionEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "photo.processed",
+            "detection.new",
+            "verdict",
+            "map.updated",
+            "proposal.new",
+            "proposal.decided",
+            "clue.added",
+            "task.updated",
+            "team.updated",
+            "fleet.updated",
+            "conditions.updated",
+            "radio.turn",
+            "mission.note"
+          ],
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "at",
+        "summary",
+        "ref",
+        "data"
+      ],
+      "title": "MissionEvent",
       "type": "object"
     },
     "Params": {
@@ -725,6 +1874,261 @@
         "gsd_m"
       ],
       "title": "Pose",
+      "type": "object"
+    },
+    "Proposal": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "drone_leg",
+            "retask_drone",
+            "assign_sector",
+            "promote_detection",
+            "dismiss_detection",
+            "alert"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "briefing": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "leg": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Leg"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "expired",
+            "superseded"
+          ],
+          "type": "string"
+        },
+        "created_by": {
+          "enum": [
+            "agent",
+            "planner",
+            "verifier",
+            "command"
+          ],
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "decided_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decided_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decision_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "edits": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "summary",
+        "reason",
+        "briefing",
+        "target",
+        "evidence",
+        "status",
+        "created_by",
+        "created_at",
+        "decided_at",
+        "decided_by",
+        "decision_reason",
+        "edits"
+      ],
+      "title": "Proposal",
+      "type": "object"
+    },
+    "RadioTurn": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "in",
+            "out"
+          ],
+          "type": "string"
+        },
+        "callsign": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transcript": {
+          "type": "string"
+        },
+        "reply": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "audio": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            "answered",
+            "awaiting_confirm",
+            "committed",
+            "discarded",
+            "transmitted",
+            "say_again"
+          ],
+          "type": "string"
+        },
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "asr_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "llm_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tts_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "direction",
+        "callsign",
+        "transcript",
+        "reply",
+        "audio",
+        "state",
+        "actions",
+        "asr_ms",
+        "llm_ms",
+        "tts_ms",
+        "at"
+      ],
+      "title": "RadioTurn",
       "type": "object"
     },
     "Ranking": {
@@ -863,6 +2267,74 @@
       "title": "SearchSim",
       "type": "object"
     },
+    "SectorTask": {
+      "additionalProperties": false,
+      "properties": {
+        "sector_id": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "proposed",
+            "assigned",
+            "in_progress",
+            "searched"
+          ],
+          "type": "string"
+        },
+        "team_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "poa": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "pod": {
+          "anyOf": [
+            {
+              "maximum": 0.9,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sector_id",
+        "state",
+        "team_id",
+        "poa",
+        "note",
+        "updated_at"
+      ],
+      "title": "SectorTask",
+      "type": "object"
+    },
     "Source": {
       "additionalProperties": false,
       "properties": {
@@ -986,7 +2458,8 @@
         "contract_version": {
           "enum": [
             "1.0",
-            "1.1"
+            "1.1",
+            "1.2"
           ],
           "type": "string"
         },
@@ -1014,6 +2487,72 @@
         "frames"
       ],
       "title": "Survey",
+      "type": "object"
+    },
+    "Team": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "callsign": {
+          "type": "string"
+        },
+        "members": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "standby",
+            "assigned",
+            "searching",
+            "returning",
+            "off_duty"
+          ],
+          "type": "string"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LatLon"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "position_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "callsign",
+        "members",
+        "status",
+        "position",
+        "position_at",
+        "note"
+      ],
+      "title": "Team",
       "type": "object"
     },
     "TopCell": {
@@ -1061,6 +2600,216 @@
       "title": "TopCell",
       "type": "object"
     },
+    "TraceEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "actor": {
+          "enum": [
+            "agent",
+            "verifier",
+            "planner",
+            "conditions",
+            "radio",
+            "pipeline",
+            "human"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "model_call",
+            "tool_call",
+            "verdict",
+            "proposal",
+            "decision",
+            "radio_turn",
+            "note"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "input": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokens_in": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokens_out": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "at",
+        "actor",
+        "kind",
+        "summary",
+        "input",
+        "output",
+        "model",
+        "ms",
+        "tokens_in",
+        "tokens_out",
+        "refs"
+      ],
+      "title": "TraceEntry",
+      "type": "object"
+    },
+    "Verdict": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "detection_id": {
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "relook_crops": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "person": {
+          "enum": [
+            "yes",
+            "no",
+            "unclear"
+          ],
+          "type": "string"
+        },
+        "posture": {
+          "enum": [
+            "standing",
+            "sitting",
+            "lying",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "group_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clothing": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "ms": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "detection_id",
+        "tools",
+        "relook_crops",
+        "person",
+        "posture",
+        "group_size",
+        "clothing",
+        "reason",
+        "model",
+        "ms",
+        "at"
+      ],
+      "title": "Verdict",
+      "type": "object"
+    },
     "VocScores": {
       "additionalProperties": false,
       "properties": {
@@ -1087,6 +2836,42 @@
       ],
       "title": "VocScores",
       "type": "object"
+    },
+    "Waypoint": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "lat",
+        "lon"
+      ],
+      "title": "Waypoint",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1106,6 +2891,17 @@
     },
     "metrics": {
       "$ref": "#/$defs/Metrics"
+    },
+    "mission": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MissionBundle"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [
