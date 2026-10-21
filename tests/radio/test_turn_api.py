@@ -104,6 +104,14 @@ def test_the_clue_text_drops_how_it_was_reported(said: str) -> None:
     assert clue_text("blue backpack by the creek") == "blue backpack by the creek"
 
 
+def test_reasoning_before_the_opening_is_never_spoken() -> None:
+    r, notes = postcheck(
+        "Now respond, Team Two, Sightline. Sector Bravo Three, entry east ridge. Over.", "Team Two"
+    )
+    assert r == "Team Two, Sightline. Sector Bravo Three, entry east ridge. Over."
+    assert any("dropped text before the opening" in n for n in notes)
+
+
 def test_postcheck() -> None:
     r, notes = postcheck(
         "Team Two, Sightline. Sector B3, bearing 270, 600 metres, over.", "Team Two"
@@ -505,12 +513,53 @@ def test_invented_conditions_get_a_retry_and_the_answer_comes_from_the_tool(tmp_
     assert "twelve celsius" not in r.turn.reply.lower()
 
 
-def test_a_specific_conditions_question_keeps_the_models_answer(tmp_path: Path) -> None:
-    sunset = "Team Two, Sightline. Daylight until eighteen twelve local, over."
-    llm = FakeChatClient({"sunset": [_tool("get_conditions", {}), sunset]})
+@pytest.mark.parametrize(
+    ("question", "pattern"),
+    [
+        ("when is sunset", r"Daylight until \w+ \w+ local\."),
+        ("can the drones fly", r"Drones can fly\."),
+        ("how windy is it", r"Wind eighteen kilometres per hour, gusts thirty\."),
+        (
+            "is it raining, and any trail closures",
+            r"Light rain\. Alert, Lower Seymour trail closed\.",
+        ),
+    ],
+)
+def test_a_question_about_one_condition_gets_only_that(
+    question: str, pattern: str, tmp_path: Path
+) -> None:
+    """Live, "when is sunset?" after a conditions answer got the whole summary again."""
+    whole = "Team Two, Sightline. Wind eighteen, gusts thirty, light rain, drones can fly, over."
+    llm = FakeChatClient({question: [_tool("get_conditions", {}), whole]})
     api, session, _ = _setup(llm)
-    r = _inbound(api, session, llm, "Sightline, Team Two, when is sunset, over.", tmp_path)
-    assert r.turn.reply == sunset
+    r = _inbound(api, session, llm, f"Sightline, Team Two, {question}, over.", tmp_path)
+    assert re.fullmatch(rf"Team Two, Sightline\. {pattern} Over\.", r.turn.reply), r.turn.reply
+
+
+def test_a_condition_answered_from_memory_is_looked_up(tmp_path: Path) -> None:
+    """Live, after a conditions answer, "how windy is it?" was answered from the history with no
+    tool call (and "km/h" in the text)."""
+    llm = FakeChatClient(
+        {
+            "how windy": "Team Two, Sightline. Wind eighteen km/h, gusts thirty. Over.",
+            "Call get_conditions": [_tool("get_conditions", {}), "x"],
+        }
+    )
+    api, session, _ = _setup(llm)
+    r = _inbound(api, session, llm, "Sightline, Team Two, how windy is it, over.", tmp_path)
+    assert "get_conditions" in r.turn.actions
+    assert (
+        r.turn.reply
+        == "Team Two, Sightline. Wind eighteen kilometres per hour, gusts thirty. Over."
+    )
+
+
+def test_an_untracked_condition_keeps_the_models_answer(tmp_path: Path) -> None:
+    answer = "Team Two, Sightline. Visibility not reported, over."
+    llm = FakeChatClient({"visibility": [_tool("get_conditions", {}), answer]})
+    api, session, _ = _setup(llm)
+    r = _inbound(api, session, llm, "Sightline, Team Two, what is the visibility, over.", tmp_path)
+    assert r.turn.reply == answer
 
 
 def test_conditions_never_looked_up_are_not_answered(tmp_path: Path) -> None:

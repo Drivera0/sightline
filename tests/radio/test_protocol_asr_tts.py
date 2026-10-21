@@ -19,6 +19,7 @@ from sightline.radio.protocol import (
     fix_callsign_words,
     normalize,
     parse_callsign,
+    speakable,
     spoken_coord,
     spoken_number,
 )
@@ -209,3 +210,9 @@ def test_numbers_spoken_by_kind(text: str, spoken: str) -> None:
     from sightline.radio.protocol import speakable
 
     assert speakable(text) == spoken
+
+
+def test_units_after_a_number_in_words_are_spoken() -> None:
+    assert speakable("Wind eighteen km/h, gusts thirty.") == (
+        "Wind eighteen kilometres per hour, gusts thirty."
+    )
