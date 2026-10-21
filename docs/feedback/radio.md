@@ -55,7 +55,8 @@ doesn't need. `ffmpeg` is not installed on the desktop yet; `to_mono16k` (webm f
 
 ## Still to do (lane E)
 
-- [ ] E-13: `sightline/radio/` (`audio.py`, `asr.py`, `tts.py`, `protocol.py`, `api.py`) — the spike's
-      load and call code in `scripts/radio_spike.py` is the starting point for `ParakeetAsr` / `MagpieTts`
+- [x] E-13 part 1 (lane A, issue #30): `protocol.py`, `asr.py` (`ParakeetAsr`), `tts.py` (`MagpieTts`)
+      with tests 1–2; see `sightline/radio/README.md`
+- [ ] E-13 part 2: `audio.py`, `api.py` / `radio_router`, `dev.py` (checklist in `sightline/radio/README.md`)
 - [ ] E-16: `turn.py` + `tools.py` with Nemotron 3 Super (findings 1–2 above)
 - [ ] E-18: WER with 3 voices on 20 phrases (`tests/radio/phrases.txt`), latency p50/p90 over 30 turns
