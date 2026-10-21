@@ -98,7 +98,13 @@ Reported in the second real-voice session; two causes, both fixed:
 11. **The model's reasoning in the reply.** With thinking off, Nemotron 3 Super sometimes put its
     reasoning before the answer after a tool call ("Now respond per rules … Keep brief.`</think>`"), and the
     radio spoke it. Found by transcribing every generated chunk with Parakeet and comparing it with the
-    text it should say; the client now strips everything up to the last `</think>`.
+    text it should say; the client now strips everything up to the last `</think>`. Once it leaked without a
+    `</think>` ("Now respond, Team Two, Sightline. Sector Bravo Three…"): the post-check now drops anything
+    before the reply's "<Callsign>, Sightline" opening.
+12. **Conditions answered from memory.** After a full conditions answer, "how windy is it?" and "can the
+    drones fly?" were answered from the conversation with no tool call (once with "km/h" in the text), and
+    "when is sunset?" got the whole summary again. Questions about one condition now also must call
+    `get_conditions`, and get only that sentence, built in code: 8 / 8 live.
 
 ## How numbers are spoken
 

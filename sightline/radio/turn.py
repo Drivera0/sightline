@@ -88,12 +88,31 @@ _CLAIMS_CLUE = re.compile(r"\b(drafted|logged|recorded|noted)\b", re.IGNORECASE)
 # Conditions change and must come from the tool this turn: live, the model once answered "partly cloudy,
 # twelve Celsius" with no tool call while the mission had gusts of 30 km/h and rain.
 _NEEDS_CONDITIONS = re.compile(
-    r"\b(conditions|weather|wind|rain|daylight|temperature|visibility|forecast|sunset)\b",
+    r"\b(conditions|weather|windy?|gusts?|rain|raining|daylight|temperature|visibility|forecast"
+    r"|sunset|dark|can (the )?drones? fly|flyable)\b",
     re.IGNORECASE,
 )
-# "What are the conditions?" gets the summary built in code (tools.conditions_summary); a specific
-# question ("when is sunset?") keeps the model's answer, from the same tool.
+# "What are the conditions?" gets the summary built in code (tools.conditions_summary); a question
+# about one of them ("when is sunset?") gets only that sentence: live, after a conditions answer the
+# model repeated the whole summary. Anything else (visibility, forecast) keeps the model's answer.
 _ALL_CONDITIONS = re.compile(r"\b(conditions|weather)\b", re.IGNORECASE)
+_CONDITION_TOPICS = {
+    "wind": re.compile(r"\b(wind|windy|gusts?)\b", re.IGNORECASE),
+    "rain": re.compile(r"\b(rain|raining|wet|precipitation)\b", re.IGNORECASE),
+    # Not "drone" alone: "is the drone over us?" is not a conditions question.
+    "drones": re.compile(r"\b(can (the )?drones? fly|flyable|flying conditions)\b", re.IGNORECASE),
+    "daylight": re.compile(r"\b(daylight|sunset|dark|darkness|last light)\b", re.IGNORECASE),
+    "alerts": re.compile(r"\b(alerts?|closures?|closed)\b", re.IGNORECASE),
+}
+
+
+def _condition_topics(text: str) -> set[str] | None:
+    """None for the whole summary, else the topics asked about (empty: not a conditions question)."""
+    if _ALL_CONDITIONS.search(text):
+        return None
+    return {k for k, rx in _CONDITION_TOPICS.items() if rx.search(text)}
+
+
 _FILLER = {"sightline", "team", "over", "out", "one", "two", "three", "four", "1", "2", "3", "4"}
 
 
@@ -123,6 +142,13 @@ def postcheck(reply: str, callsign: str) -> tuple[str, list[str]]:
     if spoken != reply:
         notes.append("made speakable (numbers, units, times, abbreviations)")
     reply = spoken
+    # The model's reasoning before the answer, without a </think> to strip ("Now respond, Team Two,
+    # Sightline. Sector Bravo Three…", seen live): the answer starts at its opening, so drop what
+    # comes before it.
+    late = re.search(rf"\b{re.escape(callsign)}\s*,\s*sightline\b", reply, re.IGNORECASE)
+    if late and late.start() > 0:
+        notes.append(f"dropped text before the opening: {reply[: late.start()].strip()!r}")
+        reply = reply[late.start() :]
     opener = re.match(
         rf"\s*{re.escape(callsign)}\s*[,:.]?\s*(sightline\s*[,:.]?)?\s*", reply, re.IGNORECASE
     )
@@ -392,11 +418,12 @@ def handle_inbound(
             "awaiting_confirm",
         )
     else:
-        if _ALL_CONDITIONS.search(text) and "get_conditions" in actions:
-            summary = tools.conditions_summary()
+        topics = _condition_topics(text)
+        if topics != set() and "get_conditions" in actions:
+            summary = tools.conditions_summary(topics)
             if summary:
                 reply = f"{opening(callsign)} {summary} Over."
-                actions.append("conditions: summary built in code")
+                actions.append("conditions: built in code")
         reply, notes = postcheck(reply, callsign)
         actions += [f"postcheck: {n}" for n in notes]
         state_name = "answered"

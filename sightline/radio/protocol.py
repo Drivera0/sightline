@@ -145,6 +145,9 @@ _SPOKEN_UNITS = [
     (re.compile(r"(?<=\d)\s?mm/h\b"), " millimetres per hour"),
     (re.compile(r"(?<=\d)\s?km/h\b"), " kilometres per hour"),
     (re.compile(r"\bkph\b", re.IGNORECASE), "kilometres per hour"),
+    # After a number already in words ("eighteen km/h"), which the rules above don't see.
+    (re.compile(r"\bkm/h\b"), "kilometres per hour"),
+    (re.compile(r"\bmm/h\b"), "millimetres per hour"),
     (re.compile(r"(?<=\d)\s?°C\b"), " degrees Celsius"),
     (re.compile(r"\s?°"), " degrees"),
     (re.compile(r"(?<=\d)\s?km\b"), " kilometres"),
