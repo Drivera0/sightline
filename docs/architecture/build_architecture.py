@@ -334,6 +334,82 @@ def ml() -> str:
     )
 
 
+# ---------------------------------------------------------------- figure 3: the agent (A-G2)
+
+
+def agent() -> str:
+    g = Fig("agent")
+    top, bot = 112, 312
+    c0, c1, c2, c3, c4 = COLS
+    g.zone(32, 80, c2 + W + 16 - 32, 128, "SECOND LOOK · OPENCV 5 + NEMOTRON VL")
+    g.zone(32, 280, c1 + W + 16 - 32, 128, "PLANNING · LANES B AND C")
+    y = top + 36
+    g.path(f"M {c0 + W},{y} H {c1}", "accent")
+    g.label("NEAR-MISS", cx=(c0 + W + c1) / 2, y_line=y, color=ACCENT)
+    g.path(f"M {c1 + W},{y} H {c2}", "accent")
+    g.label("IMAGES", cx=(c1 + W + c2) / 2, y_line=y, color=ACCENT)
+    g.path(f"M {c2 + W},{y} H {c3}")
+    g.label("VERDICT", cx=(c2 + W + c3) / 2, y_line=y)
+    g.path(f"M {c3 + W},{y} H {c4}")
+    g.label("PROPOSAL", cx=(c3 + W + c4) / 2, y_line=y)
+    yb = bot + 36
+    g.path(f"M {c0 + W},{yb} H {c1}")
+    g.label("EVENTS", cx=(c0 + W + c1) / 2, y_line=yb)
+    g.path(elbow_up_right(c1 + 120, bot, 248, c3 + 40, top + H))  # planner -> proposal
+    g.label("LEGS · TEAMS", cx=(c2 + c2 + W) / 2, y_line=248)
+    g.path(f"M {c3 + 120},{top + H} V {bot}", dashed=True)  # proposal -> trace
+    g.label("LOGGED", side="right", x_line=c3 + 120, y_mid=(top + H + bot) / 2)
+    g.path(f"M {c4 + 80},{top + H} V {bot}", "accent")  # approval -> effect
+    g.label("APPROVED", side="right", x_line=c4 + 80, y_mid=(top + H + bot) / 2, color=ACCENT)
+    yl = bot + H + 40  # effects come back as new evidence: the loop closes
+    g.path(
+        f"M {c4 + 80},{bot + H} V {yl - R} Q {c4 + 80},{yl} {c4 + 80 - R},{yl} "
+        f"H {c0 + 80 + R} Q {c0 + 80},{yl} {c0 + 80},{yl - R} V {bot + H}",
+        dashed=True,
+    )
+    g.label("NEW PHOTOS · REPORTS", cx=(c1 + c3 + W) / 2, y_line=yl, below=True)
+    g.node(c0, top, "step", "PERCEPTION", "Detector", "cv2.dnn · YOLO11s", "conf 0.15 to 0.29")
+    g.node(c1, top, "focal", "OPENCV 5", "Re-look tools", "CLAHE · native zoom", "re-detect 2×")
+    g.node(c2, top, "step", "DECISION", "Nemotron VL", "person · posture · group", "JSON · 1.4 s")
+    g.node(c3, top, "step", "ACTION", "Proposal", "promote · leg · assign", "reason + evidence")
+    g.node(
+        c4, top, "external", "HUMAN", "Search manager", "approve · edit · reject", "who and when"
+    )
+    g.node(
+        c0, bot, "external", "EVIDENCE", "Field and map", "clues · reviews", "conditions (Tavily)"
+    )
+    g.node(c1, bot, "step", "PLAN", "Info-gain planner", "propose_legs", "propose_assignments")
+    g.node(c3, bot, "store", "TRACE", "trace.jsonl", "every tool + model call", "images by path")
+    g.node(
+        c4,
+        bot,
+        "step",
+        "EFFECT",
+        "Queue · drones · radio",
+        "only after approval",
+        "never automatic",
+    )
+    g.legend_strip(
+        464,
+        [
+            ("focal", "Focal: OpenCV 5"),
+            ("step", "Agent step"),
+            ("store", "Log"),
+            ("external", "People and the field"),
+            ("accent", "Vision path"),
+            ("muted", "Agent flow"),
+            ("dashed", "Logged / loops back"),
+        ],
+    )
+    return g.svg(
+        496,
+        "Sightline agent workflow",
+        "The agent: a near-miss detection gets OpenCV 5 re-look images, Nemotron VL gives a verdict, "
+        "the agent turns it and the planner's legs into a proposal, the search manager approves it, "
+        "and only then does anything happen; every step is logged and new evidence starts the loop again.",
+    )
+
+
 # ---------------------------------------------------------------- page
 
 FONT = "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap"
@@ -389,6 +465,12 @@ PAGE = """<!DOCTYPE html>
       {ml}
     </div>
 
+    <h2>The agent</h2>
+    <p class="subtitle">Perception, decision, action, approval, effect. OpenCV 5 re-looks at what the detector wasn't sure of; Nemotron VL and the planner turn it into proposals; nothing happens until a person approves, and every step is in the trace.</p>
+    <div class="diagram-container">
+      {agent}
+    </div>
+
     <div class="cards">
       <div class="card">
         <div class="card-header"><span class="card-dot coral"></span><h3>Why tiles</h3></div>
@@ -430,6 +512,7 @@ def main() -> None:
         accent=ACCENT,
         system=system(),
         ml=ml(),
+        agent=agent(),
     )
     OUT.write_text(html, encoding="utf-8")
     print(OUT)
