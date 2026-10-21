@@ -29,6 +29,13 @@ ml = [
     "onnx>=1.23.2",
     "onnxslim>=0.1.98",
 ]
+# Contract v1.2 (LANE_D §4). openai and tavily-python are also base dependencies today.
+# The radio's NeMo models (Parakeet, Magpie) are not an extra: NeMo pins its own Lightning and
+# torch, so it lives in its own environment (sightline/radio/README.md).
+agent = ["openai>=3.35.1"]
+conditions = ["tavily-python>=0.8.5", "astral"]
+aws = ["boto3"]
+sim = ["piexif"]
 
 [dependency-groups]
 dev = ["pytest", "ruff", "matplotlib", "httpx"]

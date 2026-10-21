@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "check:offline": "tsc --noEmit && vite build && node scripts/check-offline.mjs dist",
-    "gen:contract": "uv run python -m sightline.contract schema web/src/contract.schema.json && json2ts web/src/contract.schema.json web/src/contract.ts"
+    "gen:contract": "uv run python -m sightline.contract schema src/contract.schema.json && json2ts src/contract.schema.json src/contract.ts"
   },
   "dependencies": {
     "@fontsource-variable/caveat": "^5.3.0",
