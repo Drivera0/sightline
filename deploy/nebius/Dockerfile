@@ -14,6 +14,8 @@ COPY pyproject.toml uv.lock README.md LICENSE ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY sightline ./sightline
 COPY scripts/nebius_batch_detect.py ./scripts/
+RUN uv sync --frozen --no-dev
+ENV PATH="/app/.venv/bin:$PATH"
 
 # The variable-size ONNX export of weights-v2 (release model-onnx-v2), checked by SHA256.
 ARG ONNX_URL=https://github.com/Drivera0/sightline/releases/download/model-onnx-v2/sightline-detector-v2-dynamic.onnx
@@ -22,4 +24,4 @@ RUN curl -fsSL -o /app/model.onnx "$ONNX_URL" \
     && echo "$ONNX_SHA256  /app/model.onnx" | sha256sum -c -
 ENV SIGHTLINE_ONNX=/app/model.onnx
 
-ENTRYPOINT ["uv", "run", "--frozen", "--no-dev", "python", "scripts/nebius_batch_detect.py"]
+ENTRYPOINT ["python", "scripts/nebius_batch_detect.py"]
