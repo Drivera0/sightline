@@ -144,3 +144,35 @@ def test_fix_callsign_words_corrects_only_the_callsign() -> None:
         "Sightline Team Two say again the sector boundary over"
     )
     assert fix_callsign_words("We went to the creek for water") == "We went to the creek for water"
+
+
+# --- speakable: what was heard as noise in the first real-voice session -----------------------------
+
+
+def test_speakable_units_times_and_compass() -> None:
+    from sightline.radio.protocol import speakable
+
+    said = speakable("light rain 0.4 mm/h, civil twilight ends 01:12Z")
+    assert "millimetres per hour" in said and "mm/h" not in said
+    assert "eighteen twelve local" in said or "seventeen twelve local" in said  # UTC-7 / UTC-8
+    assert ":" not in said and "Z" not in said
+    assert (
+        speakable("corners NW, NE, SE, SW")
+        == "corners north-west, north-east, south-east, south-west"
+    )
+    assert speakable("bearing 270°, 600 m, 8 °C") == (
+        "bearing two seven zero degrees, six zero zero metres, eight degrees Celsius"
+    )
+    assert speakable("daylight until 18:30") == "daylight until eighteen thirty"
+    assert (
+        speakable("check in at 14:00 and 06:05") == "check in at fourteen hundred and six oh five"
+    )
+    assert "twenty five" not in speakable("2026-10-25T01:12:00Z")  # the date isn't read out
+
+
+def test_spoken_time() -> None:
+    from sightline.radio.protocol import spoken_time
+
+    assert spoken_time(18, 12) == "eighteen twelve"
+    assert spoken_time(6, 5) == "six oh five"
+    assert spoken_time(0, 45) == "zero forty five"

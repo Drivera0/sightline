@@ -33,8 +33,8 @@ from sightline.radio.protocol import (
     fix_callsign_words,
     normalize,
     parse_callsign,
+    speakable,
     spoken_coord,
-    spoken_number,
 )
 from sightline.radio.tools import TOOL_SPECS, RadioTools
 from sightline.radio.tts import Tts
@@ -45,14 +45,6 @@ MAX_TOOL_ROUNDS = 3
 HISTORY_TURNS = 6  # per callsign, as user/assistant pairs
 _CLEAR = re.compile(r"\b(clear|cleared)\b", re.IGNORECASE)
 _NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
-# Units spelled out before numbers are spoken, so text-to-speech never reads a symbol.
-_UNITS = [
-    (re.compile(r"\s?°"), " degrees"),
-    (re.compile(r"(?<=\d)\s?km/h\b"), " kilometres per hour"),
-    (re.compile(r"(?<=\d)\s?km\b"), " kilometres"),
-    (re.compile(r"(?<=\d)\s?m\b"), " metres"),
-    (re.compile(r"(?<=\d)\s?%"), " percent"),
-]
 
 
 @dataclass
@@ -78,16 +70,6 @@ class TurnResult:
 
 def _now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-
-
-def _speak_numbers(text: str) -> str:
-    """Every number in ``text`` spoken digit by digit (the model must not say digits)."""
-
-    def word(m: re.Match) -> str:
-        s = m.group()
-        return spoken_number(float(s), len(s.split(".")[1]) if "." in s else 0)
-
-    return _NUMBER.sub(word, text)
 
 
 # Replies that describe an action instead of taking it ("calling get_sector_boundary", "drafting
@@ -129,11 +111,10 @@ def postcheck(reply: str, callsign: str) -> tuple[str, list[str]]:
     notes = []
     if _CLEAR.search(reply):
         return f"{opening(callsign)} Standby, over.", ['model said "clear": replaced by standby']
-    for pattern, words in _UNITS:
-        reply = pattern.sub(words, reply)
-    if _NUMBER.search(reply):
-        reply = _speak_numbers(reply)
-        notes.append("digits spoken as words")
+    spoken = speakable(reply)
+    if spoken != reply:
+        notes.append("made speakable (numbers, units, times, abbreviations)")
+    reply = spoken
     opener = re.match(
         rf"\s*{re.escape(callsign)}\s*[,:.]?\s*(sightline\s*[,:.]?)?\s*", reply, re.IGNORECASE
     )
@@ -445,7 +426,7 @@ def transmit(
     team = p["target"].get("team", "all")
     callsigns = {t["id"]: t["callsign"] for t in api.state(mission_id)["teams"]}
     who = "All teams" if team == "all" else callsigns.get(team, team)
-    body = _speak_numbers(p["briefing"].rstrip(". "))
+    body = speakable(p["briefing"].rstrip(". "))
     text = f"{opening(who)} {body}, over."
     session.handled.add(proposal_id)
     turn = _turn(
