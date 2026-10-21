@@ -8,7 +8,7 @@ import * as defaultApi from "./api";
 import { isStandby, type OutboundItem, type RadioApi, type RadioTurn, type TurnResponse, type TurnStandby } from "./api";
 import { playChunks as defaultPlay } from "./player";
 import { MicDenied, startRecording as defaultRecord, type Recording } from "./recorder";
-import { DEMO_TEAMS, useRadio, type Team } from "./store";
+import { DEMO_TEAMS, useRadio, type LoggedTurn, type Team } from "./store";
 
 /** Shown on the screen and in both reports (LANE_E §8.1). */
 export const SAFETY_FRAME =
@@ -46,7 +46,11 @@ const DEFAULT_DEPS: RadioDeps = {
   playChunks: defaultPlay,
 };
 
-const ms = (v: number | null) => (v == null ? "–" : v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${v} ms`);
+const ms = (v: number | null | undefined) => (v == null ? "–" : v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${v} ms`);
+/** The reply's first sentence: 0 ms means its voice came from the cache of common openers. */
+const voice = (v: number | null) => (v === 0 ? "cached" : ms(v));
+/** Below this peak level the clip is silence (wrong input device, muted mic). */
+const SILENT = 0.03;
 const time = (iso: string) => iso.slice(11, 19);
 const isTyping = (el: Element | null) => !!el && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
 
@@ -67,6 +71,11 @@ export function RadioDesk({
   const r = useRadio.getState;
   const [text, setText] = useState("");
   const recording = useRef<Recording | null>(null);
+  const [level, setLevel] = useState(0);
+  const peak = useRef(0);
+  // When the operator sent the turn and when the first sound (reply or standby) started playing.
+  const sentAt = useRef<number | null>(null);
+  const heardAt = useRef<number | null>(null);
   const callsign = useCallback((id: string | null) => teams.find((t) => t.id === id)?.callsign ?? id ?? "Unknown", [teams]);
 
   const refreshOutbound = useCallback(async () => {
@@ -87,7 +96,9 @@ export function RadioDesk({
   const received = useCallback(
     async (res: TurnResponse, skipOpener = false) => {
       const { clue: _clue, audio_chunks, ...turn } = res;
-      r().addTurn(turn);
+      heardAt.current ??= performance.now();
+      const heard_ms = sentAt.current == null ? null : Math.round(heardAt.current - sentAt.current);
+      r().addTurn({ ...turn, heard_ms });
       r().setStage("speaking");
       // After "<Callsign>, Sightline. Standby." the answer's own opening chunk would repeat it.
       const chunks = skipOpener ? audio_chunks.slice(1) : audio_chunks;
@@ -105,6 +116,7 @@ export function RadioDesk({
   const standby = useCallback(
     async (res: TurnStandby) => {
       r().setStage("standby");
+      heardAt.current = performance.now();
       const playing = deps
         .playChunks(res.audio_chunks.map((p) => defaultApi.chunkUrl(api, p)), r().radioSound)
         .catch(() => {});
@@ -126,6 +138,8 @@ export function RadioDesk({
     async (input: { audio: Blob } | { text: string }) => {
       r().setError(null);
       r().setStage("sending");
+      sentAt.current = performance.now();
+      heardAt.current = null;
       try {
         const res = await deps.postTurn(api, input, r().speakingAs);
         await (isStandby(res) ? standby(res) : received(res));
@@ -141,6 +155,7 @@ export function RadioDesk({
     if (r().stage !== "idle" || recording.current) return;
     try {
       recording.current = await deps.startRecording();
+      peak.current = 0;
       r().setStage("recording");
     } catch (e) {
       if (e instanceof MicDenied) r().setMicDenied(true);
@@ -152,8 +167,26 @@ export function RadioDesk({
     const rec = recording.current;
     recording.current = null;
     if (!rec) return;
-    await send({ audio: await rec.stop() });
-  }, [send]);
+    setLevel(0);
+    const audio = await rec.stop();
+    await send({ audio });
+    // After send: it clears errors first. The clip still goes out (Sightline will ask to say again).
+    if (rec.level && peak.current < SILENT) r().setError("No sound from the microphone: check the input device.");
+  }, [send, r]);
+
+  // Level meter while recording.
+  useEffect(() => {
+    if (stage !== "recording") return;
+    let frame = 0;
+    const tick = () => {
+      const v = recording.current?.level?.() ?? 0;
+      peak.current = Math.max(peak.current, v);
+      setLevel(v);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [stage]);
 
   // Hold V to talk (not T: that's the tour key), unless typing in a field.
   useEffect(() => {
@@ -181,6 +214,8 @@ export function RadioDesk({
   const doTransmit = async (item: OutboundItem) => {
     r().setError(null);
     r().setStage("sending");
+    sentAt.current = performance.now();
+    heardAt.current = null;
     try {
       await received(await deps.transmit(api, item.id));
     } catch (e) {
@@ -251,6 +286,18 @@ export function RadioDesk({
             ))}
           </select>
         </label>
+        {stage === "recording" && (
+          <span
+            role="meter"
+            aria-label="Microphone level"
+            aria-valuemin={0}
+            aria-valuemax={1}
+            aria-valuenow={Number(level.toFixed(2))}
+            className="h-2 w-24 overflow-hidden rounded-full bg-surface-strong"
+          >
+            <span className="block h-full bg-accent transition-[width] duration-75" style={{ width: `${Math.round(level * 100)}%` }} />
+          </span>
+        )}
         <span role="status" className="font-mono text-small text-text-2">
           {stageWord}
         </span>
@@ -306,15 +353,16 @@ export function RadioDesk({
       </section>
 
       <section aria-label="Radio log" className="flex flex-col gap-2">
-        <Label>Log</Label>
+        <Label>Log · newest first</Label>
         {turns.length === 0 && <p className="text-small text-text-3">No radio traffic yet.</p>}
-        {turns.map((t) => (
+        {[...turns].reverse().map((t: LoggedTurn) => (
           <div key={t.id} className="flex flex-col gap-1 rounded-md border border-border p-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-small text-text-3">{time(t.at)}</span>
               <Badge kind="info">{STATE_WORDS[t.state]}</Badge>
               <span className="font-mono text-caption text-text-3">
-                ASR {ms(t.asr_ms)} · model {ms(t.llm_ms)} · first audio {ms(t.tts_ms)}
+                ASR {ms(t.asr_ms)} · model {ms(t.llm_ms)} · voice {voice(t.tts_ms)}
+                {t.heard_ms != null && <> · first sound {ms(t.heard_ms)}</>}
               </span>
             </div>
             {t.direction === "in" && t.transcript && (

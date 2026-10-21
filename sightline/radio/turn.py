@@ -222,6 +222,16 @@ def handle_inbound(
             return TurnResult(t, out)
         heard = asr.transcribe(wav)
         text, asr_ms = heard.text, heard.ms
+        if not any(c.isalpha() for c in text):
+            # Static, a tone, a keyed mic with nobody talking: nothing for the model to answer.
+            reply = (
+                f"{opening(callsigns[callsign_hint])} Say again, over."
+                if callsign_hint in callsigns
+                else "Sightline, say again, over."
+            )
+            t = _turn(session, "in", None, text, reply, "say_again", ["no words heard"], asr_ms)
+            t, out = _with_audio(t, tts, t.reply)
+            return TurnResult(t, out)
     team_id = parse_callsign(text, callsigns) or callsign_hint
     if team_id is None and len(session.pending) == 1:
         # "Affirmative, over" usually comes without a callsign: the one team awaiting a readback.

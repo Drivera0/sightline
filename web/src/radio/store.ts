@@ -2,6 +2,9 @@
 import { create } from "zustand";
 import type { OutboundItem, RadioTurn } from "./api";
 
+/** A logged turn plus what the desk measured: ms from Send (or Transmit) to the first sound played. */
+export type LoggedTurn = RadioTurn & { heard_ms?: number | null };
+
 export type Stage = "idle" | "recording" | "sending" | "standby" | "speaking";
 
 export interface Team {
@@ -29,14 +32,14 @@ function loadSound(): boolean {
 
 interface RadioState {
   stage: Stage;
-  turns: RadioTurn[]; // newest last
+  turns: LoggedTurn[]; // newest last
   outbound: OutboundItem[];
   speakingAs: string; // team id the operator plays (demo) or the cabled radio's team
   radioSound: boolean;
   error: string | null;
   micDenied: boolean;
   setStage: (s: Stage) => void;
-  addTurn: (t: RadioTurn) => void;
+  addTurn: (t: LoggedTurn) => void;
   setOutbound: (o: OutboundItem[]) => void;
   setSpeakingAs: (id: string) => void;
   setRadioSound: (on: boolean) => void;

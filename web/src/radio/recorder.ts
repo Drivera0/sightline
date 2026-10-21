@@ -4,6 +4,8 @@ export class MicDenied extends Error {}
 
 export interface Recording {
   stop: () => Promise<Blob>;
+  /** Input level now, 0–1 (RMS, scaled so normal speech reaches ~0.5): drives the level meter. */
+  level?: () => number;
 }
 
 /** Start recording from the microphone; `stop()` resolves with the clip. Throws MicDenied when the
@@ -23,11 +25,24 @@ export async function startRecording(): Promise<Recording> {
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
   recorder.start();
+  // Level meter: an analyser on the same stream (nothing is played back).
+  const ctx = new AudioContext();
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 1024;
+  ctx.createMediaStreamSource(stream).connect(analyser);
+  const samples = new Float32Array(analyser.fftSize);
   return {
+    level: () => {
+      analyser.getFloatTimeDomainData(samples);
+      let sum = 0;
+      for (const v of samples) sum += v * v;
+      return Math.min(1, Math.sqrt(sum / samples.length) * 5);
+    },
     stop: () =>
       new Promise<Blob>((resolve) => {
         recorder.onstop = () => {
           stream.getTracks().forEach((t) => t.stop());
+          void ctx.close();
           resolve(new Blob(chunks, { type: recorder.mimeType || "audio/webm" }));
         };
         recorder.stop();

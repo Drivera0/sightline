@@ -74,7 +74,7 @@ describe("RadioDesk", () => {
       false,
     );
     expect(screen.getByText("Answered")).toBeInTheDocument();
-    expect(screen.getByText(/ASR 76 ms · model 2.4 s · first audio 0 ms/)).toBeInTheDocument();
+    expect(screen.getByText(/ASR 76 ms · model 2.4 s · voice cached · first sound \d+ ms/)).toBeInTheDocument();
     await waitFor(() => expect(useRadio.getState().stage).toBe("idle"));
   });
 
@@ -88,6 +88,31 @@ describe("RadioDesk", () => {
     await waitFor(() => expect(d.postTurn).toHaveBeenCalled());
     const input = (d.postTurn as ReturnType<typeof vi.fn>).mock.calls[0]![1] as { audio: Blob };
     expect(input.audio).toBeInstanceOf(Blob);
+  });
+
+  it("shows a level meter while recording and warns when the clip was silent", async () => {
+    const d = deps({ startRecording: vi.fn(async () => ({ stop: async () => new Blob(["x"]), level: () => 0 })) });
+    render(<RadioDesk api={API} deps={d} />);
+    const talk = screen.getByRole("button", { name: /Hold to talk/ });
+    await act(async () => fireEvent.mouseDown(talk));
+    expect(screen.getByRole("meter", { name: "Microphone level" })).toBeInTheDocument();
+    await act(async () => fireEvent.mouseUp(talk));
+    await waitFor(() => expect(d.postTurn).toHaveBeenCalled());
+    expect(await screen.findByRole("alert")).toHaveTextContent("No sound from the microphone");
+    expect(screen.queryByRole("meter")).not.toBeInTheDocument();
+  });
+
+  it("lists the log newest first", async () => {
+    const replies = ["Team Two, Sightline. First answer, over.", "Team Two, Sightline. Second answer, over."];
+    const post = vi.fn().mockResolvedValueOnce(turn({ id: "r0001", reply: replies[0] })).mockResolvedValueOnce(turn({ id: "r0002", reply: replies[1] }));
+    render(<RadioDesk api={API} deps={deps({ postTurn: post })} />);
+    for (const words of ["one", "two"]) {
+      await userEvent.type(screen.getByPlaceholderText(/type what the team says/), words);
+      await userEvent.click(screen.getByRole("button", { name: "Send" }));
+      await waitFor(() => expect(useRadio.getState().stage).toBe("idle"));
+    }
+    const log = screen.getByRole("region", { name: "Radio log" }).textContent!;
+    expect(log.indexOf("Second answer")).toBeLessThan(log.indexOf("First answer"));
   });
 
   it("a refused microphone switches to the text box", async () => {
