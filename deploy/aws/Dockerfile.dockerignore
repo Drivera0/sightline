@@ -1,0 +1,10 @@
+# Build context is the repo root; send only what the image copies (BuildKit reads this file for
+# deploy/aws/Dockerfile). Keeps data/ (several GB), runs/ and node_modules out of the build.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!sightline/
+!scripts/container_check.py
+**/__pycache__

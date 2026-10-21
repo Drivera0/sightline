@@ -46,7 +46,7 @@ def onnx_candidates(onnx: Path | None, weights: Path | None) -> list[Path]:
         out.append(pt.with_name(f"{pt.stem}-dynamic.onnx"))  # scripts/export_onnx.py
         out.append(pt.with_suffix(".onnx"))
     out.append(DEFAULT_ONNX)
-    return out
+    return list(dict.fromkeys(out))  # each path once, first position kept
 
 
 def make_detector(
