@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import cv2
@@ -207,7 +208,7 @@ def fake_detector(monkeypatch, tmp_path) -> tuple[CvDetector, _FakeNet, list[int
 
 
 def test_threads_are_set(fake_detector) -> None:
-    assert fake_detector[2] == [2]
+    assert set(fake_detector[2]) == {2}
 
 
 def test_detect_frame_is_one_letterboxed_pass(fake_detector, tmp_path: Path) -> None:
@@ -274,3 +275,20 @@ def test_dynamic_onnx_is_detected_and_runs_frames_unpadded(monkeypatch, tmp_path
 
 def test_fixed_size_onnx_keeps_square_padding(fake_detector) -> None:
     assert not fake_detector[0].rect
+
+
+def test_threads_are_restored_when_another_library_changes_them(fake_detector, monkeypatch) -> None:
+    """ultralytics sets cv2.setNumThreads(0) on import; the detector puts its own count back."""
+    det, _, calls = fake_detector
+    monkeypatch.setattr(cv2, "getNumThreads", lambda: 1)  # as after `import ultralytics`
+    calls.clear()
+    det.detect_array(np.zeros((1024, 1024, 3), np.uint8))
+    assert calls == [2]
+
+
+def test_default_threads_is_every_core(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(cv2.dnn, "readNetFromONNX", lambda _: _FakeNet())
+    monkeypatch.setattr(cv2, "setNumThreads", lambda n: None)
+    onnx = tmp_path / "m.onnx"
+    onnx.write_bytes(b"")
+    assert CvDetector(onnx).threads == (os.cpu_count() or 1)

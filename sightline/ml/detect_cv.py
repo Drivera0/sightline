@@ -18,6 +18,7 @@ sightline/ml/hard_negatives.py, so it drops into the pipeline in place of ``Dete
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -209,8 +210,11 @@ class CvDetector:
         if not self.onnx_path.exists():
             raise FileNotFoundError(self.onnx_path)
         self.input_px = input_px
-        if threads is not None:
-            cv2.setNumThreads(threads)  # process-wide in OpenCV
+        # OpenCV's thread count is process-wide, and importing ultralytics sets it to 0
+        # (single-threaded, for PyTorch's DataLoader): 5x slower here. Keep our own and restore it
+        # before every forward pass.
+        self.threads = threads if threads is not None else os.cpu_count() or 1
+        cv2.setNumThreads(self.threads)
         self.net = cv2.dnn.readNetFromONNX(str(self.onnx_path))
         self.rect = self._accepts_rect() if rect is None else rect
 
@@ -225,6 +229,8 @@ class CvDetector:
         return out.shape[-1] == sum((w // s) * (h // s) for s in (8, 16, 32))
 
     def _forward(self, canvas_bgr: np.ndarray) -> np.ndarray:
+        if cv2.getNumThreads() != self.threads:
+            cv2.setNumThreads(self.threads)
         h, w = canvas_bgr.shape[:2]
         blob = cv2.dnn.blobFromImage(canvas_bgr, scalefactor=1 / 255, size=(w, h), swapRB=True)
         self.net.setInput(blob)

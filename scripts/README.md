@@ -158,9 +158,9 @@ uv run --extra ml python scripts/parity_table.py      # ~45 min: cv2.dnn runs on
 | Split | Backend | Device | VOC P / R / AP50 | SAR P / R | s per 4000×3000 photo | s per demo frame (1000×750) |
 |---|---|---|---|---|---|---|
 | val (95) | Torch | RTX 4080 SUPER | 0.735 / 0.859 / 0.861 | 0.887 / 0.922 | 0.33 | — |
-| val (95) | cv2.dnn | Ryzen 9 9950X CPU, 32 threads | 0.735 / 0.859 / 0.861 | 0.887 / 0.922 | 10.19 | — |
+| val (95) | cv2.dnn | Ryzen 9 9950X CPU, 32 threads | 0.735 / 0.859 / 0.861 | 0.887 / 0.922 | 1.91 | 0.096 |
 | test (101) | Torch | RTX 4080 SUPER | **0.802 / 0.864 / 0.868** | **0.898 / 0.896** | 0.30 | 0.011 |
-| test (101) | cv2.dnn | Ryzen 9 9950X CPU, 32 threads | **0.802 / 0.864 / 0.868** | **0.898 / 0.896** | 9.98 | 0.512 |
+| test (101) | cv2.dnn | Ryzen 9 9950X CPU, 32 threads | **0.802 / 0.864 / 0.868** | **0.898 / 0.896** | — | — |
 
 Box agreement (each photo's boxes matched one-to-one between backends, highest IoU first):
 
@@ -175,7 +175,16 @@ Every score is identical to three decimals, and the test row reproduces the publ
 (acceptance: AP50 within ±0.005 and ≥ 99 % box agreement). The only differences are low-confidence boxes
 below the threshold: one extra Torch box on test and a 0.2 % share on val that move slightly (IoU < 0.95).
 Speed is not a like-for-like comparison: the pip OpenCV wheels have no CUDA, so cv2.dnn runs on the CPU
-(about 0.5 s per 1024 px slice, 20 slices per full photo); demo frames are one slice each.
+(about 0.1 s per 1024 px slice, 20 slices per full photo); demo frames are one slice each. cv2.dnn speeds are
+from a re-run on val after a fix: the first run measured 10 s per photo because importing `ultralytics` (for the
+Torch side, in the same process) calls `cv2.setNumThreads(0)` and made OpenCV single-threaded; `CvDetector` now
+keeps its own thread count (every core by default) and restores it before each forward pass. Scores were
+identical in both runs.
+
+Engine choice, measured on the 20 slices of one val photo (ms per 1024 px slice, 32 threads): OpenCV 5
+`ENGINE_NEW` (the default) 96; batches of 4 slices 84; `ENGINE_CLASSIC` 105 (outputs differ by up to 0.003);
+classic with `DNN_TARGET_CPU_FP16` 118; `ENGINE_ORT` 99; onnxruntime directly 106. The default engine stays, one
+slice per pass: batching saves ~13 %, not worth a second code path to keep in parity.
 Run: `runs/parity/20261020-163532.json` (local).
 
 **Demo frames (W2: demo cache re-detected on the cv2 path).** A 1000×750 frame is one slice smaller than the model
