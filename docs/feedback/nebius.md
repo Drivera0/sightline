@@ -5,9 +5,11 @@ what we used it for, what worked, what needs work, onboarding, and whether we'd 
 with numbers. Measured 2026-10-20 on Nebius Token Factory. Lane E adds `radio.md` (Parakeet,
 Magpie, tool calling over voice); the Serverless Job section is filled in after A-N1.
 
-**To fill in before submitting:** prices per million tokens for each model from the Token Factory
-console (we did not want to quote prices we had not checked), and the onboarding timings below
-from Dan's notes.
+**Prices** (Token Factory model catalog, https://tokenfactory.nebius.com/model-catalog.md, read
+2026-10-20; per million tokens, the page states no currency): Nemotron-3.5-Super-VL 0.30 in /
+0.90 out; Nemotron 3 Super 0.30 / 0.90; Nemotron 3 Nano 0.06 / 0.24.
+
+**To fill in before submitting:** the onboarding timings below, from Dan's notes.
 
 ## Token Factory: Nemotron-3.5-Super-VL (vision verdicts)
 
@@ -23,6 +25,7 @@ of 256–384 px per call):
 |---|---|
 | Latency per call | p50 1.35 s, p90 1.65 s, max 2.19 s |
 | Tokens per call | 886 in, 67 out on average (439 k tokens in all) |
+| Cost per call (catalog prices) | about 0.00033, so about 0.33 per 1,000 uncertain detections; all 461 evaluation calls about 0.15 |
 | JSON schema compliance (`response_format: json_schema`) | 461 / 461 valid on the first try |
 | Real people called `yes` (val, prompt v2) | 75 % of near-miss people, 86 % of queue people |
 | False alarms called `no` (val, prompt v2) | 17 % of near-miss false alarms, 13 % of queue ones |
