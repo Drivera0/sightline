@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from sightline.agent._contract_v12 import ClueDraft, RadioTurn
 from sightline.agent.llm import ChatResult, FakeChatClient
 from sightline.radio.api import RadioContext, radio_router
+from sightline.radio.asr import FakeAsr
 from sightline.radio.audio import AudioError, check_length, to_mono16k
 from sightline.radio.mission_api import InMemoryMissionApi, demo_mission
 from sightline.radio.tools import RadioTools
@@ -135,6 +136,24 @@ def test_model_failure_is_say_again(tmp_path: Path) -> None:
 def test_unknown_callsign_is_say_again(tmp_path: Path) -> None:
     api, session, llm = _setup(FakeChatClient(default="x"))
     r = _inbound(api, session, llm, "Sightline, radio check, over", tmp_path)
+    assert r.turn.state == "say_again" and llm.calls == []
+
+
+@pytest.mark.parametrize("heard", ["", "  ", "-"])
+def test_a_clip_with_no_words_is_say_again_without_a_model_call(
+    heard: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A keyed mic with nobody talking (or a tone) used to reach the model, which said "Over."."""
+    import sightline.radio.turn as turn_mod
+
+    monkeypatch.setattr(turn_mod, "to_mono16k", lambda audio, mime, work_dir: tmp_path / "clip.wav")
+    monkeypatch.setattr(turn_mod, "check_length", lambda wav: None)
+    api, session, llm = _setup(FakeChatClient(default="Team Two, Sightline. Over."))
+    r = handle_inbound(
+        mission_id=MID, session=session, asr=FakeAsr({"clip": heard}), tts=FakeTts(), llm=llm,
+        api=api, work_dir=tmp_path, audio=b"x", callsign_hint="T2",
+    )  # fmt: skip
+    assert r.turn.reply == "Team Two, Sightline. Say again, over."
     assert r.turn.state == "say_again" and llm.calls == []
 
 
