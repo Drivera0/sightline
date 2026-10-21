@@ -52,6 +52,13 @@ ground teams from a dict of facts (`sightline/agent/loop.py: write_briefing`); e
 post-checked (no "clear"/"cleared", every number must appear in the facts) before a person
 approves it. `nemotron-3-super-120b-a12b` is wired for planning text.
 
+**Tool calling (radio spike, `docs/feedback/radio.md`).** With thinking off, Nemotron 3 Nano made
+0 of 3 tool calls for a radio question and once invented an answer ("northeast at 45 degrees,
+5 kilometers") that no tool returned; with thinking on it called the tool (2 / 2) but took
+3.1–4.5 s for the first call. Nemotron 3 Super with thinking off was correct 3 / 3 in 1.9–3.4 s for
+the tool call plus the reply. For tool use we route to Super; the model cards should say which
+models are reliable at tool calling with thinking off.
+
 **What worked.** All 5 live briefings passed the post-check on the first call, and with
 the instruction "write numbers as digits, only numbers in the facts" it kept to the facts.
 
