@@ -137,10 +137,10 @@ class CachedTts:
 
     def speak(self, text: str, voice: str = "en_female") -> TtsResult:
         key = (text, voice)
+        hit = self._cache.get(key)  # outside the lock: a cached phrase never waits for the model
+        if hit is not None:
+            return TtsResult(wav=hit.wav, sample_rate=hit.sample_rate, ms=0)
         with self._lock:
-            hit = self._cache.get(key)
-            if hit is not None:
-                return TtsResult(wav=hit.wav, sample_rate=hit.sample_rate, ms=0)
             result = self.tts.speak(text, voice)
             if len(self._cache) < self.max_items:
                 self._cache[key] = result
