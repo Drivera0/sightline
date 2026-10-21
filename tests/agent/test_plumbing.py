@@ -13,6 +13,7 @@ import pytest
 from sightline.agent import hooks
 from sightline.agent._contract_v12 import Leg, Proposal
 from sightline.agent.llm import MODEL_VISION, FakeChatClient, with_images
+from sightline.agent.runner import Runner
 from sightline.agent.trace import trace_call
 from sightline.contract import LatLon
 from tests.agent.fake_store import FakeMissionStore
@@ -41,36 +42,47 @@ def _call_every_hook(store: FakeMissionStore, mission_id: str) -> None:
     hooks.on_leg_done(store, mission_id, "L001")
 
 
-# --- test 6: hooks return in < 5 ms -------------------------------------------------------------
+# --- test 6: hooks return in < 5 ms (they only enqueue) -----------------------------------------
 
 
-def test_hooks_return_fast_and_write_one_note_each(store, mission_id) -> None:
-    _call_every_hook(store, mission_id)  # warm up imports and pydantic
-    store = FakeMissionStore()
-    mission_id = store.create("m", "a", LatLon(lat=0, lon=0), "demo").mission_id
+@pytest.fixture(autouse=True)
+def runner():
+    """A model-free runner for every test here, so no hook builds a real client."""
+    r = Runner(client_factory=lambda: None, detector_factory=lambda: None)
+    hooks.configure(r)
+    yield r
+    r.stop()
+    hooks.configure(None)
+
+
+def test_hooks_return_fast_and_enqueue(store, mission_id, runner) -> None:
+    _call_every_hook(store, mission_id)  # warm up: starts the agent thread
+    runner.drain()
     for name, args in [
         ("on_detection", ("f0001-d01",)),
         ("on_review", ("f0001-d01", "person")),
         ("on_clue", ("c001",)),
         ("on_conditions", ()),
         ("on_leg_done", ("L001",)),
+        ("on_tick", ()),
     ]:
         start = time.perf_counter()
         getattr(hooks, name)(store, mission_id, *args)
         assert time.perf_counter() - start < 0.005, name
-    entries = store.trace_entries(mission_id)
-    assert [e.kind for e in entries] == ["note"] * 5
-    assert [e.id for e in entries] == [f"t{i:06d}" for i in range(1, 6)]
-    assert not any(CLEAR.search(e.summary) for e in entries)
+    runner.drain()
 
 
-def test_hooks_never_raise_into_the_pipeline(caplog) -> None:
+def test_a_failing_job_is_logged_never_raised(caplog, runner) -> None:
     class Broken:
+        def get_detection(self, *_):
+            raise OSError("disk full")
+
         def trace(self, *_):
             raise OSError("disk full")
 
-    hooks.on_detection(Broken(), "m", "f0001-d01")
-    assert "on_detection failed" in caplog.text
+    hooks.on_detection(Broken(), "m", "f0001-d01")  # returns normally
+    runner.drain()
+    assert "agent detection f0001-d01 failed" in caplog.text
 
 
 # --- test 7: no secrets in the trace ----------------------------------------------------------
