@@ -287,7 +287,7 @@ def test_each_drone_runs_on_its_own_and_joins_through_the_ground_station(world) 
         )
 
     fleet = FleetProcesses(http, "http://test", mid, str(path), time_scale=20.0, dt_s=0.05,
-                           out=lines.append, ctx=_Threads, target=target)  # fmt: skip
+                           out=lines.append, ctx=_Threads, target=target, follow=False)  # fmt: skip
     fleet.start()
     try:
         fleet_now = lambda: store.state(mid)["fleet"]

@@ -54,6 +54,15 @@
       "leg_id": null
     }
   ],
+  "links": [
+    {
+      "after_s": 240,
+      "target": "D2",
+      "link": "lost",
+      "for_s": 180
+    }
+  ],
+  "links_note": "Simulated link model: Drone 2 loses its link 4 min in, for 3 min (it flies its approved leg on its own, keeps its photos on board, then syncs them). Not a radio measurement.",
   "hidden": {
     "lat": 49.3729,
     "lon": -122.9354

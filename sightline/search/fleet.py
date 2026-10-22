@@ -22,6 +22,15 @@ planner's 20 % reserve. It takes a photo every
 focal length and DJI XMP altitude/yaw written for its simulated pose. Telemetry carries positions,
 battery, and only ``flying``/``done`` for its legs. The sim never creates, approves or reassigns legs.
 
+**Degraded comms (a simulated link model, not a radio measurement).** Each drone's link to the
+ground station is connected, degraded or lost (``GroundStation``). It changes on the scenario's
+schedule (``links``), with ``--degrade D2 60s``, or from the console (``POST /fleet/link``). A lost
+drone hears no re-task and takes no new leg: it flies the leg it has on its own, keeps its photos on
+board, flies home when that leg is done, and when the link is back syncs the photos through the
+normal ``POST /photos`` (their names and EXIF carry the capture times). The mission keeps the
+drone's last-heard state meanwhile; each change is a ``mission.note`` event and ``GET /fleet/links``
+gives each drone's state and last-heard time (no contract model changes).
+
 **Truth stays in the scenario.** The hidden person's position decides only which crop a photo gets:
 the crop around a labelled person when the photo's footprint covers the hidden point, else a crop
 clear of every labelled person. Nothing else about it reaches the API.
@@ -147,6 +156,8 @@ class Scenario:
     # the crops a photo gets when it does not cover the person: [{"image": name, "box": [x0, y0, x1, y1]}];
     # empty: derived from the labelled val photos (FramePool)
     negatives: tuple[dict, ...] = ()
+    # scheduled link changes (simulated link model): [{after_s, target, link, for_s?}]
+    links: tuple[dict, ...] = ()
 
     @classmethod
     def load(cls, name_or_path: str) -> Scenario:
@@ -163,6 +174,7 @@ class Scenario:
             clue=d.get("clue"),
             line_spacing_m=d.get("line_spacing_m", 20.0),
             negatives=tuple(d.get("negatives", ())),
+            links=tuple(d.get("links", ())),
         )
 
 
@@ -248,8 +260,11 @@ class FramePool:
             raise ValueError("no crops free of labelled people in the validation photos")
 
 
-def stamp(crop: Crop, lat: float, lon: float, alt_m: float, yaw_deg: float) -> bytes:
-    """The crop as a JPEG with the EXIF/XMP pose lane B's ``read_pose`` reads, for this position."""
+def stamp(
+    crop: Crop, lat: float, lon: float, alt_m: float, yaw_deg: float, taken_at: str | None = None
+) -> bytes:
+    """The crop as a JPEG with the EXIF/XMP pose lane B's ``read_pose`` reads, for this position;
+    ``taken_at`` (ISO, UTC) goes in DateTimeOriginal: a photo synced late keeps its capture time."""
     with Image.open(crop.image) as im:
         part = im.crop(crop.box).convert("RGB")
     # lane B's camera model (geo/camera.py) inverted, so read_pose gives back the source's GSD
@@ -259,6 +274,8 @@ def stamp(crop: Crop, lat: float, lon: float, alt_m: float, yaw_deg: float) -> b
     g = exif.get_ifd(ExifTags.IFD.GPSInfo)
     g.update({1: "N" if lat >= 0 else "S", 2: (abs(lat), 0.0, 0.0), 3: "E" if lon >= 0 else "W", 4: (abs(lon), 0.0, 0.0)})  # fmt: skip
     exif.get_ifd(ExifTags.IFD.Exif)[41989] = round(f35)
+    if taken_at:  # DateTimeOriginal, 'YYYY:MM:DD HH:MM:SS'
+        exif.get_ifd(ExifTags.IFD.Exif)[0x9003] = taken_at[:19].replace("-", ":").replace("T", " ")
     exif[0x010E] = "Sightline simulated fleet"  # ImageDescription: says so in every photo
     yaw = ((yaw_deg + 180) % 360) - 180
     xmp = (
@@ -317,6 +334,8 @@ class FleetFeed:
         self.http, self.mid, self.retry_s = http, mission_id, retry_s
         self.legs: dict[str, Leg] | None = None
         self.conditions: dict | None = None
+        self._requests: list[dict] = []  # link changes asked for at the console (POST /fleet/link)
+        self._lock = threading.Lock()
         self.last_id: str | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -328,6 +347,12 @@ class FleetFeed:
     def stop(self) -> None:
         self._stop.set()
 
+    def take_requests(self) -> list[dict]:
+        """The link changes asked for since the last call."""
+        with self._lock:
+            out, self._requests = self._requests, []
+        return out
+
     def follow(self, lines: Iterable[str]) -> None:
         """Read one connection's lines until it ends or ``stop``."""
         for typ, eid, ev in sse_events(lines):
@@ -336,6 +361,9 @@ class FleetFeed:
                 self.legs = active_legs(ev.get("data") or {})
             elif typ == "conditions.updated":
                 self.conditions = ev.get("data")
+            elif typ == "mission.note" and "fleet_link_request" in (ev.get("data") or {}):
+                with self._lock:
+                    self._requests.append({**ev["data"]["fleet_link_request"], "at": ev.get("at")})
             if self._stop.is_set():
                 return
 
@@ -387,6 +415,9 @@ class DroneSim:
         self.home = self._pos_m()  # the launch point: where it flies back to
         self.returning = False
         self._wind_held = False
+        self.link = "connected"  # set by the ground station's link model
+        self.buffer: list[tuple[str, bytes]] = []  # photos kept on board while the link is down
+        self._steps = 0
 
     @property
     def id(self) -> str:
@@ -403,6 +434,11 @@ class DroneSim:
         (its ground speed set by the wind), photograph, drain the battery, and turn home when the
         battery left would not bring it back with the reserve."""
         wind = wind or Wind()
+        self._steps += 1
+        if self.link == "lost":  # it hears nothing: no re-task, no new leg; the one it has goes on
+            legs = {self.leg.id: self.leg} if self.leg is not None else {}
+        elif self.link == "degraded" and self.buffer and self._steps % 2 == 0:
+            self._upload(self._take_buffer())
         if self.leg is not None and self.leg.id not in legs:  # re-tasked: the store cancelled it
             self.out(f"{self.drone.name}: {self.leg.id} cancelled")
             self.leg = None
@@ -435,11 +471,30 @@ class DroneSim:
             drain = 0.0  # landed
         pct = max(0.0, self.drone.battery_pct - drain * sim_dt / 60)
         self._set(battery_pct=pct)
+        if self.link == "lost" and self.leg is None and not self.returning and self._airborne():
+            self.out(f"{self.drone.name}: leg flown with no link; flies home (lost-link return)")
+            self._go_home()
         if self.leg is not None and not self._enough_to_get_home(wind):
             self.out(f"{self.drone.name}: leaves {self.leg.id} and flies home: "
                      f"{self.drone.battery_pct:.0f} % left, {RESERVE_FRAC:.0%} kept in reserve")  # fmt: skip
             self.leg = None
             self._go_home()
+
+    def set_link(self, link: str) -> int:
+        """The link model changed this drone's link. Back to connected: the photos kept on board
+        go up now through ``POST /photos`` (names and EXIF carry their capture times). Returns how
+        many were synced."""
+        self.link = link
+        if link != "connected" or not self.buffer:
+            return 0
+        photos = self._take_buffer()
+        self._upload(photos)
+        self.out(f"{self.drone.name}: link back, {len(photos)} photos taken out of contact synced")
+        return len(photos)
+
+    def _take_buffer(self) -> list[tuple[str, bytes]]:
+        out, self.buffer = self.buffer, []
+        return out
 
     def minutes_home(self, wind: Wind) -> float:
         """Flight time back to the launch point against this wind (inf when it can't get there)."""
@@ -542,9 +597,15 @@ class DroneSim:
             else self.pool.negatives[self.photos % len(self.pool.negatives)]
         )
         self.photos += 1
-        name = f"SIM_{self.drone.id}_{self.photos:04d}.jpg"
-        data = stamp(crop, p.lat, p.lon, self.drone.altitude_m, self.heading_deg)
-        self._upload([(name, data)])
+        taken = self.now()
+        name = (
+            f"SIM_{self.drone.id}_{self.photos:04d}_{taken.replace('-', '').replace(':', '')}.jpg"
+        )
+        data = stamp(crop, p.lat, p.lon, self.drone.altitude_m, self.heading_deg, taken)
+        if self.link == "connected":
+            self._upload([(name, data)])
+        else:  # degraded: up every other tick; lost: kept until the link is back
+            self.buffer.append((name, data))
 
     def _upload(self, photos: list[tuple[str, bytes]]) -> None:
         for k in range(0, len(photos), 50):  # POST /photos takes 1..50
@@ -554,13 +615,96 @@ class DroneSim:
                 self.out(f"{x['name']} rejected: {x['reason']}")
 
 
+# --- the link model (simulated) -------------------------------------------------------------------
+
+DRONE_LINKS = ("connected", "degraded", "lost")
+TEAM_LINKS = ("connected", "no_signal")
+
+
+@dataclass(frozen=True)
+class LinkChange:
+    target: str  # a drone id (D2) or a team id (T2)
+    link: str
+    for_s: float | None = None  # simulated seconds until it reverts; None: until changed again
+    by: str = "fleet sim"
+
+
+def _age(seconds: float) -> str:
+    s = max(0, round(seconds))
+    return f"{s} s" if s < 90 else f"{round(s / 60)} min"
+
+
+def _seconds_between(a: str, b: str) -> float:
+    from datetime import datetime
+
+    return (datetime.fromisoformat(b) - datetime.fromisoformat(a)).total_seconds()
+
+
+def link_summary(d: dict) -> str:
+    """The event-feed line for a link change (``POST /fleet/link``). Every line says the link is a
+    simulated model, never a radio measurement."""
+    t, link = d["target"], d["link"]
+    timed = f" for {_age(d['for_s'])}" if d.get("for_s") else ""
+    if not d.get("report"):
+        return f"{d.get('by') or 'command'} asked for {t}: link {link.replace('_', ' ')}{timed} (simulated link model)"  # fmt: skip
+    if link == "lost":
+        return f"{t} link lost{timed} (simulated link model): it flies its approved leg on its own and keeps its photos on board"  # fmt: skip
+    if link == "degraded":
+        return f"{t} link degraded{timed} (simulated link model): telemetry and photos arrive late"
+    if link == "no_signal":
+        return f"{t} has no signal{timed} (simulated link model): drones nearby relay its position"
+    if t.startswith("T"):
+        return f"{t} has signal again (simulated link model)"
+    synced = d.get("synced")
+    out = f"{t} link back (simulated link model)"
+    if synced:
+        out += f": {synced} photos taken out of contact synced with their capture times"
+    elif synced is None:
+        out += ": photos taken out of contact sync with their capture times"
+    if d.get("last_heard_at") and d.get("at"):
+        out += f", last heard {_age(_seconds_between(d['last_heard_at'], d['at']))} before"
+    return out
+
+
+def fleet_links(events: Iterable[Any]) -> dict:
+    """Each drone's and team's latest link state from the mission's events (``mission.note`` with
+    ``data.fleet_link`` from the fleet sim): what ``GET /fleet/links`` returns. Targets never
+    reported are connected."""
+    drones: dict[str, dict] = {}
+    teams: dict[str, dict] = {}
+    for ev in events:
+        get = ev.get if isinstance(ev, dict) else lambda k, e=ev: getattr(e, k, None)
+        data = get("data") or {}
+        if get("type") != "mission.note":
+            continue
+        if "fleet_link" in data:
+            d = data["fleet_link"]
+            entry = {"link": d["link"], "since": get("at"), "for_s": d.get("for_s"),
+                     "last_heard_at": d.get("last_heard_at"), "by": d.get("by")}  # fmt: skip
+            if d["link"] in TEAM_LINKS and d["target"].startswith("T"):
+                teams[d["target"]] = {**teams.get(d["target"], {}), **entry}
+            else:
+                drones[d["target"]] = entry
+        elif "relay" in data:
+            r = data["relay"]
+            teams[r["team_id"]] = {**teams.get(r["team_id"], {"link": "no_signal"}), "relay": r}
+    return {"simulated": True, "drones": drones, "teams": teams}
+
+
 # --- the ground station: hears the drones, sends the fleet ----------------------------------------
 
 
 class GroundStation:
     """The central side of the link: it hears each drone's telemetry and sends the whole fleet in one
     ``PUT /fleet`` (the store replaces the drone list on every PUT). Drones join in the order they are
-    first heard."""
+    first heard.
+
+    It also runs the **simulated link model**: each drone's link is connected, degraded (every other
+    report heard; photos go up every other tick) or lost (nothing heard; the drone keeps flying its
+    approved leg and keeps its photos on board). Changes come from the scenario (``links``), the
+    ``--degrade`` switch, or the console (``POST /fleet/link``, read from the event stream); each one
+    is reported back with ``POST /fleet/link`` so the mission's feed and map show it. While a drone is
+    lost the fleet keeps its last-heard state."""
 
     def __init__(
         self,
@@ -569,18 +713,35 @@ class GroundStation:
         *,
         now: Callable[[], str] | None = None,
         out: Callable[[str], None] = say,
+        schedule: Iterable[dict] = (),
     ) -> None:
         self.http, self.mid = http, mission_id
         self.now = now or _utc_now
         self.out = out
         self.heard: dict[str, Drone] = {}
+        self.heard_at: dict[str, str] = {}
         self.leg_status: dict[str, str] = {}
+        self.links: dict[str, str] = {}
+        self.until: dict[str, float] = {}
+        self.schedule = sorted(schedule, key=lambda x: x["after_s"])
+        self.started_at = self.now()
+        self._n: dict[str, int] = {}
+        self._changes: list[LinkChange] = []
+
+    def link(self, target: str) -> str:
+        return self.links.get(target, "connected")
 
     def hear(self, report: dict) -> bool:
-        """One telemetry report from a drone; True when it is the drone's first (it joins)."""
+        """One telemetry report from a drone, through the link model; True when it is the drone's
+        first (it joins). A lost link hears nothing; a degraded one every other report."""
         d = Drone.model_validate(report["drone"])
+        n = self._n[d.id] = self._n.get(d.id, 0) + 1
+        link = self.link(d.id)
+        if d.id in self.heard and (link == "lost" or (link == "degraded" and n % 2)):
+            return False
         new = d.id not in self.heard
         self.heard[d.id] = d
+        self.heard_at[d.id] = self.now()
         self.leg_status.update(report.get("leg_status") or {})
         return new
 
@@ -591,6 +752,48 @@ class GroundStation:
             "at": self.now(),
         }
         return _call(self.http, "PUT", f"/missions/{self.mid}/fleet", json=body).json()
+
+    def set_link(self, change: LinkChange, sim_s: float) -> bool:
+        """Queue a link change (``advance`` returns it); False when it changes nothing."""
+        allowed = TEAM_LINKS if change.target.startswith("T") else DRONE_LINKS
+        if change.link not in allowed:
+            self.out(f"link {change.link!r} is not one of {', '.join(allowed)} for {change.target}")
+            return False
+        if self.link(change.target) == change.link and not change.for_s:
+            return False
+        self.links[change.target] = change.link
+        if change.for_s:
+            self.until[change.target] = sim_s + change.for_s
+        else:
+            self.until.pop(change.target, None)
+        self._changes.append(change)
+        return True
+
+    def advance(self, sim_s: float, requests: Iterable[dict] = ()) -> list[LinkChange]:
+        """Timed changes that ran out, the scenario's scheduled ones and the console's requests:
+        the link changes to apply to the drones now (then ``announce`` each)."""
+        for target, until in list(self.until.items()):
+            if sim_s >= until:
+                del self.until[target]
+                back = "connected"
+                self.set_link(LinkChange(target, back, by="link model (timer)"), sim_s)
+        while self.schedule and sim_s >= self.schedule[0]["after_s"]:
+            x = self.schedule.pop(0)
+            self.set_link(LinkChange(x["target"], x["link"], x.get("for_s"), "scenario"), sim_s)
+        for r in requests:
+            if (r.get("at") or "")[:19] < self.started_at[:19]:  # replayed from before this run
+                continue
+            self.set_link(LinkChange(r["target"], r["link"], r.get("for_s"), r.get("by") or "command"), sim_s)  # fmt: skip
+        out, self._changes = self._changes, []
+        return out
+
+    def announce(self, change: LinkChange, synced: int | None = None) -> None:
+        """Tell the mission (``POST /fleet/link``): the feed line and the map's link ring."""
+        body = {"target": change.target, "link": change.link, "for_s": change.for_s,
+                "by": change.by, "report": True, "last_heard_at": self.heard_at.get(change.target),
+                "synced": synced}  # fmt: skip
+        self.out(link_summary({**body, "at": self.now()}))
+        _call(self.http, "POST", f"/missions/{self.mid}/fleet/link", json=body)
 
 
 # --- one loop (--single, tests, creek_run) ----------------------------------------------------------
@@ -612,6 +815,7 @@ class FleetSim:
         scripted_clue: bool = False,
         now: Callable[[], str] | None = None,
         out: Callable[[str], None] = say,
+        links: Iterable[dict] | None = None,
     ) -> None:
         self.http, self.mid, self.scn = http, mission_id, scenario
         self.time_scale, self.photo_every_m = time_scale, photo_every_m
@@ -633,7 +837,8 @@ class FleetSim:
             )
             for d in scenario.drones
         ]
-        self.gcs = GroundStation(http, mission_id, now=self.now, out=out)
+        self.gcs = GroundStation(http, mission_id, now=self.now, out=out,
+                                 schedule=scenario.links if links is None else links)  # fmt: skip
         self.clue_sent = False
         self.feed: FleetFeed | None = None
 
@@ -651,10 +856,21 @@ class FleetSim:
     def _approved(self) -> dict[str, Leg]:
         return mission_view(self.http, self.mid, self.feed)[0]
 
+    def set_link(self, target: str, link: str, for_s: float | None = None, by: str = "fleet sim") -> None:  # fmt: skip
+        """Change a link now (tests, ``--degrade``); applied at the next tick."""
+        self.gcs.set_link(LinkChange(target, link, for_s, by), self.sim_s)
+
     def tick(self, dt_s: float) -> None:
-        """``dt_s`` wall seconds: drones take their next approved leg, fly, photograph; telemetry."""
+        """``dt_s`` wall seconds: links change, drones take their next approved leg, fly,
+        photograph; the ground station hears what the links let through and sends the fleet."""
         sim_dt = dt_s * self.time_scale
         self.sim_s += sim_dt
+        requests = self.feed.take_requests() if self.feed is not None else []
+        by_id = {d.id: d for d in self.drones}
+        for change in self.gcs.advance(self.sim_s, requests):
+            d = by_id.get(change.target)
+            synced = d.set_link(change.link) if d is not None else None
+            self.gcs.announce(change, synced)
         legs, wind = mission_view(self.http, self.mid, self.feed)
         for d in self.drones:
             d.step(sim_dt, legs, wind)
@@ -748,13 +964,16 @@ def drone_loop(
     out: Callable[[str], None] = say,
 ) -> DroneSim:
     """The body of one drone's process (the tests run it in a thread): say hello to the ground
-    station, then fly the legs approved for this drone and post its own photos until ``stop``."""
+    station, then fly the legs approved for this drone and post its own photos until ``stop``.
+    ``control`` brings link changes from the ground station's link model."""
     drone = next(d for d in scn.drones if d.id == cfg.drone_id)
     sim = DroneSim(drone, http, cfg.mission_id, scn, pool, photo_every_m=cfg.photo_every_m,
                    out=lambda s: out(f"[{drone.id} pid {_pid()}] {s}"))  # fmt: skip
     reports.put(sim.report())  # hello: the ground station adds it to the fleet
     while not stop.is_set():
-        _drain(control)
+        for kind, value in _drain(control):
+            if kind == "link":
+                sim.set_link(value)
         try:
             sim.step(cfg.dt_s * cfg.time_scale, *mission_view(http, cfg.mission_id, feed))
         except Offline as e:
@@ -786,7 +1005,7 @@ def _drone_process(cfg: DroneConfig, reports: Any, control: Any, stop: Any) -> N
 
 class FleetProcesses:
     """``run``: one process per drone (``_drone_process``) and this process as the ground station,
-    which hears their reports and sends ``PUT /fleet`` once per tick."""
+    which hears their reports through the link model and sends ``PUT /fleet`` once per tick."""
 
     def __init__(
         self,
@@ -799,6 +1018,8 @@ class FleetProcesses:
         photo_every_m: float = 15.0,
         dt_s: float = 1.0,
         scripted_clue: bool = False,
+        links: Iterable[dict] | None = None,
+        follow: bool = True,
         out: Callable[[str], None] = say,
         ctx: Any = None,
         target: Callable[..., None] = _drone_process,
@@ -810,8 +1031,11 @@ class FleetProcesses:
         self.out = out
         self.ctx = ctx or mp.get_context("spawn")
         self.target = target
+        self.follow = follow
         self.sim_s = 0.0
-        self.gcs = GroundStation(http, mission_id, out=out)
+        self.gcs = GroundStation(http, mission_id, out=out,
+                                 schedule=self.scn.links if links is None else links)  # fmt: skip
+        self.feed: FleetFeed | None = None
         self.reports = self.ctx.Queue()
         self.stop = self.ctx.Event()
         self.controls = {d.id: self.ctx.Queue() for d in self.scn.drones}
@@ -822,6 +1046,9 @@ class FleetProcesses:
         self.procs: list[Any] = []
 
     def start(self) -> None:
+        if self.follow and self.feed is None and self.http is not None:
+            self.feed = FleetFeed(httpx.Client(base_url=self.http.base_url, timeout=None), self.mid)
+            self.feed.start()
         for cfg in self.configs:
             p = self.ctx.Process(
                 target=self.target,
@@ -836,6 +1063,11 @@ class FleetProcesses:
 
     def tick(self) -> None:
         self.sim_s += self.dt_s * self.time_scale
+        requests = self.feed.take_requests() if self.feed is not None else []
+        for change in self.gcs.advance(self.sim_s, requests):
+            if change.target in self.controls:
+                self.controls[change.target].put(("link", change.link))
+            self.gcs.announce(change)  # the drone process logs how many photos it synced
         latest: dict[str, dict] = {}
         for r in _drain(self.reports):
             latest[r["drone"]["id"]] = r
@@ -862,10 +1094,24 @@ class FleetProcesses:
 
     def shutdown(self) -> None:
         self.stop.set()
+        if self.feed is not None:
+            self.feed.stop()
         for p in self.procs:
             p.join(10)
             if getattr(p, "is_alive", lambda: False)() and hasattr(p, "terminate"):
                 p.terminate()
+
+
+def parse_degrade(spec: tuple[str, str] | list[str] | None, at_s: float, link: str = "lost") -> list[dict]:  # fmt: skip
+    """``--degrade D2 60s`` → one scheduled link change: D2 ``link`` for 60 simulated seconds,
+    starting ``at_s`` simulated seconds into the run."""
+    if not spec:
+        return []
+    target, dur = spec
+    secs = float(dur.lower().removesuffix("s"))
+    if secs <= 0:
+        raise ValueError("--degrade needs a positive duration, like 60s")
+    return [{"after_s": at_s, "target": target, "link": link, "for_s": secs}]
 
 
 def main() -> None:
@@ -883,22 +1129,46 @@ def main() -> None:
         dt_s: float = typer.Option(1.0, help="wall seconds per tick"),
         single: bool = typer.Option(False, help="every drone in one loop (tests, rehearsals)"),
         scripted_clue: bool = typer.Option(False, help="post the scenario's clue (rehearsals)"),
+        degrade: tuple[str, str] = typer.Option(
+            (None, None), help="cut a drone's link, e.g. --degrade D2 60s (simulated seconds)"
+        ),
+        degrade_at_s: float = typer.Option(120.0, help="when --degrade starts (simulated seconds)"),
+        degrade_link: str = typer.Option("lost", help="lost or degraded"),
     ) -> None:
+        extra = parse_degrade(degrade if degrade[0] else None, degrade_at_s, degrade_link)
+        links = [*Scenario.load(scenario).links, *extra]
         with httpx.Client(base_url=api, timeout=httpx.Timeout(60.0, connect=10.0)) as http:
             if single:
                 sim = FleetSim(http, mission, Scenario.load(scenario), time_scale=time_scale,
-                               photo_every_m=photo_every_m, scripted_clue=scripted_clue)  # fmt: skip
+                               photo_every_m=photo_every_m, scripted_clue=scripted_clue, links=links)  # fmt: skip
                 try:
                     sim.run(dt_s=dt_s)
                 except KeyboardInterrupt:
                     say(f"stopped after {sim.photos} photos")
                 return
             fleet = FleetProcesses(http, api, mission, scenario, time_scale=time_scale,
-                                   photo_every_m=photo_every_m, dt_s=dt_s, scripted_clue=scripted_clue)  # fmt: skip
+                                   photo_every_m=photo_every_m, dt_s=dt_s, scripted_clue=scripted_clue,
+                                   links=links)  # fmt: skip
             try:
                 fleet.run()
             except KeyboardInterrupt:
                 say("stopped")
+
+    @app.command("link")
+    def link_cmd(
+        target: str = typer.Argument(..., help="a drone (D2) or a team (T2)"),
+        link: str = typer.Argument(
+            ..., help="drone: connected, degraded, lost; team: connected, no_signal"
+        ),
+        api: str = typer.Option(..., help="API base URL"),
+        mission: str = typer.Option(...),
+        for_s: float = typer.Option(None, help="simulated seconds until it reverts"),
+    ) -> None:
+        """Ask a running fleet to change a link (``POST /fleet/link``; the sim applies it)."""
+        with httpx.Client(base_url=api, timeout=30) as http:
+            body = {"target": target, "link": link, "for_s": for_s, "by": "command (CLI)"}
+            _call(http, "POST", f"/missions/{mission}/fleet/link", json=body)
+        say(link_summary(body))
 
     @app.command("check")
     def check_cmd(scenario: str = typer.Option("creek")) -> None:
