@@ -20,7 +20,7 @@ with sync_playwright() as p:
     ctx.add_init_script(SEEN)
     page = ctx.new_page()
     page.clock.install()
-    page.goto("http://localhost:5201/#m/demo/command")
+    page.goto("http://localhost:5201/#m/demo/map")
     for _ in range(2):
         page.clock.run_for(50)
         page.wait_for_timeout(150)  # real time for the tiles and the map's first draw
