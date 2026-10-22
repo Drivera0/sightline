@@ -109,6 +109,31 @@ detection. They do not test perception.
 - No proposal or verdict says "clear" or "cleared".
 - `validate_mission` passes.
 
+## Results (Nemotron, `--live`, 1 run per scenario, 2026-10-22)
+
+The same four creek scenarios, once each, with Nemotron 3.5 Super VL for the second look and
+Nemotron 3 Nano for the briefings and the conditions extraction (Tavily live). The detector and the
+search manager stay scripted. Run: `--live --scenarios creek no_clue clue_early near_miss_only
+--repeats 1 --no-failures`; files in `docs/evidence/agent_eval/live-creek-20261022-1305/`
+(`agent_eval.md`, `agent_eval.json`, and `tokens.json` summed from the traces).
+
+| Scenario | Proposals (fake, per run) | Proposals (live) | Correct target (live) | Gate (live) | Model calls | Tokens in / out | Cost |
+|---|---|---|---|---|---|---|---|
+| creek | 9 | 9: drone_leg 4, alert 1, assign_sector 4 | 3/3 | 11/11 | 10 | 14,816 / 981 | 0.0014 |
+| no_clue | 9 | 9: the same | 2/2 | 11/11 | 9 | 14,196 / 887 | 0.0014 |
+| clue_early | 12 | 12: drone_leg 7, alert 1, assign_sector 4 | 3/3 | 11/11 | 8 | 13,845 / 789 | 0.0013 |
+| near_miss_only | 9 | 9: drone_leg 4, promote_detection 1, assign_sector 4 | 1/1 | 11/11 | 8 | 14,113 / 895 | 0.0014 |
+| **all** | | | **9/9** | **44/44** | **35** | **56,970 / 3,552** | **0.0055** |
+
+Cost is at the catalog prices (`docs/feedback/nebius.md:18-20`: VL 0.30 / 0.90, Nano 0.06 / 0.24 per
+million tokens in / out, no currency on the page); the four Tavily lookups are not counted. The VL
+model said "yes, a person" on the one photo over the person in every run (p50 1.6 s). Two things the
+fakes do not show: the slowest step is now the model (tick → assign_sector p50 2.4 s, review → alert
+p50 0.8 s, against 63 ms and 33 ms with fakes), and **8 of the 19 briefings fell back to the
+template** after a rejected retry (12 rejections for more than 60 words, 2 for no punctuation, 2 for
+telling a team to stop). The guards held, so no bad briefing reached a proposal, but Nano's briefings
+need a shorter prompt or a word limit it keeps.
+
 ## Re-look leg: an unclear second look sends a drone lower
 
 **The rule** (`sightline/agent/relook_leg.py`; rule and trace schema in `docs/architecture/agent.md`,
@@ -273,4 +298,5 @@ the fix and passes after it:
 
 The eval itself was updated for the v2 planner (#135), as described under the clue check above.
 
-`--live` was not run for this page: `NEBIUS_API_KEY` was not set.
+`--live` was not run for this section: `NEBIUS_API_KEY` was not set. It has since been run once on the
+creek scenarios ("Results (Nemotron, `--live`, ...)" above) and once on `relook`.

@@ -876,7 +876,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
 - **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.25 s), and
   INT8 does not help on this CPU (§3.3). On the GPU it needs a custom OpenCV build (0.30 s per photo, §3.4).
 - **The agent evaluation uses fake models and a scripted detector:** it tests routing, the gate and
-  failure handling, not perception; `--live` has been run once, for the re-look scenario only (`AGENT_EVAL.md`).
+  failure handling, not perception; `--live` has been run once on the four creek scenarios (9/9 targets, 44/44 gate checks, 8 of 19 briefings fell back to the template) and once on the re-look scenario (`AGENT_EVAL.md`).
 - **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
   so long replies are spoken sentence by sentence and the first sound depends on the model's time;
   if the model fails or times out, the team hears "say again" and nothing changes. Its numbers use
