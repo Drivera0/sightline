@@ -216,6 +216,22 @@ def test_the_creek_scenario_lists_its_frames() -> None:
     assert all(len(n["box"]) == 4 and n["image"] != scn.positive["image"] for n in scn.negatives)
 
 
+def test_the_creek_scenarios_images_are_validation_photos_only() -> None:
+    """Val only: each image is in our val split and in neither train nor test (HERIDAL's own names
+    start 'train_'; our val split is held out of HERIDAL's trainval). Needs the dataset."""
+    from sightline.search.fleet import VAL
+
+    root = VAL.parent
+    if not (root / "val/images").is_dir():
+        pytest.skip("no HERIDAL dataset here")
+    scn = Scenario.load("creek")
+    names = [scn.positive["image"], *(n["image"] for n in scn.negatives)]
+    for name in names:
+        assert (root / "val/images" / name).is_file(), name
+        assert not (root / "train/images" / name).exists(), name
+        assert not (root / "test/images" / name).exists(), name
+
+
 # --- one process per drone ----------------------------------------------------------------------
 
 
