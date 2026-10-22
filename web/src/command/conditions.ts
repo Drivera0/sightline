@@ -146,7 +146,7 @@ export function conditionsFacts(c: Conditions, lookup: Lookup | null, now: Date 
     id: "visibility_factor",
     label: "Visibility factor",
     value: `×${c.visibility_factor.toFixed(1)}`,
-    source: { kind: "heuristic", how: "planning heuristic: fog or haze in the forecast or a warning lowers it, and each photo then rules out less" },
+    source: { kind: "heuristic", how: "planning heuristic: fog or haze in the forecast or a warning lowers it, and each photo then lowers the remaining probability less" },
   });
   facts.push({
     id: "exposure",
