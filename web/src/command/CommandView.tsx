@@ -130,7 +130,7 @@ export function CommandView(p: CommandProps) {
           {p.aboveMap}
           <div className="relative h-[52vh] min-h-0 lg:h-auto lg:flex-1">
             {p.map}
-            {p.overMap && <div className="pointer-events-none absolute inset-x-2 bottom-12 z-10 flex justify-center sm:inset-x-3">{p.overMap}</div>}
+            {p.overMap && <div className="pointer-events-none absolute inset-x-2 bottom-7 z-10 flex justify-center sm:inset-x-3">{p.overMap}</div>}
           </div>
         </div>
         <aside aria-label={p.rightRail ? "View" : "Approvals"} className="order-2 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 lg:order-none">

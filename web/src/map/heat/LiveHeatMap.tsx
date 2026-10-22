@@ -572,7 +572,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
           <LiveLayers base={mapBase} {...rest} onBasemap={setBasemap} />
         </MapProvider>
         {picking && (
-          <p role="status" className="absolute left-3 top-3 rounded-full border border-accent bg-bg/85 px-3 py-1 text-small text-accent-soft">
+          <p role="status" className="absolute right-3 top-3 z-10 rounded-full border border-accent bg-bg/85 px-3 py-1 text-small text-accent-soft">
             Click the map to place the clue (Esc cancels).
           </p>
         )}
@@ -626,8 +626,9 @@ export function legendOpenAtStart(): boolean {
 }
 
 /**
- * The legend floating on the console's map: a small "Legend" pill with the map-update count (bottom
- * left), opened by a click or the L key; open, two columns of at most four lines above the pill.
+ * The legend floating on the console's map: a small "Legend" pill with the map-update count (top left,
+ * away from the scrubber along the bottom), opened by a click or the L key; open, two columns of at most
+ * four lines under the pill.
  */
 export function FloatingLegend({ updates, palette }: { updates: number; palette?: HeatPalette }) {
   const [open, setOpen] = useState(legendOpenAtStart);
@@ -649,14 +650,14 @@ export function FloatingLegend({ updates, palette }: { updates: number; palette?
   }, []);
   return (
     <figcaption
-      className={`absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] border border-border bg-bg/85 backdrop-blur-[16px] ${open ? "rounded-md px-3 py-2" : "rounded-full px-2.5 py-1"}`}
+      className={`absolute top-3 left-3 z-10 flex max-h-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] flex-col overflow-y-auto border border-border bg-bg/85 backdrop-blur-[16px] ${open ? "rounded-md px-3 py-2" : "rounded-full px-2.5 py-1"}`}
       title={`${HEAT_CAPTION} Each sector shows its share of the probability (POA).`}
     >
-      <div id={bodyId} hidden={!open} className="mb-1.5 flex flex-col gap-1.5">
+      <div className="order-2 mt-1.5 flex flex-col gap-1.5" id={bodyId} hidden={!open}>
         <HeatKeyRow palette={palette} />
         <MapLegend columns />
       </div>
-      <div className="flex items-center gap-2.5">
+      <div className="order-1 flex items-center gap-2.5">
         <button
           type="button"
           aria-expanded={open}
