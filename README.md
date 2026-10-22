@@ -105,7 +105,7 @@ What it changes during a search:
 - **The map:** fog or haze in a warning lowers the visibility factor, which lowers what each photo is worth (its POD) on the map.
 - **People:** the exposure band shifts probability toward shelter; briefings to teams carry daylight left, wind and alerts.
 
-Live, Mount Seymour on the evening of Oct 22: wind NW 20 km/h gusting 40 (quoted "NW 20", "gusts 40"), a fog advisory (visibility factor 0.6), not flyable ("after civil twilight"); the same values on two runs. Every Tavily call and every extracted value with its quote and source URL is in the mission trace (`actor="conditions"`). The key lives on the server only (AWS Secrets Manager); `SIGHTLINE_FAKE_TAVILY=1` runs without it.
+Live, Mount Seymour on the evening of Oct 22: wind NW 20 km/h gusting 40 (quoted "NW 20", "gusts 40"), a fog advisory (visibility factor 0.6), not flyable ("after civil twilight"); the same values on two runs. Every Tavily call and every extracted value with its quote and source URL is in the mission trace (`actor="conditions"`). The full write-up, with a live run's trace: [docs/report/TAVILY.md](docs/report/TAVILY.md). The key lives on the server only (AWS Secrets Manager); `SIGHTLINE_FAKE_TAVILY=1` runs without it.
 
 ## Team and lanes
 
