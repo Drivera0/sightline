@@ -98,8 +98,17 @@ export interface Fact {
 
 const hhmmUtc = (iso: string) => `${iso.slice(11, 16)} UTC`;
 
+/** ", 23 Oct" when `iso` falls on another day than `now` (in UTC, or the browser's zone with utc=false); else "". */
+export function dayNote(iso: string, now: Date, utc = true): string {
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", ...(utc ? { timeZone: "UTC" } : {}) };
+  const day = (d: Date) => d.toLocaleDateString("en-GB", { ...opts, year: "numeric" });
+  const t = new Date(iso);
+  return day(t) === day(now) ? "" : `, ${t.toLocaleDateString("en-GB", opts)}`;
+}
+
 /** Each fact the agent uses, with its value and where it came from. Empty fields say so: nothing is guessed. */
-export function conditionsFacts(c: Conditions, lookup: Lookup | null): Fact[] {
+/** `now`: the mission clock, so a time on another day says its date ("01:40 UTC, 23 Oct"). */
+export function conditionsFacts(c: Conditions, lookup: Lookup | null, now: Date = new Date()): Fact[] {
   const quoted = (field: string, label: string, value: number | null, show: (v: number) => string): Fact => {
     const f = lookup?.fields[field];
     if (value === null) return { id: field, label, value: "not on the pages read", source: { kind: "missing" } };
@@ -116,7 +125,9 @@ export function conditionsFacts(c: Conditions, lookup: Lookup | null): Fact[] {
   facts.push({
     id: "twilight",
     label: "Civil twilight ends",
-    value: c.civil_twilight_end ? `${hhmmUtc(c.civil_twilight_end)}${c.sunset ? ` (sunset ${hhmmUtc(c.sunset)})` : ""}` : "unknown",
+    value: c.civil_twilight_end
+      ? `${hhmmUtc(c.civil_twilight_end)}${dayNote(c.civil_twilight_end, now)}${c.sunset ? ` (sunset ${hhmmUtc(c.sunset)})` : ""}`
+      : "unknown",
     source: { kind: "computed", how: "computed for the area's date and position (astral), not read from a page" },
   });
   facts.push({
