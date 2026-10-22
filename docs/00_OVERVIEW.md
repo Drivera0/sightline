@@ -53,6 +53,11 @@ server-sent events.
 7. **Trace and debrief:** every tool call, model call, verdict, proposal and decision is a line in the
    mission's `trace.jsonl`; `GET /missions/{id}/debrief.md` writes the debrief from it.
 
+**Outputs a command post can file:** an ICS 204 Assignment List for each team
+(`GET /missions/{id}/ics204/{team}.md` or `.json`), an ICS 214 Activity Log from the trace
+(`/ics214.md`), and a CalTopo / SARTopo GeoJSON of sectors, searched areas with their POD, legs, teams
+and clues (`/caltopo.geojson`). See `EXPORTS.md`.
+
 Conditions come from live web search (Tavily, `sightline/geo/conditions.py`), checked every 30 minutes per
 active mission and cached per area and clock hour; they decide whether drones may fly, how much a photo
 can see, and what briefings say. The radio desk (`sightline/radio/`) answers teams by voice from the same
