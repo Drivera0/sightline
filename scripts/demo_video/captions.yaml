@@ -11,7 +11,7 @@ style:
 
 labels:
   call:       {text: "Sightline · the call: a hiker overdue on Mount Seymour (demo mission)"}
-  photos:     {text: "Photos land · OpenCV 5 cv2.dnn ranks each one, 0.25 s per photo\nReal HERIDAL photos on a simulated flight path", number: true}
+  photos:     {text: "Photos land · OpenCV 5 cv2.dnn ranks each one, 0.30 s per photo on a GPU\nReal HERIDAL photos on a simulated flight path", number: true}
   confirm:    {text: "A person confirms each candidate · a 0.18 detection rescued by the second look\nOpenCV 5 zoom + Nemotron 3.5 Super VL (recorded run)", number: true}
   trace:      {text: "The trace of that chain: tool call → model call → verdict → proposal → decision", number: true}
   next:       {text: "Where next: the agent proposes, a person approves", number: true}

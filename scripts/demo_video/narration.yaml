@@ -1,0 +1,89 @@
+# Spoken narration for the two cuts, for scripts/demo_video/narrate.py (NVIDIA Magpie TTS, the radio desk's
+# speaker). Follows WIN_RESEARCH §8. Per cut, keyed by the shot ids in shots.json, or by "slot: <name>" for a
+# black slot in cut_<name>.json; the on-camera open and close are never narrated (narrate.py refuses them).
+#
+# Rules for a line: at most two sentences (the "what breaks first" lines, marked `verbatim`, are the one
+# exception); it fits its shot at about 150 words a minute (narrate.py warns when it won't); plain spoken
+# English with numbers as words; every model named by name; anything simulated, scripted, overridden or
+# recorded says so; never a form of the word "clear" (narrate.py refuses one). `text` is what the
+# narration .srt shows and what the listen-check compares Parakeet's transcript with. `respell` below
+# turns names Magpie gets wrong (digits especially: "OpenCV 5" came out as "OpenZvy") into what it says
+# right; a line's own `say` replaces its text for Magpie entirely.
+
+voice: en_female      # sightline/radio/tts.py VOICES: Magpie baked speaker 0, Sightline's one voice
+wpm: 150              # the budget a line is checked against before synthesis
+lead_s: 0.25          # a line starts this long after its shot
+gap_s: 0.25           # silence between two sentences of a line, and the least between two lines
+max_overrun_s: 0.5    # a line longer than its shot by more than this loses its second sentence
+takes: 3              # Magpie samples: up to this many takes per line, the best by Parakeet is kept
+lufs: -16             # loudness of the narration track (EBU R128, ffmpeg loudnorm, two passes)
+true_peak_db: -1.5
+
+# burned in over the first narrated shot of each cut, just above that shot's step label
+credit:
+  text: "Narration: NVIDIA Magpie TTS"
+  margin_v: 22        # libass units (PlayResY 288); the step label sits at 6, one line is about 16
+
+# display -> what Magpie says (checked by ear through Parakeet, see the README); longest first
+respell:
+  "Nemotron 3.5 Super VL": "Nemotron three point five Super V L"
+  "Nemotron 3 Super": "Nemotron three Super"
+  "Nemotron 3 Nano": "Nemotron three Nano"
+  "OpenCV 5": "Open CV five"
+  "POD": "P O D"
+  "VOC": "V O C"
+  "B4": "B four"
+
+# the three lines of docs/submission/WHAT_BREAKS_FIRST.md, each line's bold lead word for word (numbers
+# spoken; the parentheses read as a pause); the rest of each line is on screen in the Debrief
+breaks: &breaks
+  verbatim: true
+  text: >-
+    The detector misses forty-six of the three hundred thirty-seven people in the HERIDAL test set,
+    recall zero point eight six four, strict VOC, and twenty-eight of those forty-six are at two sites,
+    MED and CAB. The second look is a small gain. The fleet and the approvals in the demo are simulated.
+
+cuts:
+  opencv:
+    call:
+      text: "Sightline's console on a demo mission: a hiker is overdue on Mount Seymour. Follow the search plays the mission from the call."
+    photos:
+      text: "A survey flight's photos land: real HERIDAL photos on a simulated flight path. OpenCV 5 ranks each one as it lands, and the probability map fills in."
+    confirm:
+      text: "A person confirms every candidate. This one scored only zero point one eight, so OpenCV 5 zoomed in and Nemotron 3.5 Super VL took a second look, in a recorded run."
+    trace:
+      text: "The Trace shows that chain step by step: the tool call, the model call, the verdict, the proposal and the decision. The approvals in this recorded run are scripted, and the trace says so."
+    next:
+      text: "Where next: the agent proposes, and a person approves before anything moves."
+    run:
+      text: "The clock runs on: teams go out and the simulated drones fly. Sector B4 is searched at POD sixty percent."
+    conditions:
+      text: "Conditions come with their sources: Tavily searches the pages, and Nemotron 3 Nano reads them. Every value keeps its quote, word for word."
+    results:
+      text: "Three numbers: ninety percent of people found against sixty-eight by eye, and a quarter of a second per photo against thirty-three. Less ground to search, in simulation."
+    breaks: *breaks
+    "slot: evidence index":
+      text: "The evidence index lists every claim a judge might check, with the file and line that backs it and the command that regenerates it. Continuous integration fails the build when a cited file goes missing."
+    "slot: reproduce in 5 min":
+      text: "One script reproduces the detector's numbers in about five minutes on a CPU: the one hundred and one test photos through OpenCV 5, precision, recall and AP fifty checked against the published ones. OpenCV 5 and PyTorch find the same boxes, three hundred sixty-three out of three hundred sixty-three."
+    "slot: limits":
+      text: "It misses groups, people sitting or lying down, and clothing that matches the rock, and its threshold was frozen on validation only. The drones, their flights and their photos are simulated, and the approvals in the recorded traces are scripted."
+
+  nebius:
+    call:
+      text: "A hiker is overdue on Mount Seymour, in a demo mission."
+    confirm:
+      text: "OpenCV 5 flags a weak detection, and Nemotron 3.5 Super VL on Nebius Token Factory takes a second look. A person confirms it."
+    run:
+      text: "The agent proposes, a person approves, and the simulated drones fly."
+    fleet:
+      text: "The fleet and its radio links are simulated: drone two has lost its link, drone three is degraded, and drone one relays Team Two."
+    live_link:
+      text: "Live, on the simulated fleet: the Fleet controls cut drone two's link. Team Two loses its signal, and another drone relays it."
+    recall:
+      text: "On the live site the gusts come from Tavily with a quoted source; here a demo override sets them to fifty kilometres an hour, past the drones' limit of forty-three. The agent proposes recalling each simulated drone, a person approves, and they turn home."
+    radio:
+      text: "The radio desk: Parakeet turns a team's speech into text, Nemotron 3 Super answers from the mission's tools, and Magpie speaks the reply. This briefing is a recording."
+    breaks: *breaks
+    "slot: architecture":
+      text: "Nemotron 3 Nano writes the briefings, and every model call goes through Nebius Token Factory. A Nebius Serverless Job detected the fleet's seven hundred eleven photos in eight minutes for about ten cents."

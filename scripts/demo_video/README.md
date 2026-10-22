@@ -82,6 +82,19 @@ A shot that didn't run is left out. When the shots don't fit, each is trimmed fr
 
 The GIF takes the first candidate shot (`gif.candidates`, in order of preference) with enough movement in its window (a candidate's own `min_motion` overrides the default), ends it on the frame within 18 ± 2 s closest to its first frame (never over 20 s), and fades its first half second in over its end, playing on from the frame after: the last frame is the frame before the first, so the loop has no jump. `end_aligned: true` takes the window that ends with the shot: `run` (the first choice) is 12 s, so its window starts at t3 on the proposal, then the approval and the run. Larger than 3 MB, it retries at lower fps and width.
 
+## Narration (`narrate.py`, `narration.yaml`)
+
+Voices both cuts with NVIDIA Magpie TTS, the radio desk's model and speaker (`sightline/radio/tts.py`), and checks them by ear with Parakeet, the radio desk's ASR. It runs in the NeMo environment (`docs/feedback/radio.md`, "How to reproduce"), after `run.sh` has made the cuts:
+
+```bash
+~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<timestamp>   # -> runs/video/<timestamp>/narrated/
+~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<timestamp> --dry-run   # no NeMo: tones sized at 150 wpm
+```
+
+`narration.yaml` holds one line per shot (keyed by the shot ids in `shots.json`, or `slot: <name>` for the OpenCV cut's three slides and the Nebius architecture slot), at most two sentences, sized at 150 words a minute, numbers as words, every model by name and everything simulated said so; the "what breaks first" lines are read word for word (`verbatim`). The on-camera open and close stay silent. `respell` is what Magpie is given for names it says wrong ("OpenCV 5" came out as "OpenZvy"; "Open CV five" is heard right).
+
+For each line Magpie speaks each sentence (250 ms apart), up to `takes` samples, and keeps the one Parakeet hears best; a line over its shot by more than 0.5 s loses its second sentence and is listed in a warning to rewrite. The lines start 250 ms into their shots (never on top of the line before), the track is normalised to −16 LUFS (ffmpeg `loudnorm`, two passes) and muxed as AAC into `cut_<name>_narrated.mp4`, with "Narration: NVIDIA Magpie TTS" burned in over the first narrated shot just above its step label (one re-encode, CRF 18 as `captions.py`; `--no-credit` copies the video stream). Also `narration_<name>.srt` (the spoken lines), `clips/`, and `narration_report.md` / `narration.json`: per line the text, seconds available and used, and the listen-check, Parakeet on each line cut back out of the finished mp4's audio, as word error rate with numbers spelled out on both sides (the script says "sixty percent", Parakeet writes "60%").
+
 ## Last run (live, `--serve-local`, this machine, 2026-10-22, after #177)
 
 `runs/video/final4-20261022-122829/`: 236.6 s master; shot times from the sync mark, nothing skipped or failed:
