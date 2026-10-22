@@ -21,7 +21,7 @@ export function ShortcutOverlay({ onClose, onTour, groups = SHORTCUT_GROUPS }: {
         role="dialog"
         aria-modal="true"
         aria-label="Keyboard shortcuts"
-        className="w-full max-w-md bg-bg/90"
+        className="w-full max-w-md"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -43,7 +43,7 @@ export function ShortcutOverlay({ onClose, onTour, groups = SHORTCUT_GROUPS }: {
           >
             <span className="flex flex-col">
               <span className="text-body text-text">Watch the 60-second tour</span>
-              <span className="text-small text-text-2">The six steps, played for you with captions</span>
+              <span className="text-small text-text-2">The five steps, played for you with captions</span>
             </span>
             <KeyHint>T</KeyHint>
           </button>

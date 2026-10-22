@@ -75,7 +75,7 @@ describe("tourStops", () => {
     cache = await loadCache("sample", diskFetch());
   });
 
-  it("visits the six steps in story order, in about a minute", () => {
+  it("visits the five steps in story order, in about a minute", () => {
     const stops = tourStops(cache);
     expect(stops.map((s) => s.step)).toEqual(STEPS.map((s) => s.id));
     expect(tourLengthMs(stops)).toBeGreaterThan(40_000);

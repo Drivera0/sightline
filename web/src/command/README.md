@@ -13,7 +13,7 @@ Mounted in the live mission page (`web/src/ingest/LiveMission.tsx`, tab **Approv
 transmitted from the inbox. Checked in Chromium against the real server (val photos, cv2.dnn, Nemotron):
 screenshot in `docs/architecture/screens/approval-inbox.png`.
 
-Lane A also built the **front door** (`web/src/front/`: `FrontDoor.tsx`, `copy.ts` with LANE_E §6.2's words exactly, the default route `#`, test 6). Lane A also built `CommandView.tsx` (mission header with conditions, task board with POD entry capped at 90%, team roster, clue log with Add clue) as the **Command** tab, and `GET /missions/{id}/sectors` (live POA and drone coverage). Still lane E's: lane B's map in the middle, event feed filters, the printable assignment card page, `__fixtures__` for demo mode.
+Lane A also built the **front door** (`web/src/front/`: `FrontDoor.tsx`, `copy.ts` with LANE_E §6.2's words exactly, the default route `#`, test 6). Lane A also built `CommandView.tsx` (mission header with conditions, task board with POD entry capped at 90%, team roster, clue log with Add clue) as the **Console** tab, and `GET /missions/{id}/sectors` (live POA and drone coverage). Still lane E's: lane B's map in the middle, event feed filters, the printable assignment card page, `__fixtures__` for demo mode.
 
 ## Assignment card (E-09, lane A)
 
@@ -34,8 +34,8 @@ two ground searches) into `useMission().useDemo`. The fixtures are generated, no
 `uv run python scripts/make_command_fixtures.py` (4 teams, 8 tasks in every state, 5 clues with 2 by radio,
 6 proposals with 2 pending carrying real crops, 30 events, fair-weather conditions, and the 16 sectors' POA and
 drone coverage from `LiveMap` over the cache). The script validates them against the contract and refuses the
-word "clear". Only the Command, Approvals and Feed tabs show, labelled "Demo mission · simulated data, no
-server"; actions change the fixtures in memory. Linked first from "Start a new search" on the demo-only site (`NoServer` in `App.tsx`), and the console says what is pre-seeded and its date in one line. Screenshot:
+word "clear". Only the Console, Trace and Feed tabs show (Approvals too on phones), labelled "Demo mission · simulated data, no
+server"; actions change the fixtures in memory. Linked from "Open the console" on the front door and "Open demo console" in the app bar on the demo-only site (`NoServer` in `App.tsx` at `#new`), and the console says what is pre-seeded and its date in one line. Screenshot:
 `docs/architecture/screens/demo-command.png`. Known: an action taken in the demo is stamped with the real
 clock, not the demo's 21:00 timeline.
 

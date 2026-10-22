@@ -46,37 +46,22 @@ export interface CommandProps {
   conditionsData?: ConditionsData | null;
   /** Open the Conditions panel at first (the #judges link: `#m/<id>/command/conditions`). */
   conditionsOpen?: boolean;
-  /** The width from which the console goes three columns: lg (1024 px) full screen; xl (1280 px) inside
-   *  the guided demo's frame, which has its own header and step bar. Narrower, its panels stack. */
-  wideAt?: "lg" | "xl";
-  /** Before the mission header, on its row (the console only): the guided demo's mission tabs. */
+  /** Before the mission header (the console only): beside it from 1280 px, above it below that. */
   headerStart?: ReactNode;
   now?: () => Date;
   /** The mission's feed, linked from the approvals when nothing is waiting. */
   feedHref?: string;
 }
 
-/** The console's breakpoint classes, spelled out so Tailwind sees each one. */
+/** The console's breakpoint classes: three columns from lg (1024 px), stacked below. Spelled out so Tailwind sees each one. */
 const CONSOLE = {
-  lg: {
-    grid: "lg:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]",
-    span: "lg:col-span-3",
-    narrowOnly: "lg:hidden",
-    inPlace: "lg:order-none",
-    map: "lg:h-auto lg:flex-1",
-    clues: "max-h-40",
-    px: "1024",
-  },
-  xl: {
-    // a floor, so the map keeps its height on a short screen (the demo's frame scrolls instead)
-    grid: "xl:min-h-[43rem] xl:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)] xl:grid-rows-[auto_minmax(0,1fr)_auto]",
-    span: "xl:col-span-3",
-    narrowOnly: "xl:hidden",
-    inPlace: "xl:order-none",
-    map: "xl:h-auto xl:flex-1",
-    clues: "max-h-28",
-    px: "1280",
-  },
+  grid: "lg:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]",
+  span: "lg:col-span-3",
+  narrowOnly: "lg:hidden",
+  inPlace: "lg:order-none",
+  map: "lg:h-auto lg:flex-1",
+  clues: "max-h-40",
+  px: "1024",
 } as const;
 
 const pct = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
@@ -114,7 +99,7 @@ export function CommandView(p: CommandProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [hasConditions]);
   if (p.map) {
-    const w = CONSOLE[p.wideAt ?? "lg"];
+    const w = CONSOLE;
     // LANE_E §7.1: header across the top; task board and teams | map | approvals and radio; clue log along the bottom.
     // Each rail scrolls on its own so the map never leaves the screen.
     return (
@@ -127,9 +112,10 @@ export function CommandView(p: CommandProps) {
             <span className="font-medium text-text">Desktop recommended.</span> The console is laid out for a screen {w.px} px or wider; here
             its panels stack: map, sectors and teams, approvals, clues.
           </p>
-          <div className="flex flex-wrap items-center gap-2">
+          {/* stacked below 1280 px: side by side, the header was squeezed to a one-word column on a phone */}
+          <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
             {p.headerStart}
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 xl:flex-1">
               <MissionHeader
                 heading
                 mission={p.mission}

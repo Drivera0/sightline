@@ -31,7 +31,7 @@ describe("RadioClip", () => {
   });
 
   it("is on the front door under the hero, and on #judges", () => {
-    render(<FrontDoor onStartNew={() => {}} onWatchDemo={() => {}} />);
+    render(<FrontDoor base={null} />);
     const hero = screen.getByRole("region", { name: "Sightline" });
     expect(within(hero).getByRole("group", { name: "Sightline on the radio" })).toHaveTextContent(RADIO_CLIP.transcript);
     document.body.innerHTML = "";

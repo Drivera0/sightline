@@ -194,7 +194,7 @@ describe("CommandView", () => {
 
   it("the shortcut overlay lists the console's keys", async () => {
     const { SHORTCUT_GROUPS } = await import("../shell/shortcuts");
-    const console_ = SHORTCUT_GROUPS.find((g) => g.title === "Command console");
+    const console_ = SHORTCUT_GROUPS.find((g) => g.title === "Console");
     expect(console_?.shortcuts.flatMap((s) => s.keys)).toEqual(["Tab", "A", "X", "W", "C"]);
   });
 

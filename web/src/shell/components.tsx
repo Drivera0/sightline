@@ -2,15 +2,97 @@ import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" ");
 
-/** Glass panel over the map or background. Inner elements use `rounded-sm` (concentric corners). */
+/**
+ * The one card surface: opaque, so it reads the same over the map, the photo wall and the page.
+ * Inner elements use `rounded-sm` (concentric corners).
+ */
 export function Panel({ className, ...props }: ComponentProps<"div">) {
   // 16 px on phones, 24 px from lg, unless the caller sets its own padding.
   const ownPadding = /(^|\s)(p|px|py|pt|pb|pl|pr)-/.test(className ?? "");
+  return <div className={cx("rounded-lg border border-line bg-surface-solid", !ownPadding && "p-4 lg:p-6", className)} {...props} />;
+}
+
+export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonSize = "md" | "lg";
+
+const BUTTON_BASE =
+  "sl-tap inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full transition-[background-color,border-color,color,filter] disabled:pointer-events-none disabled:opacity-50";
+const BUTTON_VARIANT: Record<ButtonVariant, string> = {
+  primary: "bg-accent font-medium text-bg hover:brightness-110",
+  secondary: "border border-border text-text hover:border-text-2 hover:bg-surface-strong",
+  ghost: "text-text-2 hover:bg-surface-strong hover:text-text",
+};
+const BUTTON_SIZE: Record<ButtonSize, string> = {
+  md: "h-10 px-4 text-small",
+  lg: "h-12 px-6 text-body",
+};
+
+/** The one button style's classes, for a control that can't be a `Button` (a file input's label). */
+export function buttonClass(variant: ButtonVariant = "secondary", size: ButtonSize = "md", className?: string): string {
+  return cx(BUTTON_BASE, BUTTON_VARIANT[variant], BUTTON_SIZE[size], className);
+}
+
+interface ButtonLook {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+}
+export type ButtonProps =
+  | (ButtonLook & ComponentProps<"button"> & { href?: undefined })
+  | (ButtonLook & ComponentProps<"a"> & { href: string });
+
+/**
+ * The one button: primary (solid accent, one per screen), secondary (outlined), ghost (text only).
+ * With `href` it is a link that looks like a button (it navigates); without, a `<button>`.
+ */
+export function Button(props: ButtonProps) {
+  if (props.href !== undefined) {
+    const { variant = "secondary", size = "md", className, ...rest } = props;
+    return <a className={buttonClass(variant, size, className)} {...rest} />;
+  }
+  const { variant = "secondary", size = "md", className, type = "button", ...rest } = props;
+  return <button type={type} className={buttonClass(variant, size, className)} {...rest} />;
+}
+
+/**
+ * The one page header: an eyebrow label, the page's h1 and one line under it. `aside` sits on the
+ * right from sm (a status chip); `children` go below (a list, a player).
+ */
+export function PageHeader({
+  eyebrow,
+  title,
+  sub,
+  aside,
+  children,
+  className,
+}: {
+  eyebrow?: ReactNode;
+  title: ReactNode;
+  sub?: ReactNode;
+  aside?: ReactNode;
+  children?: ReactNode;
+  className?: string;
+}) {
   return (
-    <div
-      className={cx("rounded-lg border border-border bg-surface backdrop-blur-[16px]", !ownPadding && "p-4 lg:p-6", className)}
-      {...props}
-    />
+    <div className={cx("flex flex-col gap-3", className)}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-2">
+          {eyebrow && <Label>{eyebrow}</Label>}
+          <h1 className="text-headline font-medium tracking-[-0.01em] text-text">{title}</h1>
+          {sub && <p className="max-w-[72ch] text-body text-text-2">{sub}</p>}
+        </div>
+        {aside && <div className="flex shrink-0 flex-wrap items-center gap-2">{aside}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** The one page container, for every page that isn't the console or a guided-demo map step. */
+export function Page({ className, children, ...props }: ComponentProps<"main">) {
+  return (
+    <main className={cx("mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-12 pt-8 lg:px-8 lg:pt-10", className)} {...props}>
+      {children}
+    </main>
   );
 }
 

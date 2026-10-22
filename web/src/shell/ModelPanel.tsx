@@ -77,7 +77,7 @@ export const ModelPanel = memo(function ModelPanel({ cache, dir, frame, boxes, p
     <section
       aria-label="Inside the detector"
       className={
-        "flex min-h-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4 [box-shadow:inset_0_1px_0_0_var(--surface-strong)] " +
+        "flex min-h-0 flex-col gap-3 rounded-lg border border-line bg-surface-solid p-4 " +
         (size === "large" ? "h-full overflow-hidden" : "overflow-y-auto")
       }
     >

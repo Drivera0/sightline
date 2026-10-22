@@ -3,7 +3,7 @@
 // queue until the operator presses Transmit. Nothing is ever transmitted that wasn't approved.
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { KeyHint, Label, Panel, StatusPill, type Tone } from "../shell/components";
+import { buttonClass, KeyHint, Label, Panel, StatusPill, type Tone } from "../shell/components";
 import { useClock } from "../lib/time";
 import * as defaultApi from "./api";
 import { isStandby, type OutboundItem, type RadioApi, type RadioTurn, type TurnResponse, type TurnStandby } from "./api";
@@ -269,7 +269,7 @@ export function RadioDesk({
       <section className="flex flex-wrap items-center gap-3" aria-label="Talk">
         <button
           type="button"
-          className="rounded-full border border-accent bg-accent/15 px-6 py-3 text-body text-text disabled:opacity-50"
+          className={buttonClass("primary", "lg")}
           disabled={stage === "sending" || stage === "standby" || stage === "speaking"}
           onMouseDown={() => void pressTalk()}
           onMouseUp={() => void releaseTalk()}
@@ -320,7 +320,7 @@ export function RadioDesk({
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        <button type="submit" className="rounded-full border border-border px-4 py-2 text-small text-text" disabled={stage !== "idle"}>
+        <button type="submit" className={buttonClass("secondary")} disabled={stage !== "idle"}>
           Send
         </button>
       </form>
@@ -351,10 +351,10 @@ export function RadioDesk({
               <span className="text-body text-text">{o.briefing}</span>
             </div>
             <div className="flex gap-2">
-              <button type="button" className="rounded-full border border-accent px-4 py-1.5 text-small text-text" disabled={stage !== "idle"} onClick={() => void doTransmit(o)}>
+              <button type="button" className={buttonClass("secondary")} disabled={stage !== "idle"} onClick={() => void doTransmit(o)}>
                 Transmit
               </button>
-              <button type="button" className="rounded-full border border-border px-4 py-1.5 text-small text-text-2" onClick={() => void doSkip(o)}>
+              <button type="button" className={buttonClass("ghost")} onClick={() => void doSkip(o)}>
                 Skip
               </button>
             </div>

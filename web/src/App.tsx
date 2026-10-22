@@ -12,15 +12,24 @@ import {
   useCache,
 } from "./lib/cache";
 import { useSelection } from "./lib/selection";
-import { EmptyState, ModeChip } from "./shell/components";
-import { Logo } from "./shell/Logo";
-import { routeFromHash, type Route } from "./shell/flow";
+import { TryPage } from "./detect/TryPhoto";
+import { AppBar } from "./shell/AppBar";
+import { Button, EmptyState, ModeChip, Page, PageHeader, Panel } from "./shell/components";
+import { DEMO_CONSOLE_HASH, redirectFromHash, routeFromHash, type Route } from "./shell/flow";
 import { Shell, SurveySelect, type SurveyOption } from "./shell/Shell";
 
+/** The current hash, with old addresses (#operate, #command, #searchnext) replaced by their one home. */
+function canonicalHash(): string {
+  if (typeof window === "undefined") return "";
+  const to = redirectFromHash(window.location.hash);
+  if (to) window.history.replaceState(null, "", to);
+  return window.location.hash;
+}
+
 function useRoute(): Route {
-  const [hash, setHash] = useState(() => (typeof window === "undefined" ? "" : window.location.hash));
+  const [hash, setHash] = useState(canonicalHash);
   useEffect(() => {
-    const on = () => setHash(window.location.hash);
+    const on = () => setHash(canonicalHash());
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
@@ -28,7 +37,7 @@ function useRoute(): Route {
 }
 
 /** Live missions need the mission API (VITE_API_URL); the static demo needs nothing. */
-export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, { kind: "demo" | "front" | "judges" }>; base?: string | null }) {
+export function LiveRoutes({ route, base = apiBase() }: { route: Extract<Route, { kind: "new" | "mission" }>; base?: string | null }) {
   const api = useMemo(() => (base === null ? null : { base }), [base]);
   // one object across renders: a new one on each hash change re-ran the mission's load and reset the demo
   const demoApi = useMemo(() => api ?? { base: "" }, [api]);
@@ -42,37 +51,34 @@ export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, 
 }
 
 /**
- * "Start a new search" on the public site, which has no mission server by design (VITE_API_URL unset):
- * say when the server runs and hand over the demo mission first, the guided demo second.
+ * New search on the public site, which has no mission server by design (VITE_API_URL unset): say when
+ * the server runs and hand over the console on the demo mission first, the guided demo second.
  */
 export function NoServer() {
   return (
-    <main className="flex min-h-full items-center justify-center p-4 lg:p-8">
-      <section aria-label="No mission server" className="flex w-full max-w-xl flex-col gap-5 rounded-lg border border-line bg-surface-solid p-6 lg:p-8">
-        <a href="#" className="flex items-center gap-2 text-body font-medium text-text" title="Back to the start">
-          <Logo />
-          Sightline
-        </a>
-        <div className="flex flex-col gap-2">
+    <>
+      <AppBar current="new" base={null} />
+      <Page>
+        <PageHeader eyebrow="New search" title="The live mission server runs during demos and judging" sub="This site is the demo: the same console runs on a pre-seeded mission, with no server." />
+        <Panel aria-label="No mission server" role="region" className="flex max-w-2xl flex-col gap-4">
           <span className="flex items-center gap-2">
             <ModeChip mode="demo">Demo site</ModeChip>
           </span>
-          <h1 className="text-title text-text">The live mission server runs during demos and judging; here is the demo mission.</h1>
-          <p className="text-small text-text-2">
-            The demo mission is the same command console with pre-seeded data and no server: approve the agent's proposals, assign teams,
-            add clues, and read the agent's trace.
+          <p className="text-body text-text-2">
+            Here is the demo mission instead. In the console you approve the agent's proposals, assign teams, add clues, and read the agent's
+            trace; nothing leaves your browser.
           </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <a href="#m/demo/command" className="rounded-full border border-accent bg-accent/15 px-5 py-2.5 text-center text-body text-text hover:bg-accent/25">
-            Open the demo mission
-          </a>
-          <a href="#survey" className="rounded-full border border-border px-5 py-2.5 text-center text-body text-text hover:bg-surface-strong">
-            Watch the guided demo
-          </a>
-        </div>
-      </section>
-    </main>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button href={DEMO_CONSOLE_HASH} variant="primary" size="lg">
+              Open the console
+            </Button>
+            <Button href="#survey" size="lg">
+              Guided demo
+            </Button>
+          </div>
+        </Panel>
+      </Page>
+    </>
   );
 }
 
@@ -113,15 +119,15 @@ export async function discoverAvailableSurveys(
 
 export function App({ dir = CACHE_DIR }: { dir?: string }) {
   const route = useRoute();
-  if (route.kind === "front") {
-    return <FrontDoor onStartNew={() => (window.location.hash = "#new")} onWatchDemo={() => (window.location.hash = "#survey")} />;
-  }
+  if (route.kind === "front") return <FrontDoor />;
   if (route.kind === "judges") return <JudgesPage />;
-  if (route.kind !== "demo") return <LiveRoutes route={route} />;
-  return <DemoApp dir={dir} />;
+  if (route.kind === "new" || route.kind === "mission") return <LiveRoutes route={route} />;
+  // the guided demo and Try a photo both read the survey cache (Try a photo offers its photos as samples)
+  return <DemoApp dir={dir} page={route.kind === "try" ? "try" : "steps"} />;
 }
 
-function DemoApp({ dir }: { dir: string }) {
+function DemoApp({ dir, page }: { dir: string; page: "steps" | "try" }) {
+  const section = page === "try" ? "try" : "demo";
   const { status, data, error, dir: loadedDir, load } = useCache();
   const [availableSurveys, setAvailableSurveys] = useState<SurveyOption[] | null>(null);
 
@@ -148,36 +154,43 @@ function DemoApp({ dir }: { dir: string }) {
 
   if (status === "error") {
     return (
-      <div role="alert" className="flex h-full items-center justify-center p-6">
-        <div className="flex max-w-xl flex-col items-center gap-4 rounded-lg border border-border bg-surface p-8 text-center">
-          <h1 className="text-title font-medium text-text">Could not load the survey</h1>
-          <p className="text-body text-text-2">
-            {error} Create the cache with `python -m sightline.pipeline sample` (or `run`), then
-            reload.
-          </p>
-          {availableSurveys === null ? (
-            <p className="text-small text-text-3">Checking for another available survey…</p>
-          ) : availableSurveys.length > 0 ? (
-            <SurveySelect
-              options={availableSurveys}
-              value={loadedDir ?? dir}
-              onChange={changeSurvey}
-            />
-          ) : (
-            <p className="text-small text-text-3">No survey caches are currently available.</p>
-          )}
-        </div>
-      </div>
+      <>
+        <AppBar current={section} />
+        <Page>
+          <Panel role="alert" className="mx-auto flex w-full max-w-xl flex-col items-center gap-4 text-center">
+            <h1 className="text-title font-medium text-text">Could not load the survey</h1>
+            <p className="text-body text-text-2">
+              {error} Create the cache with `python -m sightline.pipeline sample` (or `run`), then
+              reload.
+            </p>
+            {availableSurveys === null ? (
+              <p className="text-small text-text-3">Checking for another available survey…</p>
+            ) : availableSurveys.length > 0 ? (
+              <SurveySelect
+                options={availableSurveys}
+                value={loadedDir ?? dir}
+                onChange={changeSurvey}
+              />
+            ) : (
+              <p className="text-small text-text-3">No survey caches are currently available.</p>
+            )}
+          </Panel>
+        </Page>
+      </>
     );
   }
   if (status !== "ready" || !data) {
     return (
-      <div role="status" className="h-full">
-        <EmptyState title="Loading survey…" />
+      <div className="flex h-full flex-col">
+        <AppBar current={section} wide={page === "steps"} />
+        <div role="status" className="flex-1">
+          <EmptyState title="Loading survey…" />
+        </div>
       </div>
     );
   }
 
+  if (page === "try") return <TryPage cache={data} dir={loadedDir ?? dir} />;
   return (
     <Shell
       cache={data}

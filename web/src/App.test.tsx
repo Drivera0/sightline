@@ -63,7 +63,7 @@ describe("App", () => {
     render(<App dir="sample" />);
 
     expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
-    expect(await screen.findByRole("heading", { name: /Sightline/ })).toBeInTheDocument();
+    expect(await screen.findByRole("navigation", { name: "Demo steps" })).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -114,7 +114,7 @@ describe("App", () => {
     ]);
 
     await userEvent.selectOptions(picker, "demo");
-    expect(await screen.findByRole("heading", { name: "Sightline" })).toBeInTheDocument();
+    expect(await screen.findByRole("navigation", { name: "Demo steps" })).toBeInTheDocument();
   });
 
   it("keeps sample data out of production survey candidates", () => {

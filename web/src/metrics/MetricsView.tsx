@@ -373,7 +373,7 @@ function Section({
 }) {
   return (
     <details
-      className={`group rounded-lg border border-border bg-surface backdrop-blur-[16px] ${RIM}`}
+      className={`group rounded-lg border border-line bg-surface-solid ${RIM}`}
     >
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-lg p-4 hover:bg-surface-strong lg:px-6 [&::-webkit-details-marker]:hidden">
         <span

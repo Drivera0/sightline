@@ -92,12 +92,13 @@ describe("guided flow", () => {
     const nav = () => screen.getByRole("navigation", { name: "Step navigation" });
     await userEvent.click(within(nav()).getByRole("button", { name: /See where to search/ }));
     expect(current()).toHaveTextContent("Search next");
-    await userEvent.click(within(nav()).getByRole("button", { name: /Run the search/ }));
-    expect(current()).toHaveTextContent("Command");
-    expect(screen.getByRole("heading", { name: "Running the search" })).toBeInTheDocument();
-    await userEvent.click(within(nav()).getByRole("button", { name: /See results/ }));
+    // Search next hands over to the console: a link, so it is also an address to share
+    expect(within(nav()).getByRole("link", { name: /Run the search/ })).toHaveAttribute("href", "#m/demo/command");
+    await userEvent.click(within(stepBar()).getByRole("button", { name: /Results/ }));
     expect(current()).toHaveTextContent("Results");
     expect(screen.queryByRole("navigation", { name: "Step navigation" })).toBeNull();
+    // Results closes the story, with the console as its one primary action
+    expect(within(screen.getByRole("region", { name: "What next" })).getByRole("link", { name: "Open the console" })).toHaveAttribute("href", "#m/demo/command");
   });
 
   it("ends Results with a closing card: replay the tour, the real-GPS survey and the code", async () => {
@@ -160,7 +161,7 @@ describe("guided flow", () => {
     await userEvent.click(screen.getByRole("button", { name: "Watch 60-second tour" }));
     const tour = () => screen.getByRole("dialog", { name: "Guided tour" });
     // jsdom can't tell the motion preference, so the tour runs captions-only with Next.
-    expect(tour()).toHaveTextContent("Tour · 1 of 6");
+    expect(tour()).toHaveTextContent("Tour · 1 of 5");
     expect(tour()).toHaveTextContent("Reduced motion: press Next");
     await userEvent.click(within(tour()).getByRole("button", { name: "Next" }));
     expect(current()).toHaveTextContent("Rank");
@@ -177,7 +178,7 @@ describe("guided flow", () => {
     render(<Shell cache={cache} />);
     await userEvent.keyboard("t");
     expect(screen.getByRole("dialog", { name: "Guided tour" })).toBeInTheDocument();
-    await userEvent.keyboard("6");
+    await userEvent.keyboard("5");
     expect(screen.queryByRole("dialog", { name: "Guided tour" })).toBeNull();
     expect(current()).toHaveTextContent("Results");
   });

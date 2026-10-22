@@ -3,8 +3,10 @@
 // lane E (issue #70).
 
 import type { ReactNode } from "react";
-import { Label, Panel } from "../shell/components";
-import { Logo } from "../shell/Logo";
+import { apiBase } from "../lib/api";
+import { AppBar } from "../shell/AppBar";
+import { Button, Label, Page, PageHeader, Panel } from "../shell/components";
+import { DEMO_CONSOLE_HASH } from "../shell/flow";
 import { RadioClip } from "./RadioClip";
 import { FOOTER, HERO, HOW_IT_WORKS, PRINCIPLES, ROADMAP, ROADMAP_LABEL, WHO_ITS_FOR } from "./copy";
 
@@ -53,48 +55,51 @@ const PICTURES: ReactNode[] = [
   </g>,
 ];
 
-export function FrontDoor({ onStartNew, onWatchDemo }: { onStartNew: () => void; onWatchDemo: () => void }) {
+/** The primary button: the console when the site has no mission server (the public demo), else a new search. */
+export function heroStart(base: string | null): { label: string; href: string } {
+  return base === null ? { label: HERO.startNoServer, href: DEMO_CONSOLE_HASH } : { label: HERO.start, href: "#new" };
+}
+
+export function FrontDoor({ base = apiBase() }: { base?: string | null }) {
+  const start = heroStart(base);
   return (
-    <main className="mx-auto flex max-w-7xl flex-col gap-14 px-4 py-8 lg:px-8 lg:py-12">
-      {/* Above the fold: the pitch, the two buttons, and the product itself (the command console on the
-          demo mission, a local screenshot until the product video exists; it opens the real thing). */}
+    <>
+      <AppBar current="overview" base={base} />
+      <Page className="gap-14">
+      {/* Above the fold: the pitch, the two buttons, and the product itself (the console on the demo
+          mission, a local screenshot until the product video exists; it opens the real thing). */}
       <section aria-label="Sightline" className="grid items-center gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,8fr)] lg:gap-10">
         <div className="flex flex-col gap-4">
-          <h1 className="flex items-center gap-3 text-headline font-medium text-text">
-            <Logo />
-            {HERO.title}
-          </h1>
-          <p className="text-title text-text">{HERO.tagline}</p>
-          <p className="text-body text-text-2">{HERO.body}</p>
+          <PageHeader eyebrow={HERO.eyebrow} title={HERO.tagline} sub={HERO.body} />
           <div className="flex flex-wrap gap-3 pt-2">
-            <button type="button" onClick={onStartNew} className="rounded-full border border-accent bg-accent/15 px-6 py-2.5 text-body text-text hover:bg-accent/25">
-              {HERO.start}
-            </button>
-            <button type="button" onClick={onWatchDemo} className="rounded-full border border-border px-6 py-2.5 text-body text-text hover:bg-surface-strong">
+            <Button href={start.href} variant="primary" size="lg">
+              {start.label}
+            </Button>
+            <Button href="#survey" size="lg">
               {HERO.demo}
-            </button>
+            </Button>
           </div>
           <p className="text-small text-text-3">{HERO.honesty}</p>
           <RadioClip className="pt-2" />
         </div>
         <figure className="flex flex-col gap-2">
           <a
-            href="#m/demo/command"
-            aria-label="Open the command console on the demo mission"
-            className="group block overflow-hidden rounded-lg border border-border bg-surface-solid shadow-[0_24px_80px_-24px_rgba(0,0,0,0.9)]"
+            href={DEMO_CONSOLE_HASH}
+            aria-label="Open the console on the demo mission"
+            className="group block overflow-hidden rounded-lg border border-line bg-surface-solid shadow-[0_24px_80px_-24px_rgba(0,0,0,0.9)]"
           >
             <span aria-hidden className="flex items-center gap-1.5 border-b border-line px-3 py-2">
               <span className="size-2 rounded-full bg-surface-strong" />
               <span className="size-2 rounded-full bg-surface-strong" />
               <span className="size-2 rounded-full bg-surface-strong" />
-              <span className="ml-2 font-mono text-caption text-text-3">sightline · command</span>
+              <span className="ml-2 font-mono text-caption text-text-3">sightline · console</span>
             </span>
             {/* alt="": the link names it; the figure's caption says what it shows */}
             <img src={CONSOLE_SHOT} alt="" width={1440} height={900} className="block h-auto w-full transition-opacity group-hover:opacity-90" />
           </a>
           <figcaption className="flex flex-wrap items-center justify-between gap-2 text-caption text-text-3">
-            <span>The command console: map, task board, teams, and the agent's proposals waiting for a person. Demo mission, simulated.</span>
-            <a href="#m/demo/command" className="sl-tap inline-flex items-center px-1 text-text-2 underline underline-offset-2">
+            <span>The console: map, task board, teams, and the agent's proposals waiting for a person. Demo mission, simulated.</span>
+            <a href={DEMO_CONSOLE_HASH} className="sl-tap inline-flex items-center px-1 text-text-2 underline underline-offset-2">
               Open it
             </a>
           </figcaption>
@@ -155,20 +160,24 @@ export function FrontDoor({ onStartNew, onWatchDemo }: { onStartNew: () => void;
         </ul>
       </section>
 
-      <footer className="flex flex-col gap-2 border-t border-border pt-6 text-small text-text-3 sm:flex-row sm:justify-between">
+      <footer className="flex flex-col gap-2 border-t border-line pt-6 text-small text-text-3 sm:flex-row sm:justify-between">
         <span>{FOOTER.data}</span>
-        <span className="flex gap-4">
+        <span className="flex flex-wrap gap-x-4">
           <a className="sl-tap inline-flex items-center underline" href="#judges">
             For judges
           </a>
           <a className="sl-tap inline-flex items-center underline" href="#results">
             {FOOTER.results}
           </a>
+          <a className="sl-tap inline-flex items-center underline" href="#try">
+            {FOOTER.tryPhoto}
+          </a>
           <a className="sl-tap inline-flex items-center underline" href={FOOTER.codeUrl} rel="noreferrer" target="_blank">
             {FOOTER.code}
           </a>
         </span>
       </footer>
-    </main>
+      </Page>
+    </>
   );
 }

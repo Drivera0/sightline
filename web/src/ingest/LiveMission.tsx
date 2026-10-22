@@ -1,8 +1,8 @@
 // A live mission (LANE_D §5.5–5.6: D-I1 progress, D-Q1 review in live mode, D-L1 first pass):
 // photos in, candidates reviewed, everything that happens in the feed, all from useMission. Lane E's
-// command view and lane C's live heat (above it, on the Command tab) mount here. Built by lane A for lane D (#51).
+// command view and lane C's live heat (above it, on the Console tab) mount here. Built by lane A for lane D (#51).
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
 import type { AssignmentCard, Conditions, FleetState, TraceEntry } from "../contract";
@@ -19,26 +19,32 @@ import type { ConditionsData } from "../command/ConditionsPanel";
 import { TraceView, type TraceRun } from "../command/TraceView";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { usePick } from "../map/pick";
-import { KeyHint, Label, ModeChip, modeOf, Stat } from "../shell/components";
+import { AppBar, rememberMission } from "../shell/AppBar";
+import { Button, KeyHint, ModeChip, modeOf, Page, PageHeader, Panel, Stat } from "../shell/components";
+import { DEMO_CONSOLE_HASH } from "../shell/flow";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS, type ShortcutGroup } from "../shell/shortcuts";
-import { Logo } from "../shell/Logo";
 import { RadioDesk } from "../radio/RadioDesk";
 import { LiveReview } from "../review/LiveReview";
 import { UploadPanel, WatchPanel } from "./UploadPanel";
 
 type Tab = "command" | "photos" | "review" | "approvals" | "radio" | "feed" | "trace";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "command", label: "Command" },
+/**
+ * In the order the work flows: photos in, people confirm, the search manager acts, the audit follows.
+ * Approvals and Radio live in the console's rails on a desktop; on phones (< lg) they are tabs of their
+ * own, and `#m/<id>/approvals` and `#m/<id>/radio` open them full screen at any width.
+ */
+const TABS: { id: Tab; label: string; phoneOnly?: boolean }[] = [
   { id: "photos", label: "Photos" },
   { id: "review", label: "Review" },
-  { id: "approvals", label: "Approvals" },
-  { id: "radio", label: "Radio" },
-  { id: "feed", label: "Feed" },
+  { id: "command", label: "Console" },
+  { id: "approvals", label: "Approvals", phoneOnly: true },
+  { id: "radio", label: "Radio", phoneOnly: true },
   { id: "trace", label: "Trace" },
+  { id: "feed", label: "Feed" },
 ];
 /** The demo mission has no API: no photos, review, radio, cards or debrief. Its Trace tab shows recorded runs. */
-const DEMO_TABS: readonly Tab[] = ["command", "approvals", "feed", "trace"];
+const DEMO_TABS: readonly Tab[] = ["command", "approvals", "trace", "feed"];
 const STATUS_WORDS = { idle: "", connecting: "Connecting…", live: "Live", reconnecting: "Reconnecting…", demo: "Demo", error: "Offline" };
 
 export function tabFromHash(hash: string): Tab {
@@ -60,8 +66,11 @@ const demoKept = () => {
   return demoLoaded !== null && s.status === "demo" && s.mission?.mission_id === DEMO_MISSION_ID;
 };
 
-/** `embedded`: inside the guided demo's frame (its Command step), which owns the header and the address. */
-export function LiveMission({ api, missionId, initialTab = "photos", embedded = false }: { api: Api; missionId: string; initialTab?: Tab; embedded?: boolean }) {
+/**
+ * A mission's pages under one app bar, its tabs in the bar's centre on every tab. The Console tab is the
+ * full-screen console; the other tabs sit in the page column.
+ */
+export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Api; missionId: string; initialTab?: Tab }) {
   const s = useMission();
   const demo = missionId === DEMO_MISSION_ID;
   const [tab, setTab] = useState<Tab>(demo && !DEMO_TABS.includes(initialTab) ? "command" : initialTab);
@@ -70,14 +79,17 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
   const [keysOpen, setKeysOpen] = useState(false);
   const [card, setCard] = useState<string | null>(() => cardFromHash(window.location.hash));
   useEffect(() => {
-    if (embedded) return undefined;
     const onHash = () => {
       setCard(cardFromHash(window.location.hash));
       if (!cardFromHash(window.location.hash)) setTab(tabFromHash(window.location.hash));
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, [embedded]);
+  }, []);
+  // the app bar's Console leads back here from any page while this live mission is the last one opened
+  useEffect(() => {
+    if (!demo) rememberMission(missionId);
+  }, [demo, missionId]);
 
   useEffect(() => {
     if (demo) {
@@ -108,8 +120,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
     return () => useMission.getState().disconnect();
   }, [api, missionId, demo]);
   useEffect(() => {
-    // C: the Command tab (D-R1's shortcut), unless typing; in the guided demo its own C key opens this step
-    if (embedded) return undefined;
+    // C: the Console tab (D-R1's shortcut), unless typing
     const onKey = (e: KeyboardEvent) => {
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "?") setKeysOpen((o) => !o); // the shortcut list, as in the guided demo
@@ -132,25 +143,33 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
   const go = (t: Tab) => {
     setTab(t);
     setCard(null);
-    if (!embedded) window.history.replaceState(null, "", `#m/${missionId}/${t}`);
+    window.history.replaceState(null, "", `#m/${missionId}/${t}`);
   };
   const conditionsData = useConditionsData(api, missionId, demo, s.conditions, s.fleet);
   const progress = photoProgress(s);
   // one clock on the page: the demo's fixtures in UTC, a live mission in local time (lib/time)
   const clockZone = useMemo(() => ({ utc: demo }), [demo]);
-  // the guided demo owns the address, so its frame links nowhere
-  const feedHref = embedded ? undefined : `#m/${missionId}/feed`;
-  const waiting =s.proposals.filter((p) => p.status === "pending").length;
+  const feedHref = `#m/${missionId}/feed`;
+  const waiting = s.proposals.filter((p) => p.status === "pending").length;
+  const liveId = demo ? undefined : missionId;
 
   if (s.status === "error") {
     return (
-      <main className="mx-auto max-w-3xl p-6" role="alert">
-        <p className="text-title text-text">Could not open mission {missionId}</p>
-        <p className="text-body text-text-2">{s.error}</p>
-        <a className="text-accent-soft underline" href="#new">
-          Start a new search
-        </a>
-      </main>
+      <>
+        <AppBar current="console" wide missionId={liveId} />
+        <Page>
+          <Panel role="alert" className="flex max-w-2xl flex-col gap-3">
+            <h1 className="text-title font-medium text-text">Could not open mission {missionId}</h1>
+            <p className="text-body text-text-2">{s.error}</p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button variant="primary" href={DEMO_CONSOLE_HASH}>
+                Open the demo console
+              </Button>
+              <Button href="#new">New search</Button>
+            </div>
+          </Panel>
+        </Page>
+      </>
     );
   }
 
@@ -162,30 +181,24 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
     );
   }
 
-  const Frame = embedded ? "section" : "main";
-  // The Command tab is the console (LANE_E §7.1): full screen on its own, and inside the guided demo's frame
-  // (three columns from 1280 px, stacked below). The other tabs keep the reading column.
-  const isConsole = tab === "command" && !embedded;
-  const consoleLayout = tab === "command";
-  const frameClass = embedded
-    ? consoleLayout
-      ? "flex flex-col gap-3 xl:min-h-0 xl:flex-1"
-      : "flex flex-col gap-4"
-    : isConsole
-      ? "flex flex-col gap-3 p-3 lg:h-dvh lg:px-4"
-      : `mx-auto flex ${tab === "trace" ? "max-w-7xl" : "max-w-5xl"} flex-col gap-4 p-4 lg:p-8`;
+  // The Console tab is the console (LANE_E §7.1): full screen, three columns from 1024 px, stacked below.
+  const isConsole = tab === "command";
   const heatMap = (
-    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demo && demoNow ? demoNow : undefined} fill={consoleLayout} />
+    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demo && demoNow ? demoNow : undefined} fill={isConsole} />
   );
   const tabNav = (
-    <nav className="flex flex-wrap gap-0.5 rounded-full border border-line bg-surface-solid p-0.5" aria-label="Mission views">
+    <nav className="flex shrink-0 gap-0.5 rounded-full border border-line bg-surface-solid p-0.5" aria-label="Mission views">
       {tabs.map((t) => (
         <button
           key={t.id}
           type="button"
           aria-pressed={tab === t.id}
           onClick={() => go(t.id)}
-          className={`sl-tap rounded-full px-3.5 py-1 text-small transition-colors ${tab === t.id ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--border)]" : "text-text-2 hover:text-text"}`}
+          className={
+            `sl-tap whitespace-nowrap rounded-full px-3.5 py-1 text-small transition-colors ${tab === t.id ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--border)]" : "text-text-2 hover:text-text"}` +
+            // in the console's rails on a desktop; still shown there when opened by its address
+            (t.phoneOnly && tab !== t.id ? " lg:hidden" : "")
+          }
         >
           {t.label}
           {t.id === "approvals" && waiting > 0 && <span className="ml-1.5 font-mono text-accent">{waiting}</span>}
@@ -193,199 +206,160 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
       ))}
     </nav>
   );
+  const shortcuts = (
+    <button type="button" onClick={() => setKeysOpen(true)} className="sl-tap hidden items-center gap-1.5 text-small text-text-2 hover:text-text md:inline-flex" title="Keyboard shortcuts">
+      Shortcuts <KeyHint>?</KeyHint>
+    </button>
+  );
+  const errorLine = s.error && (
+    <p role="alert" className="text-small text-warn">
+      {s.error}
+    </p>
+  );
   return (
     <ClockZone.Provider value={clockZone}>
-    <Frame aria-label={embedded ? "Demo mission" : undefined} className={frameClass}>
-      {!embedded && (
-        <AppBar demo={demo} onShortcuts={() => setKeysOpen(true)}>
-          {isConsole && tabNav}
-        </AppBar>
-      )}
-      {keysOpen && <ShortcutOverlay groups={MISSION_SHORTCUTS} onClose={() => setKeysOpen(false)} />}
-      {!embedded && !isConsole && (
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-col">
-          <Label>{demo ? "Demo mission · simulated data, no server" : `Live mission · ${missionId}`}</Label>
-          <h1 className="text-title text-text">{s.mission?.name ?? "…"}</h1>
-          {s.mission?.subject && <span className="text-small text-text-2">Looking for: {s.mission.subject}</span>}
-        </div>
-        <span role="status" className="flex items-center gap-2">
-          <ModeChip mode={modeOf(s.status)}>{STATUS_WORDS[s.status] || undefined}</ModeChip>
-        </span>
-      </header>
-      )}
+      <div className={isConsole ? "flex min-h-full flex-col lg:h-dvh" : "flex min-h-full flex-col"}>
+        <AppBar current="console" wide missionId={liveId} center={tabNav} extra={shortcuts} />
+        {keysOpen && <ShortcutOverlay groups={MISSION_SHORTCUTS} onClose={() => setKeysOpen(false)} />}
 
-      {!demo && !isConsole && (
-      <section aria-label="Progress" className="grid grid-cols-3 gap-4">
-        <Stat value={progress.processed} label="Photos processed" />
-        <Stat
-          value={progress.medianS === null ? "–" : progress.medianS < 1 ? `${Math.round(progress.medianS * 1000)} ms` : `${progress.medianS.toFixed(1)} s`}
-          label="Median per photo"
-        />
-        <Stat value={progress.candidates + s.promoted.length} label="Candidates" />
-      </section>
-      )}
-
-      {!consoleLayout && (
-      <nav className="flex gap-2" aria-label="Mission actions">
-        {tabNav}
-        {!demo && (
-        <button
-          type="button"
-          disabled={progress.candidates + s.promoted.length === 0}
-          onClick={() => go("review")}
-          className="ml-auto rounded-full border border-accent bg-accent/15 px-4 py-1.5 text-small text-text disabled:opacity-40"
-        >
-          Go to review
-        </button>
-        )}
-        {!demo && (
-        <a
-          href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-full border border-border px-4 py-1.5 text-small text-text-2"
-        >
-          Debrief
-        </a>
-        )}
-      </nav>
-      )}
-
-      {tab === "photos" && (
-        <MissionSteps
-          steps={[
-            { label: "Upload photos", detail: progress.processed ? `${progress.processed} in` : "drag them in below", done: progress.processed > 0 },
-            { label: "Detector ranks", detail: progress.processed ? `${progress.processed} ranked` : "about a quarter second each", done: progress.processed > 0 },
-            { label: "Review candidates", detail: `${progress.candidates + s.promoted.length} to look at`, done: s.verdicts.length > 0 },
-            { label: "Command", detail: waiting ? `${waiting} approvals waiting` : "the map and the proposals", done: false },
-          ]}
-          onStep={(i) => i === 2 ? go("review") : i === 3 ? go("command") : undefined}
-        />
-      )}
-      {tab === "photos" && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <UploadPanel api={api} missionId={missionId} processed={progress.processed} />
-          <WatchPanel base={api.base} missionId={missionId} />
-        </div>
-      )}
-
-      {tab === "review" && (
-        <LiveReview
-          detections={s.detections}
-          survey={s.survey}
-          verdicts={s.verdicts}
-          promoted={s.promoted}
-          imageUrl={(rel) => fileUrl(api, missionId, rel)}
-          onAnswer={(id, answer) => void useMission.getState().review(id, answer)}
-        />
-      )}
-
-      {s.error && (
-        <p role="alert" className="text-small text-warn">
-          {s.error}
-        </p>
-      )}
-
-      {tab === "command" && (
-        <CommandView
-          mission={s.mission}
-          status={s.status}
-          conditions={s.conditions}
-          tasks={s.tasks}
-          sectors={s.sectors}
-          teams={s.teams}
-          clues={s.clues}
-          proposals={s.proposals}
-          imageUrl={imageUrl}
-          onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
-          onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
-          onAddClue={(draft) => useMission.getState().addClue(draft)}
-          cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
-          now={demo && demoNow ? () => demoNow : undefined}
-          feedHref={feedHref}
-          sideRail={radioOn && !demo ? radioDesk : undefined}
-          map={heatMap}
-          wideAt={embedded ? "xl" : "lg"}
-          headerStart={embedded ? tabNav : undefined}
-          aboveMap={demo && demoSeed ? <DemoSeedNote words={demoSeed} /> : undefined}
-          conditionsData={conditionsData}
-          conditionsOpen={window.location.hash.split("/")[3] === "conditions"}
-          onPickOnMap={() => {
-            document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
-            return usePick.getState().request();
-          }}
-          onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
-        />
-      )}
-
-      {tab === "approvals" && (
-        <ApprovalInbox
-          proposals={s.proposals}
-          teams={s.teams}
-          drones={s.fleet?.drones}
-          imageUrl={imageUrl}
-          feedHref={feedHref}
-          onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
-        />
-      )}
-
-      {tab === "radio" &&
-        (radioOn ? (
-          // The radio desk on this mission's teams (D-R3), also beside the approvals on the Command tab.
-          radioDesk
+        {isConsole ? (
+          <main className="flex min-h-0 flex-1 flex-col gap-3 p-3 lg:px-4">
+            {errorLine}
+            <CommandView
+              mission={s.mission}
+              status={s.status}
+              conditions={s.conditions}
+              tasks={s.tasks}
+              sectors={s.sectors}
+              teams={s.teams}
+              clues={s.clues}
+              proposals={s.proposals}
+              imageUrl={imageUrl}
+              onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
+              onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
+              onAddClue={(draft) => useMission.getState().addClue(draft)}
+              cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
+              now={demo && demoNow ? () => demoNow : undefined}
+              feedHref={feedHref}
+              sideRail={radioOn && !demo ? radioDesk : undefined}
+              map={heatMap}
+              aboveMap={demo && demoSeed ? <DemoSeedNote words={demoSeed} /> : undefined}
+              conditionsData={conditionsData}
+              conditionsOpen={window.location.hash.split("/")[3] === "conditions"}
+              onPickOnMap={() => {
+                document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                return usePick.getState().request();
+              }}
+              onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
+            />
+          </main>
         ) : (
-          <p role="status" className="text-body text-text-2">
-            The radio desk isn't running on this server. Start the API with <code>serve --radio text</code> (or <code>real</code> for voices).
-          </p>
-        ))}
+          <Page className="gap-6">
+            <PageHeader
+              eyebrow={demo ? "Demo mission · simulated data, no server" : `Live mission · ${missionId}`}
+              title={s.mission?.name ?? "…"}
+              sub={s.mission?.subject ? `Looking for: ${s.mission.subject}` : undefined}
+              aside={
+                <span role="status" className="flex items-center gap-2">
+                  <ModeChip mode={modeOf(s.status)}>{STATUS_WORDS[s.status] || undefined}</ModeChip>
+                </span>
+              }
+            />
 
-      {tab === "trace" && <TraceTab api={api} missionId={missionId} demo={demo} />}
+            {!demo && (
+              <section aria-label="Progress" className="grid grid-cols-3 gap-4">
+                <Stat value={progress.processed} label="Photos processed" />
+                <Stat
+                  value={progress.medianS === null ? "–" : progress.medianS < 1 ? `${Math.round(progress.medianS * 1000)} ms` : `${progress.medianS.toFixed(1)} s`}
+                  label="Median per photo"
+                />
+                <Stat value={progress.candidates + s.promoted.length} label="Candidates" />
+              </section>
+            )}
 
-      {tab === "feed" && (
-        <EventFeed
-          events={s.events}
-          extra={
-            !demo && (
-              <a className="text-small text-accent-soft underline" href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`} target="_blank" rel="noreferrer">
-                Debrief (markdown)
-              </a>
-            )
-          }
-        />
-      )}
-    </Frame>
-    </ClockZone.Provider>
-  );
-}
+            {!demo && (
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Mission actions">
+                {tab !== "review" && (
+                  <Button variant="primary" disabled={progress.candidates + s.promoted.length === 0} onClick={() => go("review")}>
+                    Go to review
+                  </Button>
+                )}
+                <Button href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`} target="_blank" rel="noreferrer">
+                  Debrief
+                </Button>
+              </div>
+            )}
 
-/** The app's top line on mission pages: the logo back to the start, and the way back to the guided demo. */
-function AppBar({ demo, children, onShortcuts }: { demo: boolean; children?: ReactNode; onShortcuts: () => void }) {
-  const link = "sl-tap inline-flex items-center text-text-2 underline-offset-4 hover:text-text hover:underline";
-  return (
-    <nav aria-label="Sightline" className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-2">
-      <a href="#" className="sl-tap flex items-center gap-2 text-body font-medium text-text" title="Back to the start">
-        <Logo />
-        Sightline
-      </a>
-      {children}
-      <span className="flex items-center gap-4 text-small">
-        <button type="button" onClick={onShortcuts} className={`${link} flex items-center gap-1.5`} title="Keyboard shortcuts">
-          Shortcuts <KeyHint>?</KeyHint>
-        </button>
-        {demo && (
-          <a href="#survey" className={link}>
-            Guided demo
-          </a>
+            {tab === "photos" && (
+              <MissionSteps
+                steps={[
+                  { label: "Upload photos", detail: progress.processed ? `${progress.processed} in` : "drag them in below", done: progress.processed > 0 },
+                  { label: "Detector ranks", detail: progress.processed ? `${progress.processed} ranked` : "about a quarter second each", done: progress.processed > 0 },
+                  { label: "Review candidates", detail: `${progress.candidates + s.promoted.length} to look at`, done: s.verdicts.length > 0 },
+                  { label: "Console", detail: waiting ? `${waiting} approvals waiting` : "the map and the proposals", done: false },
+                ]}
+                onStep={(i) => (i === 2 ? go("review") : i === 3 ? go("command") : undefined)}
+              />
+            )}
+            {tab === "photos" && (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <UploadPanel api={api} missionId={missionId} processed={progress.processed} />
+                <WatchPanel base={api.base} missionId={missionId} />
+              </div>
+            )}
+
+            {tab === "review" && (
+              <LiveReview
+                detections={s.detections}
+                survey={s.survey}
+                verdicts={s.verdicts}
+                promoted={s.promoted}
+                imageUrl={(rel) => fileUrl(api, missionId, rel)}
+                onAnswer={(id, answer) => void useMission.getState().review(id, answer)}
+              />
+            )}
+
+            {errorLine}
+
+            {tab === "approvals" && (
+              <ApprovalInbox
+                proposals={s.proposals}
+                teams={s.teams}
+                drones={s.fleet?.drones}
+                imageUrl={imageUrl}
+                feedHref={feedHref}
+                onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
+              />
+            )}
+
+            {tab === "radio" &&
+              (radioOn ? (
+                // The radio desk on this mission's teams (D-R3), also beside the approvals in the console.
+                radioDesk
+              ) : (
+                <p role="status" className="text-body text-text-2">
+                  The radio desk isn't running on this server. Start the API with <code>serve --radio text</code> (or <code>real</code> for voices).
+                </p>
+              ))}
+
+            {tab === "trace" && <TraceTab api={api} missionId={missionId} demo={demo} />}
+
+            {tab === "feed" && (
+              <EventFeed
+                events={s.events}
+                extra={
+                  !demo && (
+                    <a className="text-small text-accent-soft underline" href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`} target="_blank" rel="noreferrer">
+                      Debrief (markdown)
+                    </a>
+                  )
+                }
+              />
+            )}
+          </Page>
         )}
-        <a href="#judges" className={link}>
-          For judges
-        </a>
-        <a href="#new" className={link}>
-          New search
-        </a>
-      </span>
-    </nav>
+      </div>
+    </ClockZone.Provider>
   );
 }
 
@@ -419,7 +393,7 @@ function MissionSteps({ steps, onStep }: { steps: { label: string; detail: strin
 
 /** The mission page's shortcut list: the console's keys and the review's, without the guided demo's steps. */
 const MISSION_SHORTCUTS: readonly ShortcutGroup[] = [
-  ...SHORTCUT_GROUPS.filter((g) => g.title === "Command console" || g.title === "Review"),
+  ...SHORTCUT_GROUPS.filter((g) => g.title === "Console" || g.title === "Review"),
   {
     title: "Everywhere",
     shortcuts: [
@@ -542,7 +516,7 @@ function LiveCard({ api, missionId, sector }: { api: Api; missionId: string; sec
   if (error) {
     return (
       <p role="alert" className="text-body text-warn">
-        No card for sector {sector}: {error}. <a className="underline" href={`#m/${missionId}/command`}>Back to the command view</a>
+        No card for sector {sector}: {error}. <a className="underline" href={`#m/${missionId}/command`}>Back to the console</a>
       </p>
     );
   }
