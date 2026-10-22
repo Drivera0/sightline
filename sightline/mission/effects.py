@@ -17,8 +17,7 @@ from sightline.mission.store import MissionStore, now_iso
 
 log = logging.getLogger(__name__)
 WAITS_FOR_C = "map update skipped: waits for C-L1 (LiveMap)"
-# Radius for a clue reported by kind, until lane B's resolve_position gives its own defaults.
-CLUE_RADIUS_M = {"object": 25.0, "track": 50.0, "sighting": 100.0, "sound": 200.0, "other": 50.0}
+# Lane B's default clue radii (sightline/geo/clues.py), kept under this name for callers.
 
 
 def _hook(hooks: Any, name: str, *args: Any) -> None:
@@ -114,7 +113,8 @@ def clue_from_draft(store: MissionStore, mission_id: str, draft: ClueDraft) -> C
 
     A radio draft needs ``confirmed_by_turn``: a committed radio turn in the trace (the team's
     "affirmative" to the readback, contract §12.3 invariant 6). "At the team's position" uses the
-    team's last reported position. The radius defaults by kind (``CLUE_RADIUS_M``)."""
+    team's last reported position (lane B's ``resolve_position``; its warnings go to the event
+    feed). The radius defaults by kind (lane B's ``DEFAULT_RADIUS_M``)."""
     if draft.source == "radio":
         committed = {
             (e.output or {}).get("id")
@@ -125,23 +125,22 @@ def clue_from_draft(store: MissionStore, mission_id: str, draft: ClueDraft) -> C
             raise ValueError(
                 "a radio clue needs confirmed_by_turn: the committed turn of its readback"
             )
-    lat, lon = draft.lat, draft.lon
-    if draft.at_team_position:
-        team = next(
-            (t for t in store.state(mission_id)["teams"] if t.id == draft.reported_by), None
-        )
-        if team is None or team.position is None:
-            raise ValueError(f"no known position for {draft.reported_by}")
-        lat, lon = team.position.lat, team.position.lon
-    if lat is None or lon is None:
-        raise ValueError("a clue needs lat/lon or at_team_position")
+    from sightline.geo.clues import default_radius, resolve_position
+
+    try:
+        grid = store.live(mission_id).base.grid
+    except ValueError:
+        grid = None
+    lat, lon, warnings = resolve_position(draft, store.state(mission_id)["teams"], grid, now_iso())
+    for w in warnings:  # lane B's position warnings go to the feed with the clue
+        store.emit(mission_id, "mission.note", f"clue position: {w}", data={"warning": w})
     return Clue.model_validate(
         {
             **draft.model_dump(),
             "lat": lat,
             "lon": lon,
             "id": "",
-            "radius_m": draft.radius_m or CLUE_RADIUS_M[draft.kind],
+            "radius_m": default_radius(draft),
             "at": now_iso(),
             "confirmed": False,
         }

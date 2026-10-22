@@ -242,7 +242,7 @@ def test_clues(api) -> None:
         body["id"] == "c001"
         and body["confirmed"]
         and body["lat"] == 49.376
-        and body["radius_m"] == 25.0
+        and body["radius_m"] == 30.0  # lane B default for an object
     )
     assert body["map"]["kind"] == "reweight" and body["map"]["source"] == "clue"  # C-L1
     assert ("on_clue", "c001") in hooks.calls
