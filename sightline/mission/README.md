@@ -84,6 +84,7 @@ These weren't spelled out in the contract; each is one place in `store.py` to ch
 - [x] **D-P1** per-photo pipeline + local queue, test 4; detector via `make_detector()` (closes #8 for the live path) (lane A)
 - [x] `effects.py` (§5.4), test 5 (lane A)
 - [x] **D-R4** radio on live missions: `serve --radio text|real` (`sightline/radio/mount.py`, lane A)
+- [x] **D-R3** Radio tab `#m/<id>/radio`: `<RadioDesk>` on the mission's teams (needs `serve --radio`); **D-R5** debrief at `GET /debrief.md`, linked from the Feed tab (lane A). Checked in Chromium against a real server
 - [x] Scheduler (`scheduler.py`): `on_tick` every 5 min or 25 photos; conditions every 30 min once B-W1 exists (lane A)
 - [x] **D-S1** `scripts/smoke.sh`: 11 checks, 11 s, no network (`SIGHTLINE_BACKEND=fake`, fake LLM), lane A
 - [ ] `SqsQueue` + `worker` command (D-W1)

@@ -9,23 +9,25 @@ import { photoProgress, useMission } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
 import { Badge, Label, Panel, Stat } from "../shell/components";
+import { RadioDesk } from "../radio/RadioDesk";
 import { LiveReview } from "../review/LiveReview";
 import { uploadCommand } from "./upload";
 import { UploadPanel } from "./UploadPanel";
 
-type Tab = "command" | "photos" | "review" | "approvals" | "feed";
+type Tab = "command" | "photos" | "review" | "approvals" | "radio" | "feed";
 const TABS: { id: Tab; label: string }[] = [
   { id: "command", label: "Command" },
   { id: "photos", label: "Photos" },
   { id: "review", label: "Review" },
   { id: "approvals", label: "Approvals" },
+  { id: "radio", label: "Radio" },
   { id: "feed", label: "Feed" },
 ];
 const STATUS_WORDS = { idle: "", connecting: "Connecting…", live: "Live", reconnecting: "Reconnecting…", demo: "Demo", error: "Offline" };
 
 export function tabFromHash(hash: string): Tab {
   const step = hash.split("/")[2];
-  return step === "command" || step === "review" || step === "approvals" || step === "feed" ? step : "photos";
+  return TABS.some((t) => t.id === step) ? (step as Tab) : "photos";
 }
 
 export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Api; missionId: string; initialTab?: Tab }) {
@@ -169,8 +171,16 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         />
       )}
 
+      {tab === "radio" && (
+        // The radio desk on this mission's teams (D-R3). Needs the API started with --radio.
+        <RadioDesk api={{ base: api.base, missionId }} teams={s.teams.map((t) => ({ id: t.id, callsign: t.callsign }))} />
+      )}
+
       {tab === "feed" && (
         <Panel aria-label="Mission feed" className="flex flex-col gap-1">
+          <a className="self-end text-small text-accent-soft underline" href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`} target="_blank" rel="noreferrer">
+            Debrief (markdown)
+          </a>
           {s.events.length === 0 && <p className="text-small text-text-3">Nothing yet.</p>}
           {[...s.events].reverse().map((e) => (
             <div key={e.id} className="flex gap-3 text-small">
