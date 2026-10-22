@@ -219,3 +219,76 @@ def summary(
         "found_within_30_min": round(float(np.mean(minutes <= within)), 3),
         "found_within_horizon": round(float(finite.mean()), 3),
     }
+
+
+# --- the fleet (C-F3) ---------------------------------------------------------------------------
+
+FleetStrategy = Literal["coordinated", "independent", "split"]
+
+
+def plan_fleet(
+    scn: Scenario,
+    strategy: FleetStrategy,
+    cfg: PlannerConfig,
+    drones: int = 3,
+    horizon_min: float = 120.0,
+    speed_ms: float = 8.0,
+) -> list[Pass]:
+    """The legs ``drones`` drones fly from the last known position until ``horizon_min``. Whichever
+    drone is free first takes its next leg:
+
+    - **coordinated**: ``propose_legs`` on one expected map shared by the fleet (every leg any drone
+      takes discounts it: the planner's sequential greedy over time);
+    - **independent**: the same planner, but each drone on its own expected map, unaware of the others;
+    - **split**: the fixed serpentine order cut into ``drones`` equal runs, one per drone, each looping
+      over its own run (a lawnmower split, as a team would do it by hand).
+
+    ``minutes_to_find`` takes the passes of all drones together."""
+    layout = lattice_sectors(scn.grid)
+    order = _serpentine(layout)
+    canopy_list = scn.canopy.tolist()
+    pod = np.minimum(cfg.pod_cap, cfg.recall * (1.0 - scn.canopy))
+    shared = scn.prior.copy()
+    own = [scn.prior.copy() for _ in range(drones)]
+    start = latlon_to_local_m(scn.grid, scn.lkp)
+    pos = [start] * drones
+    t = [0.0] * drones
+    k = [0] * drones
+    run = math.ceil(len(order) / drones)
+    out: list[Pass] = []
+    no_battery = PlannerConfig(**{**cfg.__dict__, "endurance_min": 1e6})
+    while min(t) < horizon_min:
+        d = min(range(drones), key=lambda i: (t[i], i))
+        here = _local_to_latlon(scn.grid, pos[d])
+        drone = Drone(id=f"D{d + 1}", name=f"Drone {d + 1}", simulated=True, position=here,
+                      altitude_m=cfg.altitude_m, speed_ms=speed_ms, battery_pct=100,
+                      max_wind_kmh=40, status="idle", leg_id=None)  # fmt: skip
+        if strategy == "split":
+            mine = order[d * run : (d + 1) * run] or order
+            sector = mine[k[d] % len(mine)]
+            leg = next(
+                x
+                for x in candidate_legs(drone, layout, scn.grid, cfg, here)
+                if x.sector_id == sector
+            )
+        else:
+            p = shared if strategy == "coordinated" else own[d]
+            fleet = FleetState(
+                simulated=True, drones=[drone], legs=[], updated_at="2026-10-24T12:00:00Z"
+            )
+            legs = propose_legs(_ExpectedMap(scn, p, canopy_list), layout, fleet, None,
+                                "2026-10-24T12:00:00Z", k=1, cfg=no_battery)  # fmt: skip
+            if not legs:
+                t[d] = math.inf
+                continue
+            leg = legs[0]
+        out.append(Pass(leg, t[d], _cell_times(leg, t[d], pos[d], scn, layout, cfg, speed_ms)))
+        cells = layout.cells_of(leg.sector_id)
+        for p in (shared, own[d]):
+            p[cells] *= 1.0 - pod[cells]
+            p /= p.sum()
+        t[d] += leg.est_minutes
+        last = leg.waypoints[-1]
+        pos[d] = latlon_to_local_m(scn.grid, LatLon(lat=last[1], lon=last[0]))
+        k[d] += 1
+    return out

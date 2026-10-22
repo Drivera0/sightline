@@ -26,13 +26,13 @@ NOISES = (0.0, 0.15, 0.30)  # the visibility noise of sightline/search/sim.py (0
 
 def main(argv: list[str] | None = None) -> int:
     from sightline.contract import MapFile
-    from sightline.mission.effects import CLUE_RADIUS_M
+    from sightline.geo.clues import DEFAULT_RADIUS_M
     from sightline.search.grid import local_m_to_latlon
     from sightline.search.planner import PlannerConfig
     from sightline.search.planner_sim import minutes_to_find, plan, scenario, summary, with_clue
     from sightline.search.sectors import lattice_sectors
 
-    radius = CLUE_RADIUS_M["sighting"]
+    radius = DEFAULT_RADIUS_M["sighting"]
 
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
