@@ -6,7 +6,8 @@ import type { Conditions } from "../contract";
 import { conditionsFacts, dayNote, flyGate, latestLookup } from "./conditions";
 import { ConditionsPanel } from "./ConditionsPanel";
 import { CommandView } from "./CommandView";
-import { loadDemoConditions } from "./demoMission";
+import { demoConditionsData, loadDemoConditions } from "./demoMission";
+import fixture from "./__fixtures__/demo_mission.json";
 
 const utc = (iso: string) => `${iso.slice(11, 16)} UTC`;
 
@@ -79,6 +80,25 @@ describe("ConditionsPanel", () => {
     const age = screen.getByText(/as of 20:00 UTC, 65 min ago/);
     expect(age.className).toContain("text-caution");
     expect(screen.getByRole("region", { name: "Conditions" })).toHaveTextContent("No conditions lookup in this mission's trace yet");
+  });
+
+  it("the demo: one verdict chip, its own; the recorded lookup's verdict is muted text with its time, even unfolded", async () => {
+    const recorded = await loadDemoConditions();
+    const own = (fixture as unknown as { conditions: Conditions }).conditions;
+    const data = demoConditionsData(own, recorded, { kmh: 43.2, drone: "Drone 1" });
+    render(<ConditionsPanel id="c" data={data} now={new Date("2026-10-24T22:00:00Z")} time={utc} />);
+    const panel = screen.getByRole("region", { name: "Conditions" });
+    const verdictChips = () => [...panel.querySelectorAll(".sl-pill")].filter((e) => /flyable/i.test(e.textContent ?? ""));
+    expect(verdictChips().map((e) => e.textContent)).toEqual([expect.stringMatching(/^Flyable until/)]);
+    const fold = within(panel).getByText("Another evening's live lookup, for the sources");
+    expect(fold).toHaveClass("text-text-3");
+    await userEvent.click(fold);
+    expect(verdictChips()).toHaveLength(1); // still only the mission's own
+    const example = screen.getByRole("region", { name: "Recorded conditions lookup" });
+    expect(example.querySelector(".sl-pill[data-tone='alert']")).toBeNull();
+    const then = example.querySelector("[data-verdict='example']");
+    expect(then).toHaveTextContent("Its verdict then, at 05:31 UTC, not now: Not flyable: after civil twilight");
+    expect(then).toHaveClass("text-text-3");
   });
 
   it("opens from the console header's conditions line, and with W", async () => {

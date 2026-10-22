@@ -60,7 +60,25 @@ function Source({ f, lookup }: { f: Fact; lookup: Lookup | null }) {
   );
 }
 
-export function ConditionsPanel({ id, data, now, time, label = "Conditions" }: { id: string; data: ConditionsData; now: Date; time: (iso: string) => string; label?: string }) {
+export function ConditionsPanel({
+  id,
+  data,
+  now,
+  time,
+  label = "Conditions",
+  subordinate = false,
+}: {
+  id: string;
+  data: ConditionsData;
+  now: Date;
+  time: (iso: string) => string;
+  label?: string;
+  /**
+   * Another evening's lookup folded under the mission's own (the demo): its verdict is plain muted text
+   * with its time, never a chip beside the mission's, so only one verdict reads as "now".
+   */
+  subordinate?: boolean;
+}) {
   const { conditions: c } = data;
   const override = isOverride(c);
   const lookup = override ? null : data.lookup; // an override is never shown with a lookup's quotes
@@ -69,9 +87,14 @@ export function ConditionsPanel({ id, data, now, time, label = "Conditions" }: {
   const facts = conditionsFacts(c, lookup, now);
   const alertDomains = [...new Set((lookup?.searches ?? []).filter((x) => x.label === "alerts" || x.label === "warnings").flatMap((x) => x.results.map((r) => domain(r.url))))];
   return (
-    <section id={id} aria-label={label} className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-4">
+    <section id={id} aria-label={label} className={`flex flex-col gap-3 rounded-lg border border-line p-4 ${subordinate ? "bg-surface-strong/40" : "bg-surface-solid"}`}>
+      {subordinate && (
+        <p className="text-caption text-text-3" data-verdict="example">
+          Its verdict then, at {time(c.fetched_at)}, not now: {gate.text}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <StatusPill tone={gate.tone}>{gate.text}</StatusPill>
+        {!subordinate && <StatusPill tone={gate.tone}>{gate.text}</StatusPill>}
         {override && (
           <StatusPill tone="caution" dot={false}>
             Demo override: not from Tavily
@@ -169,11 +192,19 @@ export function ConditionsPanel({ id, data, now, time, label = "Conditions" }: {
       {!lookup && !override && !data.fixture && <p className="text-caption text-text-3">No conditions lookup in this mission's trace yet: the values above have no quotes to show.</p>}
       {data.example && (
         <details className="rounded-lg border border-line text-caption" aria-label="A recorded live lookup">
-          <summary className="cursor-pointer px-3 py-2 text-text-2">
-            How a live lookup reads its sources: {data.example.recorded ?? "a recorded lookup"}. Another evening, so its own values and verdict.
+          <summary className="cursor-pointer px-3 py-2 text-text-3">
+            Another evening's live lookup, for the sources
+            <span className="text-text-3"> · {data.example.recorded ?? "a recorded lookup"}: its own values and verdict, not this mission's</span>
           </summary>
           <div className="p-2">
-            <ConditionsPanel id={`${id}-example`} label="Recorded conditions lookup" data={data.example} now={new Date(data.example.conditions.fetched_at)} time={time} />
+            <ConditionsPanel
+              id={`${id}-example`}
+              label="Recorded conditions lookup"
+              data={data.example}
+              now={new Date(data.example.conditions.fetched_at)}
+              time={time}
+              subordinate
+            />
           </div>
         </details>
       )}
