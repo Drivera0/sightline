@@ -81,7 +81,15 @@ Every language and vision model call goes through **Nebius Token Factory** at ru
 
 ![Agent workflow: perception, decision, action, human approval, effect](docs/architecture/agent.png)
 
-How the models fit together, and a real trace of one decision: [docs/architecture/agent.md](docs/architecture/agent.md). Radio, measured over 30 live turns: first sound p50 2.0 s and p90 3.0 s; speech recognition 45–153 ms per phrase; 6 / 6 clue reports read back and confirmed ([docs/feedback/radio.md](docs/feedback/radio.md)). Measured on 461 live verifier calls: p50 1.35 s and p90 1.65 s per call, about 890 tokens in and 67 out, every reply valid JSON. What worked and what didn't: [docs/feedback/nebius.md](docs/feedback/nebius.md).
+How the models fit together, and a real trace of one decision: [docs/architecture/agent.md](docs/architecture/agent.md). The radio desk, measured ([docs/feedback/radio.md](docs/feedback/radio.md)):
+
+| Stage | p50 | p90 |
+|---|---|---|
+| Speech to text (Parakeet, RTX 4080 SUPER) | 45–130 ms per phrase | 153 ms (max) |
+| Reasoning and tool calls (Nemotron 3 Super, Token Factory) | 2.3 s | 3.2 s |
+| First sound heard, end to end with real voices (18 turns) | 2.5 s | 3.0 s |
+
+6 / 6 clue reports were read back and confirmed before they were logged. Safety frame (on the desk's screen): it runs on a secondary channel under the comms operator, never initiates orders, and transmits only what the search manager approved, when the operator presses Transmit. Measured on 461 live verifier calls: p50 1.35 s and p90 1.65 s per call, about 890 tokens in and 67 out, every reply valid JSON. What worked and what didn't: [docs/feedback/nebius.md](docs/feedback/nebius.md).
 
 Setup:
 
