@@ -1,157 +1,44 @@
 import { describe, expect, it } from "vitest";
+import { CELL } from "./classes";
 import { buildOverlapIndex, firstPhotographedStep } from "./coverage";
 import { pointAtStep, lerpAngle, stepDrone, trailAtStep } from "./droneMotion";
 import { droneShapes } from "./droneImage";
-import {
-  blendPixels,
-  buildEvenRamp,
-  classLevel,
-  buildRamp,
-  FALLBACK_TOKENS,
-  gridCorners,
-  HEAT_ALPHA_MAX,
-  HEAT_ALPHA_MIN,
-  HEAT_CLASSES,
-  heatColor,
-  HeatRaster,
-  heatPixels,
-  HELD_ALPHA,
-  oklabToRgb,
-  paletteFromTokens,
-  parseHex,
-  RAMP_STEPS,
-  rgbToOklab,
-  sweepDelays,
-  VEIL_ALPHA,
-  YLORRD_STOPS,
-} from "./raster";
+import { HEAT_PALETTES, HELD_ALPHA, VEIL_ALPHA } from "./palette";
+import { blendPixels, FALLBACK_THEME, gridCorners, HeatRaster, kindColors, kindPixels, parseHex, surfaceTheme, sweepDelays } from "./raster";
 
-const palette = paletteFromTokens({
-  bg: FALLBACK_TOKENS.bg,
-  text: FALLBACK_TOKENS.text,
-  accent: FALLBACK_TOKENS.accent,
-  accentSoft: FALLBACK_TOKENS.accentSoft,
-});
-
-describe("colour ramp", () => {
+describe("cell colours", () => {
   it("parses hex tokens and falls back for anything else", () => {
     expect(parseHex("#ff7a1a", "#000")).toEqual([255, 122, 26]);
-    expect(parseHex("#fff", "#000")).toEqual([255, 255, 255]);
-    expect(parseHex("", "#0a0b0d")).toEqual([10, 11, 13]);
+    expect(parseHex("#abc", "#000")).toEqual([170, 187, 204]);
+    expect(parseHex("oklch(70% 0.1 50)", "#0a0b0d")).toEqual([10, 11, 13]);
   });
 
-  it("round-trips through OKLab", () => {
-    for (const c of [[255, 122, 26], [10, 11, 13], [242, 242, 240]] as [number, number, number][]) {
-      const back = oklabToRgb(rgbToOklab(c));
-      back.forEach((v, i) => expect(Math.abs(v - c[i]!)).toBeLessThanOrEqual(1));
+  it("gives each kind the colour and alpha its fill layer has (the raster and the fills match)", () => {
+    for (const palette of Object.values(HEAT_PALETTES)) {
+      const colors = kindColors(palette, FALLBACK_THEME);
+      const at = (kind: number) => Array.from(colors.slice(kind * 4, kind * 4 + 4));
+      expect(at(CELL.top)).toEqual([...parseHex(palette.top.color, "#000"), Math.round(palette.top.alpha * 255)]);
+      expect(at(CELL.mid)).toEqual([...parseHex(palette.mid.color, "#000"), Math.round(palette.mid.alpha * 255)]);
+      expect(at(CELL.low)).toEqual([...parseHex(palette.low.color, "#000"), Math.round(palette.low.alpha * 255)]);
+      expect(at(CELL.veil)).toEqual([...parseHex(FALLBACK_THEME.veil, "#000"), Math.round(VEIL_ALPHA * 255)]);
+      expect(at(CELL.held)).toEqual([...parseHex(FALLBACK_THEME.held, "#000"), Math.round(HELD_ALPHA * 255)]);
+      // Outside the 90 % region: fully transparent, the basemap shows.
+      expect(at(CELL.none)).toEqual([0, 0, 0, 0]);
     }
   });
 
-  it("falls monotonically in perceived lightness from low to high: lighter is less likely, darker more likely", () => {
-    const ramp = palette.ramp;
-    let last = 2;
-    for (let i = 0; i < ramp.length / 3; i += 8) {
-      const L = rgbToOklab([ramp[i * 3]!, ramp[i * 3 + 1]!, ramp[i * 3 + 2]!])[0];
-      expect(L).toBeLessThan(last + 1e-3);
-      last = L;
-    }
-    const lab = (i: number) => rgbToOklab([ramp[i * 3]!, ramp[i * 3 + 1]!, ramp[i * 3 + 2]!]);
-    const first = lab(0)[0];
-    const end = lab(RAMP_STEPS - 1)[0];
-    expect(first - end).toBeGreaterThan(0.45);
-    // The dark end stays a saturated red, well above the background's lightness (not a near-black).
-    const [, a, b] = lab(RAMP_STEPS - 1);
-    expect(Math.hypot(a, b)).toBeGreaterThan(0.1);
-    expect(end).toBeGreaterThan(rgbToOklab(parseHex(FALLBACK_TOKENS.bg, "#000"))[0] + 0.15);
+  it("falls back to the default theme for a token that is missing or not hex", () => {
+    expect(surfaceTheme({ veil: "", held: "rgb(1 2 3)" })).toEqual(FALLBACK_THEME);
+    expect(surfaceTheme({ veil: " #111111 ", held: "#eee" })).toEqual({ veil: "#111111", held: "#eee" });
   });
 
-  it("starts at pale yellow and ends at deep red (ColorBrewer YlOrRd), with the accent in the middle", () => {
-    const r = palette.ramp;
-    expect([r[0], r[1], r[2]]).toEqual(parseHex(YLORRD_STOPS[0], "#000"));
-    expect([r.at(-3), r.at(-2), r.at(-1)]).toEqual(parseHex(YLORRD_STOPS.at(-1)!, "#000"));
-    const accent = rgbToOklab(parseHex(FALLBACK_TOKENS.accent, "#000"));
-    const nearest = Math.min(
-      ...Array.from({ length: RAMP_STEPS }, (_, i) => {
-        const c = rgbToOklab([r[i * 3]!, r[i * 3 + 1]!, r[i * 3 + 2]!]);
-        return Math.hypot(c[0] - accent[0], c[1] - accent[1], c[2] - accent[2]);
-      }),
-    );
-    expect(nearest).toBeLessThan(0.01);
-  });
-
-  it("spaces the stops by perceived distance: no big jump between neighbouring ramp steps", () => {
-    const r = buildEvenRamp([
-      [255, 237, 160],
-      [254, 217, 118],
-      [128, 0, 38],
-    ]);
-    const steps: number[] = [];
-    for (let i = 1; i < RAMP_STEPS; i++) {
-      const a = rgbToOklab([r[(i - 1) * 3]!, r[(i - 1) * 3 + 1]!, r[(i - 1) * 3 + 2]!]);
-      const b = rgbToOklab([r[i * 3]!, r[i * 3 + 1]!, r[i * 3 + 2]!]);
-      steps.push(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
-    }
-    const mean = steps.reduce((x, y) => x + y, 0) / steps.length;
-    // 8-bit rounding leaves some jitter; an evenly spaced ramp would put ~1/2 of the steps in the short first segment.
-    expect(Math.max(...steps)).toBeLessThan(mean * 2.5);
-  });
-
-  it("rises in opacity from the low end to the high end", () => {
-    expect(heatColor(palette, 0)[3]).toBe(Math.round(HEAT_ALPHA_MIN * 255));
-    expect(heatColor(palette, 1)[3]).toBe(Math.round(HEAT_ALPHA_MAX * 255));
-    expect(HEAT_ALPHA_MAX).toBeGreaterThan(HEAT_ALPHA_MIN);
-  });
-
-  it("hits the stops at the ends", () => {
-    const r = buildRamp([
-      [0, 0, 0],
-      [255, 255, 255],
-    ]);
-    expect([r[0], r[1], r[2]]).toEqual([0, 0, 0]);
-    expect([r.at(-3), r.at(-2), r.at(-1)]).toEqual([255, 255, 255]);
-  });
-});
-
-describe("classLevel", () => {
-  it("rounds a level down to one of n classes, shown at k / (n - 1), keeping both ends", () => {
-    expect(classLevel(0, 7)).toBe(0);
-    expect(classLevel(1, 7)).toBe(1);
-    expect(classLevel(0.5, 7)).toBeCloseTo(3 / 6, 12);
-    expect(classLevel(0.14, 7)).toBe(0);
-    expect(classLevel(0.15, 7)).toBeCloseTo(1 / 6, 12);
-    expect(classLevel(0.99, 7)).toBe(1);
-    expect(new Set(Array.from({ length: 101 }, (_, i) => classLevel(i / 100, 7))).size).toBe(7);
-    // One class means the continuous ramp.
-    expect(classLevel(0.37, 1)).toBe(0.37);
-    expect(HEAT_CLASSES).toBeGreaterThanOrEqual(3);
-    expect(HEAT_CLASSES).toBeLessThanOrEqual(9);
-  });
-});
-
-describe("heatPixels", () => {
-  const state = { p: Float64Array.from([0.1, 0.2, 0.3, 0.4]), outside: 0 };
-
-  it("veils unphotographed cells, marks held cells, and ramps the rest by their level", () => {
-    const covered = Uint8Array.from([0, 1, 1, 1]);
-    const held = Uint8Array.from([0, 1, 0, 0]);
-    // Fixed scale: 0.4 is the top. Cell 2 (0.3) is class 5 of 7, cell 3 (0.4) the darkest class.
-    const px = heatPixels(state, covered, held, palette, 0.4);
-    expect(px[3]).toBe(Math.round(VEIL_ALPHA * 255));
-    expect([px[0], px[1], px[2]]).toEqual(palette.veil);
-    expect(px[7]).toBe(Math.round(HELD_ALPHA * 255));
-    expect(px[15]).toBe(Math.round(HEAT_ALPHA_MAX * 255));
-    expect(px[11]).toBe(Math.round((HEAT_ALPHA_MIN + (HEAT_ALPHA_MAX - HEAT_ALPHA_MIN) * (5 / 6)) * 255));
-  });
-
-  it("keeps a cell's colour when other cells get photographed (the scale does not stretch)", () => {
-    const held = new Uint8Array(4);
-    const few = heatPixels(state, Uint8Array.from([0, 0, 1, 1]), held, palette, 0.4);
-    const all = heatPixels(state, Uint8Array.from([1, 1, 1, 1]), held, palette, 0.4);
-    expect(Array.from(few.slice(8, 16))).toEqual(Array.from(all.slice(8, 16)));
-    // A low cell on the fixed scale stays pale even when it is the only one photographed.
-    const alone = heatPixels(state, Uint8Array.from([1, 0, 0, 0]), held, palette, 0.4);
-    // 0.1 / 0.4 = 0.25: class 1 of 7, not stretched to the darkest class.
-    expect(alone[3]).toBe(Math.round((HEAT_ALPHA_MIN + (HEAT_ALPHA_MAX - HEAT_ALPHA_MIN) / 6) * 255));
+  it("writes one RGBA pixel per cell from its kind", () => {
+    const colors = kindColors(HEAT_PALETTES.satellite, FALLBACK_THEME);
+    const px = kindPixels(Uint8Array.from([CELL.top, CELL.none, CELL.veil]), colors);
+    expect(px).toHaveLength(12);
+    expect(Array.from(px.slice(0, 4))).toEqual(Array.from(colors.slice(CELL.top * 4, CELL.top * 4 + 4)));
+    expect(px[7]).toBe(0);
+    expect(px[11]).toBe(Math.round(VEIL_ALPHA * 255));
   });
 
   it("puts the canvas on the grid's corners (NW, NE, SE, SW)", () => {

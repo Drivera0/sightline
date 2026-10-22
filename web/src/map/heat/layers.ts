@@ -1,16 +1,19 @@
 // MapLibre sources and layers for the heat map. Kept free of React so tests can use a mocked map.
 //
-// The cells are one canvas source (one pixel per cell, see raster.ts) drawn by a raster layer with
-// nearest-neighbour resampling. A 5 m grid has 40,000 cells; as GeoJSON polygons with feature state
-// the breathing and the replay ran at about 6 frames a second in Chrome. The raster is one texture:
-// breathing changes only raster-opacity, and a new map state is one texture upload.
+// The probability surface (surface.ts) is per-class GeoJSON fills and contour lines at rest and one
+// canvas raster while it animates. A 5 m grid has 40,000 cells; as one GeoJSON polygon per cell with
+// feature state the replay ran at about 6 frames a second in Chrome, so the fills are the cells of
+// each class merged into rectangles (a few hundred to a few thousand), and the animation is the
+// raster: breathing changes only opacities, and a frame is one texture upload.
 import type { CanvasSource, GeoJSONSource, Map } from "maplibre-gl";
 import type { MapFile } from "../../contract";
 import { HEAT_LAYER_PREFIX, MAP_LAYER_IDS } from "../base/layerIds";
 import { DRONE_IMAGE_ID, DRONE_ICON_SIZE } from "./droneImage";
 import { HOTSPOT_BADGE_COUNT, HOTSPOT_BADGE_PREFIX } from "./hotspotImages";
 import { surveyedBoundary, type LikelyPatch } from "./geometry";
-import { gridCorners, type HeatRaster } from "./raster";
+import { basemapLabelLayer, type HeatPalette, HEAT_PALETTES } from "./palette";
+import type { HeatRaster } from "./raster";
+import { ensureSurfaceLayers, setSurfaceOpacity, type SurfaceMode, surfaceIds, type SurfaceTheme } from "./surface";
 import type { LabelCandidate } from "./labelPlacement";
 import { sectorName, sectorRing, SECTOR_STATE_LABEL, type SectorStatus } from "./sectors";
 
@@ -53,6 +56,8 @@ export const HEAT_LAYER_IDS = {
   drone: `${HEAT_LAYER_PREFIX}drone`,
   ripple: `${HEAT_LAYER_PREFIX}ripple`,
 } as const;
+/** The probability surface's layers: the raster (HEAT_LAYER_IDS.cells), class fills and contours. */
+export const HEAT_SURFACE_IDS = surfaceIds(HEAT_LAYER_PREFIX, HEAT_LAYER_IDS.cells);
 
 export type HeatVariant = "search" | "review";
 
@@ -94,12 +99,23 @@ function beforeId(map: Map): string | undefined {
 const EMPTY: GeoJsonData = { type: "FeatureCollection", features: [] };
 
 /**
- * Heat raster opacity at rest: nearly full on Search next, fainter beside the review queue so pins
- * stay first. With the cells' own alpha (raster.ts) the palest class shows at about 0.62 (Search next)
- * and 0.53 (Review), so roads and terrain show through; below about 0.5 the pale end turns muddy
- * olive over the dark basemap (compared at 1440 px over the offline basemap).
+ * The surface's opacity multiplier: the classes' own alphas (palette.ts) on Search next, fainter
+ * beside the review queue so the pins stay first. Faded further by zoom (palette.ts ZOOM_FADE).
  */
-export const HEAT_BASE_OPACITY = { search: 0.88, review: 0.75 } as const;
+export const HEAT_BASE_OPACITY = { search: 1, review: 0.75 } as const;
+
+/** The surface's two theme colours from the heat colours: the veil (app background) and the held tone. */
+export function heatTheme(colors: HeatColors): SurfaceTheme {
+  return { veil: colors.veil, held: colors.outline };
+}
+
+/**
+ * Where the surface goes: under the basemap's first road or label, else under every lane B layer
+ * (before grid-outline), else on top.
+ */
+export function surfaceBeforeId(map: Map): string | undefined {
+  return basemapLabelLayer(map) ?? beforeId(map);
+}
 
 function lines(segments: LonLat[][]): GeoJsonData {
   return { type: "Feature", properties: {}, geometry: { type: "MultiLineString", coordinates: segments } };
@@ -117,17 +133,20 @@ export function ensureHeatLayers(
   covered: Uint8Array,
   colors: HeatColors,
   variant: HeatVariant = "search",
+  palette: HeatPalette = HEAT_PALETTES.dark,
+  mode: SurfaceMode = "vector",
 ): boolean {
-  let added = false;
-  if (!map.getSource(HEAT_SOURCE_ID)) {
-    map.addSource(HEAT_SOURCE_ID, {
-      type: "canvas",
-      canvas: raster.canvas,
-      coordinates: gridCorners(grid),
-      animate: false,
-    });
-    added = true;
-  }
+  const added = ensureSurfaceLayers(
+    map,
+    HEAT_SURFACE_IDS,
+    raster.canvas,
+    grid,
+    palette,
+    heatTheme(colors),
+    HEAT_BASE_OPACITY[variant],
+    mode,
+    surfaceBeforeId(map),
+  );
   if (!map.getSource(HEAT_SURVEYED_SOURCE_ID)) {
     map.addSource(HEAT_SURVEYED_SOURCE_ID, { type: "geojson", data: lines(surveyedBoundary(grid, covered)) });
   }
@@ -135,22 +154,6 @@ export function ensureHeatLayers(
     if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: EMPTY });
   }
 
-  if (!map.getLayer(HEAT_LAYER_IDS.cells)) {
-    map.addLayer(
-      {
-        id: HEAT_LAYER_IDS.cells,
-        type: "raster",
-        source: HEAT_SOURCE_ID,
-        paint: {
-          "raster-opacity": HEAT_BASE_OPACITY[variant],
-          // Every cell a crisp square: no smoothing between cells, no invented detail.
-          "raster-resampling": "nearest",
-          "raster-fade-duration": 0,
-        },
-      },
-      beforeId(map),
-    );
-  }
   if (!map.getLayer(HEAT_LAYER_IDS.sectorFill)) {
     map.addLayer(
       {
@@ -712,11 +715,15 @@ export function breathFactor(tMs: number): number {
   return 1 + BREATH_AMPLITUDE * Math.sin((2 * Math.PI * tMs) / BREATH_PERIOD_MS);
 }
 
-/** Apply one breath to the heat raster's opacity. Cheap: no data-driven paint. */
-export function setBreath(map: Map, factor: number, base: number = HEAT_BASE_OPACITY.search): void {
-  if (map.getLayer(HEAT_LAYER_IDS.cells)) {
-    map.setPaintProperty(HEAT_LAYER_IDS.cells, "raster-opacity", Math.min(1, base * factor));
-  }
+/** Apply one breath to the surface's opacity (raster and fills). Cheap: no data-driven paint. */
+export function setBreath(
+  map: Map,
+  factor: number,
+  base: number = HEAT_BASE_OPACITY.search,
+  palette: HeatPalette = HEAT_PALETTES.dark,
+  theme: SurfaceTheme = { veil: "#0a0b0d", held: "#f2f2f0" },
+): void {
+  setSurfaceOpacity(map, HEAT_SURFACE_IDS, palette, theme, Math.min(1, base * factor));
 }
 
 /** The pulse ring at time tMs: radius and opacity, growing out of the circle and fading (eased out). */
