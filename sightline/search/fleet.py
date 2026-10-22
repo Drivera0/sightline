@@ -24,8 +24,9 @@ from __future__ import annotations
 import io
 import json
 import math
+import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -172,6 +173,75 @@ def covers(pose: Pose, width_px: int, height_px: int, point: LatLon) -> bool:
     return Polygon(footprint(pose, width_px, height_px)).contains(Point(point.lon, point.lat))
 
 
+# --- following the mission's events -------------------------------------------------------------
+
+
+def active_legs(fleet: dict) -> dict[str, Leg]:
+    """The legs a drone may fly now: approved or flying."""
+    return {
+        leg.id: leg
+        for leg in (Leg.model_validate(x) for x in (fleet or {}).get("legs", []))
+        if leg.status in ("approved", "flying")
+    }
+
+
+def sse_events(lines: Iterable[str]) -> Iterator[tuple[str | None, str | None, dict]]:
+    """(type, id, event) from server-sent-event lines (``sightline/api/sse.py``); comments skipped."""
+    typ = eid = None
+    data: list[str] = []
+    for line in lines:
+        if line == "":
+            if data:
+                yield typ, eid, json.loads("\n".join(data))
+            typ, eid, data = None, None, []
+        elif line.startswith(":"):
+            continue
+        elif line.startswith("event:"):
+            typ = line[6:].strip()
+        elif line.startswith("id:"):
+            eid = line[3:].strip()
+        elif line.startswith("data:"):
+            data.append(line[5:].strip())
+
+
+class FleetFeed:
+    """Follows ``GET /missions/{id}/events`` in a thread and keeps the latest approved and flying legs
+    from each ``fleet.updated`` (the store sends the whole fleet). Reconnects with ``Last-Event-ID``."""
+
+    def __init__(self, http: Any, mission_id: str, retry_s: float = 2.0) -> None:
+        self.http, self.mid, self.retry_s = http, mission_id, retry_s
+        self.legs: dict[str, Leg] | None = None
+        self.last_id: str | None = None
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self._run, daemon=True, name="fleet-feed")
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def follow(self, lines: Iterable[str]) -> None:
+        """Read one connection's lines until it ends or ``stop``."""
+        for typ, eid, ev in sse_events(lines):
+            self.last_id = eid or self.last_id
+            if typ == "fleet.updated":
+                self.legs = active_legs(ev.get("data") or {})
+            if self._stop.is_set():
+                return
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            headers = {"Last-Event-ID": self.last_id} if self.last_id else {}
+            try:
+                with self.http.stream("GET", f"/missions/{self.mid}/events", headers=headers) as r:
+                    self.follow(r.iter_lines())
+            except httpx.HTTPError:
+                pass  # offline: the sim polls meanwhile; try again
+            self._stop.wait(self.retry_s)
+
+
 # --- the sim ------------------------------------------------------------------------------------
 
 
@@ -210,6 +280,7 @@ class FleetSim:
         self.drones = [SimDrone(d) for d in scenario.drones]
         self.leg_status: dict[str, str] = {}
         self.clue_sent = False
+        self.feed: FleetFeed | None = None
 
     def register(self) -> None:
         """The scenario's drones join the mission (the first ``PUT /fleet`` creates its fleet)."""
@@ -217,12 +288,12 @@ class FleetSim:
         self.out(f"fleet: {', '.join(d.drone.name for d in self.drones)} (simulated)")
 
     def _approved(self) -> dict[str, Leg]:
+        """The legs to fly: from the event stream when it is following the mission (``run``), else
+        one ``GET /state`` (tests, or the stream reconnecting)."""
+        if self.feed is not None and self.feed.legs is not None:
+            return dict(self.feed.legs)
         fleet = _call(self.http, "GET", f"/missions/{self.mid}/state").json()["fleet"] or {}
-        return {
-            leg.id: leg
-            for leg in (Leg.model_validate(x) for x in fleet.get("legs", []))
-            if leg.status in ("approved", "flying")
-        }
+        return active_legs(fleet)
 
     def tick(self, dt_s: float) -> None:
         """``dt_s`` wall seconds: drones take their next approved leg, fly, photograph; telemetry."""
@@ -349,16 +420,26 @@ class FleetSim:
         dt_s: float = 1.0,
         ticks: int | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        follow: bool = True,
     ) -> None:
+        """Ticks until stopped. With ``follow``, approved legs come from the mission's event stream
+        (``fleet.updated``) instead of a ``GET /state`` every tick."""
         self.register()
-        n = 0
-        while ticks is None or n < ticks:
-            try:
-                self.tick(dt_s)
-            except Offline as e:
-                self.out(f"offline ({e}); retrying")
-            n += 1
-            sleep(dt_s)
+        if follow and self.feed is None:
+            self.feed = FleetFeed(httpx.Client(base_url=self.http.base_url, timeout=None), self.mid)
+            self.feed.start()
+        try:
+            n = 0
+            while ticks is None or n < ticks:
+                try:
+                    self.tick(dt_s)
+                except Offline as e:
+                    self.out(f"offline ({e}); retrying")
+                n += 1
+                sleep(dt_s)
+        finally:
+            if self.feed is not None:
+                self.feed.stop()
 
 
 def main() -> None:
