@@ -1,8 +1,10 @@
 """Sightline architecture diagrams, drawn with the Diagram Design skill's rules.
 
-Two figures on one page, as the skill's "overview + detail" split recommends:
+Four figures on one page, as the skill's "overview + detail" split recommends:
 1. the system (architecture type): survey photos to the searcher, with lanes A, B, C, D;
-2. the ML pipeline: training and evaluation offline, then tiled inference on every survey.
+2. the ML pipeline: training and evaluation offline, then tiled inference on every survey;
+3. a live mission on AWS (``live.png``): per photo through S3/SQS to the cv2.dnn worker and the store;
+4. the agent (``agent.png``): perception → OpenCV 5 re-look → decision → proposal → approval → effect.
 
 Style, connector rules and accessible-SVG contract follow
 https://github.com/cathrynlavery/diagram-design (MIT); the colours and fonts are Sightline's
@@ -410,6 +412,78 @@ def agent() -> str:
     )
 
 
+# ---------------------------------------------------------------- figure 4: a live mission on AWS
+
+
+def live() -> str:
+    g = Fig("live")
+    top, mid, bot = 112, 296, 448
+    c0, c1, c2, c3, c4 = COLS
+    g.zone(248, 80, c4 + W + 16 - 248, 128, "AWS · ONE EC2 INSTANCE + MANAGED SERVICES")
+    # the per-photo path, left to right
+    g.path(f"M {c0 + W},{top + 36} H {c1}")
+    g.label("PHOTOS", cx=(c0 + W + c1) / 2, y_line=top + 36)
+    g.path(f"M {c1 + W},{top + 36} H {c2}")
+    g.label("JOB", cx=(c1 + W + c2) / 2, y_line=top + 36)
+    g.path(f"M {c2 + W},{top + 36} H {c3}", "accent")
+    g.label("NEXT PHOTO", cx=(c2 + W + c3) / 2, y_line=top + 36, color=ACCENT)
+    g.path(f"M {c3 + W},{top + 36} H {c4}", dashed=True)
+    g.label("METRICS", cx=(c3 + W + c4) / 2, y_line=top + 36)
+    # the worker writes the mission (above the middle row, then down into the store)
+    g.path(f"M {c3 + 40},{top + H} V {256 - R} Q {c3 + 40},256 {c3 + 40 - R},256 H {c1 + 80 + R} Q {c1 + 80},256 {c1 + 80},{256 + R} V {mid}", "accent")
+    g.label("FRAME · DETECTIONS · MAP STEP", cx=(c2 + c2 + W) / 2, y_line=256, color=ACCENT)
+    g.path(f"M {c1 + 40},{top + H} V {mid}")  # the API's own writes
+    g.label("DECISIONS", side="left", x_line=c1 + 40, y_mid=(top + H + mid) / 2)
+    # people and the agent around the store
+    g.path(f"M {c0 + W},{mid + 24} H {c1}")
+    g.label("APPROVE", cx=(c0 + W + c1) / 2, y_line=mid + 24)
+    g.path(f"M {c1},{mid + 48} H {c0 + W}", dashed=True)
+    g.label("SSE", cx=(c0 + W + c1) / 2, y_line=mid + 48, below=True)
+    g.path(f"M {c1 + W},{mid + 24} H {c2}")
+    g.label("HOOKS", cx=(c1 + W + c2) / 2, y_line=mid + 24)
+    g.path(f"M {c2},{mid + 48} H {c1 + W}", dashed=True)
+    g.label("PROPOSALS", cx=(c1 + W + c2) / 2, y_line=mid + 48, below=True)
+    g.path(f"M {c2 + W},{mid + 36} H {c3}")
+    g.label("NEMOTRON", cx=(c2 + W + c3) / 2, y_line=mid + 36)
+    # conditions from the web
+    g.path(f"M {c1 + 80},{bot} V {mid + H}")
+    g.label("CONDITIONS", side="right", x_line=c1 + 80, y_mid=(mid + H + bot) / 2)
+    g.path(f"M {c1 + W},{bot + 36} H {c2}")
+    g.label("SEARCH", cx=(c1 + W + c2) / 2, y_line=bot + 36)
+    # nodes
+    g.node(c0, top, "external", "INPUT", "Photos in", "SD card · watch folder", "fleet sim (simulated)")
+    g.node(c1, top, "step", "API", "Mission API", "FastAPI · Caddy HTTPS", "SSE with resume")
+    g.node(c2, top, "store", "S3 · SQS", "Originals · jobs", "S3 30 days · SQS FIFO", "one group per mission")
+    g.node(c3, top, "focal", "WORKER", "Per-photo pipeline", "pose → cv2.dnn tiled", "≈ 11 s / photo · 4 vCPU")
+    g.node(c4, top, "store", "CLOUDWATCH", "Logs · metrics", "latency · queue · agent", "one dashboard")
+    g.node(c0, mid, "external", "HUMAN", "Search manager", "command view · radio", "approves every move")
+    g.node(c1, mid, "store", "STORE", "MissionStore", "the only writer", "validate_mission()")
+    g.node(c2, mid, "step", "AGENT", "Second look · planner", "verdicts · proposals", "briefings")
+    g.node(c3, mid, "external", "NEBIUS", "Token Factory", "Nemotron VL · Super", "Nano · key in Secrets Mgr")
+    g.node(c1, bot, "step", "LANE B", "Conditions", "every 30 min · cached", "values only with a quote")
+    g.node(c2, bot, "external", "WEB", "Tavily", "3 searches + 1 extract", "forecast · alerts")
+    g.legend_strip(
+        568,
+        [
+            ("focal", "Focal: OpenCV 5 cv2.dnn"),
+            ("step", "Component"),
+            ("store", "Data"),
+            ("external", "Outside the system"),
+            ("accent", "Photo path"),
+            ("muted", "Calls"),
+            ("dashed", "Events back"),
+        ],
+    )
+    return g.svg(
+        600,
+        "Sightline live mission on AWS",
+        "A live mission on AWS: photos reach the mission API, which keeps the original in S3 and queues a job in SQS; "
+        "a worker runs the pose, OpenCV 5 cv2.dnn and the map step and writes the mission store; the search manager "
+        "approves moves and sees events over SSE; the agent reads the store and calls Nemotron on Token Factory; "
+        "conditions come from Tavily; metrics and logs go to CloudWatch.",
+    )
+
+
 # ---------------------------------------------------------------- page
 
 FONT = "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap"
@@ -465,6 +539,12 @@ PAGE = """<!DOCTYPE html>
       {ml}
     </div>
 
+    <h2>A live mission</h2>
+    <p class="subtitle">Sprint 2: the same detector and map per photo, while the search happens. On AWS (deploy/aws/) the API and the worker are containers on one EC2 instance; locally the queue is a thread.</p>
+    <div class="diagram-container">
+      {live}
+    </div>
+
     <h2>The agent</h2>
     <p class="subtitle">Perception, decision, action, approval, effect. OpenCV 5 re-looks at what the detector wasn't sure of; Nemotron VL and the planner turn it into proposals; nothing happens until a person approves, and every step is in the trace.</p>
     <div class="diagram-container">
@@ -513,6 +593,7 @@ def main() -> None:
         system=system(),
         ml=ml(),
         agent=agent(),
+        live=live(),
     )
     OUT.write_text(html, encoding="utf-8")
     print(OUT)
