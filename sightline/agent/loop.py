@@ -29,12 +29,8 @@ from sightline.agent.trace import now_iso, trace_call
 from sightline.agent.verify import VERIFY_BAND, verify
 from sightline.contract import Conditions, EvidenceRef, LatLon, Leg, Proposal
 from sightline.search.grid import cell_containing
+from sightline.search.planner import propose_assignments, propose_legs  # lane C (C-P1)
 from sightline.search.sectors import lattice_sectors  # lane C (C-S1)
-
-try:  # lane C's planner (C-P1); the stub until it lands
-    from sightline.search.planner import propose_assignments, propose_legs  # type: ignore
-except ImportError:
-    from sightline.agent._stubs import propose_assignments, propose_legs
 
 log = logging.getLogger(__name__)
 
@@ -231,9 +227,10 @@ def _replan(store: Any, mission_id: str, why: str, drone_id: str | None = None) 
     if state["fleet"] is None:
         return []
     live, layout = _layout(store, mission_id)
-    legs = propose_legs(live, layout, state["fleet"], state["conditions"], now_iso())
-    if drone_id is not None:
-        legs = [leg for leg in legs if leg.drone_id == drone_id]
+    fleet = state["fleet"]
+    if drone_id is not None:  # plan for that drone only (the others' legs still count as taken)
+        fleet = fleet.model_copy(update={"drones": [d for d in fleet.drones if d.id == drone_id]})
+    legs = propose_legs(live, layout, fleet, state["conditions"], now_iso())
     return [_propose_leg(store, mission_id, state, legs[0], why)] if legs else []
 
 
