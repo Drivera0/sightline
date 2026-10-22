@@ -13,7 +13,7 @@ from sightline.contract import ClueDraft, Grid, LatLon, Team
 from sightline.search.grid import cell_containing
 
 # Default radius by kind (LANE_B §4), except a sighting: 100 m, not 50, because a person seen moves on,
-# and the OpenCV report's re-task chain (§5.2) was recorded with 100 m. Change both together.
+# and the OpenCV report's re-task chain (§5.3) was recorded with 100 m. Change both together.
 DEFAULT_RADIUS_M = {"object": 30.0, "track": 75.0, "sighting": 100.0, "sound": 200.0, "other": 75.0}
 STALE_MIN = 30
 

@@ -294,7 +294,7 @@ Wired: the mission API fetches a new mission's first conditions in the backgroun
 `POST /conditions/refresh`; the planner's flyability gate, photo POD × visibility factor, the shelter shift, the
 agent's recall alert (only with a drone up) and assignment briefings (daylight left, wind, alerts).
 
-**Live (22 Oct, Mount Seymour, evening):** wind NW 20 km/h gusting 40 (quotes "NW 20", "gusts 40"), a Fog Advisory
+**Live (21 Oct PDT, 22 Oct UTC, Mount Seymour, evening):** wind NW 20 km/h gusting 40 (quotes "NW 20", "gusts 40"), a Fog Advisory
 → visibility factor 0.6, not flyable ("after civil twilight"), exposure moderate; the same values on two runs.
 Found while building it, fixed: the UTC date gave tomorrow's sunset in the evening ("flyable" in the dark); bare
 digits were accepted as quotes; the model picked different forecast hours on two runs (it is now told the time).

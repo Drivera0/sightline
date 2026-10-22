@@ -1,5 +1,5 @@
 """Agent evaluation: the agent loop headless against a local mission API, on the creek scenario and
-three variants built from the same fixture, plus failure injection (OpenCV report §5, §7.3):
+three variants built from the same fixture, plus failure injection (OpenCV report §5.4, §5.5):
 
     uv run python scripts/agent_eval.py                 # fake models (default), 3 runs per scenario
     uv run python scripts/agent_eval.py --live          # Nemotron on Token Factory (NEBIUS_API_KEY)

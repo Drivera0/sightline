@@ -46,8 +46,8 @@ from sightline.search.prior import koester_prior, prior_source, subject_category
 from sightline.search.sectors import SectorLayout
 from sightline.search.update import MAX_FACTOR, apply_reweight, apply_step
 
-RECALL = 0.864  # detector recall on HERIDAL test (VOC, threshold 0.29), OpenCV report §7.1
-RECALL_SOURCE = "HERIDAL test, VOC recall at the frozen threshold 0.29 (OpenCV report §7.1)"
+RECALL = 0.864  # detector recall on HERIDAL test (VOC, threshold 0.29), OpenCV report §3.9
+RECALL_SOURCE = "HERIDAL test, VOC recall at the frozen threshold 0.29 (OpenCV report §3.9)"
 POD_CAP = 0.95
 REVIEW_POD = 0.9
 GROUND_POD_MAX = 0.9
