@@ -5,8 +5,9 @@ Sightline existed before this hackathon's build: we built it in 36 hours at BCS 
 ranked the photos with a tiled detector, put each detection on a map and ran a Bayesian probability
 map over the survey area, all from a precomputed cache.
 
-Everything below was added between Oct 20 and the `nebius-submit` tag (`git diff
-bcs-final-submission..nebius-submit`):
+Everything below was added between Oct 20 and the `nebius-submit` tag, which is created at submission
+(`git diff bcs-final-submission..nebius-submit`). Every NVIDIA model call, the radio desk, the agent, the
+fleet and the Serverless Job are new in this period:
 
 - **Live missions:** a search is created in the browser, and photos are uploaded as each flight lands
   (or watched from a folder, or sent by the simulated fleet). Each photo is processed as it arrives:
@@ -14,14 +15,14 @@ bcs-final-submission..nebius-submit`):
   There is a mission store with a contract checked on every write.
 - **Nemotron throughout, on Nebius Token Factory:**
   - Nemotron VL takes a second look at uncertain detections, using OpenCV 5 re-look images.
-  - Nemotron 3 Super handles planning and the radio's tool calls.
-  - Nemotron 3 Nano writes the briefings.
+  - Nemotron 3 Super answers the radio's turns with tool calls.
+  - Nemotron 3 Nano writes the briefings and reads the conditions pages, keeping each value with its quote.
   - Every call is traced.
 - **An agent that proposes and a person who decides:** verdicts, clues, conditions and the planner's
   legs become proposals with reasons and evidence. Nothing happens until the search manager approves
   it in the command view.
 - **A radio desk:** ground teams talk to Sightline on a secondary channel, with Parakeet speech to text,
-  Nemotron with tools and Magpie speech. A clue is logged only after Sightline reads it back and the team
+  Nemotron with tools and Magpie speech (Parakeet and Magpie run on our RTX 4080 SUPER). A clue is logged only after Sightline reads it back and the team
   confirms. It transmits only approved briefings.
 - **A simulated drone fleet:** 2–3 drones fly approved legs and send their photos through the same API.
   A team's clue re-tasks the nearest drone (the creek scenario). There is a simulated fleet evaluation.
