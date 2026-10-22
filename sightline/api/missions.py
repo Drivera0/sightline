@@ -198,7 +198,7 @@ def create_mission(body: NewMission, request: Request) -> dict:
     m = store.create(
         body.name, body.area_name, body.lkp, body.mode, body.last_seen_at, body.subject
     )
-    store.put_map_base(m.mission_id, start_map_base(body.lkp))
+    store.put_map_base(m.mission_id, start_map_base(body.lkp, subject=body.subject))
     for tid, callsign in DEFAULT_TEAMS:
         store.upsert_team(
             m.mission_id,
