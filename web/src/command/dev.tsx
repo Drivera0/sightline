@@ -6,8 +6,22 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../shell/theme.css";
 import { useMission } from "../lib/mission";
+import type { AssignmentCard } from "../contract";
+import { AssignmentCardView } from "./AssignmentCardView";
 import { CommandView } from "./CommandView";
 import { DEMO_CACHE, loadDemoMission } from "./demoMission";
+import cardB3 from "./__fixtures__/card_sector_B3.json";
+import gpxB3 from "./__fixtures__/sample.gpx?url";
+import kmlB3 from "./__fixtures__/sample.kml?url";
+
+/** `command.html?card=B3`: lane B's real B3 card fixture as the printable page (the Devpost gallery's O4). */
+function DevCard() {
+  return (
+    <main className="mx-auto max-w-5xl p-4 lg:p-8">
+      <AssignmentCardView card={cardB3 as unknown as AssignmentCard} gpxUrl={gpxB3} kmlUrl={kmlB3} imageUrl={(rel) => `${DEMO_CACHE}/${rel}`} backHref="#" />
+    </main>
+  );
+}
 
 function Dev() {
   const s = useMission();
@@ -44,6 +58,6 @@ function Dev() {
 
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
-    <Dev />
+    {new URLSearchParams(window.location.search).get("card") === "B3" ? <DevCard /> : <Dev />}
   </StrictMode>,
 );
