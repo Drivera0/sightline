@@ -6,22 +6,24 @@ import { useEffect, useState } from "react";
 import type { Api } from "../lib/api";
 import { fileUrl } from "../lib/api";
 import { photoProgress, useMission } from "../lib/mission";
+import { ApprovalInbox } from "../command/ApprovalInbox";
 import { Badge, Label, Panel, Stat } from "../shell/components";
 import { LiveReview } from "../review/LiveReview";
 import { uploadCommand } from "./upload";
 import { UploadPanel } from "./UploadPanel";
 
-type Tab = "photos" | "review" | "feed";
+type Tab = "photos" | "review" | "approvals" | "feed";
 const TABS: { id: Tab; label: string }[] = [
   { id: "photos", label: "Photos" },
   { id: "review", label: "Review" },
+  { id: "approvals", label: "Approvals" },
   { id: "feed", label: "Feed" },
 ];
 const STATUS_WORDS = { idle: "", connecting: "Connecting…", live: "Live", reconnecting: "Reconnecting…", demo: "Demo", error: "Offline" };
 
 export function tabFromHash(hash: string): Tab {
   const step = hash.split("/")[2];
-  return step === "review" || step === "feed" ? step : "photos";
+  return step === "review" || step === "approvals" || step === "feed" ? step : "photos";
 }
 
 export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Api; missionId: string; initialTab?: Tab }) {
@@ -38,6 +40,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
     window.history.replaceState(null, "", `#m/${missionId}/${t}`);
   };
   const progress = photoProgress(s);
+  const waiting = s.proposals.filter((p) => p.status === "pending").length;
 
   if (s.status === "error") {
     return (
@@ -83,6 +86,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
             className={`rounded-full border px-4 py-1.5 text-small ${tab === t.id ? "border-accent text-text" : "border-border text-text-2"}`}
           >
             {t.label}
+            {t.id === "approvals" && waiting > 0 && <span className="ml-1 font-mono text-accent-soft">{waiting}</span>}
           </button>
         ))}
         <button
@@ -127,6 +131,21 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
           promoted={s.promoted}
           imageUrl={(rel) => fileUrl(api, missionId, rel)}
           onAnswer={(id, answer) => void useMission.getState().review(id, answer)}
+        />
+      )}
+
+      {s.error && (
+        <p role="alert" className="text-small text-warn">
+          {s.error}
+        </p>
+      )}
+
+      {tab === "approvals" && (
+        <ApprovalInbox
+          proposals={s.proposals}
+          teams={s.teams}
+          imageUrl={(rel) => fileUrl(api, missionId, rel)}
+          onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
         />
       )}
 

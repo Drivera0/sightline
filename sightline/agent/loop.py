@@ -61,6 +61,9 @@ def check_briefing(text: str, facts: dict) -> list[str]:
     B3 photo f0005 shows adult hiker in blue jacket dark head covering sitting")."""
     problems = []
     words = text.split()
+    if len(re.findall(r"[A-Za-z]{2,}", text)) < 3 or text.lstrip()[:1] in "{[":
+        # e.g. "{}" from a model asked for JSON elsewhere: it must never be read on the radio
+        problems.append("not a briefing: write it as plain sentences")
     if len(words) > BRIEFING_WORDS:
         problems.append(f"more than {BRIEFING_WORDS} words")
     if len(words) > 12 and sum(text.count(c) for c in ".,;:") < 1 + len(words) // 20:

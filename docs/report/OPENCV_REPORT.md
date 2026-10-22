@@ -31,7 +31,14 @@ voice over the radio. It assists searchers and **never declares an area clear**.
 | Image reviewer | Show me the likeliest person first. | Review queue, with a second look on uncertain crops |
 | Ground team leader | Where do I go, what am I looking for, what changed? | Assignment card, GPX, radio |
 
-**TODO (lane E):** one screenshot each of the front door, the command view and the approval inbox.
+![Approval inbox](../architecture/screens/approval-inbox.png)
+
+*The approval inbox on a live mission (real HERIDAL validation photos, OpenCV 5 `cv2.dnn`, Nemotron): after a
+reviewer confirmed the person in the crop, the agent proposed an assignment for the nearest team and an alert,
+each with its reason, evidence and a radio briefing. A person approves, edits or rejects (with a reason); an
+approved briefing waits in the radio's outbound queue until the operator presses Transmit.*
+
+**TODO (lane E):** screenshots of the front door and the command view.
 
 ## 2. What is new since BCS Hackathon 2026 (disclosure)
 
