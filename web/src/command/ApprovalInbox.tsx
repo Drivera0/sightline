@@ -4,7 +4,7 @@
 // briefing goes to the radio's outbound queue; nothing is transmitted from here. Keys act on the focused
 // card only. Built by lane A for lane E (issue #70).
 
-import { useState, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Drone, EvidenceRef, Proposal, Team } from "../contract";
 import { Label, Panel, StatusPill } from "../shell/components";
 import { useClock } from "../lib/time";
@@ -84,6 +84,25 @@ function RecallFacts({ p, drone }: { p: Proposal; drone: Drone | undefined }) {
     </div>
   );
 }
+/** The nearest ancestor that scrolls vertically (the console's Approvals rail), or null (the page). */
+function scroller(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const y = getComputedStyle(p).overflowY;
+    if ((y === "auto" || y === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;
+}
+
+/** Scroll `el`'s rail so `el` sits at its top; with no rail, the page brings it into view. */
+export function bringToTop(el: HTMLElement): void {
+  const rail = scroller(el);
+  if (!rail) {
+    el.scrollIntoView?.({ block: "nearest" });
+    return;
+  }
+  rail.scrollTop += el.getBoundingClientRect().top - rail.getBoundingClientRect().top;
+}
+
 const OPERATOR_KEY = "sightline.operator";
 
 function loadOperator(): string {
@@ -126,6 +145,27 @@ export function ApprovalInbox({
   const pending = newestFirst.filter((p) => p.status === "pending");
   const decided = newestFirst.filter((p) => p.status !== "pending");
 
+  // After a decision the card leaves the list: bring the next pending card to the top of the rail (and
+  // focus it, so A and X act on it), rather than leave the rail scrolled to the middle of a card.
+  const cards = useRef(new Map<string, HTMLElement>());
+  const [handoff, setHandoff] = useState<{ decided: string; next: string } | null>(null);
+  const pendingIds = pending.map((p) => p.id).join(" ");
+  useLayoutEffect(() => {
+    if (!handoff || pendingIds.split(" ").includes(handoff.decided)) return; // not out of the list yet
+    const el = cards.current.get(handoff.next);
+    if (el) {
+      bringToTop(el);
+      el.focus({ preventScroll: true });
+    }
+    setHandoff(null);
+  }, [handoff, pendingIds]);
+  const decide: Decide = (pid, ...rest) => {
+    const i = pending.findIndex((p) => p.id === pid);
+    const next = pending[i + 1] ?? pending[i - 1];
+    setHandoff(next ? { decided: pid, next: next.id } : null);
+    return onDecide(pid, ...rest);
+  };
+
   return (
     <section aria-label="Approval inbox" className="flex flex-col gap-3">
       <header className="flex flex-wrap items-center justify-between gap-2">
@@ -158,8 +198,12 @@ export function ApprovalInbox({
           teams={teams}
           drone={drones.find((d) => d.id === p.target.drone)}
           by={operator.trim() || "Search manager"}
-          onDecide={onDecide}
+          onDecide={decide}
           imageUrl={imageUrl}
+          cardRef={(el) => {
+            if (el) cards.current.set(p.id, el);
+            else cards.current.delete(p.id);
+          }}
         />
       ))}
       {decided.length > 0 && (
@@ -192,6 +236,7 @@ function PendingCard({
   by,
   onDecide,
   imageUrl,
+  cardRef,
 }: {
   p: Proposal;
   teams: readonly Team[];
@@ -199,6 +244,7 @@ function PendingCard({
   by: string;
   onDecide: Decide;
   imageUrl: (rel: string) => string;
+  cardRef?: (el: HTMLDivElement | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -225,7 +271,7 @@ function PendingCard({
   };
 
   return (
-    <Panel tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} className="flex flex-col gap-2 border-l-2 border-l-accent bg-surface-solid p-3 focus:outline focus:outline-accent">
+    <Panel ref={cardRef} tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} className="flex flex-col gap-2 border-l-2 border-l-accent bg-surface-solid p-3 focus:outline focus:outline-accent">
       <div className="flex flex-wrap items-center gap-2">
         <StatusPill tone="action">{kindWords(p)}</StatusPill>
         <span className="text-body text-text">{isRecall(p) ? recallSummary(p.summary, drone?.battery_pct) : p.summary}</span>
