@@ -31,6 +31,7 @@ export function ResultsSummary({
   cellM?: number;
 }) {
   const { detector, baseline_human: human, ranking, search_sim: sim } = metrics;
+  const speed = shippedSpeed(detector);
   const inside = sim.in_survey;
   const byName = (name: string) => inside?.methods.find((m) => m.name.startsWith(name));
   const sightline = byName("Sightline");
@@ -104,23 +105,25 @@ export function ResultsSummary({
             theirsLabel="People (by eye)"
             // "Strict VOC" is the name the figure is known by; the plain rule follows it in the same line.
             line="Share of people found in test photos the detector never saw in training."
-            note={`Strict VOC: ${pct(detector.voc.recall)}, when the box must match the person closely. The big figure is scored like the human study (SAR-APD, a looser rule), so the comparison with people is like for like.`}
+            caveat={HUMAN_CAVEAT}
+            note={`Strict VOC: ${pct(detector.voc.recall)}, when the box must match the person closely. The big figure is scored like the human study (SAR-APD, a looser rule). ${HUMAN_CAVEAT} The ${pct(human.recall)} is a reference figure quoted by ${human.source}, who do not say who the people were or whether they saw these ${detector.test_images} photos.`}
             source={`HERIDAL test set, ${detector.test_images} images, SAR-APD matching (metrics.detector.sar; VOC: metrics.detector.voc) vs ${human.source}`}
             delay={0}
           />
           <Card
             label="Time per full photo"
-            value={detector.seconds_per_image}
-            format={(v) => seconds(v)}
-            headline={speedup(detector.seconds_per_image, human.seconds_per_image)}
-            ours={detector.seconds_per_image}
+            value={speed.seconds}
+            format={speed.format}
+            headline={speedup(speed.seconds, human.seconds_per_image)}
+            ours={speed.seconds}
             theirs={human.seconds_per_image}
             oursLabel="Sightline"
             theirsLabel="People (by eye)"
             lowerIsBetter
             line={`${seconds(human.seconds_per_image)} for a person looking by eye.`}
-            note="For a whole 4000×3000 photo, 16 times the area of each photo here."
-            source={`metrics.detector.seconds_per_image vs ${human.source}`}
+            caveat={speed.caveat}
+            note={`For a whole 4000×3000 photo, 16 times the area of each photo here.${speed.note ? ` ${speed.note}` : ""}`}
+            source={`${speed.source} vs ${human.source}`}
             delay={90}
           />
           {sightline && naive && inside ? (
@@ -147,6 +150,7 @@ export function ResultsSummary({
               }
               source={`Simulated search, ${inside.trials} trials with the person in a photographed cell, seed ${sim.seed} (metrics.search_sim.in_survey; seed choice: docs/LANE_C_SEARCH.md)`}
               badge={<Badge kind="simulated">Simulated</Badge>}
+              caveat={seedCaveat(surveyId, sightline.median_cells, naive.median_cells)}
               footnote={`${seedNote(sim.seed, surveyId, sightline.median_cells, naive.median_cells)}; each seed is one simulation run`}
               delay={180}
             />
@@ -275,10 +279,57 @@ export function fewer(ours: number, theirs: number): string | undefined {
  * re-run): "The demo's 1,213 vs 1,743 is seed 7 at the default noise, again the best of the three
  * seeds."
  */
-const SEED_NOTES: Record<string, { ours: number; theirs: number; note: string }> = {
-  // Only for that exact run: a regenerated cache with other numbers gets no note.
-  "seymour-demo": { ours: 1213, theirs: 1743, note: "the best of 3 seeds tried" },
+const SEED_NOTES: Record<string, { ours: number; theirs: number; note: string; caveat: string }> = {
+  // Only for that exact run: a regenerated cache with other numbers gets no note. The caveat is
+  // README.md:44 and report §6.2 (docs/report/OPENCV_REPORT.md:648-650): 28–30 % fewer cells at the
+  // default noise, 19–23 % with noise matching the canopy estimate's measured error (3 seeds × 5 noise levels).
+  "seymour-demo": { ours: 1213, theirs: 1743, note: "the best of 3 seeds tried", caveat: "Best of three seeds; 19–30% less across seeds and noise." },
 };
+
+/** The line on the search card's face when the docs describe this run: which seed, and the spread. */
+export function seedCaveat(surveyId: string | undefined, ours: number, theirs: number): string | undefined {
+  const known = surveyId ? SEED_NOTES[surveyId] : undefined;
+  return known && known.ours === ours && known.theirs === theirs ? known.caveat : undefined;
+}
+
+/**
+ * The human figure's caveat, as the README says it (README.md:40, "a reference point, not a
+ * head-to-head"; report §3.9, docs/report/OPENCV_REPORT.md:303).
+ */
+export const HUMAN_CAVEAT = "Scored like the human study; not a head-to-head on the same photos.";
+
+/**
+ * The shipped detector path's time per photo, where the docs measured it. metrics.json carries the
+ * Torch evaluation run (detector_metrics.json: 0.251 s on an RTX 4080 SUPER), but Sightline runs the
+ * detector on OpenCV 5 `cv2.dnn`: 0.303 ± 0.012 s per photo on CUDA FP32 on the same GPU, mean of 5
+ * runs (docs/report/CV2_CUDA.md:143; report §3.4, docs/report/OPENCV_REPORT.md:218), and about 1.9 s
+ * on a CPU (report §3.1). Only for that model and that Torch number: another cache keeps its own figure.
+ */
+const SHIPPED_SPEED: Record<string, { torch: number; seconds: number; caveat: string; note: string; source: string }> = {
+  "yolo11s-heridal-tiled-run2": {
+    torch: 0.251,
+    seconds: 0.303,
+    caveat: "OpenCV 5 cv2.dnn on a GPU, the path Sightline ships.",
+    note: "Measured on the shipped path, OpenCV 5 cv2.dnn on CUDA (FP32, RTX 4080 SUPER): 0.303 s per photo, mean of 5 runs. Torch on the same GPU takes 0.25 s; cv2.dnn on a CPU about 1.9 s.",
+    source: "OpenCV 5 cv2.dnn, CUDA FP32, RTX 4080 SUPER, 5 runs (docs/report/CV2_CUDA.md)",
+  },
+};
+
+/** The time per photo the card shows: the shipped `cv2.dnn` path where the docs measured it, else metrics.json's. */
+export function shippedSpeed(detector: Metrics["detector"]): {
+  seconds: number;
+  format: (v: number) => string;
+  caveat?: string;
+  note?: string;
+  source: string;
+} {
+  const known = SHIPPED_SPEED[detector.model];
+  if (known && Math.abs(known.torch - detector.seconds_per_image) < 0.0005) {
+    const { seconds: s, caveat, note, source } = known;
+    return { seconds: s, format: (v) => (v < 1 ? `${v.toFixed(3)} s` : seconds(v)), caveat, note, source };
+  }
+  return { seconds: detector.seconds_per_image, format: (v) => seconds(v), source: "metrics.detector.seconds_per_image" };
+}
 
 /** "Simulation seed 7, the best of 3 seeds tried" when the docs describe this run, else "Simulation seed 7". */
 export function seedNote(seed: number, surveyId: string | undefined, ours: number, theirs: number): string {
@@ -596,6 +647,7 @@ function Card({
   note,
   source,
   badge,
+  caveat,
   footnote,
   delay,
 }: {
@@ -618,6 +670,8 @@ function Card({
   note: string;
   source: string;
   badge?: ReactNode;
+  /** One line on the card face, read without opening the fold: what the comparison is and is not. */
+  caveat?: string;
   /** A plain qualifier under the note, e.g. which seed a simulated run used. */
   footnote?: string;
   delay: number;
@@ -656,6 +710,11 @@ function Card({
         <Bar label={theirsLabel} value={format(theirs)} width={(theirs / max) * 100} />
       </div>
       <span className="text-small text-text-2">{line}</span>
+      {caveat && (
+        <span className="text-caption text-text-3" data-caveat="">
+          {caveat}
+        </span>
+      )}
       {/* The scoring and simulation detail, one click away, so the card face stays scannable. */}
       <details className="group/more -mb-2 text-small text-text-3">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 hover:text-text-2 [&::-webkit-details-marker]:hidden">

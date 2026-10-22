@@ -72,12 +72,41 @@ describe("the three result cards", () => {
     const m = demo();
     m.detector.sar.recall = 0.896;
     m.baseline_human.recall = 0.68;
+    m.detector.model = "yolo11s-heridal-tiled-run2";
     m.detector.seconds_per_image = 0.251;
     m.baseline_human.seconds_per_image = 33;
     render(<ResultsSummary metrics={m} cellM={5} />);
     expect(within(card("People found")).getByText("+22 pts better")).toHaveClass("text-ok");
-    expect(within(card("Time per full photo")).getByText("131× faster")).toHaveClass("text-ok");
+    // the shipped cv2.dnn CUDA path's 0.303 s (docs/report/CV2_CUDA.md), not the Torch 0.251 s: 33 / 0.303
+    expect(within(card("Time per full photo")).getByText("109× faster")).toHaveClass("text-ok");
     expect(within(card("Ground to search")).getByText("30% less")).toHaveClass("text-ok");
+  });
+
+  it("carry each comparison's caveat on the card face, and in the fold (report §3.4, §3.9, §6.2)", () => {
+    const m = demo();
+    m.detector.model = "yolo11s-heridal-tiled-run2";
+    m.detector.seconds_per_image = 0.251;
+    render(<ResultsSummary metrics={m} cellM={5} surveyId="seymour-demo" />);
+    const people = card("People found");
+    const face = (el: HTMLElement) => el.querySelector("[data-caveat]");
+    expect(face(people)).toHaveTextContent("Scored like the human study; not a head-to-head on the same photos.");
+    expect(face(people)!.closest("details")).toBeNull(); // seen without opening anything
+    expect(people.querySelector("details")).toHaveTextContent("not a head-to-head on the same photos");
+    const time = card("Time per full photo");
+    expect(within(time).getByText("0.303 s", { selector: ".text-display" })).toBeInTheDocument();
+    expect(face(time)).toHaveTextContent("cv2.dnn");
+    expect(time.querySelector("details")).toHaveTextContent("Torch on the same GPU takes 0.25 s");
+    const search = card("Ground to search");
+    expect(face(search)).toHaveTextContent("Best of three seeds; 19–30% less across seeds and noise.");
+  });
+
+  it("keep a cache's own time when the docs measured no shipped path for it", () => {
+    const m = demo();
+    m.detector.model = "another-model";
+    m.detector.seconds_per_image = 0.9;
+    render(<ResultsSummary metrics={m} cellM={5} />);
+    expect(within(card("Time per full photo")).getByText("37× faster")).toBeInTheDocument();
+    expect(card("Time per full photo").querySelector("[data-caveat]")).toBeNull();
   });
 
   it("say so in amber when Sightline is worse, never in green", () => {
