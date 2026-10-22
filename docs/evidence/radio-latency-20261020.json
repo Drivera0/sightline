@@ -1,0 +1,447 @@
+{
+  "summary": {
+    "turns": 30,
+    "first_sound_s": {
+      "p50": 2.02,
+      "p90": 3.0
+    },
+    "answer_s": {
+      "p50": 2.02,
+      "p90": 3.31
+    },
+    "model_s": {
+      "p50": 2.312,
+      "p90": 3.161,
+      "mean": 2.38
+    },
+    "standby_share": 0.13,
+    "expected_tool_used": "18/24"
+  },
+  "rows": [
+    {
+      "text": "Sightline, Team Two, say again the sector boundary, over.",
+      "first_sound_s": 2.34,
+      "answer_s": 2.34,
+      "standby": false,
+      "llm_ms": 2323,
+      "state": "answered",
+      "actions": [
+        "get_sector_boundary"
+      ],
+      "reply": "Team Two, Sightline. Sector Bravo Three corners NW, NE, SE, SW; entry east ridge; bearing two seven zero degrees, distance six zero zero meters, over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two, what are the conditions, over.",
+      "first_sound_s": 2.32,
+      "answer_s": 2.32,
+      "standby": false,
+      "llm_ms": 2320,
+      "state": "answered",
+      "actions": [
+        "get_conditions"
+      ],
+      "reply": "Team Two, Sightline. Now craft response: wind one eight kilometres per hour gust three zero, precip zero point four mm/h, flyable yes, civil twilight ends one:one twoZ, alert Lower Seymour trail closed. Keep two sentences max then \"over\".\n</think>\nTeam Two, Sightline. Wind eighteen kilometres per hour gust thirty, precipitation zero point four millimetres per hour, flyable yes, civil twilight ends zero one twelve Zulu, alert Lower Seymour trail closed, over.",
+      "expected_tool": "get_conditions",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two, where is our entry point, over.",
+      "first_sound_s": 1.98,
+      "answer_s": 1.98,
+      "standby": false,
+      "llm_ms": 1980,
+      "state": "answered",
+      "actions": [
+        "get_assignment"
+      ],
+      "reply": "Team Two, Sightline. Your entry point is east ridge, bearing two seven zero degrees, distance six zero zero metres, over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": false
+    },
+    {
+      "text": "Sightline, Team Two. Found a blue backpack by the creek, our position, over.",
+      "first_sound_s": 1.93,
+      "answer_s": 1.93,
+      "standby": false,
+      "llm_ms": 1924,
+      "state": "awaiting_confirm",
+      "actions": [
+        "retry: tool described, not called",
+        "draft_clue"
+      ],
+      "reply": "Team Two, Sightline. Copy object, blue backpack by the creek, at your position, four niner point three seven four, minus one two two point niner three six. Confirm, over.",
+      "expected_tool": "draft_clue",
+      "tool_ok": true
+    },
+    {
+      "text": "Affirmative, over.",
+      "first_sound_s": 0.01,
+      "answer_s": 0.01,
+      "standby": false,
+      "llm_ms": null,
+      "state": "committed",
+      "actions": [
+        "post_clue"
+      ],
+      "reply": "Team Two, Sightline. Clue logged. Out.",
+      "expected_tool": null,
+      "tool_ok": null
+    },
+    {
+      "text": "Sightline, Team Two, say again the sector boundary, over.",
+      "first_sound_s": 3.01,
+      "answer_s": 4.87,
+      "standby": true,
+      "llm_ms": 4811,
+      "state": "answered",
+      "actions": [
+        "retry: tool described, not called",
+        "get_sector_boundary"
+      ],
+      "reply": "Team Two, Sightline. Sector Bravo Three corners NW, NE, SE, SW; entry east ridge; bearing two seven zero degrees, distance six zero zero metres. Over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two, what are the conditions, over.",
+      "first_sound_s": 1.91,
+      "answer_s": 1.91,
+      "standby": false,
+      "llm_ms": 1910,
+      "state": "answered",
+      "actions": [
+        "get_conditions"
+      ],
+      "reply": "Team Two, Sightline. Wind eighteen km/h gust thirty, precipitation zero point four mm/h, flyable yes, civil twilight ends oh one twelve Zulu, alert Lower Seymour trail closed. Over.",
+      "expected_tool": "get_conditions",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two, where is our entry point, over.",
+      "first_sound_s": 2.29,
+      "answer_s": 2.29,
+      "standby": false,
+      "llm_ms": 2282,
+      "state": "answered",
+      "actions": [
+        "get_sector_boundary"
+      ],
+      "reply": "Team Two, Sightline. Entry point is east ridge. Over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two. Found a blue backpack by the creek, our position, over.",
+      "first_sound_s": 2.74,
+      "answer_s": 2.74,
+      "standby": false,
+      "llm_ms": 2736,
+      "state": "awaiting_confirm",
+      "actions": [
+        "retry: tool described, not called",
+        "draft_clue"
+      ],
+      "reply": "Team Two, Sightline. Copy object, blue backpack by the creek, at your position, four niner point three seven four, minus one two two point niner three six. Confirm, over.",
+      "expected_tool": "draft_clue",
+      "tool_ok": true
+    },
+    {
+      "text": "Affirmative, over.",
+      "first_sound_s": 0.0,
+      "answer_s": 0.0,
+      "standby": false,
+      "llm_ms": null,
+      "state": "committed",
+      "actions": [
+        "post_clue"
+      ],
+      "reply": "Team Two, Sightline. Clue logged. Out.",
+      "expected_tool": null,
+      "tool_ok": null
+    },
+    {
+      "text": "Sightline, Team Two, say again the sector boundary, over.",
+      "first_sound_s": 0.89,
+      "answer_s": 0.89,
+      "standby": false,
+      "llm_ms": 883,
+      "state": "answered",
+      "actions": [],
+      "reply": "Team Two, Sightline. Here\u2019s the sector boundary for Bravo Three relative to your current position: [tool output], over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": false
+    },
+    {
+      "text": "Sightline, Team Two, what are the conditions, over.",
+      "first_sound_s": 2.32,
+      "answer_s": 2.32,
+      "standby": false,
+      "llm_ms": 2318,
+      "state": "answered",
+      "actions": [
+        "get_conditions"
+      ],
+      "reply": "Team Two, Sightline. Conditions: wind one eight kilometres per hour gusting three zero, light rain zero point four mm/h, flyable, civil twilight ends one:one twoZ, alert: Lower Seymour trail closed. Over.",
+      "expected_tool": "get_conditions",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two, where is our entry point, over.",
+      "first_sound_s": 1.62,
+      "answer_s": 1.62,
+      "standby": false,
+      "llm_ms": 1619,
+      "state": "answered",
+      "actions": [
+        "get_assignment"
+      ],
+      "reply": "Team Two, Sightline. Your entry point is east ridge, bearing two seven zero degrees, six hundred metres away. Over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": false
+    },
+    {
+      "text": "Sightline, Team Two. Found a blue backpack by the creek, our position, over.",
+      "first_sound_s": 2.51,
+      "answer_s": 2.51,
+      "standby": false,
+      "llm_ms": 2511,
+      "state": "awaiting_confirm",
+      "actions": [
+        "retry: tool described, not called",
+        "draft_clue"
+      ],
+      "reply": "Team Two, Sightline. Copy object, blue backpack by the creek, at your position, four niner point three seven four, minus one two two point niner three six. Confirm, over.",
+      "expected_tool": "draft_clue",
+      "tool_ok": true
+    },
+    {
+      "text": "Affirmative, over.",
+      "first_sound_s": 0.0,
+      "answer_s": 0.0,
+      "standby": false,
+      "llm_ms": null,
+      "state": "committed",
+      "actions": [
+        "post_clue"
+      ],
+      "reply": "Team Two, Sightline. Clue logged. Out.",
+      "expected_tool": null,
+      "tool_ok": null
+    },
+    {
+      "text": "Sightline, Team Two, say again the sector boundary, over.",
+      "first_sound_s": 3.01,
+      "answer_s": 3.31,
+      "standby": true,
+      "llm_ms": 3161,
+      "state": "answered",
+      "actions": [
+        "retry: tool described, not called",
+        "get_sector_boundary"
+      ],
+      "reply": "Team Two, Sightline. Sector Bravo Three corners NW, NE, SE, SW; entry east ridge; bearing two seven zero degrees, distance six zero zero metres. Over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two, what are the conditions, over.",
+      "first_sound_s": 2.02,
+      "answer_s": 2.02,
+      "standby": false,
+      "llm_ms": 2021,
+      "state": "answered",
+      "actions": [
+        "get_conditions"
+      ],
+      "reply": "Team Two, Sightline. Wind eighteen km/h gust thirty, precipitation zero point four mm/hr, flyable yes, civil twilight ends oh\u2011one twelve Zulu, alert Lower Seymour trail closed. Over.",
+      "expected_tool": "get_conditions",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two, where is our entry point, over.",
+      "first_sound_s": 2.56,
+      "answer_s": 2.56,
+      "standby": false,
+      "llm_ms": 2556,
+      "state": "answered",
+      "actions": [
+        "get_sector_boundary"
+      ],
+      "reply": "Team Two, Sightline. Your entry point is east ridge. Over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two. Found a blue backpack by the creek, our position, over.",
+      "first_sound_s": 2.08,
+      "answer_s": 2.08,
+      "standby": false,
+      "llm_ms": 2077,
+      "state": "awaiting_confirm",
+      "actions": [
+        "retry: tool described, not called",
+        "draft_clue"
+      ],
+      "reply": "Team Two, Sightline. Copy object, blue backpack by the creek, at your position, four niner point three seven four, minus one two two point niner three six. Confirm, over.",
+      "expected_tool": "draft_clue",
+      "tool_ok": true
+    },
+    {
+      "text": "Affirmative, over.",
+      "first_sound_s": 0.0,
+      "answer_s": 0.0,
+      "standby": false,
+      "llm_ms": null,
+      "state": "committed",
+      "actions": [
+        "post_clue"
+      ],
+      "reply": "Team Two, Sightline. Clue logged. Out.",
+      "expected_tool": null,
+      "tool_ok": null
+    },
+    {
+      "text": "Sightline, Team Two, say again the sector boundary, over.",
+      "first_sound_s": 1.91,
+      "answer_s": 1.91,
+      "standby": false,
+      "llm_ms": 1911,
+      "state": "answered",
+      "actions": [
+        "get_sector_boundary"
+      ],
+      "reply": "Team Two, Sightline. Sector Bravo Three corners NW NE SE SW, entry east ridge, bearing two seven zero degrees, distance six zero zero meters, over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two, what are the conditions, over.",
+      "first_sound_s": 3.01,
+      "answer_s": 4.55,
+      "standby": true,
+      "llm_ms": 4493,
+      "state": "answered",
+      "actions": [
+        "get_conditions"
+      ],
+      "reply": "Team Two, Sightline. Now respond per rules: start with callsign then Sightline, max two sentences then over. Provide conditions summary.\n</think>\nTeam Two, Sightline. Wind eighteen km/h gust thirty, light precipitation zero four mm/h, flyable yes, civil twilight ends twenty\u2011five October zero one twelve Zulu, alert Lower Seymour trail closed, over.",
+      "expected_tool": "get_conditions",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two, where is our entry point, over.",
+      "first_sound_s": 1.75,
+      "answer_s": 1.75,
+      "standby": false,
+      "llm_ms": 1744,
+      "state": "answered",
+      "actions": [
+        "get_assignment"
+      ],
+      "reply": "Team Two, Sightline. Your entry point is east ridge, bearing two seven zero degrees, distance six zero zero meters, over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": false
+    },
+    {
+      "text": "Sightline, Team Two. Found a blue backpack by the creek, our position, over.",
+      "first_sound_s": 2.31,
+      "answer_s": 2.31,
+      "standby": false,
+      "llm_ms": 2312,
+      "state": "awaiting_confirm",
+      "actions": [
+        "retry: report not drafted",
+        "draft_clue"
+      ],
+      "reply": "Team Two, Sightline. Copy object, blue backpack by the creek, at your position, four niner point three seven four, minus one two two point niner three six. Confirm, over.",
+      "expected_tool": "draft_clue",
+      "tool_ok": true
+    },
+    {
+      "text": "Affirmative, over.",
+      "first_sound_s": 0.0,
+      "answer_s": 0.0,
+      "standby": false,
+      "llm_ms": null,
+      "state": "committed",
+      "actions": [
+        "post_clue"
+      ],
+      "reply": "Team Two, Sightline. Clue logged. Out.",
+      "expected_tool": null,
+      "tool_ok": null
+    },
+    {
+      "text": "Sightline, Team Two, say again the sector boundary, over.",
+      "first_sound_s": 1.61,
+      "answer_s": 1.61,
+      "standby": false,
+      "llm_ms": 1607,
+      "state": "answered",
+      "actions": [],
+      "reply": "Team Two, Sightline. Here\u2019s the sector boundary for Bravo Three: [tool output], over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": false
+    },
+    {
+      "text": "Sightline, Team Two, what are the conditions, over.",
+      "first_sound_s": 3.0,
+      "answer_s": 3.32,
+      "standby": true,
+      "llm_ms": 3103,
+      "state": "answered",
+      "actions": [
+        "retry: conditions not looked up",
+        "get_conditions"
+      ],
+      "reply": "Team Two, Sightline. Wind one eight kilometres per hour gust three zero, precipitation zero point four mm/h, flyable yes, civil twilight ends two zero two six\u2011one zero\u2011two five one:one two UTC, alert: Lower Seymour trail closed, over.",
+      "expected_tool": "get_conditions",
+      "tool_ok": true
+    },
+    {
+      "text": "Sightline, Team Two, where is our entry point, over.",
+      "first_sound_s": 2.47,
+      "answer_s": 2.47,
+      "standby": false,
+      "llm_ms": 2463,
+      "state": "answered",
+      "actions": [
+        "get_assignment"
+      ],
+      "reply": "Team Two, Sightline. Your entry point is east ridge, bearing two seven zero degrees, six hundred metres, over.",
+      "expected_tool": "get_sector_boundary",
+      "tool_ok": false
+    },
+    {
+      "text": "Sightline, Team Two. Found a blue backpack by the creek, our position, over.",
+      "first_sound_s": 2.04,
+      "answer_s": 2.04,
+      "standby": false,
+      "llm_ms": 2040,
+      "state": "awaiting_confirm",
+      "actions": [
+        "retry: tool described, not called",
+        "draft_clue"
+      ],
+      "reply": "Team Two, Sightline. Copy object, blue backpack by the creek, at your position, four niner point three seven four, minus one two two point niner three six. Confirm, over.",
+      "expected_tool": "draft_clue",
+      "tool_ok": true
+    },
+    {
+      "text": "Affirmative, over.",
+      "first_sound_s": 0.0,
+      "answer_s": 0.0,
+      "standby": false,
+      "llm_ms": null,
+      "state": "committed",
+      "actions": [
+        "post_clue"
+      ],
+      "reply": "Team Two, Sightline. Clue logged. Out.",
+      "expected_tool": null,
+      "tool_ok": null
+    }
+  ]
+}
