@@ -8,10 +8,10 @@ In the run folder, from ``master.webm`` + ``shots.json`` + ``captions.yaml`` (ne
 - ``master.mp4``: the recording as H.264, CRF 18, 30 fps, the sync mark painted out;
 - ``master_captioned.mp4``: the same with the labels burned in;
 - ``cut_opencv.mp4`` (<= 5:00) and ``cut_nebius.mp4`` (<= 3:00): silent cuts in each video's story
-  order, 12 s of black at the start and 10 s at the end for the on-camera clips, black slots where a
+  order, black at the start and the end for the on-camera clips, black slots where a
   slide goes, cut from ``master.mp4`` with their own labels (``cut_<name>.srt``, numbered in the cut's
   order); ``cut_<name>.json`` lists every segment with its source and output times;
-- ``demo.gif``: 20 s for the README (fps 10, 800 px wide, one palette, < 10 MB), first and last frame
+- ``demo.gif``: 16-20 s for the README (fps 10, 800 px wide, one palette, <= 3 MB), first and last frame
   matched so it loops.
 
 Each step is skipped when its output is newer than its inputs (``--force`` redoes it).
@@ -58,14 +58,17 @@ def ran(shots: list[dict]) -> list[dict]:
 # --- (0) the labels ---------------------------------------------------------------------------------
 
 
-def labels(spans: list[tuple[str, float, float]], cfg: dict) -> list[tuple[float, float, str]]:
-    """(start, end, text) for each (shot id, start, end) in the order they play, numbered in that order."""
+def labels(spans: list[tuple], cfg: dict) -> list[tuple[float, float, str]]:
+    """(start, end, text) for each (shot id, start, end[, text]) in the order they play, numbered in that
+    order; a span's own text (a cut's `label`) replaces the shot's. A label is at most two lines."""
     out, n = [], 0
-    for sid, a, b in spans:
+    for sid, a, b, *own in spans:
         lab = cfg["labels"].get(sid)
         if not lab:
             continue
-        text = lab["text"]
+        text = own[0] if own and own[0] else lab["text"]
+        if text.count("\n") > 1:
+            raise SystemExit(f"label for {sid} has more than two lines")
         if lab.get("number"):
             n += 1
             text = f"{n} · {text}"
@@ -77,13 +80,13 @@ def labels(spans: list[tuple[str, float, float]], cfg: dict) -> list[tuple[float
     return out
 
 
-def srt(spans: list[tuple[str, float, float]], cfg: dict, path: Path) -> None:
+def srt(spans: list[tuple], cfg: dict, path: Path) -> None:
     st = cfg["style"]
     lines = []
     for i, (a, b, text) in enumerate(labels(spans, cfg), 1):
         lines += [str(i), f"{ts(a + st['lead_in_s'])} --> {ts(b - st['lead_out_s'])}", text, ""]
     path.write_text("\n".join(lines))
-    print(f"  wrote {path} ({len(lines) // 4} labels)")
+    print(f"  wrote {path} ({sum('-->' in x for x in lines)} labels)")
 
 
 def write_srt(doc: dict, cfg: dict, path: Path) -> None:
@@ -169,19 +172,34 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
         elif item["shot"] in by_id:
             s = by_id[item["shot"]]
             speed = float(item.get("speed", 1.0))
-            segs.append({"kind": "shot", "name": s["id"], "in": s["start_s"], "out": s["end_s"], "speed": speed,
-                         "s": (s["end_s"] - s["start_s"]) / speed})  # fmt: skip
+            seg = {"kind": "shot", "name": s["id"], "in": s["start_s"], "out": s["end_s"], "speed": speed,
+                   "s": (s["end_s"] - s["start_s"]) / speed}  # fmt: skip
+            if item.get("label"):
+                seg["label"] = item["label"]  # this cut's own label for the shot
+            if item.get("min_s"):
+                seg["min_s"] = min(float(item["min_s"]), seg["s"])  # never trimmed below this
+            segs.append(seg)
     segs.append({"kind": "black", "name": "on camera (close)", "s": spec["tail_black_s"]})
     fixed = sum(x["s"] for x in segs if x["kind"] == "black")
     moving = sum(x["s"] for x in segs if x["kind"] == "shot")
     room = spec["max_s"] - fixed - 0.5  # half a second of margin for frame rounding
     if moving > room > 0:
-        k = room / moving
-        for x in segs:
-            if x["kind"] == "shot":
-                x["s"] *= k
-                x["out"] = x["in"] + x["s"] * x["speed"]  # trim from the tail
-                x["trimmed"] = round(k, 3)
+        # one factor for every shot, except that none goes under its min_s: those are held there and
+        # the others share what is left
+        shots = [x for x in segs if x["kind"] == "shot"]
+        held: list[dict] = []
+        while True:
+            free = [x for x in shots if x not in held]
+            k = (room - sum(x["min_s"] for x in held)) / (sum(x["s"] for x in free) or 1.0)
+            low = [x for x in free if x["s"] * k < x.get("min_s", 0.0)]
+            if not low:
+                break
+            held += low
+        for x in shots:
+            f = x["min_s"] / x["s"] if x in held else k
+            x["s"] *= f
+            x["out"] = x["in"] + x["s"] * x["speed"]  # trim from the tail
+            x["trimmed"] = round(f, 3)
     t = 0.0
     for x in segs:
         x["at"] = round(t, 3)
@@ -193,7 +211,7 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
 def cut(d: Path, name: str, segs: list[dict], cfg: dict) -> None:
     """The segments from the uncaptioned master, then this cut's own labels burned in: numbered in the
     cut's order and timed to its (sped-up, trimmed) segments, so a step number never runs backwards."""
-    srt([(x["name"], x["at"], x["at"] + x["s"]) for x in segs if x["kind"] == "shot"], cfg,
+    srt([(x["name"], x["at"], x["at"] + x["s"], x.get("label")) for x in segs if x["kind"] == "shot"], cfg,
         d / f"cut_{name}.srt")  # fmt: skip
     parts, labels_ = [], []
     for i, x in enumerate(segs):

@@ -5,7 +5,7 @@
 #   bash scripts/demo_video/run.sh --out runs/video/20261022-1400    # finish (or redo nothing in) that run
 #   bash scripts/demo_video/run.sh --live --serve-local              # + a live mission on a local API
 #   bash scripts/demo_video/run.sh --live --api http://127.0.0.1:8000 [--mission <id>]
-#   bash scripts/demo_video/run.sh --publish ...                     # also copy the GIF to docs/report/figures/demo.gif
+#   bash scripts/demo_video/run.sh --publish ...                     # also copy the GIF to docs/report/figures/demo.gif (<= 3 MB)
 #
 # Idempotent: a run folder that already has master.webm + shots.json is not re-recorded, and each later
 # step is skipped when its output is newer than its inputs (FORCE=1 redoes them). Any other flag goes
@@ -47,8 +47,8 @@ echo "== gif"
 
 if [[ $publish == 1 ]]; then
   size=$(stat -c %s "$out/demo.gif")
-  if (( size >= 10000000 )); then
-    echo "not publishing: $out/demo.gif is $((size / 1000000)) MB (limit 10 MB)" >&2
+  if (( size > 3000000 )); then
+    echo "not publishing: $out/demo.gif is $((size / 1000000)) MB (limit 3 MB)" >&2
     exit 1
   fi
   mkdir -p docs/report/figures

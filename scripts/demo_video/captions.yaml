@@ -1,7 +1,7 @@
 # Burned-in step labels and the cuts, for scripts/demo_video/captions.py. Labels are short on-screen step
-# names, not narration (WIN_RESEARCH §8). A label with `number: true` gets "N · " in front, counted over
-# the shots that actually ran, so a skipped shot leaves no gap. A label never calls an area done: a
-# searched sector is "searched at POD x".
+# names, not narration (WIN_RESEARCH §8), at most two lines. A label with `number: true` gets "N · " in
+# front, counted over the shots that actually ran, so a skipped shot leaves no gap. A label never calls an
+# area done: a searched sector is "searched at POD x". Anything simulated says so.
 
 style:
   # libass force_style for the subtitles filter: a small label in a dark box, bottom centre
@@ -10,92 +10,70 @@ style:
   lead_out_s: 0.3  # and goes this long before it ends
 
 labels:
-  front:        {text: "Sightline · drone photos to a ranked search plan"}
-  survey:       {text: "Photos arrive", number: true}
-  rank:         {text: "The detector ranks every photo", number: true}
-  review:       {text: "A person answers each candidate", number: true}
-  search:       {text: "The map: where to look next", number: true}
-  operate:      {text: "Run the search", number: true}
-  console:      {text: "The command console", number: true}
-  approvals:    {text: "A person approves the agent's proposal", number: true}
-  clue:         {text: "A clue lands on the map", number: true}
-  fleet:        {text: "A drone re-tasked to a clue (simulated fleet)", number: true}
-  trace:        {text: "Re-look trace: tool → model → result → proposal", number: true}
-  feed:         {text: "Every action in the mission feed", number: true}
-  live_upload:  {text: "Live · photos upload from the command post", number: true}
-  live_photos:  {text: "Live · each photo is scored as it lands", number: true}
-  live_review:  {text: "Live · each candidate with its second look (HERIDAL val photos)", number: true}
-  live_console: {text: "Live · the console on a real mission", number: true}
-  live_radio:   {text: "Live · the radio desk", number: true}
-  recall:       {text: "Live · gusts over the drones' limit: the agent proposes a recall", number: true}
+  call:       {text: "Sightline · the call: a hiker overdue on Mount Seymour (demo mission)"}
+  photos:     {text: "Photos land · OpenCV 5 cv2.dnn ranks each one, 0.25 s per photo\nReal HERIDAL photos on a simulated flight path", number: true}
+  confirm:    {text: "A person confirms each candidate · a 0.18 detection rescued by the second look\nOpenCV 5 zoom + Nemotron 3.5 Super VL (recorded run)", number: true}
+  trace:      {text: "The trace of that chain: tool call → model call → verdict → proposal → decision", number: true}
+  next:       {text: "Where next: the agent proposes, a person approves", number: true}
+  run:        {text: "The run: teams out, drones fly (simulated), B4 searched at POD 60 %", number: true}
+  conditions: {text: "Conditions with their sources: Tavily search, quotes read word for word", number: true}
+  fleet:      {text: "Degraded comms (simulated): D2 link lost, D3 degraded, Team Two relayed via D1", number: true}
+  radio:      {text: "The radio desk: Sightline's briefing in NVIDIA Magpie TTS (recorded)", number: true}
+  results:    {text: "The debrief: the three numbers", number: true}
+  breaks:     {text: "What breaks first, said up front", number: true}
+  live_link:  {text: "Live · Fleet controls cut a drone's link; drones relay a cut-off team (simulated fleet)", number: true}
+  recall:     {text: "Live · gusts 50 km/h (demo override) → no flying → the agent proposes a recall", number: true}
 
-# Silent cuts from the captioned master, in story order. A shot that didn't run is left out. `slot` is a
-# black gap for a slide Dan adds in the editor (architecture, numbers, limits, Tavily). When the screen
-# shots don't fit, each is trimmed from its tail by the same factor. `speed` plays a shot faster.
+# Silent cuts from the uncaptioned master with their own labels, in story order. A shot that didn't run is
+# left out. `slot` is a black gap for a slide or a clip Dan adds in the editor. When the screen shots don't
+# fit, each is trimmed from its tail by the same factor. `speed` plays a shot faster. A segment can carry
+# its own `label` for this cut (it replaces the shot's label above) and a `min_s` it is never trimmed below.
 cuts:
   opencv:
     max_s: 300
     lead_black_s: 12   # Dan on camera
     tail_black_s: 10   # Dan on camera, close
     segments:
-      - front
-      - survey
-      - live_upload
-      - live_photos
-      - rank
-      - review
-      - live_review
-      - search
+      - call
+      - photos
+      - confirm
       - trace
-      - approvals
-      - fleet
-      - console
-      - clue
-      - live_console
-      - live_radio
-      - feed
-      - {slot: architecture, s: 35}
-      - {slot: numbers, s: 35}
+      - next
+      - run
+      - conditions
+      - results
+      - {shot: breaks, min_s: 12}   # never trimmed below 12 s: the three lines stay up >= 6 s
+      - {slot: evidence index, s: 30}
+      - {slot: reproduce in 5 min, s: 30}
       - {slot: limits, s: 20}
   nebius:
     max_s: 180
-    lead_black_s: 12
+    lead_black_s: 10
     tail_black_s: 10
     segments:
-      - {shot: front, speed: 2}
-      - {shot: live_upload, speed: 2}
-      - {shot: rank, speed: 2}          # detection
-      - {shot: review, speed: 1.5}
-      - {shot: live_photos, speed: 2}
-      - {shot: live_review, speed: 1.5}
-      - trace         # re-look: which NVIDIA model did what
-      - {shot: clue, speed: 1.5}        # re-task: clue -> map shifts
-      - {shot: fleet, speed: 1.5}       # -> the re-tasked drone on the map
-      - {shot: approvals, speed: 1.5}
-      - {shot: console, speed: 1.5}     # card / radio
-      - {shot: live_radio, speed: 1.5}
-      - {shot: recall, speed: 1.25}     # Tavily moment: gusts -> no-fly -> recall, the cited source on the card
-      - {slot: tavily, s: 15}
+      - {shot: call, speed: 2}
+      - {shot: confirm, speed: 1.5, label: "A 0.18 detection rescued by the second look\nNemotron 3.5 Super VL on Nebius Token Factory (recorded run)"}
+      - {shot: run, speed: 1.5}
+      - fleet
+      - live_link
+      - {shot: recall, speed: 1.25}     # the Tavily moment: gusts -> no-fly -> recall, the cited source on the card
+      - radio
+      - {shot: breaks, min_s: 12}
       - {slot: architecture, s: 15}
-      - {slot: limits, s: 10}
 
-# The README GIF: 20 s from the first candidate (in this order of preference) with enough moving in it
-# (mean frame-to-frame change >= min_motion, on 0-255 grey); the window's end is the frame within ±2 s
+# The README GIF: 16-20 s from the first candidate (in this order of preference) with enough moving in
+# it (mean frame-to-frame change >= min_motion, on 0-255 grey); the window's end is the frame within ±2 s
 # closest to its first, and the last half second fades back to the first frame, so it loops cleanly.
 gif:
-  duration_s: 20
+  duration_s: 18     # the loop's end is picked within +-2 s of this: never over 20 s
   fps: 10
   width: 800
-  max_mb: 10
+  max_mb: 3
   min_motion: 0.5
-  # first choice: the console ending on the fleet's re-tasked drone (the 20 s up to the fleet shot's end:
-  # the clue landing, then the pan to the drones); a console holds still more than the review, so its
-  # own lower bar
+  # first choice: the 18 s that end with the run: the visitor approves Team One for A1, the clock runs
+  # on, the teams go out, the simulated drones fly and B4 is searched at POD 60 %
   candidates:
-    - {shot: fleet, end_aligned: true, min_motion: 0.1}
-    - review
-    - search
-    - rank
-    - clue
-    - console
-    - trace
+    - {shot: run, end_aligned: true, min_motion: 0.05}   # a console holds still more than a scan
+    - photos
+    - confirm
+    - fleet
