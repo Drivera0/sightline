@@ -19,14 +19,13 @@ import type { ConditionsData } from "../command/ConditionsPanel";
 import { TraceView, type TraceRun } from "../command/TraceView";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { usePick } from "../map/pick";
-import { KeyHint, Label, ModeChip, modeOf, Panel, Stat } from "../shell/components";
+import { KeyHint, Label, ModeChip, modeOf, Stat } from "../shell/components";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS, type ShortcutGroup } from "../shell/shortcuts";
 import { Logo } from "../shell/Logo";
 import { RadioDesk } from "../radio/RadioDesk";
 import { LiveReview } from "../review/LiveReview";
-import { uploadCommand } from "./upload";
-import { UploadPanel } from "./UploadPanel";
+import { UploadPanel, WatchPanel } from "./UploadPanel";
 
 type Tab = "command" | "photos" | "review" | "approvals" | "radio" | "feed" | "trace";
 const TABS: { id: Tab; label: string }[] = [
@@ -265,24 +264,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
       {tab === "photos" && (
         <div className="grid gap-4 lg:grid-cols-2">
           <UploadPanel api={api} missionId={missionId} processed={progress.processed} />
-          <Panel className="flex flex-col gap-2" aria-label="During the flight">
-            <Label>During the flight</Label>
-            <p className="text-body text-text-2">
-              On the laptop the drone's photos land on, watch the folder: each photo is sent once its copy has finished, batches of up
-              to 10, and kept in a queue while there is no connection (replace PHOTO_FOLDER with the SD card or sync folder):
-            </p>
-            <code className="block overflow-x-auto rounded-sm bg-surface-strong p-2 font-mono text-small text-text">{uploadCommand(api.base, missionId)}</code>
-            <button
-              type="button"
-              className="self-start rounded-full border border-border px-3 py-1 text-small text-text-2"
-              onClick={() => void navigator.clipboard?.writeText(uploadCommand(api.base, missionId))}
-            >
-              Copy
-            </button>
-            <p className="text-small text-text-3">
-              In production the drone's own cloud upload (DJI FlightHub 2) would post here directly (roadmap).
-            </p>
-          </Panel>
+          <WatchPanel base={api.base} missionId={missionId} />
         </div>
       )}
 

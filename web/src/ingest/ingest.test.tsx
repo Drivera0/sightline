@@ -10,8 +10,8 @@ import { routeFromHash } from "../shell/flow";
 import { SAFETY_FRAME } from "../radio/RadioDesk";
 import { cardFromHash, LiveMission, tabFromHash } from "./LiveMission";
 import { NewSearch } from "./NewSearch";
-import { batches, photoFiles, uploadCommand } from "./upload";
-import { UploadPanel } from "./UploadPanel";
+import { batches, hostLabel, photoFiles, uploadCommand } from "./upload";
+import { UploadPanel, WatchPanel } from "./UploadPanel";
 
 // MapLibre needs WebGL, which jsdom lacks; the real pick was checked in Chromium.
 vi.mock("./LkpPicker", () => ({ LkpPicker: () => <div aria-label="Pick the last known position on the map" /> }));
@@ -91,6 +91,27 @@ describe("upload (test 9)", () => {
     await userEvent.click(button);
     expect(button).toHaveAttribute("aria-expanded", "true");
     expect(await screen.findByText(/Click where the person was last seen/)).toBeInTheDocument();
+  });
+
+  it("names the host in prose, never the bare origin, and copies the exact command", async () => {
+    expect(hostLabel("http://127.0.0.1:35587")).toBe("127.0.0.1");
+    expect(hostLabel("https://api.example.org")).toBe("api.example.org");
+    expect(hostLabel("", "sightline.example")).toBe("sightline.example");
+    const writeText = vi.fn(async () => undefined);
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    render(<WatchPanel base="http://127.0.0.1:35587" missionId="a1b2c3d4" />);
+    const panel = screen.getByLabelText("During the flight");
+    expect(panel).toHaveTextContent("This mission is connected to 127.0.0.1;");
+    // the origin appears only inside the command line, never on its own
+    expect(within(panel).queryByText("http://127.0.0.1:35587")).toBeNull();
+    expect(screen.queryByRole("heading", { name: /127\.0\.0\.1/ })).toBeNull();
+    expect(screen.getByLabelText("Watch command")).toHaveTextContent(uploadCommand("http://127.0.0.1:35587", "a1b2c3d4"));
+    await userEvent.click(screen.getByRole("button", { name: "Copy the command" }));
+    expect(writeText).toHaveBeenCalledWith(
+      "uv run python -m sightline.client watch PHOTO_FOLDER --api http://127.0.0.1:35587 --mission a1b2c3d4",
+    );
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 
   it("puts the mission id in the command for the laptop", () => {

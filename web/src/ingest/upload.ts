@@ -20,6 +20,17 @@ export function batches<T>(items: readonly T[], size = BATCH): T[][] {
   return out;
 }
 
+/** The API's host for prose ("connected to 127.0.0.1"): the hostname alone, never the raw origin. An empty
+ * base is this page's own server. */
+export function hostLabel(apiBase: string, here: string = globalThis.location?.hostname ?? ""): string {
+  if (!apiBase) return here || "this page's server";
+  try {
+    return new URL(apiBase).hostname || apiBase;
+  } catch {
+    return apiBase.replace(/^[a-z]+:\/\//i, "").replace(/[:/].*$/, "");
+  }
+}
+
 /** The command an operator runs on the laptop the drone's photos land on (copy button): lane B's
  * `watch` client uploads each photo once its copy has finished, and queues while offline. */
 export function uploadCommand(apiBase: string, missionId: string): string {
