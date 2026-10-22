@@ -61,7 +61,16 @@ describe("mission time: the demo mission's checkpoints", () => {
     expect(s.proposals).toEqual([]);
     expect(s.mapUpdates).toEqual([]);
     expect(s.teams!.every((t) => t.status === "standby" && t.position?.lat === TRAILHEAD.lat)).toBe(true);
-    expect(s.fleet!.drones.every((d) => d.status === "idle")).toBe(true);
+    // nothing has flown yet: no drone on the map (no SIM marker, no battery label) until the survey flight
+    expect(s.fleet!.drones).toEqual([]);
+    expect(s.fleet!.legs).toEqual([]);
+  });
+
+  it("t1, photos land: the drones are back on the ground at the trailhead, idle, no leg", () => {
+    const s = at(1);
+    expect(s.fleet!.drones.length).toBeGreaterThan(0);
+    expect(s.fleet!.drones.every((d) => d.status === "idle" && d.leg_id === null && d.position?.lat === TRAILHEAD.lat)).toBe(true);
+    expect(demoAt(full, FLIGHT.start).fleet!.drones.length).toBeGreaterThan(0);
   });
 
   it("t1, photos land: every frame step on the map, in flight order; the frames stream in on the way", () => {

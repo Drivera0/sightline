@@ -181,6 +181,8 @@ function teamsAt(teams: readonly Team[], tasks: readonly SectorTask[], c: number
 function fleetAt(fleet: FleetState | null | undefined, c: number): FleetState | null {
   if (!fleet) return null;
   if (c >= ms(FLEET_OUT)) return fleet;
+  // before the survey flight nothing has flown: no drone on the map (no marker, no battery label) until t1
+  if (c < ms(FLIGHT.start)) return { ...fleet, legs: [], drones: [] };
   // landed at the trailhead, the survey's photos off their cards; no leg yet
   return {
     ...fleet,
