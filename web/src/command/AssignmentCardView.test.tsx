@@ -74,4 +74,12 @@ describe("assignment card", () => {
     expect(entry[1]).toBeCloseTo(5); // the north edge
     expect([compass(0), compass(124), compass(350)]).toEqual(["N", "SE", "N"]);
   });
+
+  it("renders lane B's real card fixture (scripts/make_card_fixture.py)", async () => {
+    const real = (await import("./__fixtures__/card_sector_B3.json")).default as unknown as AssignmentCard;
+    render(<AssignmentCardView card={real} gpxUrl="/c.gpx" kmlUrl="/c.kml" imageUrl={(r) => r} />);
+    expect(screen.getByRole("heading")).toHaveTextContent(`${real.team_callsign} · Sector ${real.sector_label} (B3)`);
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(real.waypoints.length + 1);
+  });
 });
+
