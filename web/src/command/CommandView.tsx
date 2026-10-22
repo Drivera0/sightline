@@ -27,6 +27,8 @@ export interface CommandProps {
   onDecide: Decide;
   /** Pick the clue's position on the live map (B-M3); null when cancelled. Without it, type lat/lon. */
   onPickOnMap?: () => Promise<{ lat: number; lon: number } | null>;
+  /** Where a sector's assignment card opens (E-09); without it, no Card links. */
+  cardHref?: (sectorId: string) => string;
   now?: () => Date;
 }
 
@@ -46,7 +48,7 @@ export function CommandView(p: CommandProps) {
       <MissionHeader mission={p.mission} status={p.status} conditions={p.conditions} now={now()} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <div className="flex flex-col gap-4">
-          <TaskBoard tasks={p.tasks} sectors={p.sectors} teams={p.teams} onSetTask={p.onSetTask} onUpdateTeam={p.onUpdateTeam} now={now()} />
+          <TaskBoard tasks={p.tasks} sectors={p.sectors} teams={p.teams} onSetTask={p.onSetTask} onUpdateTeam={p.onUpdateTeam} now={now()} cardHref={p.cardHref} />
           <TeamRoster teams={p.teams} tasks={p.tasks} now={now()} />
         </div>
         <ApprovalInbox proposals={p.proposals} teams={p.teams} onDecide={p.onDecide} imageUrl={p.imageUrl} />
@@ -103,6 +105,7 @@ export function TaskBoard({
   onSetTask,
   onUpdateTeam,
   now,
+  cardHref,
 }: {
   tasks: readonly SectorTask[];
   sectors: readonly SectorNow[];
@@ -110,6 +113,7 @@ export function TaskBoard({
   onSetTask: CommandProps["onSetTask"];
   onUpdateTeam: CommandProps["onUpdateTeam"];
   now: Date;
+  cardHref?: CommandProps["cardHref"];
 }) {
   const [allProposed, setAllProposed] = useState(false);
   const live = new Map(sectors.map((s) => [s.sector_id, s]));
@@ -130,7 +134,7 @@ export function TaskBoard({
                 {col.label} ({all.length})
               </span>
               {cards.map((t) => (
-                <TaskCard key={t.sector_id} t={t} label={live.get(t.sector_id)?.label ?? t.sector_id} poa={poa(t)} coverage={live.get(t.sector_id)?.drone_coverage} teams={teams} callsign={callsign} onSetTask={onSetTask} onUpdateTeam={onUpdateTeam} now={now} />  // prettier-ignore
+                <TaskCard key={t.sector_id} t={t} label={live.get(t.sector_id)?.label ?? t.sector_id} poa={poa(t)} coverage={live.get(t.sector_id)?.drone_coverage} teams={teams} callsign={callsign} onSetTask={onSetTask} onUpdateTeam={onUpdateTeam} now={now} cardHref={cardHref} />  // prettier-ignore
               ))}
               {all.length > cards.length && (
                 <button type="button" className="rounded-full border border-border px-2.5 py-1 text-caption text-text-2" onClick={() => setAllProposed(true)}>
@@ -155,6 +159,7 @@ function TaskCard({
   onSetTask,
   onUpdateTeam,
   now,
+  cardHref,
 }: {
   t: SectorTask;
   label: string;
@@ -165,6 +170,7 @@ function TaskCard({
   onSetTask: CommandProps["onSetTask"];
   onUpdateTeam: CommandProps["onUpdateTeam"];
   now: Date;
+  cardHref?: CommandProps["cardHref"];
 }) {
   const [picking, setPicking] = useState(false);
   const [podOpen, setPodOpen] = useState(false);
@@ -224,6 +230,11 @@ function TaskCard({
               Unassign
             </button>
           </>
+        )}
+        {cardHref && (t.state === "assigned" || t.state === "in_progress") && (
+          <a className={btn} href={cardHref(t.sector_id)}>
+            Card
+          </a>
         )}
         {t.state === "in_progress" && !podOpen && (
           <button type="button" className={btn} onClick={() => setPodOpen(true)}>

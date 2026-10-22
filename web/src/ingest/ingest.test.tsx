@@ -7,7 +7,7 @@ import { LiveRoutes } from "../App";
 import { LiveReview, liveReviewItems, verdictWords } from "../review/LiveReview";
 import { routeFromHash } from "../shell/flow";
 import { SAFETY_FRAME } from "../radio/RadioDesk";
-import { LiveMission, tabFromHash } from "./LiveMission";
+import { cardFromHash, LiveMission, tabFromHash } from "./LiveMission";
 import { NewSearch } from "./NewSearch";
 import { batches, photoFiles, uploadCommand } from "./upload";
 import { UploadPanel } from "./UploadPanel";
@@ -117,6 +117,12 @@ describe("review in live mode (test 8)", () => {
 describe("live mission tabs", () => {
   // the state request never answers: the tabs still render, with no mission data yet
   const pending = { base: "http://api.test", fetch: (() => new Promise(() => {})) as unknown as typeof fetch };
+
+  it("knows a sector's card from the address", () => {
+    expect(cardFromHash("#m/a1b2c3d4/card/B3")).toBe("B3");
+    expect(cardFromHash("#m/a1b2c3d4/card")).toBeNull();
+    expect(cardFromHash("#m/a1b2c3d4/command")).toBeNull();
+  });
 
   it("knows the radio tab from the address", () => {
     expect(tabFromHash("#m/a1b2c3d4/radio")).toBe("radio");

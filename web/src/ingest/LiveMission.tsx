@@ -4,7 +4,9 @@
 
 import { useEffect, useState } from "react";
 import type { Api } from "../lib/api";
-import { fileUrl } from "../lib/api";
+import { cardFileUrl, fileUrl, getCard } from "../lib/api";
+import type { AssignmentCard } from "../contract";
+import { AssignmentCardView } from "../command/AssignmentCardView";
 import { photoProgress, useMission } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
@@ -32,9 +34,24 @@ export function tabFromHash(hash: string): Tab {
   return TABS.some((t) => t.id === step) ? (step as Tab) : "photos";
 }
 
+/** `#m/<id>/card/<sector>`: that sector's assignment card (E-09), else null. */
+export function cardFromHash(hash: string): string | null {
+  const [, , step, sector] = hash.split("/");
+  return step === "card" && sector ? decodeURIComponent(sector) : null;
+}
+
 export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Api; missionId: string; initialTab?: Tab }) {
   const s = useMission();
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [card, setCard] = useState<string | null>(() => cardFromHash(window.location.hash));
+  useEffect(() => {
+    const onHash = () => {
+      setCard(cardFromHash(window.location.hash));
+      if (!cardFromHash(window.location.hash)) setTab(tabFromHash(window.location.hash));
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   useEffect(() => {
     void useMission.getState().connect(missionId, api);
@@ -43,6 +60,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
 
   const go = (t: Tab) => {
     setTab(t);
+    setCard(null);
     window.history.replaceState(null, "", `#m/${missionId}/${t}`);
   };
   const progress = photoProgress(s);
@@ -56,6 +74,14 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         <a className="text-accent-soft underline" href="#new">
           Start a new search
         </a>
+      </main>
+    );
+  }
+
+  if (card) {
+    return (
+      <main className="mx-auto max-w-5xl p-4 lg:p-8 print:p-0">
+        <LiveCard api={api} missionId={missionId} sector={card} />
       </main>
     );
   }
@@ -171,6 +197,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
           onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
           onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
           onAddClue={(draft) => useMission.getState().addClue(draft)}
+          cardHref={(sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
           onPickOnMap={() => {
             document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
             return usePick.getState().request();
@@ -209,5 +236,37 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         </Panel>
       )}
     </main>
+  );
+}
+
+function LiveCard({ api, missionId, sector }: { api: Api; missionId: string; sector: string }) {
+  const [card, setCard] = useState<AssignmentCard | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    getCard(api, missionId, sector).then(
+      (c) => live && setCard(c),
+      (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [api, missionId, sector]);
+  if (error) {
+    return (
+      <p role="alert" className="text-body text-warn">
+        No card for sector {sector}: {error}. <a className="underline" href={`#m/${missionId}/command`}>Back to the command view</a>
+      </p>
+    );
+  }
+  if (!card) return <p className="text-small text-text-3">Loading the card for sector {sector}…</p>;
+  return (
+    <AssignmentCardView
+      card={card}
+      gpxUrl={cardFileUrl(api, missionId, sector, "gpx")}
+      kmlUrl={cardFileUrl(api, missionId, sector, "kml")}
+      imageUrl={(rel) => fileUrl(api, missionId, rel)}
+      backHref={`#m/${missionId}/command`}
+    />
   );
 }

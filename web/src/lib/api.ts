@@ -3,6 +3,7 @@
 // lane D (issue #51).
 
 import type {
+  AssignmentCard,
   Clue,
   ClueDraft,
   Conditions,
@@ -97,6 +98,11 @@ export const createMission = (api: Api, body: NewMission) => call<Mission>(api, 
 export const getState = (api: Api, id: string) => call<MissionStateResponse>(api, "GET", `${m(id)}/state`);
 export const getSurvey = (api: Api, id: string) => call<Survey>(api, "GET", `${m(id)}/survey`);
 export const getDetections = (api: Api, id: string) => call<Detections>(api, "GET", `${m(id)}/detections`);
+/** Lane B's assignment card for a sector (E-09); `cardFileUrl` for its GPX and KML. */
+export const getCard = (api: Api, id: string, sector: string) =>
+  call<AssignmentCard>(api, "GET", `${m(id)}/cards/${encodeURIComponent(sector)}`);
+export const cardFileUrl = (api: Api, id: string, sector: string, ext: "gpx" | "kml") =>
+  `${api.base}${m(id)}/cards/${encodeURIComponent(sector)}.${ext}`;
 export const getMapBase = (api: Api, id: string) => call<MapBase>(api, "GET", `${m(id)}/map_base`);
 /** A sector now (GET /sectors): label, POA on the live map, drone coverage. */
 export interface SectorNow {
