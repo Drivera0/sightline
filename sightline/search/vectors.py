@@ -212,6 +212,7 @@ def _live_cases(seed: int) -> list[dict[str, Any]]:
             after.append(_state(*live.p()))
         cases.append({"name": f"5x5 live {k}", "base": base.model_dump(mode="json"),
                       "updates": updates, "after": after})  # fmt: skip
+    cases.append(_evidence_case(base))
     return cases
 
 
@@ -225,6 +226,61 @@ def write_test_vectors(out: Path = DEFAULT_OUT) -> None:
 def main() -> None:
     write_test_vectors()
     print(f"wrote {DEFAULT_OUT}")
+
+
+def _evidence_case(base: Any) -> dict[str, Any]:
+    """Every kind of evidence through ``LiveMap``'s own methods, in the order a search meets them:
+    a photo steps the map, a reviewer says "person" (its look is undone), a team searches a sector,
+    a clue raises its surroundings, exposure turns high (shelter). The TS ``replayLive`` must agree."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    from sightline.contract import CONTRACT_VERSION, Clue, Conditions, MapBase, MapUpdate
+    from sightline.search.live import LiveMap
+    from sightline.search.sectors import lattice_sectors
+
+    n = base.grid.rows * base.grid.cols
+    canopy = [None if i % 3 == 0 else round(0.2 + 0.1 * (i % 7), 2) for i in range(n)]
+    base = MapBase.model_validate(
+        {**base.model_dump(), "canopy": canopy, "contract_version": CONTRACT_VERSION}
+    )
+    live = LiveMap.from_base(base)
+    at = "2026-10-24T22:00:00Z"
+    centre = cell_center(base.grid, n // 2)
+    ups: list[MapUpdate] = []
+
+    def take(u: MapUpdate | None) -> None:
+        assert u is not None
+        u = u.model_copy(update={"seq": len(ups) + 1, "at": at})
+        live.apply(u)
+        ups.append(u)
+
+    take(MapUpdate(seq=1, kind="step", source="frame", ref="f0001",
+                   cells=[(i, 0.6) for i in range(n) if i % 2 == 0], at=at))  # fmt: skip
+    take(live.review_update("f0001-d01", "f0001", centre, 25.0, "person"))
+    layout = lattice_sectors(base.grid)
+    take(live.ground_update([int(i) for i in layout.cells_of("A1")], 0.99, "A1"))  # capped at 0.9
+    clue = Clue(id="c001", kind="object", text="pack", lat=centre.lat, lon=centre.lon, at_team_position=False,
+                radius_m=20.0, reliability="high", reported_by="T2", source="form", confirmed_by_turn=None,
+                at=at, confirmed=True)  # fmt: skip
+    take(live.clue_update(clue))
+    fx = _json.loads(
+        (
+            _Path(__file__).resolve().parents[2] / "tests/geo/fixtures/conditions_windy.json"
+        ).read_text()
+    )
+    take(
+        live.conditions_update(
+            Conditions.model_validate({**fx["conditions"], "exposure_band": "high"})
+        )
+    )
+    after = []
+    replayed = LiveMap.from_base(base)
+    for u in ups:
+        replayed.apply(u)
+        after.append(_state(*replayed.p()))
+    return {"name": "5x5 evidence: frame, review person, ground, clue, shelter", "base": base.model_dump(mode="json"),
+            "updates": [u.model_dump(mode="json") for u in ups], "after": after}  # fmt: skip
 
 
 if __name__ == "__main__":

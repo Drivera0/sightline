@@ -14,8 +14,9 @@ from ``map_base.json`` + the log (``from_base`` + ``apply`` in order) is the sam
 | ``clue_update`` | reweight / clue | within the radius × ``CLUE_FACTOR[reliability]``; within 2 × radius × its square root |
 | ``conditions_update`` | reweight / conditions | exposure rising to high/severe (once per level): cells with canopy ≥ 0.5 × ``SHELTER_FACTOR`` |
 
-The clue and shelter factors are heuristics, labelled as such in every update's ``ref``-side
-reason (``NOTES``); the prior is the labelled placeholder (no invented ring numbers).
+The clue and shelter factors are heuristics: a ``MapUpdate`` carries no note (contract §12), so they
+are labelled here, in ``README_LIVE.md`` and in the report's limitations; the prior is the labelled
+placeholder (no invented ring numbers).
 
 Built by lane A for lane C (issue #64); lane C owns this file.
 """

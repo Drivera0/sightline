@@ -113,3 +113,15 @@ def test_replay_matches_sequential_steps() -> None:
         q, q_out = apply_step(q, q_out, s)
     np.testing.assert_array_equal(p, q)
     assert outside == q_out
+
+
+def test_a_reweight_factor_outside_0_20_is_refused() -> None:
+    """Contract §12.3 invariant 2, as TS applyReweight (live.test.ts)."""
+    from sightline.search.update import MAX_FACTOR, apply_reweight
+
+    p = np.array([0.5, 0.5])
+    for bad in (0.0, -1.0, MAX_FACTOR + 0.001):
+        with pytest.raises(ValueError):
+            apply_reweight(p, 0.0, [(0, bad)])
+    q, out = apply_reweight(p, 0.0, [(0, MAX_FACTOR)])
+    assert q.sum() + out == pytest.approx(1.0, abs=1e-12)

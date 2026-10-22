@@ -368,12 +368,12 @@ lawnmower legs for 2 hours, either in a fixed serpentine sector order or as the 
 before every leg. The person's cell is drawn from the map; each pass over it finds them with
 probability recall × visibility. 3 seeds × 3,200 trials per row:
 
-| Scenario | Strategy | Found within 30 min | Found within 2 h |
-|---|---|---|---|
-| No clue (flat prior) | fixed order | 6.8 % | 28.3 % |
-| | planner | 6.9 % | 27.8 % |
-| A clue at the start (100 m, medium reliability), each of the 16 sectors in turn | fixed order | 6.3 % | 27.7 % |
-| | **planner** | **10.7 %** | **29.9 %** |
+| Scenario | Strategy | Median | P90 | Found within 30 min | Found within 2 h |
+|---|---|---|---|---|---|
+| No clue (flat prior) | fixed order | > 2 h | > 2 h | 6.8 % | 28.3 % |
+| | planner | > 2 h | > 2 h | 6.9 % | 27.8 % |
+| A clue at the start (100 m, medium reliability), each of the 16 sectors in turn | fixed order | > 2 h | > 2 h | 6.3 % | 27.7 % |
+| | **planner** | > 2 h | > 2 h | **10.7 %** | **29.9 %** |
 
 (Visibility noise 0.15; 0 and 0.30 move each number by at most 0.6 points.) **With a flat prior the
 planner is no better than a sensible fixed order**, as expected: every sector is worth the same, so
@@ -383,6 +383,29 @@ the 16 sectors in that time and each pass finds a person under typical cover onl
 10; more drones and real canopy maps are what move those numbers. An earlier version of this
 evaluation counted finds on a leg that started before the 2-hour mark but ended after it, which
 flattered the fixed order; it was fixed before these numbers.
+
+**The fleet** (`scripts/fleet_eval.py`, `planner_sim.plan_fleet`; same map, visibility noise 0.15,
+2,000 trials × 3 seeds per row, 2 hours): whichever drone is free first takes its next leg, either
+from one shared expected map (**coordinated**), from its own map unaware of the others (**each
+planning alone**), or from a fixed third of the serpentine order (**split**, as a team would cut the
+area up by hand).
+
+| Scenario | Strategy | Median | P90 | Found within 30 min | Found within 2 h |
+|---|---|---|---|---|---|
+| No clue | 1 drone, planner | > 2 h | > 2 h | 6.8 % | 26.7 % |
+| | 3 drones, fixed order split in three | 84 min | > 2 h | 20.0 % | 61.3 % |
+| | 3 drones, each planning alone | > 2 h | > 2 h | 12.1 % | 48.3 % |
+| | 3 drones, coordinated | 82 min | > 2 h | 20.9 % | 62.6 % |
+| A clue at the start, each sector in turn | 1 drone, planner | > 2 h | > 2 h | 10.4 % | 28.2 % |
+| | 3 drones, fixed order split in three | 87 min | > 2 h | 19.8 % | 61.0 % |
+| | 3 drones, each planning alone | > 2 h | > 2 h | 15.9 % | 49.2 % |
+| | **3 drones, coordinated** | **81 min** | > 2 h | **23.0 %** | **62.3 %** |
+
+Three drones find the person within 30 minutes about **3× as often** as one. Coordination is what makes
+three planners worth flying: planning alone, they all take the same best sector. **Against a sensible
+hand split it is only a small edge** (+3 points within 30 min with a clue, +1 without), because with a
+flat prior a split is already close to the best order. (The single-drone rows differ slightly from the
+table above: a different run, 2,000 rather than 3,200 trials per seed.)
 
 ### 7.5 End to end
 
