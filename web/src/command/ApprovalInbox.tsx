@@ -5,8 +5,9 @@
 // card only. Built by lane A for lane E (issue #70).
 
 import { useState, type KeyboardEvent } from "react";
-import type { EvidenceRef, Proposal, Team } from "../contract";
+import type { Drone, EvidenceRef, Proposal, Team } from "../contract";
 import { Label, Panel, StatusPill } from "../shell/components";
+import { domain, OVERRIDE_SOURCE } from "./conditions";
 
 export type Decide = (
   pid: string,
@@ -25,6 +26,52 @@ const KIND_WORDS: Record<Proposal["kind"], string> = {
   alert: "Alert",
 };
 const IMAGE_EVIDENCE: readonly EvidenceRef["kind"][] = ["crop", "frame", "relook"];
+
+/** A recall: a re-task whose leg flies the drone home (target `home`), proposed when conditions ground the drones. */
+export const isRecall = (p: Proposal) => p.kind === "retask_drone" && p.target.home !== undefined;
+const kindWords = (p: Proposal) => (isRecall(p) ? "Recall drone" : KIND_WORDS[p.kind]);
+
+/** The fact that grounded the drones, where it came from, and the drone's battery and position. */
+function RecallFacts({ p, drone }: { p: Proposal; drone: Drone | undefined }) {
+  const src = p.evidence.find((e) => e.kind === "conditions");
+  const override = src?.ref === OVERRIDE_SOURCE;
+  const url = src && /^https?:\/\//.test(src.ref) ? src.ref : null;
+  return (
+    <div aria-label="Why recall" className="flex flex-col gap-1 rounded-sm border border-line px-2 py-1.5 text-caption">
+      {src && (
+        <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          {url ? (
+            <q className="font-mono text-text">{src.caption}</q>
+          ) : (
+            // an override's caption names its source; the pill below says it instead
+            <span className="font-mono text-text">{override ? src.caption.split(" (")[0] : src.caption}</span>
+          )}
+          {url && (
+            <a href={url} target="_blank" rel="noreferrer" title={url} className="text-text-2 underline decoration-text-3 underline-offset-2 hover:text-text">
+              {domain(url)} <span aria-hidden>↗</span>
+            </a>
+          )}
+          {override && (
+            <StatusPill tone="caution" dot={false}>
+              Demo override: not from Tavily
+            </StatusPill>
+          )}
+        </span>
+      )}
+      {drone && (
+        <span className="text-text-2">
+          {drone.name}: battery {drone.battery_pct.toFixed(0)}%, {drone.status}
+          {drone.position && (
+            <span className="font-mono text-text-3">
+              {" "}
+              at {drone.position.lat.toFixed(5)}, {drone.position.lon.toFixed(5)}
+            </span>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
 const OPERATOR_KEY = "sightline.operator";
 
 function loadOperator(): string {
@@ -40,11 +87,14 @@ const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([],
 export function ApprovalInbox({
   proposals,
   teams,
+  drones = [],
   onDecide,
   imageUrl,
 }: {
   proposals: readonly Proposal[];
   teams: readonly Team[];
+  /** The fleet's drones now (a recall shows the drone's battery and position). */
+  drones?: readonly Drone[];
   onDecide: Decide;
   imageUrl: (rel: string) => string;
 }) {
@@ -78,7 +128,15 @@ export function ApprovalInbox({
       </header>
       {pending.length === 0 && <p className="text-small text-text-3">Nothing waiting. The agent's proposals appear here.</p>}
       {pending.map((p) => (
-        <PendingCard key={p.id} p={p} teams={teams} by={operator.trim() || "Search manager"} onDecide={onDecide} imageUrl={imageUrl} />
+        <PendingCard
+          key={p.id}
+          p={p}
+          teams={teams}
+          drone={drones.find((d) => d.id === p.target.drone)}
+          by={operator.trim() || "Search manager"}
+          onDecide={onDecide}
+          imageUrl={imageUrl}
+        />
       ))}
       {decided.length > 0 && (
         <details className="flex flex-col gap-1">
@@ -106,12 +164,14 @@ export function ApprovalInbox({
 function PendingCard({
   p,
   teams,
+  drone,
   by,
   onDecide,
   imageUrl,
 }: {
   p: Proposal;
   teams: readonly Team[];
+  drone?: Drone;
   by: string;
   onDecide: Decide;
   imageUrl: (rel: string) => string;
@@ -143,7 +203,7 @@ function PendingCard({
   return (
     <Panel tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} className="flex flex-col gap-2 border-l-2 border-l-accent bg-surface-solid p-3 focus:outline focus:outline-accent">
       <div className="flex flex-wrap items-center gap-2">
-        <StatusPill tone="action">{KIND_WORDS[p.kind]}</StatusPill>
+        <StatusPill tone="action">{kindWords(p)}</StatusPill>
         <span className="text-body text-text">{p.summary}</span>
         <span className="ml-auto font-mono text-caption text-text-3">
           {p.id} · {p.created_by}
@@ -152,7 +212,8 @@ function PendingCard({
       <button type="button" className="sl-tap self-start text-left text-small text-text-2" aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? p.reason : `${p.reason.slice(0, 140)}${p.reason.length > 140 ? "…" : ""}`}
       </button>
-      {p.evidence.length > 0 && (
+      {isRecall(p) && <RecallFacts p={p} drone={drone} />}
+      {p.evidence.length > 0 && !isRecall(p) && (
         <div className="flex flex-wrap gap-2" aria-label="Evidence">
           {p.evidence.map((ev) =>
             IMAGE_EVIDENCE.includes(ev.kind) ? (

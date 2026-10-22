@@ -178,6 +178,17 @@ export const postTask = (
 export const patchTeam = (api: Api, id: string, tid: string, patch: Partial<Team>) =>
   call<Team>(api, "PATCH", `${m(id)}/teams/${encodeURIComponent(tid)}`, patch);
 
+/** Ask the simulated fleet to change a drone's link (the sim applies it from the event stream). */
+export const postFleetLink = (api: Api, id: string, target: string, link: "connected" | "degraded" | "lost", by: string) =>
+  call<MissionEvent>(api, "POST", `${m(id)}/fleet/link`, { target, link, by });
+
+/** Demo only: a conditions record labelled "override (demo)", handled like a refresh (refused for a real fleet). */
+export const overrideConditions = (api: Api, id: string, gust_kmh: number, by: string) =>
+  call<Conditions>(api, "POST", `${m(id)}/conditions/override`, { gust_kmh, by });
+
+/** Look the conditions up again (Tavily; cached per hour on the server). */
+export const refreshConditions = (api: Api, id: string) => call<Conditions>(api, "POST", `${m(id)}/conditions/refresh`);
+
 /** Upload one batch (≤ 50 files) of JPEGs. */
 export async function uploadPhotos(api: Api, id: string, files: readonly File[]): Promise<UploadResult> {
   const form = new FormData();

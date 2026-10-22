@@ -89,7 +89,8 @@ def sector_overview(store: MissionStore, mission_id: str) -> list[dict]:
 
 def on_decision(store: MissionStore, mission_id: str, p: Proposal) -> None:
     """After ``store.decide_proposal``: an approved ``assign_sector`` assigns the task and the
-    team; an approved ``promote_detection`` puts the detection in the review queue. (Approved
+    team; an approved ``promote_detection`` puts the detection in the review queue; an approved
+    recall (``retask_drone`` with a ``home`` target) is said in the feed. (Approved
     legs enter the fleet inside ``decide_proposal``; ``alert``s need nothing more: the radio's
     outbound queue reads approved proposals with a briefing.)"""
     if p.status != "approved":
@@ -113,6 +114,14 @@ def on_decision(store: MissionStore, mission_id: str, p: Proposal) -> None:
         team = next((t for t in state["teams"] if t.id == team_id), None)
         if team is not None:
             store.upsert_team(mission_id, team.model_copy(update={"status": "assigned"}))
+    elif p.kind == "retask_drone" and "home" in p.target:
+        # a recall: the store already cancelled the drone's leg and approved the home leg (the
+        # re-task path); the feed says so in words, with the reason it was approved on
+        drones = state["fleet"].drones if state["fleet"] else []
+        drone = next((d for d in drones if d.id == p.target["drone"]), None)
+        name = drone.name if drone else p.target["drone"]
+        store.emit(mission_id, "mission.note", f"{name} recalled home ({p.id}): {p.reason}",
+                   ref=p.target["drone"], data={"recall": p.target, "proposal": p.id})  # fmt: skip
     elif p.kind == "promote_detection":
         det_id = p.target.get("detection")
         det, _ = store.get_detection(mission_id, det_id)

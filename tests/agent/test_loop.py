@@ -118,6 +118,7 @@ def _conditions(flyable: bool | None = True, visibility: float = 1.0) -> Conditi
 @pytest.fixture(autouse=True)
 def _fresh_conditions_memory():
     loop._last_conditions.clear()
+    loop._recalled.clear()
 
 
 @pytest.fixture
@@ -307,13 +308,102 @@ def test_leg_done_plans_the_next_leg_for_that_drone(mission) -> None:
 # --- conditions --------------------------------------------------------------------------------
 
 
-def test_unflyable_conditions_recall_drones_once(mission) -> None:
+GUST_QUOTE = "Wind southeast 30 km/h gusting to 50"
+FORECAST = "https://weather.gc.ca/forecast/hourly/bc-74_metric_e.html"
+
+
+def _gusts(store, mid, gust: float = 50.0, **update) -> Conditions:
+    """Gusts over the Mavic 3E's 43.2 km/h, as fetch_conditions would store them, with its lookup
+    traced (the quote and the page each kept value was verified in)."""
+    from sightline.agent.trace import trace_call
+
+    fleet = store.state(mid)["fleet"]
+    store.put_fleet(mid, fleet.model_copy(update={
+        "drones": [d.model_copy(update={"max_wind_kmh": 43.2}) for d in fleet.drones]}))  # fmt: skip
+    trace_call(store, mid, actor="conditions", kind="model_call", summary="conditions extracted with quotes",
+               output={"fields": {"gust_kmh": {"value": gust, "quote": GUST_QUOTE, "url": FORECAST}}})  # fmt: skip
+    c = _conditions(flyable=False).model_copy(update={
+        "fetched_at": "2026-10-24T20:05:00Z", "gust_kmh": gust, "sources": [FORECAST],
+        "flyability_reason": f"gusts {gust:.0f} km/h at or above the drones' limit of 43 km/h", **update})  # fmt: skip
+    store.put_conditions(mid, c)
+    return c
+
+
+def test_unflyable_conditions_recall_each_flying_drone_once(mission) -> None:
     store, mid, _ = mission
     assert _handle(store, mid, "conditions", mid) == []
+    _handle(store, mid, "leg_done", "L900")  # a pending leg proposal for D2
     store.put_conditions(mid, _conditions(flyable=False))
+    (p,) = _handle(store, mid, "conditions", mid)  # D2 flies; D1 is on the ground
+    assert p.kind == "retask_drone" and p.status == "pending" and p.created_by == "agent"
+    assert p.target == {"drone": "D2", "leg": p.leg.id, "home": "recall"}
+    assert p.leg.sector_id is None and p.leg.waypoints[-1] == (LKP.lon, LKP.lat)
+    assert p.summary.startswith("Recall Drone 2: fly home now (leaves sector A1, battery 90%")
+    others = [x for x in store.state(mid)["proposals"] if x.id != p.id]
+    assert others and all(x.status == "superseded" for x in others)  # nothing takes off into it
+    assert _handle(store, mid, "conditions", mid) == []  # one recall per drone per spell
+    store.put_conditions(mid, _conditions())
+    _handle(store, mid, "conditions", mid)
+    store.put_conditions(mid, _conditions(flyable=False))
+    assert _kinds(_handle(store, mid, "conditions", mid)) == ["retask_drone"]  # a new spell
+
+
+def test_the_recall_quotes_the_tavily_fact_its_page_and_the_limit(mission) -> None:
+    store, mid, _ = mission
+    _gusts(store, mid)
     (p,) = _handle(store, mid, "conditions", mid)
-    assert p.kind == "alert" and p.target == {"drone": "all"} and "gusts" in p.reason
-    assert _handle(store, mid, "conditions", mid) == []  # only on the change
+    assert p.reason.startswith(
+        f'Gusts 50 km/h ("{GUST_QUOTE}", weather.gc.ca, as of 20:05 UTC) > DJI Mavic 3E limit 43 km/h. '
+        "Recall Drone 2 to its launch point"
+    )
+    src = p.evidence[0]
+    assert (src.kind, src.ref, src.caption) == ("conditions", FORECAST, GUST_QUOTE)
+    assert not CLEAR.search(p.reason + p.summary)
+
+
+def test_a_quote_from_another_value_is_not_shown(mission) -> None:
+    """The trace's lookup read 50; conditions now say 60 (a later, cached hour): no quote is borrowed."""
+    store, mid, _ = mission
+    _gusts(store, mid)
+    store.put_conditions(mid, store.state(mid)["conditions"].model_copy(update={"gust_kmh": 60.0}))
+    (p,) = _handle(store, mid, "conditions", mid)
+    assert GUST_QUOTE not in p.reason and "Gusts 60 km/h (Tavily, no quote in the trace" in p.reason
+
+
+def test_a_demo_override_says_so_in_the_recall(mission) -> None:
+    store, mid, _ = mission
+    _gusts(store, mid, sources=[loop.OVERRIDE_SOURCE])
+    (p,) = _handle(store, mid, "conditions", mid)
+    assert "Gusts 50 km/h (override (demo), not from Tavily, as of 20:05 UTC)" in p.reason
+    assert GUST_QUOTE not in p.reason and p.evidence[0].ref == loop.OVERRIDE_SOURCE
+
+
+def test_civil_twilight_recalls_too(mission) -> None:
+    store, mid, _ = mission
+    store.put_conditions(mid, _conditions(flyable=False).model_copy(update={
+        "civil_twilight_end": "2026-10-24T16:40:00Z", "flyability_reason": "after civil twilight: no light for photos"}))  # fmt: skip
+    (p,) = _handle(store, mid, "conditions", mid)
+    assert p.reason.startswith("Civil twilight ended at 16:40 UTC")
+
+
+def test_no_legs_while_gusts_exceed_the_limit_and_the_briefing_says_why(mission) -> None:
+    store, mid, b3 = mission
+    _gusts(store, mid)
+    _handle(store, mid, "conditions", mid)
+    for event, ref in (
+        ("leg_done", "L900"),
+        ("fleet_join", mid),
+        ("clue", _clue(store, mid, b3).id),
+    ):
+        assert _handle(store, mid, event, ref) == []
+    notes = [e.summary for e in store.trace_entries(mid) if e.kind == "note"]
+    assert (
+        "No drone legs proposed: not flyable (gusts 50 km/h at or above the drones' limit of 43 km/h)"
+        in notes
+    )
+    (a,) = _handle(store, mid, "tick", mid)[:1]
+    assert a.kind == "assign_sector"
+    assert "Drones: grounded, gusts 50 km/h at or above the drones' limit of 43 km/h." in a.briefing
 
 
 def test_no_recall_when_no_drone_is_up(mission) -> None:

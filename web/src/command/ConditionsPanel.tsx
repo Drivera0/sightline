@@ -5,7 +5,7 @@
 import type { ReactNode } from "react";
 import type { Conditions } from "../contract";
 import { ModeChip, StatusPill } from "../shell/components";
-import { conditionsFacts, domain, flyGate, type Fact, type Lookup } from "./conditions";
+import { conditionsFacts, domain, flyGate, isOverride, OVERRIDE_SOURCE, type Fact, type Lookup } from "./conditions";
 
 export interface ConditionsData {
   conditions: Conditions;
@@ -57,7 +57,9 @@ function Source({ f, lookup }: { f: Fact; lookup: Lookup | null }) {
 }
 
 export function ConditionsPanel({ id, data, now, time }: { id: string; data: ConditionsData; now: Date; time: (iso: string) => string }) {
-  const { conditions: c, lookup } = data;
+  const { conditions: c } = data;
+  const override = isOverride(c);
+  const lookup = override ? null : data.lookup; // an override is never shown with a lookup's quotes
   const gate = flyGate(c, data.limitKmh, data.drone, time);
   const age = minutes(c.fetched_at, now);
   const facts = conditionsFacts(c, lookup, now);
@@ -66,6 +68,11 @@ export function ConditionsPanel({ id, data, now, time }: { id: string; data: Con
     <section id={id} aria-label="Conditions" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <StatusPill tone={gate.tone}>{gate.text}</StatusPill>
+        {override && (
+          <StatusPill tone="caution" dot={false}>
+            Demo override: not from Tavily
+          </StatusPill>
+        )}
         {data.recorded ? (
           <span className="flex items-center gap-2 text-caption text-text-2">
             <ModeChip mode="replay" />
@@ -145,7 +152,12 @@ export function ConditionsPanel({ id, data, now, time }: { id: string; data: Con
           </ul>
         </details>
       )}
-      {!lookup && <p className="text-caption text-text-3">No conditions lookup in this mission's trace yet: the values above have no quotes to show.</p>}
+      {override && (
+        <p className="text-caption text-text-3">
+          Set by hand for a demo ({OVERRIDE_SOURCE}), not looked up: the next conditions lookup replaces it whole.
+        </p>
+      )}
+      {!lookup && !override && <p className="text-caption text-text-3">No conditions lookup in this mission's trace yet: the values above have no quotes to show.</p>}
     </section>
   );
 }

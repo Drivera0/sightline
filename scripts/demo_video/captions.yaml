@@ -27,6 +27,7 @@ labels:
   live_review:  {text: "Live · verdicts on each candidate", number: true}
   live_console: {text: "Live · the console on a real mission", number: true}
   live_radio:   {text: "Live · the radio desk", number: true}
+  recall:       {text: "Live · gusts over the drones' limit: the agent proposes a recall", number: true}
 
 # Silent cuts from the captioned master, in story order. A shot that didn't run is left out. `slot` is a
 # black gap for a slide Dan adds in the editor (architecture, numbers, limits, Tavily). When the screen
@@ -73,6 +74,7 @@ cuts:
       - approvals
       - console       # card / radio
       - live_radio
+      - recall        # Tavily moment: gusts -> no-fly -> recall, the cited source on the card
       - {slot: tavily, s: 15}
       - {slot: architecture, s: 15}
       - {slot: limits, s: 10}
