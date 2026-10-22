@@ -5,13 +5,13 @@ for, what worked, what needs work, how onboarding felt (zero to hello world), an
 with it again. Token Factory numbers are from 2026-10-20; the Serverless Job numbers from 2026-10-22.
 The radio desk's own measurements are in `docs/feedback/radio.md`.
 
-**Pending from Dan** (onboarding timings that only he has; everything else below is from the repo):
+**Onboarding timings** (items 2–5 read from our session logs and `git log`; item 1 and 6 from memory):
 
-1. Token Factory: sign-up → first API key, `<Dan: minutes>`
-2. Token Factory: first successful chat call, `<Dan: minutes>`
-3. Token Factory: first tool call that parsed, `<Dan: minutes>`
-4. Serverless Jobs: `nebius` CLI install → logged in, `<Dan: minutes>`
-5. Parakeet and Magpie: NeMo install → first transcript and first spoken reply, `<Dan: minutes>`
+1. Token Factory: sign-up → first API key, 10 hours
+2. Token Factory: key in the shell → first successful chat call, about 3 minutes (2026-10-20 13:29 → 13:32 PDT, session log)
+3. Token Factory: key → first tool call that parsed, about 2.5 hours (13:29 → 15:58 PDT, `git log`), almost all of it writing the client; the one model-side snag was replies that came back empty after the model spent the token budget thinking, fixed by turning thinking off (`extra_body`)
+4. Serverless Jobs: `nebius` CLI install → logged in, about 2 minutes (2026-10-21 21:14 → 21:16 PDT), after one failed try because `profile create` only works interactively
+5. Parakeet and Magpie: start of the spike → first transcript and first spoken reply, about 75 minutes (2026-10-20 18:30 → 19:45 PDT), including the NeMo environment build and the 3 GB download
 6. Builders credits: applied → credited, `<Dan: days>`, and how the process felt
 
 **Prices** (Token Factory model catalog, https://tokenfactory.nebius.com/model-catalog.md, read
@@ -50,8 +50,9 @@ turns with tool calls.
 - **Models live in different regions** (us-north1, eu-north1, us-central1, per the catalog). One base
   URL served all three for us; the catalog does not say whether region affects latency.
 
-**Onboarding.** Zero to the first chat reply: `<Dan: minutes>` (sign-up → key), `<Dan: minutes>`
-(first call). The one-line check we now give others is in `README.md:113`.
+**Onboarding.** Zero to the first chat reply: about 10 hours (sign-up → key, waiting on the
+account) then about 3 minutes (key → first call, 2026-10-20 13:29 → 13:32 PDT by our session log). The
+first tool call that parsed came 2.5 hours after the key, nearly all of it our own client code. The one-line check we now give others is in `README.md:113`.
 
 **Would we build with it again?** Yes. One OpenAI-compatible client for vision, text and tools, with
 reliable structured output, is what let a small team wire five jobs to NVIDIA models in a week.
@@ -199,7 +200,8 @@ billing makes short batch jobs cheap even with the 1 h minimum timeout setting.
   `PLATFORM` default picked it up and the API answered `Platform "WSL" was not found`; our bug, but an
   error listing the valid platforms would have shortened it.
 
-**Onboarding.** CLI install → logged in: `<Dan: minutes>`. From the first `ai job create` (failed: the
+**Onboarding.** CLI install → logged in: about 2 minutes (2026-10-21 21:14 → 21:16 PDT), after one
+failed try because `profile create` only works interactively. From the first `ai job create` (failed: the
 `PLATFORM` clash, then the quota) to the first completed job took about 15 minutes by our logs, and the
 successful job itself 11 minutes.
 
@@ -225,8 +227,8 @@ inverse-text-normalisation switch would help. NeMo pins its own Lightning and to
 its own environment (`docs/feedback/radio.md:168-169`).
 
 **Onboarding.** `uv pip install "nemo_toolkit[asr,tts]"`, then our spike script runs in about 2 minutes
-and downloads about 3 GB once (`docs/feedback/radio.md:165`). Install → first transcript:
-`<Dan: minutes>`.
+and downloads about 3 GB once (`docs/feedback/radio.md:165`). Start of the spike → first transcript and first spoken reply: about 75 minutes (2026-10-20
+18:30 → 19:45 PDT), including the environment build and the one-time download.
 
 **Would we build with it again?** Yes. Fast and accurate for short radio phrases on one consumer GPU.
 
