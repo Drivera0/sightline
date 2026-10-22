@@ -24,7 +24,7 @@ from sightline.contract import (
     TopCell,
 )
 from sightline.search.grid import cell_center
-from sightline.search.pod import MIN_STEP_POD, FrameInput, frame_step
+from sightline.search.pod import MIN_STEP_POD, FrameInput, frame_recall, frame_step
 from sightline.search.update import replay
 
 FrameCells = dict[int, tuple[float, float]]  # idx -> (canopy, overlap) for one frame
@@ -88,7 +88,7 @@ def build_map(
     weighted_canopy = np.zeros(n_cells, dtype=np.float64)
     weight = np.zeros(n_cells, dtype=np.float64)
     for f in frames:
-        pods, cells = frame_step(grid, f, recall, pod_cap, held=held, **canopy_thr)
+        pods, cells = frame_step(grid, f, frame_recall(f, recall), pod_cap, held=held, **canopy_thr)
         rounded = [(idx, r) for idx, pod in pods if (r := round(pod, POD_DECIMALS)) >= MIN_STEP_POD]
         steps.append(Step(frame_id=f.frame_id, cells=sorted(rounded)))
         per_frame.append(cells)
