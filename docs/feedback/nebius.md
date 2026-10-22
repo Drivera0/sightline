@@ -5,14 +5,14 @@ for, what worked, what needs work, how onboarding felt (zero to hello world), an
 with it again. Token Factory numbers are from 2026-10-20; the Serverless Job numbers from 2026-10-22.
 The radio desk's own measurements are in `docs/feedback/radio.md`.
 
-**Onboarding timings** (items 2–5 read from our session logs and `git log`; item 1 and 6 from memory):
+**Onboarding timings** (items 2–5 read from our session logs and `git log`; items 1 and 6 from memory):
 
 1. Token Factory: sign-up → first API key, 10 hours
 2. Token Factory: key in the shell → first successful chat call, about 3 minutes (2026-10-20 13:29 → 13:32 PDT, session log)
 3. Token Factory: key → first tool call that parsed, about 2.5 hours (13:29 → 15:58 PDT, `git log`), almost all of it writing the client; the one model-side snag was replies that came back empty after the model spent the token budget thinking, fixed by turning thinking off (`extra_body`)
 4. Serverless Jobs: `nebius` CLI install → logged in, about 2 minutes (2026-10-21 21:14 → 21:16 PDT), after one failed try because `profile create` only works interactively
 5. Parakeet and Magpie: start of the spike → first transcript and first spoken reply, about 75 minutes (2026-10-20 18:30 → 19:45 PDT), including the NeMo environment build and the 3 GB download
-6. Builders credits: applied → credited, `<Dan: days>`, and how the process felt
+6. Builders credits: applied → credited, under a day; the process was straightforward
 
 **Prices** (Token Factory model catalog, https://tokenfactory.nebius.com/model-catalog.md, read
 2026-10-20 and again 2026-10-22, unchanged; per million tokens, no currency stated on the page):
@@ -268,6 +268,8 @@ streaming API with first audio under 300 ms would matter more than raw throughpu
 **What we used it for.** Token Factory credits for development and evaluation (the 461 vision calls cost
 about 0.15 at catalog prices, §2), alongside the hackathon promo code.
 
-**How it went.** Applied → credited: `<Dan: days>`. What worked and what needs work: `<Dan: notes>`.
+**How it went.** Applied → credited: under a day. The form was short and the credit appeared without a
+follow-up; nothing to change. One ask: a note on the credits page saying which services and regions the
+credit covers, so a first job is not planned in a region with no quota (§3).
 
 **Would we use it again?** `<Dan>`
