@@ -160,3 +160,20 @@ describe("relay for a cut-off team", () => {
     expect(all).not.toMatch(/\bclear(ed)?\b/i);
   });
 });
+
+describe("the demo mission's fleet (scripts/make_fleet_fixture.py)", () => {
+  it("has three simulated drones, a re-task, a lost and a degraded link, and a relayed team", async () => {
+    const fx = (await import("../../command/__fixtures__/demo_mission.json")).default as unknown as {
+      fleet: FleetState;
+      events: Parameters<typeof fleetLinksFromEvents>[0];
+    };
+    expect(fx.fleet.simulated).toBe(true);
+    expect(fx.fleet.drones.map((d) => d.id)).toEqual(["D1", "D2", "D3"]);
+    const cancelled = fx.fleet.legs.find((l) => l.status === "cancelled")!;
+    expect(replacementLeg(fx.fleet, cancelled)?.drone_id).toBe(cancelled.drone_id);
+    const links = fleetLinksFromEvents(fx.events);
+    expect(Object.values(links.drones).map((l) => l.link).sort()).toEqual(["degraded", "lost"]);
+    expect(links.teams.T2?.link).toBe("no_signal");
+    expect(links.teams.T2?.relay?.via.length).toBeGreaterThan(0);
+  });
+});

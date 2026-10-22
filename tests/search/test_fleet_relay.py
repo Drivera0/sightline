@@ -47,7 +47,7 @@ def test_a_drone_near_a_cut_off_team_relays_its_position(world) -> None:
     assert r["via"] == ["D1"] and r["hops"] == 1 and r["team_id"] == "T2"
     notes = [e.summary for e in store.events(mid) if e.type == "mission.note"]
     assert any(
-        re.fullmatch(r"Team Two heard via D1, \d+ s old \(simulated relay\)", n) for n in notes
+        re.fullmatch(r"Team Two heard via D1, (just now|\d+ s old) \(simulated relay\)", n) for n in notes
     )
     assert any("T2 has no signal (simulated link model)" in n for n in notes)
     team = next(t for t in store.state(mid)["teams"] if t.id == "T2")

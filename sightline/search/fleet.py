@@ -758,7 +758,8 @@ def relay_summary(r: dict) -> str:
     """The feed line for a relayed team position: who it came through and how old it is."""
     who = r.get("callsign") or r["team_id"]
     via = " then ".join(r["via"])
-    return f"{who} heard via {via}, {_age(r['age_s'])} old (simulated relay)"
+    age = "just now" if r["age_s"] < 5 else f"{_age(r['age_s'])} old"
+    return f"{who} heard via {via}, {age} (simulated relay)"
 
 
 # --- the ground station: hears the drones, sends the fleet ----------------------------------------

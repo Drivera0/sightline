@@ -13,6 +13,8 @@ export const DEMO_MISSION_ID = "demo";
 export const DEMO_CACHE = "/cache/demo";
 
 type Fixture = Pick<MissionData, "mission" | "teams" | "tasks" | "clues" | "proposals" | "conditions" | "events" | "sectors"> & {
+  /** The simulated fleet (scripts/make_fleet_fixture.py); null in an older fixture. */
+  fleet?: MissionData["fleet"];
   now: string;
   ground_updates: MapUpdate[];
 };
@@ -41,7 +43,7 @@ export async function loadDemoMission(
   const frames = cacheUpdates(map, fx.mission?.created_at ?? fx.now);
   const { now, ground_updates, ...rest } = fx;
   return {
-    data: { ...rest, verdicts: [], fleet: null, mapBase: cacheBase(map), mapUpdates: [...frames, ...ground_updates] },
+    data: { ...rest, verdicts: [], fleet: fx.fleet ?? null, mapBase: cacheBase(map), mapUpdates: [...frames, ...ground_updates] },
     now,
   };
 }
