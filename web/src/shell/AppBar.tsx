@@ -43,14 +43,14 @@ export interface BarAction {
 
 export interface BarViews {
   current: View;
-  onSelect: (view: Exclude<View, "radio">) => void;
+  onSelect: (view: View) => void;
   /** A count beside a view (Review: candidates waiting). */
   counts?: Partial<Record<View, number>>;
 }
 
 function ViewButtons({ views, bottom = false }: { views: BarViews; bottom?: boolean }) {
   return (
-    <ul className={bottom ? "grid grid-cols-5" : "flex items-center gap-0.5 rounded-full border border-line bg-surface-solid p-0.5"}>
+    <ul className={bottom ? "grid grid-cols-6" : "flex items-center gap-0.5 rounded-full border border-line bg-surface-solid p-0.5"}>
       {VIEWS.map((v) => {
         const on = views.current === v.id;
         const n = views.counts?.[v.id];
@@ -59,7 +59,7 @@ function ViewButtons({ views, bottom = false }: { views: BarViews; bottom?: bool
             <button
               type="button"
               aria-pressed={on}
-              title={`${v.label} (${v.key})`}
+              title={`${v.label}: ${v.what}`}
               onClick={() => views.onSelect(v.id)}
               className={
                 bottom

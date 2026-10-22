@@ -95,7 +95,7 @@ describe("AppBar", () => {
     expect(navs).toHaveLength(2);
     expect(navs[1]!.className).toMatch(/fixed .*bottom-0.*lg:hidden/);
     for (const nav of navs) {
-      expect(within(nav).getAllByRole("button").map((b) => b.textContent)).toEqual(["Map2", "Photos", "Review", "Trace", "Debrief"]);
+      expect(within(nav).getAllByRole("button").map((b) => b.textContent)).toEqual(["Map2", "Photos", "Review", "Trace", "Debrief", "Radio"]);
       expect(within(nav).getByRole("button", { name: "Debrief" })).toHaveAttribute("aria-pressed", "true");
       expect(within(nav).getByRole("button", { name: /Map/ })).toHaveAttribute("aria-pressed", "false");
     }

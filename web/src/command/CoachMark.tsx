@@ -75,6 +75,8 @@ export function CoachMark({
   index,
   count,
   gate,
+  aside,
+  onAside,
   onNext,
   onBack,
   onExit,
@@ -89,6 +91,9 @@ export function CoachMark({
   count: number;
   /** The mark waits for an action on the console (in words: "Approve it on the card"); Skip moves on. */
   gate?: string;
+  /** One more line under the sentence, with a way to act on it (t4: "Teams report by radio: open Radio."). */
+  aside?: string;
+  onAside?: () => void;
   onNext: () => void;
   onBack?: () => void;
   onExit: () => void;
@@ -221,6 +226,14 @@ export function CoachMark({
           {text}
         </p>
         {gate && <p className="text-small text-accent-soft">{gate}</p>}
+        {aside &&
+          (onAside ? (
+            <button type="button" onClick={onAside} className="sl-tap self-start text-left text-small text-accent-soft underline underline-offset-2 hover:text-text">
+              {aside}
+            </button>
+          ) : (
+            <p className="text-small text-text-2">{aside}</p>
+          ))}
         <div className="flex flex-wrap items-center gap-2">
           {gate ? (
             <Button ref={primary} variant="ghost" onClick={onNext}>

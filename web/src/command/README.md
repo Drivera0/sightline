@@ -8,7 +8,7 @@ Lane E's folder. Lane E has no owner yet, so lane A built **E-07, the approval i
 The console is the whole site (`web/src/shell/README.md` has the addresses). `ingest/LiveMission.tsx` mounts
 it for a live mission and for the demo mission alike: `CommandView` with the map in the middle, the task
 board and teams on the left, the view's rail on the right, the clue log along the bottom. The views change
-the rail, never the map: **Map** (the approval inbox, the radio desk as a toggle under it), **Photos**
+the rail, never the map: **Map** (the approval inbox, an Open Radio button under it), **Radio** (the radio desk), **Photos**
 (`PhotosRail.tsx`: the survey's photos as they land, or a live mission's upload and watch command; Try a
 photo), **Review** (`review/LiveReview.tsx`'s `ReviewRail`: candidates with the second look's verdict and
 model chips, your own photo on top), **Debrief** (`Debrief.tsx`, a wide panel: the mission so far, the

@@ -17,7 +17,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Views",
     shortcuts: [
-      { keys: ["1", "2", "3", "4", "5"], description: "Map, Photos, Review, Trace, Debrief" },
+      { keys: ["1", "2", "3", "4", "5", "6"], description: "Map, Photos, Review, Trace, Debrief, Radio" },
       { keys: ["C"], description: "Back to the map" },
     ],
   },

@@ -201,13 +201,13 @@ describe("a live mission's console", () => {
     expect(await screen.findByText(/radio desk isn't running on this server/)).toBeInTheDocument();
   });
 
-  it("keeps the radio desk a toggle in the rail beside the approvals (D-R3)", async () => {
+  it("keeps the radio one labelled step away: a Radio view, and Open Radio under the approvals (D-R3)", async () => {
     vi.stubGlobal("fetch", () => new Promise(() => {}));
     render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" route={missionRoute("a1b2c3d4", "map")} />);
-    const toggle = screen.getByRole("button", { name: /Radio desk/ });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(toggle);
+    expect(within(screen.getByRole("region", { name: "Radio" })).getByText(/teams report here/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Open Radio" }));
     expect(await screen.findByText(SAFETY_FRAME)).toBeInTheDocument();
+    for (const nav of screen.getAllByRole("navigation", { name: "Mission views" })) expect(within(nav).getByRole("button", { name: "Radio" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("links the mission's own debrief in the Debrief view, and shows the event log in the Trace view", async () => {

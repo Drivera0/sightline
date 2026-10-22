@@ -87,7 +87,6 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
   const [view, setView] = useState<View>(() => route.view ?? (demo && route.t !== null ? checkpoint(route.t).view : "map"));
   const [keysOpen, setKeysOpen] = useState(false);
   const [tryOpen, setTryOpen] = useState(!!route.open.try);
-  const [radioOpen, setRadioOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(!!route.open.log);
   const [demoData, setDemoData] = useState<{ full: DemoFull; bundle: CacheBundle } | null>(null);
   const [bundle, setBundle] = useState<CacheBundle | null>(null);
@@ -231,7 +230,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       else if (e.key === "Escape") setKeysOpen(false);
       else if (keysOpen) return;
       else if (e.key === "c" || e.key === "C") go("map");
-      else if (/^[1-5]$/.test(e.key) && !useStory.getState().tour) go(VIEWS[Number(e.key) - 1]!.id);
+      else if (/^[1-6]$/.test(e.key) && !useStory.getState().tour) go(VIEWS[Number(e.key) - 1]!.id);
       else if (e.key === " " && demo && !useStory.getState().tour && !(e.target instanceof HTMLButtonElement)) {
         // outside the story Space plays the clock on to the end, or pauses it
         e.preventDefault();
@@ -374,15 +373,24 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       The radio desk isn't running on this server. Start the API with <code>serve --radio text</code> (or <code>real</code> for voices).
     </p>
   );
+  // the radio is a view of its own (the switch's Radio, key 6); under the approvals, a labelled way there
   const radioToggle = (
-    <section aria-label="Radio" className="flex flex-col gap-2">
-      <button type="button" aria-expanded={radioOpen} onClick={() => setRadioOpen(!radioOpen)} className="sl-tap flex items-center gap-2 self-start px-1 text-caption font-medium text-text-2 hover:text-text">
-        <span aria-hidden className={`font-mono transition-transform motion-reduce:transition-none ${radioOpen ? "rotate-90" : ""}`}>
-          ›
-        </span>
-        Radio desk
+    <section aria-label="Radio" className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-solid px-3 py-2">
+      <span className="text-small text-text-2">
+        <span className="font-medium text-text">Radio</span> · teams report here
+      </span>
+      <button type="button" onClick={() => go("radio")} className="sl-tap rounded-full border border-border px-3 py-0.5 text-small text-text hover:border-text-3">
+        Open Radio
       </button>
-      {radioOpen && radioDesk}
+    </section>
+  );
+  const radioRail = (
+    <section aria-label="Radio desk" className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5 px-1">
+        <span className="text-caption font-medium text-text-2">Radio</span>
+        <span className="text-caption text-text-3">Teams report by radio; Sightline answers, and a briefing goes out only when you press Transmit.</span>
+      </div>
+      <Panel className="p-3">{radioDesk}</Panel>
     </section>
   );
   const debrief = (
@@ -399,7 +407,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
     />
   );
   const rightRail: ReactNode =
-    view === "photos" ? photosRail : view === "review" ? reviewRail : view === "debrief" ? debrief : view === "radio" ? <Panel className="p-3">{radioDesk}</Panel> : undefined;
+    view === "photos" ? photosRail : view === "review" ? reviewRail : view === "debrief" ? debrief : view === "radio" ? radioRail : undefined;
   const cover =
     view === "trace" ? (
       <div className="flex flex-col gap-3 p-1">
@@ -538,6 +546,8 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
             count={MARK_COUNT}
             last={t === 5}
             gate={checkpoint(t).gate === "approve" ? "Approve it on the card to send the team." : undefined}
+            aside={mark.aside}
+            onAside={mark.aside ? () => setView("radio") : undefined}
             onNext={() => (t === 5 ? useStory.getState().exit() : useStory.getState().next())}
             onBack={t > 1 ? () => useStory.getState().previous() : undefined}
             onExit={() => useStory.getState().exit()}

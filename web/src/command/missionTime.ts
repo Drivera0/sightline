@@ -29,7 +29,7 @@ export interface CheckpointDef {
    * The coach mark: one sentence, in the mission's voice (null at t0, where the pitch bar speaks).
    * `target` is a CSS selector on the real console.
    */
-  mark: { text: string; target: string } | null;
+  mark: { text: string; target: string; aside?: string } | null;
   /** The action on the real console that moves the story on (the coach mark waits for it, or Skip). */
   gate?: "approve";
 }
@@ -88,7 +88,7 @@ export const CHECKPOINTS: readonly CheckpointDef[] = [
     label: "Run",
     at: `${DAY}22:00:00Z`,
     view: "map",
-    mark: { text: "Eighteen minutes on: teams are out, and B4 is searched at POD 60 %, lowered but never ruled out.", target: '[data-tour="tasks"]' },
+    mark: { text: "Eighteen minutes on: teams are out, and B4 is searched at POD 60 %, lowered but never ruled out.", target: '[data-tour="tasks"]', aside: "Teams report by radio: open Radio." },
   },
   {
     t: 5,
