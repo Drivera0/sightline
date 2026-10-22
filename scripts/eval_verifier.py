@@ -15,6 +15,17 @@
 
 Writes ``runs/verifier/<split>-<timestamp>.csv`` (one row per verified detection) and ``.json``
 (rules, accuracy, small-crop accuracy, tokens and latency). Needs NEBIUS_API_KEY in the env/.env.
+
+A second verifier (experiment, docs/report/COSMOS_VERIFIER.md): ``--model`` and ``--base-url``
+score the same detections with the same prompt on another OpenAI-compatible endpoint, e.g.
+
+    NVIDIA_API_KEY=... uv run --extra ml python scripts/eval_verifier.py --split val \
+        --model nvidia/cosmos-reason2-8b --base-url https://integrate.api.nvidia.com/v1 \
+        --workers 1 --min-interval 1.6 --out runs/cosmos_verifier
+
+The key for ``--base-url`` comes only from the env var named by ``--api-key-env`` (default
+NVIDIA_API_KEY); Token Factory's ``NO_THINKING`` is not sent there. This path is an experiment and
+is never used at run time.
 """
 
 from __future__ import annotations
@@ -35,6 +46,8 @@ if str(ROOT) not in sys.path:
 THRESHOLD = 0.29
 NEAR_MISS = 0.15
 DEMOTE_AT = (0.4, 0.5)
+NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+COSMOS_MODEL = "nvidia/cosmos-reason2-8b"  # GET {NVIDIA_BASE_URL}/models, checked 2026-10-22
 FRAME_WH = (1000, 750)
 SMALL_PX = 60  # the feedback report's "60 px crops"
 
@@ -69,6 +82,51 @@ def scores(rows: list[dict], n_truth: int, keep) -> dict[str, float]:
     r_ = tp / n_truth if n_truth else 0.0
     f2 = 5 * p * r_ / (4 * p + r_) if p + r_ else 0.0
     return {"precision": p, "recall": r_, "f2": f2, "kept": kept, "tp": tp}
+
+
+def accuracy(done: list[dict]) -> float | None:
+    """Share of verified detections where a decided verdict matches the VOC label (``yes`` on a
+    true positive, ``no`` on a false one); ``unclear`` counts as wrong."""
+    if not done:
+        return None
+    right = sum((r["person"] == "yes") if r["tp"] else (r["person"] == "no") for r in done)
+    return right / len(done)
+
+
+class Paced:
+    """A ``ChatClient`` wrapper that starts calls at least ``min_interval`` seconds apart, across
+    threads (hosted trial endpoints limit requests per minute)."""
+
+    def __init__(self, client, min_interval: float, clock=time.monotonic, sleep=time.sleep):
+        self._client, self.min_interval = client, min_interval
+        self._clock, self._sleep = clock, sleep
+        self._lock = threading.Lock()
+        self._next = 0.0
+
+    def chat(self, messages, **kwargs):
+        with self._lock:
+            wait = self._next - self._clock()
+            if wait > 0:
+                self._sleep(wait)
+            self._next = max(self._next, self._clock()) + self.min_interval
+        return self._client.chat(messages, **kwargs)
+
+
+def make_client(base_url: str | None, api_key_env: str, min_interval: float = 0.0):
+    """Token Factory with thinking off (the published rows) when ``base_url`` is None; otherwise an
+    OpenAI-compatible client on ``base_url`` with the key from env var ``api_key_env``."""
+    import os
+
+    from sightline.agent.llm import NO_THINKING, LLMError, TokenFactoryClient, token_factory_client
+
+    if base_url is None:
+        client = token_factory_client(extra_body=NO_THINKING)
+    else:
+        key = os.environ.get(api_key_env)
+        if not key:
+            raise LLMError(f"{api_key_env} is not set (needed for --base-url {base_url})")
+        client = TokenFactoryClient(key, base_url)
+    return Paced(client, min_interval) if min_interval > 0 else client
 
 
 def photo_mission(path: Path, box, conf: float, name: str = "eval"):
@@ -126,12 +184,29 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--workers", type=int, default=4, help="concurrent model calls (LANE_A: 4)")
     ap.add_argument("--limit", type=int, default=None, help="debug: first N photos")
     ap.add_argument("--out", type=Path, default=ROOT / "runs/verifier")
+    ap.add_argument("--data-root", type=Path, default=ROOT / "data/heridal/yolo_full")
+    ap.add_argument("--model", default=None, help="VL model id (default: verify.py's, Nemotron VL)")
+    ap.add_argument(
+        "--base-url",
+        default=None,
+        help="another OpenAI-compatible endpoint (default: Token Factory)",
+    )
+    ap.add_argument(
+        "--api-key-env", default="NVIDIA_API_KEY", help="env var with the --base-url key"
+    )
+    ap.add_argument(
+        "--min-interval", type=float, default=0.0, help="seconds between call starts (rate limits)"
+    )
+    ap.add_argument(
+        "--price-in", type=float, default=None, help="price per million input tokens, for cost"
+    )
+    ap.add_argument("--price-out", type=float, default=None, help="price per million output tokens")
     args = ap.parse_args(argv)
 
     from dotenv import load_dotenv
 
     from sightline.agent import prompts
-    from sightline.agent.llm import NO_THINKING, token_factory_client
+    from sightline.agent.llm import MODEL_VISION
     from sightline.agent.verify import verify
     from sightline.ml.backend import make_detector
     from sightline.ml.data import load_split
@@ -140,11 +215,10 @@ def main(argv: list[str] | None = None) -> int:
 
     load_dotenv(ROOT / ".env")
     prompt = args.prompt or prompts.VERIFY_VERSION
-    client = token_factory_client(extra_body=NO_THINKING)
+    model = args.model or MODEL_VISION
+    client = make_client(args.base_url, args.api_key_env, args.min_interval)
     # Annotated val photos (as the threshold was chosen); the full test split (as it is scored).
-    images = load_split(
-        args.split, ROOT / "data/heridal/yolo_full", annotated_only=args.split == "val"
-    )
+    images = load_split(args.split, args.data_root, annotated_only=args.split == "val")
     images = images[: args.limit]
     preds, truth, _ = predict_split(Detector(args.pt), images, "tiled")
     labels = label_preds(preds, truth)
@@ -179,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
 
     def run(r: dict) -> None:
         store, mid = photo_mission(r["path"], r["box"], r["conf"])
-        v = verify(store, mid, "f0001-d01", client, detector(), prompt=prompt)
+        v = verify(store, mid, "f0001-d01", client, detector(), model=model, prompt=prompt)
         calls = [e for e in store.trace_entries(mid) if e.kind == "model_call"]
         r.update(
             person=v.person,
@@ -192,6 +266,7 @@ def main(argv: list[str] | None = None) -> int:
             tokens_in=sum(e.tokens_in or 0 for e in calls),
             tokens_out=sum(e.tokens_out or 0 for e in calls),
             calls=len(calls),
+            failed=v.reason.startswith("No second look"),
         )
 
     t0 = time.time()
@@ -226,9 +301,21 @@ def main(argv: list[str] | None = None) -> int:
         }
 
     done = [r for r in todo if "person" in r]
+    tin = sum(r["tokens_in"] for r in done)
+    tout = sum(r["tokens_out"] for r in done)
+    cost = None
+    if args.price_in is not None and args.price_out is not None:
+        cost = (tin * args.price_in + tout * args.price_out) / 1e6
     summary = {
         "split": args.split,
         "prompt": prompt,
+        "model": model,
+        "base_url": args.base_url or "token-factory",
+        "accuracy": accuracy(done),
+        "yes_rate": sum(r["person"] == "yes" for r in done) / len(done) if done else None,
+        "no_second_look": sum(r["failed"] for r in done),
+        "p90_model_ms": sorted(r["model_ms"] for r in done)[int(len(done) * 0.9)] if done else None,
+        "cost_total": cost,
         "photos": len(images),
         "people": n_truth,
         "verified": len(done),
@@ -243,7 +330,8 @@ def main(argv: list[str] | None = None) -> int:
         "retries": sum(r["calls"] - 1 for r in done if r["calls"] > 1),
     }
     args.out.mkdir(parents=True, exist_ok=True)
-    stem = args.out / f"{args.split}-{prompt}-{time.strftime('%Y%m%d-%H%M%S')}"
+    tag = "" if args.model is None else "-" + model.rsplit("/", 1)[-1]
+    stem = args.out / f"{args.split}-{prompt}{tag}-{time.strftime('%Y%m%d-%H%M%S')}"
     fields = ["photo", "index", "conf", "tp", "long_px", "person", "posture", "group_size"]
     fields += ["tools", "ms", "model_ms", "tokens_in", "tokens_out", "calls", "reason"]
     with open(f"{stem}.csv", "w", newline="", encoding="utf-8") as f:
