@@ -67,7 +67,7 @@ of each reply goes into the trace and the summary JSON, so a real run will show 
 | Nemotron-3.5-Super-VL (`nvidia/Nemotron-3.5-Super-VL`), thinking off | Token Factory | 0.312 (53/170) | 0.500 | 0.825 (33/40) | 0.154 (20/130) | 0.382 | 0.813 / 0.507 | 0.841 | 1306 / 1562 | 916 / 68 | ≈ 0.00033 |
 | Cosmos Reason (`nvidia/cosmos-reason2-8b`) | NVIDIA API (trial) | | | | | | | | | | trial credits** |
 
-The Nemotron row is `runs/verifier/val-verify-v2-20261020-165932.json` (the run behind report
+The Nemotron row is `docs/evidence/verifier/val-verify-v2-20261020-165932/val-verify-v2-20261020-165932.json` (the run behind report
 §5.4); its accuracy, yes-rate and p90 are recomputed from that run's CSV with the definitions above.
 Accuracy is low by construction: 130 of the 170 are false positives, and the prompt
 asks for `unclear` rather than `no` when the model cannot tell. \*\* NVIDIA's hosted endpoint runs on trial credits and states no per-token price;

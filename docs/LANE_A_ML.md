@@ -255,7 +255,7 @@ At threshold 0.25 each detector found 19 boxes, with the same count on every pho
 uv run python scripts/bench_verifier.py -n 50 --prompts basic strict --no-think
 ```
 
-The run used 150 crops (seed 0): 50 people and 50 empty-ground crops from the **val** split, plus 50 hard negatives. Per-crop results are in `runs/bench_verifier/20261020-134015.csv`.
+The run used 150 crops (seed 0): 50 people and 50 empty-ground crops from the **val** split, plus 50 hard negatives. Per-crop results are in `docs/evidence/verifier-bench-20261020.csv`.
 
 | Prompt | Accuracy | Recall (people) | FP rate, empty ground | FP rate, hard negatives | Median latency | Tokens / crop |
 |---|---|---|---|---|---|---|
@@ -292,7 +292,7 @@ What the verifier says (170 verified detections):
 | queue items below 0.5 | 83 (28 people) | 89 % | 5 % | 13 % |
 | boxes under 60 px | 75 (16 people) | 94 % | 3 % | 23 % |
 
-It rarely misses a person but is lenient: it calls `yes` on 45 of the 75 near-miss false positives. Some of those "false positives" are unlabelled people or second boxes on a labelled person (`DETECTOR_LIMITS.md` §3), so the true precision is somewhat better than measured, but the verdict badge is weak evidence of a false alarm. Cost per detection: 830 tokens in, 65 out, median 1.35 s model time (1.4 s with the re-look tools); no invalid JSON in 170 calls. Per-detection results: `runs/verifier/val-20261020-165346.csv`.
+It rarely misses a person but is lenient: it calls `yes` on 45 of the 75 near-miss false positives. Some of those "false positives" are unlabelled people or second boxes on a labelled person (`DETECTOR_LIMITS.md` §3), so the true precision is somewhat better than measured, but the verdict badge is weak evidence of a false alarm. Cost per detection: 830 tokens in, 65 out, median 1.35 s model time (1.4 s with the re-look tools); no invalid JSON in 170 calls. Per-detection results: `docs/evidence/verifier/val-20261020-165346/val-20261020-165346.csv`.
 
 **A stricter prompt, chosen on val.** `verify-v2` adds: answer `yes` only for a visible human shape (head with body, limbs, outline and shadow), lists the common false alarms (rocks, logs, stumps, shadows, bushes, bags, clothing on the ground), and sends doubt to `unclear` rather than `no`. Same 170 val detections:
 
@@ -311,7 +311,7 @@ v2 promotes 24 false alarms instead of 45 and keeps 9 of the 12 near-miss people
 | **(b) + promote near-misses called `yes`** | 0.772 | **0.875** | 0.853 | 382 |
 | (c) (b) + demote `no` below 0.5 (reported, never applied) | 0.780 | 0.875 | 0.855 | 378 |
 
-On test the verifier finds 4 more of the 337 people (recall +0.012, 95 % CI [+0.003, +0.023]) for 15 more false alarms; F2 +0.002 [−0.006, +0.011], so no clear change. The gain is smaller than on val because v2 was more cautious on test: it called 4 of the 11 near-miss people `yes` (36 %, against 75 % on val) and 59 % of near-misses `unclear`. On boxes under 60 px it called 2 of 8 people `yes` and 65 % of all such crops `unclear`: on the smallest people the VL model mostly abstains rather than guesses. That is the honest headline for the report and the Nebius feedback: **a small, real recall gain, human-approved, at about 920 tokens in / 68 out and 1.4 s per detection; weak on the smallest crops.** Test was read once for the verifier; nothing was changed after it. Results: `runs/verifier/test-verify-v2-20261020-170158.csv`.
+On test the verifier finds 4 more of the 337 people (recall +0.012, 95 % CI [+0.003, +0.023]) for 15 more false alarms; F2 +0.002 [−0.006, +0.011], so no clear change. The gain is smaller than on val because v2 was more cautious on test: it called 4 of the 11 near-miss people `yes` (36 %, against 75 % on val) and 59 % of near-misses `unclear`. On boxes under 60 px it called 2 of 8 people `yes` and 65 % of all such crops `unclear`: on the smallest people the VL model mostly abstains rather than guesses. That is the honest headline for the report and the Nebius feedback: **a small, real recall gain, human-approved, at about 920 tokens in / 68 out and 1.4 s per detection; weak on the smallest crops.** Test was read once for the verifier; nothing was changed after it. Results: `docs/evidence/verifier/test-verify-v2-20261020-170158/test-verify-v2-20261020-170158.csv`.
 
 ---
 

@@ -1,0 +1,1513 @@
+{
+  "simulated": true,
+  "grid": "200\u00d7200 cells of 5 m at the creek LKP",
+  "canopy": "/home/driver/sightline/runs/creek/20261021-204123/missions/c797e96a: 7761 cells measured on val crops",
+  "visibility_noise": 0.15,
+  "trials_per_row_per_seed": 2000,
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "horizon_min": 120.0,
+  "team_model": "2 teams from the LKP, 3 km/h straight line, 60 min per sector, POD 0.5 per pass",
+  "rows": [
+    {
+      "study": "a",
+      "scenario": "person from hiker/temperate_mountainous rings",
+      "drones": 1,
+      "variant": "planner believes uniform",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.079,
+      "found_within_horizon": 0.278,
+      "found_30_min_seed_range": [
+        0.073,
+        0.089
+      ],
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.078,
+          "found_within_horizon": 0.279
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.075,
+          "found_within_horizon": 0.275
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.089,
+          "found_within_horizon": 0.29
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.08,
+          "found_within_horizon": 0.28
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.073,
+          "found_within_horizon": 0.267
+        }
+      ]
+    },
+    {
+      "study": "a",
+      "scenario": "person from hiker/temperate_mountainous rings",
+      "drones": 1,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.079,
+      "found_within_horizon": 0.278,
+      "found_30_min_seed_range": [
+        0.073,
+        0.089
+      ],
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.078,
+          "found_within_horizon": 0.279
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.075,
+          "found_within_horizon": 0.275
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.089,
+          "found_within_horizon": 0.29
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.08,
+          "found_within_horizon": 0.28
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.073,
+          "found_within_horizon": 0.267
+        }
+      ]
+    },
+    {
+      "study": "a",
+      "scenario": "person from hiker/temperate_mountainous rings",
+      "drones": 3,
+      "variant": "planner believes uniform",
+      "median_min": 77.9,
+      "p90_min": null,
+      "found_within_30_min": 0.214,
+      "found_within_horizon": 0.647,
+      "found_30_min_seed_range": [
+        0.204,
+        0.226
+      ],
+      "per_seed": [
+        {
+          "median_min": 77.9,
+          "p90_min": null,
+          "found_within_30_min": 0.204,
+          "found_within_horizon": 0.646
+        },
+        {
+          "median_min": 76.9,
+          "p90_min": null,
+          "found_within_30_min": 0.212,
+          "found_within_horizon": 0.649
+        },
+        {
+          "median_min": 78.2,
+          "p90_min": null,
+          "found_within_30_min": 0.219,
+          "found_within_horizon": 0.644
+        },
+        {
+          "median_min": 74.6,
+          "p90_min": null,
+          "found_within_30_min": 0.226,
+          "found_within_horizon": 0.656
+        },
+        {
+          "median_min": 81.9,
+          "p90_min": null,
+          "found_within_30_min": 0.211,
+          "found_within_horizon": 0.641
+        }
+      ]
+    },
+    {
+      "study": "a",
+      "scenario": "person from hiker/temperate_mountainous rings",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": 77.9,
+      "p90_min": null,
+      "found_within_30_min": 0.214,
+      "found_within_horizon": 0.647,
+      "found_30_min_seed_range": [
+        0.204,
+        0.226
+      ],
+      "per_seed": [
+        {
+          "median_min": 77.9,
+          "p90_min": null,
+          "found_within_30_min": 0.204,
+          "found_within_horizon": 0.646
+        },
+        {
+          "median_min": 76.9,
+          "p90_min": null,
+          "found_within_30_min": 0.212,
+          "found_within_horizon": 0.649
+        },
+        {
+          "median_min": 78.2,
+          "p90_min": null,
+          "found_within_30_min": 0.219,
+          "found_within_horizon": 0.644
+        },
+        {
+          "median_min": 74.6,
+          "p90_min": null,
+          "found_within_30_min": 0.226,
+          "found_within_horizon": 0.656
+        },
+        {
+          "median_min": 81.9,
+          "p90_min": null,
+          "found_within_30_min": 0.211,
+          "found_within_horizon": 0.641
+        }
+      ]
+    },
+    {
+      "study": "a",
+      "scenario": "person from dementia/temperate_mountainous rings",
+      "drones": 1,
+      "variant": "planner believes uniform",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.099,
+      "found_within_horizon": 0.242,
+      "found_30_min_seed_range": [
+        0.092,
+        0.112
+      ],
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.092,
+          "found_within_horizon": 0.241
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.094,
+          "found_within_horizon": 0.239
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.1,
+          "found_within_horizon": 0.248
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.112,
+          "found_within_horizon": 0.243
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.095,
+          "found_within_horizon": 0.239
+        }
+      ]
+    },
+    {
+      "study": "a",
+      "scenario": "person from dementia/temperate_mountainous rings",
+      "drones": 1,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": 84.9,
+      "p90_min": null,
+      "found_within_30_min": 0.187,
+      "found_within_horizon": 0.583,
+      "found_30_min_seed_range": [
+        0.175,
+        0.199
+      ],
+      "per_seed": [
+        {
+          "median_min": 83.5,
+          "p90_min": null,
+          "found_within_30_min": 0.192,
+          "found_within_horizon": 0.592
+        },
+        {
+          "median_min": 86.1,
+          "p90_min": null,
+          "found_within_30_min": 0.181,
+          "found_within_horizon": 0.572
+        },
+        {
+          "median_min": 84.4,
+          "p90_min": null,
+          "found_within_30_min": 0.175,
+          "found_within_horizon": 0.582
+        },
+        {
+          "median_min": 84.4,
+          "p90_min": null,
+          "found_within_30_min": 0.199,
+          "found_within_horizon": 0.586
+        },
+        {
+          "median_min": 86.1,
+          "p90_min": null,
+          "found_within_30_min": 0.189,
+          "found_within_horizon": 0.583
+        }
+      ]
+    },
+    {
+      "study": "a",
+      "scenario": "person from dementia/temperate_mountainous rings",
+      "drones": 3,
+      "variant": "planner believes uniform",
+      "median_min": 74.72,
+      "p90_min": null,
+      "found_within_30_min": 0.221,
+      "found_within_horizon": 0.621,
+      "found_30_min_seed_range": [
+        0.209,
+        0.231
+      ],
+      "per_seed": [
+        {
+          "median_min": 77.8,
+          "p90_min": null,
+          "found_within_30_min": 0.228,
+          "found_within_horizon": 0.616
+        },
+        {
+          "median_min": 79.5,
+          "p90_min": null,
+          "found_within_30_min": 0.209,
+          "found_within_horizon": 0.623
+        },
+        {
+          "median_min": 68.3,
+          "p90_min": null,
+          "found_within_30_min": 0.221,
+          "found_within_horizon": 0.63
+        },
+        {
+          "median_min": 70.2,
+          "p90_min": null,
+          "found_within_30_min": 0.231,
+          "found_within_horizon": 0.623
+        },
+        {
+          "median_min": 77.8,
+          "p90_min": null,
+          "found_within_30_min": 0.214,
+          "found_within_horizon": 0.613
+        }
+      ]
+    },
+    {
+      "study": "a",
+      "scenario": "person from dementia/temperate_mountainous rings",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": 28.1,
+      "p90_min": null,
+      "found_within_30_min": 0.528,
+      "found_within_horizon": 0.791,
+      "found_30_min_seed_range": [
+        0.52,
+        0.532
+      ],
+      "per_seed": [
+        {
+          "median_min": 27.9,
+          "p90_min": null,
+          "found_within_30_min": 0.532,
+          "found_within_horizon": 0.782
+        },
+        {
+          "median_min": 28.8,
+          "p90_min": null,
+          "found_within_30_min": 0.52,
+          "found_within_horizon": 0.791
+        },
+        {
+          "median_min": 27.9,
+          "p90_min": null,
+          "found_within_30_min": 0.528,
+          "found_within_horizon": 0.796
+        },
+        {
+          "median_min": 27.9,
+          "p90_min": null,
+          "found_within_30_min": 0.529,
+          "found_within_horizon": 0.798
+        },
+        {
+          "median_min": 28.0,
+          "p90_min": null,
+          "found_within_30_min": 0.531,
+          "found_within_horizon": 0.786
+        }
+      ]
+    },
+    {
+      "study": "a",
+      "scenario": "person uniform (category wrong)",
+      "drones": 3,
+      "variant": "planner believes uniform (dementia/temperate_mountainous)",
+      "median_min": 77.72,
+      "p90_min": null,
+      "found_within_30_min": 0.219,
+      "found_within_horizon": 0.649,
+      "found_30_min_seed_range": [
+        0.209,
+        0.235
+      ],
+      "per_seed": [
+        {
+          "median_min": 78.9,
+          "p90_min": null,
+          "found_within_30_min": 0.217,
+          "found_within_horizon": 0.64
+        },
+        {
+          "median_min": 77.8,
+          "p90_min": null,
+          "found_within_30_min": 0.216,
+          "found_within_horizon": 0.651
+        },
+        {
+          "median_min": 81.1,
+          "p90_min": null,
+          "found_within_30_min": 0.217,
+          "found_within_horizon": 0.65
+        },
+        {
+          "median_min": 72.1,
+          "p90_min": null,
+          "found_within_30_min": 0.235,
+          "found_within_horizon": 0.654
+        },
+        {
+          "median_min": 78.7,
+          "p90_min": null,
+          "found_within_30_min": 0.209,
+          "found_within_horizon": 0.649
+        }
+      ]
+    },
+    {
+      "study": "a",
+      "scenario": "person uniform (category wrong)",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend (dementia/temperate_mountainous)",
+      "median_min": 101.32,
+      "p90_min": null,
+      "found_within_30_min": 0.157,
+      "found_within_horizon": 0.558,
+      "found_30_min_seed_range": [
+        0.149,
+        0.17
+      ],
+      "per_seed": [
+        {
+          "median_min": 100.3,
+          "p90_min": null,
+          "found_within_30_min": 0.158,
+          "found_within_horizon": 0.561
+        },
+        {
+          "median_min": 99.4,
+          "p90_min": null,
+          "found_within_30_min": 0.17,
+          "found_within_horizon": 0.567
+        },
+        {
+          "median_min": 102.9,
+          "p90_min": null,
+          "found_within_30_min": 0.156,
+          "found_within_horizon": 0.546
+        },
+        {
+          "median_min": 100.0,
+          "p90_min": null,
+          "found_within_30_min": 0.151,
+          "found_within_horizon": 0.571
+        },
+        {
+          "median_min": 104.0,
+          "p90_min": null,
+          "found_within_30_min": 0.149,
+          "found_within_horizon": 0.547
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "val canopy, no clue",
+      "drones": 3,
+      "teams": 2,
+      "variant": "v1: teams ignored by drones, nearest team",
+      "median_min": 70.6,
+      "p90_min": null,
+      "found_within_30_min": 0.241,
+      "found_within_horizon": 0.691,
+      "found_30_min_seed_range": [
+        0.23,
+        0.248
+      ],
+      "per_seed": [
+        {
+          "median_min": 71.7,
+          "p90_min": null,
+          "found_within_30_min": 0.248,
+          "found_within_horizon": 0.685
+        },
+        {
+          "median_min": 70.9,
+          "p90_min": null,
+          "found_within_30_min": 0.243,
+          "found_within_horizon": 0.676
+        },
+        {
+          "median_min": 71.0,
+          "p90_min": null,
+          "found_within_30_min": 0.238,
+          "found_within_horizon": 0.7
+        },
+        {
+          "median_min": 70.0,
+          "p90_min": null,
+          "found_within_30_min": 0.23,
+          "found_within_horizon": 0.706
+        },
+        {
+          "median_min": 69.4,
+          "p90_min": null,
+          "found_within_30_min": 0.244,
+          "found_within_horizon": 0.688
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "val canopy, a clue at minute 0 in each sector",
+      "drones": 3,
+      "teams": 2,
+      "variant": "v1: teams ignored by drones, nearest team",
+      "median_min": 68.38,
+      "p90_min": null,
+      "found_within_30_min": 0.263,
+      "found_within_horizon": 0.694,
+      "found_30_min_seed_range": [
+        0.261,
+        0.27
+      ],
+      "per_seed": [
+        {
+          "median_min": 68.0,
+          "p90_min": null,
+          "found_within_30_min": 0.27,
+          "found_within_horizon": 0.706
+        },
+        {
+          "median_min": 70.5,
+          "p90_min": null,
+          "found_within_30_min": 0.261,
+          "found_within_horizon": 0.677
+        },
+        {
+          "median_min": 68.8,
+          "p90_min": null,
+          "found_within_30_min": 0.261,
+          "found_within_horizon": 0.69
+        },
+        {
+          "median_min": 67.9,
+          "p90_min": null,
+          "found_within_30_min": 0.261,
+          "found_within_horizon": 0.697
+        },
+        {
+          "median_min": 66.7,
+          "p90_min": null,
+          "found_within_30_min": 0.262,
+          "found_within_horizon": 0.702
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "val canopy, no clue",
+      "drones": 3,
+      "teams": 2,
+      "variant": "drone discount only",
+      "median_min": 68.7,
+      "p90_min": null,
+      "found_within_30_min": 0.243,
+      "found_within_horizon": 0.688,
+      "found_30_min_seed_range": [
+        0.232,
+        0.253
+      ],
+      "per_seed": [
+        {
+          "median_min": 70.8,
+          "p90_min": null,
+          "found_within_30_min": 0.245,
+          "found_within_horizon": 0.676
+        },
+        {
+          "median_min": 71.7,
+          "p90_min": null,
+          "found_within_30_min": 0.232,
+          "found_within_horizon": 0.688
+        },
+        {
+          "median_min": 65.3,
+          "p90_min": null,
+          "found_within_30_min": 0.253,
+          "found_within_horizon": 0.686
+        },
+        {
+          "median_min": 68.0,
+          "p90_min": null,
+          "found_within_30_min": 0.243,
+          "found_within_horizon": 0.708
+        },
+        {
+          "median_min": 67.7,
+          "p90_min": null,
+          "found_within_30_min": 0.243,
+          "found_within_horizon": 0.681
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "val canopy, a clue at minute 0 in each sector",
+      "drones": 3,
+      "teams": 2,
+      "variant": "drone discount only",
+      "median_min": 67.14,
+      "p90_min": null,
+      "found_within_30_min": 0.264,
+      "found_within_horizon": 0.686,
+      "found_30_min_seed_range": [
+        0.253,
+        0.277
+      ],
+      "per_seed": [
+        {
+          "median_min": 63.1,
+          "p90_min": null,
+          "found_within_30_min": 0.277,
+          "found_within_horizon": 0.707
+        },
+        {
+          "median_min": 70.4,
+          "p90_min": null,
+          "found_within_30_min": 0.253,
+          "found_within_horizon": 0.67
+        },
+        {
+          "median_min": 65.7,
+          "p90_min": null,
+          "found_within_30_min": 0.274,
+          "found_within_horizon": 0.687
+        },
+        {
+          "median_min": 67.6,
+          "p90_min": null,
+          "found_within_30_min": 0.261,
+          "found_within_horizon": 0.683
+        },
+        {
+          "median_min": 68.9,
+          "p90_min": null,
+          "found_within_30_min": 0.253,
+          "found_within_horizon": 0.683
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "val canopy, no clue",
+      "drones": 3,
+      "teams": 2,
+      "variant": "walking time only",
+      "median_min": 69.42,
+      "p90_min": null,
+      "found_within_30_min": 0.24,
+      "found_within_horizon": 0.698,
+      "found_30_min_seed_range": [
+        0.23,
+        0.254
+      ],
+      "per_seed": [
+        {
+          "median_min": 70.0,
+          "p90_min": null,
+          "found_within_30_min": 0.243,
+          "found_within_horizon": 0.696
+        },
+        {
+          "median_min": 68.0,
+          "p90_min": null,
+          "found_within_30_min": 0.254,
+          "found_within_horizon": 0.69
+        },
+        {
+          "median_min": 70.9,
+          "p90_min": null,
+          "found_within_30_min": 0.23,
+          "found_within_horizon": 0.697
+        },
+        {
+          "median_min": 67.4,
+          "p90_min": null,
+          "found_within_30_min": 0.24,
+          "found_within_horizon": 0.716
+        },
+        {
+          "median_min": 70.8,
+          "p90_min": null,
+          "found_within_30_min": 0.235,
+          "found_within_horizon": 0.693
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "val canopy, a clue at minute 0 in each sector",
+      "drones": 3,
+      "teams": 2,
+      "variant": "walking time only",
+      "median_min": 68.32,
+      "p90_min": null,
+      "found_within_30_min": 0.267,
+      "found_within_horizon": 0.689,
+      "found_30_min_seed_range": [
+        0.259,
+        0.274
+      ],
+      "per_seed": [
+        {
+          "median_min": 66.6,
+          "p90_min": null,
+          "found_within_30_min": 0.274,
+          "found_within_horizon": 0.709
+        },
+        {
+          "median_min": 69.2,
+          "p90_min": null,
+          "found_within_30_min": 0.267,
+          "found_within_horizon": 0.675
+        },
+        {
+          "median_min": 69.2,
+          "p90_min": null,
+          "found_within_30_min": 0.268,
+          "found_within_horizon": 0.683
+        },
+        {
+          "median_min": 68.9,
+          "p90_min": null,
+          "found_within_30_min": 0.268,
+          "found_within_horizon": 0.681
+        },
+        {
+          "median_min": 67.7,
+          "p90_min": null,
+          "found_within_30_min": 0.259,
+          "found_within_horizon": 0.698
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "val canopy, no clue",
+      "drones": 3,
+      "teams": 2,
+      "variant": "v2: discount 0.5 + walking time",
+      "median_min": 67.34,
+      "p90_min": null,
+      "found_within_30_min": 0.253,
+      "found_within_horizon": 0.699,
+      "found_30_min_seed_range": [
+        0.245,
+        0.259
+      ],
+      "per_seed": [
+        {
+          "median_min": 66.7,
+          "p90_min": null,
+          "found_within_30_min": 0.256,
+          "found_within_horizon": 0.699
+        },
+        {
+          "median_min": 68.9,
+          "p90_min": null,
+          "found_within_30_min": 0.254,
+          "found_within_horizon": 0.696
+        },
+        {
+          "median_min": 69.2,
+          "p90_min": null,
+          "found_within_30_min": 0.251,
+          "found_within_horizon": 0.69
+        },
+        {
+          "median_min": 63.1,
+          "p90_min": null,
+          "found_within_30_min": 0.259,
+          "found_within_horizon": 0.709
+        },
+        {
+          "median_min": 68.8,
+          "p90_min": null,
+          "found_within_30_min": 0.245,
+          "found_within_horizon": 0.701
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "val canopy, a clue at minute 0 in each sector",
+      "drones": 3,
+      "teams": 2,
+      "variant": "v2: discount 0.5 + walking time",
+      "median_min": 67.22,
+      "p90_min": null,
+      "found_within_30_min": 0.271,
+      "found_within_horizon": 0.696,
+      "found_30_min_seed_range": [
+        0.266,
+        0.279
+      ],
+      "per_seed": [
+        {
+          "median_min": 61.2,
+          "p90_min": null,
+          "found_within_30_min": 0.279,
+          "found_within_horizon": 0.723
+        },
+        {
+          "median_min": 70.2,
+          "p90_min": null,
+          "found_within_30_min": 0.267,
+          "found_within_horizon": 0.677
+        },
+        {
+          "median_min": 68.7,
+          "p90_min": null,
+          "found_within_30_min": 0.272,
+          "found_within_horizon": 0.695
+        },
+        {
+          "median_min": 70.0,
+          "p90_min": null,
+          "found_within_30_min": 0.266,
+          "found_within_horizon": 0.685
+        },
+        {
+          "median_min": 66.0,
+          "p90_min": null,
+          "found_within_30_min": 0.271,
+          "found_within_horizon": 0.699
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "synthetic sector canopy, no clue",
+      "drones": 3,
+      "teams": 2,
+      "variant": "v1: teams ignored by drones, nearest team",
+      "median_min": 56.92,
+      "p90_min": null,
+      "found_within_30_min": 0.348,
+      "found_within_horizon": 0.698,
+      "found_30_min_seed_range": [
+        0.327,
+        0.378
+      ],
+      "per_seed": [
+        {
+          "median_min": 53.4,
+          "p90_min": null,
+          "found_within_30_min": 0.357,
+          "found_within_horizon": 0.707
+        },
+        {
+          "median_min": 57.4,
+          "p90_min": null,
+          "found_within_30_min": 0.345,
+          "found_within_horizon": 0.691
+        },
+        {
+          "median_min": 61.2,
+          "p90_min": null,
+          "found_within_30_min": 0.335,
+          "found_within_horizon": 0.678
+        },
+        {
+          "median_min": 53.1,
+          "p90_min": null,
+          "found_within_30_min": 0.378,
+          "found_within_horizon": 0.715
+        },
+        {
+          "median_min": 59.5,
+          "p90_min": null,
+          "found_within_30_min": 0.327,
+          "found_within_horizon": 0.698
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "synthetic sector canopy, a clue at minute 0 in each sector",
+      "drones": 3,
+      "teams": 2,
+      "variant": "v1: teams ignored by drones, nearest team",
+      "median_min": 56.6,
+      "p90_min": null,
+      "found_within_30_min": 0.341,
+      "found_within_horizon": 0.698,
+      "found_30_min_seed_range": [
+        0.325,
+        0.366
+      ],
+      "per_seed": [
+        {
+          "median_min": 56.6,
+          "p90_min": null,
+          "found_within_30_min": 0.34,
+          "found_within_horizon": 0.699
+        },
+        {
+          "median_min": 58.0,
+          "p90_min": null,
+          "found_within_30_min": 0.329,
+          "found_within_horizon": 0.697
+        },
+        {
+          "median_min": 52.0,
+          "p90_min": null,
+          "found_within_30_min": 0.366,
+          "found_within_horizon": 0.709
+        },
+        {
+          "median_min": 56.6,
+          "p90_min": null,
+          "found_within_30_min": 0.346,
+          "found_within_horizon": 0.697
+        },
+        {
+          "median_min": 59.8,
+          "p90_min": null,
+          "found_within_30_min": 0.325,
+          "found_within_horizon": 0.688
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "synthetic sector canopy, no clue",
+      "drones": 3,
+      "teams": 2,
+      "variant": "drone discount only",
+      "median_min": 57.56,
+      "p90_min": null,
+      "found_within_30_min": 0.347,
+      "found_within_horizon": 0.712,
+      "found_30_min_seed_range": [
+        0.339,
+        0.371
+      ],
+      "per_seed": [
+        {
+          "median_min": 58.3,
+          "p90_min": null,
+          "found_within_30_min": 0.347,
+          "found_within_horizon": 0.706
+        },
+        {
+          "median_min": 60.3,
+          "p90_min": null,
+          "found_within_30_min": 0.339,
+          "found_within_horizon": 0.703
+        },
+        {
+          "median_min": 60.0,
+          "p90_min": null,
+          "found_within_30_min": 0.339,
+          "found_within_horizon": 0.698
+        },
+        {
+          "median_min": 52.3,
+          "p90_min": null,
+          "found_within_30_min": 0.371,
+          "found_within_horizon": 0.739
+        },
+        {
+          "median_min": 56.9,
+          "p90_min": null,
+          "found_within_30_min": 0.339,
+          "found_within_horizon": 0.715
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "synthetic sector canopy, a clue at minute 0 in each sector",
+      "drones": 3,
+      "teams": 2,
+      "variant": "drone discount only",
+      "median_min": 55.38,
+      "p90_min": null,
+      "found_within_30_min": 0.345,
+      "found_within_horizon": 0.711,
+      "found_30_min_seed_range": [
+        0.32,
+        0.365
+      ],
+      "per_seed": [
+        {
+          "median_min": 54.0,
+          "p90_min": null,
+          "found_within_30_min": 0.345,
+          "found_within_horizon": 0.712
+        },
+        {
+          "median_min": 57.2,
+          "p90_min": null,
+          "found_within_30_min": 0.334,
+          "found_within_horizon": 0.704
+        },
+        {
+          "median_min": 54.2,
+          "p90_min": null,
+          "found_within_30_min": 0.365,
+          "found_within_horizon": 0.717
+        },
+        {
+          "median_min": 52.7,
+          "p90_min": null,
+          "found_within_30_min": 0.363,
+          "found_within_horizon": 0.714
+        },
+        {
+          "median_min": 58.8,
+          "p90_min": null,
+          "found_within_30_min": 0.32,
+          "found_within_horizon": 0.71
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "synthetic sector canopy, no clue",
+      "drones": 3,
+      "teams": 2,
+      "variant": "walking time only",
+      "median_min": 56.92,
+      "p90_min": null,
+      "found_within_30_min": 0.345,
+      "found_within_horizon": 0.701,
+      "found_30_min_seed_range": [
+        0.326,
+        0.363
+      ],
+      "per_seed": [
+        {
+          "median_min": 56.6,
+          "p90_min": null,
+          "found_within_30_min": 0.363,
+          "found_within_horizon": 0.703
+        },
+        {
+          "median_min": 56.0,
+          "p90_min": null,
+          "found_within_30_min": 0.348,
+          "found_within_horizon": 0.689
+        },
+        {
+          "median_min": 59.7,
+          "p90_min": null,
+          "found_within_30_min": 0.329,
+          "found_within_horizon": 0.696
+        },
+        {
+          "median_min": 52.6,
+          "p90_min": null,
+          "found_within_30_min": 0.361,
+          "found_within_horizon": 0.718
+        },
+        {
+          "median_min": 59.7,
+          "p90_min": null,
+          "found_within_30_min": 0.326,
+          "found_within_horizon": 0.699
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "synthetic sector canopy, a clue at minute 0 in each sector",
+      "drones": 3,
+      "teams": 2,
+      "variant": "walking time only",
+      "median_min": 56.58,
+      "p90_min": null,
+      "found_within_30_min": 0.341,
+      "found_within_horizon": 0.698,
+      "found_30_min_seed_range": [
+        0.324,
+        0.363
+      ],
+      "per_seed": [
+        {
+          "median_min": 56.4,
+          "p90_min": null,
+          "found_within_30_min": 0.341,
+          "found_within_horizon": 0.701
+        },
+        {
+          "median_min": 58.4,
+          "p90_min": null,
+          "found_within_30_min": 0.33,
+          "found_within_horizon": 0.697
+        },
+        {
+          "median_min": 52.3,
+          "p90_min": null,
+          "found_within_30_min": 0.363,
+          "found_within_horizon": 0.705
+        },
+        {
+          "median_min": 56.6,
+          "p90_min": null,
+          "found_within_30_min": 0.349,
+          "found_within_horizon": 0.692
+        },
+        {
+          "median_min": 59.2,
+          "p90_min": null,
+          "found_within_30_min": 0.324,
+          "found_within_horizon": 0.694
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "synthetic sector canopy, no clue",
+      "drones": 3,
+      "teams": 2,
+      "variant": "v2: discount 0.5 + walking time",
+      "median_min": 57.96,
+      "p90_min": null,
+      "found_within_30_min": 0.346,
+      "found_within_horizon": 0.719,
+      "found_30_min_seed_range": [
+        0.336,
+        0.359
+      ],
+      "per_seed": [
+        {
+          "median_min": 56.6,
+          "p90_min": null,
+          "found_within_30_min": 0.349,
+          "found_within_horizon": 0.712
+        },
+        {
+          "median_min": 60.3,
+          "p90_min": null,
+          "found_within_30_min": 0.346,
+          "found_within_horizon": 0.713
+        },
+        {
+          "median_min": 62.9,
+          "p90_min": null,
+          "found_within_30_min": 0.336,
+          "found_within_horizon": 0.703
+        },
+        {
+          "median_min": 52.6,
+          "p90_min": null,
+          "found_within_30_min": 0.359,
+          "found_within_horizon": 0.749
+        },
+        {
+          "median_min": 57.4,
+          "p90_min": null,
+          "found_within_30_min": 0.341,
+          "found_within_horizon": 0.717
+        }
+      ]
+    },
+    {
+      "study": "b",
+      "scenario": "synthetic sector canopy, a clue at minute 0 in each sector",
+      "drones": 3,
+      "teams": 2,
+      "variant": "v2: discount 0.5 + walking time",
+      "median_min": 56.38,
+      "p90_min": null,
+      "found_within_30_min": 0.344,
+      "found_within_horizon": 0.709,
+      "found_30_min_seed_range": [
+        0.319,
+        0.361
+      ],
+      "per_seed": [
+        {
+          "median_min": 56.2,
+          "p90_min": null,
+          "found_within_30_min": 0.341,
+          "found_within_horizon": 0.709
+        },
+        {
+          "median_min": 58.3,
+          "p90_min": null,
+          "found_within_30_min": 0.337,
+          "found_within_horizon": 0.713
+        },
+        {
+          "median_min": 55.1,
+          "p90_min": null,
+          "found_within_30_min": 0.361,
+          "found_within_horizon": 0.708
+        },
+        {
+          "median_min": 53.3,
+          "p90_min": null,
+          "found_within_30_min": 0.361,
+          "found_within_horizon": 0.713
+        },
+        {
+          "median_min": 59.0,
+          "p90_min": null,
+          "found_within_30_min": 0.319,
+          "found_within_horizon": 0.704
+        }
+      ]
+    },
+    {
+      "study": "c",
+      "drones": 3,
+      "teams": 2,
+      "scenario": "no opening legs, clue at minute 0",
+      "variant": "best leg only (v1)",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.135,
+      "found_within_horizon": 0.463,
+      "found_30_min_seed_range": [
+        0.132,
+        0.137
+      ],
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.132,
+          "found_within_horizon": 0.466
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.137,
+          "found_within_horizon": 0.458
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.132,
+          "found_within_horizon": 0.448
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.135,
+          "found_within_horizon": 0.486
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.137,
+          "found_within_horizon": 0.459
+        }
+      ]
+    },
+    {
+      "study": "c",
+      "drones": 3,
+      "teams": 2,
+      "scenario": "no opening legs, clue at minute 0",
+      "variant": "best leg + every idle drone (v2)",
+      "median_min": 66.86,
+      "p90_min": null,
+      "found_within_30_min": 0.271,
+      "found_within_horizon": 0.696,
+      "found_30_min_seed_range": [
+        0.263,
+        0.274
+      ],
+      "per_seed": [
+        {
+          "median_min": 60.3,
+          "p90_min": null,
+          "found_within_30_min": 0.274,
+          "found_within_horizon": 0.722
+        },
+        {
+          "median_min": 68.9,
+          "p90_min": null,
+          "found_within_30_min": 0.263,
+          "found_within_horizon": 0.681
+        },
+        {
+          "median_min": 69.8,
+          "p90_min": null,
+          "found_within_30_min": 0.274,
+          "found_within_horizon": 0.688
+        },
+        {
+          "median_min": 69.2,
+          "p90_min": null,
+          "found_within_30_min": 0.274,
+          "found_within_horizon": 0.689
+        },
+        {
+          "median_min": 66.1,
+          "p90_min": null,
+          "found_within_30_min": 0.269,
+          "found_within_horizon": 0.702
+        }
+      ]
+    },
+    {
+      "study": "c",
+      "drones": 3,
+      "teams": 2,
+      "scenario": "opening legs, clue at minute 0",
+      "variant": "best leg only (v1)",
+      "median_min": 67.22,
+      "p90_min": null,
+      "found_within_30_min": 0.271,
+      "found_within_horizon": 0.696,
+      "found_30_min_seed_range": [
+        0.266,
+        0.279
+      ],
+      "per_seed": [
+        {
+          "median_min": 61.2,
+          "p90_min": null,
+          "found_within_30_min": 0.279,
+          "found_within_horizon": 0.723
+        },
+        {
+          "median_min": 70.2,
+          "p90_min": null,
+          "found_within_30_min": 0.267,
+          "found_within_horizon": 0.677
+        },
+        {
+          "median_min": 68.7,
+          "p90_min": null,
+          "found_within_30_min": 0.272,
+          "found_within_horizon": 0.695
+        },
+        {
+          "median_min": 70.0,
+          "p90_min": null,
+          "found_within_30_min": 0.266,
+          "found_within_horizon": 0.685
+        },
+        {
+          "median_min": 66.0,
+          "p90_min": null,
+          "found_within_30_min": 0.271,
+          "found_within_horizon": 0.699
+        }
+      ]
+    },
+    {
+      "study": "c",
+      "drones": 3,
+      "teams": 2,
+      "scenario": "opening legs, clue at minute 0",
+      "variant": "best leg + every idle drone (v2)",
+      "median_min": 67.22,
+      "p90_min": null,
+      "found_within_30_min": 0.271,
+      "found_within_horizon": 0.696,
+      "found_30_min_seed_range": [
+        0.266,
+        0.279
+      ],
+      "per_seed": [
+        {
+          "median_min": 61.2,
+          "p90_min": null,
+          "found_within_30_min": 0.279,
+          "found_within_horizon": 0.723
+        },
+        {
+          "median_min": 70.2,
+          "p90_min": null,
+          "found_within_30_min": 0.267,
+          "found_within_horizon": 0.677
+        },
+        {
+          "median_min": 68.7,
+          "p90_min": null,
+          "found_within_30_min": 0.272,
+          "found_within_horizon": 0.695
+        },
+        {
+          "median_min": 70.0,
+          "p90_min": null,
+          "found_within_30_min": 0.266,
+          "found_within_horizon": 0.685
+        },
+        {
+          "median_min": 66.0,
+          "p90_min": null,
+          "found_within_30_min": 0.271,
+          "found_within_horizon": 0.699
+        }
+      ]
+    },
+    {
+      "study": "c",
+      "drones": 3,
+      "teams": 2,
+      "scenario": "opening legs, clue at minute 10",
+      "variant": "best leg only (v1)",
+      "median_min": 68.16,
+      "p90_min": null,
+      "found_within_30_min": 0.266,
+      "found_within_horizon": 0.695,
+      "found_30_min_seed_range": [
+        0.25,
+        0.273
+      ],
+      "per_seed": [
+        {
+          "median_min": 61.2,
+          "p90_min": null,
+          "found_within_30_min": 0.273,
+          "found_within_horizon": 0.724
+        },
+        {
+          "median_min": 71.8,
+          "p90_min": null,
+          "found_within_30_min": 0.25,
+          "found_within_horizon": 0.677
+        },
+        {
+          "median_min": 69.9,
+          "p90_min": null,
+          "found_within_30_min": 0.272,
+          "found_within_horizon": 0.693
+        },
+        {
+          "median_min": 70.2,
+          "p90_min": null,
+          "found_within_30_min": 0.266,
+          "found_within_horizon": 0.684
+        },
+        {
+          "median_min": 67.7,
+          "p90_min": null,
+          "found_within_30_min": 0.267,
+          "found_within_horizon": 0.696
+        }
+      ]
+    },
+    {
+      "study": "c",
+      "drones": 3,
+      "teams": 2,
+      "scenario": "opening legs, clue at minute 10",
+      "variant": "best leg + every idle drone (v2)",
+      "median_min": 68.16,
+      "p90_min": null,
+      "found_within_30_min": 0.266,
+      "found_within_horizon": 0.695,
+      "found_30_min_seed_range": [
+        0.25,
+        0.273
+      ],
+      "per_seed": [
+        {
+          "median_min": 61.2,
+          "p90_min": null,
+          "found_within_30_min": 0.273,
+          "found_within_horizon": 0.724
+        },
+        {
+          "median_min": 71.8,
+          "p90_min": null,
+          "found_within_30_min": 0.25,
+          "found_within_horizon": 0.677
+        },
+        {
+          "median_min": 69.9,
+          "p90_min": null,
+          "found_within_30_min": 0.272,
+          "found_within_horizon": 0.693
+        },
+        {
+          "median_min": 70.2,
+          "p90_min": null,
+          "found_within_30_min": 0.266,
+          "found_within_horizon": 0.684
+        },
+        {
+          "median_min": 67.7,
+          "p90_min": null,
+          "found_within_30_min": 0.267,
+          "found_within_horizon": 0.696
+        }
+      ]
+    }
+  ],
+  "seconds": 353.3
+}

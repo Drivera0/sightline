@@ -1,0 +1,66 @@
+{
+  "split": "val",
+  "prompt": "verify-v2",
+  "photos": 95,
+  "people": 333,
+  "verified": 170,
+  "rules": {
+    "a: threshold only": {
+      "precision": 0.7352185089974294,
+      "recall": 0.8588588588588588,
+      "f2": 0.8309122603137711,
+      "kept": 389,
+      "tp": 286
+    },
+    "b: + promote near-miss yes": {
+      "precision": 0.6990521327014217,
+      "recall": 0.8858858858858859,
+      "f2": 0.8409350057012542,
+      "kept": 422,
+      "tp": 295
+    },
+    "c: b + demote no below 0.4": {
+      "precision": 0.7091346153846154,
+      "recall": 0.8858858858858859,
+      "f2": 0.8438215102974829,
+      "kept": 416,
+      "tp": 295
+    },
+    "c: b + demote no below 0.5": {
+      "precision": 0.7108433734939759,
+      "recall": 0.8858858858858859,
+      "f2": 0.8443045220377791,
+      "kept": 415,
+      "tp": 295
+    }
+  },
+  "near_miss": {
+    "n": 87,
+    "people_called_yes": 0.75,
+    "false_called_no": 0.17333333333333334,
+    "unclear": 0.47126436781609193,
+    "n_people": 12,
+    "n_false": 75
+  },
+  "queue_below_max_conf": {
+    "n": 83,
+    "people_called_yes": 0.8571428571428571,
+    "false_called_no": 0.12727272727272726,
+    "unclear": 0.2891566265060241,
+    "n_people": 28,
+    "n_false": 55
+  },
+  "small_under_60px": {
+    "n": 75,
+    "people_called_yes": 0.8125,
+    "false_called_no": 0.05084745762711865,
+    "unclear": 0.5066666666666667,
+    "n_people": 16,
+    "n_false": 59
+  },
+  "median_ms": 1382,
+  "median_model_ms": 1306,
+  "tokens_in_mean": 915.7411764705882,
+  "tokens_out_mean": 67.67058823529412,
+  "retries": 0
+}

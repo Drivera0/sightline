@@ -511,8 +511,8 @@ photo comes in; the detector finds a person-sized box at 0.83, 20 px wide in the
 heuristic picks `zoom_native`; from the native-pixel zoom, Nemotron VL answers *yes, sitting, blue jacket,
 dark head covering*. A reviewer confirms it and the search manager logs the sighting as a clue (both scripted,
 and labelled so in the trace). The clue doubles sector B3's share of the probability (3.2 % → 6.9 %); the
-agent re-plans and the planner proposes **`retask_drone`**: *"Re-task Drone 1 to sector B3: expected to rule out
-3.1 % of the probability in 12 min (0.26 %/min), 1.1× the next best (sector B2). Within battery (95 %)."*
+agent re-plans and the planner proposes **`retask_drone`**: *"Re-task Drone 1 to sector B3: expected to lower the
+remaining probability by 3.1 % in 12 min (0.26 %/min), 1.1× the next best (sector B2). Within battery (95 %)."*
 On approval Drone 1's leg over A1 is cancelled and the new leg approved; `validate_mission` passes.
 
 | Review crop (1000×750 frame) | OpenCV 5 native zoom |
@@ -724,7 +724,7 @@ the realistic and harsh rows: a shared map sends the next free drone to where th
 Planning without sharing is the worst option every time. Realism costs about a third of the early finds
 (ideal → realistic, no clue: 20 % → 14.5 %). The plans are made for calm air and flown in the preset's
 conditions, so a planner that re-plans around wind and swaps would do better than shown. The v1 fleet
-evaluation (`runs/fleet_eval/`: coordinated 20.9 %, hand-split 20.0 %, independent 12.1 %, one drone 6.8 %
+evaluation (`docs/evidence/fleet_eval/v1-20261021/result.json`: coordinated 20.9 %, hand-split 20.0 %, independent 12.1 %, one drone 6.8 %
 within 30 min, no clue) used the demo cache's canopy, which comes from HERIDAL test photos; v2 replaces it.
 
 ### 6.6 One brain, many eyes: the simulated fleet
@@ -876,7 +876,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
 - **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.25 s), and
   INT8 does not help on this CPU (§3.3). On the GPU it needs a custom OpenCV build (0.30 s per photo, §3.4).
 - **The agent evaluation uses fake models and a scripted detector:** it tests routing, the gate and
-  failure handling, not perception; `--live` has been run once, for the re-look scenario only (`AGENT_EVAL.md`).
+  failure handling, not perception; `--live` has been run once on the four creek scenarios (9/9 targets, 44/44 gate checks, 8 of 19 briefings fell back to the template) and once on the re-look scenario (`AGENT_EVAL.md`).
 - **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
   so long replies are spoken sentence by sentence and the first sound depends on the model's time;
   if the model fails or times out, the team hears "say again" and nothing changes. Its numbers use
@@ -1054,7 +1054,7 @@ no GPU, keys or HERIDAL download, runs the tests, the smoke test of the live loo
 check (with the ICS 204, ICS 214 and CalTopo exports and the subject bulletin search), the mission API with the
 `cv2.dnn` detector and `remote_check.py` against it, the same with the detector behind HTTP
 (`SIGHTLINE_DETECT_URL`), the web build and a check of the built one-console site, and writes
-`runs/dressrun/<timestamp>/times.md` (`deploy/dressrun/README.md`). Measured on commit `de32e70`:
+`runs/dressrun/<timestamp>/times.md` (`deploy/dressrun/README.md`). Measured on commit `de32e70` (`docs/evidence/dressrun/20261022-192933/times.md`):
 
 | Stage | Seconds |
 |---|---:|
