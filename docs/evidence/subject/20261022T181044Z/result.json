@@ -1,0 +1,34 @@
+{
+  "searched": true,
+  "why": "no page stated a lost-person category with a quote (https://www.cbc.ca/[redacted], https://www.cbc.ca/[redacted]): no proposal",
+  "profile": {
+    "values": {
+      "age": 16,
+      "category": null,
+      "last_seen_time": "approximately 9 a.m. Tuesday",
+      "last_seen_place": "Steve's Lookout on the East Canyon Trail",
+      "clothing": "black leggings, black jacket, navy blue baseball hat, blue, red and white backpack"
+    },
+    "quotes": {
+      "age": "16-year-old girl",
+      "last_seen_time": "left for the hike with the group at approximately 9 a.m. Tuesday",
+      "last_seen_place": "heading to Steve's Lookout on the East Canyon Trail",
+      "clothing": "black leggings, a black jacket, a navy blue baseball hat and carrying a blue, red and white backpack"
+    },
+    "urls": {
+      "age": "https://www.cbc.ca/[redacted]",
+      "last_seen_time": "https://www.cbc.ca/[redacted]",
+      "last_seen_place": "https://www.cbc.ca/[redacted]",
+      "clothing": "https://www.cbc.ca/[redacted]"
+    },
+    "sources": [
+      "https://www.cbc.ca/[redacted]",
+      "https://www.cbc.ca/[redacted]"
+    ],
+    "query": "[name] missing",
+    "fetched_at": "2026-10-22T18:10:35Z",
+    "cached": false,
+    "error": null,
+    "redacted": true
+  }
+}

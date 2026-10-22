@@ -1,0 +1,27 @@
+{
+  "id": "p001",
+  "kind": "alert",
+  "summary": "Set subject profile: hiker, 20, equipped for a hike, last seen Nov. 18 at North Shore",
+  "reason": "From a public bulletin found with Tavily: Category hiker (\"hiker\", nsnews.com); Age 20 (\"20-year-old hiker\", nsnews.com); Last seen Nov. 18 (\"Nov. 18\", nsnews.com); Last seen at North Shore (\"North Shore\", nsnews.com); Clothing equipped for a hike (\"equipped for a hike\", nsnews.com). Approving sets the lost-person category to hiker/temperate_mountainous: the prior becomes Koester lost-person rings, hiker/temperate_mountainous (n=568; Sava, Twardy, Koester & Sonwalkar 2015, Transactions in GIS, Table 1), weight 0.8 + uniform, and the drones are re-planned on it. Names are redacted.",
+  "briefing": null,
+  "target": {
+    "subject": "profile",
+    "category": "hiker/temperate_mountainous",
+    "profile": "hiker, 20, equipped for a hike, last seen Nov. 18 at North Shore"
+  },
+  "leg": null,
+  "evidence": [
+    {
+      "kind": "trace",
+      "ref": "https://www.nsnews.com/local-news/missing-hikers-body-found-in-lynn-headwaters-creek-2921113",
+      "caption": "20-year-old hiker / hiker / Nov. 18 / North Shore / equipped for a hike"
+    }
+  ],
+  "status": "pending",
+  "created_by": "agent",
+  "created_at": "2026-10-22T18:10:56.408Z",
+  "decided_at": null,
+  "decided_by": null,
+  "decision_reason": null,
+  "edits": null
+}

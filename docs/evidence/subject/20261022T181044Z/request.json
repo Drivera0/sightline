@@ -1,0 +1,16 @@
+{
+  "mission": {
+    "mission": "Golden Ears Provincial Park: missing person",
+    "area": "Golden Ears Provincial Park",
+    "last_known_point": {
+      "lat": 49.42,
+      "lon": -122.48
+    },
+    "last_seen_at": null,
+    "mission_started": "2026-10-22",
+    "mode": "live",
+    "subject": "not given",
+    "prior": "uniform (no lost-person category)"
+  },
+  "query_written_by_model": "[name] missing"
+}

@@ -13,8 +13,11 @@ extract the chosen URLs for grounded answers (https://docs.tavily.com/agents.md)
 **Privacy.** A name is never stored. The model is told to leave names out of every value and to list
 the names it saw (that list is used for redaction and then dropped). Code also finds names with the
 patterns bulletins use ("Jordan Example, 34", "34-year-old Jordan Example", "Mr. Example") and
-replaces every name, and each part of it, with ``[name]`` in the quotes, page titles and URLs that
-are traced or cached. Quotes are checked against the page before redaction, then stored redacted.
+replaces every name, and each part of it, with ``[name]`` in the quotes and page titles that are
+traced or cached. A URL is never edited word by word: when a name occurs in its path, everything after
+the host becomes ``/[redacted]``, so the link still shows the source's domain and leaks no slug.
+A search result that was not read has no known names, so it is traced by host only. Quotes are
+checked against the page before redaction, then stored redacted.
 
 **Cost.** At most one search and one extract call per mission per clock hour: the result is cached
 in ``cache_dir/<YYYYMMDDHH>.json`` (redacted) and a second lookup in the hour reuses it.
@@ -58,6 +61,7 @@ DOC_CHARS = 6000
 FIELDS = ("age", "category", "last_seen_time", "last_seen_place", "clothing")
 KINDS = sorted({name.split("/")[0] for name in CATEGORIES})  # "dementia", "hiker"
 NAME = "[name]"
+REDACTED_PATH = "/[redacted]"
 SYNTHETIC_FIXTURE = (
     Path(__file__).resolve().parents[2] / "tests/geo/fixtures/subject_bulletin_synthetic.html"
 )
@@ -103,7 +107,7 @@ _NOT_NAMES = {
     "police", "rcmp", "search", "rescue", "north", "south", "east", "west", "mount", "the",
     "october", "november", "december", "january", "february", "march", "april", "may", "june",
     "july", "august", "september", "monday", "tuesday", "wednesday", "thursday", "friday",
-    "saturday", "sunday", "missing", "hiker", "update", "found", "help",
+    "saturday", "sunday", "missing", "hiker", "update", "found", "help", "local", "news",
 }  # fmt: skip
 
 
@@ -119,15 +123,51 @@ def find_names(text: str) -> set[str]:
     return out
 
 
-def redact(text: str, names: set[str]) -> str:
-    """``text`` with every name in ``names`` (whole words, any case, longest first) replaced by
-    ``[name]``; in URLs a hyphenated or underscored name is replaced too."""
+_URL = re.compile(r"(https?://[^/\s\"'<>()]+)(/[^\s\"'<>(),]*)?")
+
+
+def name_words(names: set[str]) -> set[str]:
+    """Every word (3+ letters, lower case) of every name, minus words that are not names."""
+    words = {w.lower() for n in names for w in re.findall(r"[^\W\d_]+", n)}
+    return {w for w in words if len(w) >= 3 and w not in _NOT_NAMES}
+
+
+def redact_url(url: str, names: set[str]) -> str:
+    """``url`` unchanged, or ``scheme://host/[redacted]`` when a word of a name (or ``[name]``) is
+    in its path. The host is never touched, so the link still says which source it came from."""
+    m = _URL.fullmatch(url)
+    if not m or not m.group(2):
+        return url
+    path = m.group(2)
+    if NAME in path or set(re.findall(r"[^\W\d_]+", path.lower())) & name_words(names):
+        return m.group(1) + REDACTED_PATH
+    return url
+
+
+def host_only(url: str) -> str:
+    """``scheme://host/[redacted]``, for a page that was not read (its names are not known)."""
+    m = _URL.match(url or "")
+    return m.group(1) + REDACTED_PATH if m else REDACTED_PATH
+
+
+def _redact_words(text: str, names: set[str]) -> str:
     for n in sorted(names, key=len, reverse=True):
-        if len(n) < 3:
+        if len(n) < 3 or n.lower() in _NOT_NAMES:
             continue
-        pattern = r"[\s_-]+".join(re.escape(w) for w in n.split())
+        pattern = r"\s+".join(re.escape(w) for w in n.split())
         text = re.sub(rf"\b{pattern}\b", NAME, text, flags=re.IGNORECASE)
     return text
+
+
+def redact(text: str, names: set[str]) -> str:
+    """``text`` with every name in ``names`` (whole words, any case, longest first) replaced by
+    ``[name]``. A URL inside it is not edited word by word: it goes through ``redact_url``."""
+    out, last = [], 0
+    for m in _URL.finditer(text):
+        out += [_redact_words(text[last : m.start()], names), redact_url(m.group(0), names)]
+        last = m.end()
+    out.append(_redact_words(text[last:], names))
+    return "".join(out)
 
 
 # --- extract -------------------------------------------------------------------------------------
@@ -295,10 +335,13 @@ def lookup_subject(
         kw = {"search_depth": "advanced", "max_results": MAX_RESULTS, "chunks_per_source": 3,
               "include_domains": list(SOURCE_DOMAINS)}  # fmt: skip
         res = tavily.search(query, **kw).get("results", [])
+        top = [r for r in res if r.get("url")][:EXTRACT_TOP]
+        # a result that is not read has no known names: traced by host only, with no title
+        listed = [{"url": r.get("url"), "title": r.get("title")} if r in top
+                  else {"url": host_only(r.get("url") or ""), "title": None} for r in res]  # fmt: skip
         entries.append({"kind": "tool_call", "summary": f"Tavily search (subject): {query}",
                         "input": {"query": query, "domains": list(SOURCE_DOMAINS)},
-                        "output": {"results": [{"url": r.get("url"), "title": r.get("title")} for r in res]}})  # fmt: skip
-        top = [r for r in res if r.get("url")][:EXTRACT_TOP]
+                        "output": {"results": listed}})  # fmt: skip
         if top:
             ext = tavily.extract([r["url"] for r in top], format="text").get("results", [])
             entries.append({"kind": "tool_call", "summary": f"Tavily extract: {len(top)} page(s)",

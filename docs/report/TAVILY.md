@@ -165,9 +165,15 @@ grounded answers):
 **Privacy: no name is stored.** The model is told never to put a name in a value, and to list the names it
 saw. That list is used only for redaction and is then dropped. Code also finds names the way bulletins write
 them ("Jordan Example, 34", "34-year-old Jordan Example", "Mr. Example"). Every name, and each part of it,
-becomes `[name]` in the quotes, page titles and URLs before anything is traced or cached. Quotes are checked
-against the page first and stored redacted after, so a stored quote is verbatim except for `[name]`. A URL
-whose path holds the name is stored with `[name]` in it, and such a link no longer opens. The mission's
+becomes `[name]` in the quotes and page titles before anything is traced or cached. Quotes are checked
+against the page first and stored redacted after, so a stored quote is verbatim except for `[name]`. A URL is
+never edited word by word: if any word of a listed name is in its path, everything after the domain becomes
+`/[redacted]` (`https://www.cbc.ca/[redacted]`), so the link still shows its source and leaks no slug. The
+domain itself is never touched. A search result that was not read has no known names, so the trace keeps only
+its domain (`/[redacted]`, no title). Words the model sometimes lists that are not names ("local", "news",
+months, "North") are ignored. The first live run found why this matters: a word-by-word rule had turned
+`nsnews.com/local-news/...` into `nsnews.com/[name]-news/...`, and an unread search result's title kept a
+person's name. The mission's
 subject becomes the profile text, which never has a name. The model's raw reply is not traced; only the
 redacted fields are. `tests/agent/test_subject.py` reads every file of the mission after an approval and
 finds no name.
@@ -213,9 +219,52 @@ trace and the sample proposal above come from that path.
 **The live run** (`scripts/subject_live.py --area … --lat … --lon … --last-seen …`) makes a fresh mission at
 the place and time of a resolved, public RCMP or SAR release about a hiker who was found, lets the model write its
 query, and saves `request.json`, `result.json` (values, quotes, URLs), `proposal.json` and `trace.jsonl` under
-`docs/evidence/subject/<timestamp>/`, all redacted. **It has not been run yet:** the branch that added the tool
-had no `TAVILY_API_KEY` or `NEBIUS_API_KEY` in its shell. Until a live run is committed, every result on this
-page comes from the synthetic bulletin and the scripted model.
+`docs/evidence/subject/<timestamp>/`, all redacted.
+
+**Live runs (2026-10-22, real Tavily and Nemotron Nano on Nebius).** Three North Shore and Fraser Valley
+areas, each a fresh mission with a last known point and no subject. In all three the model chose to search and
+wrote its own query. Two runs abstained and one proposed:
+
+| Area | Model's query | Pages read | Outcome | Evidence |
+|---|---|---|---|---|
+| Mount Seymour | "Mount Seymour missing" | globalnews.ca, nsnews.com | no proposal: no page stated a lost-person category with a quote | `docs/evidence/subject/20261022T181013Z/` |
+| Golden Ears Provincial Park | "Golden Ears Provincial Park missing" | two cbc.ca pages | no proposal: same reason | `docs/evidence/subject/20261022T181044Z/` |
+| Lynn Headwaters Regional Park | "Lynn Headwaters Regional Park missing" | two nsnews.com pages | proposal p001 | `docs/evidence/subject/20261022T181056Z/` |
+
+The abstain rule is the one described above: a field is kept only when its quote is verbatim in the page and
+states the value. A category needs the quote itself to say "hiker", "hiking", "backpacker", "dementia" or
+"Alzheimer's". Mount Seymour's pages yielded a place ("Mount Seymour") and an activity ("snowshoeing"), and
+Golden Ears' an age, time, place and clothing ("16-year-old girl", "black leggings, a black jacket, a navy
+blue baseball hat ..."), but the model returned no quote that names a category, so the prior stayed uniform
+and nothing was proposed. (One Mount Seymour title says "Missing hiker"; the model did not return it as a
+category quote, and code does not invent one.) That is the behaviour we want. The category picks Koester's
+distance rings, the rings reshape the probability map, and the map decides where the drones fly. A guessed
+"hiker" for a snowshoer, or for a teenager who "left for the hike with the group", would send drones to rings
+chosen on a guess, with nothing on screen to say so. An empty category costs a uniform prior, which a person
+can still set by hand.
+
+The Lynn Headwaters proposal, as stored (`proposal.json`):
+
+```
+Set subject profile: hiker, 20, equipped for a hike, last seen Nov. 18 at North Shore
+reason: From a public bulletin found with Tavily: Category hiker ("hiker", nsnews.com); Age 20
+("20-year-old hiker", nsnews.com); Last seen Nov. 18 ("Nov. 18", nsnews.com); Last seen at North Shore
+("North Shore", nsnews.com); Clothing equipped for a hike ("equipped for a hike", nsnews.com). Approving sets
+the lost-person category to hiker/temperate_mountainous ... Names are redacted.
+sources: https://www.nsnews.com/local-news/missing-hikers-body-found-in-lynn-headwaters-creek-2921113
+         https://www.nsnews.com/local-news/hiker-found-dead-in-lynn-headwaters-2914625
+```
+
+Every field is quoted from the first page; neither URL holds a name, so both are kept whole. The place ("North
+Shore") and the time ("Nov. 18", no year) are thin. They pass because the quote says them, and a person
+reviewing the proposal sees the same quotes. These are resolved, years-old cases: the runs test the lookup,
+not a live search. Nothing was approved.
+
+What the live runs showed about redaction, fixed in the same change: on Golden Ears the redactor also took the
+park's own name for a name (the stored query reads "[name] missing" while the model's call in `trace.jsonl`
+shows "Golden Ears Provincial Park missing"). That costs readability, not privacy, and is left as found. The
+stored folders were re-redacted with the URL rule above without re-running the lookups, so the `cbc.ca`,
+`globalnews.ca` and one `nsnews.com` link now read `https://<domain>/[redacted]`.
 
 ## Limits
 

@@ -85,9 +85,57 @@ def test_names_are_found_the_way_bulletins_write_them_and_redacted() -> None:
     assert {"Ana Lima", "Public", "Lima"} <= names
     out = geo.redact(text, names | {"Sam Q. Public"})
     assert "Lima" not in out and "Public" not in out and "Police" in out
-    assert geo.redact("https://x.ca/news/missing-ana-lima-found", {"Ana Lima"}).endswith(
-        "missing-[name]-found"
+    assert geo.redact("https://x.ca/news/missing-ana-lima-found", {"Ana Lima"}) == (
+        "https://x.ca/[redacted]"
     )
+
+
+# The two URL shapes of the first live run (docs/evidence/subject/), with made-up names.
+NSNEWS = "https://www.nsnews.com/local-news/missing-hiker-on-mount-seymour-found-deceased-10545617"
+CBC = "https://www.cbc.ca/news/canada/british-columbia/hiker-missing-maple-ridge-ana-lima-1.3387246"
+
+
+def test_a_url_keeps_its_host_and_loses_its_whole_path_when_a_name_is_in_it() -> None:
+    names = {"Ana Lima", "Local"}  # the model listed a word that is not a name
+    assert geo.redact(NSNEWS, names) == NSNEWS  # "local-news" is not a name: left as is
+    assert geo.redact(CBC, names) == "https://www.cbc.ca/[redacted]"
+    assert geo.redact(CBC, {"Lima"}) == "https://www.cbc.ca/[redacted]"
+    # the host is never edited, even when a name word is in it
+    assert (
+        geo.redact("https://lima.example.ca/about", {"Ana Lima"}) == "https://lima.example.ca/about"
+    )
+    # inside a sentence: the text is redacted word by word, the URL as a whole
+    why = f"no category ({NSNEWS}, {CBC}): Ana Lima, 34"
+    assert (
+        geo.redact(why, names)
+        == f"no category ({NSNEWS}, https://www.cbc.ca/[redacted]): [name], 34"
+    )
+    # an already-redacted slug (the first live run's files) is redacted again the same way
+    assert (
+        geo.redact(CBC.replace("ana-lima", "[name]-[name]"), set())
+        == "https://www.cbc.ca/[redacted]"
+    )
+    assert geo.host_only(CBC) == "https://www.cbc.ca/[redacted]"
+
+
+def test_search_results_that_are_not_read_are_traced_by_host_only(tmp_path: Path) -> None:
+    class Many(geo.FakeBulletinTavily):
+        def search(self, query, **kw):
+            read = {"url": "https://rcmp.ca/second", "title": "Second page"}
+            unread = {
+                "url": "https://www.cbc.ca/news/missing-tourist-pat-otherperson-1.2",
+                "title": "Pat Otherperson",
+            }
+            return {"results": [*super().search(query, **kw)["results"], read, unread]}
+
+    traced: list[dict] = []
+    geo.lookup_subject("q", cache_dir=tmp_path, now=AT, tavily=Many(),
+                       client=subject_tool.demo_client(), trace=lambda **e: traced.append(e))  # fmt: skip
+    listed = traced[0]["output"]["results"]
+    assert len(listed) == 3 == geo.EXTRACT_TOP + 1
+    assert listed[1] == {"url": "https://rcmp.ca/second", "title": "Second page"}
+    assert listed[2] == {"url": "https://www.cbc.ca/[redacted]", "title": None}
+    assert "otherperson" not in json.dumps([{**e, "result": None} for e in traced]).lower()
 
 
 def test_a_field_is_kept_only_with_a_verbatim_quote_that_says_it() -> None:
