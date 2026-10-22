@@ -91,10 +91,17 @@ upload → SQS → worker → `photo.processed`, the event stream, and a 404. **
 a stop/start of the instance** (same address, data kept, API back 5 s after the instance is running; the first photo
 after a boot took 14.5 s, then ~11 s).
 
+**Bigger only while recording:** `bash deploy/aws/resize.sh c7i.4xlarge --start` (stops, resizes, starts, waits for
+the API), then `bash deploy/aws/resize.sh c7i.xlarge` afterwards (back to the small size, left stopped). Tested
+2026-10-22: on c7i.4xlarge the remote check passed with a photo in **3.5 s in the worker (cv2.dnn 3.1 s)**, the first
+photo after a boot, against ~12 s on c7i.xlarge. Found while testing it: AWS reports the old size for a few seconds after
+a change, so the script waits until it reports the new one.
+
 ## Still to do
 
 - [x] `worker` command, SQS FIFO queue, S3 originals, CloudWatch metrics, Secrets Manager (lane A)
 - [x] `docker-compose.yml`, Caddy (HTTPS, SSE unbuffered), `setup.sh`, `teardown.sh`, `iam-policy.json` (lane A)
 - [x] first `docker build` + `container_check.py` (locally, lane A; numbers above)
 - [x] `setup.sh` run on the team account (lane A); per-photo latency above
-- [ ] Dashboard screenshot for the OpenCV report §6; choose the instance size for the demo
+- [x] Instance size: c7i.xlarge normally (stopped between demos), c7i.4xlarge while recording (`resize.sh`)
+- [ ] Dashboard screenshot for the OpenCV report §6 (after a longer run)
