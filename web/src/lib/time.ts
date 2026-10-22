@@ -16,6 +16,14 @@ export function clock(at: string | Date, utc: boolean, seconds = false): string 
   });
 }
 
+/** The zone a clock reading is in, for a label beside it: "UTC" on the demo, else the browser's short
+ * name for its zone at that moment ("PDT", or "GMT+2" where the zone has no abbreviation). */
+export function zone(at: Date, utc: boolean): string {
+  if (utc) return "UTC";
+  const part = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).formatToParts(at).find((x) => x.type === "timeZoneName");
+  return part?.value ?? "local";
+}
+
 /** Which zone this mission page tells time in (LiveMission provides it; elsewhere: local). */
 export const ClockZone = createContext<{ utc: boolean }>({ utc: false });
 

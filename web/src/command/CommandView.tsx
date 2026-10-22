@@ -6,7 +6,7 @@
 import { useSelection } from "../lib/selection";
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { isTyping } from "../lib/keys";
-import { clock } from "../lib/time";
+import { clock, zone } from "../lib/time";
 import { ConditionsPanel, type ConditionsData } from "./ConditionsPanel";
 import { dayNote, isOverride } from "./conditions";
 import { FleetControls } from "./FleetControls";
@@ -143,7 +143,7 @@ export function CommandView(p: CommandProps) {
           {hasConditions && condOpen && (
             // over the console, under the header (the map keeps its place); W or Esc closes it
             <div className="absolute inset-x-0 top-full mt-1 max-h-[75vh] overflow-y-auto rounded-lg shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]">
-              <ConditionsPanel id={condId} data={p.conditionsData!} now={panelNow} time={(iso) => `${hhmm(new Date(iso), utc)}${utc ? " UTC" : ""}${dayNote(iso, panelNow, utc)}`} />
+              <ConditionsPanel id={condId} data={p.conditionsData!} now={panelNow} time={(iso) => `${hhmm(new Date(iso), utc)} ${zone(new Date(iso), utc)}${dayNote(iso, panelNow, utc)}`} />
             </div>
           )}
         </div>
@@ -231,8 +231,7 @@ export function MissionHeader({
       <Name className="truncate text-body font-medium text-text">{mission?.name ?? "…"}</Name>
       <ModeChip mode={modeOf(status)} />
       <span className="font-mono text-small text-text-2" title="Mission clock">
-        {hhmm(now, utc)}
-        {utc && " UTC"}
+        {hhmm(now, utc)} {zone(now, utc)}
       </span>
       <StatusPill tone={fly[0]}>{fly[1]}</StatusPill>
       {isOverride(c) && (

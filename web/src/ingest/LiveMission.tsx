@@ -91,7 +91,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
       loadDemoMission().then(
         ({ data, now }) => {
           if (!live) return;
-          useMission.getState().useDemo(data);
+          useMission.getState().useDemo(data, now);
           demoLoaded = { now, seed: demoSeedWords(data) };
           setDemoNow(new Date(now));
           setDemoSeed(demoLoaded.seed);

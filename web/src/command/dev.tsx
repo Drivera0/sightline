@@ -28,7 +28,7 @@ function Dev() {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
     loadDemoMission().then(({ data, now }) => {
-      useMission.getState().useDemo(data);
+      useMission.getState().useDemo(data, now);
       setNow(new Date(now));
     }, console.error);
   }, []);

@@ -142,4 +142,18 @@ describe("useMission, demo", () => {
     expect(s.clues[0]?.id).toBe("c001");
     expect(s.events.map((e) => e.type)).toEqual(["proposal.decided", "task.updated", "clue.added"]);
   });
+
+  it("stamps what is done on screen with the demo's pinned clock, not the real one", async () => {
+    useMission.getState().useDemo({ ...base(), proposals: [proposal()] }, "2026-10-24T21:55:00Z");
+    await useMission.getState().decide("p001", "approve", "Search manager");
+    await useMission.getState().addClue({ kind: "object", text: "backpack", lat: 49.37, lon: -122.93, reported_by: "command", source: "form" } as never);
+    const s = useMission.getState();
+    expect(s.proposals[0]?.decided_at).toBe("2026-10-24T21:55:00Z");
+    expect(s.clues[0]?.at).toBe("2026-10-24T21:55:00Z");
+    expect(s.events.every((e) => e.at === "2026-10-24T21:55:00Z")).toBe(true);
+    // a demo loaded without a clock is back on the real clock
+    useMission.getState().useDemo({ ...base(), proposals: [proposal()] });
+    await useMission.getState().decide("p001", "approve", "Search manager");
+    expect(useMission.getState().proposals[0]?.decided_at).not.toBe("2026-10-24T21:55:00Z");
+  });
 });
