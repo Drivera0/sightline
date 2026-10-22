@@ -223,9 +223,11 @@ export interface LiveHeatMapProps {
   proposals?: readonly Proposal[];
   /** The clock for position ages (the demo mission passes its own). */
   now?: Date;
+  /** Fill the parent's height (the command console), with the legend floating on the map. */
+  fill?: boolean;
 }
 
-export function LiveHeatMap({ mapBase, ...rest }: LiveHeatMapProps): ReactNode {
+export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps): ReactNode {
   const style = useMemo(() => {
     const key = import.meta.env.VITE_MAPTILER_KEY?.trim() || undefined;
     return basemapStyle(chooseBasemapMode(key, navigator.onLine), key, readBasemapColors());
@@ -233,6 +235,27 @@ export function LiveHeatMap({ mapBase, ...rest }: LiveHeatMapProps): ReactNode {
   const center = useMemo<[number, number] | undefined>(() => (mapBase ? [mapBase.lkp.lon, mapBase.lkp.lat] : undefined), [mapBase]);
   const picking = usePick((s) => s.pending !== null);
   if (!mapBase) return <p className="text-small text-text-3">The map appears once the mission has its search area.</p>;
+  if (fill) {
+    return (
+      <figure aria-label="Live map" className="relative h-full min-h-[360px] overflow-hidden rounded-lg border border-border">
+        <MapProvider className="h-full w-full" initialCenter={center} initialZoom={15} mapStyle={style}>
+          <LiveLayers base={mapBase} {...rest} />
+        </MapProvider>
+        {picking && (
+          <p role="status" className="absolute left-3 top-3 rounded-full border border-accent bg-bg/85 px-3 py-1 text-small text-accent-soft">
+            Click the map to place the clue (Esc cancels).
+          </p>
+        )}
+        <figcaption
+          className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-bg/85 px-3 py-2 backdrop-blur-[16px]"
+          title="Red shading: where the person could be now, on ground a photo has looked at (darker: more likely); grey: not photographed yet. Each sector shows its share of the probability (POA)."
+        >
+          <MapLegend />
+          <span className="mt-1 block font-mono text-caption text-text-3">{rest.updates.length} map updates · sector labels show POA</span>
+        </figcaption>
+      </figure>
+    );
+  }
   return (
     <figure aria-label="Live map" className="flex flex-col gap-2">
       <div className="h-[420px] overflow-hidden rounded-lg border border-border">
