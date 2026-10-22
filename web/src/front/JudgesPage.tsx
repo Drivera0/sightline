@@ -8,6 +8,7 @@ import { Label, ModeChip, StatusPill } from "../shell/components";
 import { Logo } from "../shell/Logo";
 import { WHO_ITS_FOR } from "./copy";
 import { HONESTY, JUDGE_LINKS, JUDGES, VIDEOS } from "./judges";
+import { RadioClip } from "./RadioClip";
 
 function Ext({ href, children }: { href: string; children: ReactNode }) {
   const external = href.startsWith("http");
@@ -74,6 +75,7 @@ export function JudgesPage() {
             <li key={s.slice(0, 24)}>{s}</li>
           ))}
         </ol>
+        <RadioClip className="pt-1" />
       </header>
 
       <section aria-label="Where to look" className="flex flex-col gap-3">

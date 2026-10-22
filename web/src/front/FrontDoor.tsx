@@ -5,6 +5,7 @@
 import type { ReactNode } from "react";
 import { Label, Panel } from "../shell/components";
 import { Logo } from "../shell/Logo";
+import { RadioClip } from "./RadioClip";
 import { FOOTER, HERO, HOW_IT_WORKS, PRINCIPLES, ROADMAP, ROADMAP_LABEL, WHO_ITS_FOR } from "./copy";
 
 /** The command console on the demo mission at 1440×900 (served from public/, so it works offline). */
@@ -74,6 +75,7 @@ export function FrontDoor({ onStartNew, onWatchDemo }: { onStartNew: () => void;
             </button>
           </div>
           <p className="text-small text-text-3">{HERO.honesty}</p>
+          <RadioClip className="pt-2" />
         </div>
         <figure className="flex flex-col gap-2">
           <a
