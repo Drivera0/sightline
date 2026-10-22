@@ -75,7 +75,7 @@ loop: drone photos change the map, the map re-tasks a drone and a team, and a pe
 
 Yes. Checked against the live catalog on 2026-10-22: `nvidia/Nemotron-3.5-Super-VL` (us-north1),
 `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` and `nvidia/nemotron-3-super-120b-a12b` are all listed verbatim
-(`docs/feedback/nebius.md:21-23`). If Token Factory is down, detection and the map carry on (they run on
+(`docs/feedback/nebius.md:22-24`). If Token Factory is down, detection and the map carry on (they run on
 our own CPU), the second look returns `unclear` naming the error and makes no proposal, planner proposals
 continue with template briefings (`docs/architecture/agent.md:221-225`), and the radio answers "say
 again" and changes nothing (`docs/report/OPENCV_REPORT.md:882`). After 4 failed attempts in a row a circuit

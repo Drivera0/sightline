@@ -1,0 +1,35 @@
+{
+ "url_host": "port8080-tn77452agre6sr8.tunnel.applications.us-north1.nebius.cloud",
+ "label": "restart-cold",
+ "started_utc": "2026-10-22T18:07:43+00:00",
+ "photo_dir": "/home/driver/sightline/runs/creek/20261021-204123/missions/c797e96a/frames/orig",
+ "photos_available": 711,
+ "cold": {
+  "create_or_start_to_healthy_s": 272.6,
+  "create_or_start_to_first_detection_s": 272.9
+ },
+ "first_request": {
+  "photo": "f0001.jpg",
+  "wall_ms": 330.1,
+  "server_ms": {
+   "decode": 4.9,
+   "detect": 159.6,
+   "total": 164.5
+  },
+  "boxes": 0,
+  "candidates": 0,
+  "size": [
+   912,
+   684
+  ]
+ },
+ "health": {
+  "status": "ok",
+  "model": "yolo11s-heridal-tiled-run2",
+  "onnx": "model.onnx",
+  "threads": 8,
+  "rect_letterbox": true,
+  "load_ms": 326,
+  "cpus": 8
+ }
+}

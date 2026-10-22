@@ -121,4 +121,4 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 16. `docs/feedback/radio.md:84`, `:101`
 17. `docs/report/AGENT_EVAL.md` (correct target, approval gate, failure handling); `docs/report/OPENCV_REPORT.md:547-562`, `:577`, `:583-587`
 18. `docs/submission/WHAT_BREAKS_FIRST.md`; `docs/report/OPENCV_REPORT.md:853-855`, `:537-538`, `:884-886`; `docs/DETECTOR_LIMITS.md:39`, `:54`
-19. `docs/report/OPENCV_REPORT.md` §4.1 (inputs: `:374`, `:377`, `:381`; `docs/feedback/nebius.md:74`, `:174-177`; `docs/report/TAVILY.md:15`; `docs/report/CV2_CUDA.md:143`)
+19. `docs/report/OPENCV_REPORT.md` §4.1 (inputs: `:374`, `:377`, `:381`; `docs/feedback/nebius.md:75`, `:175-178`; `docs/report/TAVILY.md:15`; `docs/report/CV2_CUDA.md:143`)
