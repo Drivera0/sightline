@@ -6,7 +6,7 @@ run adds the low-n point, the box size in metres and the width sensitivity). Scr
 `scripts/analysis/stress_test.py`. Figure: `docs/report/figures/pod_curve.png`.
 
 **Result.** At the frozen threshold 0.29 the detector finds a person whose shorter side spans about 18 px
-**63 % of the time**, one of 22 px 74 %, one of 27 px 81 %, and one of 37 px or more 87 to 89 %. Under 20 px
+**64 % of the time** (0.635), one of 22 px 74 %, one of 27 px 81 %, and one of 37 px or more 87 to 89 %. Under 20 px
 it found 38 of 61 people (62 %); under 15 px, 5 of 9 (a low-n point). The map used to credit every photo
 with the test recall 0.864. It now reads the recall off this curve at the photo's ground sampling distance
 (GSD), in the live mission and in the batch (demo) map alike, so a photo taken too high to show a person

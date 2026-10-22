@@ -456,7 +456,7 @@ def live() -> str:
     g.node(c2, top, "store", "S3 · SQS", "Originals · jobs", "S3 30 days · SQS FIFO", "one group per mission")
     g.node(c3, top, "focal", "WORKER", "Per-photo pipeline", "pose → cv2.dnn tiled", "≈ 7 s / photo · 8 vCPU")
     g.node(c4, top, "store", "CLOUDWATCH", "Logs · metrics", "latency · queue · agent", "one dashboard")
-    g.node(c0, mid, "external", "HUMAN", "Search manager", "command view · radio", "approves every move")
+    g.node(c0, mid, "external", "HUMAN", "Search manager", "console · radio", "approves every move")
     g.node(c1, mid, "store", "STORE", "MissionStore", "the only writer", "validate_mission()")
     g.node(c2, mid, "step", "AGENT", "Second look · planner", "verdicts · proposals", "briefings")
     g.node(c3, mid, "external", "NEBIUS", "Token Factory", "Nemotron VL · Super", "Nano · key in Secrets Mgr")

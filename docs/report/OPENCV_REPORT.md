@@ -765,7 +765,7 @@ What it changes, each with its test (`docs/report/TAVILY.md`, "What the conditio
 
 - **Flying:** the planner proposes no drone leg when gusts exceed the drones' limit, rain is 1 mm/h or more,
   or it is after civil twilight, and the agent proposes recalling drones that are in the air, once
-  (`tests/agent/test_loop.py::test_unflyable_conditions_recall_drones_once`).
+  (`tests/agent/test_loop.py::test_unflyable_conditions_recall_each_flying_drone_once`).
 - **What a photo can see:** fog or haze in a warning lowers the visibility factor, so each photo rules out less
   of the map, and a drop replans the drones.
 - **Where people shelter:** when exposure rises to high or severe, probability shifts toward tree cover (a
@@ -900,9 +900,9 @@ Every headline number in one place, with the file it comes from. Simulated resul
   0.87–0.89 from 37 px up; under 20 px it found 38 of 61 people. One degradation at a time, recall goes
   from 0.859 to 0.823 at half the pixels per person, 0.616 in 60 % fog, 0.559 with 15 px motion blur,
   0.694 at dusk (gamma 2.5, −40 %, where precision also falls to 0.419) and 0.721 at JPEG q30. The live
-  map now takes each photo's recall from this size curve at the original photo's GSD (a 0.5 m person:
-  0.78 at 2 cm per pixel), not the constant 0.864, so a high pass counts for less. The curve is measured
-  on val with downscaling standing in for altitude, and held flat below 16 px, where it likely overstates.
+  map now takes each photo's recall from this size curve at the original photo's GSD (a 0.8 m person:
+  0.87 at 2 cm per pixel), not the constant 0.864, so a high pass counts for less. The curve is measured
+  on val with downscaling standing in for altitude, and below its smallest point (14.5 px) falls to 0 at 4 px, a floor rather than a measurement. On LADD, 1,365 photos the model never saw (snow, winter, other drones), recall is 0.516 (`docs/report/LADD.md`).
 
 ## 11. Responsible use
 
@@ -1009,7 +1009,7 @@ branch) was searched for API keys, tokens, private keys and committed `.env` fil
    simulator, `sightline/search/fleet.py`, came later and was not used for this recording), and labelled.
    The agent evaluation's search manager and reviewer are scripted too, and each decision says so.
 6. **Radio measurements** use typed team lines (and, for full voice turns, team lines spoken by
-   Magpie); they were taken on a fixture mission. The desk now also runs on live missions (the Radio tab).
+   Magpie); they were taken on a fixture mission. The desk now also runs on live missions (the Radio view).
 7. **AI assistance:** parts of the code and docs were written with an AI coding assistant; the
    agent described in §5 is Sightline's own runtime agent.
 
@@ -1134,6 +1134,16 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
   scenario end to end (a team's clue re-tasks a drone; its photo shows the person), and the fleet
   evaluation (§6.5, §6.6), all labelled simulated;
 - the mission **debrief** from the log, continuous integration (tests, the smoke test of the whole
-  live loop, and the web build on every change), and the Docker dress run (§12.3).
+  live loop, and the web build on every change), and the Docker dress run (§12.3);
+- the measured **POD curve** (recall by person size, read at each photo's GSD for a 0.8 m person) and a
+  terrain factor, and the frozen detector scored once on **LADD**, a dataset it never saw (recall 0.516)
+  (`docs/report/POD.md`, `docs/report/LADD.md`, §10);
+- published HERIDAL results beside ours (§3.10), the cost and energy of a 500-photo mission (§4.1), and
+  what breaks first (`docs/submission/WHAT_BREAKS_FIRST.md`);
+- the **re-look leg** (an `unclear` second look on a small box proposes a 25 m pass) and the **ledger** of
+  expected against realised value, with the negative result: 0 of 25 val near-misses resolved in
+  simulation (`docs/report/AGENT_EVAL.md`);
+- the ICS 204 and ICS 214 forms and a CalTopo GeoJSON from a live mission (`docs/EXPORTS.md`), and
+  real-footage intake through the live API (`docs/REAL_FLIGHT.md`).
 
 Diff: `git diff bcs-final-submission..opencv-submit`.

@@ -59,7 +59,7 @@ The re-look is the back-edge from decision to perception: when the detector is u
 chooses an OpenCV tool for that failure mode (`sightline/agent/verify.py:86-100`), the tool goes back
 to the photo's native pixels (`sightline/agent/relook.py:81-170`), and the model decides from what
 OpenCV produced. Every arrow out of the diamond needs a person: the agent never acts on its own
-(`sightline/api/missions.py:441-442`, `POST /missions/{id}/proposals/{pid}/decide`).
+(`sightline/api/missions.py:470-471`, `POST /missions/{id}/proposals/{pid}/decide`).
 
 ## The showcase chain as a sequence
 
@@ -144,7 +144,7 @@ The same six trace lines as a table (every value from `av-chain/trace.jsonl`, li
 | 2 `verifier` tool_call | `zoom_native` (OpenCV 5, `relook.py:91`) | the box; heuristics: 21 px long side, aspect 1.00, grey spread 32.2 | `relook/f0001-d01-zoom_native.jpg`, cut from native pixels | 0 | the small box chose the zoom; the zoom is the image the model answers from |
 | 3 `verifier` model_call | `nvidia/Nemotron-3.5-Super-VL`, prompt `verify-v2` | the review crop + the native zoom; 809 tokens in | `person: yes, posture: lying, group 1, white top, dark pants`; 61 tokens out | 1414 | a `yes` on a near-miss is the condition for a promotion |
 | 4 `verifier` verdict | — | — | verdict `v0001`: person yes, tool `zoom_native` | 1488 (tool + model) | the verdict is stored on the detection and handed to the agent loop |
-| 5 `agent` proposal | `loop.py:413` (`_on_detection`) | verdict `v0001` | `p001 promote_detection`, reason: "confidence 0.18 is below the review threshold 0.29; the second look (zoom_native) says…" | — | a pending proposal in the approval inbox; nothing changes until a person decides |
+| 5 `agent` proposal | `loop.py:455` (`_on_detection`) | verdict `v0001` | `p001 promote_detection`, reason: "confidence 0.18 is below the review threshold 0.29; the second look (zoom_native) says…" | — | a pending proposal in the approval inbox; nothing changes until a person decides |
 | 6 `human` decision | — | `p001` | approved, by "Search manager (scripted approval for this demo run)" | — | the detection joins the review queue |
 
 **The approval in this showcase run was scripted**, and the trace says so in its own words (span 6).
@@ -368,10 +368,10 @@ secrets in the trace (test 7).
   `unclear` on a box under 60 px sends a drone back at 25 m for about 4× the pixels, and the new
   photo goes through the same pipeline (the third chain above, `sightline/agent/relook_leg.py`).
 - **Orchestration and appropriate autonomy (25 %).** Events go through hooks that only enqueue
-  (`sightline/agent/hooks.py:36-72`) to one loop (`sightline/agent/loop.py:615`, `handle`) that turns
+  (`sightline/agent/hooks.py:36-78`) to one loop (`sightline/agent/loop.py:794`, `handle`) that turns
   each into proposals. Models are used where they add information (vision verdicts, briefings,
   conditions, radio); the planner and code decide the rest. Autonomy stops at the proposal: the
-  diamond in the workflow diagram, enforced by the API (`sightline/api/missions.py:441`).
+  diamond in the workflow diagram, enforced by the API (`sightline/api/missions.py:470`).
 - **Task effectiveness and evaluation (20 %).** On test the second look finds 4 more of 337 people
   (recall 0.864 → 0.875, 95 % CI of the gain [+0.003, +0.023]) for 15 more false alarms; F2 does not
   change clearly (`docs/report/OPENCV_REPORT.md:537-539`). On the whole system, the agent evaluation

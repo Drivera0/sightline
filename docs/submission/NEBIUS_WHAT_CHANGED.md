@@ -34,8 +34,24 @@ fleet and the Serverless Job are new in this period:
   - they decide whether drones may fly, how much a photo can see, where people shelter, and what teams
     hear.
 - **A Nebius Serverless Job** detects the fleet's photos in batch on CPU (711 photos, 483 s).
+- **A Nebius Serverless Endpoint** serves the same detector one photo at a time over HTTPS (5.68 s p50
+  for a 4000×3000 photo, $0.38 per 1,000; `deploy/nebius/ENDPOINT.md`); `SIGHTLINE_DETECT_URL` points the
+  worker at it.
+- **The subject from a public bulletin:** Nemotron Nano decides whether to search, Tavily searches and
+  extracts, and a profile field is kept only with a verbatim quote; approval sets the lost-person prior
+  (three live runs in `docs/report/TAVILY.md`).
+- **Real footage in:** `scripts/real_flight.py` checks a folder's GPS and pose, geotags video frames from
+  an SRT or flight log, and sends it through the live API (`docs/REAL_FLIGHT.md`).
+- **Command-post files:** ICS 204 per team, ICS 214 from the trace, CalTopo GeoJSON (`docs/EXPORTS.md`).
+- **The map counts what a photo can show:** recall by person size at each photo's GSD, and a terrain
+  factor measured on LADD, an unseen dataset where the frozen detector's recall is 0.516
+  (`docs/report/POD.md`, `docs/report/LADD.md`).
+- **A re-look leg and a ledger:** an `unclear` second look on a small box proposes a 25 m pass, and every
+  look and leg records its expected and realised value; in simulation the pass resolved 0 of 25 val
+  near-misses, and we report that (`docs/report/AGENT_EVAL.md`).
 - **One console:** task board, teams, approval inbox, clue log and printable assignment cards with
-  GPX/KML, the views Map · Photos · Review · Trace · Debrief, and an About sheet that explains the product.
+  GPX/KML, the views Map · Photos · Review · Trace · Debrief (with the exports and the trace's model,
+  tool and ledger chips), the demo as a 3-minute story, and an About sheet that explains the product.
 - **AWS deployment:** S3, SQS, a worker running OpenCV 5 `cv2.dnn`, CloudWatch and Secrets Manager.
 - **Continuous integration:** the tests, a smoke test of the whole live loop with fakes, and the web
   build, on every change.

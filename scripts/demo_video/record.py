@@ -527,7 +527,10 @@ def demo_shots(d: Director) -> None:
         if pitch is None:
             raise RuntimeError("no pitch bar on the landing")
         d.pause(1.2)
-        d.to(pitch.locator("p").first, 1.2, 0.25, 0.5)
+        # one centred line (PR #177): the tagline (h1) and the call, then the button
+        line = d.first(pitch.get_by_role("heading"), pitch.locator("div").first, timeout=2)
+        if line is not None:
+            d.to(line, 1.2, 0.25, 0.5)
         d.pause(2.0)
         d.to(mapfig(), 1.2, 0.5, 0.5)  # the last known point
         d.pause(1.6)
@@ -540,13 +543,16 @@ def demo_shots(d: Director) -> None:
         """t1: the clock runs over the survey flight; photos land and the map fills."""
         d.move(SIZE["width"] * 0.48, SIZE["height"] * 0.5, 1.2)
         d.pause(2.5)
-        counter = d.first(p.get_by_text(re.compile(r"of \d+ placed")), timeout=3)
+        # the rail's counter and tiles: the phone strip above the map has the same ones, hidden at 1920
+        counter = d.first(
+            p.get_by_text(re.compile(r"of \d+ placed")).filter(visible=True), timeout=3
+        )
         if counter is not None:
             d.to(counter, 1.0)
         # the run into t1 takes 6 s; the tiles turn into pictures when it stops
         d.first(mark().get_by_role("button", name="Next"), timeout=8)
         d.pause(1.0)
-        tiles = p.locator('[aria-label="Newest photos"] li')
+        tiles = p.locator('[aria-label="Newest photos"] li').filter(visible=True)
         if tiles.count() > 4:
             d.to(tiles.nth(4), 1.0)
         d.pause(2.0)
@@ -667,23 +673,37 @@ def demo_shots(d: Director) -> None:
         d.pause(0.8)
 
     def radio():
-        """The radio desk on the demo: the one briefing Sightline read out (NVIDIA Magpie TTS, recorded)."""
-        toggle = d.first(p.get_by_role("button", name=re.compile(r"^.?\s*Radio desk")), timeout=3)
-        if toggle is None:
-            raise RuntimeError("no Radio desk toggle in the rail")
-        if toggle.get_attribute("aria-expanded") != "true":
-            d.click(toggle)
-        d.pause(1.2)
-        play = d.first(
-            p.get_by_role("button", name=re.compile(r"Play the radio briefing")), timeout=2
+        """The Radio view (the switch's Radio, key 6; PR #177): the one briefing Sightline read out on the
+        demo (NVIDIA Magpie TTS, recorded). Reached by the "Open Radio" button under the approvals, else
+        by the switch."""
+        link = d.first(
+            p.get_by_role("region", name="Radio").get_by_role("button", name="Open Radio"),
+            timeout=3,
         )
-        if play is not None:
-            d.click(play)
+        if link is not None:
+            d.to(link, 0.9)
+            d.pause(0.6)
+            d.click(link)
+        else:
+            switch = d.first(views("Radio"), timeout=2)
+            if switch is None:
+                raise RuntimeError("no Open Radio button and no Radio in the view switch")
+            d.click(switch)
+        desk = d.first(p.get_by_role("region", name="Radio desk"), timeout=4)
+        if desk is None:
+            raise RuntimeError("the Radio view did not open (no Radio desk)")
+        d.pause(1.0)
+        play = d.first(
+            desk.get_by_role("button", name=re.compile(r"Play the radio briefing")), timeout=3
+        )
+        if play is None:
+            raise RuntimeError("no recorded briefing to play in the Radio view")
+        d.click(play)
         d.pause(2.0)
-        clip = d.first(p.get_by_role("group", name="Sightline on the radio"), timeout=1)
+        clip = d.first(desk.get_by_role("group", name="Sightline on the radio"), timeout=1)
         words = clip.locator("summary").first if clip is not None else None
         if words is not None and words.count():
-            d.click(words)  # the words it read out
+            d.click(words)  # the transcript: the words it read out
             d.pause(1.0)
             d.to(clip, 0.8, 0.6, 0.8)
         d.pause(2.0)

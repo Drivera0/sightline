@@ -53,5 +53,5 @@ Each frame waits for the map and 4 s more, does its one step, settles 400 ms and
 a PNG over 1.5 MB is squeezed (pngquant if installed, else Pillow's 256-colour palette). Look at each one before
 committing it.
 
-`render_retask.py` (the re-task extra) still points at the old port 5201 and the old `#m/demo/command`, which
-redirects to `#m/demo/map`.
+`render_retask.py` (the re-task extra) opens `#m/demo/map` but still points at the old port 5201; edit the URL
+to the current dev server's port before rerunning it.
