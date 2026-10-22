@@ -312,6 +312,28 @@ def main() -> int:
             s.wait_for("radio.turn", lambda e: e["type"] == "radio.turn", 10)
             return "approved briefing transmitted"
 
+        def exports():
+            mid = state["mid"]
+            _, f204 = s.call("GET", f"/missions/{mid}/ics204/T2.md")
+            assert isinstance(f204, str) and "204" in f204 and "T2" in f204, f204[:300]
+            _, f214 = s.call("GET", f"/missions/{mid}/ics214.md")
+            assert isinstance(f214, str) and "214" in f214, f214[:300]
+            # the approved assignment and the searched sector are in the activity log
+            assert "B3" in f214, f214[:600]
+            _, fc = s.call("GET", f"/missions/{mid}/caltopo.geojson")
+            assert fc["type"] == "FeatureCollection" and fc["features"], fc
+            assert all("class" in f["properties"] for f in fc["features"]), fc["features"][0]
+            return f"ICS 204 for T2, ICS 214, CalTopo GeoJSON ({len(fc['features'])} features)"
+
+        def subject():
+            mid = state["mid"]
+            _, r = s.call("POST", f"/missions/{mid}/subject/search")
+            p = r["proposal"]
+            assert r["searched"] and p and p["kind"] == "alert" and p["status"] == "pending", r
+            _, again = s.call("POST", f"/missions/{mid}/subject/search")
+            assert again["proposal"] is None and "waiting for a decision" in again["why"], again
+            return f"bulletin found, {p['id']} pending: {p['summary'][:60]}"
+
         def debrief():
             status, _ = s.call("GET", f"/missions/{state['mid']}/debrief.md", ok=None)
             assert status in (200, 503), status
@@ -332,6 +354,8 @@ def main() -> int:
             ("task searched", task),
             ("decide a proposal", decision),
             ("radio desk", radio),
+            ("exports (ICS 204, ICS 214, CalTopo)", exports),
+            ("subject bulletin search", subject),
             ("debrief", debrief),
             ("validate_mission", valid),
         ]:
