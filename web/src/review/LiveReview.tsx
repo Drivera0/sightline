@@ -80,8 +80,8 @@ function Card({ c, rank, answer, current, onAnswer }: { c: ReviewCard; rank: num
         <img loading="lazy" decoding="async" width={80} height={80} src={c.crop} alt={`Crop of ${c.id}`} className="size-20 shrink-0 rounded-sm object-cover" />
         <div className="flex min-w-0 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-mono text-small text-text-3">#{rank}</span>
-            <span className="font-mono text-small text-text">{c.conf.toFixed(2)}</span>
+            <span className="text-small text-text-3">#{rank}</span>
+            <span className="text-small text-text">{c.conf.toFixed(2)}</span>
             <span className="truncate font-mono text-caption text-text-3">{c.id}</span>
             {c.promoted && <Badge kind="info">Promoted</Badge>}
           </span>
@@ -90,7 +90,7 @@ function Card({ c, rank, answer, current, onAnswer }: { c: ReviewCard; rank: num
           {c.chips && c.chips.length > 0 && (
             <span className="flex flex-wrap gap-1" aria-label="Models">
               {c.chips.map((m) => (
-                <span key={m} className="rounded-full border border-line bg-surface-strong px-2 py-px font-mono text-caption text-text-2">
+                <span key={m} className="rounded-full border border-line bg-surface-strong px-2 py-px text-caption text-text-2">
                   {m}
                 </span>
               ))}
@@ -175,7 +175,7 @@ export function ReviewRail({
           Review queue <span className="font-normal text-text-3">· what the detector flagged, for you to confirm</span>
         </span>
         {cards.length > 0 && (
-          <span className="font-mono text-caption text-text-3">
+          <span className="text-caption text-text-3">
             {done} of {cards.length} answered
           </span>
         )}

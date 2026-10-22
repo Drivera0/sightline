@@ -64,7 +64,7 @@ export function Debrief({
 
       <details open={judgesOpen} className="group rounded-lg border border-line" data-tour="judges">
         <summary className="flex cursor-pointer list-none items-center gap-3 rounded-lg p-3 hover:bg-surface-strong [&::-webkit-details-marker]:hidden">
-          <span aria-hidden className="font-mono text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none">
+          <span aria-hidden className="text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none">
             ›
           </span>
           <span className="text-body text-text">For judges: where to look, in order</span>
@@ -74,7 +74,7 @@ export function Debrief({
           <ol className="flex flex-col divide-y divide-line">
             {JUDGE_LINKS.map((l, i) => (
               <li key={l.label} className="flex items-baseline gap-3 py-2 text-small">
-                <span className="w-4 shrink-0 font-mono text-text-3">{i + 1}</span>
+                <span className="w-4 shrink-0 text-text-3">{i + 1}</span>
                 <span className="flex min-w-0 flex-col">
                   <a
                     href={l.href}
@@ -85,7 +85,7 @@ export function Debrief({
                   </a>
                   <span className="text-text-2">{l.proves}</span>
                 </span>
-                {l.time && <span className="ml-auto shrink-0 font-mono text-caption text-text-3">{l.time}</span>}
+                {l.time && <span className="ml-auto shrink-0 text-caption text-text-3">{l.time}</span>}
               </li>
             ))}
           </ol>

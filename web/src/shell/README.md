@@ -47,3 +47,24 @@ Old addresses, kept so links in the docs, the Devposts and the video still land 
 Story: → next, ← back, Space pauses the mission clock, Esc leaves the story (the console stays at that
 mission time). Views: 1–6 (6 is Radio), C back to the map. Console: Tab, A, X, W, L. Review: J/K (or the arrows), P, N, U.
 `?` lists them.
+
+## Type and spacing
+
+One text family for everything: **Geist Sans** (variable, self-hosted through `@fontsource-variable/geist`,
+no CDN at runtime), with tabular numerals on for the whole page (`font-feature-settings: "tnum"`), so clocks,
+counts and percentages line up. **Geist Mono** only for ids and coordinates (`f0396-d01`, `p003`, `c004`,
+`49.37121, -122.94379`) and for code (the watch command, the trace's JSON). No uppercase tracked labels:
+section labels are sentence case, 12 px, medium weight (`Label`).
+
+| Step | Size / line | For |
+|---|---|---|
+| `caption` | 12 / 16 | meta lines, chips, timestamps, table headers (the smallest size anywhere) |
+| `small` | 13 / 20 | the console's working size: cards, rows, buttons |
+| `body` | 15 / 22 | reading text: a proposal's reason, the debrief, sheets |
+| `title` | 18 / 24 | panel and sheet titles |
+| `headline` | 24 / 30 | page headings, big numbers |
+
+`label`, `lead` and `display` are the same steps under older names (label = caption, lead = title, display =
+headline). Spacing is the 4 px grid (Tailwind's `1` = 4 px): 4 inside a control, 8 between controls, 12 inside
+a card, 16 between panels. Every panel header is `--panel-head` (40 px) tall (`.sl-panel-head`), and numbers in
+tables are right-aligned (`.sl-num`).

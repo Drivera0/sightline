@@ -35,10 +35,10 @@ export function PhotoStrip({
   return (
     <section aria-label="Photos landing" data-tour="photos" className="flex flex-col gap-1.5 rounded-lg border border-line bg-surface-solid p-2 lg:hidden">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-mono text-small text-text">
+        <span className="text-small text-text">
           {landed.length} <span className="text-text-3">of {total} placed</span>
         </span>
-        <span className="font-mono text-caption text-text-2">
+        <span className="text-caption text-text-2">
           {candidates} {candidates === 1 ? "candidate" : "candidates"}
         </span>
       </div>
@@ -53,7 +53,7 @@ export function PhotoStrip({
           {newest.map((f) => (
             <li key={f.id} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-surface-strong">
               {!playing && <img src={imageUrl(f.file)} alt={`Survey photo ${f.id}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
-              <span className="absolute bottom-0 left-0.5 font-mono text-[10px] leading-tight text-text-2">{f.id}</span>
+              <span className="absolute bottom-0 left-0.5 font-mono text-caption text-text-2">{f.id}</span>
               {f.n_candidates > 0 && <span aria-label="Has a candidate" className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-accent ring-1 ring-bg" />}
             </li>
           ))}
@@ -105,10 +105,10 @@ export function PhotosRail({
         <div className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-3">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="font-mono text-small text-text">
+              <span className="text-small text-text">
                 {landed.length} <span className="text-text-3">of {total} placed</span>
               </span>
-              <span className="font-mono text-caption text-text-2">
+              <span className="text-caption text-text-2">
                 {candidates} {candidates === 1 ? "candidate" : "candidates"}
               </span>
             </div>

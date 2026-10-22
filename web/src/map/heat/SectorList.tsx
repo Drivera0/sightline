@@ -60,7 +60,7 @@ export function SectorList({ statuses, outside, currentId, hoverId, onHover, onS
                   active ? "bg-surface-strong" : ""
                 }`}
               >
-                <span className={`font-mono text-small ${id === currentId ? "text-accent" : "text-text"}`}>{sectorName(s.sector)}</span>
+                <span className={`text-small ${id === currentId ? "text-accent" : "text-text"}`}>{sectorName(s.sector)}</span>
                 <span className="flex min-w-0 flex-col">
                   {sighted?.has(id) ? (
                     <span className="text-label text-ok">Candidate sighting · send ground team to check</span>
@@ -71,7 +71,7 @@ export function SectorList({ statuses, outside, currentId, hoverId, onHover, onS
                   )}
                   {unsureSectors?.has(id) && <span className="text-label text-warn">{UNSURE_LABEL}</span>}
                 </span>
-                <span className="font-mono text-small text-text-2" title="Probability of area: this sector's share of the total probability">
+                <span className="text-small text-text-2" title="Probability of area: this sector's share of the total probability">
                   {pct(s.poa)}
                 </span>
               </button>

@@ -188,7 +188,7 @@ function BasemapToggle({
   onChange,
 }: BasemapToggleProps): ReactNode {
   const baseClass =
-    "rounded-[var(--radius-sm)] px-3 py-2 font-mono text-xs transition-colors";
+    "rounded-[var(--radius-sm)] px-3 py-2 text-caption transition-colors";
   const activeClass = "bg-[var(--surface-strong)] text-[var(--text)]";
   const inactiveClass = "text-[var(--text-2)] hover:bg-[var(--surface)]";
 
@@ -256,7 +256,7 @@ function FitSurveyButton({ panelsOverMap }: { panelsOverMap: boolean }): ReactNo
       disabled={!map}
       onClick={() => map && fitSurvey(map, bundle, panelsOverMap, prefersReducedMotion() ? 0 : 600)}
       title="Show the whole photographed area"
-      className="pointer-events-auto inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg)]/85 px-3 py-3 font-mono text-xs text-[var(--text-2)] shadow-lg backdrop-blur-md transition-colors hover:text-[var(--text)]"
+      className="pointer-events-auto inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg)]/85 px-3 py-3 text-caption text-[var(--text-2)] shadow-lg backdrop-blur-md transition-colors hover:text-[var(--text)]"
     >
       <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden="true">
         <path

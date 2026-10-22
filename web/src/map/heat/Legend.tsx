@@ -252,7 +252,7 @@ export function Legend({
         <details className="group text-small text-text-2">
           <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 rounded-sm text-text-2 hover:text-text [&::-webkit-details-marker]:hidden">
             <span>Lines and markers</span>
-            <span aria-hidden="true" className="font-mono text-text-3 transition-transform group-open:rotate-90">
+            <span aria-hidden="true" className="text-text-3 transition-transform group-open:rotate-90">
               ›
             </span>
           </summary>

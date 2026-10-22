@@ -48,7 +48,7 @@ function Bar({ label, value, max, words }: { label: string; value: number; max: 
         <div className="absolute inset-y-0 left-0 rounded-full bg-ok transition-[width] duration-300" style={{ width: `${pct}%` }} />
         <progress className="sr-only" max={max} value={value} aria-label={label} />
       </div>
-      <span className="font-mono text-caption text-text-2">{words}</span>
+      <span className="text-caption text-text-2">{words}</span>
     </div>
   );
 }
