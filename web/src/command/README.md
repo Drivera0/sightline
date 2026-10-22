@@ -23,7 +23,7 @@ with bearing and distance from the team, what to look for with photo crops, the 
 daylight and the radio line. Print, Download GPX and Download KML. `@media print` (`theme.css`) gives white
 paper and black text, and hides the buttons. Checked in Chromium: a real card prints on **one Letter page**
 (25 waypoints) and the GPX downloads as `application/gpx+xml`. Screenshot: `docs/architecture/screens/assignment-card.png`.
-Still to do (manual): import a GPX into CalTopo and screenshot it for the report.
+CalTopo: the GPX imports cleanly (every waypoint and the boundary; `docs/architecture/screens/caltopo-import.png`, in the report §1).
 
 
 ## Demo mission (E-04, lane A)

@@ -361,5 +361,5 @@ radio would have read sweep points and "north-west corner" as landmarks, and "12
   coordinates more than 100 km away is dropped (logged in the trace). Test:
   `test_a_forecast_for_another_place_is_never_used`.
 
-Still lane B's: importing a card into CalTopo for the report screenshot.
+CalTopo check done (lane A): `sample.gpx` imports with every waypoint and the boundary (`docs/architecture/screens/caltopo-import.png`). Lane B's list is done.
 
