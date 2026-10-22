@@ -24,6 +24,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["Tab"], description: "Move to the next proposal, sector or team" },
       { keys: ["A"], description: "Approve the focused proposal" },
       { keys: ["X"], description: "Reject the focused proposal (asks for a one-line reason)" },
+      { keys: ["W"], description: "Open or close the Conditions panel: sources, quotes, the flyability gate" },
       { keys: ["C"], description: "Back to the Command tab from another tab" },
     ],
   },

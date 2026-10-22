@@ -2,17 +2,19 @@
 // photos in, candidates reviewed, everything that happens in the feed, all from useMission. Lane E's
 // command view and lane C's live heat (above it, on the Command tab) mount here. Built by lane A for lane D (#51).
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
-import type { AssignmentCard, TraceEntry } from "../contract";
+import type { AssignmentCard, Conditions, FleetState, TraceEntry } from "../contract";
 import { AssignmentCardView } from "../command/AssignmentCardView";
 import { isTyping } from "../lib/keys";
 import { photoProgress, useMission, type MissionData } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
-import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoMission, loadDemoTrace } from "../command/demoMission";
+import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
+import { latestLookup } from "../command/conditions";
+import type { ConditionsData } from "../command/ConditionsPanel";
 import { TraceView, type TraceRun } from "../command/TraceView";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { usePick } from "../map/pick";
@@ -111,6 +113,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
     setCard(null);
     if (!embedded) window.history.replaceState(null, "", `#m/${missionId}/${t}`);
   };
+  const conditionsData = useConditionsData(api, missionId, demo, s.conditions, s.fleet);
   const progress = photoProgress(s);
   const waiting = s.proposals.filter((p) => p.status === "pending").length;
 
@@ -291,6 +294,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           sideRail={radioOn && !demo ? radioDesk : undefined}
           map={isConsole ? heatMap : undefined}
           aboveMap={isConsole && demo && demoSeed ? <DemoSeedNote words={demoSeed} /> : undefined}
+          conditionsData={isConsole ? conditionsData : null}
           onPickOnMap={() => {
             document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
             return usePick.getState().request();
@@ -416,6 +420,30 @@ function DemoSeedNote({ words }: { words: string }) {
       <span className="truncate" title={words}>{words}</span>
     </p>
   );
+}
+
+/**
+ * The console's Conditions panel data. Live: the mission's conditions with the quotes from its trace (the
+ * Conditions object carries the values, the pages read and the alerts' URLs; the quotes and the searches
+ * are only in the trace), re-read whenever new conditions arrive. Demo: a recorded lookup.
+ */
+function useConditionsData(api: Api, missionId: string, demo: boolean, conditions: Conditions | null, fleet: FleetState | null): ConditionsData | null {
+  const [recorded, setRecorded] = useState<ConditionsData | null>(null);
+  const [trace, setTrace] = useState<TraceEntry[]>([]);
+  useEffect(() => {
+    let live = true;
+    if (demo) void loadDemoConditions().then((d) => live && setRecorded(d), () => undefined);
+    else if (conditions) getTrace(api, missionId).then((t) => live && setTrace(t), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [api, missionId, demo, conditions?.fetched_at]); // re-read the trace when new conditions arrive
+  const lookup = useMemo(() => latestLookup(trace), [trace]);
+  if (demo) return recorded;
+  if (!conditions) return null;
+  const drones = fleet?.drones ?? [];
+  const weakest = drones.length ? drones.reduce((a, b) => (b.max_wind_kmh < a.max_wind_kmh ? b : a)) : null;
+  return { conditions, lookup, recorded: null, limitKmh: weakest?.max_wind_kmh ?? null, drone: weakest?.name ?? null };
 }
 
 const TRACE_POLL_MS = 4000;
