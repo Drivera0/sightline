@@ -20,9 +20,11 @@ import numpy as np
 
 MAGPIE = "nvidia/magpie_tts_multilingual_357m"
 
-# voice name -> Magpie baked speaker index. TODO (lane E, E-13): listen to the speakers and pick one
-# female and one male English voice (LANE_E §8.2); 0 is the model's default and what the spike used.
-VOICES = {"en_female": 0, "en_male": 0}
+# voice name -> Magpie baked speaker index (the model has 5). Chosen by Dan on 2026-10-22 after listening
+# to all five on a radio line: speaker 0 is Sightline's one voice. Parakeet heard 0, 1, 3 and 4 word for
+# word; speaker 2 dropped most of the line. Samples: data/radio/voices/ (not committed).
+SIGHTLINE_SPEAKER = 0
+VOICES = {"en_female": SIGHTLINE_SPEAKER, "en_male": SIGHTLINE_SPEAKER}
 
 
 @dataclass(frozen=True)

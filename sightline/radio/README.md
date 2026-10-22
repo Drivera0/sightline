@@ -110,7 +110,7 @@ turn is the time to chunk 0. In `dev.py` (and when D mounts the router), wrap th
 
 ## Still to do (lane E)
 
-- [ ] `VOICES` in `tts.py`: listen to Magpie's speakers and pick one female and one male English voice
+- [x] Voice (2026-10-22): **speaker 0**, chosen by Dan after listening to all 5 (`SIGHTLINE_SPEAKER` in `tts.py`). Parakeet transcribed speakers 0, 1, 3, 4 word for word; speaker 2 dropped most of the line
 - [x] `audio.py`, `tools.py`, `turn.py`, `prompts.py`, `api.py`, `dev.py`, tests 3–7 (lane A, issue #30)
 - [x] Time to first audio under 5 s: chunked speech + cached openers (lane A, above)
 - [ ] Optional: stream within a chunk with Magpie's chunked inference (`create_chunk_state` /
