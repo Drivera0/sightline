@@ -11,7 +11,8 @@ import {
   useCache,
 } from "./lib/cache";
 import { useSelection } from "./lib/selection";
-import { EmptyState } from "./shell/components";
+import { EmptyState, ModeChip } from "./shell/components";
+import { Logo } from "./shell/Logo";
 import { routeFromHash, type Route } from "./shell/flow";
 import { Shell, SurveySelect, type SurveyOption } from "./shell/Shell";
 
@@ -32,23 +33,44 @@ export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, 
     // the command view's demo mission needs no API (E-04): it works on the demo-only site too
     return <LiveMission key="demo" api={api ?? { base: "" }} missionId={DEMO_MISSION_ID} initialTab={tabFromHash(window.location.hash)} />;
   }
-  if (api === null) {
-    return (
-      <div role="alert" className="flex h-full flex-col items-center justify-center p-6">
-        <EmptyState title="Live missions aren't available here">
-          This site runs the demo only. Live missions need the mission API: set VITE_API_URL to its address.
-        </EmptyState>
-        <a href="#survey" className="mt-4 block text-center text-accent-soft underline">
-          Watch a demo search
-        </a>
-        <a href="#m/demo/command" className="mt-2 block text-center text-accent-soft underline">
-          Try the command view on a demo mission
-        </a>
-      </div>
-    );
-  }
+  if (api === null) return <NoServer />;
   if (route.kind === "new") return <NewSearch api={api} onCreated={(id) => (window.location.hash = `#m/${id}/photos`)} />;
   return <LiveMission key={route.id} api={api} missionId={route.id} initialTab={tabFromHash(window.location.hash)} />;
+}
+
+/**
+ * "Start a new search" on the public site, which has no mission server by design (VITE_API_URL unset):
+ * say when the server runs and hand over the demo mission first, the guided demo second.
+ */
+export function NoServer() {
+  return (
+    <main className="flex min-h-full items-center justify-center p-4 lg:p-8">
+      <section aria-label="No mission server" className="flex w-full max-w-xl flex-col gap-5 rounded-lg border border-line bg-surface-solid p-6 lg:p-8">
+        <a href="#" className="flex items-center gap-2 text-body font-medium text-text" title="Back to the start">
+          <Logo />
+          Sightline
+        </a>
+        <div className="flex flex-col gap-2">
+          <span className="flex items-center gap-2">
+            <ModeChip mode="demo">Demo site</ModeChip>
+          </span>
+          <h1 className="text-title text-text">The live mission server runs during demos and judging; here is the demo mission.</h1>
+          <p className="text-small text-text-2">
+            The demo mission is the same command console with pre-seeded data and no server: approve the agent's proposals, assign teams,
+            add clues, and read the agent's trace.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <a href="#m/demo/command" className="rounded-full border border-accent bg-accent/15 px-5 py-2.5 text-center text-body text-text hover:bg-accent/25">
+            Open the demo mission
+          </a>
+          <a href="#survey" className="rounded-full border border-border px-5 py-2.5 text-center text-body text-text hover:bg-surface-strong">
+            Watch the guided demo
+          </a>
+        </div>
+      </section>
+    </main>
+  );
 }
 
 const PUBLIC_SURVEYS: readonly SurveyOption[] = [

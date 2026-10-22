@@ -4,7 +4,12 @@
 // inside the library; the basemap itself comes from /basemap/*.pmtiles (lane B).
 import { scanDirectory } from "./offline.mjs";
 
-const ALLOWED_HOSTS = ["www.w3.org", "react.dev", "maplibre.org", "maplibre.invalid", "wiki.openstreetmap.org"];
+const ALLOWED_HOSTS = [
+  "www.w3.org", "react.dev", "maplibre.org", "maplibre.invalid", "wiki.openstreetmap.org",
+  // The demo Trace tab's recorded conditions lookup (src/command/__fixtures__/demo_trace_conditions.jsonl):
+  // the pages Tavily found, shown as text in the trace's JSON, never fetched by the page.
+  "weather.gc.ca", "www.weather.gc.ca", "bcparks.ca",
+];
 const ALLOWED_URLS = [
   "https://github.com/mapbox/mapbox-gl-js/issues/2907",
   "https://github.com/maplibre/maplibre-gl-js/*", // licence comment in the worker

@@ -13,6 +13,12 @@
   --accent-soft: #ffb27a;
   --ok: #7ee2a0; /* "Person" */
   --warn: #ffc48f; /* "Unsure" */
+  /* Status colours (Pulse's restraint: colour only for meaning). Green (--ok): searching, fine.
+     Amber: caution. Red: alert. Orange (--accent) stays the one "needs action" colour. */
+  --caution: #f5b544;
+  --alert: #f26b5e;
+  --line: rgba(255, 255, 255, 0.08); /* hairline: rows and dividers inside a panel */
+  --surface-solid: #111215; /* opaque panel (rails, popovers over the map) */
   --radius-lg: 16px; /* panels */
   --radius-md: 10px; /* inner elements: crops, frames */
   --radius-sm: 10px; /* inner elements: rows, inputs (999px only for buttons and chips) */
@@ -35,6 +41,10 @@
   --color-accent-soft: var(--accent-soft);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
+  --color-caution: var(--caution);
+  --color-alert: var(--alert);
+  --color-line: var(--line);
+  --color-surface-solid: var(--surface-solid);
   --radius-lg: var(--radius-lg);
   --radius-md: var(--radius-md);
   --radius-sm: var(--radius-sm);
@@ -80,6 +90,43 @@ body {
   color: var(--text);
   font-family: var(--font);
   font-size: 15px;
+  font-variant-numeric: tabular-nums; /* numbers line up in every table, clock and count */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Status pill (Pulse): one look, one variable. `--c` is the meaning; the fill and the border are
+   soft mixes of it. Tones: ok (searching, fine), caution, alert, action (needs a person: orange),
+   neutral and muted (no meaning). */
+.sl-pill {
+  --c: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  border-radius: 999px;
+  padding: 0 8px;
+  height: 20px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 10%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--c) 28%, transparent);
+}
+[data-tone="ok"] { --c: var(--ok); }
+[data-tone="caution"] { --c: var(--caution); }
+[data-tone="alert"] { --c: var(--alert); }
+[data-tone="action"] { --c: var(--accent); }
+[data-tone="neutral"] { --c: var(--text-2); }
+[data-tone="muted"] { --c: var(--text-3); }
+.sl-pill-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--c); flex: none; }
+/* LIVE / DEMO / SIM: the same pill in capitals. */
+.sl-pill[data-mode] { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+@keyframes sl-live { 50% { opacity: 0.35; } }
+.sl-pill[data-mode="live"] .sl-pill-dot { animation: sl-live 2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-pill[data-mode="live"] .sl-pill-dot { animation: none; }
 }
 
 :focus-visible {

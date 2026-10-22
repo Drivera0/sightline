@@ -5,7 +5,7 @@ export function StepBar({ value, onChange }: { value: StepId; onChange: (id: Ste
   const currentIndex = STEPS.findIndex((s) => s.id === value);
   return (
     <nav aria-label="Demo steps" className="max-w-full">
-      <ol className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-border bg-surface p-0.5">
+      <ol className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-line bg-surface-solid p-0.5">
         {STEPS.map((step, index) => {
           const isCurrent = step.id === value;
           const isDone = index < currentIndex;
@@ -14,7 +14,7 @@ export function StepBar({ value, onChange }: { value: StepId; onChange: (id: Ste
               {index > 0 && (
                 <span
                   aria-hidden="true"
-                  className={`h-px w-2 lg:w-3 ${isDone || isCurrent ? "bg-accent" : "bg-border"}`}
+                  className={`h-px w-2 lg:w-3 ${isDone || isCurrent ? "bg-text-3" : "bg-line"}`}
                 />
               )}
               <button
@@ -25,7 +25,7 @@ export function StepBar({ value, onChange }: { value: StepId; onChange: (id: Ste
                 className={
                   "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2 text-small transition-colors lg:px-3 " +
                   (isCurrent
-                    ? "bg-accent text-bg"
+                    ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--border)]"
                     : isDone
                       ? "text-text hover:bg-surface-strong"
                       : "text-text-3 hover:bg-surface-strong hover:text-text-2")
@@ -34,7 +34,7 @@ export function StepBar({ value, onChange }: { value: StepId; onChange: (id: Ste
                 <span
                   className={
                     "inline-flex size-5 items-center justify-center rounded-full font-mono text-label " +
-                    (isCurrent ? "bg-bg/20" : isDone ? "bg-accent/20 text-accent-soft" : "bg-surface-strong text-text-2")
+                    (isCurrent ? "bg-accent text-bg" : isDone ? "bg-ok/15 text-ok" : "bg-surface-strong text-text-2")
                   }
                 >
                   {isDone ? "✓" : index + 1}

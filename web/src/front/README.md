@@ -2,6 +2,12 @@
 
 `FrontDoor.tsx` with the words in `copy.ts` (LANE_E §6.2), mounted at the default route `#`.
 
+Above the fold: the pitch, the two buttons and the product itself, a 1440×900 screenshot of the command
+console on the demo mission (`public/front/console.webp`, ~100 KB, linked to `#m/demo/command`) until the
+product video exists. Retake it with Playwright at 1440×900 from `#m/demo/command` (first-visit hint
+dismissed) and convert with `ffmpeg -i shot.png -c:v libwebp -quality 82 console.webp`. The four steps,
+who it's for, the principles and what's next follow below.
+
 **Checked (lane A, 2026-10-22, headless Chromium):**
 
 - **Accessibility:** axe-core (via `axe-playwright-python`) reports **no violations** on the front door at

@@ -7,14 +7,31 @@ import type { Api, UploadResult } from "../lib/api";
 import { Label, Panel } from "../shell/components";
 import { batches, photoFiles } from "./upload";
 
+/** A thin progress bar with its words (the native <progress> keeps its role and numbers for screen readers). */
+function Bar({ label, value, max, words }: { label: string; value: number; max: number; words: string }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="relative h-1.5 overflow-hidden rounded-full bg-surface-strong">
+        <div className="absolute inset-y-0 left-0 rounded-full bg-ok transition-[width] duration-300" style={{ width: `${pct}%` }} />
+        <progress className="sr-only" max={max} value={value} aria-label={label} />
+      </div>
+      <span className="font-mono text-caption text-text-2">{words}</span>
+    </div>
+  );
+}
+
 export function UploadPanel({
   api,
   missionId,
   upload = defaultApi.uploadPhotos,
+  processed,
 }: {
   api: Api;
   missionId: string;
   upload?: typeof defaultApi.uploadPhotos;
+  /** Photos the detector has finished (photo.processed events), for the second bar. */
+  processed?: number;
 }) {
   const [sent, setSent] = useState(0);
   const [total, setTotal] = useState(0);
@@ -73,11 +90,16 @@ export function UploadPanel({
         </label>
       </div>
       {total > 0 && (
-        <div className="flex flex-col gap-1">
-          <progress className="w-full accent-accent" max={total} value={sent} aria-label="Upload progress" />
-          <span className="font-mono text-small text-text-2">
-            {sent} / {total} sent · {accepted} accepted
-          </span>
+        <div className="flex flex-col gap-2">
+          <Bar label="Upload progress" value={sent} max={total} words={`${sent} / ${total} sent · ${accepted} accepted`} />
+          {processed !== undefined && accepted > 0 && (
+            <Bar
+              label="Detector progress"
+              value={Math.min(processed, accepted)}
+              max={accepted}
+              words={processed >= accepted ? `all ${accepted} ranked by the detector` : `${processed} / ${accepted} ranked by the detector…`}
+            />
+          )}
         </div>
       )}
       {error && (

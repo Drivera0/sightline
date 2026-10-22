@@ -28,9 +28,13 @@ describe("routes", () => {
     expect(routeFromHash("#m/../../x")).toEqual({ kind: "demo" });
   });
 
-  it("says live missions need the API on a demo-only site", () => {
+  it("on the demo-only site, hands over the demo mission first and never shows a developer message", () => {
     render(<LiveRoutes route={{ kind: "new" }} base={null} />);
-    expect(screen.getByRole("alert")).toHaveTextContent("VITE_API_URL");
+    const box = screen.getByRole("region", { name: "No mission server" });
+    expect(box).toHaveTextContent("The live mission server runs during demos and judging; here is the demo mission.");
+    expect(box).not.toHaveTextContent("VITE_API_URL");
+    const links = screen.getAllByRole("link").filter((a) => a.getAttribute("href") !== "#");
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["#m/demo/command", "#survey"]);
   });
 });
 
@@ -69,6 +73,15 @@ describe("upload (test 9)", () => {
     await waitFor(() => expect(screen.getByText(/12 \/ 12 sent · 11 accepted/)).toBeInTheDocument());
     expect(upload).toHaveBeenCalledTimes(2); // 10 + 2
     expect(screen.getByLabelText("Rejected files")).toHaveTextContent("phone.jpg: no GPS position");
+  });
+
+  it("shows the detector's progress after the upload's", async () => {
+    const upload = vi.fn(async (_a: unknown, _m: string, files: readonly File[]) => ({ accepted: files.map((f) => f.name), rejected: [] }));
+    render(<UploadPanel api={API} missionId="a1b2c3d4" upload={upload} processed={1} />);
+    await userEvent.upload(screen.getByLabelText("Choose photos"), [jpeg("DJI_0001.JPG"), jpeg("DJI_0002.JPG")]);
+    await waitFor(() => expect(screen.getByText("1 / 2 ranked by the detector…")).toBeInTheDocument());
+    expect(screen.getByLabelText("Detector progress")).toHaveAttribute("value", "1");
+    expect(screen.getByLabelText("Upload progress")).toHaveAttribute("max", "2");
   });
 
   it("offers the map to pick the last known position", async () => {

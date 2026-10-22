@@ -35,7 +35,7 @@ two ground searches) into `useMission().useDemo`. The fixtures are generated, no
 6 proposals with 2 pending carrying real crops, 30 events, fair-weather conditions, and the 16 sectors' POA and
 drone coverage from `LiveMap` over the cache). The script validates them against the contract and refuses the
 word "clear". Only the Command, Approvals and Feed tabs show, labelled "Demo mission · simulated data, no
-server"; actions change the fixtures in memory. Linked from "Live missions aren't available here". Screenshot:
+server"; actions change the fixtures in memory. Linked first from "Start a new search" on the demo-only site (`NoServer` in `App.tsx`), and the console says what is pre-seeded and its date in one line. Screenshot:
 `docs/architecture/screens/demo-command.png`. Known: an action taken in the demo is stamped with the real
 clock, not the demo's 21:00 timeline.
 
@@ -50,4 +50,20 @@ clock, not the demo's 21:00 timeline.
   the live mission rather than the command view's right rail.
 - **Roster fly-to** (E-06): a team's callsign selects it (`useSelection().selectTeam`, D-M2), and the live map
   flies to its position; clicking a team, drone or clue on the map selects it.
+
+## Console and Trace (lane A, redesign)
+
+- **Console** (`CommandView` with `map`): one-row mission header (name, LIVE/DEMO chip, clock, flyability,
+  conditions), a status line above the map (`missionStatus`: approvals waiting, drone leg ready, teams out,
+  sectors in progress, clues), one-line task rows (sector · POA · state · team; actions on hover or focus,
+  the row expands to details, the team picker and the POD entry), a first-visit hint (`ConsoleHint`, kept in
+  `localStorage` under `sightline.consoleHint`) and a "Desktop recommended" note under 1024 px.
+- **Status colours** (`shell/theme.css`): one pill, `.sl-pill`, driven by `--c` through `data-tone`: ok
+  (green: searching, done), caution (amber), alert (red), action (orange: needs a person), neutral, muted.
+  `StatusPill`, `ModeChip` (LIVE / DEMO / SIM / Recorded) and `Badge` all use it.
+- **Trace tab** (`TraceView.tsx`, `trace.ts`, `#m/<id>/trace`): `GET /missions/{id}/trace` polled with
+  `?after=`; entries grouped into chains by shared ids (perception → decision → action → approval), one line
+  per step (span type, tool or model, input, output, ms), the proposal each chain led to and who decided, and
+  a "which model did what" strip. The demo mission shows two recorded runs copied from the repo
+  (`__fixtures__/demo_trace*.jsonl`, the av-chain crops), labelled Recorded.
 

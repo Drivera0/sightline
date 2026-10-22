@@ -425,3 +425,27 @@ def test_sectors_report_live_poa_and_drone_coverage(api) -> None:
     assert looked and all(
         s["poa"] < before[s["sector_id"]]["poa"] for s in looked
     )  # a look lowers POA
+
+
+def test_trace_lists_the_agents_steps_in_order(api) -> None:
+    client, ctx, _ = api
+    mid = _mission(client)
+    first = ctx.store.trace(mid, committed_turn("r0001"))
+    second = ctx.store.trace(
+        mid,
+        committed_turn("r0002").model_copy(
+            update={"actor": "verifier", "kind": "model_call", "model": "nvidia/vl", "ms": 900}
+        ),
+    )
+    entries = client.get(f"/missions/{mid}/trace").json()  # conditions may trace too
+    ids = [e["id"] for e in entries]
+    assert ids == sorted(ids) and ids.index(first.id) < ids.index(second.id)  # oldest first
+    mine = next(e for e in entries if e["id"] == second.id)
+    assert (mine["kind"], mine["model"], mine["ms"]) == ("model_call", "nvidia/vl", 900)
+    later = [
+        e["id"] for e in client.get(f"/missions/{mid}/trace", params={"after": first.id}).json()
+    ]
+    assert second.id in later and first.id not in later  # polling
+    unknown = client.get(f"/missions/{mid}/trace", params={"after": "t999999"}).json()
+    assert len(unknown) >= len(entries)
+    assert client.get("/missions/nope/trace").status_code == 404

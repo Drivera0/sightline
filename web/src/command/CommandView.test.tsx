@@ -1,9 +1,9 @@
 // LANE_E §9 tests 2 (task states; POD in (0, 0.9]), the roster, the clue form, the header.
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { Conditions, Mission, SectorTask, Team } from "../contract";
-import { clueProblem, CommandView, type CommandProps } from "./CommandView";
+import type { Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
+import { clueProblem, CommandView, HINT_KEY, missionStatus, type CommandProps } from "./CommandView";
 
 const NOW = new Date("2026-10-24T22:00:00Z");
 const task = (sector_id: string, state: SectorTask["state"], team_id: string | null = null, pod: number | null = null): SectorTask => ({
@@ -137,6 +137,51 @@ describe("CommandView", () => {
     expect(col).toHaveTextContent("Proposed (13)");
     await userEvent.click(within(col).getByRole("button", { name: "Show 8 more" }));
     expect(within(col).getAllByLabelText(/^Sector X/)).toHaveLength(13);
+  });
+
+  it("says what needs a person in one status line above the map", () => {
+    const proposal = (id: string, kind: Proposal["kind"], status: Proposal["status"] = "pending") => ({ id, kind, status }) as Proposal;
+    const items = missionStatus(
+      [proposal("p1", "drone_leg"), proposal("p2", "alert"), proposal("p3", "assign_sector", "approved")],
+      [team("T1", "One", "searching"), team("T2", "Two", "assigned"), team("T3", "Three", "returning"), team("T4", "Four")],
+      [task("A1", "in_progress", "T1"), task("B2", "searched", "T2", 0.5)],
+      [],
+    );
+    expect(items.map((i) => i.text).join(" · ")).toBe("2 approvals waiting · next drone leg ready · 3 teams out · 1 sector in progress · 1 searched · 0 clues");
+    expect(items[0]!.tone).toBe("action"); // orange: needs a person
+    setup({ map: <div>map</div> });
+    expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("no approvals waiting");
+  });
+
+  it("console: each sector is one line; the row expands to the details", async () => {
+    setup({ map: <div>map</div> });
+    const b3 = screen.getByRole("group", { name: "Sector B3" });
+    expect(b3).toHaveAttribute("title", "Proposed · drone coverage 25%");
+    await userEvent.click(within(b3).getByRole("button", { expanded: false }));
+    expect(b3).toHaveTextContent("Bravo Three · POA 6.9% · drone coverage 25%");
+  });
+
+  it("console, first visit: a hint says where things are, and stays dismissed", async () => {
+    localStorage.removeItem(HINT_KEY);
+    setup({ map: <div>map</div> });
+    const hint = screen.getByRole("complementary", { name: "How to use the console" });
+    expect(within(hint).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "→ Approve the agent's proposals on the right",
+      "← Assign teams to sectors on the left",
+      "↓ Add clues below the map",
+    ]);
+    expect(screen.getByText("Desktop recommended.")).toBeInTheDocument(); // shown under 1024 px
+    await userEvent.click(within(hint).getByRole("button", { name: "Got it" }));
+    expect(screen.queryByRole("complementary", { name: "How to use the console" })).toBeNull();
+    cleanup();
+    setup({ map: <div>map</div> });
+    expect(screen.queryByRole("complementary", { name: "How to use the console" })).toBeNull();
+  });
+
+  it("the shortcut overlay lists the console's keys", async () => {
+    const { SHORTCUT_GROUPS } = await import("../shell/shortcuts");
+    const console_ = SHORTCUT_GROUPS.find((g) => g.title === "Command console");
+    expect(console_?.shortcuts.flatMap((s) => s.keys)).toEqual(["Tab", "A", "X", "C"]);
   });
 
   it('never says "clear"', () => {

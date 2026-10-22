@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { KeyHint, Label, Panel } from "./components";
-import { SHORTCUT_GROUPS } from "./shortcuts";
+import { SHORTCUT_GROUPS, type ShortcutGroup } from "./shortcuts";
 
-export function ShortcutOverlay({ onClose, onTour }: { onClose: () => void; onTour?: () => void }) {
+/** `groups`: the ones that apply on this page (a mission page leaves out the guided demo's steps). */
+export function ShortcutOverlay({ onClose, onTour, groups = SHORTCUT_GROUPS }: { onClose: () => void; onTour?: () => void; groups?: readonly ShortcutGroup[] }) {
   const closeButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -47,7 +48,7 @@ export function ShortcutOverlay({ onClose, onTour }: { onClose: () => void; onTo
             <KeyHint>T</KeyHint>
           </button>
         )}
-        {SHORTCUT_GROUPS.map((group) => (
+        {groups.map((group) => (
           <section key={group.title} className="mb-4 last:mb-0">
             <Label>{group.title}</Label>
             <ul className="mt-2 flex flex-col gap-1.5">

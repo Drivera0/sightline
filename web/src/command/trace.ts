@@ -1,0 +1,260 @@
+// The agent's trace, for the Trace tab (Agentic Vision: observability and demonstration). Pure helpers:
+// read a trace.jsonl, group its entries into chains (perception → decision → action → approval) by the ids
+// they share, and say each step in one line: span type, tool or model, input, output, ms. Built by lane A.
+import type { TraceEntry } from "../contract";
+
+export type Stage = "perception" | "decision" | "action" | "approval";
+export const STAGES: readonly Stage[] = ["perception", "decision", "action", "approval"];
+export const STAGE_WORDS: Record<Stage, string> = { perception: "Perception", decision: "Decision", action: "Action", approval: "Approval" };
+
+/** The span type in words (after the OpenAI Agents SDK's: function, generation, guardrail, handoff). */
+export const SPAN_WORDS: Record<TraceEntry["kind"], string> = {
+  tool_call: "Tool",
+  model_call: "Model",
+  verdict: "Verdict",
+  proposal: "Proposal",
+  decision: "Approval",
+  radio_turn: "Radio",
+  note: "Note",
+};
+
+/** What each actor uses its model for: the "which model did what" strip. */
+export const ACTOR_ROLE: Record<TraceEntry["actor"], string> = {
+  verifier: "second look at a crop",
+  agent: "proposes the next move",
+  planner: "plans drone legs and team sectors",
+  conditions: "reads weather and closure pages",
+  radio: "talks with the teams",
+  pipeline: "detector",
+  human: "approves or rejects",
+};
+
+type Obj = Record<string, unknown>;
+const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** One entry per non-empty line; a line that isn't JSON is skipped (a trace is appended while it is read). */
+export function parseTrace(jsonl: string): TraceEntry[] {
+  const out: TraceEntry[] = [];
+  for (const line of jsonl.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      out.push(JSON.parse(line) as TraceEntry);
+    } catch {
+      /* a half-written last line */
+    }
+  }
+  return out;
+}
+
+export function stageOf(e: TraceEntry): Stage {
+  switch (e.kind) {
+    case "proposal":
+      return "action";
+    case "decision":
+      return "approval";
+    case "verdict":
+      return "decision";
+    case "model_call":
+      // a model that looks (the verifier's VL, the conditions reader) is perception; one that chooses is decision
+      return e.actor === "agent" || e.actor === "planner" ? "decision" : "perception";
+    default:
+      return "perception";
+  }
+}
+
+const words = (s: string) => s.replace(/^nvidia\//, "");
+const short = (s: string, n = 120) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** The tool or model a step used: "zoom_native", "Tavily search (forecast)", "nvidia/Nemotron-3.5-Super-VL". */
+export function spanName(e: TraceEntry): string {
+  const o = isObj(e.output) ? e.output : {};
+  if (e.kind === "model_call") return e.model ?? e.actor;
+  if (e.kind === "tool_call") return e.summary.split(/ on |: /)[0] ?? e.summary;
+  if (e.kind === "verdict") return typeof o.model === "string" ? o.model : e.actor;
+  if (e.kind === "proposal") return typeof o.kind === "string" ? o.kind : "proposal";
+  if (e.kind === "decision") return typeof o.by === "string" ? o.by : e.actor;
+  return e.actor;
+}
+
+function compact(v: unknown, depth = 0): string {
+  if (v === null || v === undefined) return "–";
+  if (typeof v === "string") return v;
+  if (typeof v === "number") return Number.isInteger(v) ? String(v) : String(Math.round(v * 1000) / 1000);
+  if (typeof v === "boolean") return v ? "yes" : "no";
+  if (Array.isArray(v)) {
+    if (v.every((x) => typeof x !== "object" || x === null) && v.length <= 4) return `[${v.map((x) => compact(x)).join(", ")}]`;
+    return `${v.length} items`;
+  }
+  if (isObj(v)) {
+    if (depth > 0) return "{…}";
+    return Object.entries(v)
+      .map(([k, x]) => `${k}: ${compact(x, depth + 1)}`)
+      .join(" · ");
+  }
+  return String(v);
+}
+
+/** What went in, in one line. */
+export function inputSummary(e: TraceEntry): string {
+  const i = e.input;
+  if (!isObj(i)) return e.kind === "proposal" || e.kind === "decision" || e.kind === "verdict" ? "from the step before" : "–";
+  const parts: string[] = [];
+  if (typeof i.query === "string") parts.push(`“${i.query}”`);
+  if (typeof i.detection === "string") parts.push(i.detection);
+  if (typeof i.photo === "string") parts.push(`photo ${i.photo}`);
+  if (typeof i.prompt === "string") parts.push(`prompt ${i.prompt}`);
+  if (Array.isArray(i.images)) parts.push(`${i.images.length} image${i.images.length === 1 ? "" : "s"}`);
+  if (Array.isArray(i.urls)) parts.push(`${i.urls.length} page${i.urls.length === 1 ? "" : "s"}`);
+  if (Array.isArray(i.documents)) parts.push(`${i.documents.length} documents`);
+  if (Array.isArray(i.tools) && i.tools.length) parts.push(`tools: ${i.tools.join(", ")}`);
+  if (Array.isArray(i.domains)) parts.push(`on ${i.domains.join(", ")}`);
+  if (isObj(i.heuristics)) parts.push(compact(i.heuristics));
+  return short(parts.length ? parts.join(" · ") : compact(i));
+}
+
+/** What came out, in one line. */
+export function outputSummary(e: TraceEntry): string {
+  const o = e.output;
+  if (!isObj(o)) return e.kind === "note" ? short(e.summary) : "–";
+  if (e.kind === "verdict") return short([`person: ${compact(o.person)}`, o.posture && `posture: ${compact(o.posture)}`, o.reason && compact(o.reason)].filter(Boolean).join(" · "));
+  if (e.kind === "proposal") return short(`${compact(o.proposal)} ${compact(o.kind)}${typeof o.reason === "string" ? `: ${o.reason}` : ""}`);
+  if (e.kind === "decision") return `${compact(o.proposal)} ${compact(o.status)}`;
+  if (typeof o.text === "string") {
+    try {
+      const parsed: unknown = JSON.parse(o.text);
+      if (isObj(parsed)) return short(compact(parsed));
+    } catch {
+      /* free text */
+    }
+    return short(o.text.replace(/\s+/g, " "));
+  }
+  if (isObj(o.fields)) {
+    const f = Object.entries(o.fields).map(([k, x]) => (isObj(x) ? `${k} ${compact(x.value)} (“${compact(x.quote)}”)` : `${k} ${compact(x)}`));
+    return short(f.join(" · ") + (Array.isArray(o.alerts) ? ` · ${o.alerts.length} alerts` : ""));
+  }
+  if (Array.isArray(o.results)) {
+    const first = o.results[0];
+    return short(`${o.results.length} results${isObj(first) && typeof first.title === "string" ? `: ${first.title}` : ""}`);
+  }
+  if (typeof o.image === "string") return o.image;
+  return short(compact(o));
+}
+
+/** Milliseconds the step took, when it says. */
+export function msOf(e: TraceEntry): number | null {
+  if (typeof e.ms === "number") return e.ms;
+  const o = e.output;
+  return isObj(o) && typeof o.ms === "number" && o.ms > 0 ? o.ms : null;
+}
+
+/** Image files a step looked at or made (relook crops), for thumbnails. */
+export function imagesOf(e: TraceEntry): string[] {
+  const out: string[] = [];
+  const i = e.input;
+  const o = e.output;
+  if (isObj(i) && Array.isArray(i.images)) out.push(...i.images.filter((x): x is string => typeof x === "string"));
+  if (isObj(o) && typeof o.image === "string") out.push(o.image);
+  return [...new Set(out)];
+}
+
+export interface Outcome {
+  proposal: string;
+  kind: string;
+  status: string | null;
+  by: string | null;
+}
+
+export interface Chain {
+  id: string;
+  /** The ids this chain is about: a detection, a verdict, a proposal. */
+  refs: string[];
+  actors: TraceEntry["actor"][];
+  entries: TraceEntry[];
+  stages: Stage[];
+  outcomes: Outcome[];
+  ms: number;
+}
+
+/**
+ * Entries that share an id (a detection, a verdict, a proposal) are one chain; an entry with no ids
+ * joins the step just before it when the same actor made both (the conditions reader's searches and its
+ * extraction). Chains come oldest first, each in trace order.
+ */
+export function chains(entries: readonly TraceEntry[]): Chain[] {
+  const parent = entries.map((_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
+  const union = (a: number, b: number) => {
+    const [x, y] = [find(a), find(b)];
+    if (x !== y) parent[Math.max(x, y)] = Math.min(x, y);
+  };
+  const byRef = new Map<string, number>();
+  entries.forEach((e, i) => {
+    for (const r of e.refs) {
+      const j = byRef.get(r);
+      if (j === undefined) byRef.set(r, i);
+      else union(i, j);
+    }
+    if (e.refs.length === 0 && i > 0 && entries[i - 1]!.actor === e.actor) union(i, i - 1);
+  });
+  const groups = new Map<number, TraceEntry[]>();
+  entries.forEach((e, i) => {
+    const root = find(i);
+    groups.set(root, [...(groups.get(root) ?? []), e]);
+  });
+  return [...groups.values()].map((es) => {
+    const refs = [...new Set(es.flatMap((e) => e.refs))];
+    const outcomes: Outcome[] = es
+      .filter((e) => e.kind === "proposal" && isObj(e.output))
+      .map((e) => {
+        const o = e.output as Obj;
+        const pid = String(o.proposal ?? e.refs.find((r) => /^p\d/.test(r)) ?? "");
+        const d = es.find((x) => x.kind === "decision" && isObj(x.output) && (x.output as Obj).proposal === pid)?.output as Obj | undefined;
+        return { proposal: pid, kind: String(o.kind ?? ""), status: d ? String(d.status) : null, by: d && typeof d.by === "string" ? d.by : null };
+      });
+    return {
+      id: es[0]!.id,
+      refs,
+      actors: [...new Set(es.map((e) => e.actor))],
+      entries: es,
+      stages: STAGES.filter((s) => es.some((e) => stageOf(e) === s)),
+      outcomes,
+      // time in models and tools (a verdict's own ms already includes its model call)
+      ms: es.filter((e) => e.kind === "model_call" || e.kind === "tool_call").reduce((n, e) => n + (msOf(e) ?? 0), 0),
+    };
+  });
+}
+
+export interface ModelUse {
+  model: string;
+  name: string;
+  calls: number;
+  actors: TraceEntry["actor"][];
+  ms: number;
+  tokensIn: number;
+  tokensOut: number;
+}
+
+/** Which model did what: each model's calls, who called it, time and tokens. Tools are counted too. */
+export function modelUse(entries: readonly TraceEntry[]): { models: ModelUse[]; tools: { name: string; calls: number }[] } {
+  const models = new Map<string, ModelUse>();
+  const tools = new Map<string, number>();
+  for (const e of entries) {
+    if (e.kind === "model_call" && e.model) {
+      const m = models.get(e.model) ?? { model: e.model, name: words(e.model), calls: 0, actors: [], ms: 0, tokensIn: 0, tokensOut: 0 };
+      m.calls += 1;
+      if (!m.actors.includes(e.actor)) m.actors.push(e.actor);
+      m.ms += e.ms ?? 0;
+      m.tokensIn += e.tokens_in ?? 0;
+      m.tokensOut += e.tokens_out ?? 0;
+      models.set(e.model, m);
+    }
+    if (e.kind === "tool_call") {
+      const name = spanName(e).replace(/ \(.*\)$/, "");
+      tools.set(name, (tools.get(name) ?? 0) + 1);
+    }
+  }
+  return {
+    models: [...models.values()].sort((a, b) => b.calls - a.calls),
+    tools: [...tools.entries()].map(([name, calls]) => ({ name, calls })).sort((a, b) => b.calls - a.calls),
+  };
+}

@@ -19,6 +19,15 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Command console",
+    shortcuts: [
+      { keys: ["Tab"], description: "Move to the next proposal, sector or team" },
+      { keys: ["A"], description: "Approve the focused proposal" },
+      { keys: ["X"], description: "Reject the focused proposal (asks for a one-line reason)" },
+      { keys: ["C"], description: "Back to the Command tab from another tab" },
+    ],
+  },
+  {
     title: "Everywhere",
     shortcuts: [
       { keys: ["1", "2", "3", "4", "5", "6"], description: "Jump to a step: Survey, Rank, Review, Search next, Command, Results" },
