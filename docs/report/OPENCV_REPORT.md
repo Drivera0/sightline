@@ -55,6 +55,12 @@ proposal waiting for approval; the clue log.*
 rebuilt from the mission's map log and changes with each photo; grey cells have not been photographed; the
 sectors show their probability now, with the last-known point, a clue and a team's position.*
 
+![CalTopo import](../architecture/screens/caltopo-import.png)
+
+*A team's assignment card as GPX, opened in CalTopo (the mapping tool BC search teams use): every waypoint
+(entry, corners, 25 m sweep lines) lands at its coordinates and the sector boundary comes in as a shape
+(`scripts/make_card_fixture.py`, sector B3 at Mount Seymour; CalTopo's import preview).*
+
 ## 2. What is new since BCS Hackathon 2026 (disclosure)
 
 Sightline was first built in 36 hours at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`):
