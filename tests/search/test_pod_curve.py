@@ -13,6 +13,7 @@ import pytest
 from sightline.contract import LatLon, Pose
 from sightline.search.live import RECALL, LiveMap
 from sightline.search.pod import (
+    DETECTION_FLOOR_PX,
     PERSON_WIDTH_M,
     POD_CURVE_PATH,
     FrameInput,
@@ -44,10 +45,21 @@ def test_lookup_interpolates_between_points() -> None:
     assert CURVE.recall_at(60.0) == pytest.approx(0.85)
 
 
-def test_lookup_clamps_outside_the_measured_range() -> None:
-    assert CURVE.recall_at(0.0) == pytest.approx(0.2)
-    assert CURVE.recall_at(3.0) == pytest.approx(0.2)
-    assert CURVE.recall_at(500.0) == pytest.approx(0.9)
+def test_lookup_holds_above_and_falls_to_the_floor_below_the_measured_range() -> None:
+    assert DETECTION_FLOOR_PX == 4.0
+    assert CURVE.recall_at(500.0) == pytest.approx(0.9)  # held above the largest point
+    # Below the smallest point (10 px, 0.2): linear to 0 at the 4 px floor, 0 under it.
+    assert CURVE.recall_at(7.0) == pytest.approx(0.1)
+    assert CURVE.recall_at(4.0) == 0.0
+    assert CURVE.recall_at(3.0) == 0.0
+    assert CURVE.recall_at(0.0) == 0.0
+    assert CURVE.recall_at(10.0) == pytest.approx(0.2)
+
+
+def test_lookup_without_a_floor_holds_the_first_value() -> None:
+    held = PodCurve(CURVE.points, floor_px=None)
+    assert held.recall_at(3.0) == pytest.approx(0.2)
+    assert held.recall_at(0.0) == pytest.approx(0.2)
 
 
 def test_lookup_is_monotone_in_size() -> None:
@@ -69,6 +81,12 @@ def test_bad_curves_are_refused(points) -> None:
         PodCurve(points)
 
 
+@pytest.mark.parametrize("floor_px", [10.0, 12.0, -1.0])
+def test_a_floor_at_or_above_the_first_point_is_refused(floor_px: float) -> None:
+    with pytest.raises(ValueError):
+        PodCurve(CURVE.points, floor_px=floor_px)
+
+
 def test_person_px() -> None:
     assert person_px(0.02) == pytest.approx(PERSON_WIDTH_M / 0.02)
     assert person_px(0.05, width_m=1.0) == pytest.approx(20.0)
@@ -77,8 +95,8 @@ def test_person_px() -> None:
 
 
 def test_frame_recall_uses_the_curve_at_the_detector_gsd() -> None:
-    # 0.5 m at 0.025 m/px is 20 px.
-    assert frame_recall(_frame(0.025), RECALL, CURVE) == pytest.approx(0.6)
+    gsd = PERSON_WIDTH_M / 20.0  # a person spans 20 px
+    assert frame_recall(_frame(gsd), RECALL, CURVE) == pytest.approx(0.6)
 
 
 def test_frame_recall_falls_back_to_the_constant() -> None:
@@ -108,6 +126,32 @@ def test_shipped_curve_is_the_measured_one() -> None:
     # Monotone (the constructor checks it) and below the whole-split recall for small people.
     px = [p for p, _ in curve.points]
     assert curve.recall_at(px[0]) < curve.recall_at(px[-1])
+    # The low-n points are labelled in both files, with their n, and sit below the others.
+    low = [p for p in evidence["curve"]["points"] if p.get("low_n")]
+    assert [p["px"] for p in low] == doc["low_n_px"]
+    assert low and all(p["people"] < evidence["curve"]["min_people_per_point"] for p in low)
+    assert max(doc["low_n_px"]) < min(
+        p["px"] for p in evidence["curve"]["points"] if not p.get("low_n")
+    )
+    assert doc["floor_px"] == curve.floor_px == DETECTION_FLOOR_PX
+    assert curve.recall_at(DETECTION_FLOOR_PX) == 0.0
+
+
+def test_person_width_is_the_measured_median_box_size() -> None:
+    curve = load_pod_curve(POD_CURVE_PATH)
+    assert curve is not None
+    evidence = json.loads(
+        (Path(__file__).resolve().parents[2] / curve.source).read_text(encoding="utf-8")
+    )
+    size = evidence["box_size_m"]
+    assert size["boxes"] >= 100
+    assert PERSON_WIDTH_M == pytest.approx(size["median_m"], abs=0.025)
+    used = [r for r in evidence["sensitivity"] if r["used"]]
+    assert {r["width_m"] for r in used} == {PERSON_WIDTH_M}
+    for r in evidence["sensitivity"]:
+        assert curve.recall_at(person_px(r["gsd_m"], r["width_m"])) == pytest.approx(
+            r["recall"], abs=5e-4
+        )
 
 
 def test_live_map_discounts_a_photo_with_small_people() -> None:

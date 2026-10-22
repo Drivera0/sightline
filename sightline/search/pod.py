@@ -15,10 +15,14 @@ photos, and one must not say "nobody here" where another detected someone. With
 The recall a photo's look is worth (``frame_recall``) comes from the measured POD curve,
 ``pod_curve.json`` next to this file: detector recall at the frozen threshold 0.29 against the
 person's size in the photo (shorter side of the box, px), measured on val by
-``scripts/analysis/stress_test.py`` (source: docs/evidence/pod/20261022-104502/pod.json, also its
+``scripts/analysis/stress_test.py`` (source: docs/evidence/pod/20261022-110620/pod.json, also its
 ``source`` key; method and table in docs/report/POD.md). The size is
 ``PERSON_WIDTH_M`` / the GSD of the pixels the detector saw (``FrameInput.detector_gsd_m``).
 Without that GSD, or without the curve file, the caller's constant recall is used.
+
+Outside the measured sizes: above the largest point the curve holds its last value; below the
+smallest point it falls linearly to 0 at ``DETECTION_FLOOR_PX`` (4 px, the size DJI's Drone SAR
+Altitude Guide gives for detection by Johnson's criteria) and is 0 below that.
 """
 
 from __future__ import annotations
@@ -43,7 +47,21 @@ from sightline.search.grid import cell_polygon, cells_within_radius, latlon_to_l
 
 MIN_STEP_POD = 0.001
 POD_CURVE_PATH = Path(__file__).with_name("pod_curve.json")
-PERSON_WIDTH_M = 0.5  # assumed width of a person seen from above (shoulders), metres
+PERSON_WIDTH_M = 0.8
+"""Width in metres that the map turns into pixels (``PERSON_WIDTH_M / gsd``) to read the POD curve.
+
+The curve's size is the shorter side of a HERIDAL label box, which includes a margin around the
+body and covers people lying, sitting or seen at an angle; so this is not a body or shoulder width
+but the median shorter side of the labelled val boxes in metres, measured with each photo's own
+EXIF GSD (``sightline.geo.pose.read_pose``): 0.81 m over 121 boxes on the 70 val photos with a
+pose (interquartile range 0.67 to 0.96 m), by ``scripts/analysis/stress_test.py``
+(``box_size_m`` in docs/evidence/pod/20261022-110620/pod.json). Rounded to 0.8. The earlier 0.5 m
+(a shoulder width) read the curve at about 60 % of the box size the detector was scored on, and
+so discounted every look too much. Sensitivity to this number: docs/report/POD.md."""
+DETECTION_FLOOR_PX = 4.0
+"""Below this size (px) the curve gives 0: DJI's Drone SAR Altitude Guide puts detection by
+Johnson's criteria at 4 px on screen (docs/report/POD.md, Context). Between it and the smallest
+measured point the recall is linear."""
 # Overlaps below this are float noise on a shared edge, not real coverage.
 MIN_OVERLAP = 1e-9
 # Sub-pixel bits for cv2.fillPoly (vertices are rounded to 1/16 pixel).
@@ -68,10 +86,13 @@ class FrameInput:
 @dataclass(frozen=True)
 class PodCurve:
     """Measured recall against person size: (px, recall) points, px increasing, recall
-    non-decreasing. Linear between points, held at the end values outside them."""
+    non-decreasing. Linear between points and held at the last value above them; below the first
+    point linear down to 0 at ``floor_px`` and 0 under it (``floor_px=None`` holds the first
+    value instead)."""
 
     points: tuple[tuple[float, float], ...]
     source: str = ""
+    floor_px: float | None = DETECTION_FLOOR_PX
 
     def __post_init__(self) -> None:
         if not self.points:
@@ -84,9 +105,14 @@ class PodCurve:
             raise ValueError("POD curve recall must not decrease with size")
         if not all(0.0 <= r <= 1.0 for r in rec):
             raise ValueError("POD curve recall must be in [0, 1]")
+        if self.floor_px is not None and not 0.0 <= self.floor_px < px[0]:
+            raise ValueError("POD curve floor_px must be in [0, the smallest point's px)")
 
     def recall_at(self, px: float) -> float:
-        xs, ys = zip(*self.points, strict=True)
+        points = self.points
+        if self.floor_px is not None:
+            points = ((self.floor_px, 0.0), *points)
+        xs, ys = zip(*points, strict=True)
         return float(np.interp(px, xs, ys))
 
 
@@ -96,8 +122,11 @@ def load_pod_curve(path: Path = POD_CURVE_PATH) -> PodCurve | None:
     when the file is missing or unreadable."""
     try:
         doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        floor = doc.get("floor_px", DETECTION_FLOOR_PX)
         return PodCurve(
-            tuple((float(p), float(r)) for p, r in doc["points"]), str(doc.get("source", ""))
+            tuple((float(p), float(r)) for p, r in doc["points"]),
+            str(doc.get("source", "")),
+            None if floor is None else float(floor),
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None

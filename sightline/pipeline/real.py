@@ -260,6 +260,7 @@ def _write_real_intermediates(
         placed[frame_id] = PlacedFrame(
             pose=cache_pose,
             footprint=footprint(cache_pose, FRAME_W_PX, FRAME_H_PX),
+            detector_gsd_m=source_pose.gsd_m,  # the detector ran on the original photo
         )
         raw_frames[frame_id], geo_frames[frame_id] = _scaled_detections(
             frame_id,
