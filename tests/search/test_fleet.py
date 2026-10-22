@@ -179,3 +179,30 @@ def test_a_retask_cancels_the_leg_being_flown(world) -> None:
     sim.tick(1.0)
     assert "Drone 1: L1 cancelled" in lines and sim.drones[0].leg.id == "L2"
     assert store.state(mid)["fleet"].legs[1].status == "flying"
+
+
+def test_the_feed_reads_fleet_updates_from_the_event_stream(world) -> None:
+    """With ``run``, legs come from the mission's events (fleet.updated), not a GET /state per tick."""
+    from sightline.api.sse import format_event
+    from sightline.search.fleet import FleetFeed, sse_events
+
+    http, _, store, _, mid, _bodies, tmp = world
+    sim = FleetSim(http, mid, _scenario(), time_scale=1.0, pool=Pool(tmp), out=lambda s: None)
+    sim.register()
+    _leg_over_hidden(store, mid)
+    text = "".join(format_event(e) for e in store.events(mid)) + ": heartbeat\n\n"
+    lines = text.split("\n")
+    assert [t for t, _, _ in sse_events(lines)][-1] == "fleet.updated"
+
+    feed = FleetFeed(http, mid)
+    feed.follow(lines)
+    assert list(feed.legs) == ["L1"] and feed.last_id == store.events(mid)[-1].id
+    sim.feed = feed
+    calls: list[str] = []
+    http.event_hooks = {
+        "request": [lambda r: calls.append(f"{r.method} {r.url.path}")],
+        "response": [],
+    }
+    sim.tick(1.0)
+    assert f"GET /missions/{mid}/state" not in calls  # the feed's legs were used
+    assert sim.drones[0].leg is not None and sim.drones[0].leg.id == "L1"
