@@ -69,7 +69,7 @@ export function ApprovalInbox({
           You are
           <input
             aria-label="Your name"
-            className="w-44 rounded-sm border border-border bg-surface-strong px-2 py-1 text-small text-text"
+            className="sl-tap w-44 rounded-sm border border-border bg-surface-strong px-2 py-1 text-small text-text"
             placeholder="Search manager"
             value={operator}
             onChange={(e) => saveOperator(e.target.value)}
@@ -82,7 +82,7 @@ export function ApprovalInbox({
       ))}
       {decided.length > 0 && (
         <details className="flex flex-col gap-1">
-          <summary className="cursor-pointer text-small text-text-2">Decided ({decided.length})</summary>
+          <summary className="sl-tap flex cursor-pointer items-center text-small text-text-2">Decided ({decided.length})</summary>
           <ul className="flex flex-col gap-1 pt-2" aria-label="Decided proposals">
             {decided.map((p) => (
               <li key={p.id} className="flex flex-wrap gap-2 text-small">
@@ -149,7 +149,7 @@ function PendingCard({
           {p.id} · {p.created_by}
         </span>
       </div>
-      <button type="button" className="self-start text-left text-small text-text-2" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button type="button" className="sl-tap self-start text-left text-small text-text-2" aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? p.reason : `${p.reason.slice(0, 140)}${p.reason.length > 140 ? "…" : ""}`}
       </button>
       {p.evidence.length > 0 && (
@@ -213,16 +213,16 @@ function PendingCard({
         </form>
       )}
       <div className="flex gap-2">
-        <button type="button" onClick={approve} className="rounded-full border border-accent bg-accent/15 px-4 py-1.5 text-small text-text">
+        <button type="button" onClick={approve} className="sl-tap rounded-full border border-accent bg-accent/15 px-4 py-1.5 text-small text-text">
           Approve <span className="font-mono text-text-3">A</span>
         </button>
         {!rejecting && (
-          <button type="button" onClick={() => setRejecting(true)} className="rounded-full border border-border px-4 py-1.5 text-small text-text-2">
+          <button type="button" onClick={() => setRejecting(true)} className="sl-tap rounded-full border border-border px-4 py-1.5 text-small text-text-2">
             Reject <span className="font-mono text-text-3">X</span>
           </button>
         )}
         {(p.kind === "assign_sector" || p.briefing !== null) && (
-          <button type="button" aria-pressed={editing} onClick={() => setEditing(!editing)} className="rounded-full border border-border px-4 py-1.5 text-small text-text-2">
+          <button type="button" aria-pressed={editing} onClick={() => setEditing(!editing)} className="sl-tap rounded-full border border-border px-4 py-1.5 text-small text-text-2">
             Edit
           </button>
         )}

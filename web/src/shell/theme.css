@@ -121,6 +121,11 @@ body {
 [data-tone="neutral"] { --c: var(--text-2); }
 [data-tone="muted"] { --c: var(--text-3); }
 .sl-pill-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--c); flex: none; }
+/* Touch targets: at least 40 px tall on phones, tablets and touch screens; the desktop layout keeps its
+   density. For links and buttons that would otherwise be one line of text tall. */
+@media (max-width: 1023.98px), (pointer: coarse) {
+  .sl-tap { min-height: 40px; }
+}
 /* LIVE / DEMO / SIM: the same pill in capitals. */
 .sl-pill[data-mode] { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
 @keyframes sl-live { 50% { opacity: 0.35; } }

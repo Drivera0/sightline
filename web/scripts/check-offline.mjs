@@ -28,6 +28,8 @@ const ALLOWED_URLS = [
   // The Results closing card's "Code on GitHub" link: opened only when a viewer clicks it, never
   // fetched by the page, so the demo still runs with Wi-Fi off.
   "https://github.com/Drivera0/sightline",
+  // The #judges page's links into the repo (report, architecture, what changed): opened on click only.
+  "https://github.com/Drivera0/sightline/*",
 ];
 const dir = process.argv[2] ?? "dist";
 const found = scanDirectory(dir, ALLOWED_HOSTS, ALLOWED_URLS);

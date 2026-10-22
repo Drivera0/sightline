@@ -30,13 +30,14 @@ export function previousStep(id: StepId): StepId {
 }
 
 /** Where the hash points: the demo flow, the New search screen, or a live mission (LANE_D §5.5). */
-export type Route = { kind: "front" } | { kind: "demo" } | { kind: "new" } | { kind: "mission"; id: string };
+export type Route = { kind: "front" } | { kind: "judges" } | { kind: "demo" } | { kind: "new" } | { kind: "mission"; id: string };
 
 /** "" -> the front door (lane E, the default route); "#new" -> New search; "#m/<id>[/<view>]" -> that
  * live mission; anything else (the steps, "#survey"…) -> the demo flow. */
 export function routeFromHash(hash: string): Route {
   if (hash === "" || hash === "#") return { kind: "front" };
   if (hash === "#new") return { kind: "new" };
+  if (hash === "#judges") return { kind: "judges" };
   if (hash === "#command") return { kind: "mission", id: "demo" }; // D-R2: the command view (demo mission; live: #m/<id>/command)
   const m = /^#m\/([0-9a-f]{8}|demo)(\/|$)/.exec(hash); // "demo": the command view on fixtures (E-04)
   return m ? { kind: "mission", id: m[1] as string } : { kind: "demo" };

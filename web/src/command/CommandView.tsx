@@ -7,6 +7,7 @@ import { useSelection } from "../lib/selection";
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { isTyping } from "../lib/keys";
 import { ConditionsPanel, type ConditionsData } from "./ConditionsPanel";
+import { dayNote } from "./conditions";
 import type { Clue, ClueDraft, Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { KeyHint, ModeChip, modeOf, Panel, StatusPill, type Tone } from "../shell/components";
@@ -40,6 +41,8 @@ export interface CommandProps {
   aboveMap?: ReactNode;
   /** The conditions with their quotes and sources (the console's Conditions panel, W); none: no panel. */
   conditionsData?: ConditionsData | null;
+  /** Open the Conditions panel at first (the #judges link: `#m/<id>/command/conditions`). */
+  conditionsOpen?: boolean;
   now?: () => Date;
 }
 
@@ -56,9 +59,11 @@ export function CommandView(p: CommandProps) {
     return () => clearInterval(id);
   }, []);
   // W: the Conditions panel (the console only), unless typing
-  const [condOpen, setCondOpen] = useState(false);
+  const [condOpen, setCondOpen] = useState(p.conditionsOpen ?? false);
   const condId = useId();
   const hasConditions = !!p.map && !!p.conditionsData;
+  // a recorded run (the demo) is read on its own clock
+  const panelNow = p.conditionsData?.recorded ? new Date(p.conditionsData.conditions.fetched_at) : now();
   useEffect(() => {
     if (!hasConditions) return undefined;
     const onKey = (e: KeyboardEvent) => {
@@ -74,7 +79,7 @@ export function CommandView(p: CommandProps) {
     return (
       <div
         aria-label="Command view"
-        className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]"
+        className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]"
       >
         <div className="relative z-20 flex flex-col gap-2 lg:col-span-3">
           <p className="rounded-sm border border-line bg-surface-solid px-3 py-2 text-caption text-text-2 lg:hidden">
@@ -92,7 +97,7 @@ export function CommandView(p: CommandProps) {
           {hasConditions && condOpen && (
             // over the console, under the header (the map keeps its place); W or Esc closes it
             <div className="absolute inset-x-0 top-full mt-1 max-h-[75vh] overflow-y-auto rounded-lg shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]">
-              <ConditionsPanel id={condId} data={p.conditionsData!} now={p.conditionsData!.recorded ? new Date(p.conditionsData!.conditions.fetched_at) : now()} time={(iso) => `${hhmm(new Date(iso), true)} UTC`} />
+              <ConditionsPanel id={condId} data={p.conditionsData!} now={panelNow} time={(iso) => `${hhmm(new Date(iso), true)} UTC${dayNote(iso, panelNow)}`} />
             </div>
           )}
         </div>
@@ -161,7 +166,7 @@ export function MissionHeader({
       const left = (new Date(c.civil_twilight_end).getTime() - now.getTime()) / 60000;
       bits.push(left > 0 ? `daylight ${Math.floor(left / 60)} h ${Math.round(left % 60)} m` : "after dark");
     }
-    bits.push(c.flyable === true ? `flyable until ~${c.flyable_until ? hhmm(new Date(c.flyable_until), utc) : "dusk"}` : c.flyable === false ? `not flyable: ${c.flyability_reason}` : "flyability unknown");  // prettier-ignore
+    bits.push(c.flyable === true ? `flyable until ~${c.flyable_until ? `${hhmm(new Date(c.flyable_until), utc)}${dayNote(c.flyable_until, now, utc)}` : "dusk"}` : c.flyable === false ? `not flyable: ${c.flyability_reason}` : "flyability unknown");  // prettier-ignore
     // lane B's planning heuristics, labelled as such (B-W2): they move the map, they don't measure anything
     if (c.visibility_factor < 1) bits.push(`visibility ×${c.visibility_factor.toFixed(1)} (heuristic)`);
     if (c.exposure_band) bits.push(`exposure ${c.exposure_band} (planning heuristic)`);
@@ -183,7 +188,7 @@ export function MissionHeader({
       <StatusPill tone={fly[0]}>{fly[1]}</StatusPill>
       {c && c.alerts.length > 0 && <StatusPill tone="caution">{c.alerts.length === 1 ? "1 alert" : `${c.alerts.length} alerts`}</StatusPill>}
       <Line
-        className="min-w-0 flex-1 text-left text-small text-text-2 lg:truncate"
+        className="sl-tap min-w-0 flex-1 text-left text-small text-text-2 max-lg:basis-full lg:truncate"
         title={`Conditions: ${words}${toggle ? " (W: sources and quotes)" : ""}`}
         {...(toggle ? { type: "button" as const, "aria-expanded": toggle.open, "aria-controls": toggle.controls, onClick: toggle.onToggle } : {})}
       >
@@ -193,7 +198,7 @@ export function MissionHeader({
         {old && <span className="text-caution"> · as of {hhmm(new Date(c!.fetched_at), utc)}</span>}
       </Line>
       {toggle && (
-        <button type="button" onClick={toggle.onToggle} aria-expanded={toggle.open} aria-controls={toggle.controls} className="flex shrink-0 items-center gap-1.5 text-caption text-text-2 hover:text-text">
+        <button type="button" onClick={toggle.onToggle} aria-expanded={toggle.open} aria-controls={toggle.controls} className="sl-tap flex shrink-0 items-center gap-1.5 text-caption text-text-2 hover:text-text">
           {toggle.open ? "Hide sources" : "Sources and quotes"} <KeyHint>W</KeyHint>
         </button>
       )}
@@ -338,7 +343,7 @@ export function TaskBoard({
                 ))}
               </div>
               {all.length > cards.length && (
-                <button type="button" className="self-start px-1 text-caption text-text-2 underline-offset-2 hover:underline" onClick={() => setAllProposed(true)}>
+                <button type="button" className="sl-tap self-start px-1 text-caption text-text-2 underline-offset-2 hover:underline" onClick={() => setAllProposed(true)}>
                   Show {all.length - cards.length} more
                 </button>
               )}
@@ -403,7 +408,7 @@ function TaskCard({
   const pill: [Tone, string] =
     t.state === "in_progress" ? ["ok", `Searching ${mins}m`] : t.state === "assigned" ? ["neutral", "Assigned"] : t.state === "searched" ? ["muted", `POD ${podPct}%`] : ["muted", "Proposed"];
   const sentence = `${status}${coverage !== undefined ? ` · drone coverage ${pct(coverage)}` : ""}`;
-  const quiet = "rounded-full border border-line bg-surface-strong px-2 py-0.5 text-caption text-text-2 hover:border-border hover:text-text";
+  const quiet = "sl-tap rounded-full border border-line bg-surface-strong px-2 py-0.5 text-caption text-text-2 hover:border-border hover:text-text";
   const actions = (
     <>
       {t.state === "proposed" && !picking && (
@@ -440,7 +445,7 @@ function TaskCard({
   );
   return (
     <div role="group" aria-label={`Sector ${t.sector_id}`} title={sentence} className="group relative flex flex-col text-small hover:bg-surface">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex min-w-0 items-center gap-2 px-2.5 py-1.5 text-left">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="sl-tap flex min-w-0 items-center gap-2 px-2.5 py-1.5 text-left">
         <span aria-hidden className="w-7 shrink-0 font-mono text-text">
           {t.sector_id}
         </span>
@@ -457,7 +462,7 @@ function TaskCard({
         </span>
       </button>
       {/* actions on hover or keyboard focus, laid over the right end of the row; always shown on touch screens */}
-      <div className="absolute top-0 right-0 flex h-8 items-center gap-1 bg-surface-solid pr-2 pl-3 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:px-2.5 [@media(hover:none)]:pb-2 [@media(hover:none)]:opacity-100 empty:hidden">
+      <div className="absolute top-0 right-0 flex h-8 items-center gap-1 bg-surface-solid pr-2 pl-3 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:static [@media(hover:none)]:h-auto [@media(hover:none)]:px-2.5 [@media(hover:none)]:pb-2 [@media(hover:none)]:opacity-100 max-lg:static max-lg:h-auto max-lg:flex-wrap max-lg:bg-transparent max-lg:px-2.5 max-lg:pb-2 max-lg:opacity-100 empty:hidden">
         {actions}
       </div>
       {(open || picking || podOpen) && (
@@ -545,7 +550,7 @@ export function TeamRoster({ teams, tasks, now }: { teams: readonly Team[]; task
               {/* selecting a team flies the live map to it (D-M2), when it has a position */}
               <button
                 type="button"
-                className="min-w-0 flex-1 truncate text-left text-text underline-offset-2 hover:underline"
+                className="sl-tap min-w-0 flex-1 truncate text-left text-text underline-offset-2 hover:underline"
                 aria-pressed={selected === t.id}
                 title={t.position ? "Show on the map" : "No position yet"}
                 onClick={() => useSelection.getState().selectTeam(selected === t.id ? null : t.id)}
@@ -635,7 +640,7 @@ export function ClueLog({
     <section aria-label="Clue log" className="flex flex-col gap-2">
       <div className="flex items-center gap-3">
         <span className="text-caption font-medium text-text-2">Clue log ({clues.length})</span>
-        <button type="button" aria-expanded={open} className="rounded-full border border-border px-3 py-0.5 text-caption text-text-2 hover:text-text" onClick={() => setOpen(!open)}>
+        <button type="button" aria-expanded={open} className="sl-tap rounded-full border border-border px-3 py-0.5 text-caption text-text-2 hover:text-text" onClick={() => setOpen(!open)}>
           + Add clue
         </button>
       </div>

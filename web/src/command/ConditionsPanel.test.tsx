@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Conditions } from "../contract";
-import { conditionsFacts, flyGate, latestLookup } from "./conditions";
+import { conditionsFacts, dayNote, flyGate, latestLookup } from "./conditions";
 import { ConditionsPanel } from "./ConditionsPanel";
 import { CommandView } from "./CommandView";
 import { loadDemoConditions } from "./demoMission";
@@ -24,6 +24,15 @@ describe("conditions from the trace", () => {
     expect(facts.find((f) => f.id === "precip_mm_h")).toMatchObject({ value: "not on the pages read", source: { kind: "missing" } });
     expect(facts.find((f) => f.id === "twilight")?.source.kind).toBe("computed");
     expect(latestLookup([])).toBeNull();
+  });
+
+  it("gives the date when twilight isn't today on the mission clock", async () => {
+    const d = await loadDemoConditions();
+    const c = { ...d.conditions, civil_twilight_end: "2026-10-23T01:40:00Z", sunset: "2026-10-23T01:07:00Z" };
+    const twilight = (now: string) => conditionsFacts(c, null, new Date(now)).find((f) => f.id === "twilight")?.value;
+    expect(twilight("2026-10-22T08:40:00Z")).toBe("01:40 UTC, 23 Oct (sunset 01:07 UTC)");
+    expect(twilight("2026-10-23T00:10:00Z")).toBe("01:40 UTC (sunset 01:07 UTC)");
+    expect(dayNote("2026-10-23T01:40:00Z", new Date("2026-10-22T08:40:00Z"))).toBe(", 23 Oct");
   });
 
   it("states the flyability gate with the limit it was checked against", () => {

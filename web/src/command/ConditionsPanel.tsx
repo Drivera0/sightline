@@ -60,7 +60,7 @@ export function ConditionsPanel({ id, data, now, time }: { id: string; data: Con
   const { conditions: c, lookup } = data;
   const gate = flyGate(c, data.limitKmh, data.drone, time);
   const age = minutes(c.fetched_at, now);
-  const facts = conditionsFacts(c, lookup);
+  const facts = conditionsFacts(c, lookup, now);
   const alertDomains = [...new Set((lookup?.searches ?? []).filter((x) => x.label === "alerts" || x.label === "warnings").flatMap((x) => x.results.map((r) => domain(r.url))))];
   return (
     <section id={id} aria-label="Conditions" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-4">

@@ -92,7 +92,7 @@ export function FrontDoor({ onStartNew, onWatchDemo }: { onStartNew: () => void;
           </a>
           <figcaption className="flex flex-wrap items-center justify-between gap-2 text-caption text-text-3">
             <span>The command console: map, task board, teams, and the agent's proposals waiting for a person. Demo mission, simulated.</span>
-            <a href="#m/demo/command" className="text-text-2 underline underline-offset-2">
+            <a href="#m/demo/command" className="sl-tap inline-flex items-center px-1 text-text-2 underline underline-offset-2">
               Open it
             </a>
           </figcaption>
@@ -156,10 +156,13 @@ export function FrontDoor({ onStartNew, onWatchDemo }: { onStartNew: () => void;
       <footer className="flex flex-col gap-2 border-t border-border pt-6 text-small text-text-3 sm:flex-row sm:justify-between">
         <span>{FOOTER.data}</span>
         <span className="flex gap-4">
-          <a className="underline" href="#results">
+          <a className="sl-tap inline-flex items-center underline" href="#judges">
+            For judges
+          </a>
+          <a className="sl-tap inline-flex items-center underline" href="#results">
             {FOOTER.results}
           </a>
-          <a className="underline" href={FOOTER.codeUrl} rel="noreferrer" target="_blank">
+          <a className="sl-tap inline-flex items-center underline" href={FOOTER.codeUrl} rel="noreferrer" target="_blank">
             {FOOTER.code}
           </a>
         </span>
