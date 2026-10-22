@@ -2,15 +2,17 @@
 
 Sightline is the brain of a drone search: drones and ground teams feed one probability map, and the map
 tells both where to look next. **Tavily is how it knows the conditions** the search runs in: the
-forecast, weather warnings and park or trail alerts for the search area, looked up at run time, every
-30 minutes, for each live mission. Four parts of the search act on what comes back.
+forecast, weather warnings and park or trail alerts for the search area, looked up at run time: checked every
+30 minutes for each active mission, with the Tavily results cached per area and clock hour. Four parts of the search act on what comes back.
 
 Code: `sightline/geo/conditions.py`. Evidence from a live run: `docs/evidence/conditions-live-20261021/`
 (made by `scripts/conditions_live.py`).
 
 ## What a lookup does
 
-Per mission and hour (cached, so at most four Tavily calls per area per hour):
+Every 30 minutes for each active mission (`CONDITIONS_S` in `sightline/mission/scheduler.py`, and on
+`POST /missions/{id}/conditions/refresh`); results are cached per area and clock hour, so the second check
+in an hour reuses them and an area costs at most four Tavily calls per hour. A lookup:
 
 1. **Three Tavily searches** (`search_depth="advanced"`, 5 results): the hourly forecast, weather
    warnings, and park and trail alerts, each limited to the sources that publish them for the area

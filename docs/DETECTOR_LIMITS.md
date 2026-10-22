@@ -125,6 +125,22 @@ out: 186 photos, 331 people, neither site in test); the retrain on it was starte
 but not finished (see `docs/LANE_A_ML.md` §6.3a), so weights-v2 is still validated on its
 original, site-shared split.
 
+## 6. Data that could close these gaps (roadmap; nothing retrained)
+
+Weights-v2 is trained on HERIDAL only. These public datasets match the failure modes above; none has been
+used for training or evaluation, and no number in this repo depends on them. Checked on 22 Oct:
+
+| Dataset | What it adds | Which gap | Terms |
+|---|---|---|---|
+| **SARD** (Sambolek & Ivašić-Kos, "Automatic Person Detection in Search and Rescue Operations Using Deep CNN Detectors", *IEEE Access* 9, 2021; [IEEE DataPort](https://ieee-dataport.org/documents/search-and-rescue-image-dataset-person-detection-sard)) | 1,981 labelled drone frames of actors running, walking, standing, sitting or lying down; a companion set ("Corr") adds simulated fog, snow, ice and motion blur | people sitting or lying down (§2), weather | no licence stated; download needs an IEEE DataPort account |
+| **WiSARD** (Broyles, Hayner & Leung, IROS 2022; [site](https://sites.google.com/uw.edu/wisard/), arXiv 2309.04453) | over 56k labelled visual and thermal UAV images for wilderness SAR, including synchronised RGB-thermal pairs | night and deep shade: the thermal roadmap | MIT-style permission text on the site |
+| **HIT-UAV** (Suo et al., *Scientific Data* 10:227, 2023; [Zenodo](https://zenodo.org/records/7633134)) | 2,898 high-altitude thermal-infrared UAV images of people and vehicles | thermal at survey altitude | CC0 |
+| **SeaDronesSee** (Varga, Kiefer, Messmer & Zell, WACV 2022; [GitHub](https://github.com/Ben93kie/SeaDronesSee)) | people in open water from drones | water searches (out of scope today) | dataset CC0 1.0, code MIT (per the repo) |
+
+For the wider field, Nguyen et al., "Person Recognition in Aerial Surveillance: A Decade Survey" (arXiv
+[2511.17674](https://arxiv.org/abs/2511.17674), 2025) reviews 150+ papers on detecting and re-identifying
+people in aerial imagery (not specific to search and rescue).
+
 ## Honest limits: one page for the deck
 
 1. **`threshold_curve.png`**: the trade-off and where we sit. Recall 0.864 / precision 0.802
@@ -132,7 +148,7 @@ original, site-shared split.
 2. **`gallery_missed.jpg`**: what it misses. Groups, camouflage against pale or dark rock, people
    on benches or lying down. Size alone is not the problem.
 3. **`gallery_false_alarms.jpg`**: what it flags wrongly. Mostly unlabelled people and second
-   boxes; a few bags and shadows. A reviewer clears these in seconds, which is why Sightline
+   boxes; a few bags and shadows. A reviewer dismisses these in seconds, which is why Sightline
    ranks for review instead of deciding.
 
 Also in `docs/figures/limits/`: `recall_by_kind.png` (size, light, vegetation) and

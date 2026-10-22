@@ -1,14 +1,39 @@
 # Sightline
 
-Sightline finds the hiker in hundreds of search-and-rescue drone photos, then shows the rescue team where to look next. A detector ranks the photos, each detection becomes a pin on a map, and a Bayesian probability map updates after every photo. It assists searchers; it never decides that an area is clear. Built for BCS Hackathon 2026, then extended into live missions (an agent that proposes, people who approve, a radio desk and a simulated drone fleet) for the OpenCV and Nebius hackathons.
-
-**Live demo: https://sightline-iota-sandy.vercel.app**
-
 ![Sightline walkthrough: survey, rank, review, search next, results](docs/media/sightline-demo.gif)
 
 *The five steps on the demo survey, 29 s, sped up in places (recorded from the local build; the flight path and the search evaluation are simulated).*
 
+Sightline is the brain of a drone search for a missing person: it finds the likeliest people in hundreds of drone photos with OpenCV 5, and turns every photo, searched sector and radio report into one probability map of where the person could still be. From that map an agent proposes where drones and ground teams go next, and a search manager approves every move before anything happens. It assists searchers and never rules an area out; it began at BCS Hackathon 2026 and became a live system for the OpenCV and Nebius hackathons.
+
+**[Live demo](https://sightline-iota-sandy.vercel.app) · [Demo mission](https://sightline-iota-sandy.vercel.app/#m/demo/command) · [Report](docs/report/OPENCV_REPORT.md) · [Architecture](docs/architecture/sightline-architecture.html) · [Run it](#reproduce-the-results-cpu-only-about-14-minutes)**
+
 ![Sightline system architecture](docs/architecture/system.png)
+
+## Results
+
+The HERIDAL test set: 101 photos, 337 people, never used for training or threshold tuning (but see the disclosure below the table). From `metrics.json`:
+
+| HERIDAL test set | Recall | Precision | AP50 | Time per 4000×3000 photo |
+|---|---|---|---|---|
+| Sightline, strict VOC scoring (one box per person, IoU ≥ 0.5) | 0.864 | 0.802 | 0.868 | 0.25 s (GPU, Torch) · 1.9 s (CPU, OpenCV 5 `cv2.dnn`) |
+| Sightline, loose SAR-APD scoring | 0.896 | 0.898 | — | same |
+| Human reference, SAR-APD (quoted by Pyrrö et al. 2021; not a matched study) | 0.68 | 0.59 | — | 33 s |
+
+Reproduce the two Sightline rows, CPU only (both backends, identical scores; about 13 minutes on a 16-core desktop, [setup below](#reproduce-the-results-cpu-only-about-14-minutes)):
+
+```bash
+uv run --extra ml python scripts/parity_table.py --splits test --device cpu \
+  --pt data/weights/release_v2/yolo11s_tiles_run1_best.pt --onnx data/weights/release_v2/sightline-detector-v2.onnx
+```
+
+- **The human row is a reference point, not a head-to-head.** Pyrrö, Naseri & Jung (2021, arXiv:2111.09406) quote it from Pyrrö's master's thesis: "the average human achieves roughly ... 59% PRC, 68% RCL and 33 s ATI, with less than around 200 images to inspect". They don't say who the people were or whether they saw these 101 photos. SAR-APD is loose on purpose (one box may cover a group; an IoU of 0.0025 counts), so every other number in this repo uses the strict VOC scoring. Report §7.1.
+- **Disclosure:** the threshold and every inference setting were chosen on the validation split, but two earlier model choices were made with test scores in view: keeping training run 2 over run 1, and dropping the hard-negative fine-tune (test F2 0.840 vs 0.850). The test numbers above are therefore slightly optimistic; **our best estimate of true test recall is about 0.86, the reported 0.864 or slightly below**, and 0.825 at the four test sites the model never saw. Since then every choice is made on validation only ([scripts/README.md](scripts/README.md)).
+- **GPU time** is from the evaluation run on an RTX 4080 SUPER (`detector_metrics.json`: 0.251 s); the separate OpenCV parity run on the same GPU measured 0.30 s for the same Torch path (report §4.1).
+- **Mirror-image experiment (not in the demo).** Running each photo and its mirror image and fusing the boxes passed our validation rule (val F2 0.857 vs 0.831, 95% CI of the gain [+0.004, +0.048]). Scored once on test it gave recall 0.858, precision 0.835, AP50 0.872 at 0.50 s per photo: within noise of the single view, with 2 fewer people found and twice the time. The demo's photos were detected single-view and there was no time to rebuild the demo and every number around it, so the single-view model stays the reported one. That last decision was made after the mirror test score was seen, so both are reported here. Details: [docs/LANE_A_ML.md](docs/LANE_A_ML.md) §6.3a.
+- **Ranking (demo survey):** all 6 photos with a person were in the first 7 photos of the review queue; the first one is photo 1.
+- **Search map (simulated, 1,341 trials with the person in a photographed cell, 5 m cells):** a ground team checks a median of 1,213 cells with Sightline's map, against 1,743 for a naive map that treats every photographed cell as searched for certain (seed 7, the best of the three seeds tried). In the robustness check on the same 5 m map it was better in all 15 runs (3 seeds × 5 noise levels): 28–30% fewer cells at the default noise, 19–23% with noise matching the canopy estimate's measured error (docs/LANE_C_SEARCH.md).
+- **Where it fails:** groups of people, clothing that matches pale or dark rock, people sitting or lying down. While analysing the misses we found 42 test labels squashed by a size bug in four photos; fixing it moved recall from 0.769 to 0.864. Details: [docs/DETECTOR_LIMITS.md](docs/DETECTOR_LIMITS.md).
 
 ## What the demo shows
 
@@ -37,28 +62,6 @@ Try the command view without a server: **`#m/demo/command`** on the live site (a
 
 ![The command view on a live mission](docs/architecture/screens/command-view.png)
 
-## Results
-
-From `metrics.json` (the HERIDAL test set: 101 photos, 337 people, never used for training or threshold tuning; see the disclosure below). The human study scored people with the paper's loose search-and-rescue matching (SAR-APD), so the comparison uses the same scoring for us:
-
-| SAR-APD scoring, as in the human study | Sightline detector | Human baseline |
-|---|---|---|
-| Recall | **0.896** | 0.68 |
-| Precision | **0.898** | 0.59 |
-| Time per full 4000×3000 photo | 0.25 s (GPU) | 33 s |
-
-Under the strict VOC scoring (one box per person, IoU ≥ 0.5) the same detector scores recall **0.864**, precision **0.802**, AP50 0.868; those are the numbers used everywhere else (threshold choice, ablations, the search map's detection probability).
-
-Human baseline: Pyrrö, Naseri & Jung 2021, arXiv:2111.09406.
-
-**Mirror-image experiment (not in the demo).** Running each photo and its mirror image and fusing the boxes passed our validation rule (val F2 0.857 vs 0.831, 95% CI of the gain [+0.004, +0.048]). Scored once on test it gave recall 0.858, precision 0.835, AP50 0.872 at 0.50 s per photo: within noise of the single view, with 2 fewer people found and twice the time. The demo's photos were detected single-view and there was no time to rebuild the demo and every number around it, so the single-view model stays the reported one. That last decision was made after the mirror test score was seen, so both are reported here. Details: [docs/LANE_A_ML.md](docs/LANE_A_ML.md) §6.3a.
-
-**Disclosure:** the threshold and every inference setting were chosen on the validation split, but two earlier model choices were made with test scores in view: keeping training run 2 over run 1, and dropping the hard-negative fine-tune (test F2 0.840 vs 0.850). The test numbers above are therefore slightly optimistic. Since then every choice is made on validation only ([scripts/README.md](scripts/README.md)).
-
-- **Ranking (demo survey):** all 6 photos with a person were in the first 7 photos of the review queue; the first one is photo 1.
-- **Search map (simulated, 1,341 trials with the person in a photographed cell, 5 m cells):** a ground team checks a median of 1,213 cells with Sightline's map, against 1,743 for a naive "photographed = cleared" map (seed 7, the best of the three seeds tried). In the robustness check on the same 5 m map it was better in all 15 runs (3 seeds × 5 noise levels): 28–30% fewer cells at the default noise, 19–23% with noise matching the canopy estimate's measured error (docs/LANE_C_SEARCH.md).
-- **Where it fails:** groups of people, clothing that matches pale or dark rock, people sitting or lying down. While analysing the misses we found 42 test labels squashed by a size bug in four photos; fixing it moved recall from 0.769 to 0.864. Details: [docs/DETECTOR_LIMITS.md](docs/DETECTOR_LIMITS.md).
-
 ## How the detector works
 
 ![Sightline ML pipeline](docs/architecture/ml-pipeline.png)
@@ -75,8 +78,8 @@ Every language and vision model call goes through **Nebius Token Factory** at ru
 |---|---|---|---|
 | Second look at uncertain detections: the crop plus OpenCV 5 re-look images in, a JSON verdict out (person, posture, group size, clothing, reason) | Nemotron-3.5-Super-VL (`nvidia/Nemotron-3.5-Super-VL`) | Token Factory | `sightline/agent/verify.py` |
 | Radio-style briefings for ground teams, written only from given facts and post-checked (≤ 60 words, never "clear", no invented numbers) | Nemotron 3 Nano (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`) | Token Factory | `sightline/agent/loop.py` |
-| Planning text and tool calls | Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b`) | Token Factory | `sightline/agent/llm.py` (`MODEL_REASON`) |
-| The radio desk: speech in, an answer from tools (sector boundary, assignment, conditions, clue drafts), speech out | Parakeet TDT 0.6B v2 (speech to text), Nemotron 3 Super with tool calls, Magpie TTS | speech on the GPU desktop (NeMo); the model on Token Factory | `sightline/radio/` |
+| Reading the Tavily pages into values, each with its quote (conditions), and the debrief's summary | Nemotron 3 Nano (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`) | Token Factory | `sightline/geo/conditions.py`, `sightline/search/debrief.py` |
+| The radio desk: speech in, an answer from tools (sector boundary, assignment, conditions, clue drafts), speech out | Parakeet TDT 0.6B v2 (speech to text), Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b`, `MODEL_REASON`; the radio desk is its only use) with tool calls, Magpie TTS | speech on the GPU desktop (NeMo); the model on Token Factory | `sightline/radio/` |
 | Batch detection of the simulated fleet's photos: 711 photos in 483 s on 16 vCPUs, about $0.10 (2026-10-22) | the Sightline detector on OpenCV 5 `cv2.dnn` | Nebius Serverless Job (CPU, us-north1) | `deploy/nebius/run_job.sh`, `scripts/nebius_batch_detect.py` |
 
 ![Agent workflow: perception, decision, action, human approval, effect](docs/architecture/agent.png)
@@ -87,6 +90,7 @@ How the models fit together, and a real trace of one decision: [docs/architectur
 |---|---|---|
 | Speech to text (Parakeet, RTX 4080 SUPER) | 45–130 ms per phrase | 153 ms (max) |
 | Reasoning and tool calls (Nemotron 3 Super, Token Factory) | 2.3 s | 3.2 s |
+| First sound heard, typed team lines (30 turns) | 2.0 s | 3.0 s |
 | First sound heard, end to end with real voices (18 turns) | 2.5 s | 3.0 s |
 
 6 / 6 clue reports were read back and confirmed before they were logged. Safety frame (on the desk's screen): it runs on a secondary channel under the comms operator, never initiates orders, and transmits only what the search manager approved, when the operator presses Transmit. Measured on 461 live verifier calls: p50 1.35 s and p90 1.65 s per call, about 890 tokens in and 67 out, every reply valid JSON. What worked and what didn't: [docs/feedback/nebius.md](docs/feedback/nebius.md).
@@ -105,7 +109,7 @@ The Nemotron models think before they answer, and the thinking counts against `m
 
 ## Conditions with Tavily
 
-Each mission's conditions come from live web search at run time (`sightline/geo/conditions.py`): three Tavily searches (forecast, weather warnings, park and trail alerts for the area) and one Tavily extract, cached per hour. Nemotron reads the pages and returns each value **with the sentence it came from**; a value is kept only if that quote is found verbatim in the page, contains the number and names the field, and is in a sane range. Everything else stays empty rather than guessed. Sunset and civil twilight are computed locally.
+Each mission's conditions come from live web search at run time (`sightline/geo/conditions.py`): three Tavily searches (forecast, weather warnings, park and trail alerts for the area) and one Tavily extract, checked every 30 minutes for each active mission and cached per area and clock hour, so a second check in the same hour reuses the results (at most four Tavily calls per area per hour). Nemotron reads the pages and returns each value **with the sentence it came from**; a value is kept only if that quote is found verbatim in the page, contains the number and names the field, and is in a sane range. Everything else stays empty rather than guessed. Sunset and civil twilight are computed locally.
 
 What it changes during a search:
 
@@ -138,15 +142,25 @@ uv run python -m sightline.pipeline sample   # regenerate the fake sample cache
 cd web && pnpm install && pnpm dev           # the website (reads web/public/cache/sample)
 ```
 
-## Reproduce the results
+## Reproduce the results (CPU only, about 14 minutes)
 
-The data, weights and caches are GitHub releases, not git files:
+The data and weights are GitHub releases, not repository files. No GPU, API keys or NeMo needed. Wall times measured on 2026-10-22 on a Ryzen 9 9950X (16 cores, 32 threads) with the GPU hidden (`CUDA_VISIBLE_DEVICES=`), from an empty uv cache:
 
 ```bash
-gh release download data-v1    -R Drivera0/sightline -p heridal_test_split.zip   # unzip into data/heridal/yolo_full/
-gh release download weights-v2 -R Drivera0/sightline -D data/weights/release_v2
-uv sync --extra ml                                                               # torch, ultralytics, sahi (GPU)
-uv run python scripts/evaluate_model.py --weights <weights-v2 .pt> --final tiled   # the detector numbers
+uv sync --extra ml --extra conditions          # 31 s with an empty uv cache (0.8 s warm)
+gh release download data-v1       -R Drivera0/sightline -p heridal_test_split.zip
+gh release download weights-v2    -R Drivera0/sightline -D data/weights/release_v2
+gh release download model-onnx-v2 -R Drivera0/sightline -D data/weights/release_v2   # 21 s for all three (~595 MB)
+unzip -q heridal_test_split.zip -d data/heridal/yolo_full                            # 3 s
+CUDA_VISIBLE_DEVICES= uv run --extra ml python scripts/parity_table.py --splits test --device cpu \
+  --pt data/weights/release_v2/yolo11s_tiles_run1_best.pt \
+  --onnx data/weights/release_v2/sightline-detector-v2.onnx                         # 12 min 48 s
+```
+
+The last command scores the 101 test photos twice, with Torch on the CPU (5.0 s per photo) and with OpenCV 5 `cv2.dnn` (3.0 s per photo in this run), and prints the table above: VOC 0.802 / 0.864 / 0.868 and SAR-APD 0.898 / 0.896 for both, with 363 of 363 boxes at the threshold matching one-to-one. That is about 14 minutes end to end, so more than 10; the OpenCV half alone is about 5 minutes. On a GPU, the evaluation that wrote `metrics.json` (with the ablation rows):
+
+```bash
+uv run python scripts/evaluate_model.py --weights data/weights/release_v2/yolo11s_tiles_run1_best.pt --final tiled
 uv run python scripts/analysis/detector_errors.py                                # the error analysis
 ```
 
@@ -183,7 +197,7 @@ a zip of JPEGs → `cache/upload-<id>/`) still works.
 
 ## Docs
 
-- `docs/00_OVERVIEW.md`: the project, lanes and timeline. Read this first.
+- `docs/00_OVERVIEW.md`: what Sightline is, its users, the pipeline, the lanes, what is real and what is simulated. Read this first.
 - `docs/01_CONTRACT.md`: the exact shape of every file the lanes exchange.
 - `docs/LANE_A_ML.md`, `docs/LANE_B_GEO.md`, `docs/LANE_C_SEARCH.md`, `docs/LANE_D_PIPELINE.md`: one per lane.
 - `docs/DETECTOR_LIMITS.md`: where the detector fails, with figures.
@@ -196,10 +210,17 @@ a zip of JPEGs → `cache/upload-<id>/`) still works.
 Every number on screen comes from `metrics.json` or a cited source. Anything simulated (the flight
 path, the search-map evaluation, the 10 m position uncertainty, the drone fleet, the demo mission) is labelled simulated.
 
+## Responsible use
+
+- **Never rules an area out.** Searched sectors say how well they were searched ("searched at POD 60 %"); a sector's POD is capped below 1, and tests scan every proposal, briefing, radio reply and screen string for the word clear (report §9).
+- **A person approves every action**, and every decision is logged with who and when; the radio transmits only approved briefings, when the operator presses Transmit.
+- **Privacy:** the mission API has no login (anyone who can reach it can list missions and see their photos), so keep it on `127.0.0.1` or your own network; the public AWS demo holds only HERIDAL and synthetic photos and is stopped between demos. On AWS, original photos sit in a private S3 bucket and are deleted after 30 days. Crops of detections at confidence ≥ 0.15 (no full photos, GPS or EXIF) go to Nebius Token Factory (`nvidia/Nemotron-3.5-Super-VL`) for the second look; radio speech stays on our GPU and only text goes to Token Factory. No face detection or recognition, no identity data. CORS allows only the deployed site and localhost, with no credentials. Details: report §9.1.
+- **Licences:** AGPL-3.0 code and model weights (from Ultralytics; what a team deploying it must do is in report §9.2); HERIDAL imagery from a CC BY 3.0 copy, original terms not verified (below).
+
 ## Attribution
 
-Imagery from the HERIDAL dataset (Božić-Štulić, Marušić & Gotovac, 2019), VOC-format copy by Pyrrö (2021), CC BY 3.0.
+Imagery from the HERIDAL dataset (Božić-Štulić, Marušić & Gotovac, IJCV 2019), from the VOC-format copy by Pyrrö (2021, [Zenodo 5662351](https://zenodo.org/records/5662351)), which is licensed CC BY 3.0. The original dataset's own terms could not be checked (its site did not answer on 22 Oct 2026); see report §9.2.
 
 ## License
 
-Code is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0-or-later), matching Ultralytics YOLO, which the detector is trained with. The HERIDAL imagery keeps its own CC BY 3.0 license (see Attribution).
+Code is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0-or-later), matching Ultralytics YOLO, which the detector is trained with. Ultralytics treats trained models as AGPL-3.0 too, so we treat the released weights and their ONNX export the same way. The HERIDAL imagery keeps its own license (see Attribution).

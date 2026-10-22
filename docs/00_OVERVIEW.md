@@ -1,202 +1,132 @@
-# 00 · Sightline: Project Overview
+# 00 · Sightline: read this first
 
-> **Everyone reads this first.** Then read `01_CONTRACT.md`, then your own lane file.
-> Event: **BCS Hackathon 2026**, 36 hours, team of 4.
-
----
-
-## 1. The project in one minute
-
-**Sightline finds the hiker in hundreds of search-and-rescue drone photos, then shows the rescue team where to look next.**
-
-North Shore Rescue already flies drones over the mountains. The bottleneck is a person staring at hundreds of 12-megapixel photos for a hiker who is about 60 pixels wide. The published human baseline is **33 seconds per photo, 59% precision, 68% recall**: slow, and about a third of people missed.
-
-Sightline does three things, in one loop:
-
-1. **Rank.** A detector trained on real aerial search photos (HERIDAL) scores every photo and puts the likeliest crops at the top of a review queue.
-2. **Pin.** Each detection becomes a GPS position on a map.
-3. **Search next.** A probability map, using Bayesian search theory, updates after every photo. Open ground the drone saw clearly turns pale; forest the camera can't see into stays dark red. That's where the ground team goes next.
-
-It assists searchers. **It never decides on its own that an area is clear.**
+> What Sightline is today, who it is for, how it works, what is real and what is simulated, and where
+> to read next. Then read `01_CONTRACT.md` and the lane file for the part you are touching.
 
 ---
 
-## 2. Team and lanes
+## 1. What Sightline is
 
-| Lane | Who | Owns | Lane file |
-|---|---|---|---|
-| **A. ML** | Dan | Person detector: data, tiled training, hard negatives, evaluation, detection on the demo survey | `LANE_A_ML.md` |
-| **B. Geo** | Teammate | Photo pose, pixel → GPS, footprints, simulated flight path, map base layer | `LANE_B_GEO.md` |
-| **C. Search** | Teammate | Search grid, prior, canopy estimate, probability updates, simulated evaluation, heatmap | `LANE_C_SEARCH.md` |
-| **D. Pipeline** | Teammate | Repo, contract code, survey builder, pipeline runner, ranking, app shell, review queue | `LANE_D_PIPELINE.md` |
-| **Everyone** | All 4 | One screen each from hour 18; the pitch together from hour 26 | `05_FRONTEND_SHARED.md` |
+**Sightline is the brain of a drone search: one brain, many eyes, every channel.** When a hiker goes
+missing, search-and-rescue teams fly drones over the search area and come back with hundreds of
+12-megapixel photos in which a person is about 70 px wide. Sightline finds the likeliest people in
+those photos, turns every photo, every negative sweep and every field report into one updated
+probability map, and proposes where drones and ground teams should go next. A person approves every
+move. It reaches the people in the search on the screen they use: the command view at the command
+post, and the radio for teams in the field.
 
----
+It assists searchers. **It never rules an area out:** a searched sector says how well it was searched
+("searched at POD 60 %"), and its probability of detection is capped below 1.
 
-## 3. How the pieces fit
+## 2. The three users
 
-```
-                       ┌──────────── on Dan's GPU desktop (offline) ────────────┐
- HERIDAL test images ─► D: cut into frames ─► B: place on simulated flight path
-                                │
-                                ▼
-                       A: detect people in every frame (YOLO, tiled-trained)
-                                │
-                                ▼
-                       B: detections → GPS     D: score + rank frames
-                                │                      │
-                                ▼                      │
-                       C: canopy, POD, probability map │
-                                │                      │
-                                ▼                      ▼
-                       D: validate + write the CACHE (JSON + JPEGs)  ◄── the contract
-                       └─────────────────────────────────────────────────────────┘
-                                │  copied to web/public/cache/
-                                ▼
-            Website (React): Review queue · Search map · Metrics   (reads only)
-```
-
-- Heavy work runs once, offline, on the GPU desktop. The website plays back the results, so **the demo needs no GPU, no backend and no Wi-Fi** (except map tiles; see `LANE_B_GEO.md` for the offline fallback).
-- Lanes A, B and C write **Python functions**. D's pipeline calls them and is the only thing that writes the cache.
-- The website replays the search map in the browser, so a searcher's "not a person" answer updates the map live.
-
----
-
-## 4. Key decisions (already made, don't reopen without the team)
-
-| Decision | What we chose | Why |
+| User | Their question | Where Sightline answers it |
 |---|---|---|
-| Language | Python 3.11 for all backend lanes; TypeScript + React for the web | ML libraries are Python; one language means plain function calls between lanes. |
-| Data | HERIDAL (CC BY 3.0), Zenodo copy in VOC format | Real labelled aerial search photos with a published human baseline. |
-| Demo survey | 500 frames of 1000×750 px cut from **test** images, about 6 containing people | Every full HERIDAL photo contains a person, so full photos make ranking meaningless. Test images only, so the demo never uses training data. |
-| Positions | Real photos on a **simulated** lawnmower flight path over **Mount Seymour** | HERIDAL photos come from many sites and cameras; most lack full flight data. Labelled "simulated" everywhere. |
-| Live map update | Runs in the browser (TypeScript mirror of C's Python) | No server on stage. |
-| Look | Matches the pitch deck: dark, glass panels, one orange accent, Geist fonts | Demo and slides feel like one product. |
+| Search manager | Where do I send drones and teams next, and why? | Command view: live map, proposals with reasons and numbers, approval inbox, task board, clue log |
+| Image reviewer | Show me the likeliest person first. | Review queue, ranked by the detector, with a second look on uncertain crops |
+| Ground team leader | Where do I go, what am I looking for, what changed? | Printable assignment card with GPX/KML, and the radio desk |
 
----
+## 3. How photos get in
 
-## 5. Repo layout
+- **After each landing:** drag the SD card's photos into the browser, or point
+  `python -m sightline.client watch FOLDER` at the folder the card is copied to.
+- **During the flight:** a drone (or the simulated fleet) posts each photo to the mission API as it is
+  taken (`POST /missions/{id}/photos`); `python -m sightline.client replay` replays a folder at drone pace.
 
-```
-sightline/
-  CLAUDE.md                 # rules Claude Code loads automatically
-  README.md
-  pyproject.toml            # uv project; extras: [ml] for torch/ultralytics
-  docs/                     # these files
-  sightline/
-    contract.py             # D: Pydantic models of 01_CONTRACT.md
-    ml/                     # A
-    geo/                    # B
-    search/                 # C
-    pipeline/               # D: CLI `python -m sightline.pipeline`
-    api/                    # D: FastAPI (stretch goal)
-  tests/
-    ml/ geo/ search/ pipeline/
-  scripts/                  # data prep scripts (allowed before the event)
-  web/                      # React + Vite + TypeScript
-    src/contract.ts         # generated from contract.py, never hand-edited
-    src/search/update.ts    # C: TypeScript mirror of the update
-    public/cache/<name>/    # copied from cache/ by the pipeline
-  cache/
-    sample/                 # fake data, committed
-    demo/                   # real run, git-ignored
-  data/                     # git-ignored: heridal/, survey/, work/, weights/
-```
+Either way each photo is processed on its own as it arrives, and the command view updates over
+server-sent events.
 
-**Ownership rule:** you edit your own lane's folders. To change someone else's code, ask them, or ask in the channel.
+## 4. The pipeline, per photo
 
----
+1. **Pose:** position, altitude, yaw and pitch from the photo's EXIF and DJI XMP (`sightline/geo/pose.py`);
+   oblique photos and photos without a full pose are refused with the reason.
+2. **Detect:** YOLO11s fine-tuned on HERIDAL, run on overlapping 1024 px tiles with **OpenCV 5 `cv2.dnn`**
+   from its ONNX export (`sightline/ml/detect_cv.py`), threshold 0.29 chosen on validation.
+3. **Place:** each detection projected to the ground through the photo's footprint, with a 10 m radius.
+4. **Map step:** the photo's footprint, the canopy under it (measured from its own pixels) and the
+   detector's recall set its POD per cell; the Bayesian map is updated (`sightline/search/live.py`).
+5. **Agent:** near-miss detections get a second look (OpenCV 5 re-look tools, then Nemotron VL on Nebius
+   Token Factory); verdicts, clues, conditions and the planner's legs become **proposals**
+   (`sightline/agent/loop.py`).
+6. **Human approval:** the search manager approves, edits or rejects each proposal; only then does a
+   drone fly a leg, a team get an assignment, or the radio transmit a briefing.
+7. **Trace and debrief:** every tool call, model call, verdict, proposal and decision is a line in the
+   mission's `trace.jsonl`; `GET /missions/{id}/debrief.md` writes the debrief from it.
 
-## 6. Timeline and checkpoints (36 hours)
+Conditions come from live web search (Tavily, `sightline/geo/conditions.py`), checked every 30 minutes per
+active mission and cached per area and clock hour; they decide whether drones may fly, how much a photo
+can see, and what briefings say. The radio desk (`sightline/radio/`) answers teams by voice from the same
+mission state and logs a clue only after a readback the team confirms.
 
-Each checkpoint = merge to `main`, then a 10-minute stand-up (done / blocked / cutting). `main` must run at every checkpoint.
+Architecture figures: `docs/architecture/sightline-architecture.html` (system, ML pipeline, a live mission
+on AWS, the agent workflow).
 
-| Checkpoint | A. ML | B. Geo | C. Search | D. Pipeline |
-|---|---|---|---|---|
-| **H3: contract frozen** | Training run 1 started on tiles | Camera math + tests on synthetic poses | Grid, prior, update function + tests | Repo, `contract.py`, sample cache, app shell boots |
-| **H10: first real data** | First tiled model + test-set metrics; detections on survey frames | Real-pose reader on DJI photos; simulated flight path placed | Canopy estimate, POD per cell, `map.json` from sample data | Survey builder (500 frames), pipeline runs stages end to end on sample |
-| **H18: data end to end** | Hard negatives, retrain; ablation table | Detection GPS; offline basemap fallback | Simulated evaluation; TS mirror passes test vectors | Full pipeline on real data → `cache/demo`; ranking metrics |
-| **H26: feature freeze** | Metrics screen | Map base layer: footprints, path, pins | Heatmap, step slider, next-search panel | Review queue; full click path works |
-| **H36: demo** | Pitch + rehearse | Pitch + rehearse | Pitch + rehearse | Backup video, Devpost, rehearse ×3 |
+## 5. Lanes
 
-Hours 18–26 are shared frontend time, and hours 26–36 are freeze, pitch and rehearsal. Nothing new after hour 26.
+| Lane | Owns | Code | Lane file |
+|---|---|---|---|
+| **A · Detect & Agent** | data, training, evaluation, the `cv2.dnn` detector, the second look, the agent loop, the Nebius Serverless Job, the reports | `sightline/ml/`, `sightline/agent/`, `scripts/`, `deploy/nebius/` | `LANE_A_ML.md` |
+| **B · Geo** | camera poses, footprints, pins, base map, clues, conditions (Tavily) | `sightline/geo/`, `web/src/map/` | `LANE_B_GEO.md` |
+| **C · Search** | probability map, live map, sectors, planner, simulated fleet and evaluations | `sightline/search/`, `web/src/map/heat/` | `LANE_C_SEARCH.md` |
+| **D · Pipeline** | contract, pipeline, mission store and API, website shell, review queue, AWS | `sightline/pipeline/`, `sightline/mission/`, `sightline/api/`, `web/src/shell/`, `deploy/aws/` | `LANE_D_PIPELINE.md` |
+| **E · Ops & Voice** | front door, command view, radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` | `web/src/command/README.md`, `sightline/radio/README.md` |
 
-**Cut order if behind:** (1) the re-check classifier (A's stretch), (2) the FastAPI upload endpoint, (3) the map step animation (show final map only), (4) charts on the metrics screen (plain table instead). **Never cut:** review queue, search map, honest numbers against the human baseline.
+The lanes meet at one contract (`01_CONTRACT.md`, v1.2): only the pipeline and the `MissionStore` write
+files, every write is validated against the contract, and the website only reads. How the pipeline calls
+the lanes: `LANE_INTERFACES.md`. Shared website rules: `05_FRONTEND_SHARED.md`.
 
----
+## 6. Real and simulated
 
-## 7. Before the event (setup and data prep only, no app code)
-
-**Everyone**
-- [ ] GitHub access to the repo; clone it.
-- [ ] Install Python 3.11 + `uv`, Node 20 + `pnpm`, Git, and Claude Code.
-- [ ] Read this file, `01_CONTRACT.md`, your lane file, `05_FRONTEND_SHARED.md`.
-- [ ] Skim sections 2 and 5 of the AIR paper (arXiv 2111.09406), about 15 minutes.
-
-Lane-specific prep is in each lane file under "Before the event".
-
----
-
-## 8. Team rules
-
-1. **The contract wins.** If your code needs a field that isn't in `01_CONTRACT.md`, propose it; don't invent it.
-2. **`main` always runs.** Work on `lane-a`, `lane-b`, `lane-c`, `lane-d` branches; merge at checkpoints.
-3. **Never commit** data, weights, `cache/demo/`, API keys or `.env` files.
-4. **Blockers go in the channel immediately.**
-5. **Training runs overnight** while people sleep in shifts.
-6. **Honesty labels are not optional.** Anything simulated is labelled simulated in the app and the pitch: the flight path, the search-map evaluation, and the 10 m position uncertainty.
-7. **Using Claude Code:** start each session by pointing Claude at your lane file and `01_CONTRACT.md`. Ask it to write tests first. Review what it writes before you merge.
-
----
-
-## 9. The 60-second demo (what all of this builds toward)
-
-1. Open the survey: "500 photos over Mount Seymour. At 33 seconds each, that's over four hours for one person."
-2. **Review queue:** the likeliest crops come first. Press `P` on a real person.
-3. **Map:** the pin drops. Press `N` on a backpack and the map updates live.
-4. **Scrub the map** through the flight: open ground turns pale, forest stays dark red. "This is where the team goes next."
-5. **Metrics:** our detector vs. the human baseline, the ablation table, and frames reviewed before the first hit, ranked vs. flight order.
-
-Details and timing are in `05_FRONTEND_SHARED.md`.
-
----
-
-## 10. Numbers we will quote (each one must come from `metrics.json` or a cited source)
-
-| Claim | Source |
+| Real | Simulated (and labelled so on screen and in the trace) |
 |---|---|
-| Human: 33 s per photo, 59% precision, 68% recall | Pyrrö et al. 2021 (fixed) |
-| Our detector precision and recall on the HERIDAL test set | `metrics.detector` (A) |
-| Stock model vs. our model | `metrics.ablations` (A) |
-| Frames reviewed before the first hit, ranked vs. flight order | `metrics.ranking` (D) |
-| Search map vs. naive map | `metrics.search_sim` (C), **labelled simulated** |
-| 100+ North Shore rescues a year; Mount Seymour Dec 2024 rescue | DroneXL / CBC, 2025 |
+| The detector on OpenCV 5 `cv2.dnn`, and its HERIDAL test numbers | The demo survey's flight path over Mount Seymour (real HERIDAL photos, simulated positions) |
+| The map math (pose, footprints, POD, Bayesian update, planner) | The search-map and planner evaluations (`sightline/search/sim.py`, `planner_sim.py`) |
+| The agent: Nemotron models on Nebius Token Factory, every call traced | The drone fleet: flight, battery, and its photos (HERIDAL validation crops with written EXIF) |
+| Conditions from Tavily, with quotes and source URLs | Ground-team positions in the demo and fixture missions |
+| The radio desk (Parakeet, Nemotron, Magpie) | The human steps in the recorded agent chains (review, approvals), scripted and labelled |
+| The AWS deployment (EC2, S3, SQS, CloudWatch, Secrets Manager) and the Nebius Serverless Job | |
 
-No number goes on a slide or screen without one of these sources.
+The search prior is Koester's distance-from-IPP rings when the subject category is set, else uniform
+within the search area; the clue and shelter factors of the live map are labelled planning heuristics.
+No real search data has been used; all imagery is HERIDAL (CC BY 3.0).
 
----
+## 7. Where to read next
 
-## 11. Glossary
+- `docs/report/OPENCV_REPORT.md`: the technical report, with every measured number and its source.
+- `docs/report/TAVILY.md`: conditions from the web, with a live run's trace.
+- `docs/architecture/agent.md`: the agent, with real traces of one decision.
+- `docs/DETECTOR_LIMITS.md`: where the detector fails, with figures.
+- `docs/feedback/nebius.md`, `docs/feedback/radio.md`: what worked and what didn't with Token Factory,
+  Serverless Jobs, Parakeet and Magpie.
+- `deploy/aws/README.md`: the AWS deployment and the remote check.
+- Lane files: `LANE_A_ML.md`, `LANE_B_GEO.md`, `LANE_C_SEARCH.md`, `LANE_D_PIPELINE.md`.
+
+## 8. History
+
+Sightline began at **BCS Hackathon 2026** (Oct 16–17, 36 hours, a team of four, tag
+`bcs-final-submission`) as a batch tool: the tiled detector, the review queue and the Bayesian search map,
+run once over a 500-frame demo survey and played back in the browser with no server. For the OpenCV AI
+Competition 2026 and the Nebius × NVIDIA hackathon it became a live system: the detector moved to OpenCV 5
+`cv2.dnn`, photos are processed as they arrive, an agent proposes and people approve, conditions come from
+the web, a radio desk reaches the teams, a simulated fleet flies approved legs, and the API runs on AWS. The
+BCS-era plan for this file (timeline, checkpoints, the 60-second pitch) is in git history.
+
+## 9. Glossary
 
 | Term | Meaning |
 |---|---|
-| **Frame** | One 1000×750 px crop of a HERIDAL test photo. In the demo, each frame stands for one drone photo. |
-| **GSD** | Ground sample distance: metres of ground per pixel. 0.02 m in the demo. |
-| **Footprint** | The patch of ground a frame covers: a 20 m × 15 m rectangle. |
-| **LKP** | Last known point: where the missing person was last seen. The centre of the search grid. |
-| **Prior** | The probability map before any photo, based on distance from the LKP. |
-| **POD** | Probability of detection: if the person were in this cell, the chance this photo would have found them. |
-| **Canopy** | Fraction of a cell covered by trees or deep shadow. High canopy means low visibility, so low POD. |
-| **Tiling / SAHI** | Cutting big images into overlapping tiles so small people aren't shrunk away. |
-| **Hard negatives** | Things the detector wrongly calls people (rocks, bags); we train on them on purpose. |
-| **Ablation** | Turning one technique off to measure how much it helps. |
-| **Cache** | The folder of JSON and JPEG files that connects every lane. Defined in `01_CONTRACT.md`. |
+| **IPP / LKP** | Initial planning point / last known point: where the missing person was last seen. |
+| **Prior** | The probability map before any photo. |
+| **POD** | Probability of detection: if the person were in this cell, the chance this search would have found them. |
+| **POS** | Probability of success: POC (containment, the map's probability in the cell) × POD. |
+| **Canopy** | Fraction of a cell under trees or deep shadow; high canopy means low POD. |
+| **Sector** | A piece of the search area a drone leg or a ground team is assigned. |
+| **Proposal** | An action the agent suggests (promote a detection, fly a leg, re-task a drone, assign a sector, alert); nothing happens until a person approves it. |
+| **Trace** | The mission's `trace.jsonl`: every tool call, model call, verdict, proposal and decision. |
+| **Tiling / SAHI** | Cutting big photos into overlapping tiles so small people aren't shrunk away. |
 
----
-
-## 12. Sources
+## 10. Sources
 
 - Pyrrö, Naseri & Jung (2021), *Rethinking Drone-Based Search and Rescue with Aerial Person Detection*: https://arxiv.org/abs/2111.09406
 - HERIDAL in VOC format (CC BY 3.0), Zenodo: https://zenodo.org/records/5662351
-- DroneXL, North Shore Rescue drones (2025): https://dronexl.co/2025/04/22/drones-ai-thermal-transform-search-and-rescue
-- AIR detector code: https://github.com/Accenture/AIR
+- Search theory, lost-person behaviour and related systems: `docs/report/OPENCV_REPORT.md` §7.4 and §7.6.
