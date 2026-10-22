@@ -2,7 +2,8 @@
 
 ``SIGHTLINE_BACKEND=cv2`` (the default) runs the ONNX export through OpenCV 5's ``cv2.dnn``
 (``CvDetector``); ``torch`` runs the same weights through Ultralytics + SAHI (``Detector``).
-Both have ``detect_tiled``, which the pipeline calls on full-size photos.
+Both have ``detect_tiled``, which the pipeline calls on full-size photos. ``fake`` (smoke test,
+no model files) returns two fixed boxes on every photo (``sightline/ml/fake.py``).
 
 If cv2 is asked for but no ONNX file exists, this falls back to Torch with a warning, and fails
 with one error naming every path it tried when Torch can't run either.
@@ -16,11 +17,12 @@ from pathlib import Path
 
 from sightline.ml.detect import Detector
 from sightline.ml.detect_cv import CvDetector
+from sightline.ml.fake import FakeDetector
 
 log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
-BACKENDS = ("cv2", "torch")
+BACKENDS = ("cv2", "torch", "fake")  # fake: smoke test and demos without model files
 DEFAULT_BACKEND = "cv2"
 # web/scripts/fetch-model.sh downloads the release `model-onnx-v2` export here.
 DEFAULT_ONNX = ROOT / "web/public/models/sightline-detector-v2.onnx"
@@ -51,7 +53,7 @@ def onnx_candidates(onnx: Path | None, weights: Path | None) -> list[Path]:
 
 def make_detector(
     *, weights: Path | None = None, onnx: Path | None = None, backend: str | None = None
-) -> Detector | CvDetector:
+) -> Detector | CvDetector | FakeDetector:
     """The detector for ``backend`` (default: env ``SIGHTLINE_BACKEND``, else ``"cv2"``).
 
     ``weights`` is the Torch ``.pt`` (default: ``SIGHTLINE_WEIGHTS``, else ``DEFAULT_WEIGHTS``);
@@ -62,6 +64,10 @@ def make_detector(
         raise ValueError(f"SIGHTLINE_BACKEND must be one of {BACKENDS}, got {backend!r}")
     pt = _abs(weights or os.environ.get("SIGHTLINE_WEIGHTS") or DEFAULT_WEIGHTS)
 
+    if backend == "fake":
+        from sightline.ml.fake import FakeDetector
+
+        return FakeDetector()
     if backend == "torch":
         return Detector(pt)
 

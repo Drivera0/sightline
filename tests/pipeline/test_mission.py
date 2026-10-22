@@ -485,3 +485,12 @@ def test_validate_catches_an_unapproved_transmission(store: MissionStore, mid: s
         ),
     )
     assert any("not approved" in x for x in validate_mission(store.root, mid))
+
+
+def test_the_store_refuses_a_task_breaking_the_pod_rule(store: MissionStore, mid: str) -> None:
+    """Found by the smoke test: a searched sector reassigned kept its POD."""
+    bad = SectorTask(
+        sector_id="B3", state="assigned", team_id="T2", poa=0.2, pod=0.5, note=None, updated_at=AT
+    )
+    with pytest.raises(ValueError, match="pod"):
+        store.upsert_task(mid, bad)

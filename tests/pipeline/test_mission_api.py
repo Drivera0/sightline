@@ -4,12 +4,10 @@ D-A1, D-P1). Photos are made here with GPS in EXIF and a DJI pose in XMP; the de
 from __future__ import annotations
 
 import asyncio
-import io
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import ExifTags, Image
 
 from sightline.api.app import create_app
 from sightline.api.missions import MissionContext
@@ -18,32 +16,8 @@ from sightline.contract import LatLon, Proposal
 from sightline.mission import MissionStore, validate_mission
 from sightline.mission.queue import LocalQueue
 from sightline.ml.types import Box, RawDetection
-
-LKP = {"lat": 49.375, "lon": -122.9375}
-
-
-def drone_photo(
-    lat: float = 49.375, lon: float = -122.9375, *, gps: bool = True, w: int = 800, h: int = 600
-) -> bytes:
-    """A small JPEG with what lane B's read_pose needs: EXIF GPS + 35 mm focal length, and the
-    DJI XMP fields (relative altitude, gimbal yaw and pitch)."""
-    im = Image.new("RGB", (w, h), (90, 110, 80))
-    exif = Image.Exif()
-    if gps:
-        g = exif.get_ifd(ExifTags.IFD.GPSInfo)
-        g.update(
-            {
-                1: "N" if lat >= 0 else "S",
-                2: (abs(lat), 0.0, 0.0),
-                3: "E" if lon >= 0 else "W",
-                4: (abs(lon), 0.0, 0.0),
-            }
-        )
-    exif.get_ifd(ExifTags.IFD.Exif)[41989] = 24
-    xmp = b'<x:xmpmeta drone-dji:RelativeAltitude="+50.0" drone-dji:GimbalYawDegree="+0.0" drone-dji:GimbalPitchDegree="-90.0"/>'
-    buf = io.BytesIO()
-    im.save(buf, "JPEG", exif=exif, comment=xmp if gps else b"")
-    return buf.getvalue()
+from tests.fixtures.drone_photos import LKP, drone_photo
+from tests.fixtures.mission import committed_turn
 
 
 class FakeDetector:
@@ -233,7 +207,7 @@ def test_an_approved_promotion_puts_the_detection_in_the_review_queue(api) -> No
 
 
 def test_clues(api) -> None:
-    client, _ctx, hooks = api
+    client, ctx, hooks = api
     mid = _mission(client)
     url = f"/missions/{mid}/clues"
     radio = {
@@ -250,6 +224,10 @@ def test_clues(api) -> None:
         client.post(url, json={**radio, "confirmed_by_turn": "r0003"}).status_code == 422
     )  # T2 has no position
     client.patch(f"/missions/{mid}/teams/T2", json={"position": {"lat": 49.376, "lon": -122.938}})
+    assert (
+        client.post(url, json={**radio, "confirmed_by_turn": "r0003"}).status_code == 422
+    )  # no such turn
+    ctx.store.trace(mid, committed_turn("r0003"))
     r = client.post(url, json={**radio, "confirmed_by_turn": "r0003"})
     assert r.status_code == 201, r.text
     body = r.json()
@@ -324,3 +302,22 @@ def test_sse_resumes_after_last_event_id_and_sends_heartbeats(tmp_path: Path) ->
     assert chunks[0].startswith("event: mission.note\n") and chunks[0].endswith("\n\n")
     assert chunks[-1] == ": heartbeat\n\n"
     assert format_event(store.events(mid)[0]).startswith("event: mission.note\nid: e00001\ndata: {")
+
+
+def test_reassigning_a_searched_sector_clears_its_pod(api) -> None:
+    """Found by the smoke test: the task kept POD 0.6 while "assigned"."""
+    client, ctx, _ = api
+    mid = _mission(client)
+    client.post(f"/missions/{mid}/tasks/B3", json={"state": "searched", "pod": 0.6})
+    pid = _propose(ctx, mid)
+    assert (
+        client.post(
+            f"/missions/{mid}/proposals/{pid}/decide", json={"decision": "approve", "by": "SM"}
+        ).status_code
+        == 200
+    )
+    task = next(
+        t for t in client.get(f"/missions/{mid}/state").json()["tasks"] if t["sector_id"] == "B3"
+    )
+    assert (task["state"], task["team_id"], task["pod"]) == ("assigned", "T2", None)
+    assert validate_mission(ctx.store.root, mid) == []

@@ -386,10 +386,17 @@ def post_clue(mission_id: str, draft: ClueDraft, request: Request) -> dict:
     """A clue from the form or the radio. A radio draft needs ``confirmed_by_turn`` (the team's
     "affirmative" after the readback). "At the team's position" uses the team's last position."""
     store = _store(request, mission_id)
-    if draft.source == "radio" and not draft.confirmed_by_turn:
-        raise HTTPException(
-            422, "a radio clue needs confirmed_by_turn (readback, then affirmative)"
-        )
+    if draft.source == "radio":
+        # Only after the team's "affirmative" to the readback: a committed radio turn in the trace.
+        committed = {
+            (e.output or {}).get("id")
+            for e in store.trace_entries(mission_id)
+            if e.kind == "radio_turn" and (e.output or {}).get("state") == "committed"
+        }
+        if not draft.confirmed_by_turn or draft.confirmed_by_turn not in committed:
+            raise HTTPException(
+                422, "a radio clue needs confirmed_by_turn: the committed turn of its readback"
+            )
     lat, lon = draft.lat, draft.lon
     if draft.at_team_position:
         team = next(

@@ -65,7 +65,12 @@ def on_decision(store: MissionStore, mission_id: str, p: Proposal) -> None:
             store.upsert_task(
                 mission_id,
                 task.model_copy(
-                    update={"state": "assigned", "team_id": team_id, "updated_at": now_iso()}
+                    update={
+                        "state": "assigned",
+                        "team_id": team_id,
+                        "pod": None,
+                        "updated_at": now_iso(),
+                    }
                 ),
             )
         team = next((t for t in state["teams"] if t.id == team_id), None)
