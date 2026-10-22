@@ -1,0 +1,936 @@
+{
+  "mode": "1 recorded voice conditions from /home/driver/sightline/data/radio_wer",
+  "boost": {
+    "how": "NeMo GPU phrase boosting tree, greedy_batch, alpha 1, context score 1",
+    "phrases": [
+      "niner",
+      "four niner",
+      "point niner",
+      "fife",
+      "tree",
+      "Sightline",
+      "over",
+      "say again",
+      "Say again",
+      "affirmative",
+      "Affirmative",
+      "negative",
+      "Negative",
+      "Team One",
+      "Team Two",
+      "Team Three",
+      "Team Four",
+      "Bravo Three",
+      "Charlie Four",
+      "Alpha",
+      "Delta",
+      "POD"
+    ]
+  },
+  "runs": {
+    "local, boost off": {
+      "summary": {
+        "overall": {
+          "clips": 20,
+          "words": 162,
+          "wer": 0.025,
+          "wer_raw": 0.08
+        },
+        "conditions": {
+          "dan": {
+            "phrases": 20,
+            "words": 162,
+            "wer": 0.025,
+            "wer_raw": 0.08,
+            "errors": 4,
+            "errors_raw": 13,
+            "no_error": 16,
+            "coordinate_exact": "2/2",
+            "coordinate_exact_raw": "0/2",
+            "ms": {
+              "p50": 48,
+              "max": 115
+            },
+            "missing": []
+          }
+        },
+        "phrases": {
+          "1": {
+            "wer": 0.111,
+            "by_condition": {
+              "dan": 0.111
+            }
+          },
+          "2": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "3": {
+            "wer": 0.111,
+            "by_condition": {
+              "dan": 0.111
+            }
+          },
+          "4": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "5": {
+            "wer": 0.077,
+            "by_condition": {
+              "dan": 0.077
+            }
+          },
+          "6": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "7": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "8": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "9": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "10": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "11": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "12": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "13": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "14": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "15": {
+            "wer": 0.077,
+            "by_condition": {
+              "dan": 0.077
+            }
+          },
+          "16": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "17": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "18": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "19": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "20": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          }
+        }
+      },
+      "rows": [
+        {
+          "condition": "dan",
+          "phrase": 1,
+          "ref": "Sightline, Team Two, say again the sector boundary, over.",
+          "heard": "Sightline team two say again the sectory boundary over",
+          "errors": 1,
+          "errors_raw": 1,
+          "words": 9,
+          "wer": 0.111,
+          "wer_raw": 0.111,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 86
+        },
+        {
+          "condition": "dan",
+          "phrase": 2,
+          "ref": "Sightline, Team One, radio check, over.",
+          "heard": "Sightline Team One Radio Check Over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 6,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 49
+        },
+        {
+          "condition": "dan",
+          "phrase": 3,
+          "ref": "Sightline, Team Three, we are at four niner point three seven four, minus one two two point niner three six, over.",
+          "heard": "Sightline team three we're at four niner point three seven four minus one two two point nine or three six over",
+          "errors": 1,
+          "errors_raw": 4,
+          "words": 9,
+          "wer": 0.111,
+          "wer_raw": 0.444,
+          "has_coordinate": true,
+          "coordinate_exact": true,
+          "coordinate_exact_raw": false,
+          "ms": 53
+        },
+        {
+          "condition": "dan",
+          "phrase": 4,
+          "ref": "Sightline, Team Four, returning to base, over.",
+          "heard": "Sightline team four returning to base over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 7,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 42
+        },
+        {
+          "condition": "dan",
+          "phrase": 5,
+          "ref": "Sightline, Team Two. Found a blue backpack by the creek, our position, over.",
+          "heard": "Sightline team two found a blue backpack by the creek, are position over?",
+          "errors": 1,
+          "errors_raw": 1,
+          "words": 13,
+          "wer": 0.077,
+          "wer_raw": 0.077,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 45
+        },
+        {
+          "condition": "dan",
+          "phrase": 6,
+          "ref": "Affirmative, over.",
+          "heard": "Affirmative over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 2,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 42
+        },
+        {
+          "condition": "dan",
+          "phrase": 7,
+          "ref": "Negative, over.",
+          "heard": "Negative over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 2,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 41
+        },
+        {
+          "condition": "dan",
+          "phrase": 8,
+          "ref": "Say again, over.",
+          "heard": "Say again, over.",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 3,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 41
+        },
+        {
+          "condition": "dan",
+          "phrase": 9,
+          "ref": "Sightline, Team One, what are the conditions, over.",
+          "heard": "Sightline Team One What are the conditions over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 8,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 115
+        },
+        {
+          "condition": "dan",
+          "phrase": 10,
+          "ref": "Sightline, Team Three, we heard a whistle to the north, over.",
+          "heard": "Sightline Team Three We heard a whistle to the north over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 11,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 78
+        },
+        {
+          "condition": "dan",
+          "phrase": 11,
+          "ref": "Sightline, Team Two, searching sector Bravo Three, over.",
+          "heard": "Sightline, Team Two, Searching Sector Bravo Three, over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 8,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 91
+        },
+        {
+          "condition": "dan",
+          "phrase": 12,
+          "ref": "Sightline, Team Four, found footprints heading east at four niner point three eight one, minus one two two point niner four zero, over.",
+          "heard": "Sightline Team 4 found footprints heading east at 49er.381 minus 122.9er40 over",
+          "errors": 0,
+          "errors_raw": 6,
+          "words": 11,
+          "wer": 0.0,
+          "wer_raw": 0.545,
+          "has_coordinate": true,
+          "coordinate_exact": true,
+          "coordinate_exact_raw": false,
+          "ms": 48
+        },
+        {
+          "condition": "dan",
+          "phrase": 13,
+          "ref": "Sightline, Team One, how much daylight is left, over.",
+          "heard": "Sightline Team One How much Daylight Is Left Over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 9,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 107
+        },
+        {
+          "condition": "dan",
+          "phrase": 14,
+          "ref": "Sightline, Team Two, we are at the east ridge entry, over.",
+          "heard": "Sightline team two we are at the East Ridge entry over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 11,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 66
+        },
+        {
+          "condition": "dan",
+          "phrase": 15,
+          "ref": "Sightline, Team Three, found a red jacket on the trail, our position, over.",
+          "heard": "Sightline Team 3 Frown a red jacket on the trail Our position over",
+          "errors": 1,
+          "errors_raw": 1,
+          "words": 13,
+          "wer": 0.077,
+          "wer_raw": 0.077,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 69
+        },
+        {
+          "condition": "dan",
+          "phrase": 16,
+          "ref": "Copy, Team Four out.",
+          "heard": "Copy Team Four Out",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 4,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 42
+        },
+        {
+          "condition": "dan",
+          "phrase": 17,
+          "ref": "Sightline, Team Two, request a new assignment, over.",
+          "heard": "Sightline Team Two Request a new assignment over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 8,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 43
+        },
+        {
+          "condition": "dan",
+          "phrase": 18,
+          "ref": "Sightline, Team One, we have a sighting near the creek fork, over.",
+          "heard": "Sightline Team One We have a sighting near the Creek Fork, over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 12,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 42
+        },
+        {
+          "condition": "dan",
+          "phrase": 19,
+          "ref": "Sightline, Team Three, wind is picking up, over.",
+          "heard": "Sightline team three wind is picking up, over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 8,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 39
+        },
+        {
+          "condition": "dan",
+          "phrase": 20,
+          "ref": "Sightline, Team Four, say again my sector, over.",
+          "heard": "Sightline team four Say Again My Sector Over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 8,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 40
+        }
+      ]
+    },
+    "local, boost on": {
+      "summary": {
+        "overall": {
+          "clips": 20,
+          "words": 162,
+          "wer": 0.025,
+          "wer_raw": 0.025
+        },
+        "conditions": {
+          "dan": {
+            "phrases": 20,
+            "words": 162,
+            "wer": 0.025,
+            "wer_raw": 0.025,
+            "errors": 4,
+            "errors_raw": 4,
+            "no_error": 16,
+            "coordinate_exact": "2/2",
+            "coordinate_exact_raw": "2/2",
+            "ms": {
+              "p50": 47,
+              "max": 136
+            },
+            "missing": []
+          }
+        },
+        "phrases": {
+          "1": {
+            "wer": 0.111,
+            "by_condition": {
+              "dan": 0.111
+            }
+          },
+          "2": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "3": {
+            "wer": 0.111,
+            "by_condition": {
+              "dan": 0.111
+            }
+          },
+          "4": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "5": {
+            "wer": 0.077,
+            "by_condition": {
+              "dan": 0.077
+            }
+          },
+          "6": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "7": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "8": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "9": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "10": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "11": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "12": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "13": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "14": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "15": {
+            "wer": 0.077,
+            "by_condition": {
+              "dan": 0.077
+            }
+          },
+          "16": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "17": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "18": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "19": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          },
+          "20": {
+            "wer": 0.0,
+            "by_condition": {
+              "dan": 0.0
+            }
+          }
+        }
+      },
+      "rows": [
+        {
+          "condition": "dan",
+          "phrase": 1,
+          "ref": "Sightline, Team Two, say again the sector boundary, over.",
+          "heard": "Sightline Team Two Say again the sectory boundary over",
+          "errors": 1,
+          "errors_raw": 1,
+          "words": 9,
+          "wer": 0.111,
+          "wer_raw": 0.111,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 45
+        },
+        {
+          "condition": "dan",
+          "phrase": 2,
+          "ref": "Sightline, Team One, radio check, over.",
+          "heard": "Sightline Team One Radio Check Over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 6,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 68
+        },
+        {
+          "condition": "dan",
+          "phrase": 3,
+          "ref": "Sightline, Team Three, we are at four niner point three seven four, minus one two two point niner three six, over.",
+          "heard": "Sightline team three we're at four niner point three seven four minus one two two point niner three six over",
+          "errors": 1,
+          "errors_raw": 1,
+          "words": 9,
+          "wer": 0.111,
+          "wer_raw": 0.111,
+          "has_coordinate": true,
+          "coordinate_exact": true,
+          "coordinate_exact_raw": true,
+          "ms": 49
+        },
+        {
+          "condition": "dan",
+          "phrase": 4,
+          "ref": "Sightline, Team Four, returning to base, over.",
+          "heard": "Sightline Team Four returning to base over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 7,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 61
+        },
+        {
+          "condition": "dan",
+          "phrase": 5,
+          "ref": "Sightline, Team Two. Found a blue backpack by the creek, our position, over.",
+          "heard": "Sightline team two found a blue backpack by the creek, are position over?",
+          "errors": 1,
+          "errors_raw": 1,
+          "words": 13,
+          "wer": 0.077,
+          "wer_raw": 0.077,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 45
+        },
+        {
+          "condition": "dan",
+          "phrase": 6,
+          "ref": "Affirmative, over.",
+          "heard": "Affirmative over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 2,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 43
+        },
+        {
+          "condition": "dan",
+          "phrase": 7,
+          "ref": "Negative, over.",
+          "heard": "Negative over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 2,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 45
+        },
+        {
+          "condition": "dan",
+          "phrase": 8,
+          "ref": "Say again, over.",
+          "heard": "Say again, over.",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 3,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 44
+        },
+        {
+          "condition": "dan",
+          "phrase": 9,
+          "ref": "Sightline, Team One, what are the conditions, over.",
+          "heard": "Sightline Team One What Are the Conditions Over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 8,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 47
+        },
+        {
+          "condition": "dan",
+          "phrase": 10,
+          "ref": "Sightline, Team Three, we heard a whistle to the north, over.",
+          "heard": "Sightline Team Three We heard a whistle to the north over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 11,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 47
+        },
+        {
+          "condition": "dan",
+          "phrase": 11,
+          "ref": "Sightline, Team Two, searching sector Bravo Three, over.",
+          "heard": "Sightline, Team Two, Searching Sector Bravo Three, over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 8,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 47
+        },
+        {
+          "condition": "dan",
+          "phrase": 12,
+          "ref": "Sightline, Team Four, found footprints heading east at four niner point three eight one, minus one two two point niner four zero, over.",
+          "heard": "Sightline Team Four found footprints heading east at four niner point three eight one minus one two two point niner four zero over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 11,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": true,
+          "coordinate_exact": true,
+          "coordinate_exact_raw": true,
+          "ms": 51
+        },
+        {
+          "condition": "dan",
+          "phrase": 13,
+          "ref": "Sightline, Team One, how much daylight is left, over.",
+          "heard": "Sightline Team One How much Daylight Is Left Over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 9,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 48
+        },
+        {
+          "condition": "dan",
+          "phrase": 14,
+          "ref": "Sightline, Team Two, we are at the east ridge entry, over.",
+          "heard": "Sightline Team Two We are at the East Ridge entry over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 11,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 46
+        },
+        {
+          "condition": "dan",
+          "phrase": 15,
+          "ref": "Sightline, Team Three, found a red jacket on the trail, our position, over.",
+          "heard": "Sightline Team Three Frowned a Red Jacket on the Trail Our Position Over",
+          "errors": 1,
+          "errors_raw": 1,
+          "words": 13,
+          "wer": 0.077,
+          "wer_raw": 0.077,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 47
+        },
+        {
+          "condition": "dan",
+          "phrase": 16,
+          "ref": "Copy, Team Four out.",
+          "heard": "Copy Team Four Out",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 4,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 44
+        },
+        {
+          "condition": "dan",
+          "phrase": 17,
+          "ref": "Sightline, Team Two, request a new assignment, over.",
+          "heard": "Sightline Team Two Request a New Assignment Over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 8,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 48
+        },
+        {
+          "condition": "dan",
+          "phrase": 18,
+          "ref": "Sightline, Team One, we have a sighting near the creek fork, over.",
+          "heard": "Sightline Team One We have a sighting near the Creek Fork, over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 12,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 45
+        },
+        {
+          "condition": "dan",
+          "phrase": 19,
+          "ref": "Sightline, Team Three, wind is picking up, over.",
+          "heard": "Sightline Team Three Wind is picking up, over?",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 8,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 48
+        },
+        {
+          "condition": "dan",
+          "phrase": 20,
+          "ref": "Sightline, Team Four, say again my sector, over.",
+          "heard": "Sightline Team Four Say again My Sector Over",
+          "errors": 0,
+          "errors_raw": 0,
+          "words": 8,
+          "wer": 0.0,
+          "wer_raw": 0.0,
+          "has_coordinate": false,
+          "coordinate_exact": null,
+          "coordinate_exact_raw": null,
+          "ms": 136
+        }
+      ]
+    }
+  }
+}

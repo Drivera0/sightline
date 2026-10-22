@@ -1,0 +1,100 @@
+Boost weight sweep, local Parakeet TDT 0.6B v2 (NeMo 3.0.0, RTX 4080 SUPER), NeMo GPU phrase boosting tree
+under greedy_batch, voice "dan" (20 clips, 162 reference words), 2026-10-22.
+
+a = boosting_tree_alpha, s = context_score. "niner" list = niner, four niner, point niner;
+"radio" list = RADIO_BOOST in sightline/radio/asr.py (22 phrases).
+fix=False: WER and coordinates without normalize's "niner" repair (raw); fix=True: with it.
+Lines "3:" and "12:" are the two coordinate phrases as heard; indented lines are the other transcripts
+with an error (after normalize).
+
+Clips converted with ffmpeg -ac 1 -ar 16000 (not to_mono16k), one clip per transcribe call, with the
+scratch script that preceded `radio_wer.py --boost`. The weights were tried on the same 20 clips, so
+this shows where boosting starts to hurt, not a held-out result.
+
+An earlier, coarser grid with the radio list (WER after normalize, coordinates exact):
+a=0.5 s=2 0.025 2/2; a=0.5 s=3 0.031 2/2; a=1 s=3 0.049 2/2; a=2 s=2 0.099 1/2; a=2 s=3 0.247 0/2;
+a=3 s=1 0.068 1/2; a=3 s=2 0.247 0/2; a=3 s=3 0.426 0/2. From a=2 s=2 on, boosted words replace
+spoken ones: "How much Delta Is Left", "found a red jacket on the trail Affirmative",
+"Wind is PODING UP", "fife POD Say again East Affirmative".
+
+off fix=False: WER 0.080 (13/162) coords 0/2
+off fix=True: WER 0.025 (4/162) coords 2/2
+   3: Sightline team three we're at four niner point three seven four minus one two two point nine or three six over
+  12: Sightline Team 4 found footprints heading east at 49er.381 minus 122.9er40 over
+     Sightline team two say again the sectory boundary over
+     Sightline team two found a blue backpack by the creek, are position over?
+     Sightline Team 3 Frown a red jacket on the trail Our position over
+niner a=0.5 s=1.0 fix=False: WER 0.062 (10/162) coords 1/2
+niner a=0.5 s=1.0 fix=True: WER 0.025 (4/162) coords 2/2
+   3: Sightline team three we're at four niner point three seven four minus one two two point niner three six over
+  12: Sightline Team 4 found footprints heading east at 49er.381 minus 122.9er40 over
+     Sightline team two say again the sectory boundary over
+     Sightline team two found a blue backpack by the creek, are position over?
+     Sightline Team 3 Frown a red jacket on the trail Our position over
+niner a=1.0 s=1.0 fix=False: WER 0.062 (10/162) coords 1/2
+niner a=1.0 s=1.0 fix=True: WER 0.025 (4/162) coords 2/2
+   3: Sightline team three we're at four niner point three seven four minus one two two point niner three six over
+  12: Sightline Team 4 found footprints heading east at 49er.381 minus 122.9er40 over
+     Sightline team two say again the sectory boundary over
+     Sightline team two found a blue backpack by the creek, are position over?
+     Sightline Team 3 Frown a red jacket on the trail Our position over
+niner a=1.0 s=2.0 fix=False: WER 0.025 (4/162) coords 2/2
+niner a=1.0 s=2.0 fix=True: WER 0.025 (4/162) coords 2/2
+   3: Sightline team three we're at four niner point three seven four minus one two two point niner three six over
+  12: Sightline Team four found footprints heading east at four niner point three eight one minus one two two point niner four zero over
+     Sightline team two say again the sectory boundary over
+     Sightline team two found a blue backpack by the creek, are position over?
+     Sightline Team 3 Frown a red jacket on the trail Our position over
+niner a=1.5 s=1.0 fix=False: WER 0.025 (4/162) coords 2/2
+niner a=1.5 s=1.0 fix=True: WER 0.025 (4/162) coords 2/2
+   3: Sightline team three we're at four niner point three seven four minus one two two point niner three six over
+  12: Sightline Team 4 found footprints heading east at four niner point three eight one minus one two two point niner four zero over
+     Sightline team two say again the sectory boundary over
+     Sightline team two found a blue backpack by the creek, are position over?
+     Sightline Team 3 Frown a red jacket on the trail Our position over
+niner a=2.0 s=1.0 fix=False: WER 0.025 (4/162) coords 2/2
+niner a=2.0 s=1.0 fix=True: WER 0.025 (4/162) coords 2/2
+   3: Sightline team three we're at four niner point three seven four minus one two two point niner three six over
+  12: Sightline Team four found footprints heading east at four niner point three eight one minus one two two point niner four zero over
+     Sightline team two say again the sectory boundary over
+     Sightline team two found a blue backpack by the creek, are position over?
+     Sightline Team 3 Frown a red jacket on the trail Our position over
+radio a=0.5 s=1.0 fix=False: WER 0.025 (4/162) coords 2/2
+radio a=0.5 s=1.0 fix=True: WER 0.025 (4/162) coords 2/2
+   3: Sightline team three we're at four niner point three seven four minus one two two point niner three six over
+  12: Sightline Team Four found footprints heading east at four niner point three eight one minus one two two point niner four zero over
+     Sightline Team Two Say again the sectory boundary over
+     Sightline team two found a blue backpack by the creek, are position over?
+     Sightline Team Three Frowned a Red Jacket on the Trail Our position over?
+radio a=1.0 s=1.0 fix=False: WER 0.025 (4/162) coords 2/2
+radio a=1.0 s=1.0 fix=True: WER 0.025 (4/162) coords 2/2
+   3: Sightline team three we're at four niner point three seven four minus one two two point niner three six over
+  12: Sightline Team Four found footprints heading east at four niner point three eight one minus one two two point niner four zero over
+     Sightline Team Two Say again the sectory boundary over
+     Sightline team two found a blue backpack by the creek, are position over?
+     Sightline Team Three Frowned a Red Jacket on the Trail Our Position Over
+radio a=1.0 s=2.0 fix=False: WER 0.043 (7/162) coords 2/2
+radio a=1.0 s=2.0 fix=True: WER 0.043 (7/162) coords 2/2
+   3: Sightline Team Three We're at four niner point three seven four minus one two two point niner three six over
+  12: Sightline Team Four found footprints heading east at four niner point three eight one minus one two two point niner four zero over
+     Sightline Team Two Say again the Sectory Boundary over
+     Sightline Team Two found a blue backpack by the creek, are position over?
+     Sightline Team Three found a red jacket on the trail Are Position over?
+     Sightline Team Two Request a Negative Assignment Over?
+     Sightline Team One We have a Sighting Negative Creek Fork, over?
+radio a=1.5 s=1.0 fix=False: WER 0.031 (5/162) coords 2/2
+radio a=1.5 s=1.0 fix=True: WER 0.031 (5/162) coords 2/2
+   3: Sightline Team Three We're at four niner point three seven four minus one two two point niner three six over
+  12: Sightline Team Four found footprints heading east at four niner point three eight one minus one two two point niner four zero over
+     Sightline Team Two Say again the sectory boundary over
+     Sightline Team Two found a blue backpack by the creek, are position over?
+     Sightline Team Three Frowned a Red Jacket on the Trail Are Position Over
+radio a=2.0 s=1.0 fix=False: WER 0.049 (8/162) coords 2/2
+radio a=2.0 s=1.0 fix=True: WER 0.049 (8/162) coords 2/2
+   3: Sightline Team Three We're at four niner point three seven four minus one two two point niner three six over
+  12: Sightline Team Four found footprints heading east at four niner point three eight one minus one two two point niner four zero over
+     Sightline Team Two Say again the Sectory Boundary over
+     Sightline Team Two found a blue backpack by the creek, are position over?
+     Sightline Team Three found a red jacket on the trail Are Position over?
+     Sightline Team Two Request a Negative Assignment Over?
+     Sightline Team One We have a Sightline Creek Fork, over?

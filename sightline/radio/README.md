@@ -43,6 +43,8 @@ reply = tts.speak(
     "Team Two, Sightline. Copy. Over."
 )  # TtsResult: .wav bytes, .sample_rate 22050, .ms
 heard = asr.transcribe(wav_16k_mono_path)  # AsrResult: .text, .ms, .words
+# ParakeetAsr(boost=RADIO_BOOST) hears "niner" as "niner" (NeMo phrase boosting; off by default,
+# docs/feedback/radio.md "Word boosting")
 ```
 
 Parakeet needs 16 kHz mono; Magpie returns 22.05 kHz, so resample (the spike uses
