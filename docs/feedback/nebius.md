@@ -71,7 +71,7 @@ go in; a JSON verdict comes out (person yes/no/unclear, posture, group size, clo
 | Latency per call | p50 1.35 s, p90 1.65 s (max 2.19 s) | `docs/report/OPENCV_REPORT.md:357-358`; max over the 461 calls in `runs/verifier/*.csv` |
 | Tokens per call | about 890 in, 67 out (mean of all 461 calls) | `docs/report/OPENCV_REPORT.md:357` |
 | Cost per call (catalog prices) | about 0.00033, so about 0.33 per 1,000 uncertain detections; all 461 evaluation calls 461 × 0.00033 ≈ 0.15 | `docs/report/OPENCV_REPORT.md:358-359` |
-| JSON schema compliance | 461 / 461 valid on the first try | `docs/report/OPENCV_REPORT.md:359`; `docs/architecture/agent.md:125` |
+| JSON schema compliance | 461 / 461 valid on the first try | `docs/report/OPENCV_REPORT.md:359`; `docs/architecture/agent.md:221-222` |
 | Real people called `yes` (val, prompt v2) | 75 % of near-miss people (9 of 12), 86 % of queue people | `docs/LANE_A_ML.md:303`; run file `runs/verifier/val-verify-v2-20261020-165932.json` (local runs, not in git, named in `docs/LANE_A_ML.md` §6.8) |
 | False alarms called `no` (val, prompt v2) | 17 % of near-miss false alarms, 13 % of queue ones | the same run file |
 | Person boxes under 60 px (test) | 65 % answered `unclear`; 2 of 8 people called `yes` | `docs/LANE_A_ML.md:314` |
@@ -118,7 +118,7 @@ per million tokens it is the cheapest model we call.
   say which models are reliable at tool calling with thinking off.
 - **Staying with the facts.** The first briefing prompt produced invented urgency ("Move fast. Stay
   sharp.") and turned "a person seen in a photo" into "found"; asked to add "no orders", it once ended an
-  alert with "No further action is needed" (`docs/architecture/agent.md:77-80`). For safety-critical
+  alert with "No further action is needed" (`docs/architecture/agent.md:174-177`). For safety-critical
   text, a documented grounded-generation mode would save every team writing its own checker.
 
 **Onboarding.** Same client and key as the others; the `max_tokens` surprise in §1 happened on this model.
