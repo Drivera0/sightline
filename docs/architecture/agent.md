@@ -340,7 +340,14 @@ under 60 px it mostly answers `unclear` rather than guess. Full tables: `docs/LA
 that says why (none were needed in 461 calls: 170 val with v1, 170 val with v2, 121 test). A timeout, HTTP error or missing
 key gives `unclear` naming the error, and no proposal. Without a model client the agent still
 makes planner proposals with template briefings. A briefing that is over 60 words, says
-"clear", or contains a number not in its facts is rewritten once, then replaced by the template.
+"clear", has too little punctuation, tells a team to stop, or contains a number not in its facts is
+rewritten once, then replaced by the template. The prompt (`prompts.py`, `briefing-v2`) asks for
+less than the check allows: at most 45 words in two to four sentences, ending with "Over.", only
+numbers from the facts, no long fact copied word for word, no order the facts do not give, with a
+good and a bad example. The retry quotes the reasons and the word count ("It had 67 words. Reasons:
+more than 60 words") and does not send the rejected text back. With v1 (60 words as prose), 8 of 19
+live briefings fell back to the template; with v2, replayed live on the same 19, none did
+(`docs/report/AGENT_EVAL.md`, "Briefing prompt v2").
 A per-mission token budget stops model calls with one `mission.note`. One failing event is
 logged and traced and never stops the agent or the pipeline (hooks only enqueue, < 5 ms).
 

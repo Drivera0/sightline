@@ -1,0 +1,33 @@
+{
+ "source": "runs/agent_eval/live-creek-20261022 (the traces of docs/evidence/agent_eval/live-creek-20261022-1305)",
+ "prompt_version": "briefing-v1",
+ "briefings": 19,
+ "first_try_accepted": 11,
+ "retried": 8,
+ "retry_accepted": 0,
+ "template_fallback": 8,
+ "model_calls": 27,
+ "rejections": {
+  "more than 60 words": 12,
+  "no punctuation": 2,
+  "tells the team to stop or that nothing is needed": 2
+ },
+ "p50_ms": 727,
+ "p50_tokens_in": 275,
+ "p50_tokens_out": 71,
+ "tokens_in": 8854,
+ "tokens_out": 2054,
+ "words_accepted": [
+  30,
+  31,
+  31,
+  36,
+  37,
+  40,
+  41,
+  41,
+  43,
+  43,
+  44
+ ]
+}

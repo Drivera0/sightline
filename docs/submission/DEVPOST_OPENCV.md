@@ -132,6 +132,6 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 20. `docs/report/LADD.md:6-8`, `:36-40`; `docs/evidence/ladd/20261022T174430Z/ladd.json`
 21. `docs/report/POD.md:8-15`, `:156-197`; `sightline/search/pod.py:55`, `:72`
 22. `docs/report/OPENCV_REPORT.md:322-353`
-23. `docs/report/AGENT_EVAL.md:162-188`, `:197-206`
+23. `docs/report/AGENT_EVAL.md:203-229`, `:238-247`
 24. `docs/EXPORTS.md`; `tests/geo/test_exports.py`
 25. `web/src/command/README.md:5-22`, `:86-90`; `README.md:58-68`

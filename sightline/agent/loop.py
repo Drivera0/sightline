@@ -38,7 +38,7 @@ import re
 import threading
 from typing import Any
 
-from sightline.agent import ledger, relook_leg
+from sightline.agent import ledger, prompts, relook_leg
 from sightline.agent.llm import MODEL_FAST, ChatClient, failure_text
 from sightline.agent.trace import now_iso, trace_call
 from sightline.agent.verify import VERIFY_BAND
@@ -159,23 +159,12 @@ def write_briefing(
 
     if client is None:
         return template_briefing(facts)
+    facts_json = json.dumps(facts, ensure_ascii=False)
     messages = [
-        {
-            "role": "system",
-            "content": (
-                "You write short radio briefings for search-and-rescue ground teams, read aloud by "
-                "the operator: full sentences with normal punctuation, addressed to the team. Use "
-                f"only the facts given, at most {BRIEFING_WORDS} words, plain words, no coordinates. Write "
-                "numbers as digits, and only numbers that are in the facts. State the facts and stop: "
-                "say nothing about what is or isn't needed next (the search manager decides), and "
-                "add no urgency or claims beyond the facts: a person seen in a photo is a sighting, "
-                "not a find. "
-                'Never say "clear", "clears", "cleared" or "clearing".'
-            ),
-        },
-        {"role": "user", "content": "Facts:\n" + json.dumps(facts, ensure_ascii=False)},
+        {"role": "system", "content": prompts.BRIEFING_SYSTEM},
+        {"role": "user", "content": prompts.briefing_user(facts_json)},
     ]
-    for _ in range(2):
+    for attempt in range(2):
         try:
             r = client.chat(messages, model=MODEL_FAST, temperature=0.2)
         except Exception as e:  # offline, budget, timeouts: the template still says everything
@@ -190,20 +179,18 @@ def write_briefing(
         trace(
             kind="model_call",
             summary="briefing" + (f" rejected: {'; '.join(problems)}" if problems else ""),
-            input={"facts": facts},
+            input={"facts": facts, "prompt_version": prompts.BRIEFING_VERSION, "attempt": attempt},
             result=r,
         )
         if not problems:
             return text
+        # The retry quotes the reasons and the word count. The rejected text is not sent back:
+        # live, with it in the conversation, Nano returned the same 67 words again.
         messages = [
-            *messages,
-            {"role": "assistant", "content": text},
+            messages[0],
             {
                 "role": "user",
-                "content": "Rewrite it from these facts only. Problems: "
-                + "; ".join(problems)
-                + "\nFacts:\n"
-                + json.dumps(facts, ensure_ascii=False),
+                "content": prompts.briefing_retry(problems, len(text.split()), facts_json),
             },
         ]
     trace(kind="note", summary="briefing still had problems after a retry: template used")
