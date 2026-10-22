@@ -101,6 +101,7 @@ export function ApprovalInbox({
   drones = [],
   onDecide,
   imageUrl,
+  feedHref,
 }: {
   proposals: readonly Proposal[];
   teams: readonly Team[];
@@ -108,6 +109,8 @@ export function ApprovalInbox({
   drones?: readonly Drone[];
   onDecide: Decide;
   imageUrl: (rel: string) => string;
+  /** The mission's feed, linked when nothing is waiting (none inside the guided demo, which owns the address). */
+  feedHref?: string;
 }) {
   const { time } = useClock();
   const [operator, setOperator] = useState(loadOperator);
@@ -138,7 +141,16 @@ export function ApprovalInbox({
           />
         </label>
       </header>
-      {pending.length === 0 && <p className="text-small text-text-3">Nothing waiting. The agent's proposals appear here.</p>}
+      {pending.length === 0 && (
+        <div aria-label="Nothing waiting" className="flex flex-col gap-1.5 rounded-sm border border-dashed border-line px-3 py-4 text-small">
+          <p className="text-text-2">Nothing waiting. Proposals appear here when the agent has evidence; they need a person's approval.</p>
+          {feedHref && (
+            <a href={feedHref} className="sl-tap self-start text-accent-soft underline underline-offset-2 hover:text-text">
+              See what the agent is doing in the feed
+            </a>
+          )}
+        </div>
+      )}
       {pending.map((p) => (
         <PendingCard
           key={p.id}

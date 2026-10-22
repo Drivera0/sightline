@@ -52,6 +52,8 @@ export interface CommandProps {
   /** Before the mission header, on its row (the console only): the guided demo's mission tabs. */
   headerStart?: ReactNode;
   now?: () => Date;
+  /** The mission's feed, linked from the approvals when nothing is waiting. */
+  feedHref?: string;
 }
 
 /** The console's breakpoint classes, spelled out so Tailwind sees each one. */
@@ -157,7 +159,7 @@ export function CommandView(p: CommandProps) {
           <div className={`h-[60vh] min-h-0 ${w.map}`}>{p.map}</div>
         </div>
         <aside aria-label="Approvals" className={`order-3 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 ${w.inPlace}`}>
-          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} />
+          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} />
           {p.sideRail}
         </aside>
         <div className={`order-4 ${w.clues} overflow-y-auto rounded-lg border border-line bg-surface-solid px-4 py-2.5 ${w.inPlace} ${w.span}`}>
@@ -176,7 +178,7 @@ export function CommandView(p: CommandProps) {
           {controls}
         </div>
         <div className="flex flex-col gap-4">
-          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} />
+          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} />
           {p.sideRail}
         </div>
       </div>

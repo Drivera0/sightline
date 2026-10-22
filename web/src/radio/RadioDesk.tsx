@@ -364,7 +364,14 @@ export function RadioDesk({
 
       <section aria-label="Radio log" className="flex flex-col gap-2">
         <Label>Log · newest first</Label>
-        {turns.length === 0 && <p className="text-small text-text-3">No radio traffic yet.</p>}
+        {turns.length === 0 && (
+          <div className="flex flex-col gap-0.5 text-small">
+            <p className="text-text-3">No radio traffic yet.</p>
+            <p className="text-text-2">
+              To start a turn, choose Speaking as, then keep V (or the talk button) pressed while you speak; or type what the team says and press Send.
+            </p>
+          </div>
+        )}
         {[...turns].reverse().map((t: LoggedTurn) => (
           <div key={t.id} className="flex flex-col gap-1 rounded-sm border border-line bg-surface-solid p-3">
             <div className="flex flex-wrap items-center gap-2">

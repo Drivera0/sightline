@@ -78,12 +78,20 @@ describe("ApprovalInbox", () => {
     expect(screen.getByLabelText("Why reject")).toBeInTheDocument();
   });
 
+  it("with nothing waiting, says what will appear and links the feed", () => {
+    render(<ApprovalInbox proposals={[]} teams={TEAMS} onDecide={vi.fn()} imageUrl={(r) => r} feedHref="#m/demo/feed" />);
+    const empty = screen.getByLabelText("Nothing waiting");
+    expect(empty).toHaveTextContent("Proposals appear here when the agent has evidence; they need a person's approval.");
+    expect(within(empty).getByRole("link", { name: "See what the agent is doing in the feed" })).toHaveAttribute("href", "#m/demo/feed");
+  });
+
   it("decided proposals collapse below, saying who decided and when", () => {
     setup([
       p({ id: "p001", status: "approved", decided_by: "Dana", decided_at: AT }),
       p({ id: "p002", status: "rejected", decided_by: "Dana", decided_at: AT, decision_reason: "duplicate" }),
     ]);
-    expect(screen.getByText("Nothing waiting. The agent's proposals appear here.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing waiting. Proposals appear here when the agent has evidence; they need a person's approval.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /feed/ })).toBeNull(); // no feed to link to
     const decided = screen.getByLabelText("Decided proposals");
     expect(decided).toHaveTextContent(/Approved by Dana at/);
     expect(decided).toHaveTextContent(/Rejected by Dana at .*: duplicate/);

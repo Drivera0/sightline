@@ -138,6 +138,8 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
   const progress = photoProgress(s);
   // one clock on the page: the demo's fixtures in UTC, a live mission in local time (lib/time)
   const clockZone = useMemo(() => ({ utc: demo }), [demo]);
+  // the guided demo owns the address, so its frame links nowhere
+  const feedHref = embedded ? undefined : `#m/${missionId}/feed`;
   const waiting =s.proposals.filter((p) => p.status === "pending").length;
 
   if (s.status === "error") {
@@ -301,6 +303,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           onAddClue={(draft) => useMission.getState().addClue(draft)}
           cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
           now={demo && demoNow ? () => demoNow : undefined}
+          feedHref={feedHref}
           sideRail={radioOn && !demo ? radioDesk : undefined}
           map={heatMap}
           wideAt={embedded ? "xl" : "lg"}
@@ -322,6 +325,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           teams={s.teams}
           drones={s.fleet?.drones}
           imageUrl={imageUrl}
+          feedHref={feedHref}
           onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
         />
       )}
