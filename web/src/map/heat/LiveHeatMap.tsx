@@ -26,6 +26,7 @@ import { point, type MissionFeature } from "../base/missionFeature";
 import { relayFeatures } from "../base/relayLayer";
 import { teamFeatures } from "../base/teamLayer";
 import { useMission, type DroneLink } from "../../lib/mission";
+import { isTyping } from "../../lib/keys";
 import { useSelection } from "../../lib/selection";
 import type { SectorNow } from "../../lib/api";
 import { prefersReducedMotion } from "../../metrics/motion";
@@ -523,89 +524,107 @@ const ATTRIBUTION_CLASS =
 
 const LEGEND_KEY = "sightline.mapLegend";
 
-/** Open or closed as this browser last left it; otherwise open on a wide screen (≥ 1280 px). */
+/** Open or closed as this browser last left it; closed the first time (the map comes first). */
 export function legendOpenAtStart(): boolean {
   try {
-    const v = globalThis.localStorage?.getItem(LEGEND_KEY);
-    if (v === "open" || v === "closed") return v === "open";
+    return globalThis.localStorage?.getItem(LEGEND_KEY) === "open";
   } catch {
-    /* private mode: the default below */
+    return false; // private mode: closed
   }
-  return globalThis.matchMedia?.("(min-width: 1280px)").matches ?? true;
 }
 
-/** The legend floating on the console's map: collapsible, so it can get off the lower-left corner. */
+/**
+ * The legend floating on the console's map: a small "Legend" pill with the map-update count (bottom
+ * left), opened by a click or the L key; open, two columns of at most four lines above the pill.
+ */
 export function FloatingLegend({ updates }: { updates: number }) {
   const [open, setOpen] = useState(legendOpenAtStart);
   const bodyId = useId();
-  const toggle = () => {
-    setOpen(!open);
+  useEffect(() => {
     try {
-      globalThis.localStorage?.setItem(LEGEND_KEY, open ? "closed" : "open");
+      globalThis.localStorage?.setItem(LEGEND_KEY, open ? "open" : "closed");
     } catch {
       /* private mode: remembered for this page only */
     }
-  };
+  }, [open]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "l" || e.key === "L") setOpen((o) => !o);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   return (
     <figcaption
-      className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-bg/85 px-3 py-2 backdrop-blur-[16px]"
+      className={`absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] border border-border bg-bg/85 backdrop-blur-[16px] ${open ? "rounded-md px-3 py-2" : "rounded-full px-2.5 py-1"}`}
       title="Red shading: where the person could be now, on ground a photo has looked at (darker: more likely); grey: not photographed yet. Each sector shows its share of the probability (POA)."
     >
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={bodyId}
-        onClick={toggle}
-        className="flex items-center gap-1.5 rounded-sm text-caption text-text-2 hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
-      >
-        <svg aria-hidden="true" viewBox="0 0 10 10" className={`h-2.5 w-2.5 transition-transform ${open ? "rotate-90" : ""}`}>
-          <path d="M3 1.5 6.5 5 3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
-        </svg>
-        {open ? "Legend" : "Show legend"}
-      </button>
-      <div id={bodyId} hidden={!open} className="mt-1.5">
-        <MapLegend />
-        <span className="mt-1 block font-mono text-caption text-text-3">{updates} map updates · sector labels show POA</span>
+      <div id={bodyId} hidden={!open} className="mb-1.5">
+        <MapLegend columns />
+      </div>
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          aria-keyshortcuts="L"
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-1.5 rounded-full text-caption text-text-2 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <svg aria-hidden="true" viewBox="0 0 10 10" className={`h-2.5 w-2.5 transition-transform ${open ? "rotate-90" : "-rotate-90"}`}>
+            <path d="M3 1.5 6.5 5 3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+          Legend
+          <kbd aria-hidden="true" className="rounded-[3px] border border-border px-1 font-mono text-[10px] leading-[14px] text-text-3">L</kbd>
+        </button>
+        <span className="font-mono text-caption text-text-3">
+          {updates} map updates{open ? " · sector labels show POA" : ""}
+        </span>
       </div>
     </figcaption>
   );
 }
 
-const LEGEND: readonly { label: string; swatch: ReactNode }[] = [
-  { label: "Last known point", swatch: <Dot color="var(--accent)" /> },
-  { label: "Team searching", swatch: <Dot color="var(--ok)" /> },
-  { label: "Team assigned or returning", swatch: <Dot color="var(--accent-soft)" /> },
-  { label: "Clue", swatch: <Dot color="var(--warn)" /> },
-  { label: "Drone id and battery; SIM: simulated drone (hover or focus a drone for its details)", swatch: <SimChip /> },
-  { label: "Drone, link ok", swatch: <Ring color="var(--ok)" /> },
-  { label: "Drone, link degraded", swatch: <Ring color="var(--warn)" /> },
-  { label: "Drone, link lost (flies its leg on its own)", swatch: <Ring color="var(--accent)" thick /> },
-  { label: "Drone route", swatch: <span className="inline-block h-0.5 w-4 bg-accent" /> },
-  { label: "Proposed route, awaiting approval", swatch: <span className="inline-block w-4 border-t border-dashed border-text-3" /> },
-  { label: "Re-tasked: where the drone turned to its new route", swatch: <span className="inline-block w-4 border-t border-dashed border-text-2" /> },
-  { label: "Relay: a drone carries a cut-off team's position", swatch: <span className="inline-block w-4 border-t-2 border-dotted border-accent-soft" /> },
+const Line = ({ className }: { className: string }) => <span className={`inline-block w-4 ${className}`} />;
+
+/** Seven lines: the fill legend lays them out as two columns of at most four. */
+const LEGEND: readonly { key: string; title?: string; content: ReactNode }[] = [
+  { key: "lkp", content: <><Dot color="var(--accent)" />Last known point<Dot color="var(--warn)" className="ml-2" />Clue</> },
+  { key: "teams", content: <><Dot color="var(--ok)" />Team searching<Dot color="var(--accent-soft)" className="ml-2" />assigned or returning</> },
+  { key: "drone", title: "Hover or focus a drone for its name, battery, link and when it was last heard", content: <><SimChip />D2 88%: drone and battery; SIM: simulated</> },
+  {
+    key: "link",
+    title: "A drone that lost its link flies its leg on its own",
+    content: <><Ring color="var(--ok)" />Link ok<Ring color="var(--warn)" className="ml-2" />degraded<Ring color="var(--accent)" thick className="ml-2" />lost</>,
+  },
+  { key: "route", content: <><Line className="h-0.5 bg-accent" />Drone route<Line className="ml-2 border-t border-dashed border-text-3" />proposed, awaiting approval</> },
+  { key: "retask", content: <><Line className="border-t border-dashed border-text-2" />Re-tasked: where a drone turned</> },
+  { key: "relay", content: <><Line className="border-t-2 border-dotted border-accent-soft" />Relay: a drone carries a cut-off team</> },
 ];
 
 function SimChip() {
   return <span className="inline-block rounded-[3px] border border-text-3 bg-bg px-0.5 font-mono text-[8px] leading-[10px] font-semibold text-text">SIM</span>;
 }
 
-function Ring({ color, thick = false }: { color: string; thick?: boolean }) {
-  return <span className="inline-block h-2.5 w-2.5 rounded-full bg-text" style={{ boxShadow: `0 0 0 ${thick ? 2.5 : 1.5}px ${color}` }} />;
+function Ring({ color, thick = false, className = "" }: { color: string; thick?: boolean; className?: string }) {
+  return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-text ${className}`} style={{ boxShadow: `0 0 0 ${thick ? 2.5 : 1.5}px ${color}` }} />;
 }
 
-function Dot({ color }: { color: string }) {
-  return <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: color }} />;
+function Dot({ color, className = "" }: { color: string; className?: string }) {
+  return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${className}`} style={{ background: color }} />;
 }
 
-/** What the map's marks mean: the colours LiveLayers gives each kind and tone. */
-export function MapLegend() {
+/** What the map's marks mean: the colours LiveLayers gives each kind and tone. `columns`: two columns, four lines. */
+export function MapLegend({ columns = false }: { columns?: boolean }) {
   return (
-    <ul aria-label="Map legend" className="flex flex-wrap gap-x-4 gap-y-1 text-caption text-text-2">
+    <ul
+      aria-label="Map legend"
+      className={`${columns ? "grid grid-flow-col grid-rows-4 gap-x-6" : "flex flex-wrap gap-x-4"} gap-y-1 text-caption text-text-2`}
+    >
       {LEGEND.map((l) => (
-        <li key={l.label} className="flex items-center gap-1.5">
-          {l.swatch}
-          {l.label}
+        <li key={l.key} title={l.title} className="flex items-center gap-1.5 whitespace-nowrap">
+          {l.content}
         </li>
       ))}
     </ul>

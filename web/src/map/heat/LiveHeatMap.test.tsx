@@ -61,30 +61,26 @@ describe("live map features", () => {
     expect(lines[3]).toBe("Drones (simulated): Drone 2 flying, battery 88%, link lost, last heard 5 min ago.");
   });
 
-  it("folds the floating legend away and remembers it in this browser", () => {
+  it("starts the floating legend as a pill with the update count; a click or L opens it, remembered", () => {
     localStorage.removeItem("sightline.mapLegend");
-    const { unmount } = render(<FloatingLegend updates={3} />);
-    expect(screen.getByRole("list", { name: "Map legend" })).toBeVisible();
-    expect(screen.getAllByText(/SIM: simulated drone/).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Legend" }));
-    expect(screen.getByRole("button", { name: "Show legend" })).toHaveAttribute("aria-expanded", "false");
-    expect(localStorage.getItem("sightline.mapLegend")).toBe("closed");
+    const { unmount } = render(<FloatingLegend updates={502} />);
+    const pill = screen.getByRole("button", { name: /Legend/ });
+    expect(pill).toHaveAttribute("aria-expanded", "false"); // closed at any width the first time
+    expect(screen.getByText("502 map updates")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Map legend" })).toBeNull(); // hidden
+    fireEvent.click(pill);
+    expect(pill).toHaveAttribute("aria-expanded", "true");
+    const list = screen.getByRole("list", { name: "Map legend" });
+    expect(list.className).toContain("grid-rows-4"); // two columns, at most four lines
+    expect(list.querySelectorAll("li").length).toBeLessThanOrEqual(8);
+    expect(screen.getByText(/SIM: simulated/)).toBeInTheDocument();
+    expect(localStorage.getItem("sightline.mapLegend")).toBe("open");
     unmount();
-    expect(legendOpenAtStart()).toBe(false);
-    render(<FloatingLegend updates={3} />);
-    expect(screen.getByRole("button", { name: "Show legend" })).toBeInTheDocument();
-    localStorage.removeItem("sightline.mapLegend");
-  });
-
-  it("starts the legend closed on a screen narrower than 1280 px", () => {
-    localStorage.removeItem("sightline.mapLegend");
-    const was = window.matchMedia;
-    window.matchMedia = ((q: string) => ({ matches: q.includes("1280") && window.innerWidth >= 1280 })) as unknown as typeof window.matchMedia;
-    Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true });
-    expect(legendOpenAtStart()).toBe(false);
-    Object.defineProperty(window, "innerWidth", { value: 1440, configurable: true });
     expect(legendOpenAtStart()).toBe(true);
-    window.matchMedia = was;
+    render(<FloatingLegend updates={502} />);
+    fireEvent.keyDown(window, { key: "l" });
+    expect(screen.getByRole("button", { name: /Legend/ })).toHaveAttribute("aria-expanded", "false");
+    expect(localStorage.getItem("sightline.mapLegend")).toBe("closed");
+    localStorage.removeItem("sightline.mapLegend");
   });
-
 });
