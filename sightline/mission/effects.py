@@ -51,6 +51,32 @@ def _layout(store: MissionStore, mission_id: str) -> Any | None:
     return lattice_sectors(store.live(mission_id).base.grid)
 
 
+def sector_overview(store: MissionStore, mission_id: str) -> list[dict]:
+    """Each sector now: label, POA on the live map, and drone coverage (the share of its cells a
+    photo has looked at). For ``GET /sectors`` (the command view) and the debrief."""
+    from sightline.geo.cards import sector_label
+
+    layout = _layout(store, mission_id)
+    if layout is None:
+        return []
+    live = store.live(mission_id)
+    poa = live.sector_poa(layout)
+    canopy = live.canopy()
+    out = []
+    for s in layout.sectors:
+        cells = layout.cells_of(s.id)
+        seen = sum(canopy[int(i)] is not None for i in cells) / len(cells)
+        out.append(
+            {
+                "sector_id": s.id,
+                "label": sector_label(s.id),
+                "poa": round(poa[s.id], 4),
+                "drone_coverage": round(seen, 3),
+            }
+        )
+    return out
+
+
 def on_decision(store: MissionStore, mission_id: str, p: Proposal) -> None:
     """After ``store.decide_proposal``: an approved ``assign_sector`` assigns the task and the
     team; an approved ``promote_detection`` puts the detection in the review queue. (Approved

@@ -279,10 +279,16 @@ def test_conditions_and_what_other_lanes_still_owe(api) -> None:
     client, _, _ = api
     mid = _mission(client)
     c = client.post(f"/missions/{mid}/conditions/refresh").json()  # lane B's, with the fake Tavily
-    assert c["sunset"] and c["civil_twilight_end"] and c["sources"]  # sun times are computed locally
+    assert (
+        c["sunset"] and c["civil_twilight_end"] and c["sources"]
+    )  # sun times are computed locally
     assert c["wind_kmh"] is None  # no model in tests: nothing is filled without a quote
-    assert client.get(f"/missions/{mid}/cards/B3").json()["sector_label"] == "Bravo Three"  # lane B's cards
-    assert "lane C" in client.get(f"/missions/{mid}/debrief.md").json()["detail"]
+    assert (
+        client.get(f"/missions/{mid}/cards/B3").json()["sector_label"] == "Bravo Three"
+    )  # lane B's cards
+    assert client.get(f"/missions/{mid}/debrief.md").text.startswith(
+        "# Debrief"
+    )  # lane C's debrief
     tele = {"drones": [], "leg_status": {}, "at": "2026-10-24T21:40:00Z"}
     assert client.put(f"/missions/{mid}/fleet", json=tele).status_code == 409  # no fleet yet
 
@@ -364,9 +370,15 @@ def test_sectors_report_live_poa_and_drone_coverage(api) -> None:
     client, ctx, _ = api
     mid = _mission(client)
     before = {s["sector_id"]: s for s in client.get(f"/missions/{mid}/sectors").json()}
-    assert len(before) == 16 and before["B3"]["label"] == "Bravo Three" and before["B3"]["drone_coverage"] == 0
+    assert (
+        len(before) == 16
+        and before["B3"]["label"] == "Bravo Three"
+        and before["B3"]["drone_coverage"] == 0
+    )
     _upload(client, mid, ("a.jpg", drone_photo()))
     ctx.queue.join()
     after = client.get(f"/missions/{mid}/sectors").json()
     looked = [s for s in after if s["drone_coverage"] > 0]
-    assert looked and all(s["poa"] < before[s["sector_id"]]["poa"] for s in looked)  # a look lowers POA
+    assert looked and all(
+        s["poa"] < before[s["sector_id"]]["poa"] for s in looked
+    )  # a look lowers POA
