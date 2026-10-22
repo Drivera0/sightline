@@ -218,7 +218,8 @@ function LedgerChip({ l }: { l: Ledger }) {
       title={`${LEDGER_KIND[l.kind] ?? l.kind} ${l.ref} (${l.chainId}): expected gain ${l.expected}, realised ${l.realised}, delta ${l.delta}`}
       className="inline-flex max-w-full flex-wrap items-baseline gap-x-1.5 rounded-full border border-line bg-surface-strong px-2.5 py-px font-mono text-caption"
     >
-      <span className="text-text-3">
+      {/* text-2, not text-3: on the chip's strong surface text-3 is 4.47:1 */}
+      <span className="text-text-2">
         {LEDGER_KIND[l.kind] ?? l.kind} {l.ref}
       </span>
       <span className="text-text-2">
@@ -226,7 +227,7 @@ function LedgerChip({ l }: { l: Ledger }) {
         {gainWords(l.expected)} → realised {sign(l.realised)}
         {gainWords(l.realised)}
       </span>
-      <span className={l.delta > 0 ? "text-ok" : l.delta < 0 ? "text-caution" : "text-text-3"}>(Δ {deltaWords(l.delta)})</span>
+      <span className={l.delta > 0 ? "text-ok" : l.delta < 0 ? "text-caution" : "text-text-2"}>(Δ {deltaWords(l.delta)})</span>
     </span>
   );
 }

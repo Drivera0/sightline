@@ -30,6 +30,8 @@ import type { TriedPhoto } from "../detect/TryPhoto";
 import { RadioClip } from "../front/RadioClip";
 import { prefersReducedMotion } from "../metrics/motion";
 import { usePick } from "../map/pick";
+import { MapStill, wantsStillMap } from "../map/MapStill";
+import { useSelection } from "../lib/selection";
 import { AppBar, rememberMission, type BarAction } from "../shell/AppBar";
 import { Button, KeyHint, modeOf, Page, Panel, Stat } from "../shell/components";
 import { DEMO_CONSOLE_HASH, VIEWS, viewHash, type Route, type View } from "../shell/flow";
@@ -50,6 +52,8 @@ const AssignmentCardView = lazy(() => import("../command/AssignmentCardView").th
 
 /** Where the map goes while MapLibre loads: the same frame, empty, so nothing moves when it arrives. */
 const MAP_FRAME = <div aria-hidden="true" className="relative h-full min-h-[360px] rounded-lg border border-border" />;
+/** The still map's fade into the live map (MapStill.tsx), within 100–400 ms; none under reduced motion. */
+const STILL_FADE_MS = 300;
 const loading = (what: string) => <p className="text-small text-text-3">Loading {what}…</p>;
 
 export type MissionRoute = Extract<Route, { kind: "mission" }>;
@@ -337,10 +341,37 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // and first frame are the heaviest work on the page, and the panels (and their text) should not wait for them.
   const [mapOn, setMapOn] = useState(false);
   const loaded = s.status === "demo" || s.status === "live" || s.status === "reconnecting";
+  // Phones and slower devices (MapStill.tsx) see a still image of the map until the map is wanted: a tap
+  // on it (at once), or the story at a moment that moves it (t1 photos landing, t4 the teams out), a pick
+  // on the map, a team picked on the roster (after the next paint). Once wanted it stays.
+  const [still] = useState(wantsStillMap);
+  const [wanted, setWanted] = useState<"auto" | "tap" | null>(null);
+  const storyMoves = demo && (story.tour || story.playing) && (story.t === 1 || story.t === 4);
+  const picking = usePick((p) => p.pending !== null);
+  const teamPicked = useSelection((x) => x.selectedTeamId !== null);
   useEffect(() => {
-    if (mapOn || !loaded || !ready || covered) return undefined;
+    if (still && !wanted && (storyMoves || picking || teamPicked)) setWanted("auto");
+  }, [still, wanted, storyMoves, picking, teamPicked]);
+  useEffect(() => {
+    if (mapOn || !loaded || !ready || covered || (still && !wanted)) return undefined;
+    if (wanted === "tap") {
+      setMapOn(true);
+      return undefined;
+    }
     return afterPaint(() => setMapOn(true));
-  }, [mapOn, loaded, ready, covered]);
+  }, [mapOn, loaded, ready, covered, still, wanted]);
+  // the still image fades out once the map has drawn (at once under reduced motion), then goes
+  const [stillPhase, setStillPhase] = useState<"on" | "fading" | "gone">("on");
+  const onMapReady = useCallback(() => setStillPhase((p) => (p === "on" ? "fading" : p)), []);
+  useEffect(() => {
+    // a mission without its search area has no map to wait for (LiveHeatMap says so in words)
+    if (mapOn && !s.mapBase) setStillPhase("gone");
+  }, [mapOn, s.mapBase]);
+  useEffect(() => {
+    if (stillPhase !== "fading") return undefined;
+    const timer = window.setTimeout(() => setStillPhase("gone"), prefersReducedMotion() ? 0 : STILL_FADE_MS);
+    return () => window.clearTimeout(timer);
+  }, [stillPhase]);
 
   const imageUrl = (rel: string) => (demo ? demoImageUrl(rel) : fileUrl(api, missionId, rel));
   // which clues moved each sector, from the map log: a line on an assignment's card (clueShift.ts)
@@ -613,7 +644,23 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               aboveMap={photoStrip}
               cover={cover}
               map={
-                mapOn ? (
+                still ? (
+                  // the map loads under the still image, which fades out once the map has drawn
+                  <div className="relative h-full min-h-[360px]">
+                    {mapOn && (
+                      <div className="absolute inset-0">
+                        <Suspense fallback={null}>
+                          <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demoNow} fill onReady={onMapReady} />
+                        </Suspense>
+                      </div>
+                    )}
+                    {stillPhase !== "gone" && (
+                      <div className={`absolute inset-0 z-[1] transition-opacity duration-300 ease-out motion-reduce:transition-none ${stillPhase === "fading" ? "pointer-events-none opacity-0" : ""}`}>
+                        <MapStill demo={demo} loading={wanted !== null} onLoad={() => setWanted("tap")} />
+                      </div>
+                    )}
+                  </div>
+                ) : mapOn ? (
                   <Suspense fallback={MAP_FRAME}>
                     <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demoNow} fill />
                   </Suspense>
@@ -657,7 +704,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               conditionsData={conditionsData}
               conditionsOpen={!!route.open.conditions}
               onPickOnMap={() => {
-                document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+                document.querySelector("figure[aria-label='Live map'], [data-testid='map-still']")?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
                 return usePick.getState().request();
               }}
               onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}

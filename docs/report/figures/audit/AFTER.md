@@ -79,3 +79,48 @@ First bundle 1.57 MB (448 KB gzip) → 358 KB (112 KB gzip).
 
 Contrast: our own check (axe cannot judge text over the body's gradient) found no enabled text under 4.5:1 before
 or after; no colour tokens changed.
+
+## Phone placeholder
+
+What the targets section above left as a decision, now made: on phones and slower devices the console shows a still
+image of the map until the map is wanted, and only then starts MapLibre.
+
+- **Who gets it**: a screen under 1024 px, `navigator.hardwareConcurrency` of 4 or fewer, `prefers-reduced-data`,
+  or Save-Data (`web/src/map/MapStill.tsx`, `wantsStillMap`). Desktop at 1440 px on more cores is unchanged.
+- **What it shows**: on the demo mission, a picture of the demo map at the call (t0) with the sectors, their POA and
+  the last known point, taken with Playwright from the built site (`web/public/map/demo-t0-390.webp`, 41 KB, 2×
+  for 390 px; `demo-t0-1440.webp`, 25 KB, for 1024 px and up), labelled "Still image · at the call"; on a live
+  mission, a plain crop of the dark basemap (`basemap-still.webp`, 4 KB). The image has an alt text, and one button
+  over the whole box reads "Tap to load the map" (keyboard: Tab, Enter); it changes to "Loading the map…" while the
+  map starts.
+- **Same box**: the still fills the map's frame (same border, radius and minimum height), measured at 366 × 439 px
+  on a 390 × 844 phone for both, so nothing moves when the map arrives.
+- **When the map loads**: at once on a tap (a touch starts it on pointer-down); after the next paint when the story
+  reaches t1 (photos landing) or t4 (teams out), so the map is in before their coach marks, when a clue pick on the
+  map is asked for, or when a team is picked on the roster. The map starts under the still, which fades out over
+  300 ms once the map has drawn (no fade under `prefers-reduced-motion`). Once loaded it stays.
+- Also fixed on the way: the Trace ledger chips' label and zero-delta text from `text-3` to `text-2` (axe measured
+  4.47:1 on the chip's surface; accessibility 96 → 100 on the Trace view).
+
+Same method as above (Lighthouse 12.8.2, axe-core 4.14, Chrome headless with software WebGL, the audit's static
+server; median of 3), before and after measured back to back on the same machine. This machine was busier than for
+the audit above, so its before numbers are lower than the table at the top; compare each row's before with its after.
+
+| Page | Form | Perf before | Perf after | TBT ms before → after | LCP ms before → after | A11y after | axe after |
+|---|---|---|---|---|---|---|---|
+| `#m/demo?t=0` | phone | 61 | **87** | 1567 → 10 | 3775 → 3782 | 100 | none |
+| `#m/demo?t=2` | phone | 56 | **72** | 1581 → 411 | 4453 → 4599 | 100 | none |
+| `#m/demo?t=5` | phone | 24 | **82** | 3360 → 118 | 5587 → 3923 | 100 | none |
+| `#m/demo/trace` | phone | 59 | **78** | 1990 → 324 | 3849 → 3992 | 100 | none |
+| `#m/demo?t=0` | desktop | 100 | 100 | 32 → 35 | 733 → 729 | 100 | none |
+| `#m/demo?t=2` | desktop | 90 | 94 | 254 → 183 | 850 → 851 | 100 | none |
+| `#m/demo?t=5` | desktop | 96 | 92 | 140 → 218 | 771 → 770 | 100 | none |
+| `#m/demo/trace` | desktop | 93 | 87 | 203 → 298 | 789 → 788 | 100 | none |
+
+Phone performance ≥ 70 is now met on all four console views. The desktop code path is unchanged (the still is
+never shown there); its rows move by a few points either way between runs, within this machine's run-to-run spread.
+On the phone `#m/demo?t=5` the before run also shifted layout (CLS 0.903, the map arriving under the Debrief); after,
+0.113. Phone best practices on t=2 and Trace stay at 96 (the 11 px caption share, as above). The still image is now the
+largest paint on t=0, t=5 and Trace.
+
+![The phone console at t0 with the still map](phone-still-m.webp) ![The same box after a tap, the live map](phone-loaded-m.webp)
