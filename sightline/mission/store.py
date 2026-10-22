@@ -55,7 +55,7 @@ from sightline.contract import (
     Verdict,
 )
 
-ID_WIDTH = {"p": 3, "c": 3, "v": 4, "L": 3, "e": 5, "t": 6}  # "p014", "v0021", "e00412", ...
+ID_WIDTH = {"p": 3, "c": 3, "v": 4, "L": 3, "e": 5, "t": 6, "f": 4}  # "p014", "v0021", "f0007"
 MISSION_ID = re.compile(r"^[0-9a-f]{8}$")
 RECENT_EVENTS = 200  # GET /state returns the last 200 (contract §13)
 CANDIDATE_THRESHOLD = 0.29  # frozen detector threshold (contract §7, LANE_D §5.3)
