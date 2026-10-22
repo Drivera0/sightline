@@ -42,6 +42,12 @@ CANDIDATE_THRESHOLD = 0.29
 LOW_VISIBILITY = 0.6
 BRIEFING_WORDS = 60
 _CLEAR = re.compile(r"\b(clear|cleared)\b", re.IGNORECASE)
+# Telling teams to stop is never in the facts; live, an alert for a confirmed sighting ended "No
+# further action is needed."
+_STAND_DOWN = re.compile(
+    r"\b(no (further )?action|stand ?down|call(ed)? off|nothing (more )?to do|no need to)\b",
+    re.IGNORECASE,
+)
 # Numbers, with any letters in front kept on them, so "B3" and "f0042" are ids, not a 3 or 42.
 _NUMBER = re.compile(r"[A-Za-z]*\d+(?:[.,]\d+)?")
 
@@ -54,12 +60,19 @@ _lock = threading.Lock()
 
 
 def check_briefing(text: str, facts: dict) -> list[str]:
-    """Problems with a briefing: too long, says "clear", or has a number not in the facts."""
+    """Problems with a briefing: too long, says "clear", a number not in the facts, or a run-on
+    with no punctuation (it is read aloud on the radio: live, the model once wrote "Team One sector
+    B3 photo f0005 shows adult hiker in blue jacket dark head covering sitting")."""
     problems = []
-    if len(text.split()) > BRIEFING_WORDS:
+    words = text.split()
+    if len(words) > BRIEFING_WORDS:
         problems.append(f"more than {BRIEFING_WORDS} words")
+    if len(words) > 12 and sum(text.count(c) for c in ".,;:") < 1 + len(words) // 20:
+        problems.append("no punctuation: write full sentences, it is read aloud on the radio")
     if _CLEAR.search(text):
         problems.append('says "clear"')
+    if _STAND_DOWN.search(text):
+        problems.append("tells the team to stop or that nothing is needed: not in the facts")
     allowed = set(_NUMBER.findall(json.dumps(facts, ensure_ascii=False)))
     invented = [n for n in _NUMBER.findall(text) if n not in allowed]
     if invented:
@@ -72,20 +85,35 @@ def template_briefing(facts: dict) -> str:
     return " ".join(f"{k.replace('_', ' ').capitalize()}: {v}." for k, v in facts.items() if v)
 
 
-def write_briefing(facts: dict, client: ChatClient | None) -> str:
+def write_briefing(
+    facts: dict,
+    client: ChatClient | None,
+    store: Any = None,
+    mission_id: str | None = None,
+    refs: tuple[str, ...] = (),
+) -> str:
     """A radio briefing of at most 60 words from ``facts`` only (MODEL_FAST). Post-checked by
     ``check_briefing``; one retry, then ``template_briefing``. No coordinates: the assignment
-    card carries them, so they are never put in the facts."""
+    card carries them, so they are never put in the facts. With ``store``, every model call and
+    a fallback to the template go into the mission's trace."""
+
+    def trace(**kw: Any) -> None:
+        if store is not None and mission_id is not None:
+            trace_call(store, mission_id, actor="agent", refs=refs, **kw)
+
     if client is None:
         return template_briefing(facts)
     messages = [
         {
             "role": "system",
             "content": (
-                "You write short radio briefings for search-and-rescue ground teams. Use only the "
-                f"facts given, at most {BRIEFING_WORDS} words, plain words, no coordinates. Write "
-                "numbers as digits, and only numbers that are in the facts. Add no orders, urgency "
-                "or claims beyond the facts: a person seen in a photo is a sighting, not a find. "
+                "You write short radio briefings for search-and-rescue ground teams, read aloud by "
+                "the operator: full sentences with normal punctuation, addressed to the team. Use "
+                f"only the facts given, at most {BRIEFING_WORDS} words, plain words, no coordinates. Write "
+                "numbers as digits, and only numbers that are in the facts. State the facts and stop: "
+                "say nothing about what is or isn't needed next (the search manager decides), and "
+                "add no urgency or claims beyond the facts: a person seen in a photo is a sighting, "
+                "not a find. "
                 'Never say "clear" or "cleared".'
             ),
         },
@@ -93,11 +121,22 @@ def write_briefing(facts: dict, client: ChatClient | None) -> str:
     ]
     for _ in range(2):
         try:
-            text = client.chat(messages, model=MODEL_FAST, temperature=0.2).text.strip()
-        except Exception:  # offline, budget, timeouts: the template still says everything
+            r = client.chat(messages, model=MODEL_FAST, temperature=0.2)
+        except Exception as e:  # offline, budget, timeouts: the template still says everything
             log.exception("briefing model call failed")
-            break
+            trace(
+                kind="note",
+                summary=f"briefing model call failed ({type(e).__name__}): template used",
+            )
+            return template_briefing(facts)
+        text = r.text.strip()
         problems = check_briefing(text, facts)
+        trace(
+            kind="model_call",
+            summary="briefing" + (f" rejected: {'; '.join(problems)}" if problems else ""),
+            input={"facts": facts},
+            result=r,
+        )
         if not problems:
             return text
         messages = [
@@ -111,6 +150,7 @@ def write_briefing(facts: dict, client: ChatClient | None) -> str:
                 + json.dumps(facts, ensure_ascii=False),
             },
         ]
+    trace(kind="note", summary="briefing still had problems after a retry: template used")
     return template_briefing(facts)
 
 
@@ -219,7 +259,13 @@ def _assign(
             kind="assign_sector",
             summary=f"Assign sector {sector} to {team.callsign}",
             reason=reason,
-            briefing=write_briefing({"team": team.callsign, "sector": sector, **facts}, client),
+            briefing=write_briefing(
+                {"team": team.callsign, "sector": sector, **facts},
+                client,
+                store,
+                mission_id,
+                (team_id, sector),
+            ),
             target={"team": team_id, "sector": sector},
             evidence=evidence,
             created_by="agent",
@@ -289,7 +335,7 @@ def _on_review(store, mission_id, detection_id, answer, client, detector) -> lis
             kind="alert",
             summary=f"Alert all teams: person confirmed in photo {frame.id} (sector {sector})",
             reason=f"Reviewer confirmed detection {det.id} as a person.",
-            briefing=write_briefing(facts, client),
+            briefing=write_briefing(facts, client, store, mission_id, (det.id,)),
             target={"team": "all"},
             evidence=evidence,
             created_by="agent",

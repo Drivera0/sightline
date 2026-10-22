@@ -360,6 +360,17 @@ FACTS = {"team": "Team Two", "sector": "B3", "daylight_left": "2 h 40 min"}
         ("Team Two, sector B3 is clear.", "clear"),
         ("Team Two, sector B3, 3 h of daylight left.", "numbers not in the facts"),
         ("word " * 61, "more than 60 words"),
+        # live, from Nemotron: read aloud, this is one breathless line
+        (
+            "Team Two sector B3 photo shows adult hiker in blue jacket dark head covering sitting",
+            "no punctuation",
+        ),
+        ("Team Two, search sector B3.", None),  # short and punctuated
+        # live, from Nemotron, on a confirmed sighting: never tell teams to stop
+        (
+            "Team, a person was seen in sector B3. No further action is needed.",
+            "tells the team to stop",
+        ),
     ],
 )
 def test_check_briefing(text: str, problem: str | None) -> None:
@@ -375,6 +386,40 @@ def test_bad_briefings_are_retried_then_replaced_by_the_template() -> None:
 
     fixed = FakeChatClient({"Facts:": ["Sector B3 is cleared.", "Team Two, search sector B3."]})
     assert loop.write_briefing(FACTS, fixed) == "Team Two, search sector B3."
+
+
+def test_a_run_on_briefing_is_rewritten_as_sentences() -> None:
+    client = FakeChatClient(
+        {
+            "Facts:": [
+                "Team Two sector B3 search it now daylight two h forty min left go",
+                "Team Two, search sector B3. 2 h 40 min of daylight left.",
+            ]
+        }
+    )
+    assert (
+        loop.write_briefing(FACTS, client)
+        == "Team Two, search sector B3. 2 h 40 min of daylight left."
+    )
+    assert "read aloud" in client.calls[1]["messages"][-1]["content"]
+
+
+def test_every_briefing_model_call_is_in_the_trace() -> None:
+    """Found in the live end-to-end run: only the verifier's calls were traced."""
+    store = FakeMissionStore()
+    mid = store.create("m", "a", LatLon(lat=0, lon=0), "live").mission_id
+    client = FakeChatClient({"Facts:": ["Sector B3 is clear.", "Team Two, search sector B3."]})
+    assert (
+        loop.write_briefing(FACTS, client, store, mid, ("T2", "B3"))
+        == "Team Two, search sector B3."
+    )
+    calls = [e for e in store.trace_entries(mid) if e.kind == "model_call"]
+    assert [e.summary for e in calls] == ['briefing rejected: says "clear"', "briefing"]
+    assert (
+        calls[0].input == {"facts": FACTS}
+        and calls[0].refs == ["T2", "B3"]
+        and calls[0].tokens_in is not None
+    )
 
 
 def test_briefing_without_a_model_is_the_template() -> None:
