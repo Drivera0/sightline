@@ -44,7 +44,7 @@ All in `sightline/api/limits.py` and `sightline/api/missions.py`, with tests in
 | File name | a label only, never a path; `..`, separators and absolute paths are refused | rejected, "unsafe file name" |
 | JSON writes | 1 MB | 413 |
 | Other multipart writes (radio audio) | 25 MB; the clip must be 0.4–30 s | 413 / "say again" |
-| Writes per client IP | 300 per 60 s by default (`SIGHTLINE_RATE_LIMIT`; behind Caddy keyed on `X-Forwarded-For`) | 429 + `Retry-After` |
+| Writes per client IP | 600 per 60 s by default (`SIGHTLINE_RATE_LIMIT`; behind Caddy keyed on `X-Forwarded-For`). Sized for the simulated fleet on one IP: 3 drones + a ground station write at most 4 times per tick, 480 a minute at `creek_run`'s 2 ticks a second, leaving 120 for the console, radio and a replay (`sightline/api/limits.py`). The fleet and `creek_run` retry after `Retry-After`. | 429 + `Retry-After` |
 | Sprint-1 zip upload (`POST /survey`) | its own limits on size, count and unpacked size; member names are never used as paths | 413 / 422 |
 
 Every uploaded image is decoded and re-saved by Pillow before anything else reads it. The mission

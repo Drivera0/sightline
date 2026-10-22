@@ -67,7 +67,7 @@ def create_app(
 ) -> FastAPI:
     """``api_token``: the write token (default: ``SIGHTLINE_API_TOKEN``); none leaves it open.
     ``rate_limit``: (writes, seconds) per client IP, None for none, default ``SIGHTLINE_RATE_LIMIT``
-    (``sightline/api/limits.py``: 300 per 60 s unless set; the tests set it off)."""
+    (``sightline/api/limits.py``: 600 per 60 s unless set; the tests set it off)."""
     cache_root.mkdir(parents=True, exist_ok=True)
     app = FastAPI(title="Sightline upload API")
     jobs: dict[str, dict] = {}
