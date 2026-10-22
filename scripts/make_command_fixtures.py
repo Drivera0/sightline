@@ -117,7 +117,7 @@ def briefing(facts: dict) -> str:
         parts.append(f"Look for: {facts['subject']}.")
     if facts.get("daylight_left"):
         parts.append(f"Daylight left: {facts['daylight_left']}.")
-    return " ".join(parts)
+    return " ".join([*parts, "Over."]) if parts else ""  # the radio's ending, as the prompt asks
 
 
 class FakeModels:
@@ -132,7 +132,9 @@ class FakeModels:
 
         prompt = last_user_text(messages)
         if "Facts:" in prompt:
-            text = briefing(json.loads(prompt.rsplit("Facts:\n", 1)[1])) or template_briefing({})
+            text = briefing(
+                json.JSONDecoder().raw_decode(prompt.rsplit("Facts:\n", 1)[1])[0]
+            ) or template_briefing({})
         elif self.next_vl is not None:
             a = dict(self.next_vl)
             a["reason"] = f"{a['reason']} ({FAKE})."
