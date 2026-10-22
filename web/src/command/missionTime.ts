@@ -32,6 +32,8 @@ export interface CheckpointDef {
   mark: { text: string; target: string; aside?: string } | null;
   /** The action on the real console that moves the story on (the coach mark waits for it, or Skip). */
   gate?: "approve";
+  /** A mark shown once before this checkpoint's own (t3: the clue log, then the proposal). */
+  pre?: { text: string; target: string; aside?: string };
 }
 
 const DAY = "2026-10-24T";
@@ -81,6 +83,7 @@ export const CHECKPOINTS: readonly CheckpointDef[] = [
     view: "map",
     mark: { text: "The agent proposes Team One for A1, says why, and waits for your approval.", target: `[data-proposal="${STORY_PROPOSAL}"]` },
     gate: "approve",
+    pre: { text: "Clues move the map too: each confirmed clue changes where the person could be.", target: '[aria-label="Clue log"]' },
   },
   {
     t: 4,

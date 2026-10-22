@@ -46,11 +46,14 @@ export interface BarViews {
   onSelect: (view: View) => void;
   /** A count beside a view (Review: candidates waiting). */
   counts?: Partial<Record<View, number>>;
+  /** Phones' bottom bar only: one more stop that is not a view (the clue log, under the map). */
+  jump?: { label: string; title: string; count?: number; onClick: () => void };
 }
 
 function ViewButtons({ views, bottom = false }: { views: BarViews; bottom?: boolean }) {
+  const jump = bottom ? views.jump : undefined;
   return (
-    <ul className={bottom ? "grid grid-cols-6" : "flex items-center gap-0.5 rounded-full border border-line bg-surface-solid p-0.5"}>
+    <ul className={bottom ? (jump ? "grid grid-cols-7" : "grid grid-cols-6") : "flex items-center gap-0.5 rounded-full border border-line bg-surface-solid p-0.5"}>
       {VIEWS.map((v) => {
         const on = views.current === v.id;
         const n = views.counts?.[v.id];
@@ -76,6 +79,17 @@ function ViewButtons({ views, bottom = false }: { views: BarViews; bottom?: bool
           </li>
         );
       })}
+      {jump && (
+        <li className="flex">
+          <button type="button" title={jump.title} onClick={jump.onClick} className="sl-tap flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-caption text-text-3">
+            <span aria-hidden className="h-0.5 w-6 rounded-full bg-transparent" />
+            <span>
+              {jump.label}
+              {jump.count ? <span className="ml-1 font-mono text-text-2">{jump.count}</span> : null}
+            </span>
+          </button>
+        </li>
+      )}
     </ul>
   );
 }

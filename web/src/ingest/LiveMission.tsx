@@ -88,6 +88,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
   const [keysOpen, setKeysOpen] = useState(false);
   const [tryOpen, setTryOpen] = useState(!!route.open.try);
   const [logOpen, setLogOpen] = useState(!!route.open.log);
+  const [preSeen, setPreSeen] = useState<number[]>([]);
   const [demoData, setDemoData] = useState<{ full: DemoFull; bundle: CacheBundle } | null>(null);
   const [bundle, setBundle] = useState<CacheBundle | null>(null);
 
@@ -222,6 +223,17 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
     },
     [demo, missionId],
   );
+  // phones: the bottom bar's Clues brings the clue log (under the map) on screen, the Trace sheet out of the way
+  const jumpToClues = () => {
+    if (view === "trace") go("map");
+    requestAnimationFrame(() => {
+      const log = document.querySelector<HTMLElement>('[aria-label="Clue log"]');
+      if (!log) return;
+      log.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+      if (!log.hasAttribute("tabindex")) log.setAttribute("tabindex", "-1");
+      log.focus({ preventScroll: true });
+    });
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -439,7 +451,9 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
         }
     : { label: "New search", href: "#new" };
   const barClock = demo ? `${clock(clockIso, true)} UTC` : s.mission ? `${clock(new Date(), false)} ${zone(new Date(), false)}` : null;
-  const mark = demo && story.tour ? CHECKPOINTS[t]?.mark : null;
+  // a checkpoint's pre-mark (t3: the clue log) comes once, before its own mark
+  const pre = demo && story.tour && !preSeen.includes(t) ? (CHECKPOINTS[t]?.pre ?? null) : null;
+  const mark = demo && story.tour ? (pre ?? CHECKPOINTS[t]?.mark) : null;
   const markIndex = CHECKPOINTS.filter((c) => c.mark && c.t <= t).length;
 
   return (
@@ -447,7 +461,12 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       <div className="flex min-h-dvh flex-col lg:h-dvh">
         <AppBar
           mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: modeOf(s.status), clock: barClock }}
-          views={{ current: view, onSelect: go, counts: { map: waiting || undefined } }}
+          views={{
+            current: view,
+            onSelect: go,
+            counts: { map: waiting || undefined },
+            jump: { label: "Clues", title: "The clue log: what teams and the public reported", count: s.clues.length || undefined, onClick: jumpToClues },
+          }}
           action={action}
           extra={
             <button type="button" onClick={() => setKeysOpen(true)} className="sl-tap hidden items-center gap-1.5 text-small text-text-2 hover:text-text md:inline-flex" title="Keyboard shortcuts">
@@ -545,10 +564,10 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
             index={markIndex}
             count={MARK_COUNT}
             last={t === 5}
-            gate={checkpoint(t).gate === "approve" ? "Approve it on the card to send the team." : undefined}
+            gate={!pre && checkpoint(t).gate === "approve" ? "Approve it on the card to send the team." : undefined}
             aside={mark.aside}
             onAside={mark.aside ? () => setView("radio") : undefined}
-            onNext={() => (t === 5 ? useStory.getState().exit() : useStory.getState().next())}
+            onNext={() => (pre ? setPreSeen((s) => [...s, t]) : t === 5 ? useStory.getState().exit() : useStory.getState().next())}
             onBack={t > 1 ? () => useStory.getState().previous() : undefined}
             onExit={() => useStory.getState().exit()}
             onToggleClock={() => useStory.getState().toggle()}

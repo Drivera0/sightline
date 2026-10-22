@@ -88,6 +88,15 @@ describe("AppBar", () => {
     expect(screen.queryByRole("navigation", { name: "Sightline" })).toBeNull();
   });
 
+  it("puts the clue log one tap away in the phones' bottom bar only", async () => {
+    const onClick = vi.fn();
+    render(<AppBar mission={null} views={{ ...views("map", vi.fn()), jump: { label: "Clues", title: "The clue log", count: 5, onClick } }} />);
+    const [bar, bottom] = screen.getAllByRole("navigation", { name: "Mission views" });
+    expect(within(bar!).queryByRole("button", { name: /Clues/ })).toBeNull();
+    await userEvent.click(within(bottom!).getByRole("button", { name: "Clues5" }));
+    expect(onClick).toHaveBeenCalled();
+  });
+
   it("switches views with aria-pressed, in the bar and in the bottom bar for phones", async () => {
     const onSelect = vi.fn();
     render(<AppBar mission={null} views={views("debrief", onSelect)} />);

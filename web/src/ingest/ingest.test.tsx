@@ -271,8 +271,12 @@ describe("the demo mission: the story on the one console", () => {
     expect(within(recorded).getByLabelText("Models")).toHaveTextContent("OpenCV 5 zoom native");
     expect(within(recorded).getByLabelText("Models")).toHaveTextContent("Nemotron-3.5-Super-VL");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    // t3: the gate waits for the visitor's approval
-    const gate = await screen.findByRole("dialog", { name: "The story, 3 of 5" });
+    // t3: first the clue log, once ("Clues move the map too"), then the gate waits for the visitor's approval
+    const clues = await screen.findByRole("dialog", { name: "The story, 3 of 5" });
+    expect(clues).toHaveTextContent("Clues move the map too");
+    await userEvent.keyboard("{ArrowRight}");
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "The story, 3 of 5" })).not.toHaveTextContent("Clues move the map too"));
+    const gate = screen.getByRole("dialog", { name: "The story, 3 of 5" });
     expect(gate).toHaveTextContent("Approve it on the card");
     const card = await screen.findByLabelText("Proposal p001");
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));

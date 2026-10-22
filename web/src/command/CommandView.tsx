@@ -13,7 +13,7 @@ import { FleetControls } from "./FleetControls";
 import { useMission } from "../lib/mission";
 import type { Clue, ClueDraft, Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
-import { KeyHint, ModeChip, modeOf, Panel, StatusPill, type Tone } from "../shell/components";
+import { Button, KeyHint, ModeChip, modeOf, Panel, StatusPill, type Tone } from "../shell/components";
 import { ApprovalInbox, type Decide } from "./ApprovalInbox";
 
 type TaskBody = { state: SectorTask["state"]; team_id?: string | null; pod?: number | null; note?: string | null };
@@ -637,11 +637,14 @@ export function ClueLog({
   const callsign = (id: string) => teams.find((t) => t.id === id)?.callsign ?? (id === "command" ? "command" : id);
   return (
     <section aria-label="Clue log" className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
-        <span className="text-caption font-medium text-text-2">Clue log ({clues.length})</span>
-        <button type="button" aria-expanded={open} className="sl-tap rounded-full border border-border px-3 py-0.5 text-caption text-text-2 hover:text-text" onClick={() => setOpen(!open)}>
-          + Add clue
-        </button>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-small text-text-2">
+          <span className="font-medium text-text">Clue log ({clues.length})</span>
+          <span className="text-text-3"> · what teams and the public reported; each confirmed clue moves the map</span>
+        </span>
+        <Button aria-expanded={open} onClick={() => setOpen(!open)} className="ml-auto">
+          Add a clue
+        </Button>
       </div>
       {open && (
         <Panel className="p-3">
