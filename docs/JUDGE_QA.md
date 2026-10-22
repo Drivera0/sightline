@@ -12,19 +12,28 @@ are as of `main` after the report integration (#143 plus the `a/report-integrati
 
 The same three lines, for the web page and the video script: `docs/submission/WHAT_BREAKS_FIRST.md`.
 
-### 1. Why is the hero button "Start a new search" if the public site can't start one? What do I see at 10 pm when the EC2 box is stopped?
+### Where to look, in order
 
-The public build has no API address baked in, so "Start a new search" opens a page that says "The live
-mission server runs during demos and judging; here is the demo mission", with two links that work without
-a server: the demo mission's command view and the guided demo (`web/src/App.tsx:42-75`). The demo mission
-needs no server (`web/src/App.tsx:33-36`). The AWS API is stopped between demos to save cost
+1. The console at t0, the call: https://sightline-iota-sandy.vercel.app (`#`, which opens `#m/demo`).
+2. **Follow the search** (3 min): photos land, a person confirms the 0.18 detection, the agent proposes, you approve, the run (`#m/demo?t=0` to `?t=5`).
+3. The Trace view: OpenCV output changing the agent's next action, and which model did what (`#m/demo/trace`).
+4. Conditions (W in the console): live Tavily facts with the quote and the page each came from (`#m/demo/map/conditions`).
+5. The Debrief: the measured results, what breaks first, and the links out (report, trace, code; a live mission's debrief to keep) (`#m/demo?t=5`; `&judges` opens this list there, and the old `#judges` redirects to it).
+6. The About sheet for the method: who it is for and how it works (`#about`, or the wordmark).
+
+### 1. Why is there a New search if the public site can't start one? What do I see at 10 pm when the EC2 box is stopped?
+
+The public build has no API address baked in, so New search (`#new`, the empty console) says "The live
+mission server runs during demos and judging; this site is the demo", with the form disabled and "Load the
+demo mission" (`#m/demo/map`), which works without a server (`web/src/ingest/NewSearch.tsx:92-96`, `:128`). The demo
+mission is the whole public site and needs no server (`web/src/App.tsx:74-75`); `#` opens it at t0, the call. The AWS API is stopped between demos to save cost
 (`README.md:237-238`), so at 10 pm a live mission is not available unless it was started. During judging
 `.github/workflows/judging-check.yml` checks the API every 6 hours and opens an issue when it fails
 (`deploy/aws/README.md:107-115`); whether the instance stays up all through judging is a decision for Dan.
 
 ### 2. Where in the product can I see the perception → decision → action trace for the proposal I just approved?
 
-In the Trace tab of the mission page, `#m/<id>/trace` (`web/src/command/TraceView.tsx`). It polls
+In the console's Trace view, `#m/<id>/trace` (`web/src/command/TraceView.tsx`). It polls
 `GET /missions/{id}/trace` (`sightline/api/missions.py:384`) and groups the trace into chains by the ids they
 share (perception → decision → action → approval), one line per step with the tool or model, input, output
 and ms, the proposal each chain led to, and who decided it. Without a server, `#m/demo/trace` shows the

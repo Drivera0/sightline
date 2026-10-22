@@ -41,7 +41,7 @@ web/src/
   map/base/              # B: basemap switch, footprints, path, pins, LKP
   map/heat/              # C: heat layer, step slider, search-next panel
   search/                # C: update.ts (mirror), store.ts, __fixtures__/
-  metrics/               # A: Results step (ResultsSummary) and its details (MetricsView)
+  metrics/               # A: the Debrief's results (ResultsSummary) and their details (MetricsView)
   detect/                # Try your own photo: in-browser detector
 ```
 
@@ -116,9 +116,11 @@ Shared components D provides in `shell/`: `Panel`, `Stat` (big number + label + 
 
 ---
 
-## 6. The five steps (summary; details in each lane file §9)
+## 6. The five steps (BCS hackathon; details in each lane file §9)
 
-The app is one guided flow with a step bar and the step in the URL hash (`web/src/shell/flow.ts`); the hackathon plan's three tabs became these steps.
+> **Now (PR #171):** the site is one console, not a guided flow. `#` opens the demo mission's console at t0; **Follow the search** runs it through the checkpoints `#m/demo?t=1..5` (Photos land, Confirm, Where next, Run, Results), and the views are Map · Photos · Review · Trace · Debrief. The old step hashes (`#survey`, `#rank`, `#review`, `#search`, `#results`) redirect to those checkpoints. Addresses: `web/src/shell/flow.ts` and `web/src/shell/README.md`. The table below is the BCS plan, kept as history.
+
+At BCS the app was one guided flow with a step bar and the step in the URL hash; the hackathon plan's three tabs became these steps.
 
 | Step | Built by | What's on it |
 |---|---|---|
@@ -132,7 +134,9 @@ The app is one guided flow with a step bar and the step in the URL hash (`web/sr
 
 ---
 
-## 7. The demo click path (rehearse exactly this)
+## 7. The demo click path (BCS; rehearse exactly this)
+
+> **Now:** the click path is the console's story: `#`, then **Follow the search** (3 min), the Trace view, Conditions (W), the Debrief and the About sheet. The table below is the BCS hackathon's.
 
 | Time | Screen | Action | Say |
 |---|---|---|---|

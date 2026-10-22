@@ -20,7 +20,7 @@ fleet and the Serverless Job are new in this period:
   - Every call is traced.
 - **An agent that proposes and a person who decides:** verdicts, clues, conditions and the planner's
   legs become proposals with reasons and evidence. Nothing happens until the search manager approves
-  it in the command view.
+  it in the console.
 - **A radio desk:** ground teams talk to Sightline on a secondary channel, with Parakeet speech to text,
   Nemotron with tools and Magpie speech (Parakeet and Magpie run on our RTX 4080 SUPER). A clue is logged only after Sightline reads it back and the team
   confirms. It transmits only approved briefings.
@@ -34,8 +34,8 @@ fleet and the Serverless Job are new in this period:
   - they decide whether drones may fly, how much a photo can see, where people shelter, and what teams
     hear.
 - **A Nebius Serverless Job** detects the fleet's photos in batch on CPU (711 photos, 483 s).
-- **Command view:** task board, teams, approval inbox, clue log and printable assignment cards with
-  GPX/KML. Also a mission debrief and a front door that explains the product.
+- **One console:** task board, teams, approval inbox, clue log and printable assignment cards with
+  GPX/KML, the views Map · Photos · Review · Trace · Debrief, and an About sheet that explains the product.
 - **AWS deployment:** S3, SQS, a worker running OpenCV 5 `cv2.dnn`, CloudWatch and Secrets Manager.
 - **Continuous integration:** the tests, a smoke test of the whole live loop with fakes, and the web
   build, on every change.

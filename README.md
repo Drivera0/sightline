@@ -2,13 +2,13 @@
 
 ![Sightline demo console: a person approves the agent's proposal, then the mission clock runs on, teams go out, the simulated drones fly and B4 is searched at POD 60 %](docs/report/figures/demo.gif)
 
-*The command console on the demo mission, 18 s: a clue added on the map, then the fleet with Drone 1 re-tasked to the water-bottle clue (recorded from the local build by `scripts/demo_video/run.sh`; the mission, the drones and their links are simulated).*
+*The console on the demo mission (`#m/demo/map`), 18 s, recorded before the one-console bar of #171: a clue added on the map, then the fleet with Drone 1 re-tasked to the water-bottle clue (recorded from the local build by `scripts/demo_video/run.sh`; the mission, the drones and their links are simulated).*
 
 Sightline is the brain of a drone search for a missing person: it finds the likeliest people in hundreds of drone photos with OpenCV 5, and turns every photo, searched sector and radio report into one probability map of where the person could still be. From that map an agent proposes where drones and ground teams go next, and a search manager approves every move before anything happens. It assists searchers and never rules an area out; it began at BCS Hackathon 2026 and became a live system for the OpenCV and Nebius hackathons.
 
-**[Live demo](https://sightline-iota-sandy.vercel.app) · [Demo mission](https://sightline-iota-sandy.vercel.app/#m/demo/command) · [Report](docs/report/OPENCV_REPORT.md) · [Architecture](docs/architecture/sightline-architecture.html) · [Run it](#reproduce-the-results-cpu-only-about-14-minutes)**
+**[Live demo](https://sightline-iota-sandy.vercel.app) · [Demo console, now](https://sightline-iota-sandy.vercel.app/#m/demo/map) · [Report](docs/report/OPENCV_REPORT.md) · [Architecture](docs/architecture/sightline-architecture.html) · [Run it](#reproduce-the-results-cpu-only-about-14-minutes)**
 
-**For judges:** a two-minute tour on the live site, [#judges](https://sightline-iota-sandy.vercel.app/#judges), and answers to the questions we expect, with their evidence, in [docs/JUDGE_QA.md](docs/JUDGE_QA.md).
+**For judges:** open the [live site](https://sightline-iota-sandy.vercel.app) (the console at t0, the call) and press **Follow the search** (3 min); the Debrief at the end has "For judges: where to look, in order" ([`#m/demo?t=5&judges`](https://sightline-iota-sandy.vercel.app/#m/demo?t=5&judges); the old `#judges` redirects there). Answers to the questions we expect, with their evidence, in [docs/JUDGE_QA.md](docs/JUDGE_QA.md).
 
 ![Sightline system architecture](docs/architecture/system.png)
 
@@ -57,30 +57,30 @@ The rows are not strictly comparable: the published ones do not state their matc
 
 ## What the demo shows
 
-The site walks through one survey in five steps (keys 1 to 5):
+The site is one console on a demo mission. The landing (`#`, which opens `#m/demo`) is the console at t0, the call, with a pitch bar; **Follow the search (3 min)** runs the mission clock through five checkpoints, each with a coach mark and its own address (`#m/demo?t=1` to `?t=5`; → next, ← back, Esc leaves the story at that mission time):
 
-1. **Survey**: 500 drone photos from a search over Mount Seymour.
-2. **Rank**: the detector scans every photo, draws its boxes, and builds a queue with the likeliest people first. A side panel shows the network it runs and each photo's score against the flag threshold.
-3. **Review**: a searcher answers each candidate (Person, Not a person, Unsure) while confirmed people are pinned on the map.
-4. **Search next**: a probability map of where the person could still be. Photographed ground fades as the drone sees it; ground never photographed stays marked as not yet searched.
-5. **Results**: the numbers below, with their sources.
+1. **Photos land** (`?t=1`, the Photos view): 500 drone photos from a search over Mount Seymour; the detector reads each one, the queue puts the likeliest people first, and the map updates as each photo is placed.
+2. **Confirm** (`?t=2`, the Review view): a searcher answers each candidate (Person, Not a person, Unsure); the third scored only 0.18, and a second look caught it.
+3. **Where next** (`?t=3`, the Map): a probability map of where the person could still be (photographed ground fades, ground never photographed stays marked as not yet searched), and the agent proposes Team One for A1 with its reason; you approve it.
+4. **Run** (`?t=4`): eighteen minutes on, the teams are out and B4 is searched at POD 60 %, lowered but never ruled out.
+5. **Results** (`?t=5`, the Debrief): the measured numbers with their sources, what breaks first, and where to look, in order, for judges.
 
-A second survey, real HERIDAL photos at their recorded EXIF positions, is in the survey menu. The Mount Seymour flight path and the search evaluation are simulated, and the site labels them that way.
+The view switch (Map · Photos · Review · Trace · Debrief, keys 1 to 5) works at any moment; **Skip to now** (or `#m/demo/map`) opens the console at the end of the timeline, the wordmark opens the About sheet (`#about`: who it is for, how it works), and `#new` is the empty console for a new search. The old guided-demo addresses (`#survey`, `#rank`, `#review`, `#search`, `#results`, `#judges`, `#try`) redirect to these moments. The Mount Seymour flight path, the fleet and the mission's timeline are simulated, and the site labels them that way.
 
 ## Live missions
 
 A live mission runs the same detector and map while the search happens, through a mission API (`python -m sightline.pipeline serve --mission-root missions`):
 
 - **Photos in** after each landing (drag the SD card's photos in, or `python -m sightline.client watch FOLDER`), or replayed at drone pace (`... client replay`). Each one is detected with OpenCV 5 `cv2.dnn`, placed on the map from its GPS and camera pose, and steps the probability map.
-- **An agent proposes; a person decides.** Uncertain detections get a second look (OpenCV 5 re-look tools, then Nemotron VL). The agent turns verdicts, clues, conditions and the planner's legs into proposals: promote a detection, fly a drone leg, re-task a flying drone, assign a sector to a team, alert the teams. Nothing happens until the search manager approves it in the **command view** (task board, team roster, approval inbox, clue log, live heat map, printable assignment cards with GPX/KML). Every model and tool call is in the mission's trace.
+- **An agent proposes; a person decides.** Uncertain detections get a second look (OpenCV 5 re-look tools, then Nemotron VL). The agent turns verdicts, clues, conditions and the planner's legs into proposals: promote a detection, fly a drone leg, re-task a flying drone, assign a sector to a team, alert the teams. Nothing happens until the search manager approves it in **the console** (task board, team roster, approval inbox, clue log, live heat map, printable assignment cards with GPX/KML). Every model and tool call is in the mission's trace.
 - **The radio desk** puts Sightline on a secondary voice channel: teams ask questions and report clues by voice; a clue is logged only after Sightline reads it back and the team confirms; it transmits only briefings the search manager approved, when the operator presses Transmit.
 - **Conditions from the web** (Tavily, below) gate the drones and shape the briefings.
 - **A simulated drone fleet** (labelled so everywhere) flies approved legs and sends its photos through the same API (`python -m sightline.search.fleet run`); `scripts/creek_run.py` runs the whole story: a team's clue → the agent re-tasks a drone → its photo shows the person → review → alert.
 - **A debrief** from the log: every proposal and who decided it, each sector's coverage and POD (`GET /missions/{id}/debrief.md`).
 
-Try the command view without a server: **`#m/demo/command`** on the live site (a demo mission, simulated data). The API runs on AWS between demos (`deploy/aws/`). The OpenCV report, with the measured numbers: [docs/report/OPENCV_REPORT.md](docs/report/OPENCV_REPORT.md).
+Try the console without a server: **`#`** on the live site opens it on the demo mission at t0 and **`#m/demo/map`** at the end of its timeline (simulated data; the old `#m/demo/command` redirects there). The API runs on AWS between demos (`deploy/aws/`). The OpenCV report, with the measured numbers: [docs/report/OPENCV_REPORT.md](docs/report/OPENCV_REPORT.md).
 
-![The command view on a live mission](docs/architecture/screens/command-view.png)
+![The console on the demo mission at Where next (#m/demo?t=3): the agent's proposal for Team One waits for approval](docs/report/figures/one-console/t3-d.webp)
 
 ## How the detector works
 
@@ -147,7 +147,7 @@ Live, Mount Seymour on the evening of Oct 21 (PDT): wind NW 20 km/h gusting 40 (
 | B · Geo | camera poses, footprints, pins, base map, real-GPS survey | `sightline/geo/`, `web/src/map/` |
 | C · Search | probability map, simulation, Search next | `sightline/search/`, `web/src/map/heat/` |
 | D · Pipeline | contract, pipeline, mission store and API, website shell, review queue, AWS | `sightline/pipeline/`, `sightline/mission/`, `sightline/api/`, `web/src/shell/`, `deploy/aws/` |
-| E · Ops & Voice | front door, command view, radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` |
+| E · Ops & Voice | About sheet (was the front door), the console's map (was the command view), radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` |
 
 In the live-missions sprint lane A also owns the second look and the agent (`sightline/agent/`), the Nebius Serverless Job (`deploy/nebius/`) and the reports.
 
@@ -230,7 +230,7 @@ lanes A, B and C.
 
 ```bash
 uv run python -m sightline.pipeline serve --mission-root missions [--radio text]   # http://127.0.0.1:8000
-cd web && VITE_API_URL=http://127.0.0.1:8000 pnpm dev                              # then "Start a new search"
+cd web && VITE_API_URL=http://127.0.0.1:8000 pnpm dev                              # then open #new: start a search
 SIGHTLINE_FAKE_LLM=1 SIGHTLINE_FAKE_TAVILY=1 bash scripts/smoke.sh                 # the whole loop, no network, no keys
 ```
 
