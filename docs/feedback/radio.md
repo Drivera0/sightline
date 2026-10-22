@@ -134,13 +134,28 @@ answer gives the sector's size and the way to its entry instead of four generic 
 degrees, distance six hundred metres, over." (8 / 8 live). Replies holding a template placeholder
 ("[tool output]", seen once) get one retry and are never spoken.
 
-## WER with three voices (E-18, still to record)
+## Measuring WER
 
-`tests/radio/phrases.txt` has the 20 phrases. Each teammate records them as `data/radio/wer/<name>/01.wav`
-… `20.wav` (any recorder; the radio desk's push-to-talk works) and, with radio sound on, `01.radio.wav` …;
-then `~/radio-env/bin/python scripts/radio_wer.py` prints WER (normalised, so "Team 2" = "Team Two") and
-the coordinate exact-match rate per voice and condition. `--synthetic` runs the same on Magpie's voices as
-a labelled baseline until the recordings exist.
+E-18, issue #49: still to record. `tests/radio/phrases.txt` has the 20 phrases; three voices read them as
+written (coordinates digit by digit). Put each voice in its own folder, either one file per phrase
+(`data/radio_wer/<voice>/01.m4a` … `20.m4a`) or one file per voice with about a second's pause between
+phrases (`data/radio_wer/<voice>/<any name>.m4a`). Any format ffmpeg reads works (phone voice memos are
+m4a); `01.radio.m4a` (or `<name>.radio.m4a`) is the same voice through the radio-sound filter, reported
+separately. Then, in the NeMo env:
+
+```bash
+~/radio-env/bin/python scripts/radio_wer.py                 # one file per phrase
+~/radio-env/bin/python scripts/radio_wer.py --one-file      # one file per voice, split on silence
+uv run python scripts/radio_wer.py --dry-run                # no NeMo: mock transcripts, checks the pipeline
+```
+
+Each clip goes through the radio desk's own path (`to_mono16k` → 16 kHz mono WAV in a temp dir →
+`ParakeetAsr`). WER is word level after `protocol.normalize` on both sides (so "Team 2" = "Team Two",
+"Sight line" = "Sightline"), pooled per voice and overall, with the coordinate exact-match rate. It writes
+`runs/radio_wer/<timestamp>/wer.md`: per-voice and per-phrase tables and the five worst phrases with what
+Parakeet heard (plus `wer.json`). If `--one-file` finds the wrong number of phrases, lower `--min-silence`
+(default 0.6 s) or raise `--silence-db` (default -35, e.g. -30 for a noisy room). `--synthetic` runs the
+same on Magpie's voices as a labelled baseline.
 
 ## How to reproduce
 
