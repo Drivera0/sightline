@@ -129,4 +129,4 @@ BCS-era plan for this file (timeline, checkpoints, the 60-second pitch) is in gi
 
 - Pyrrö, Naseri & Jung (2021), *Rethinking Drone-Based Search and Rescue with Aerial Person Detection*: https://arxiv.org/abs/2111.09406
 - HERIDAL in VOC format (CC BY 3.0), Zenodo: https://zenodo.org/records/5662351
-- Search theory, lost-person behaviour and related systems: `docs/report/OPENCV_REPORT.md` §7.4 and §7.6.
+- Search theory, lost-person behaviour and related systems: `docs/report/OPENCV_REPORT.md` §6.1 and §1.1.

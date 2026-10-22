@@ -317,7 +317,7 @@ radio would have read sweep points and "north-west corner" as landmarks, and "12
 
 `sightline/geo/clues.py`: `resolve_position(draft, teams, grid, now)` → `(lat, lon, warnings)`, test 5 in
 `tests/geo/test_clues.py`. `effects.clue_from_draft` calls it, and warnings go to the feed. One deviation from
-§4: a sighting defaults to **100 m, not 50 m** (a person seen moves on; the report's re-task chain §5.2 and
+§4: a sighting defaults to **100 m, not 50 m** (a person seen moves on; the report's re-task chain §5.3 and
 `scripts/planner_eval.py` were recorded with 100 m). Change them together if you change it.
 
 ## Photo clients (done by lane A, #74)

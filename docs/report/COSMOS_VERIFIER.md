@@ -68,7 +68,7 @@ of each reply goes into the trace and the summary JSON, so a real run will show 
 | Cosmos Reason (`nvidia/cosmos-reason2-8b`) | NVIDIA API (trial) | | | | | | | | | | trial credits** |
 
 The Nemotron row is `runs/verifier/val-verify-v2-20261020-165932.json` (the run behind report
-§7.2); its accuracy, yes-rate and p90 are recomputed from that run's CSV with the definitions above.
+§5.4); its accuracy, yes-rate and p90 are recomputed from that run's CSV with the definitions above.
 Accuracy is low by construction: 130 of the 170 are false positives, and the prompt
 asks for `unclear` rather than `no` when the model cannot tell. \*\* NVIDIA's hosted endpoint runs on trial credits and states no per-token price;
 `--price-in/--price-out` fill a cost if a price applies.

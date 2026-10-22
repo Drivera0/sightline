@@ -31,7 +31,7 @@ Production: burn in captions; 1080p master; YouTube "Not for Kids"; no copyright
 3. *The approval inbox: every proposal carries its reason, and nothing happens until a person approves it.* (`docs/submission/figures/approval-inbox-every-proposal-carries-its-reason.png`)
 4. *A printable assignment card for Team Two's sector B3, and the same sector's GPX opened in CalTopo.* (`docs/submission/figures/assignment-card-gpx-kml-opened-in-caltopo.png`)
 5. *Architecture: photos → OpenCV 5 `cv2.dnn` → map → agent and re-look tools → human approval → drone, team or radio, on AWS.* (`docs/submission/figures/architecture-photos-cv2dnn-map-agent-approval-on-aws.png`)
-6. *Results in the app: the detector vs people reviewing by eye (SAR-APD scoring), time per photo, ground left to search. The `cv2.dnn` vs PyTorch parity and the other numbers are in the report's tables (§4.1, §7.1).* (`docs/submission/figures/results-detector-vs-human-baseline.png`)
+6. *Results in the app: the detector vs people reviewing by eye (SAR-APD scoring), time per photo, ground left to search. The `cv2.dnn` vs PyTorch parity and the other numbers are in the report's tables (§3.1, §3.9).* (`docs/submission/figures/results-detector-vs-human-baseline.png`)
 
 ---
 

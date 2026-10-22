@@ -6,8 +6,24 @@
 > simulated, and what we could not verify is marked. Lead: Dan (lane A).
 
 Repository: https://github.com/Drivera0/sightline (tag `opencv-submit`) · Live demo:
-https://sightline-iota-sandy.vercel.app (demo) · Live mission API on AWS: https://44-227-39-234.sslip.io
-(started for demos and judging; `GET /health`).
+https://sightline-iota-sandy.vercel.app (demo; `#judges` is a one-screen summary for judges) · Live
+mission API on AWS: https://44-227-39-234.sslip.io (started for demos and judging; `GET /health`).
+
+| § | Section | Rubric line it answers |
+|---|---|---|
+| 1 | Problem and users | Real-world impact |
+| 2 | Architecture | Technical execution (architecture) |
+| 3 | OpenCV 5 implementation | Technical execution (OpenCV 5 depth); Agentic Vision: OpenCV 5 integration |
+| 4 | AWS deployment | Cloud delivery, observability, security |
+| 5 | Agent (Agentic Vision) | Agentic Vision: integration, orchestration and autonomy, task effectiveness, failure handling and human control |
+| 6 | Search map and planner | Innovation; Real-world impact |
+| 7 | Conditions (Tavily) | Innovation |
+| 8 | Radio desk | UX; Real-world impact |
+| 9 | Evaluation summary | Technical execution (evaluation); Agentic Vision: task effectiveness and evaluation |
+| 10 | Limitations and failure cases | Technical execution (reliability); responsible operation |
+| 11 | Responsible use | Responsible operation and security |
+| 12 | Reproducibility | Repeatability; documentation |
+| 13 | What changed since BCS | Eligibility disclosure |
 
 ---
 
@@ -17,7 +33,7 @@ When a hiker goes missing, search-and-rescue teams fly drones over the search ar
 with hundreds of photos. A person is about 70 px wide in a 4000×3000 photo; a volunteer reviewing
 them by eye takes about 33 s per photo, so 500 photos is over four hours, and finds about 68 % of the
 people (figures quoted by Pyrrö, Naseri & Jung 2021 under their loose SAR-APD scoring; what that baseline
-did and did not measure is in §7.1). Meanwhile the search manager has to
+did and did not measure is in §3.9). Meanwhile the search manager has to
 decide where to send drones and ground teams next.
 
 Sightline is the brain of that search: **one brain, many eyes, every channel.** Drones and ground
@@ -61,38 +77,24 @@ sectors show their probability now, with the last-known point, a clue and a team
 (entry, corners, 25 m sweep lines) lands at its coordinates and the sector boundary comes in as a shape
 (`scripts/make_card_fixture.py`, sector B3 at Mount Seymour; CalTopo's import preview).*
 
-## 2. What is new since BCS Hackathon 2026 (disclosure)
+### 1.1 Where Sightline sits
 
-Sightline was first built in 36 hours at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`):
-the tiled detector, the review queue and the Bayesian search map, run as a batch over a demo survey.
-The OpenCV organizers confirmed the existing project is eligible. Built for this competition between Oct 20 and the code freeze on Sat Oct 25, 12:00 PT:
+**Everyone detects; nobody closes the loop.** The tools a search team can buy or download today stop at a
+flagged pixel or a map of assignments; none we found turns photos, negative sweeps and field reports into
+one updated probability map that proposes the next move. Checked on 22 Oct from each product's own page
+unless marked:
 
-- the detector running on **OpenCV 5 `cv2.dnn`**, with a parity table against the Torch path (§4.1);
-- **OpenCV 5 re-look tools** and a Nemotron VL second look on uncertain detections (§4.2, §5);
-- the **agent loop**: verdicts, planner legs, clues and conditions become proposals a person
-  approves, every step traced (§5);
-- the **radio desk**: ground teams talk to Sightline on a secondary channel; questions answered
-  from the mission, clues reported by voice and logged only after a readback (§5.1);
-- live missions: a search created in the browser, photos uploaded as each flight lands and
-  processed as they arrive, with live updates over server-sent events (§3);
-- the AWS deployment (§6);
-- the live map (every photo, review, searched sector and clue updates it) and the information-gain
-  planner that sends drones and teams where they rule out the most probability per minute (§5.2);
-- conditions from live web search (Tavily): forecast, warnings and park alerts, each value kept only
-  with a verbatim quote; they decide whether drones may fly, how much a photo can see, how exposed the
-  person is, and what briefings say (`sightline/geo/conditions.py`);
-- the front door, New search, and the live mission's command view: task board, teams, approval inbox,
-  clue log, live map with the drones, teams and clues, and printable assignment cards with GPX/KML for
-  the teams' handheld GPS (§1);
-- a **simulated drone fleet** that flies approved legs and sends its photos through the same API, the
-  creek scenario end to end (a team's clue re-tasks a drone; its photo shows the person), and the fleet
-  evaluation (§7.4), all labelled simulated;
-- the mission **debrief** from the log, and continuous integration (tests, the smoke test of the whole
-  live loop, and the web build on every change).
+| System | What it does | Probability map | Field teams as sensors | Voice | Approval gate |
+|---|---|---|---|---|---|
+| [DJI FlightHub 2 AI Copilot](https://enterprise-insights.dji.com/blog/dji-flighthub-2-latest-update-ai-copilot-2026) (Apr 2026) | an agent that runs drone missions from text or voice; routes from plain language (Aug 2026) | no | no | yes, to control drones | high-risk actions confirmed by the operator (trade press, not DJI's page) |
+| [Skydio X10](https://www.skydio.com/x10) | autonomous flight, NightSense zero-light navigation, FLIR Boson+ thermal | no | no | no | n/a |
+| [Eagle Eyes Search](https://www.eagleeyessearch.com/) (Squamish, BC) | flags colour and motion anomalies live on the controller; a shared operating picture; syncs with CalTopo; North Shore Rescue is testing it ([DroneXL 2025](https://dronexl.co/2025/04/22/drones-ai-thermal-transform-search-and-rescue)) | no | no | no | no |
+| [Loc8](https://www.casara.ca/news/remotely-piloted-aircraft-systems-loc8-software-highlight) (CASARA) | compares pixel colours with a target palette, offline | no | no | no | no |
+| [SARUAV](https://scienceinpoland.pl/en/node/78720) (Univ. of Wrocław) | automatic detection in UAV photos, plus models that narrow the search area; real finds reported in 2021 and 2024 (not verified) | area models | no | no | no |
+| CalTopo / SARTopo | maps, assignments, clues, resources, ICS forms (from CalTopo's blog; training pages not opened) | no | assignments and clues | no | no |
+| **Sightline** | detector on OpenCV 5, second look, planner, radio desk | Bayesian, updated per photo, sweep and clue | POD-weighted searched sectors and clues | Parakeet, Nemotron, Magpie on the radio | every proposal, logged with who and when |
 
-Diff: `git diff bcs-final-submission..opencv-submit`.
-
-## 3. Architecture
+## 2. Architecture
 
 ![System](../architecture/system.png)
 
@@ -104,19 +106,14 @@ The figure shows the original batch pipeline (BCS). Live missions (contract v1.2
 The `MissionStore` is the only writer of mission files and checks every write against the contract;
 `validate_mission()` checks the invariants (no "clear", POD caps, decisions recorded, radio clues
 confirmed). The search manager approves every move in the command view and sees each change over
-server-sent events. Locally the queue is a thread in the API process; on AWS (§6) it is SQS and a
-separate worker container, with the API keys in Secrets Manager.
+server-sent events. Locally the queue is a thread in the API process; on AWS (§4) it is SQS and a
+separate worker container, with the API keys in Secrets Manager. The agent's own workflow
+(perception → decision → action → human approval → effect) is figure 3, in §5.1. All four figures, with
+notes: `docs/architecture/sightline-architecture.html`.
 
-![Agent workflow](../architecture/agent.png)
+## 3. OpenCV 5 implementation
 
-The agent workflow (figure 3 in `docs/architecture/sightline-architecture.html`): perception
-(detector on `cv2.dnn`) → OpenCV 5 re-look → decision (Nemotron VL verdict; the planner's legs) →
-action (a proposal) → human approval → effect, with every step in the trace and new photos and
-field reports starting the loop again.
-
-## 4. OpenCV 5 implementation
-
-### 4.1 The detector on `cv2.dnn`
+### 3.1 The detector on `cv2.dnn`
 
 The detector is YOLO11s fine-tuned on 1024 px tiles of HERIDAL drone photos (weights-v2; training
 and ablations in `scripts/README.md`). For this competition it runs on **OpenCV 5.0 `cv2.dnn`**
@@ -146,7 +143,7 @@ from its ONNX export, with no PyTorch at run time (`sightline/ml/detect_cv.py`):
 | test (101 photos, 337 people) | Torch | RTX 4080 SUPER | 0.802 / 0.864 / 0.868 | 0.898 / 0.896 | 0.30 |
 | test | **OpenCV 5 cv2.dnn** | Ryzen 9 9950X | **0.802 / 0.864 / 0.868** | **0.898 / 0.896** | — |
 
-The Torch times are from this parity run; the evaluation run on the same GPU (`detector_metrics.json`, §7.1) measured 0.25 s per test photo, which is the GPU time quoted elsewhere. Every score is identical to three decimals. At or above the threshold, 100 % of boxes match
+The Torch times are from this parity run; the evaluation run on the same GPU (`detector_metrics.json`, §3.9) measured 0.25 s per test photo, which is the GPU time quoted elsewhere. Every score is identical to three decimals. At or above the threshold, 100 % of boxes match
 one-to-one between backends at IoU ≥ 0.95 (363/363 on test, 389/389 on val), with a largest
 confidence difference of 0.0015. Among all saved boxes (confidence ≥ 0.05) 99.8 % match; the rest
 are low-confidence boxes that move slightly. **The demo cache re-detected on the cv2 path is
@@ -162,10 +159,12 @@ inside OpenCV 99 ms; batching 4 slices 84 ms (not adopted). One pitfall worth sh
 5× slower in any process that also loads Torch; `CvDetector` now keeps and restores its own
 thread count.
 
-**The OpenCV 5 engine, stated precisely** (checked on 22 Oct against the
+### 3.2 The OpenCV 5 engine, stated precisely
+
+Checked on 22 Oct against the
 [OpenCV 5 wiki](https://github.com/opencv/opencv/wiki/OpenCV-5), the
 [4 → 5 migration guide](https://github.com/opencv/opencv/wiki/OpenCV-4-to-5-migration) and
-[`dnn.hpp` at the 5.0.0 tag](https://github.com/opencv/opencv/blob/5.0.0/modules/dnn/include/opencv2/dnn/dnn.hpp)):
+[`dnn.hpp` at the 5.0.0 tag](https://github.com/opencv/opencv/blob/5.0.0/modules/dnn/include/opencv2/dnn/dnn.hpp):
 
 - OpenCV 5.0 adds a new graph-based DNN engine beside the classic one. `readNet`, `readNetFromONNX` and
   the other loaders take `engine=` with `ENGINE_CLASSIC` (1), `ENGINE_NEW` (2), `ENGINE_AUTO` (3, the
@@ -181,7 +180,7 @@ thread count.
   under 13 % for 4.x. OpenCV's announcement is reported to say "over 80%" (we could not open opencv.org
   to quote it; the engine doc on today's `5.x` branch says about 75–80 % of the operator specification).
 - **QDQ** (quantize/dequantize) graphs: the new engine fuses them (`fuseQDQ` in the `5.x` source), and
-  OpenCV's benchmark has a ResNet50 QDQ row. We have not run a quantized Sightline model.
+  OpenCV's benchmark has a ResNet50 QDQ row. We quantized Sightline's detector and measured it (§3.3).
 - The `5.x` branch has since renamed the engines (`ENGINE_AUTO` 0, `ENGINE_OPENCV` 1, `ENGINE_ORT` 2);
   Sightline pins `opencv-python==5.0.0.93`, where the names above apply.
 
@@ -191,7 +190,29 @@ list YOLOv8 on an Intel i9 at **12.42 ms with the new engine against 12.98 ms wi
 engine against 99 ms with `ENGINE_ORT`** (3 % faster): the same direction and about the same margin, on a
 different model, input size and CPU.
 
-### 4.2 OpenCV 5 re-look tools
+### 3.3 INT8 QDQ: a negative result
+
+Full write-up: [`INT8_ENGINE.md`](INT8_ENGINE.md) (val only; the test split was never read). The detector
+quantized to INT8 QDQ with ONNX Runtime's static quantizer (64 val tiles for calibration, the Detect head
+kept in float) **loads and runs in OpenCV 5's new engine without errors, but is slower and slightly less
+accurate**:
+
+| Val, 95 photos, threshold 0.29 | ms per 1024 px tile | s per photo | VOC P / R / AP50 | Model size |
+|---|---|---|---|---|
+| FP32 (shipped), `ENGINE_NEW` | 92.0 ± 3.0 | 1.99 ± 0.09 | 0.735 / 0.859 / 0.861 | 36.4 MB |
+| INT8 QDQ, head float, `ENGINE_NEW` | 132.4 ± 3.5 | 2.77 ± 0.07 | 0.728 / 0.853 / 0.842 | 12.0 MB |
+
+Two findings worth sharing: quantizing the whole graph finds nobody (ONNX Runtime gives the same all-zero
+scores, so the cause is the quantization of YOLO11's concatenated box-and-score output, not OpenCV), and
+ONNX Runtime runs the same INT8 file 1.5× faster than FP32 while OpenCV 5 runs it 1.44× slower. FP32 on
+`ENGINE_NEW` stays the default. The timings were taken on a busy machine (caveats in the write-up).
+
+### 3.4 `cv2.dnn` on CUDA
+
+Pending: `docs/report/CV2_CUDA.md` has not landed. Today every `cv2.dnn` number in this report is a CPU
+number (§3.2 explains why).
+
+### 3.5 OpenCV 5 re-look tools
 
 When the detector is unsure, OpenCV gives the next model a better look (`sightline/agent/relook.py`).
 One tool per failure mode from our error analysis (`docs/DETECTOR_LIMITS.md`):
@@ -207,7 +228,7 @@ The tool is chosen per detection by labelled heuristics (box size, grey-level sp
 contrast on a low-contrast fixture; the zoom reads the right native pixels for a frame downscaled
 4× (`tests/agent/test_relook.py`).
 
-### 4.3 OpenCV elsewhere
+### 3.6 OpenCV elsewhere
 
 - **Canopy** (`sightline/search/canopy.py`): the local grey-level spread that separates tree cover
   from open ground is two `cv2.blur` box means (of the grey image and of its square) with mirrored
@@ -221,7 +242,7 @@ The live map, sectors and planner added this sprint reuse these (each photo's st
 `pod.frame_step`, with `cv2.fillPoly` and `cv2.blur` per photo); they add no new OpenCV calls.
 Conditions add no OpenCV calls (text and arithmetic).
 
-### 4.4 Where a pin goes
+### 3.7 Where a pin goes
 
 Each photo's position comes from the photo itself: EXIF GPS and the 35 mm focal length, and DJI XMP
 relative altitude and gimbal yaw and pitch (`sightline/geo/pose.py`); oblique photos (pitch far from
@@ -234,7 +255,7 @@ radius rather than claiming centimetres (`docs/LANE_B_GEO.md`). Clues entered by
 position use the team's last report and warn when it is more than 30 minutes old
 (`sightline/geo/clues.py`).
 
-### 4.5 Every OpenCV call Sightline makes
+### 3.8 Every OpenCV call Sightline makes
 
 From `grep -rn "cv2\." sightline/` (all in five files; the scripts add only evaluation and figures):
 
@@ -253,132 +274,7 @@ From `grep -rn "cv2\." sightline/` (all in five files; the scripts add only eval
 | `cv2.blur` (`BORDER_REFLECT`) | `search/canopy.py` | local standard deviation as two box means: tree cover vs open ground |
 | `cv2.fillPoly` (`LINE_8`, sub-pixel `shift`) | `search/pod.py` | rasterise each photo's footprint onto the map to read its canopy and step its POD |
 
-## 5. The agent (Agentic Vision)
-
-Full evidence: `docs/architecture/agent.md`. Summary:
-
-**The loop** (`sightline/agent/loop.py`). Each event produces **proposals a person approves**; the
-agent never acts and never dismisses a detection. The gate is a design choice with outside support: in
-a simulated disaster search with an LLM-driven drone swarm, Ji et al. (arXiv
-[2511.04042](https://arxiv.org/abs/2511.04042), 2025) report that human feedback on the plan raised mission
-success from 62.0 % to 94.0 % (their system re-planned in 97 % of the cases a person flagged). Their humans
-corrected plans rather than approving each action, so this supports keeping a person in the loop, not our
-exact gate.
-
-| Event | Proposal |
-|---|---|
-| A near-miss detection (0.15–0.29) the second look calls a person | `promote_detection`: add it to the review queue |
-| A reviewer confirms a person | `alert` to all teams, and `assign_sector` for the nearest team on standby, with a briefing |
-| A clue from the field, a finished drone leg, visibility dropping | `drone_leg` / `retask_drone` from the planner, with its numbers as the reason |
-| Flying becomes unsafe | `alert`: recall the drones |
-| Periodically | `assign_sector` for teams on standby |
-
-**One real chain where an OpenCV 5 result changes the decision.** A val photo; the detector scored
-a person lying on the ground **0.18**, below the 0.29 threshold, so no reviewer would have seen
-it. The tool heuristic picked `zoom_native` (the box was 21 px in the frame). From the native
-zoom, Nemotron VL answered `yes, lying, white top, dark pants`; the agent proposed
-`promote_detection`; the proposal was approved (scripted for the recording, and labelled so in
-the trace). The review crop is a blur; the OpenCV zoom shows the person:
-
-| Review crop (1000×750 frame) | OpenCV 5 native zoom (4000×3000 original) |
-|---|---|
-| ![crop](../architecture/av-chain/crop.jpg) | ![zoom](../architecture/av-chain/zoom_native.jpg) |
-
-The trace excerpt (`scripts/trace_excerpt.py`) is in `docs/architecture/agent.md`.
-
-### 5.1 Every channel: the radio desk
-
-Ground teams don't watch a screen. The radio desk puts Sightline on a **secondary voice channel
-under the comms operator** (`sightline/radio/`, `web/src/radio/`): a team asks "say again the sector
-boundary" or reports "found a blue backpack by the creek, our position", and Sightline answers by
-voice from the same mission state the command view shows. Three NVIDIA models, one per step:
-Parakeet TDT 0.6B v2 (speech to text, on the GPU desktop), Nemotron 3 Super with tools on Token
-Factory (thinking off), Magpie TTS (text to speech, spoken sentence by sentence).
-
-**Safety lives in code, not in the prompt.** Live runs found the model saying it had logged a clue
-it never drafted, inventing the weather, describing a tool call instead of making it, and speaking
-its own reasoning (`docs/feedback/radio.md`, findings 5–11). Each is now checked in code:
-
-- a clue is **read back, built in code from the draft**, and posted only when the team answers
-  "affirmative" (the turn id is stored as `confirmed_by_turn`); a report that wasn't drafted gets
-  one retry, then "say again your report";
-- conditions must come from `get_conditions` that turn, and "what are the conditions" is answered
-  in sentences built from it;
-- outbound, it **transmits only briefings the search manager approved**, and only when the
-  operator presses Transmit; it never initiates orders;
-- a reply that says "clear" becomes "standby"; one that names a tool or a placeholder is retried
-  and never spoken.
-
-**Measured** (RTX 4080 SUPER for speech, Token Factory for the model; text turns, so speech
-recognition adds 45–153 ms): over 30 live turns, first sound p50 2.0 s and p90 3.0 s with typed team
-lines, and 2.5 s p50 (p90 3.0 s) with real voices over the 18 turns of the demo script (a spoken
-"standby" when the model takes over 3 s), 6 / 6 clue reports drafted, read back and committed, 6 / 6
-conditions answers from the tool (`docs/evidence/radio-latency-20261020.json`). The demo script
-(transmit the assignment, ask for the boundary, report a clue, confirm) ran **5 / 5 times as
-scripted** with real voices (`scripts/radio_rehearse.py`). WER on three human voices: pending
-recordings (#49) (`scripts/radio_wer.py`).
-
-### 5.2 Re-tasking a drone
-
-Recorded on a live mission (`scripts/retask_chain.py`; real server, `cv2.dnn`, live map, planner,
-Nemotron; HERIDAL validation photos). Drone 1 (simulated fleet, labelled) is flying a leg over sector A1. A
-photo comes in; the detector finds a person-sized box at 0.83, 20 px wide in the 1000×750 frame, so the tool
-heuristic picks `zoom_native`; from the native-pixel zoom, Nemotron VL answers *yes, sitting, blue jacket,
-dark head covering*. A reviewer confirms it and the search manager logs the sighting as a clue (both scripted,
-and labelled so in the trace). The clue doubles sector B3's share of the probability (3.2 % → 6.9 %); the
-agent re-plans and the planner proposes **`retask_drone`**: *"Re-task Drone 1 to sector B3: expected to rule out
-3.1 % of the probability in 12 min (0.26 %/min), 1.1× the next best (sector B2). Within battery (95 %)."*
-On approval Drone 1's leg over A1 is cancelled and the new leg approved; `validate_mission` passes.
-
-| Review crop (1000×750 frame) | OpenCV 5 native zoom |
-|---|---|
-| ![crop](../architecture/retask-chain/crop.jpg) | ![zoom](../architecture/retask-chain/zoom_native.jpg) |
-
-The trace excerpt, from detection to the drone's new leg, is in `docs/architecture/agent.md`.
-
-## 6. AWS deployment
-
-The live pipeline runs on AWS (us-west-2), set up and torn down by scripts in `deploy/aws/`:
-
-| Piece | What it does |
-|---|---|
-| **EC2** (c7i.2xlarge, 8 vCPU; Amazon Linux 2023) | one Docker image, three containers: the API, the photo **worker** running OpenCV 5 `cv2.dnn` (no PyTorch in the image), and Caddy for HTTPS |
-| **SQS** (FIFO + dead-letter queue) | photo jobs, one message group per mission so each mission's photos are processed in upload order; a job is deleted only after success and goes to the dead-letter queue after 3 failures; duplicate deliveries are skipped |
-| **S3** | the original photos (`missions/<id>/orig/`), private, deleted after 30 days |
-| **EBS** | the mission files, shared by the API and worker containers; the API's event stream also reads events the worker writes |
-| **CloudWatch** | container logs; metrics `PhotoLatencyMs` (per pipeline step), `DetectionsPerPhoto`, `AgentModelCalls`; a dashboard with the queue depth and dead letters |
-| **Secrets Manager** | the Nebius and Tavily API keys, read at container start; never in the image, the repo or the logs |
-| **IAM** | the instance role can only reach the bucket's `missions/` prefix, the one queue, its log group, the one secret, and `PutMetricData` in the `Sightline` namespace; no SSH port is open (administration through SSM) |
-
-**Measured** (one real HERIDAL validation photo, 4000×3000, uploaded through the API; `scripts/remote_check.py`):
-
-| Instance | vCPU | In the worker | of which `cv2.dnn` | Upload to "processed" |
-|---|---|---|---|---|
-| c7i.xlarge | 4 | 10.0 s | 9.6 s | 11.5 s |
-| **c7i.2xlarge (default since Oct 22)** | 8 | 5.1 s | 4.7 s | **7.1 s** |
-| c7i.4xlarge | 16 | 3.5 s | 3.1 s | 4.9 s |
-
-`cv2.dnn` needs about 30 CPU-seconds per full photo, so time falls roughly with the core count. The
-same checks pass after stopping and starting the instance (same address, missions kept), so the
-instance is stopped between demos. c7i.xlarge missed the plan's 10 s per photo, and batching the slices,
-OpenCV 5's FP16 target and its ORT engine made no difference (all ~0.146 s per slice, identical output), so the
-default became c7i.2xlarge. Cost while running: about $0.36 an hour on c7i.2xlarge (~$0.71 on c7i.4xlarge,
-used only for the demo recording); a $20 monthly budget alarm covers the account.
-`teardown.sh` deletes everything.
-
-**A longer run** (21 Oct, the instance rebuilt from `main`, on c7i.xlarge, the default size then): 20 HERIDAL validation photos uploaded in two
-batches of 10 were all processed in 4 min, 11.9 s each (median; `cv2.dnn` 11.3 s, the slowest 13.1 s); the
-agent's second look ran on all 23 candidates (23 Nemotron calls). From CloudWatch:
-
-![Time per photo on AWS](../architecture/aws/latency.png)
-![Queue and agent on AWS](../architecture/aws/queue-agent.png)
-
-The queue peaked at 15 photos waiting and drained at the worker's pace; the detector is nearly all of
-the time per photo, so a bigger instance or a second worker shortens it directly.
-
-## 7. Evaluation
-
-### 7.1 Detector (HERIDAL test set, 101 photos, 337 people)
+### 3.9 Detector accuracy (HERIDAL test set, 101 photos, 337 people)
 
 | Scoring | Recall | Precision | AP50 | Time per photo |
 |---|---|---|---|---|
@@ -410,10 +306,153 @@ alarm). On the demo survey, all 6 photos with a person are in the first 7 of the
 Ablations (tiling vs shrinking vs native-resolution single pass, whole-photo training, mirror
 TTA): `scripts/README.md`.
 
-### 7.2 Second look (verifier)
+## 4. AWS deployment
 
-`scripts/eval_verifier.py`; Nemotron-3.5-Super-VL on Token Factory, thinking off. Rule chosen on
-val among a fixed set by F2; prompt v2 chosen over v1 on val; **test scored once** with both fixed.
+The live pipeline runs on AWS (us-west-2), set up and torn down by scripts in `deploy/aws/`:
+
+| Piece | What it does |
+|---|---|
+| **EC2** (c7i.2xlarge, 8 vCPU; Amazon Linux 2023) | one Docker image, three containers: the API, the photo **worker** running OpenCV 5 `cv2.dnn` (no PyTorch in the image), and Caddy for HTTPS |
+| **SQS** (FIFO + dead-letter queue) | photo jobs, one message group per mission so each mission's photos are processed in upload order; a job is deleted only after success and goes to the dead-letter queue after 3 failures; duplicate deliveries are skipped |
+| **S3** | the original photos (`missions/<id>/orig/`), private, deleted after 30 days |
+| **EBS** | the mission files, shared by the API and worker containers; the API's event stream also reads events the worker writes |
+| **CloudWatch** | container logs; metrics `PhotoLatencyMs` (per pipeline step), `DetectionsPerPhoto`, `AgentModelCalls`; a dashboard with the queue depth and dead letters |
+| **Secrets Manager** | the Nebius and Tavily API keys, read at container start; never in the image, the repo or the logs |
+| **IAM** | the instance role can only reach the bucket's `missions/` prefix, the one queue, its log group, the one secret, and `PutMetricData` in the `Sightline` namespace; no SSH port is open (administration through SSM) |
+
+**Measured** (one real HERIDAL validation photo, 4000×3000, uploaded through the API; `scripts/remote_check.py`):
+
+| Instance | vCPU | In the worker | of which `cv2.dnn` | Upload to "processed" |
+|---|---|---|---|---|
+| c7i.xlarge | 4 | 10.0 s | 9.6 s | 11.5 s |
+| **c7i.2xlarge (default since Oct 22)** | 8 | 5.1 s | 4.7 s | **7.1 s** |
+| c7i.4xlarge | 16 | 3.5 s | 3.1 s | 4.9 s |
+
+`cv2.dnn` needs about 30 CPU-seconds per full photo, so time falls roughly with the core count. The
+same checks pass after stopping and starting the instance (same address, missions kept), so the
+instance is stopped between demos. c7i.xlarge missed the plan's 10 s per photo, and batching the slices,
+OpenCV 5's FP16 target and its ORT engine made no difference (all ~0.146 s per slice, identical output), so the
+default became c7i.2xlarge. Cost while running: about $0.36 an hour on c7i.2xlarge (~$0.71 on c7i.4xlarge,
+used only for the demo recording); a $20 monthly budget alarm covers the account.
+`teardown.sh` deletes everything.
+
+**End to end**, per photo through the live pipeline (upload → detections on screen): **2.1 s** on the GPU desktop
+(16 cores, `cv2.dnn` 1.8 s), **7.1 s** on AWS c7i.2xlarge (the default; 11.5 s on c7i.xlarge) and **4.9 s** on
+c7i.4xlarge. The map step (the live map's update for the photo, canopy from its own pixels) takes 46 ms of that
+for a full HERIDAL photo covering 142 cells.
+
+**A longer run** (21 Oct, the instance rebuilt from `main`, on c7i.xlarge, the default size then): 20 HERIDAL validation photos uploaded in two
+batches of 10 were all processed in 4 min, 11.9 s each (median; `cv2.dnn` 11.3 s, the slowest 13.1 s); the
+agent's second look ran on all 23 candidates (23 Nemotron calls). From CloudWatch:
+
+![Time per photo on AWS](../architecture/aws/latency.png)
+![Queue and agent on AWS](../architecture/aws/queue-agent.png)
+
+The queue peaked at 15 photos waiting and drained at the worker's pace; the detector is nearly all of
+the time per photo, so a bigger instance or a second worker shortens it directly.
+
+**Limits, token and uptime check** (details: `docs/SECURITY.md`, `deploy/aws/README.md`):
+
+- **Limits on what a client can send** (`sightline/api/limits.py`, tests in `tests/pipeline/test_api_hardening.py`):
+  one photo 28 MB and 100 MP, decoded and re-saved by Pillow before anything reads it; a batch 1–50 files and
+  400 MB; JSON writes 1 MB; file names are labels, never paths; writes per client IP 600 per 60 s by default
+  (`SIGHTLINE_RATE_LIMIT`), answered with 429 and `Retry-After`.
+- **Write token:** with `SIGHTLINE_API_TOKEN` set, every POST, PUT, PATCH and DELETE needs
+  `Authorization: Bearer <token>`; reads, `/health` and the event stream stay open, so the public site can show
+  a mission but not change one (`sightline/api/auth.py`). It is optional, so judges can create a mission
+  without an account; how to turn it on during judging is in `deploy/aws/README.md`.
+- **Uptime check:** `.github/workflows/judging-check.yml` runs `scripts/remote_check.py --read-only` every 6
+  hours (health, CORS, an earlier mission and its event stream, a 404) and opens an issue when a check fails;
+  the full `remote_check.py` (one photo through upload → SQS → worker → `photo.processed`) is run by hand
+  before a demo, and passed all 7 checks before and after a stop/start on 22 Oct.
+
+## 5. Agent (Agentic Vision)
+
+Full evidence: `docs/architecture/agent.md` (workflow and sequence diagrams, the trace tables, the rubric
+line by line). Evaluation: [`AGENT_EVAL.md`](AGENT_EVAL.md).
+
+### 5.1 Perception → decision → action, with a person at the gate
+
+![Agent workflow](../architecture/agent.png)
+
+The agent workflow (figure 3 in `docs/architecture/sightline-architecture.html`; the same as a Mermaid
+flowchart with the approval diamond in `docs/architecture/agent.md`): perception
+(detector on `cv2.dnn`) → OpenCV 5 re-look → decision (Nemotron VL verdict; the planner's legs) →
+action (a proposal) → human approval → effect, with every step in the trace and new photos and
+field reports starting the loop again.
+
+**The loop** (`sightline/agent/loop.py`). Each event produces **proposals a person approves**; the
+agent never acts and never dismisses a detection. The gate is a design choice with outside support: in
+a simulated disaster search with an LLM-driven drone swarm, Ji et al. (arXiv
+[2511.04042](https://arxiv.org/abs/2511.04042), 2025) report that human feedback on the plan raised mission
+success from 62.0 % to 94.0 % (their system re-planned in 97 % of the cases a person flagged). Their humans
+corrected plans rather than approving each action, so this supports keeping a person in the loop, not our
+exact gate.
+
+| Event | Proposal |
+|---|---|
+| A near-miss detection (0.15–0.29) the second look calls a person | `promote_detection`: add it to the review queue |
+| A reviewer confirms a person | `alert` to all teams, and `assign_sector` for the nearest team on standby, with a briefing |
+| A clue from the field, a finished drone leg, visibility dropping, a sector searched at a POD, a team's new position | `drone_leg` / `retask_drone` from the planner, with its numbers as the reason |
+| The fleet joins | an opening `drone_leg` for every idle drone |
+| Flying becomes unsafe | `alert`: recall the drones |
+| Periodically | `assign_sector` for teams on standby |
+
+### 5.2 One real chain where an OpenCV 5 result changes the decision
+
+A val photo; the detector scored
+a person lying on the ground **0.18**, below the 0.29 threshold, so no reviewer would have seen
+it. The tool heuristic picked `zoom_native` (the box was 21 px in the frame). From the native
+zoom, Nemotron VL answered `yes, lying, white top, dark pants`; the agent proposed
+`promote_detection`; the proposal was approved (scripted for the recording, and labelled so in
+the trace). The review crop is a blur; the OpenCV zoom shows the person:
+
+| Review crop (1000×750 frame) | OpenCV 5 native zoom (4000×3000 original) |
+|---|---|
+| ![crop](../architecture/av-chain/crop.jpg) | ![zoom](../architecture/av-chain/zoom_native.jpg) |
+
+The trace, span by span (every value from `docs/architecture/av-chain/trace.jsonl`; the full excerpt,
+printed by `scripts/trace_excerpt.py`, is in `docs/architecture/agent.md`):
+
+| Span | Tool / model | Output | ms | What it changed next |
+|---|---|---|---|---|
+| 1 `pipeline` note | the detector, OpenCV 5 `cv2.dnn` | confidence 0.179, below 0.29: not in the review queue | — | the near-miss triggers the second look |
+| 2 `verifier` tool_call | `zoom_native` (box 21 px, aspect 1.00, grey spread 32.2) | a zoom cut from native pixels | 0 | the zoom is the image the model answers from |
+| 3 `verifier` model_call | `nvidia/Nemotron-3.5-Super-VL`, prompt `verify-v2` | person yes, lying, white top, dark pants (809 tokens in, 61 out) | 1414 | a `yes` on a near-miss is the condition for a promotion |
+| 4 `verifier` verdict | — | `v0001`: person yes, tool `zoom_native` | 1488 | stored on the detection, handed to the loop |
+| 5 `agent` proposal | `loop.py` `_on_detection` | `p001 promote_detection`, with the reason | — | pending in the approval inbox |
+| 6 `human` decision | — | approved (scripted for this run, and the trace says so) | — | the detection joins the review queue |
+
+**The Trace tab.** The same chains are in the product: on any mission page, `#m/<id>/trace`
+(`web/src/command/TraceView.tsx`) polls `GET /missions/{id}/trace` and groups the entries into chains by
+the ids they share (perception → decision → action → approval), one line per step (span type, tool or
+model, input, output, ms), each opening to its full input, output and images, with the proposal each
+chain led to and who decided it, and a strip counting model calls per model. The demo mission
+(`#m/demo/trace`, no server) shows the chain above and a live conditions lookup, labelled Recorded.
+
+### 5.3 Re-tasking a drone
+
+Recorded on a live mission (`scripts/retask_chain.py`; real server, `cv2.dnn`, live map, planner,
+Nemotron; HERIDAL validation photos). Drone 1 (simulated fleet, labelled) is flying a leg over sector A1. A
+photo comes in; the detector finds a person-sized box at 0.83, 20 px wide in the 1000×750 frame, so the tool
+heuristic picks `zoom_native`; from the native-pixel zoom, Nemotron VL answers *yes, sitting, blue jacket,
+dark head covering*. A reviewer confirms it and the search manager logs the sighting as a clue (both scripted,
+and labelled so in the trace). The clue doubles sector B3's share of the probability (3.2 % → 6.9 %); the
+agent re-plans and the planner proposes **`retask_drone`**: *"Re-task Drone 1 to sector B3: expected to rule out
+3.1 % of the probability in 12 min (0.26 %/min), 1.1× the next best (sector B2). Within battery (95 %)."*
+On approval Drone 1's leg over A1 is cancelled and the new leg approved; `validate_mission` passes.
+
+| Review crop (1000×750 frame) | OpenCV 5 native zoom |
+|---|---|
+| ![crop](../architecture/retask-chain/crop.jpg) | ![zoom](../architecture/retask-chain/zoom_native.jpg) |
+
+The trace excerpt, from detection to the drone's new leg, is in `docs/architecture/agent.md`.
+
+### 5.4 Task effectiveness
+
+**The second look on real photos** (`scripts/eval_verifier.py`; Nemotron-3.5-Super-VL on Token Factory,
+thinking off). Rule chosen on val among a fixed set by F2; prompt v2 chosen over v1 on val; **test scored
+once** with both fixed.
 
 | | Precision | Recall | F2 |
 |---|---|---|---|
@@ -429,9 +468,27 @@ near-misses and for 65 % of crops where the person is under 60 px. Test also con
 that are in neither training nor validation (114 of the 337 people, `docs/DETECTOR_LIMITS.md` §5),
 which may explain part of the gap. Cost: about 890 tokens in and 67 out (mean of all 461 calls; the val and test runs alone differ by a few per cent, `docs/LANE_A_ML.md` §6.8), p50 1.35 s and p90
 1.65 s per detection, about 0.00033 per detection at Token Factory's catalog prices (0.30 / 0.90
-per million tokens in / out); 461 of 461 replies were valid JSON.
+per million tokens in / out); 461 of 461 replies were valid JSON. A second verifier, Cosmos Reason on
+NVIDIA's hosted API, has a harness and mocked tests but has not been run (`COSMOS_VERIFIER.md`).
 
-### 7.3 Agent: failure handling, observability, human control
+**The agent's routing on the whole system** (`scripts/agent_eval.py`, [`AGENT_EVAL.md`](AGENT_EVAL.md)): the
+real mission API, worker, live map, planner and agent run under uvicorn and are driven over HTTP through
+the creek scenario and three variants (clue, no clue, clue before the drones fly, near-miss only), 3 runs
+each, with fake models and a scripted detector, so it tests where the agent sends things, not perception.
+Every check with a ground truth passed in every run:
+
+| Check | Correct |
+|---|---|
+| Clue: a drone is over or proposed toward the person's sector | 6/6 |
+| Review: the alert names the person's sector | 9/9 |
+| Review: a standby team is assigned to the person's sector | 9/9 |
+| Near miss: the person's detection is promoted to the review queue | 3/3 |
+
+The agent's own overhead from evidence to proposal (fake models): clue → `drone_leg` p50 135 ms, p90 152 ms;
+review → `alert` p50 33 ms; near-miss detection → `promote_detection`, second look included, p50 23 ms. Live,
+add the model time (the VL verdict above).
+
+### 5.5 Failure handling, observability, human control
 
 - **Failure handling:** invalid JSON → one retry → `unclear` with the reason; timeouts, HTTP errors
   or a missing key → `unclear` naming the error, no proposal; without a model, planner proposals
@@ -439,18 +496,36 @@ per million tokens in / out); 461 of 461 replies were valid JSON.
   number not in their facts are rewritten once, then replaced by a template; a per-mission token
   budget stops model calls with one notice; hooks only enqueue (< 5 ms) and a failing event never
   stops the pipeline.
+- **Failures injected, before and after the fixes** (`AGENT_EVAL.md`, #140 → #142; each fix has a test that
+  failed before it):
+
+  | Case | Before | After |
+  |---|---|---|
+  | Token Factory down (every attempt hangs) | about 4 min per call with the 60 s timeout (a calculation) | 4 attempts in all, then a circuit breaker fails calls fast for 60 s: about 82 s with the agent's 20 s timeout |
+  | A photo with no GPS reaches the worker | the job failed and the next good photo was not processed | recorded as `photo.failed`, and the next photo is processed |
+  | The same near-miss or review delivered twice | 2 verdicts and 2 proposals | 1 of each; the repeat is a trace note |
+  | Retries, Tavily down, a photo refused at upload | not in the trace | each one a trace note |
+
+  Nothing crashed in any run, and the runner traced no failed event.
+- **Approval gate**, computed from the final mission state, passed in 12 of 12 runs: every leg in the fleet
+  comes from an approved proposal; no pending, rejected or superseded leg is in the fleet; every assigned team
+  and sector task has an approved `assign_sector`; every promotion follows an approved `promote_detection`;
+  no approval precedes its proposal in the event log; every decision records who and when and is made by a
+  person; every rejection has a reason; no proposal or verdict says "clear"; `validate_mission` passes.
 - **Observability:** every tool call (image path, time, the heuristics that chose it), model call
-  (model, prompt version, latency, tokens, reply), verdict, proposal and decision is a line in the
-  mission's `trace.jsonl`; images by path, never base64; API keys redacted (tested).
+  (model, prompt version, latency, tokens, reply, retries), verdict, proposal and decision is a line in the
+  mission's `trace.jsonl`, shown in the Trace tab (§5.2); images by path, never base64; API keys redacted (tested).
 - **Human control:** proposals only; no dismissals; the fleet and the radio act only on approved
   proposals; every decision records who and when.
 - **Tests:** `uv run pytest tests/ml tests/agent tests/radio`, no network or keys needed.
 
-### 7.4 Search map and planner
+## 6. Search map and planner
 
 All results in this section are **simulated**.
 
-**The search theory behind the map and the planner.** Sightline uses the standard quantities of search
+### 6.1 The search theory behind the map and the planner
+
+Sightline uses the standard quantities of search
 theory as US and international SAR planning defines them:
 
 - **Probability of success: POS = POC × POD** (the chance the person is in a cell, times the chance the
@@ -474,7 +549,7 @@ theory as US and international SAR planning defines them:
   2012, [PDF](https://www.archive.asrc.net/ASRC-Operations/2012-08-30-Sweep-Width-POD-Effect-Ferguson.pdf)),
   which is one reason a team's reported POD is capped at 0.9 and a sector is never ruled out.
 - **The prior** is Koester's distance-from-IPP rings when the subject category is set, else uniform
-  within the search area (the planner and fleet evaluations below were run with the uniform prior).
+  within the search area (§6.4; the planner v1 and fleet evaluations were run with the uniform prior).
   Koester's rings are the median and quartile distances from the initial planning point for each subject
   category (Koester, *Lost Person Behavior*, dbS Productions, 2008); Sava, Twardy, Koester & Sonwalkar
   ("Evaluating Lost Person Behavior Models", *Transactions in GIS* 20(1), 2016, online 2015) found the
@@ -494,13 +569,17 @@ theory as US and international SAR planning defines them:
   here, and secondary reports credit it with lower flight altitude, camera angle and speed changes, and a
   "bike wheel" search pattern.
 
-**The map** (sprint 1, `sightline/search/sim.py`; 5 m cells, 1,341 trials with the person in a
-photographed cell): a ground team checks a median of 1,213 cells with Sightline's canopy-aware map
+### 6.2 The map
+
+Sprint 1, `sightline/search/sim.py`; 5 m cells, 1,341 trials with the person in a
+photographed cell: a ground team checks a median of 1,213 cells with Sightline's canopy-aware map
 against 1,743 with a naive map that treats every photographed cell as searched for certain. Across 3 seeds × 5 noise levels it was
 better every time: 28–30 % fewer cells at the default noise, 19–23 % with noise matching the canopy
 estimate's measured error (README; `docs/LANE_C_SEARCH.md`).
 
-**The planner** (`scripts/planner_eval.py`, `sightline/search/planner_sim.py`): on the demo mission's
+### 6.3 The planner
+
+`scripts/planner_eval.py`, `sightline/search/planner_sim.py`: on the demo mission's
 map (1 km around the last known position, 5 m cells, the uniform placeholder prior, canopy measured
 by its photos for 10 % of cells, 0.5 assumed elsewhere), one drone from the last known position flies
 lawnmower legs for 2 hours, either in a fixed serpentine sector order or as the planner chooses
@@ -523,54 +602,178 @@ the 16 sectors in that time and each pass finds a person under typical cover onl
 evaluation counted finds on a leg that started before the 2-hour mark but ended after it, which
 flattered the fixed order; it was fixed before these numbers.
 
-**The fleet** (`scripts/fleet_eval.py`, `planner_sim.plan_fleet`; same map, visibility noise 0.15,
-2,000 trials × 3 seeds per row, 2 hours): whichever drone is free first takes its next leg, either
-from one shared expected map (**coordinated**), from its own map unaware of the others (**each
-planning alone**), or from a fixed third of the serpentine order (**split**, as a team would cut the
-area up by hand).
+### 6.4 Planner v2: lost-person prior, ground teams, re-plans
 
-| Scenario | Strategy | Median | P90 | Found within 30 min | Found within 2 h |
+Full write-up: [`PLANNER_V2.md`](PLANNER_V2.md) (`scripts/planner_v2_eval.py`; val canopy only; 5 seeds ×
+2,000 trials per row; seed range in brackets). Three changes, each measured:
+
+- **Koester lost-person prior** (`sightline/search/prior.py`): distance rings from the IPP per subject
+  category, blended 0.8 with uniform (a hand-chosen hedge, not tuned). With 3 drones and the person drawn
+  from the dementia rings, finds within 30 min rise from **22.1 % (uniform) to 52.8 %** (52.0–53.2); with
+  1 drone from 9.9 % to 18.7 %. The hiker rings gain nothing on a 1 km grid (the 25 % ring is 0.7 km), which
+  argues for a larger grid on hiker missions. With the category wrong, finds fall from 21.9 % to 15.7 %.
+- **Ground teams in the planner:** a sector a team holds is worth less to a drone, and assignments weigh the
+  team's walking time (3 km/h and 60 min per sector are assumptions). On the val canopy finds within 30 min
+  rise about 1 point (24.1 % → 25.3 %, seed ranges just separate); on a synthetic canopy there is **no
+  measurable gain**.
+- **Re-plans on team evidence, and opening legs:** a re-plan proposes a leg for every idle drone. Without
+  opening legs this doubles finds within 30 min (**13.5 % → 27.1 %**); once the agent proposes opening legs
+  when the fleet joins, both rules give identical results (27.1 %).
+
+### 6.5 The fleet under realistic conditions
+
+Full write-up: [`FLEET_V2.md`](FLEET_V2.md) (`scripts/fleet_eval.py`; three simulated drones on the demo
+mission's 1 km grid, canopy unknown (0.5) and the uniform prior; 2,000 trials per row and seed, seeds 1–5;
+time to find is when the finding photo reaches the mission). Strategies: **coordinated** (one expected map
+shared by the fleet, Sightline's design), **hand-split** (the serpentine order cut in three), **independent**
+(each drone plans on its own map). Realism presets change how the same plans are flown:
+
+| Preset | Wind | Battery (DJI Mavic 3 Enterprise, 20 % reserve) | GPS σ | Photo upload loss | Link outages |
 |---|---|---|---|---|---|
-| No clue | 1 drone, planner | > 2 h | > 2 h | 6.8 % | 26.7 % |
-| | 3 drones, fixed order split in three | 84 min | > 2 h | 20.0 % | 61.3 % |
-| | 3 drones, each planning alone | > 2 h | > 2 h | 12.1 % | 48.3 % |
-| | 3 drones, coordinated | 82 min | > 2 h | 20.9 % | 62.6 % |
-| A clue at the start, each sector in turn | 1 drone, planner | > 2 h | > 2 h | 10.4 % | 28.2 % |
-| | 3 drones, fixed order split in three | 87 min | > 2 h | 19.8 % | 61.0 % |
-| | 3 drones, each planning alone | > 2 h | > 2 h | 15.9 % | 49.2 % |
-| | **3 drones, coordinated** | **81 min** | > 2 h | **23.0 %** | **62.3 %** |
+| ideal | none | not limited | 0 | 0 | none |
+| realistic | 6 m/s | 36 min, 6 min swap | 2.5 m | 2 % | 1 per hour per drone, 3 min |
+| harsh | 10 m/s | 32 min, 6 min swap | 6 m | 10 % | 2 per hour per drone, 8 min |
 
-Three drones find the person within 30 minutes about **3× as often** as one. Coordination is what makes
-three planners worth flying: planning alone, they all take the same best sector. **Against a sensible
-hand split it is only a small edge** (+3 points within 30 min with a clue, +1 without), because with a
-flat prior a split is already close to the best order. (The single-drone rows differ slightly from the
-table above: a different run, 2,000 rather than 3,200 trials per seed.)
+Endurance and the wind limit are DJI's published numbers; wind, GPS, loss and outage values are assumptions.
 
-### 7.5 End to end
+| Found within 30 min (seed range) | ideal | realistic | harsh |
+|---|---|---|---|
+| A clue at the start, coordinated | **22.7 %** (22.3–23.3) | **15.9 %** (14.2–17.7) | **13.5 %** (12.4–14.5) |
+| A clue at the start, hand-split | 20.0 % (18.8–21.5) | 11.5 % (10.6–12.5) | 10.0 % (8.5–11.5) |
+| A clue at the start, independent | 15.1 % | 11.5 % | 10.7 % |
+| No clue, coordinated | 20.3 % | 14.5 % | 12.2 % |
+| No clue, hand-split | 19.6 % | 14.5 % | 12.5 % |
+| No clue, independent | 12.9 % | 9.1 % | 8.2 % |
 
-Per photo through the live pipeline (upload → detections on screen): **2.1 s** on the GPU desktop
-(16 cores, `cv2.dnn` 1.8 s), **7.1 s** on AWS c7i.2xlarge (the default; 11.5 s on c7i.xlarge) and **4.9 s** on c7i.4xlarge (§6). The map
-step (the live map's update for the photo, canopy from its own pixels) takes 46 ms of that for a full
-HERIDAL photo covering 142 cells.
+**With a clue, coordination keeps its lead as conditions get worse**, and the seed ranges do not overlap in
+the realistic and harsh rows: a shared map sends the next free drone to where the clue put the probability.
+**With no clue, coordinated and hand-split are level** in every preset; we do not claim a gain there.
+Planning without sharing is the worst option every time. Realism costs about a third of the early finds
+(ideal → realistic, no clue: 20 % → 14.5 %). The plans are made for calm air and flown in the preset's
+conditions, so a planner that re-plans around wind and swaps would do better than shown. The v1 fleet
+evaluation (`runs/fleet_eval/`: coordinated 20.9 %, hand-split 20.0 %, independent 12.1 %, one drone 6.8 %
+within 30 min, no clue) used the demo cache's canopy, which comes from HERIDAL test photos; v2 replaces it.
 
-### 7.6 Where Sightline sits
+### 6.6 One brain, many eyes: the simulated fleet
 
-**Everyone detects; nobody closes the loop.** The tools a search team can buy or download today stop at a
-flagged pixel or a map of assignments; none we found turns photos, negative sweeps and field reports into
-one updated probability map that proposes the next move. Checked on 22 Oct from each product's own page
-unless marked:
+The brain stays central: the agent and the planner propose legs, a person approves them, and the
+`MissionStore` is the only place a leg becomes approved. The eyes are distributed
+(`sightline/search/fleet.py`, `python -m sightline.search.fleet run`; all simulated and labelled):
 
-| System | What it does | Probability map | Field teams as sensors | Voice | Approval gate |
-|---|---|---|---|---|---|
-| [DJI FlightHub 2 AI Copilot](https://enterprise-insights.dji.com/blog/dji-flighthub-2-latest-update-ai-copilot-2026) (Apr 2026) | an agent that runs drone missions from text or voice; routes from plain language (Aug 2026) | no | no | yes, to control drones | high-risk actions confirmed by the operator (trade press, not DJI's page) |
-| [Skydio X10](https://www.skydio.com/x10) | autonomous flight, NightSense zero-light navigation, FLIR Boson+ thermal | no | no | no | n/a |
-| [Eagle Eyes Search](https://www.eagleeyessearch.com/) (Squamish, BC) | flags colour and motion anomalies live on the controller; a shared operating picture; syncs with CalTopo; North Shore Rescue is testing it ([DroneXL 2025](https://dronexl.co/2025/04/22/drones-ai-thermal-transform-search-and-rescue)) | no | no | no | no |
-| [Loc8](https://www.casara.ca/news/remotely-piloted-aircraft-systems-loc8-software-highlight) (CASARA) | compares pixel colours with a target palette, offline | no | no | no | no |
-| [SARUAV](https://scienceinpoland.pl/en/node/78720) (Univ. of Wrocław) | automatic detection in UAV photos, plus models that narrow the search area; real finds reported in 2021 and 2024 (not verified) | area models | no | no | no |
-| CalTopo / SARTopo | maps, assignments, clues, resources, ICS forms (from CalTopo's blog; training pages not opened) | no | assignments and clues | no | no |
-| **Sightline** | detector on OpenCV 5, second look, planner, radio desk | Bayesian, updated per photo, sweep and clue | POD-weighted searched sectors and clues | Parakeet, Nemotron, Magpie on the radio | every proposal, logged with who and when |
+- **One OS process per drone**, each with its own state, battery and HTTP client, following the mission's
+  event stream for the legs approved for it and posting its own photos through the real `POST /photos`; a
+  ground station sends the fleet's telemetry in one `PUT /fleet` per tick (`--single` keeps one loop for tests).
+- **A simulated DJI Mavic 3 Enterprise:** 45 min flight at 9 m/s, 38 min hover, 12 m/s wind limit (DJI's spec
+  page); ground speed is airspeed plus or minus the mission's wind, and a drone leaves its leg for home when
+  the battery left would not bring it back with the planner's 20 % reserve.
+- **Degraded links** (a simulated link model, not a radio measurement): a drone's link is connected, degraded
+  or lost. A lost drone flies the leg it has, hears no re-task, keeps its photos on board and syncs them
+  through `POST /photos` when the link is back; `GET /missions/{id}/fleet/links` shows each drone's state and
+  last-heard time (`tests/search/test_fleet_links.py`).
+- **Relay for cut-off teams:** a team marked without signal is heard by a drone within relay range, which
+  passes its position on at once, through a neighbouring drone, or when its own link is back; the map moves
+  the team with the time it was heard and says so ("Team Two heard via D3, 40 s old (simulated relay)";
+  `tests/search/test_fleet_relay.py`).
+- Each photo is a crop of a HERIDAL **validation** photo with EXIF and DJI XMP written for its simulated pose;
+  the hidden person decides only which crop a photo gets. `scripts/creek_run.py` runs the whole story: a
+  team's clue → the agent re-tasks a drone → its photo shows the person → review → alert.
 
-## 8. Limitations and failure cases
+## 7. Conditions (Tavily)
+
+Full write-up, with a live run's trace: [`TAVILY.md`](TAVILY.md). Each mission's conditions come from live web
+search at run time (`sightline/geo/conditions.py`): three Tavily searches (forecast, weather warnings, park
+and trail alerts for the area) and one Tavily extract, checked every 30 minutes for each active mission and
+cached per area and clock hour (at most four Tavily calls per area per hour). Nemotron reads the pages and
+returns each value **with the sentence it came from**; a value is kept only if that quote is found verbatim
+in the page, contains the number and names the field, and is in a sane range. Everything else stays empty
+rather than guessed. Sunset and civil twilight are computed locally.
+
+What it changes, each with its test (`docs/report/TAVILY.md`, "What the conditions change"):
+
+- **Flying:** the planner proposes no drone leg when gusts exceed the drones' limit, rain is 1 mm/h or more,
+  or it is after civil twilight, and the agent proposes recalling drones that are in the air, once
+  (`tests/agent/test_loop.py::test_unflyable_conditions_recall_drones_once`).
+- **What a photo can see:** fog or haze in a warning lowers the visibility factor, so each photo rules out less
+  of the map, and a drop replans the drones.
+- **Where people shelter:** when exposure rises to high or severe, probability shifts toward tree cover (a
+  labelled planning heuristic).
+- **What teams hear:** briefings carry daylight left, wind and gusts, and alerts by name.
+
+**Live, Mount Seymour, 21 Oct 22:31 PDT** (`docs/evidence/conditions-live-20261021/`): wind 20 km/h gusting
+40 (quoted "NW 20", "gusts 40"), no fog or haze in any warning (visibility factor 1.0), not flyable ("after
+civil twilight"), so the planner proposed no legs. An earlier run that evening also found a fog advisory
+(visibility factor 0.6) and gave the same values on two runs (`sightline/geo/README.md`). Neither mission had
+a fleet in the air, so the recall itself is shown by the test above, not by a live run. Every Tavily call and every extracted value with its quote and source URL is in
+the mission trace (`actor="conditions"`) and in the Trace tab. Conditions add no OpenCV calls.
+
+## 8. Radio desk
+
+Ground teams don't watch a screen. The radio desk puts Sightline on a **secondary voice channel
+under the comms operator** (`sightline/radio/`, `web/src/radio/`): a team asks "say again the sector
+boundary" or reports "found a blue backpack by the creek, our position", and Sightline answers by
+voice from the same mission state the command view shows. Three NVIDIA models, one per step:
+Parakeet TDT 0.6B v2 (speech to text, on the GPU desktop), Nemotron 3 Super with tools on Token
+Factory (thinking off), Magpie TTS (text to speech, spoken sentence by sentence).
+
+**Safety lives in code, not in the prompt.** Live runs found the model saying it had logged a clue
+it never drafted, inventing the weather, describing a tool call instead of making it, and speaking
+its own reasoning (`docs/feedback/radio.md`, findings 5–11). Each is now checked in code:
+
+- a clue is **read back, built in code from the draft**, and posted only when the team answers
+  "affirmative" (the turn id is stored as `confirmed_by_turn`); a report that wasn't drafted gets
+  one retry, then "say again your report";
+- conditions must come from `get_conditions` that turn, and "what are the conditions" is answered
+  in sentences built from it;
+- outbound, it **transmits only briefings the search manager approved**, and only when the
+  operator presses Transmit; it never initiates orders;
+- a reply that says "clear" becomes "standby"; one that names a tool or a placeholder is retried
+  and never spoken.
+
+**Measured** (RTX 4080 SUPER for speech, Token Factory for the model; text turns, so speech
+recognition adds 45–153 ms): over 30 live turns, first sound p50 2.0 s and p90 3.0 s with typed team
+lines, and 2.5 s p50 (p90 3.0 s) with real voices over the 18 turns of the demo script (a spoken
+"standby" when the model takes over 3 s), 6 / 6 clue reports drafted, read back and committed, 6 / 6
+conditions answers from the tool (`docs/evidence/radio-latency-20261020.json`). The demo script
+(transmit the assignment, ask for the boundary, report a clue, confirm) ran **5 / 5 times as
+scripted** with real voices (`scripts/radio_rehearse.py`). WER on three human voices: pending
+recordings (#49) (`scripts/radio_wer.py`).
+
+## 9. Evaluation summary
+
+Every headline number in one place, with the file it comes from. Simulated results are marked (sim).
+
+| Claim | Number | Source |
+|---|---|---|
+| Detector, HERIDAL test, VOC P / R / AP50 | 0.802 / 0.864 / 0.868 | `detector_metrics.json` (release `weights-v2`); §3.9; `scripts/reproduce_cv2.py` |
+| Detector, HERIDAL test, SAR-APD P / R | 0.898 / 0.896 (people by eye: 0.59 / 0.68, a reference, not a matched study) | §3.9; Pyrrö, Naseri & Jung 2021 |
+| Best estimate of true test recall; at the four unseen test sites | about 0.86; 0.825 | §3.9; `docs/DETECTOR_LIMITS.md` §5 |
+| OpenCV 5 `cv2.dnn` vs PyTorch | identical to three decimals; 363 / 363 boxes match at IoU ≥ 0.95 | §3.1; `scripts/parity_table.py`; `docs/evidence/raw-parity-20261022.json` |
+| Time per 4000×3000 photo | 0.25 s (GPU, Torch); 1.9 s (CPU, `cv2.dnn`, 16 cores) | `detector_metrics.json`; §3.1 |
+| New engine vs ORT engine inside OpenCV, per 1024 px slice | 96 ms vs 99 ms | §3.1, §3.2 |
+| INT8 QDQ vs FP32 on `ENGINE_NEW` (val) | 132.4 vs 92.0 ms per tile; AP50 0.842 vs 0.861 | `docs/report/INT8_ENGINE.md` |
+| AWS, upload → processed, c7i.2xlarge | 7.1 s (4.9 s on c7i.4xlarge) | §4; `scripts/remote_check.py` |
+| Live pipeline per photo, GPU desktop | 2.1 s | §4 |
+| Pin error from the detector box (28 nadir test photos) | median 0.05 m, P90 0.13 m | §3.7; `docs/LANE_B_GEO.md` |
+| Second look on test (scored once) | recall 0.864 → 0.875 (+4 of 337, 95 % CI [+0.003, +0.023]) for 15 more false alarms | §5.4; `scripts/eval_verifier.py`; `docs/LANE_A_ML.md` §6.8 |
+| VL verdict latency; valid JSON | p50 1.35 s, p90 1.65 s; 461 / 461 | §5.4; `docs/feedback/nebius.md` §2 |
+| Agent routing to the right sector, team, detection | 6/6, 9/9, 9/9, 3/3 runs | `docs/report/AGENT_EVAL.md`; `scripts/agent_eval.py` |
+| Approval gate checks | 12 of 12 runs | `docs/report/AGENT_EVAL.md` |
+| Token Factory fully down, cost to the agent | 4 attempts, about 82 s, then fail fast (was about 4 min per call) | `docs/report/AGENT_EVAL.md` |
+| Map vs naive map (sim) | median 1,213 vs 1,743 cells checked | §6.2; `docs/LANE_C_SEARCH.md` |
+| Planner with a clue, 1 drone (sim) | 10.7 % vs 6.3 % found within 30 min (flat prior: 6.9 % vs 6.8 %) | §6.3; `scripts/planner_eval.py` |
+| Koester prior, dementia, 3 drones (sim) | 52.8 % vs 22.1 % found within 30 min | `docs/report/PLANNER_V2.md`; `scripts/planner_v2_eval.py` |
+| Re-plan for every idle drone, no opening legs (sim) | 27.1 % vs 13.5 % found within 30 min | `docs/report/PLANNER_V2.md` |
+| Fleet, clue at the start, coordinated vs hand-split (sim) | 22.7 % vs 20.0 % (ideal); 15.9 % vs 11.5 % (realistic); 13.5 % vs 10.0 % (harsh) | `docs/report/FLEET_V2.md`; `scripts/fleet_eval.py` |
+| Fleet, no clue (sim) | coordinated and hand-split level in every preset | `docs/report/FLEET_V2.md` |
+| Radio, first sound | p50 2.0 s typed (30 turns); 2.5 s with real voices (18 turns); p90 3.0 s | §8; `docs/evidence/radio-latency-20261020.json` |
+| Radio clue reports read back and confirmed before logging | 6 / 6; demo script 5 / 5 as scripted | §8; `scripts/radio_rehearse.py` |
+| Conditions, Tavily calls | at most 4 per area per hour; the same values on two runs | §7; `docs/report/TAVILY.md` |
+| Nebius Serverless Job, the fleet's photos on `cv2.dnn` | 711 photos in 483 s on 16 vCPUs, about $0.10 | `docs/feedback/nebius.md` §5 |
+| Reproduce the test table, `cv2.dnn` only, CPU | 4 min 58 s (about 5 min 10 s end to end) | §12.1; `scripts/reproduce_cv2.py` |
+| Reproduce with both backends, CPU | 12 min 48 s (about 14 min end to end) | §12.2; `README.md` |
+| Docker dress run from nothing | 805 s (13.4 min); pytest 1108 passed, 4 skipped | §12.3; `deploy/dressrun/README.md` |
+
+## 10. Limitations and failure cases
 
 - **Where the detector misses** (`docs/DETECTOR_LIMITS.md`): groups of people, clothing that
   matches pale or dark rock, people sitting or lying down; two sites (MED, CAB) hold 28 of the 46
@@ -591,30 +794,34 @@ unless marked:
   person, and **all 5 do show people** (bottom row): those crops were mined as hard negatives from
   regions without a label, and HERIDAL's labels miss some people. So the measured false-alarm rate of
   the second look is pessimistic, and the hard-negative set itself contains people (the hard-negative
-  fine-tune was dropped for other reasons, §10).
+  fine-tune was dropped for other reasons, §11.4).
 
   ![Second-look errors](../figures/verifier/errors.png)
 
-- **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.25 s).
+- **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.25 s), and
+  INT8 does not help on this CPU (§3.3).
+- **The agent evaluation uses fake models and a scripted detector:** it tests routing, the gate and
+  failure handling, not perception; `--live` has not been run for it (`AGENT_EVAL.md`).
 - **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
   so long replies are spoken sentence by sentence and the first sound depends on the model's time;
   if the model fails or times out, the team hears "say again" and nothing changes. Its numbers use
-  typed team lines and team lines spoken by Magpie (§5.1); WER on human voices is pending.
-- **Simulated parts:** the demo flight path over Mount Seymour, the search-map evaluation and the
-  fleet are simulated and labelled so on screen; in the live AV chains (§5) the drones are simulated and
+  typed team lines and team lines spoken by Magpie (§8); WER on human voices is pending.
+- **Simulated parts:** the demo flight path over Mount Seymour, the search-map, planner and fleet
+  evaluations and the fleet are simulated and labelled so on screen; in the live AV chains (§5) the drones are simulated and
   the human steps scripted, both labelled in the trace. The search prior is Koester's distance-from-IPP
-  rings when the subject category is set, else uniform within the search area (the evaluations in §7.4
-  used the uniform one); the clue and shelter factors of
+  rings when the subject category is set, else uniform within the search area (the planner v1 and fleet
+  evaluations in §6 used the uniform one); the team pace, team search time and team POD in planner v2 and
+  the wind, GPS, loss and outage values of the fleet presets are assumptions; the clue and shelter factors of
   the live map are heuristics, labelled in `sightline/search/live.py`.
 - **Positions assume flat ground** under each photo; on steep terrain a pin can be further off than
-  its 10 m radius. The measured error covers the detector box only (§4.4).
+  its 10 m radius. The measured error covers the detector box only (§3.7).
 - **Conditions are only as good as what the web says:** a value is used only when the model quotes it
   verbatim from a page and it is in range, so a forecast phrased unusually leaves the field empty rather
   than guessed; offline, the last values are shown as stale with their time, or nothing. The visibility
   factor and the exposure band (and the shelter shift it triggers) are planning heuristics, labelled so
   in the command view.
 
-## 9. Responsible use
+## 11. Responsible use
 
 - **Never "clear":** no text the system writes says an area is clear or cleared; searched sectors
   say how well they were searched ("searched at POD 60 %"). Lane A's tests check every verdict,
@@ -633,13 +840,13 @@ unless marked:
 - **The web app is scanned for the word** too: every visible string in `web/src` that contains
   "clear"/"cleared" must be on a reviewed list of negations (`web/src/noClear.test.ts`).
 - **No secrets in the browser, the repo or the trace**; keys come from environment variables
-  and, on AWS, Secrets Manager (§6).
+  and, on AWS, Secrets Manager (§4).
 - **Honest evaluation:** thresholds and rules are chosen on validation; test is scored once per
-  decision. Choices that saw test results are disclosed (§10).
-- **Imagery:** HERIDAL (Božić-Štulić, Marušić & Gotovac, 2019), from a CC BY 3.0 copy (§9.2); no real
+  decision. Choices that saw test results are disclosed (§11.4).
+- **Imagery:** HERIDAL (Božić-Štulić, Marušić & Gotovac, 2019), from a CC BY 3.0 copy (§11.2); no real
   search data.
 
-### 9.1 Privacy and data handling
+### 11.1 Privacy and data handling
 
 Sightline handles photos of real people in distress, so what happens to them is part of the design:
 
@@ -647,8 +854,8 @@ Sightline handles photos of real people in distress, so what happens to them is 
   the missions, and `GET /missions/{id}/files/...` serves their frames, crops and trace. Locally the API
   listens on `127.0.0.1`. The AWS deployment is a demo for judges, who need to click through without an
   account; it holds only HERIDAL validation photos and synthetic drone photos, and it is stopped between
-  demos. A search team deploying it must put the API on its own network or VPN, or add authentication
-  (not built).
+  demos. The optional write token (§4) stops strangers from changing missions but not from reading them. A
+  search team deploying it must put the API on its own network or VPN, or add authentication (not built).
 - **CORS** allows the deployed website's origin (`SIGHTLINE_CORS_ORIGINS`, the Vercel site on AWS) and
   `localhost`/`127.0.0.1` on any port, for `GET`, `POST`, `PATCH` and `PUT`, with no cookies or credentials
   (`sightline/api/app.py`). CORS only limits which web pages may call the API from a browser; it is not
@@ -669,9 +876,9 @@ Sightline handles photos of real people in distress, so what happens to them is 
   At survey altitude a person is about 70 px across, and the system only asks whether a crop shows a
   person, their posture and clothing colour.
 - **Keys** live in environment variables and AWS Secrets Manager, never in the browser, the repo, the logs
-  or the trace (§6, §7.3).
+  or the trace (§4, §5.5).
 
-### 9.2 Licences
+### 11.2 Licences
 
 - **Code: AGPL-3.0-or-later** (`LICENSE`), because the detector is trained with Ultralytics YOLO, which is
   AGPL-3.0. Ultralytics states that "All Ultralytics YOLO trained models fall under the AGPL-3.0 License by
@@ -696,37 +903,106 @@ Sightline handles photos of real people in distress, so what happens to them is 
   answer on 22 Oct. The public demo shows HERIDAL photos under the Zenodo copy's CC BY 3.0 with attribution
   to both; before any commercial use we would ask the original authors.
 
-## 10. Disclosures
+### 11.3 Security
 
-1. **Existing project:** started at BCS Hackathon 2026 (§2); eligibility confirmed by the organizers.
+`docs/SECURITY.md` covers what the public demo exposes and why, the write token, the limits on what a
+client can send (§4), data retention, and how to report a problem. On 2026-10-22 all of git history (every
+branch) was searched for API keys, tokens, private keys and committed `.env` files; **no secret was found**.
+
+### 11.4 Disclosures
+
+1. **Existing project:** started at BCS Hackathon 2026 (§13); eligibility confirmed by the organizers.
 2. **Test-seen choices (sprint 1):** keeping training run 2 over run 1, and dropping the
    hard-negative fine-tune, were made with test scores in view; the mirror-TTA setting was
    scored on test and not adopted (README). Test numbers are therefore slightly optimistic; the best
-   estimate of true test recall is beside the table in §7.1.
+   estimate of true test recall is beside the table in §3.9.
 3. **Verifier benchmark:** two early 20-crop prompt runs used test photos; they were superseded by
    val runs and played no part in the final choice (`docs/LANE_A_ML.md` §6.7).
 4. **This sprint:** the parity check and the verifier rule each read test once, after every
-   choice was fixed on val.
+   choice was fixed on val. The INT8, Cosmos, planner v2 and fleet v2 experiments used val data or
+   simulation only.
 5. **The human steps in both AV chains are scripted** for the recording (the review, logging the sighting as
    a clue, the approvals), and the trace says so; the fleet in the re-task chain is simulated (lane C's fleet
    simulator, `sightline/search/fleet.py`, came later and was not used for this recording), and labelled.
+   The agent evaluation's search manager and reviewer are scripted too, and each decision says so.
 6. **Radio measurements** use typed team lines (and, for full voice turns, team lines spoken by
    Magpie); they were taken on a fixture mission. The desk now also runs on live missions (the Radio tab).
 7. **AI assistance:** parts of the code and docs were written with an AI coding assistant; the
    agent described in §5 is Sightline's own runtime agent.
 
-## 11. Reproduce
+## 12. Reproducibility
+
+The data and weights are GitHub releases, not repository files. Wall times below were measured on
+2026-10-22 on a Ryzen 9 9950X (16 cores, 32 threads); the commands with their setup are in `README.md`
+("Reproduce the results").
+
+### 12.1 The test table with `cv2.dnn` only, about 5 minutes
 
 ```bash
-uv sync --extra ml                                        # Python, with the Torch path for parity
-gh release download weights-v2   -R Drivera0/sightline -D data/weights/release_v2
-gh release download model-onnx-v2 -R Drivera0/sightline -D data/weights/release_v2
+uv sync                                                                              # no torch
+gh release download data-v1       -R Drivera0/sightline -p heridal_test_split.zip
+gh release download weights-v2    -R Drivera0/sightline -D data/weights/release_v2 -p detector_metrics.json
+gh release download model-onnx-v2 -R Drivera0/sightline -D data/weights/release_v2 -p sightline-detector-v2.onnx
+mkdir -p data/heridal/yolo_full && unzip -q heridal_test_split.zip -d data/heridal/yolo_full
+CUDA_VISIBLE_DEVICES= uv run python scripts/reproduce_cv2.py                         # 4 min 58 s
+```
+
+About 5 minutes 10 seconds end to end, GPU hidden: the 101 test photos through OpenCV 5 `cv2.dnn` only,
+scored with the VOC code of `evaluate_model.py` at the frozen threshold, and compared with
+`detector_metrics.json` (VOC 0.802 / 0.864 / 0.868; the script exits 1 on a mismatch beyond 0.005).
+
+### 12.2 Both backends, about 14 minutes
+
+```bash
+uv sync --extra ml --extra conditions
+# the same three release downloads without -p filters, and the unzip
+CUDA_VISIBLE_DEVICES= uv run --extra ml python scripts/parity_table.py --splits test --device cpu \
+  --pt data/weights/release_v2/yolo11s_tiles_run1_best.pt \
+  --onnx data/weights/release_v2/sightline-detector-v2.onnx                         # 12 min 48 s
+```
+
+Torch on the CPU (5.0 s per photo) and OpenCV 5 `cv2.dnn` (3.0 s per photo in this run), the table in §3.1:
+identical scores, 363 of 363 boxes matching one to one.
+
+### 12.3 The Docker dress run, from nothing
+
+`bash deploy/dressrun/run.sh` (needs Docker and git) builds a clean image from what a fresh clone has, with
+no GPU, keys or HERIDAL download, runs the tests, the smoke test of the live loop, the demo cache's contract
+check, the mission API with the `cv2.dnn` detector and `remote_check.py` against it, and the web build, and
+writes `runs/dressrun/<timestamp>/times.md` (`deploy/dressrun/README.md`). Measured on commit `7571a94`:
+
+| Stage | Seconds |
+|---|---:|
+| install-python-deps (from `uv.lock`) | 259.3 |
+| install-web-deps, fetch-model, fetch-caches, install-project | 20.5 |
+| pytest (1108 passed, 4 skipped) | 158.9 |
+| smoke | 13.1 |
+| validate-demo-cache, demo-cache-metrics | 1.0 |
+| api-remote-check | 2.5 |
+| web-build | 2.9 |
+| **end to end** (build 618.6, run 186.6) | **805.4** (13.4 min) |
+
+### 12.4 The judge's 10-minute path
+
+No Docker, no torch, no training: `uv sync --extra conditions`, `uv run pytest -q`, the published demo cache
+and its contract check, the README's detector numbers from its `metrics.json`, the smoke test, the mission
+API on the ONNX detector with one photo through `remote_check.py`, and the site on the demo survey. About 3
+minutes on the machine above once the packages are downloaded; the commands are in
+`deploy/dressrun/README.md` ("Judge's 10-minute path").
+
+### 12.5 Every other result
+
+```bash
 uv run pytest tests/ml tests/agent tests/radio             # no GPU, network or keys needed
-uv run --extra ml python scripts/parity_table.py           # §4.1 (needs the HERIDAL data, scripts/README.md)
-CUDA_VISIBLE_DEVICES= uv run --extra ml python scripts/parity_table.py --splits test --device cpu   # §7.1 on CPU only: 12 min 48 s on 16 cores (README)
-uv run --extra ml python scripts/eval_verifier.py          # §7.2 (needs NEBIUS_API_KEY)
-uv run --extra ml python scripts/av_chain.py               # §5 chain, then scripts/trace_excerpt.py
-uv run python scripts/radio_rehearse.py --runs 5           # §5.1, against a running radio server
+uv run --extra ml python scripts/parity_table.py           # §3.1 val and test (needs the HERIDAL data, scripts/README.md)
+uv run --extra ml python scripts/eval_verifier.py          # §5.4 (needs NEBIUS_API_KEY)
+uv run --extra ml python scripts/av_chain.py               # §5.2 chain, then scripts/trace_excerpt.py
+uv run python scripts/agent_eval.py                        # §5.4–5.5, fake models, about 20 s
+uv run python scripts/planner_eval.py                      # §6.3
+uv run python scripts/planner_v2_eval.py                   # §6.4, 353 s
+uv run python scripts/fleet_eval.py                        # §6.5, about 2 min
+uv run python scripts/radio_rehearse.py --runs 5           # §8, against a running radio server
+uv sync --extra ml --extra quant && uv run python scripts/quantize_onnx.py quantize --exclude-head   # §3.3, then its bench (INT8_ENGINE.md)
 ```
 
 The radio server needs the NeMo environment for real voices (`sightline/radio/README.md`).
@@ -740,3 +1016,38 @@ bash scripts/smoke.sh                                       # the whole loop in 
 bash deploy/aws/setup.sh                                     # AWS (deploy/aws/README.md); teardown.sh removes it
 uv run python scripts/remote_check.py --api https://<address>   # is the deployment working right now?
 ```
+
+## 13. What changed since BCS
+
+Sightline was first built in 36 hours at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`):
+the tiled detector, the review queue and the Bayesian search map, run as a batch over a demo survey.
+The OpenCV organizers confirmed the existing project is eligible. Built for this competition between Oct 20 and the code freeze on Sat Oct 25, 12:00 PT:
+
+- the detector running on **OpenCV 5 `cv2.dnn`**, with a parity table against the Torch path (§3.1), and
+  the INT8 QDQ experiment (§3.3);
+- **OpenCV 5 re-look tools** and a Nemotron VL second look on uncertain detections (§3.5, §5);
+- the **agent loop**: verdicts, planner legs, clues and conditions become proposals a person
+  approves, every step traced and shown in the Trace tab (§5); its evaluation, and the reliability fixes it
+  led to (§5.4, §5.5);
+- the **radio desk**: ground teams talk to Sightline on a secondary channel; questions answered
+  from the mission, clues reported by voice and logged only after a readback (§8);
+- live missions: a search created in the browser, photos uploaded as each flight lands and
+  processed as they arrive, with live updates over server-sent events (§2);
+- the AWS deployment, with upload limits, an optional write token and a judging uptime check (§4);
+- the live map (every photo, review, searched sector and clue updates it) and the information-gain
+  planner that sends drones and teams where they rule out the most probability per minute, with the Koester
+  prior, ground teams and re-plans of planner v2 (§6);
+- conditions from live web search (Tavily): forecast, warnings and park alerts, each value kept only
+  with a verbatim quote; they decide whether drones may fly, how much a photo can see, how exposed the
+  person is, and what briefings say (§7);
+- the front door, New search, and the live mission's command view: task board, teams, approval inbox,
+  clue log, live map with the drones, teams and clues, and printable assignment cards with GPX/KML for
+  the teams' handheld GPS (§1);
+- a **simulated drone fleet**, one process per drone, that flies approved legs and sends its photos through
+  the same API, with DJI Mavic 3 Enterprise endurance, degraded links and relay for cut-off teams; the creek
+  scenario end to end (a team's clue re-tasks a drone; its photo shows the person), and the fleet
+  evaluation (§6.5, §6.6), all labelled simulated;
+- the mission **debrief** from the log, continuous integration (tests, the smoke test of the whole
+  live loop, and the web build on every change), and the Docker dress run (§12.3).
+
+Diff: `git diff bcs-final-submission..opencv-submit`.

@@ -122,5 +122,5 @@ check passes.
 - [x] first `docker build` + `container_check.py` (locally, lane A; numbers above)
 - [x] `setup.sh` run on the team account (lane A); per-photo latency above
 - [x] Instance size: **c7i.2xlarge** normally (since 2026-10-22: remote check 7.1 s upload → processed, cv2.dnn 4.7 s; c7i.xlarge took 11.5 s, over the 10 s target, and batching slices, the FP16 target and OpenCV's ORT engine gave no speed-up), stopped between demos; c7i.4xlarge while recording (`resize.sh`)
-- [x] CloudWatch graphs for the OpenCV report §6, from a 20-photo run on c7i.xlarge (`docs/architecture/aws/latency.png`, `queue-agent.png`)
+- [x] CloudWatch graphs for the OpenCV report §4, from a 20-photo run on c7i.xlarge (`docs/architecture/aws/latency.png`, `queue-agent.png`)
 - [x] `update.sh` (deploy the latest `main` over SSM: start, fetch, rebuild, recreate, wait for `/health`). Run 2026-10-22 to `3806c20` (#86); `remote_check.py` all 7 passed (val photo 13.5 s upload → processed); debrief and sector outlines answer on AWS; instance stopped after

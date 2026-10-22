@@ -1,7 +1,7 @@
 # Agent evaluation
 
 How well the agent turns evidence into proposals, whether anything takes effect without a person's
-decision, and what it does when its dependencies fail. It backs `OPENCV_REPORT.md` §5 and §7.3.
+decision, and what it does when its dependencies fail. It backs `OPENCV_REPORT.md` §5.4 and §5.5.
 
 ```
 uv run python scripts/agent_eval.py            # fake models, 3 runs per scenario, about 20 s
@@ -34,7 +34,7 @@ decision is a `human` trace entry that says it was scripted.
 - **Fakes, by default.**
   - Detector: scripted from the scenario's truth. A photo that covers the person gets one box
     (0.80, or 0.20 in `near_miss_only`); other photos get none. This eval measures the agent. The
-    detector is measured in §7.1.
+    detector is measured in report §3.9.
   - VL model: answers "yes, a person".
   - Briefings: the facts, one sentence each.
   - Photos: synthetic images carrying the fleet sim's EXIF/XMP pose, or HERIDAL validation crops
@@ -42,7 +42,7 @@ decision is a `human` trace entry that says it was scripted.
 
   `--live` swaps in Nemotron for the VL model and the briefings. The detector stays scripted.
 - **Latency** with fake models is the agent's own overhead: queueing, the store, the planner, and
-  writing the trace. Live, add the model time. §7.2 measured the VL verdict at p50 1.35 s and p90
+  writing the trace. Live, add the model time. Report §5.4 measured the VL verdict at p50 1.35 s and p90
   1.65 s.
 
 ## Results (fake models, 3 runs per scenario, 2026-10-22)

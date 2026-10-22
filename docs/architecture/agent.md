@@ -245,7 +245,7 @@ secrets in the trace (test 7).
 - **Substantive OpenCV 5 and agent integration (30 %).** The detector the agent reacts to is OpenCV 5
   `cv2.dnn`, with identical scores to PyTorch on test and 363 of 363 boxes matched
   (`docs/report/OPENCV_REPORT.md:146-151`). The re-look tools are OpenCV 5 (`sightline/agent/relook.py`,
-  report §4.2), and the model answers from OpenCV's images, so the visual evidence changes what the
+  report §3.5), and the model answers from OpenCV's images, so the visual evidence changes what the
   system does next: a 0.18 near-miss becomes a review-queue proposal (span 1 → span 5 above).
 - **Orchestration and appropriate autonomy (25 %).** Events go through hooks that only enqueue
   (`sightline/agent/hooks.py:36-56`) to one loop (`sightline/agent/loop.py:473`, `handle`) that turns
