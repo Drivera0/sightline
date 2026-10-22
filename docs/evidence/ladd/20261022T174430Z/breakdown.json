@@ -1,0 +1,91 @@
+{
+  "run": "20261022T174430Z",
+  "which": "every photo of the Supervisely copy (datasets ds0; it carries no split)",
+  "threshold": 0.29,
+  "recall_voc_iou_0.5": 0.516,
+  "recall_loose_iou_0.1": 0.609,
+  "precision_loose_iou_0.1": 0.6,
+  "by_person_size_sqrt_area_px": {
+    "0-40": {
+      "people": 333,
+      "recall": 0.532
+    },
+    "40-60": {
+      "people": 1606,
+      "recall": 0.535
+    },
+    "60-90": {
+      "people": 2199,
+      "recall": 0.539
+    },
+    "90+": {
+      "people": 595,
+      "recall": 0.444
+    }
+  },
+  "by_photo_size": {
+    "4000x2250": {
+      "people": 201,
+      "recall": 0.517
+    },
+    "4000x3000": {
+      "people": 2991,
+      "recall": 0.543
+    },
+    "4056x2280": {
+      "people": 19,
+      "recall": 0.474
+    },
+    "4056x3040": {
+      "people": 307,
+      "recall": 0.111
+    },
+    "4864x3648": {
+      "people": 817,
+      "recall": 0.532
+    },
+    "5472x3078": {
+      "people": 371,
+      "recall": 0.612
+    },
+    "5472x3648": {
+      "people": 27,
+      "recall": 0.37
+    }
+  },
+  "by_people_in_photo": {
+    "1-1": {
+      "people": 446,
+      "recall": 0.639
+    },
+    "10+": {
+      "people": 519,
+      "recall": 0.487
+    },
+    "2-3": {
+      "people": 1265,
+      "recall": 0.484
+    },
+    "4-9": {
+      "people": 2503,
+      "recall": 0.517
+    }
+  },
+  "by_snow_cover_proxy": {
+    "no snow": {
+      "people": 3548,
+      "recall": 0.543
+    },
+    "snow": {
+      "people": 1185,
+      "recall": 0.436
+    }
+  },
+  "snow_photos": 308,
+  "heridal_test_recall_by_size": {
+    "0-40": 0.88,
+    "40-60": 0.83,
+    "60-90": 0.92,
+    "90+": 0.7
+  }
+}

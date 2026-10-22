@@ -48,7 +48,8 @@ validation can resolve and the dropped model had the higher test recall (`docs/r
 `README.md:40`). We don't have an untouched number. Two bounds from the repo: validation recall at the same
 threshold is 0.859 (`docs/report/OPENCV_REPORT.md:141-142`), and on the four test sites the model has
 never seen it is 0.825 against 0.883 on trained sites (`docs/DETECTOR_LIMITS.md:117`), so on new terrain
-expect nearer 0.825. Scoring once on a new held-out set (for example SARD) would settle it.
+expect nearer 0.825. Scored once with no tuning on LADD, 1,365 Russian drone photos the model never saw,
+recall is 0.516 (precision 0.509, AP50 0.458), so on very different terrain expect about half (`docs/report/LADD.md`).
 
 ### 5. With a flat prior the planner equals a serpentine. When in a real search is there a clue early enough to matter?
 
