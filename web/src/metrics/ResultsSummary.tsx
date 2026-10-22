@@ -55,24 +55,24 @@ export function ResultsSummary({
   return (
     <section aria-label="Results" className="flex flex-col gap-5">
       <div className="sl-rise flex flex-col gap-2">
-        <Label>Results</Label>
+        <Label>Step 5 of 5 · Results</Label>
         {trivial ? (
           <>
-            <h2 className="max-w-4xl text-headline font-semibold sm:text-display">
+            <h1 className="max-w-4xl text-headline font-medium tracking-[-0.01em]">
               <Sourced source={rankingSource}>Every photo in this survey contains a person.</Sourced>
-            </h2>
-            <p className="max-w-3xl text-title text-text-2">
+            </h1>
+            <p className="max-w-3xl text-body text-text-2">
               There is nothing for Sightline to sort here, so the queue simply opens on the photo it is most
               sure shows a person. The Mount Seymour survey shows what the sorting saves.
             </p>
           </>
         ) : (
           <>
-            <h2 className="max-w-4xl text-headline font-semibold sm:text-display">
+            <h1 className="max-w-4xl text-headline font-medium tracking-[-0.01em]">
               All {ranking.n_positive} {photos} were in the{" "}
               <Sourced source={rankingSource}>first {ranked} photos</Sourced> of the queue.
-            </h2>
-            <p className="max-w-3xl text-title text-text-2">
+            </h1>
+            <p className="max-w-3xl text-body text-text-2">
               That is <span className="font-medium text-text">{share(ranked)}</span> of the {count(ranking.n_frames)} photos
               {random ? (
                 <>
@@ -155,7 +155,7 @@ export function ResultsSummary({
               delay={180}
             />
           ) : (
-            <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-5">
+            <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-solid p-5">
               <Label>Ground to search</Label>
               <span className="text-display leading-none text-text-3">—</span>
               <span className="text-small text-text-3">Not measured for this survey yet</span>
@@ -222,7 +222,7 @@ export function ResultsSummary({
         <Label>For judges: how we measured it</Label>
         <span className="h-px flex-1 bg-border" aria-hidden="true" />
       </div>
-      <details className="group rounded-lg border border-border bg-surface">
+      <details className="group rounded-lg border border-line bg-surface-solid">
         <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-lg p-4 hover:bg-surface-strong lg:px-6 [&::-webkit-details-marker]:hidden">
           <span aria-hidden="true" className="font-mono text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none">
             ›
@@ -324,7 +324,7 @@ function YourReview({ candidateIds }: { candidateIds: readonly string[] }) {
 
   return (
     <div
-      className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5"
+      className="sl-rise flex flex-col gap-4 rounded-lg border border-line bg-surface-solid p-5"
       style={{ animationDelay: "240ms" }}
     >
       <div className="flex justify-end">
@@ -402,7 +402,7 @@ function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"];
   const singlePass = measured.has("Fine-tuned on tiles, full-resolution photo");
   return (
     <div
-      className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5"
+      className="sl-rise flex flex-col gap-4 rounded-lg border border-line bg-surface-solid p-5"
       style={{ animationDelay: "300ms" }}
     >
       <div className="flex items-baseline justify-between gap-3">
@@ -483,7 +483,7 @@ function Limits() {
   ];
   return (
     <div
-      className="sl-rise flex flex-col gap-3 rounded-lg border border-border bg-surface/60 p-5"
+      className="sl-rise flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-5"
       style={{ animationDelay: "360ms" }}
     >
       <div className="flex flex-wrap items-baseline justify-end gap-3">
@@ -548,7 +548,7 @@ function Race({ n, rows, source }: { n: number; rows: RaceRowData[]; source: str
   const hasBand = rows.some((r) => r.band);
   const ticks = axisTicks(n);
   return (
-    <div className="sl-rise flex flex-col gap-4 rounded-lg border border-border bg-surface p-5" style={{ animationDelay: "60ms" }}>
+    <div className="sl-rise flex flex-col gap-4 rounded-lg border border-line bg-surface-solid p-5" style={{ animationDelay: "60ms" }}>
       <div className="flex flex-wrap items-baseline justify-end gap-x-6 gap-y-2">
         {/* A legend for the two marks that aren't bars, in place of a paragraph explaining them. */}
         <ul aria-label="Chart legend" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-text-3">
@@ -725,7 +725,7 @@ function Card({
     <div
       role="group"
       aria-labelledby={labelId}
-      className="sl-rise flex flex-col gap-3 rounded-lg border border-border bg-surface p-5 [box-shadow:inset_0_1px_0_0_var(--surface-strong)]"
+      className="sl-rise flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-5 [box-shadow:inset_0_1px_0_0_var(--surface-strong)]"
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="flex items-center justify-between gap-2">

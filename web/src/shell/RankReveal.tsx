@@ -4,7 +4,7 @@ import type { CacheBundle, Detection, Frame } from "../contract";
 import { cacheUrl } from "../lib/cache";
 import { prefersReducedMotion } from "../metrics/motion";
 import { queueCounts, reviewItems, type ReviewItem } from "../review/items";
-import { Badge, KeyHint, Label } from "./components";
+import { Badge, Button, KeyHint, Label, PageHeader, Panel } from "./components";
 import { ModelPanel, ScoreStrip } from "./ModelPanel";
 import { framesInFlightOrder, scanStops, stopMs } from "./scan";
 
@@ -243,7 +243,7 @@ export function RankReveal({
   return (
     <div className="grid h-full min-h-0 grid-cols-1 gap-4 overflow-y-auto lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible">
       {/* The scanner. */}
-      <div className="flex min-h-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+      <Panel className="flex min-h-0 flex-col gap-3 p-4">
         <div className="flex items-center justify-between gap-3">
           <span className="flex items-center gap-2">
             <span aria-hidden="true" className={"size-2 rounded-full " + (done ? "bg-ok" : "sl-blink bg-accent")} />
@@ -323,34 +323,35 @@ export function RankReveal({
             );
           })}
         </div>
-      </div>
+      </Panel>
 
       {/* The queue, building as the detector finds candidates, then the answer; the detector's
           architecture waits behind a disclosure below it. */}
       <div ref={queueColumn} className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto">
         <div className="flex flex-col gap-4">
           {done ? (
-            <div className="sl-rise flex flex-col gap-2">
-              <Label>Ranked review queue</Label>
-              <h2 className="text-headline font-semibold" title={source}>
-                {firstHit === 1 ? "Person in the first photo you see" : `First person at photo ${ordinal(firstHit)}`}
-              </h2>
-              <p className="text-body text-text-2" title={source}>
-                <span data-testid="rank-counts">
-                  {counts.photos} of {nFrames} photos flagged for review · {counts.boxes} {counts.boxes === 1 ? "box" : "boxes"}
+            <PageHeader
+              className="sl-rise"
+              eyebrow="Step 2 of 5 · Rank · ranked review queue"
+              title={<span title={source}>{firstHit === 1 ? "Person in the first photo you see" : `First person at photo ${ordinal(firstHit)}`}</span>}
+              sub={
+                <span title={source}>
+                  <span data-testid="rank-counts">
+                    {counts.photos} of {nFrames} photos flagged for review · {counts.boxes} {counts.boxes === 1 ? "box" : "boxes"}
+                  </span>
+                  . In random order you would expect to
+                  look at about{" "}
+                  <span className="font-mono text-text">{Math.round(ranking.expected_first_hit_random_order)}</span>{" "}
+                  before the first person.
                 </span>
-                . In random order you would expect to
-                look at about{" "}
-                <span className="font-mono text-text">{Math.round(ranking.expected_first_hit_random_order)}</span>{" "}
-                before the first person.
-              </p>
-            </div>
+              }
+            />
           ) : (
-            <div className="flex flex-col gap-2">
-              <Label>Ranked review queue</Label>
-              <h2 className="text-headline font-semibold text-text-2">Most likely people first</h2>
-              <p className="text-body text-text-3">Each candidate is placed by the detector&apos;s confidence.</p>
-            </div>
+            <PageHeader
+              eyebrow="Step 2 of 5 · Rank · ranked review queue"
+              title="Most likely people first"
+              sub="Each candidate is placed by the detector's confidence."
+            />
           )}
 
           <ol className="flex flex-col gap-1.5" aria-label="Ranked candidates">
@@ -400,32 +401,20 @@ export function RankReveal({
           <div className="flex flex-wrap items-center gap-3">
             {done ? (
               <>
-                <button
-                  ref={startButton}
-                  type="button"
-                  onClick={onStart}
-                  className="sl-rise inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 text-body font-medium text-bg transition-[filter] hover:brightness-110"
-                >
+                <Button ref={startButton} variant="primary" size="lg" onClick={onStart} className="sl-rise">
                   Start review <span aria-hidden="true">→</span>
-                </button>
+                </Button>
                 {stops.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setStop(0)}
-                    className="rounded-full px-4 py-3 text-small text-text-2 transition-colors hover:bg-surface-strong hover:text-text"
-                  >
+                  <Button variant="ghost" onClick={() => setStop(0)}>
                     Replay scan
-                  </button>
+                  </Button>
                 )}
+                <Button variant="ghost" href="#try">
+                  Try your own photo
+                </Button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={() => setStop(stops.length)}
-                className="rounded-full border border-border px-4 py-2 text-small text-text-2 transition-colors hover:text-text"
-              >
-                Skip animation
-              </button>
+              <Button onClick={() => setStop(stops.length)}>Skip animation</Button>
             )}
             {cache.detections.model === "SAMPLE" && <Badge kind="placeholder">Sample data</Badge>}
           </div>

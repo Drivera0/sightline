@@ -5,7 +5,8 @@
 import { lazy, Suspense, useCallback, useState, type FormEvent } from "react";
 import * as defaultApi from "../lib/api";
 import type { Api } from "../lib/api";
-import { Label, Panel } from "../shell/components";
+import { AppBar } from "../shell/AppBar";
+import { Button, Page, PageHeader, Panel } from "../shell/components";
 
 export interface NewSearchProps {
   api: Api;
@@ -63,16 +64,18 @@ export function NewSearch({ api, onCreated, createMission = defaultApi.createMis
   };
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-4 p-4 lg:p-8">
-      <header className="flex flex-col gap-1">
-        <Label>New search</Label>
-        <h1 className="text-title text-text">Start a live search</h1>
-        <p className="text-body text-text-2">
-          Photos from the drone go in as they come back; Sightline ranks them, pins candidates on the map and updates where to look
-          next.
-        </p>
-      </header>
-      <Panel>
+    <>
+    <AppBar current="new" base={api.base} />
+    <Page className="gap-6">
+      <a href="#" className="sl-tap inline-flex w-fit items-center gap-1.5 text-small text-text-2 hover:text-text">
+        <span aria-hidden="true">←</span> Back to the overview
+      </a>
+      <PageHeader
+        eyebrow="New search"
+        title="Start a live search"
+        sub="Photos from the drone go in as they come back; Sightline ranks them, pins candidates on the map and updates where to look next."
+      />
+      <Panel className="max-w-3xl">
         <form onSubmit={submit} className="flex flex-col gap-3" aria-label="Mission details">
           <label className="flex flex-col gap-1 text-small text-text-2">
             Search name
@@ -92,9 +95,9 @@ export function NewSearch({ api, onCreated, createMission = defaultApi.createMis
               <input aria-label="Latitude" className={`${field} w-40`} inputMode="decimal" value={lat} onChange={(e) => setLat(e.target.value)} placeholder="49.3745" />
               <input aria-label="Longitude" className={`${field} w-40`} inputMode="decimal" value={lon} onChange={(e) => setLon(e.target.value)} placeholder="-122.9358" />
               <input aria-label="Area name" className={`${field} min-w-0 flex-1`} value={area} onChange={(e) => setArea(e.target.value)} placeholder="Mount Seymour" />
-              <button type="button" className="rounded-full border border-border px-3 py-1 text-small text-text-2" onClick={() => setShowMap(!showMap)} aria-expanded={showMap}>
+              <Button onClick={() => setShowMap(!showMap)} aria-expanded={showMap}>
                 {showMap ? "Hide the map" : "Pick on the map"}
-              </button>
+              </Button>
             </div>
             {showMap && (
               <Suspense fallback={<p className="text-small text-text-3">Loading the map…</p>}>
@@ -108,11 +111,12 @@ export function NewSearch({ api, onCreated, createMission = defaultApi.createMis
               {error}
             </p>
           )}
-          <button type="submit" disabled={busy} className="self-start rounded-full border border-accent bg-accent/15 px-5 py-2 text-body text-text disabled:opacity-50">
+          <Button type="submit" variant="primary" size="lg" disabled={busy} className="self-start">
             {busy ? "Creating…" : "Start the search"}
-          </button>
+          </Button>
         </form>
       </Panel>
-    </main>
+    </Page>
+    </>
   );
 }

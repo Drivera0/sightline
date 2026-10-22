@@ -8,7 +8,7 @@ export const JUDGES = {
   logline:
     "For search managers, Sightline turns drone photos and radio reports into one map that says where to look next, so teams are tasked in minutes.",
   whatToLook: [
-    "Start with the demo console: it is the screen a search manager runs, with the map in the middle, the agent's proposals on the right waiting for a person, and teams and clues around it.",
+    "Start with the console: it is the screen a search manager runs, with the map in the middle, the agent's proposals on the right waiting for a person, and teams and clues around it.",
     "Then open the Trace: a 0.18 detection the review queue would have dropped gets a second look with OpenCV 5's native-resolution zoom, Nemotron VL says it is a person lying down, the agent proposes it for review, and a person approves.",
     "Everything simulated says so on screen, and every number comes with its caveat in the report.",
   ],
@@ -25,11 +25,12 @@ export interface JudgeLink {
 }
 
 export const JUDGE_LINKS: readonly JudgeLink[] = [
-  { label: "Demo console", time: "1 min", proves: "the map directs drones and teams; approve or reject the agent's proposals", href: "#m/demo/command" },
+  { label: "Console", time: "1 min", proves: "the map directs drones and teams; approve or reject the agent's proposals (demo mission)", href: "#m/demo/command" },
   { label: "Trace", time: "1 min", proves: "OpenCV output changing the agent's next action, and which model did what", href: "#m/demo/trace" },
-  { label: "Conditions", time: "30 s", proves: "live Tavily facts with the quote and the page each came from (W on the console)", href: "#m/demo/command/conditions" },
-  { label: "Guided demo", time: "3 min", proves: "500 drone photos to a ranked queue, a review, where to search next, and the results", href: "#survey" },
+  { label: "Conditions", time: "30 s", proves: "live Tavily facts with the quote and the page each came from (W in the console)", href: "#m/demo/command/conditions" },
+  { label: "Guided demo", time: "3 min", proves: "500 drone photos to a ranked queue, a review and where to search next, then the console", href: "#survey" },
   { label: "Results", time: "1 min", proves: "the detector against people reviewing by eye, with sources", href: "#results" },
+  { label: "Try a photo", time: "1 min", proves: "the same detector running in your browser on a photo you choose", href: "#try" },
   { label: "Report", time: null, proves: "method, evaluation, failure cases and limits", href: `${REPO}/blob/main/docs/report/OPENCV_REPORT.md` },
   { label: "Architecture", time: null, proves: "photos → cv2.dnn on AWS → map → agent → human approval", href: `${REPO}/tree/main/docs/architecture` },
   { label: "Repo", time: null, proves: "the code, tests and how to run it", href: REPO },

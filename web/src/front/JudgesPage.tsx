@@ -4,8 +4,9 @@
 // has one. Built by lane A.
 import { useEffect, useState, type ReactNode } from "react";
 import { apiBase, getHealth, type Health } from "../lib/api";
-import { Label, ModeChip, StatusPill } from "../shell/components";
-import { Logo } from "../shell/Logo";
+import { AppBar } from "../shell/AppBar";
+import { Button, Label, ModeChip, Page, PageHeader, Panel, StatusPill } from "../shell/components";
+import { DEMO_CONSOLE_HASH } from "../shell/flow";
 import { WHO_ITS_FOR } from "./copy";
 import { HONESTY, JUDGE_LINKS, JUDGES, VIDEOS } from "./judges";
 import { RadioClip } from "./RadioClip";
@@ -37,7 +38,7 @@ export function LiveStatus({ base = apiBase(), health = getHealth }: { base?: st
   if (base === null) {
     return (
       <span className="text-small text-text-2">
-        The live mission server runs during demos and judging; this site is the demo. <Ext href="#m/demo/command">Open the demo mission</Ext>
+        The live mission server runs during demos and judging; this site is the demo. <Ext href="#m/demo/command">Open the console</Ext>
       </span>
     );
   }
@@ -46,7 +47,7 @@ export function LiveStatus({ base = apiBase(), health = getHealth }: { base?: st
     return (
       <span className="flex flex-wrap items-center gap-2 text-small text-text-2">
         <StatusPill tone="alert">Live server not reachable</StatusPill>
-        It runs during demos and judging. <Ext href="#m/demo/command">Open the demo mission</Ext>
+        It runs during demos and judging. <Ext href="#m/demo/command">Open the console</Ext>
       </span>
     );
   }
@@ -60,27 +61,32 @@ export function LiveStatus({ base = apiBase(), health = getHealth }: { base?: st
   );
 }
 
-export function JudgesPage() {
+export function JudgesPage({ base = apiBase() }: { base?: string | null } = {}) {
   return (
-    <main className="mx-auto flex max-w-4xl flex-col gap-10 px-4 py-8 lg:py-12">
-      <header className="flex flex-col gap-4">
-        <a href="#" className="sl-tap flex items-center gap-2 text-body font-medium text-text" title="Back to the start">
-          <Logo />
-          Sightline
-        </a>
-        <Label>For judges</Label>
-        <h1 className="text-title text-text lg:text-headline">{JUDGES.logline}</h1>
-        <ol className="flex flex-col gap-2 text-body text-text-2">
+    <>
+      <AppBar current="judges" base={base} />
+      <Page>
+      <PageHeader eyebrow="For judges" title={JUDGES.logline}>
+        <ol className="flex max-w-[72ch] flex-col gap-2 text-body text-text-2">
           {JUDGES.whatToLook.map((s) => (
             <li key={s.slice(0, 24)}>{s}</li>
           ))}
         </ol>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <Button href={DEMO_CONSOLE_HASH} variant="primary" size="lg">
+            Open the console
+          </Button>
+          <Button href="#survey" size="lg">
+            Guided demo
+          </Button>
+        </div>
         <RadioClip className="pt-1" />
-      </header>
+      </PageHeader>
 
       <section aria-label="Where to look" className="flex flex-col gap-3">
         <Label>Where to look, in order</Label>
-        <ol className="flex flex-col divide-y divide-line rounded-lg border border-line bg-surface-solid">
+        <Panel className="p-0">
+        <ol className="flex flex-col divide-y divide-line">
           {JUDGE_LINKS.map((l, i) => (
             <li key={l.label} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-baseline sm:gap-4">
               <span className="flex items-baseline gap-3 sm:w-56 sm:shrink-0">
@@ -97,7 +103,7 @@ export function JudgesPage() {
               <span className="text-body font-medium text-text">Live API status</span>
             </span>
             <span className="pl-8 sm:pl-0">
-              <LiveStatus />
+              <LiveStatus base={base} />
             </span>
           </li>
           <li className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-baseline sm:gap-4">
@@ -112,16 +118,17 @@ export function JudgesPage() {
             </span>
           </li>
         </ol>
+        </Panel>
       </section>
 
       <section aria-label="Who it's for" className="flex flex-col gap-3">
         <Label>Who it’s for</Label>
         <div className="grid gap-3 md:grid-cols-3">
           {WHO_ITS_FOR.map((c) => (
-            <div key={c.title} className="flex flex-col gap-1 rounded-lg border border-line bg-surface-solid p-4">
+            <Panel key={c.title} className="flex flex-col gap-1 p-4">
               <h2 className="text-body font-medium text-text">{c.title}</h2>
               <p className="text-small text-text-2">{c.body}</p>
-            </div>
+            </Panel>
           ))}
         </div>
       </section>
@@ -129,22 +136,22 @@ export function JudgesPage() {
       <section aria-label="What is simulated and what is real" className="flex flex-col gap-3">
         <Label>What is simulated, what is real</Label>
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-solid p-4">
+          <Panel className="flex flex-col gap-2 p-4">
             <StatusPill tone="caution" className="self-start">Simulated</StatusPill>
             <ul className="flex list-disc flex-col gap-1 pl-5 text-small text-text-2">
               {HONESTY.simulated.map((s) => (
                 <li key={s}>{s}</li>
               ))}
             </ul>
-          </div>
-          <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-solid p-4">
+          </Panel>
+          <Panel className="flex flex-col gap-2 p-4">
             <StatusPill tone="ok" className="self-start">Real</StatusPill>
             <ul className="flex list-disc flex-col gap-1 pl-5 text-small text-text-2">
               {HONESTY.real.map((s) => (
                 <li key={s}>{s}</li>
               ))}
             </ul>
-          </div>
+          </Panel>
         </div>
         <p className="text-small text-text-2">
           <span className="font-medium text-text">{HONESTY.principle}</span> {HONESTY.principleMore}
@@ -154,6 +161,7 @@ export function JudgesPage() {
       <footer className="border-t border-line pt-4 text-small text-text-3">
         {JUDGES.built}; <Ext href={JUDGES.changedUrl}>see what changed</Ext>.
       </footer>
-    </main>
+      </Page>
+    </>
   );
 }

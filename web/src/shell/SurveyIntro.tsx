@@ -3,7 +3,7 @@ import { prefersReducedMotion } from "../metrics/motion";
 import { ModelGraph } from "./ModelGraph";
 import type { CacheBundle, Detection, Frame } from "../contract";
 import { cacheUrl } from "../lib/cache";
-import { Label } from "./components";
+import { Button, Label } from "./components";
 import { Sourced } from "./Popover";
 import { SpeckReveal } from "./SpeckReveal";
 
@@ -235,11 +235,11 @@ export function SurveyIntro({
       <div className="absolute inset-0 bg-bg/75 sm:hidden" aria-hidden="true" />
 
       <div className="relative flex max-h-full w-full max-w-[46rem] flex-col gap-6 overflow-y-auto p-6 sm:p-10 xl:p-14">
-        <Label className="sl-rise">Search and rescue · drone survey</Label>
-        <h2 className="sl-rise text-headline font-semibold tracking-[-0.02em] sm:text-display" style={{ animationDelay: "80ms" }}>
+        <Label className="sl-rise">Step 1 of 5 · Survey · drone search and rescue</Label>
+        <h1 className="sl-rise text-headline font-medium tracking-[-0.01em]" style={{ animationDelay: "80ms" }}>
           {copy.headline}
-        </h2>
-        <p className="sl-rise max-w-[38rem] text-body text-text-2 sm:text-lead" style={{ animationDelay: "160ms" }}>
+        </h1>
+        <p className="sl-rise max-w-[38rem] text-body text-text-2" style={{ animationDelay: "160ms" }}>
           {copy.body} <span className="text-text-3">{copy.provenance}</span>
         </p>
 
@@ -260,30 +260,22 @@ export function SurveyIntro({
         </dl>
 
         <div className="sl-rise flex flex-wrap items-center gap-3" style={{ animationDelay: "300ms" }}>
-          <button
-            type="button"
-            onClick={copy.nothingToRank && onReview ? onReview : onRank}
-            autoFocus
-            className="group inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 text-body font-medium text-bg shadow-[0_0_32px_-8px_var(--accent)] transition-[filter] hover:brightness-110"
-          >
+          <Button variant="primary" size="lg" onClick={copy.nothingToRank && onReview ? onReview : onRank} autoFocus className="group">
             {copy.nothingToRank && onReview ? copy.action : `Start: rank ${manifest.n_frames} photos`}
             <svg viewBox="0 0 16 16" className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true">
               <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </button>
+          </Button>
           {onTour && (
-            <button
-              type="button"
-              onClick={onTour}
-              className="group inline-flex h-12 items-center gap-2.5 rounded-full border border-border bg-surface px-5 text-body text-text backdrop-blur transition-colors hover:border-text-2 hover:bg-surface-strong"
-            >
+            // opaque, like every surface: it sits over the moving photo wall
+            <Button size="lg" onClick={onTour} className="bg-bg">
               <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent/20 text-accent-soft" aria-hidden="true">
                 <svg viewBox="0 0 16 16" className="size-2.5">
                   <path d="M5 3.5v9l7-4.5z" fill="currentColor" />
                 </svg>
               </span>
               Watch 60-second tour
-            </button>
+            </Button>
           )}
         </div>
       </div>

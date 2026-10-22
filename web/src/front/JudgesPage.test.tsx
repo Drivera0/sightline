@@ -1,5 +1,5 @@
 // #judges: renders offline, and every link inside the app goes to a screen that exists.
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { tabFromHash } from "../ingest/LiveMission";
 import { routeFromHash, stepFromHash } from "../shell/flow";
@@ -9,7 +9,7 @@ import { JudgesPage, LiveStatus } from "./JudgesPage";
 /** An in-app link resolves when it lands on a real route, step or mission tab (not a fallback). */
 function resolves(href: string): boolean {
   const r = routeFromHash(href);
-  if (r.kind === "front" || r.kind === "judges" || r.kind === "new") return true;
+  if (r.kind === "front" || r.kind === "judges" || r.kind === "new" || r.kind === "try") return true;
   if (r.kind === "mission") return r.id === "demo" && tabFromHash(href) === href.split("/")[2];
   return stepFromHash(href) === href.slice(1);
 }
@@ -21,10 +21,12 @@ describe("JudgesPage", () => {
 
   it("renders the logline, the links in order with what each proves, the users and the honesty block, offline", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    render(<JudgesPage />);
+    render(<JudgesPage base={null} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(JUDGES.logline);
     const where = screen.getByRole("region", { name: "Where to look" });
-    expect(where).toHaveTextContent("Demo console1 minthe map directs drones and teams");
+    expect(where).toHaveTextContent("Console1 minthe map directs drones and teams");
+    expect(within(where).getByRole("link", { name: "Try a photo" })).toHaveAttribute("href", "#try");
+    expect(screen.getByRole("navigation", { name: "Sightline" })).toBeInTheDocument(); // the app bar
     expect(where).toHaveTextContent("Live API status");
     expect(where).toHaveTextContent("The live mission server runs during demos and judging");
     expect(where).toHaveTextContent("link coming");
@@ -35,7 +37,7 @@ describe("JudgesPage", () => {
   });
 
   it("every in-app link resolves to a known route; the others go to the repo", () => {
-    render(<JudgesPage />);
+    render(<JudgesPage base={null} />);
     const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href")!);
     const internal = hrefs.filter((h) => h.startsWith("#"));
     expect(internal.length).toBeGreaterThanOrEqual(5);
@@ -56,6 +58,6 @@ describe("JudgesPage", () => {
   it("says when the live server is down, and offers the demo", async () => {
     render(<LiveStatus base="https://api.example.org" health={vi.fn().mockRejectedValue(new Error("x"))} />);
     await waitFor(() => expect(screen.getByText("Live server not reachable")).toBeInTheDocument());
-    expect(screen.getByRole("link", { name: "Open the demo mission" })).toHaveAttribute("href", "#m/demo/command");
+    expect(screen.getByRole("link", { name: "Open the console" })).toHaveAttribute("href", "#m/demo/command");
   });
 });
