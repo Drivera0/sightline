@@ -54,6 +54,16 @@ describe("ConditionsPanel", () => {
     expect(panel.textContent).not.toMatch(/\bclear(ed)?\b/i);
   });
 
+  it("links the exact page a quote was verified in, when the trace records it", async () => {
+    const d = await loadDemoConditions();
+    const lookup = { ...d.lookup!, fields: { ...d.lookup!.fields, gust_kmh: { value: 40, quote: "gusts 40", url: "https://weather.gc.ca/en/forecast/hourly/index.html?coords=49.314%2C-123.067" } } };
+    render(<ConditionsPanel id="c" data={{ ...d, lookup }} now={new Date(d.conditions.fetched_at)} time={utc} />);
+    const gusts = screen.getByLabelText("Gusts");
+    expect(gusts).toHaveTextContent("from weather.gc.ca");
+    expect(gusts).not.toHaveTextContent("one of the");
+    expect(within(gusts).getByRole("link")).toHaveAttribute("href", "https://weather.gc.ca/en/forecast/hourly/index.html?coords=49.314%2C-123.067");
+  });
+
   it("live: the age turns amber past an hour", () => {
     const conditions = { fetched_at: "2026-10-24T20:00:00Z", stale: false, wind_kmh: null, gust_kmh: null, precip_mm_h: null, precip_prob: null, temp_c: null, visibility_km: null, alerts: [], flyable: null, flyability_reason: "no wind data: flyability unknown", visibility_factor: 1, exposure_band: null, exposure_note: "", civil_twilight_end: null, sunset: null } as unknown as Conditions;
     render(<ConditionsPanel id="c" data={{ conditions, lookup: null, recorded: null, limitKmh: null, drone: null }} now={new Date("2026-10-24T21:05:00Z")} time={utc} />);

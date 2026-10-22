@@ -293,8 +293,9 @@ def extract_fields(
     model: str | None = None,
     now: str | None = None,
     place: str | None = None,
-) -> tuple[dict, dict[str, str], list[dict], Any]:
-    """(values, field → supporting quote, alerts, the model result). A value is kept only when its
+) -> tuple[dict, dict[str, str], list[dict], Any, dict[str, str]]:
+    """(values, field → supporting quote, alerts, the model result, field → URL of the document the
+    quote was verified in). A value is kept only when its
     quote is verbatim in its document, carries the number, and is in range; else null."""
     from sightline.agent.llm import MODEL_FAST
 
@@ -324,6 +325,8 @@ def extract_fields(
         data = {}
     values: dict[str, float | None] = dict.fromkeys(FIELDS)
     quotes: dict[str, str] = {}
+    # the page each kept quote was verified in (shown beside it in the web app)
+    urls: dict[str, str] = {}
     for field in FIELDS:
         item = (data.get("fields") or {}).get(field) or {}
         v, q, k = item.get("value"), item.get("quote"), item.get("doc")
@@ -343,6 +346,7 @@ def extract_fields(
             log.info("conditions: %s=%r dropped (quote not verified)", field, v)
             continue
         values[field], quotes[field] = v, q
+        urls[field] = docs[k].get("url", "")
     alerts = []
     for a in data.get("alerts") or []:
         k, q = a.get("doc"), a.get("quote") or ""
@@ -370,7 +374,7 @@ def extract_fields(
                 "quote": q,
             }
         )
-    return values, quotes, alerts, r
+    return values, quotes, alerts, r, urls
 
 
 # --- fetch ---------------------------------------------------------------------------------------
@@ -557,12 +561,14 @@ def fetch_conditions(
             client = None
     values: dict[str, float | None] = dict.fromkeys(FIELDS)
     quotes: dict[str, str] = {}
+    # the page each kept quote was verified in (shown beside it in the web app)
+    urls: dict[str, str] = {}
     alerts: list[dict] = []
     if client is not None and docs:
         try:
             # with trusted local domains (the demo area), any alert they return is local
             local = bool(queries.alerts_domains)
-            values, quotes, alerts, r = extract_fields(
+            values, quotes, alerts, r, urls = extract_fields(
                 docs, client, now=now, place=None if local else area.name.split(",")[0]
             )
             _trace(
@@ -573,7 +579,7 @@ def fetch_conditions(
                 input={"documents": [d["url"] for d in docs]},
                 output={
                     "fields": {
-                        k: {"value": values[k], "quote": quotes.get(k)}
+                        k: {"value": values[k], "quote": quotes.get(k), "url": urls.get(k)}
                         for k in FIELDS
                         if values[k] is not None
                     },
@@ -637,6 +643,7 @@ def fetch_conditions(
             {
                 "conditions": c.model_dump(mode="json"),
                 "quotes": quotes,
+                "urls": urls,
                 "documents": [
                     {"url": d["url"], "title": d["title"], "search": d["search"]} for d in docs
                 ],
