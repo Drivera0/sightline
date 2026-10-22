@@ -1,8 +1,8 @@
 // C-H1: the live map's features from the mission (the MapLibre drawing itself is checked in a browser).
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Clue, FleetState, MapBase, Team } from "../../contract";
-import { LiveHeatMap, mapTextAlternative, pointFeatures, sectorFeatures } from "./LiveHeatMap";
+import { FloatingLegend, legendOpenAtStart, LiveHeatMap, mapTextAlternative, pointFeatures, sectorFeatures } from "./LiveHeatMap";
 
 const base = { lkp: { lat: 49.37, lon: -122.945 } } as MapBase;
 const ring: [number, number][] = [[0, 1], [1, 1], [1, 0], [0, 0], [0, 1]];
@@ -54,4 +54,33 @@ describe("live map features", () => {
     expect(mapTextAlternative({ sectors: [], teams: [], clues: [] })).toEqual(["No sectors yet.", "No teams.", "No clues yet.", "No drones on the map."]);
   });
 
+  it("says a drone's link in words in the summary, now that the map only shows its short id", () => {
+    const fleet = { simulated: true, drones: [{ id: "D2", name: "Drone 2", status: "flying", battery_pct: 87.5 }] } as FleetState;
+    const links = { D2: { link: "lost" as const, since: "2026-10-24T21:55:00Z", last_heard_at: "2026-10-24T21:55:00Z" } };
+    const lines = mapTextAlternative({ sectors: [], teams: [], clues: [], fleet, links, now: new Date("2026-10-24T22:00:00Z") });
+    expect(lines[3]).toBe("Drones (simulated): Drone 2 flying, battery 88%, link lost, last heard 5 min ago.");
+  });
+
+  it("starts the floating legend as a pill with the update count; a click or L opens it, remembered", () => {
+    localStorage.removeItem("sightline.mapLegend");
+    const { unmount } = render(<FloatingLegend updates={502} />);
+    const pill = screen.getByRole("button", { name: /Legend/ });
+    expect(pill).toHaveAttribute("aria-expanded", "false"); // closed at any width the first time
+    expect(screen.getByText("502 map updates")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Map legend" })).toBeNull(); // hidden
+    fireEvent.click(pill);
+    expect(pill).toHaveAttribute("aria-expanded", "true");
+    const list = screen.getByRole("list", { name: "Map legend" });
+    expect(list.className).toContain("grid-rows-4"); // two columns, at most four lines
+    expect(list.querySelectorAll("li").length).toBeLessThanOrEqual(8);
+    expect(screen.getByText(/SIM: simulated/)).toBeInTheDocument();
+    expect(localStorage.getItem("sightline.mapLegend")).toBe("open");
+    unmount();
+    expect(legendOpenAtStart()).toBe(true);
+    render(<FloatingLegend updates={502} />);
+    fireEvent.keyDown(window, { key: "l" });
+    expect(screen.getByRole("button", { name: /Legend/ })).toHaveAttribute("aria-expanded", "false");
+    expect(localStorage.getItem("sightline.mapLegend")).toBe("closed");
+    localStorage.removeItem("sightline.mapLegend");
+  });
 });
