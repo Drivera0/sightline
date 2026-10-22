@@ -292,3 +292,20 @@ def test_default_threads_is_every_core(monkeypatch, tmp_path: Path) -> None:
     onnx = tmp_path / "m.onnx"
     onnx.write_bytes(b"")
     assert CvDetector(onnx).threads == (os.cpu_count() or 1)
+
+
+def test_engine_is_passed_only_when_asked(monkeypatch, tmp_path: Path) -> None:
+    """The default path calls readNetFromONNX exactly as before; ``engine`` is for experiments."""
+    calls: list[tuple] = []
+
+    def read(*args):
+        calls.append(args)
+        return _FakeNet()
+
+    monkeypatch.setattr(cv2.dnn, "readNetFromONNX", read)
+    monkeypatch.setattr(cv2, "setNumThreads", lambda n: None)
+    onnx = tmp_path / "m.onnx"
+    onnx.write_bytes(b"")
+    CvDetector(onnx)
+    CvDetector(onnx, engine=cv2.dnn.ENGINE_CLASSIC)
+    assert calls == [(str(onnx),), (str(onnx), cv2.dnn.ENGINE_CLASSIC)]

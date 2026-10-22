@@ -201,8 +201,13 @@ class CvDetector:
         input_px: int = INPUT_PX,
         threads: int | None = None,
         rect: bool | None = None,
+        engine: int | None = None,
     ) -> None:
-        """``rect``: pad like ``YOLO.predict`` (to a multiple of 32) instead of to the square.
+        """``engine``: a ``cv2.dnn.ENGINE_*`` value for ``readNetFromONNX``; ``None`` (the default)
+        calls it without one, OpenCV's own default. Only the INT8 experiment sets it
+        (scripts/quantize_onnx.py).
+
+        ``rect``: pad like ``YOLO.predict`` (to a multiple of 32) instead of to the square.
         Needs an ONNX exported with ``dynamic=True`` (``scripts/export_onnx.py``); ``None`` checks
         once whether this one accepts a non-square input. Full 1024 px slices are the same either
         way; smaller or non-square slices (1000×750 demo frames) match Torch only with ``rect``."""
@@ -215,7 +220,11 @@ class CvDetector:
         # before every forward pass.
         self.threads = threads if threads is not None else os.cpu_count() or 1
         cv2.setNumThreads(self.threads)
-        self.net = cv2.dnn.readNetFromONNX(str(self.onnx_path))
+        self.engine = engine
+        if engine is None:
+            self.net = cv2.dnn.readNetFromONNX(str(self.onnx_path))
+        else:
+            self.net = cv2.dnn.readNetFromONNX(str(self.onnx_path), engine)
         self.rect = self._accepts_rect() if rect is None else rect
 
     def _accepts_rect(self) -> bool:
