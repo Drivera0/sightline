@@ -93,6 +93,7 @@ No real search data has been used; all imagery is HERIDAL (CC BY 3.0).
 ## 7. Where to read next
 
 - `docs/report/OPENCV_REPORT.md`: the technical report, with every measured number and its source.
+- `docs/report/EVIDENCE_INDEX.md`: every claim a judge might check, where it is backed, and how to regenerate it.
 - `docs/report/TAVILY.md`: conditions from the web, with a live run's trace.
 - `docs/architecture/agent.md`: the agent, with real traces of one decision.
 - `docs/DETECTOR_LIMITS.md`: where the detector fails, with figures.

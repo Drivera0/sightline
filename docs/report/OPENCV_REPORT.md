@@ -3,7 +3,7 @@
 **OpenCV AI Competition 2026 · technical report · code freeze Sat Oct 25, 12:00 PT**
 
 > Every number comes from a file in the repo or a cited source; anything simulated is labelled
-> simulated, and what we could not verify is marked. Lead: Dan (lane A).
+> simulated, and what we could not verify is marked. Lead: Dan (lane A). Every claim, its file and line, and how to regenerate it: [`EVIDENCE_INDEX.md`](EVIDENCE_INDEX.md).
 
 Repository: https://github.com/Drivera0/sightline (tag `opencv-submit`) · Live demo:
 https://sightline-iota-sandy.vercel.app (demo; `#judges` is a one-screen summary for judges) · Live
