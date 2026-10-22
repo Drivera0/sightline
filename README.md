@@ -199,13 +199,13 @@ uv run python scripts/evaluate_model.py --weights data/weights/release_v2/yolo11
 uv run python scripts/analysis/detector_errors.py                                # the error analysis
 ```
 
-### Docker dress run (from nothing, about 13 minutes)
+### Docker dress run (from nothing, about 8 to 13 minutes)
 
 ```bash
 bash deploy/dressrun/run.sh          # needs Docker and git; writes runs/dressrun/<timestamp>/times.md
 ```
 
-A clean image built from what a fresh clone has (no GPU, keys or HERIDAL download): it installs from the lock files, runs the tests (1108 passed, 4 skipped), the smoke test of the live loop, the demo cache's contract check, the mission API with the `cv2.dnn` detector and `remote_check.py` against it, and the web build. 805 s end to end on the machine above; the stage times and the judge's 10-minute path without Docker are in [deploy/dressrun/README.md](deploy/dressrun/README.md).
+A clean image built from what a fresh clone has (no GPU, keys or HERIDAL download): it installs from the lock files, runs the tests (1373 passed, 14 skipped), the smoke test of the live loop (with the ICS 204, ICS 214 and CalTopo exports and the subject search), the demo cache's contract check, the mission API with the `cv2.dnn` detector and `remote_check.py` against it, the same with the detector behind HTTP (`SIGHTLINE_DETECT_URL`), the web build and a check of the built site. 492 s end to end on the machine above (805 s on an earlier, busier run); the stage times and the judge's 10-minute path without Docker are in [deploy/dressrun/README.md](deploy/dressrun/README.md).
 
 `demo-cache` and `real-gps-cache` hold the two surveys the site shows; the Vercel build downloads both (`web/scripts/fetch-caches.sh`). `scripts/README.md` has the training runs and every ablation.
 
