@@ -31,15 +31,42 @@ function visibleRect(el: HTMLElement): Box {
 const CARD_W = 320;
 const GAP = 12;
 
-/** Where the card goes: beside the target where there is room, else under or over it; phones: along the bottom. */
-export function placeCard(target: Box | null, vw: number, vh: number, cardH = 180): { top: number; left: number } | null {
+/** What a mark should never cover when it can help it: the status line over the map and the scrubber. */
+export const KEEP_VISIBLE = ['[aria-label="Mission status"]', '[data-tour="scrubber"]'] as const;
+
+const overlaps = (a: Box, b: Box) => a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
+
+/**
+ * Where the card goes: beside the target where there is room (its top, its bottom or its middle level with
+ * the target's), else under or over it; phones: along the bottom. Of those, the first that covers none of
+ * `avoid` (the status line, the scrubber); when every one does, the first.
+ */
+export function placeCard(target: Box | null, vw: number, vh: number, cardH = 180, avoid: readonly Box[] = []): { top: number; left: number } | null {
   if (vw < 640 || !target) return null;
   const clampTop = (y: number) => Math.max(GAP, Math.min(y, vh - cardH - GAP));
-  if (target.left >= CARD_W + 2 * GAP) return { top: clampTop(target.top), left: target.left - CARD_W - GAP };
-  if (vw - (target.left + target.width) >= CARD_W + 2 * GAP) return { top: clampTop(target.top), left: target.left + target.width + GAP };
+  const levels = [target.top, target.top + target.height - cardH, target.top + (target.height - cardH) / 2].map(clampTop);
+  const spots: { top: number; left: number }[] = [];
+  if (target.left >= CARD_W + 2 * GAP) for (const top of levels) spots.push({ top, left: target.left - CARD_W - GAP });
+  if (vw - (target.left + target.width) >= CARD_W + 2 * GAP) for (const top of levels) spots.push({ top, left: target.left + target.width + GAP });
   const left = Math.max(GAP, Math.min(target.left, vw - CARD_W - GAP));
-  if (vh - (target.top + target.height) >= cardH + 2 * GAP) return { top: target.top + target.height + GAP, left };
-  return { top: clampTop(target.top - cardH - GAP), left };
+  if (vh - (target.top + target.height) >= cardH + 2 * GAP) spots.push({ top: target.top + target.height + GAP, left });
+  spots.push({ top: clampTop(target.top - cardH - GAP), left });
+  const free = spots.find((s) => !avoid.some((a) => overlaps({ ...s, width: CARD_W, height: cardH }, a)));
+  return free ?? spots[0]!;
+}
+
+/** The first element matching `selector` that is on screen (a phone and a desktop can each have their own). */
+function findTarget(selector: string): HTMLElement | null {
+  const all = [...document.querySelectorAll<HTMLElement>(selector)];
+  return all.find((el) => el.getClientRects().length > 0) ?? all[0] ?? null;
+}
+
+/** Give focus back to the mark's anchor (made focusable from code if it is not), without scrolling. */
+function focusAnchor(selector: string) {
+  const el = findTarget(selector);
+  if (!el) return;
+  if (el.tabIndex < 0 && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+  el.focus({ preventScroll: true });
 }
 
 export function CoachMark({
@@ -69,6 +96,9 @@ export function CoachMark({
   last?: boolean;
 }) {
   const [box, setBox] = useState<Box | null>(null);
+  const [avoid, setAvoid] = useState<Box[]>([]);
+  const anchor = useRef(target);
+  anchor.current = target;
   const [view, setView] = useState({ w: typeof window === "undefined" ? 1440 : window.innerWidth, h: typeof window === "undefined" ? 900 : window.innerHeight });
   const card = useRef<HTMLDivElement>(null);
   const primary = useRef<HTMLButtonElement>(null);
@@ -76,13 +106,28 @@ export function CoachMark({
   // follow the target: it may render late (a rail switching views) or move (the rails scroll)
   useLayoutEffect(() => {
     let frame = 0;
-    let scrolled = false;
+    // scrolled to once per element: a target that renders late (the phone's photo strip once the
+    // photos load) takes over from the one found first
+    let scrolled: HTMLElement | null = null;
+    // On a phone the panels stack, and the ones above the target keep loading for a moment (photos,
+    // proposals): for a short while the target is kept where it was put, until the visitor scrolls.
+    let want = 0;
+    let settleUntil = 0;
+    let moved = false;
+    const scrollTo = (el: HTMLElement, phone: boolean) => {
+      // on a phone the card sits along the bottom: bring the target to the top
+      el.scrollIntoView({ block: phone ? "start" : "nearest", inline: "nearest" });
+      want = el.getBoundingClientRect().top;
+    };
     const measure = () => {
-      const el = document.querySelector<HTMLElement>(target);
-      if (el && !scrolled && typeof el.scrollIntoView === "function") {
-        // on a phone the card sits along the bottom: bring the target to the top
-        el.scrollIntoView({ block: window.innerWidth < 640 ? "start" : "nearest", inline: "nearest" });
-        scrolled = true;
+      const el = findTarget(target);
+      const phone = window.innerWidth < 640;
+      if (el && el !== scrolled && typeof el.scrollIntoView === "function") {
+        scrollTo(el, phone);
+        scrolled = el;
+        settleUntil = performance.now() + 3000;
+      } else if (el && phone && !moved && performance.now() < settleUntil && Math.abs(el.getBoundingClientRect().top - want) > 8) {
+        scrollTo(el, phone);
       }
       const r = el ? visibleRect(el) : null;
       setBox((b) => {
@@ -91,6 +136,12 @@ export function CoachMark({
         return b && b.top === next.top && b.left === next.left && b.width === next.width && b.height === next.height ? b : next;
       });
       setView((v) => (v.w === window.innerWidth && v.h === window.innerHeight ? v : { w: window.innerWidth, h: window.innerHeight }));
+      const keep = KEEP_VISIBLE.map((s) => findTarget(s))
+        .filter((x): x is HTMLElement => x !== null && x !== el && !x.contains(el) && !el?.contains(x))
+        .map((x) => x.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0)
+        .map((r) => ({ top: r.top, left: r.left, width: r.width, height: r.height }));
+      setAvoid((a) => (JSON.stringify(a) === JSON.stringify(keep) ? a : keep));
     };
     measure();
     const id = window.setInterval(measure, 250);
@@ -98,19 +149,34 @@ export function CoachMark({
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(measure);
     };
+    const user = () => {
+      moved = true;
+    };
     window.addEventListener("resize", on);
     window.addEventListener("scroll", on, true);
+    for (const k of ["wheel", "touchmove", "pointerdown"] as const) window.addEventListener(k, user, { passive: true });
     return () => {
       window.clearInterval(id);
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", on);
       window.removeEventListener("scroll", on, true);
+      for (const k of ["wheel", "touchmove", "pointerdown"] as const) window.removeEventListener(k, user);
     };
   }, [target]);
 
   useEffect(() => {
     (primary.current ?? card.current)?.focus({ preventScroll: true });
   }, [text]);
+
+  // When the story ends (Esc, Exit, Done), focus goes back to the panel the last mark pointed at, unless
+  // the visitor has already put it somewhere else (a view button, the map).
+  useEffect(
+    () => () => {
+      const now = document.activeElement;
+      if (!now || now === document.body) focusAnchor(anchor.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -126,7 +192,7 @@ export function CoachMark({
     return () => window.removeEventListener("keydown", onKey);
   }, [gate, onNext, onBack, onExit, onToggleClock]);
 
-  const at = placeCard(box, view.w, view.h, card.current?.offsetHeight ?? 180);
+  const at = placeCard(box, view.w, view.h, card.current?.offsetHeight ?? 180, avoid);
   return (
     <>
       {box && (
