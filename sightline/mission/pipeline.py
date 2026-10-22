@@ -158,6 +158,12 @@ def ingest_photo(
     mid = job.mission_id
     orig = store.root / mid / job.orig_rel
 
+    n_frames = len(store.survey(mid).frames)
+    if int(job.frame_id[1:]) <= n_frames:  # SQS delivers at least once: already done
+        return {"frame": job.frame_id, "skipped": "already processed"}
+    if job.frame_id != f"f{n_frames + 1:04d}":  # ids are given out at upload, in order
+        raise ValueError(f"{job.frame_id} arrived as frame {n_frames + 1}: jobs out of order")
+
     # 1. pose and footprint (lane B), on the display frame's pixels
     source_pose = read_photo_pose(orig)
     frame_bytes, sx, sy = display_frame(orig)
@@ -176,9 +182,6 @@ def ingest_photo(
     lap("detect")
 
     # 2, 4. frame, detections, crops (candidates in detections.json; near misses as files only)
-    n_frames = len(store.survey(mid).frames)
-    if job.frame_id != f"f{n_frames + 1:04d}":  # ids are given out at upload, in order
-        raise ValueError(f"{job.frame_id} arrived as frame {n_frames + 1}: jobs out of order")
     frame = Frame(
         id=job.frame_id,
         file=f"frames/{job.frame_id}.jpg",

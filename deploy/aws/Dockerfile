@@ -1,5 +1,5 @@
-# Sightline image for AWS: one image, two containers (api and worker). Built by lane A (issue #23);
-# compose, Caddy, IAM, S3/SQS and the commands it runs are lane D's (README.md "Still to do").
+# Sightline image for AWS: one image, two containers (api and worker), see docker-compose.yml.
+# Built by lane A (issues #23, #51).
 #   docker build -f deploy/aws/Dockerfile -t sightline .        (from the repo root)
 #   docker run --rm sightline python scripts/container_check.py
 FROM python:3.11-slim
@@ -11,8 +11,8 @@ RUN apt-get update \
 COPY --from=ghcr.io/astral-sh/uv:0.13.4 /uv /bin/uv
 
 WORKDIR /app
-# Extras D adds in D-C1 (pyproject): e.g. --build-arg UV_EXTRAS="--extra agent --extra conditions --extra aws"
-ARG UV_EXTRAS=""
+# boto3 (aws) for SQS, S3, CloudWatch and Secrets Manager; the agent and conditions clients.
+ARG UV_EXTRAS="--extra agent --extra conditions --extra aws"
 COPY pyproject.toml uv.lock README.md LICENSE ./
 RUN uv sync --frozen --no-dev --no-install-project $UV_EXTRAS
 COPY sightline ./sightline
@@ -31,5 +31,5 @@ ENV SIGHTLINE_ONNX=/app/models/sightline-detector-v2-dynamic.onnx \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8000
-# api: the default. worker: override the command with lane D's worker (see README.md).
-CMD ["python", "-m", "sightline.pipeline", "serve", "--host", "0.0.0.0", "--port", "8000"]
+# api: the default. worker: `python -m sightline.pipeline worker` (docker-compose.yml).
+CMD ["python", "-m", "sightline.pipeline", "serve", "--host", "0.0.0.0", "--port", "8000", "--mission-root", "/data/missions"]

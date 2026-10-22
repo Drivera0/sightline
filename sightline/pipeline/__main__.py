@@ -320,6 +320,9 @@ def serve(
         str | None,
         typer.Option(help="Radio desk on the missions: text (typed turns) or real (NeMo voices)."),
     ] = None,
+    queue: Annotated[
+        str, typer.Option(help="Photo queue: local (a worker thread here) or sqs (AWS worker).")
+    ] = "local",
 ) -> None:
     """Run the API: live missions under /missions (photos are processed by a worker thread),
     and the sprint-1 upload (POST a zip of JPEGs to /survey, get a cache back)."""
@@ -338,8 +341,33 @@ def serve(
         model_name=model_name,
         mission_root=mission_root,
         radio=radio,
+        queue=queue,
     )
     uvicorn.run(api, host=host, port=port)
+
+
+@app.command()
+def worker(
+    mission_root: Annotated[
+        Path, typer.Option(help="The missions folder, shared with the API container.")
+    ] = Path("missions"),
+    backend: Annotated[
+        str | None, typer.Option(help="Detector: cv2 (default), torch or fake.")
+    ] = None,
+) -> None:
+    """The AWS photo worker: take photo jobs from SQS (SIGHTLINE_SQS_URL) one at a time and run
+    the per-photo pipeline on them (LANE_D §5.7). Runs until stopped."""
+    import logging
+
+    from sightline.api.app import mission_context
+
+    logging.basicConfig(level=logging.INFO)
+    if backend:
+        os.environ["SIGHTLINE_BACKEND"] = backend
+    ctx = mission_context(mission_root, "sqs")
+    ctx.scheduler.start(ctx.store)
+    typer.echo(f"worker: {os.environ.get('SIGHTLINE_SQS_URL')} -> {mission_root}")
+    ctx.queue.run_worker(ctx.handle)
 
 
 if __name__ == "__main__":

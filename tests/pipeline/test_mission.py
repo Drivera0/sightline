@@ -494,3 +494,19 @@ def test_the_store_refuses_a_task_breaking_the_pod_rule(store: MissionStore, mid
     )
     with pytest.raises(ValueError, match="pod"):
         store.upsert_task(mid, bad)
+
+
+def test_subscribe_sees_events_written_by_another_process(store: MissionStore, mid: str) -> None:
+    """On AWS the worker is another container: its events reach the API's SSE through the file."""
+    other = MissionStore(store.root)  # a second store on the same folder, like the worker's
+    last = store.events(mid)[-1].id
+
+    async def run() -> str:
+        agen = store.subscribe(mid, after_event_id=last, poll_s=0.05)
+        threading.Timer(0.2, lambda: other.emit(mid, "photo.processed", "from the worker")).start()
+        async for ev in agen:
+            await agen.aclose()
+            return ev.summary
+        return ""
+
+    assert asyncio.run(asyncio.wait_for(run(), 5)) == "from the worker"

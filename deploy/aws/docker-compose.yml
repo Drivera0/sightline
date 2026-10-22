@@ -1,0 +1,38 @@
+# Sightline on one EC2 instance (LANE_D §5.7): the API, the photo worker and Caddy for HTTPS.
+# setup.sh writes .env next to this file (queue, bucket, secret id, site address); no secrets in it.
+#   docker compose -f deploy/aws/docker-compose.yml --env-file deploy/aws/.env up -d
+x-sightline: &sightline
+  image: sightline
+  restart: unless-stopped
+  env_file: .env
+  volumes:
+    - missions:/data/missions   # mission files on the instance's EBS volume, shared by api and worker
+
+services:
+  api:
+    <<: *sightline
+    command: ["python", "-m", "sightline.pipeline", "serve", "--host", "0.0.0.0", "--port", "8000",
+              "--mission-root", "/data/missions", "--queue", "sqs", "--radio", "text"]
+    logging:
+      driver: awslogs
+      options: { awslogs-region: "${AWS_REGION}", awslogs-group: /sightline, awslogs-stream: api }
+  worker:
+    <<: *sightline
+    command: ["python", "-m", "sightline.pipeline", "worker", "--mission-root", "/data/missions"]
+    logging:
+      driver: awslogs
+      options: { awslogs-region: "${AWS_REGION}", awslogs-group: /sightline, awslogs-stream: worker }
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [api]
+
+volumes:
+  missions:
+  caddy_data:
