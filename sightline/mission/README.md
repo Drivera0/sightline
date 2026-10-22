@@ -95,7 +95,7 @@ These weren't spelled out in the contract; each is one place in `store.py` to ch
 - [x] **D-Q1, D-L1 (first pass)** `#m/<id>/photos|review|feed`: live review (candidates + approved promotions, verdict badge
       in words, answers → `POST /reviews`), event feed; "New search" in the app menu when an API is set; CORS on the API
       (localhost + `SIGHTLINE_CORS_ORIGINS`), test 8 (lane A). Checked in Chromium against a real server
-- [x] D-L1 rest (lane A): the live heat map (#83), E's `<CommandView/>` and approval inbox (#78), `<FrontDoor/>` at the default route (#77), the Radio tab (#81), assignment cards (#93) and the no-API demo mission `#m/demo/command` (#94). Not done: a `C` keyboard shortcut
+- [x] D-L1 rest (lane A): the live heat map (#83), E's `<CommandView/>` and approval inbox (#78), `<FrontDoor/>` at the default route (#77), the Radio tab (#81), assignment cards (#93) and the no-API demo mission `#m/demo/command` (#94). and the `C` shortcut (Command tab in a mission; the demo mission from the guided demo)
 - [ ] D-M2 `useSelection` gains `selectedTeamId`, `selectedDroneId`, `selectedClueId`; demo fixtures from E's `__fixtures__/`
 - [x] D-W1 AWS (lane A): live at https://44-227-39-234.sslip.io (stopped between demos); `deploy/aws/update.sh` redeploys `main`; `scripts/remote_check.py` passes 7/7
 - [ ] Sample cache regenerated as 1.2 (optional: 1.1 caches are still readable)
