@@ -38,7 +38,12 @@ the crop around a labelled person when the photo's footprint covers the hidden p
 clear of every labelled person. Nothing else about it reaches the API.
 
 Every crop is as wide on the ground as the planner's line spacing at the source photo's own GSD, so
-people keep their real size in pixels. Everything it makes is labelled simulated.
+people keep their real size in pixels. **Below 50 m** (``NATIVE_ALT_M``, the altitude the planner's
+line spacing is one photo's width at) the crop follows the leg's altitude (``at_altitude``): a
+window narrower by altitude / 50 around the same centre, resized back to the same pixel size, so a
+pass at 25 m shows the person twice as large (about 4× the pixels). Those pixels are resampled from
+the 50 m photo: the sim reproduces the size, not the extra detail a real low pass would capture.
+Everything it makes is labelled simulated.
 
 Built by lane A for lane C (issue #64); lane C owns this file.
 """
@@ -69,6 +74,9 @@ SCENARIOS = Path(__file__).parent / "scenarios"
 VAL = Path("data/heridal/yolo_full/val")
 M_PER_DEG_LAT = 111_320.0
 DEFAULT_GSD_M = 0.0075  # HERIDAL at about 50 m when a source photo has no pose
+# The altitude a crop is cut for: the planner's line spacing (20 m) is one photo's width at 50 m
+# (``PlannerConfig.altitude_m``). Lower legs get a narrower, resized window (``at_altitude``).
+NATIVE_ALT_M = 50.0
 
 
 # --- the airframe and the wind ------------------------------------------------------------------
@@ -242,6 +250,22 @@ class Crop:
     image: Path
     box: tuple[int, int, int, int]  # x0, y0, x1, y1 in the source photo
     gsd_m: float
+    zoom: float = 1.0  # the box is resized by this when stamped (``at_altitude``)
+
+
+def at_altitude(crop: Crop, alt_m: float, native_alt_m: float = NATIVE_ALT_M) -> Crop:
+    """``crop`` as a photo taken at ``alt_m``: below ``native_alt_m`` a window ``alt_m /
+    native_alt_m`` as wide around the same centre, stamped back at the crop's pixel size (``zoom``)
+    with the GSD divided by the zoom, so a person is ``native_alt_m / alt_m`` times larger. At or
+    above ``native_alt_m`` the crop is unchanged (no sim leg flies higher)."""
+    zoom = native_alt_m / alt_m if 0 < alt_m < native_alt_m else 1.0
+    if zoom == 1.0:
+        return crop
+    x0, y0, x1, y1 = crop.box
+    w, h = max(1, round((x1 - x0) / zoom)), max(1, round((y1 - y0) / zoom))
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    nx0, ny0 = round(cx - w / 2), round(cy - h / 2)
+    return Crop(crop.image, (nx0, ny0, nx0 + w, ny0 + h), crop.gsd_m / zoom, zoom * crop.zoom)
 
 
 class FramePool:
@@ -304,6 +328,9 @@ def stamp(
     ``taken_at`` (ISO, UTC) goes in DateTimeOriginal: a photo synced late keeps its capture time."""
     with Image.open(crop.image) as im:
         part = im.crop(crop.box).convert("RGB")
+    if crop.zoom != 1.0:  # a lower pass: the narrower window at the crop's full pixel size
+        size = (round(part.width * crop.zoom), round(part.height * crop.zoom))
+        part = part.resize(size, Image.Resampling.BICUBIC)
     # lane B's camera model (geo/camera.py) inverted, so read_pose gives back the source's GSD
     eq_width_mm = FULL_FRAME_DIAGONAL_MM * part.width / math.hypot(part.width, part.height)
     f35 = eq_width_mm * alt_m / (crop.gsd_m * part.width)
@@ -437,6 +464,7 @@ class DroneSim:
         out: Callable[[str], None] = say,
     ) -> None:
         self.drone = drone
+        self.survey_alt_m = drone.altitude_m  # back to this once a lower leg (a re-look) is over
         self.http, self.mid, self.scn, self.pool = http, mission_id, scenario, pool
         self.photo_every_m = photo_every_m
         self.now = now or _utc_now
@@ -514,6 +542,8 @@ class DroneSim:
             drain = 0.0  # landed
         pct = max(0.0, self.drone.battery_pct - drain * sim_dt / 60)
         self._set(battery_pct=pct)
+        if self.leg is None and self.drone.altitude_m != self.survey_alt_m:
+            self._set(altitude_m=self.survey_alt_m)  # the planner plans the next leg from it
         if self.link == "lost" and self.leg is None and not self.returning and self._airborne():
             self.out(f"{self.drone.name}: leg flown with no link; flies home (lost-link return)")
             self._go_home()
@@ -646,8 +676,12 @@ class DroneSim:
     def _photo(self) -> None:
         p = self.drone.position
         assert p is not None
-        pos = self.pool.positive
-        w, h = pos.box[2] - pos.box[0], pos.box[3] - pos.box[1]
+        alt = self.drone.altitude_m
+        pos = at_altitude(self.pool.positive, alt)
+        w, h = (
+            round((pos.box[2] - pos.box[0]) * pos.zoom),
+            round((pos.box[3] - pos.box[1]) * pos.zoom),
+        )
         pose = Pose(
             lat=p.lat,
             lon=p.lon,
@@ -658,7 +692,7 @@ class DroneSim:
         crop = (
             pos
             if covers(pose, w, h, self.scn.hidden)
-            else self.pool.negatives[self.photos % len(self.pool.negatives)]
+            else at_altitude(self.pool.negatives[self.photos % len(self.pool.negatives)], alt)
         )
         self.photos += 1
         taken = self.now()
