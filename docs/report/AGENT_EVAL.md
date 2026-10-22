@@ -20,10 +20,13 @@ drives it over HTTP. A **scripted** search manager and reviewer make the decisio
 decision is a `human` trace entry that says it was scripted.
 
 - **Scenarios** come from `sightline/search/scenarios/creek.json`. The hidden person is in sector C3.
-  - `creek`: the opening legs are flying, then Team Two reports a clue, a photo covers the
-    person, and the reviewer answers "person".
+  - `creek`: the agent's opening legs (proposed when the fleet joins) are approved and flying, then
+    Team Two reports a clue, a photo covers the person, and the reviewer answers "person".
   - `no_clue`: the same, without the clue.
   - `clue_early`: the clue arrives when the drones join, before any leg is approved.
+
+  The scripted manager approves only what each step proposed, never a stale proposal from an
+  earlier step.
   - `near_miss_only`: the only evidence is a 0.20 detection over the person.
 
   Every run then marks Drone 1's leg done and runs one agent tick. The manager rejects the first
@@ -46,30 +49,36 @@ decision is a `human` trace entry that says it was scripted.
 
 | Scenario | Agent proposals per run | Types |
 |---|---|---|
-| creek | 7 | retask_drone 1, alert 1, assign_sector 4, drone_leg 1 |
-| no_clue | 6 | alert 1, assign_sector 4, drone_leg 1 |
-| clue_early | 7 | drone_leg 2, alert 1, assign_sector 4 |
-| near_miss_only | 6 | promote_detection 1, assign_sector 4, drone_leg 1 |
+| creek | 9 | drone_leg 4 (3 opening), alert 1, assign_sector 4 |
+| no_clue | 9 | drone_leg 4 (3 opening), alert 1, assign_sector 4 |
+| clue_early | 12 | drone_leg 7 (3 opening, 3 after the clue), alert 1, assign_sector 4 |
+| near_miss_only | 9 | drone_leg 4 (3 opening), promote_detection 1, assign_sector 4 |
 
 | Evidence → proposal | n | p50 ms | p90 ms |
 |---|---|---|---|
-| clue → retask_drone | 3 | 107 | 136 |
-| clue → drone_leg | 3 | 165 | 174 |
-| detection → promote_detection (incl. second look) | 3 | 13 | 23 |
-| verdict → promote_detection | 3 | 2 | 2 |
-| review → alert | 9 | 51 | 66 |
-| review → assign_sector | 9 | 55 | 74 |
-| leg done → drone_leg | 12 | 68 | 90 |
-| tick → assign_sector | 39 | 66 | 106 |
+| clue → drone_leg | 9 | 117 | 130 |
+| detection → promote_detection (incl. second look) | 3 | 9 | 10 |
+| verdict → promote_detection | 3 | 1 | 2 |
+| review → alert | 9 | 42 | 48 |
+| review → assign_sector | 9 | 46 | 51 |
+| leg done → drone_leg | 12 | 49 | 54 |
+| tick → assign_sector | 39 | 50 | 60 |
 
 **Correct target.** Every check that has a ground truth passed in every run:
 
 | Check | Correct |
 |---|---|
-| Clue: a drone is proposed toward the person's sector (`creek`: retask, `clue_early`: new leg) | 6/6 |
+| Clue: a drone is over or proposed toward the person's sector (see below) | 6/6 |
 | Review: the alert names the person's sector | 9/9 |
 | Review: a standby team is assigned to the person's sector | 9/9 |
 | Near miss: the person's detection is promoted to the review queue | 3/3 |
+
+**The clue check counts a drone already over C3.** Since #135 the planner's opening legs put Drone 2
+over C3 in `creek`. When the clue arrives, the planner counts C3 as taken and never re-tasks a drone
+off a sector holding at least the new sector's probability. So the clue moves nobody, which is the
+right call: the person's sector is already being flown. Before this change the eval asked for a
+proposal toward C3, and it failed on main (`retask_drone D1 → B3`). In `clue_early` no drone is
+flying yet, and the clue's proposals send Drone 1 to C3.
 
 These checks are easy with fake models: the VL model always says yes, and the detector only fires
 over the person. What they test is the agent's routing: the right sector, drone, team and

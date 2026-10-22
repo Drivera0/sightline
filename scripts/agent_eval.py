@@ -496,12 +496,15 @@ class Mission:
         ]
 
     def opening_legs(self) -> None:
-        """Opening legs (scripted, created_by command) for drones without a leg, approved."""
+        """The agent's opening legs (proposed when the fleet joined, ``on_fleet_join``), approved;
+        a scripted one (created_by command) for any drone still without a leg."""
         from sightline.agent.trace import now_iso
         from sightline.contract import Proposal
         from sightline.search.planner import PlannerConfig, candidate_legs
         from sightline.search.sectors import lattice_sectors
 
+        for p in self.pending("drone_leg"):
+            self.decide(p.id)
         live = self.store.live(self.mid)
         layout = lattice_sectors(live.base.grid)
         idle = [d for d in self.fleet().drones if d.leg_id is None]
@@ -566,7 +569,27 @@ class Mission:
                 kind="note",
             )
             rec["evidence"].append(("clue", c["id"], c["at"]))
+        # where the drones are going once the agent has answered the clue: legs being flown or
+        # approved, and leg proposals waiting for the manager (the planner counts both as taken)
+        st = self.store.state(self.mid)
+        fleet = st["fleet"]
+        rec["over"] = [
+            (x.drone_id, x.sector_id, x.status)
+            for x in (fleet.legs if fleet else [])
+            if x.status in ("approved", "flying")
+        ] + [
+            (p.leg.drone_id, p.leg.sector_id, f"{p.kind} {p.id} pending")
+            for p in st["proposals"]
+            if p.status == "pending" and p.leg is not None
+        ]
         return c["id"]
+
+    def approve_step(self, *kinds: str) -> None:
+        """Approve the proposals of these kinds that the last step produced (and only those)."""
+        ids = set(self.steps[-1]["proposals"])
+        for p in self.pending(*kinds):
+            if p.id in ids:
+                self.decide(p.id)
 
     def photo(self, lat: float, lon: float, positive: bool, k: int = 0) -> list[str]:
         """Upload one photo; the detection ids it gave."""
@@ -707,6 +730,10 @@ def gate_checks(store: Any, mid: str) -> list[dict]:
     props = st["proposals"]
     approved = [p for p in props if p.status == "approved"]
     events = store.events(mid)
+    # Order by the event log, not wall-clock stamps: the clock can step back (seen once under WSL,
+    # a decision stamped 0.8 s before its proposal) while the log's order cannot.
+    new_pos = {e.ref: i for i, e in enumerate(events) if e.type == "proposal.new"}
+    decided_pos = {e.ref: i for i, e in enumerate(events) if e.type == "proposal.decided"}
     checks: list[dict] = []
 
     def check(name: str, bad: list[str]) -> None:
@@ -757,25 +784,24 @@ def gate_checks(store: Any, mid: str) -> list[dict]:
         "every promotion to the review queue follows an approved promote_detection",
         [
             e.ref or "?"
-            for e in events
+            for i, e in enumerate(events)
             if e.type == "detection.new"
             and (e.data or {}).get("promoted_by")
             and (
                 (e.data or {})["promoted_by"] not in promoted
-                or e.at < (promoted[(e.data or {})["promoted_by"]].decided_at or "")
+                or i < decided_pos.get((e.data or {})["promoted_by"], len(events))
             )
         ],
     )
-    by_id = {p.id: p for p in props}
     check(
-        "every leg approval in the event log comes after its decision",
+        "no leg is approved in the event log before its proposal exists",
         [
             e.ref or "?"
-            for e in events
+            for i, e in enumerate(events)
             if e.type == "fleet.updated"
             and e.ref in leg_props
             and " approved for " in e.summary
-            and e.at < (by_id[leg_props[e.ref].id].decided_at or "~")
+            and i < new_pos.get(leg_props[e.ref].id, len(events))
         ],
     )
     check(
@@ -788,7 +814,7 @@ def gate_checks(store: Any, mid: str) -> list[dict]:
                 not p.decided_by
                 or p.decided_by == "agent"
                 or not p.decided_at
-                or p.decided_at < p.created_at
+                or decided_pos.get(p.id, -1) < new_pos.get(p.id, len(events))
             )
         ],
     )
@@ -823,13 +849,11 @@ def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> di
         m.join_fleet()
         if cfg["clue"] == "before_legs":
             m.clue()
-            for p in m.pending("drone_leg", "retask_drone"):
-                m.decide(p.id)
+            m.approve_step("drone_leg", "retask_drone")
         m.opening_legs()
         if cfg["clue"] == "after_legs":
             m.clue()
-            for p in m.pending("drone_leg", "retask_drone"):
-                m.decide(p.id)
+            m.approve_step("drone_leg", "retask_drone")
             m.fly()
         lkp = h.scn.lkp
         for k, (dlat, dlon) in enumerate(((0.0, 0.0), (0.0015, -0.002))):  # nobody here
@@ -865,15 +889,19 @@ def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> di
     for rec in m.steps:
         got = [props[i] for i in rec["proposals"]]
         if rec["step"] == "clue":
+            # A drone already flying (or proposed) over the clue's sector counts: the planner then
+            # rightly sends the others elsewhere and never re-tasks that one away (#135).
             legs = [p for p in got if p.leg is not None]
+            over = [o for o in rec.get("over", []) if o[1] == hidden]
+            proposed = ", ".join(f"{p.kind} {p.target['drone']} → {p.leg.sector_id}" for p in legs)
             truth.append(
                 {
-                    "check": "clue: a drone proposed toward the person's sector",
-                    "ok": any(p.leg.sector_id == hidden for p in legs),
-                    "detail": ", ".join(
-                        f"{p.kind} {p.target['drone']} → {p.leg.sector_id}" for p in legs
+                    "check": "clue: a drone is over or proposed toward the person's sector",
+                    "ok": bool(over),
+                    "detail": (
+                        "; ".join(f"{d} {s} ({how})" for d, s, how in over) or "none over it"
                     )
-                    or "no leg proposal",
+                    + f"; the clue's proposals: {proposed or 'none'}",
                 }
             )
         elif rec["step"] == "detection" and cfg["conf"] < 0.29:
