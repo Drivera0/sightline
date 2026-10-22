@@ -81,6 +81,38 @@ Two problems this run found, both fixed:
 - **Briefing model calls were not in the trace.** Every attempt is now a `model_call` entry (facts in, text and
   tokens out, why it was rejected), and a fallback to the template is a `note`.
 
+## A second chain: a VL sighting re-tasks a flying drone
+
+`scripts/retask_chain.py` (live mission, real planner; the fleet is simulated and the human steps are scripted, as
+the trace says). Excerpt (`scripts/trace_excerpt.py --proposal p004`):
+
+```text
+2026-10-22T01:48:41.458Z  verifier tool_call  zoom_native on f0005-d01
+    image: relook/f0005-d01-zoom_native.jpg  (1 ms)
+    why this tool (heuristics): box 20 px, aspect 1.33, grey spread 25.5
+2026-10-22T01:48:42.772Z  verifier model_call VL verdict for f0005-d01
+    model nvidia/Nemotron-3.5-Super-VL · 1312 ms · 809 tokens in, 63 out · prompt verify-v2
+    images sent: ['crops/f0005-d01.jpg', 'relook/f0005-d01-zoom_native.jpg']
+    reply: {"person": "yes", "posture": "sitting", "group_size": 1, "clothing": "blue jacket, dark head covering", "reason": "A human shape with a head, torso, and raised arms is visible at the centre."}
+2026-10-22T01:48:42.774Z  verifier verdict    f0005-d01: person yes
+    person yes · posture sitting · group 1 · clothing blue jacket, dark head covering
+    reason: A human shape with a head, torso, and raised arms is visible at the centre.
+2026-10-22T01:49:08.722Z  human    decision   Reviewer (scripted for this run): f0005-d01 is a person
+    {'answer': 'person'}
+2026-10-22T01:49:09.673Z  agent    model_call briefing
+    model nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B · 949 ms · 203 tokens in, 57 out · prompt None
+    images sent: None
+    reply: Team, a reviewer confirmed a person in a drone photo. The subject is an adult hiker. The person is wearing a blue jacket and a dark head covering. The posture is sitting. The photo is from sector B3. The photo identifier is f0005.
+2026-10-22T01:49:34.480Z  human    note       Search manager (scripted for this run): logged the sighting as clue c001 (100 m, the default for a sighting)
+2026-10-22T01:49:34.492Z  agent    proposal   p004 retask_drone: Re-task Drone 1 to sector B3 (3.1% expected)
+    target {'drone': 'D1', 'leg': 'L002'}
+    reason: After clue c001 (sighting, high reliability: person in photo f0005, confirmed by the reviewer) in sector B3, which now holds 6.9% of the probability. Sector B3: expected to rule out 3.1% of the probability in 12 min (0.26%/min) — 1.1× the next best for Drone 1 (sector B2). Within battery (95%).
+2026-10-22T01:50:00.642Z  human    decision   p004 approved by Search manager (scripted approval for this run)
+    {'proposal': 'p004'}
+```
+
+After the approval: Drone 1's leg L001 (sector A1) `cancelled`, L002 (sector B3) `approved`; `validate_mission` → `[]`.
+
 ## Evaluation
 
 **Task success.** On val (95 photos, 333 people) the second look on near-misses finds 11 more

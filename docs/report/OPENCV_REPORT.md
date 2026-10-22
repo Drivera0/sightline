@@ -218,8 +218,21 @@ three human voices (`scripts/radio_wer.py`).
 
 ### 5.2 Re-tasking a drone
 
-**TODO (lane A, after C-P1):** a second chain where an OpenCV/VL result leads to a drone
-`retask_drone` proposal through the planner, recorded on the live mission.
+Recorded on a live mission (`scripts/retask_chain.py`; real server, `cv2.dnn`, live map, planner,
+Nemotron; HERIDAL validation photos). Drone 1 (simulated fleet, labelled) is flying a leg over sector A1. A
+photo comes in; the detector finds a person-sized box at 0.83, 20 px wide in the 1000×750 frame, so the tool
+heuristic picks `zoom_native`; from the native-pixel zoom, Nemotron VL answers *yes, sitting, blue jacket,
+dark head covering*. A reviewer confirms it and the search manager logs the sighting as a clue (both scripted,
+and labelled so in the trace). The clue doubles sector B3's share of the probability (3.2 % → 6.9 %); the
+agent re-plans and the planner proposes **`retask_drone`**: *"Re-task Drone 1 to sector B3: expected to rule out
+3.1 % of the probability in 12 min (0.26 %/min), 1.1× the next best (sector B2). Within battery (95 %)."*
+On approval Drone 1's leg over A1 is cancelled and the new leg approved; `validate_mission` passes.
+
+| Review crop (1000×750 frame) | OpenCV 5 native zoom |
+|---|---|
+| ![crop](../architecture/retask-chain/crop.jpg) | ![zoom](../architecture/retask-chain/zoom_native.jpg) |
+
+The trace excerpt, from detection to the drone's new leg, is in `docs/architecture/agent.md`.
 
 ## 6. AWS deployment
 
@@ -356,7 +369,9 @@ step waits for the live map (lane C); **TODO (lane C):** the map-update time onc
    val runs and played no part in the final choice (`docs/LANE_A_ML.md` §6.7).
 4. **This sprint:** the parity check and the verifier rule each read test once, after every
    choice was fixed on val.
-5. **The AV chain's approval is scripted** for the recording, and the trace says so.
+5. **The human steps in both AV chains are scripted** for the recording (the review, logging the sighting as
+   a clue, the approvals), and the trace says so; the fleet in the re-task chain is simulated (lane C's fleet
+   simulator was not in yet), and labelled.
 6. **Radio measurements** use typed team lines (and, for full voice turns, team lines spoken by
    Magpie); the radio demo's mission is a fixture until the live mission API is mounted.
 7. **AI assistance:** parts of the code and docs were written with an AI coding assistant; the
