@@ -1,14 +1,184 @@
 {
   "name": "creek (simulated fleet)",
-  "note": "Rehearsal scenario for the Nebius video (LANE_C §5.6): three simulated drones over the demo area at Mount Seymour. 'hidden' is the truth: the sim uses it only to choose which photo crop a drone gets; it is never sent to the API.",
-  "lkp": {"lat": 49.375, "lon": -122.9375},
+  "note": "Rehearsal scenario for the Nebius video (LANE_C §5.6): three simulated drones over the demo area at Mount Seymour. 'hidden' is the truth: the sim uses it only to choose which photo crop a drone gets; it is never sent to the API. 'negatives' lists the crops (free of any labelled person) a photo gets when it does not cover the hidden point.",
+  "lkp": {
+    "lat": 49.375,
+    "lon": -122.9375
+  },
   "line_spacing_m": 20.0,
   "drones": [
-    {"id": "D1", "name": "Drone 1", "simulated": true, "position": {"lat": 49.3762, "lon": -122.9391}, "altitude_m": 50.0, "speed_ms": 8.0, "battery_pct": 100.0, "max_wind_kmh": 38.0, "status": "idle", "leg_id": null},
-    {"id": "D2", "name": "Drone 2", "simulated": true, "position": {"lat": 49.3762, "lon": -122.9389}, "altitude_m": 50.0, "speed_ms": 8.0, "battery_pct": 100.0, "max_wind_kmh": 38.0, "status": "idle", "leg_id": null},
-    {"id": "D3", "name": "Drone 3", "simulated": true, "position": {"lat": 49.3762, "lon": -122.9387}, "altitude_m": 50.0, "speed_ms": 8.0, "battery_pct": 100.0, "max_wind_kmh": 38.0, "status": "idle", "leg_id": null}
+    {
+      "id": "D1",
+      "name": "Drone 1",
+      "simulated": true,
+      "position": {
+        "lat": 49.3762,
+        "lon": -122.9391
+      },
+      "altitude_m": 50.0,
+      "speed_ms": 8.0,
+      "battery_pct": 100.0,
+      "max_wind_kmh": 38.0,
+      "status": "idle",
+      "leg_id": null
+    },
+    {
+      "id": "D2",
+      "name": "Drone 2",
+      "simulated": true,
+      "position": {
+        "lat": 49.3762,
+        "lon": -122.9389
+      },
+      "altitude_m": 50.0,
+      "speed_ms": 8.0,
+      "battery_pct": 100.0,
+      "max_wind_kmh": 38.0,
+      "status": "idle",
+      "leg_id": null
+    },
+    {
+      "id": "D3",
+      "name": "Drone 3",
+      "simulated": true,
+      "position": {
+        "lat": 49.3762,
+        "lon": -122.9387
+      },
+      "altitude_m": 50.0,
+      "speed_ms": 8.0,
+      "battery_pct": 100.0,
+      "max_wind_kmh": 38.0,
+      "status": "idle",
+      "leg_id": null
+    }
   ],
-  "hidden": {"lat": 49.3729, "lon": -122.9354},
-  "positive": {"image": "train_BRK_1021.jpg", "box": 0},
-  "clue": {"after_s": 300, "kind": "object", "text": "blue backpack by the creek", "lat": 49.3732, "lon": -122.9358, "reported_by": "T2", "source": "form", "reliability": "high"}
+  "hidden": {
+    "lat": 49.3729,
+    "lon": -122.9354
+  },
+  "positive": {
+    "image": "train_BRK_1021.jpg",
+    "box": 0
+  },
+  "clue": {
+    "after_s": 300,
+    "kind": "object",
+    "text": "blue backpack by the creek",
+    "lat": 49.3732,
+    "lon": -122.9358,
+    "reported_by": "T2",
+    "source": "form",
+    "reliability": "high"
+  },
+  "negatives": [
+    {
+      "image": "train_BLA_0008.jpg",
+      "box": [
+        544,
+        408,
+        1456,
+        1092
+      ]
+    },
+    {
+      "image": "train_BRA_1016.jpg",
+      "box": [
+        1333,
+        1000,
+        4000,
+        3000
+      ]
+    },
+    {
+      "image": "train_BRA_1053.jpg",
+      "box": [
+        1333,
+        1000,
+        4000,
+        3000
+      ]
+    },
+    {
+      "image": "train_BRA_1061.jpg",
+      "box": [
+        1333,
+        1000,
+        4000,
+        3000
+      ]
+    },
+    {
+      "image": "train_BRK_1006.jpg",
+      "box": [
+        542,
+        407,
+        1457,
+        1093
+      ]
+    },
+    {
+      "image": "train_BRK_2004.jpg",
+      "box": [
+        265,
+        199,
+        1734,
+        1301
+      ]
+    },
+    {
+      "image": "train_BRK_2008.jpg",
+      "box": [
+        265,
+        199,
+        1734,
+        1301
+      ]
+    },
+    {
+      "image": "train_BRK_2048.jpg",
+      "box": [
+        345,
+        259,
+        1654,
+        1241
+      ]
+    },
+    {
+      "image": "train_BRK_2051.jpg",
+      "box": [
+        345,
+        259,
+        1654,
+        1241
+      ]
+    },
+    {
+      "image": "train_BRK_2054.jpg",
+      "box": [
+        344,
+        258,
+        1656,
+        1242
+      ]
+    },
+    {
+      "image": "train_BRK_2066.jpg",
+      "box": [
+        2344,
+        1758,
+        3656,
+        2742
+      ]
+    },
+    {
+      "image": "train_BRK_2094.jpg",
+      "box": [
+        332,
+        249,
+        1667,
+        1250
+      ]
+    }
+  ]
 }
