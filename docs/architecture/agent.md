@@ -101,6 +101,7 @@ sequenceDiagram
 | Action | A **proposal** with a reason, evidence and, for people in the field, a briefing written only from given facts: `promote_detection`, `drone_leg` / `retask_drone`, `assign_sector`, `alert` | `loop.py` |
 | Human | The search manager approves, edits or rejects; nothing happens before that | lane E inbox, lane D API |
 | Effect | Approved detections join the review queue; approved legs go to the fleet; approved briefings go to the radio | lane D |
+| Tool choice (bulletin) | No lost-person category: Nemotron Nano decides whether to call `search_public_bulletin` and writes its query; Tavily search (trusted domains) → extract → profile with verbatim quotes, names redacted → one `Set subject profile` proposal; approval sets the category and the prior, then re-plans | `subject_tool.py`, `geo/subject.py` |
 
 ## One real chain: an OpenCV 5 result changes the decision
 
@@ -155,6 +156,30 @@ near-miss person it called `yes`; the mission is built in memory by the script i
 as lane D's pipeline (the `pipeline` line is written by the script); and the approval is
 **scripted** for this run and says so in the trace. Everything else is the production code path
 (`loop.handle`, `verify`, the OpenCV tools, Token Factory).
+
+## The bulletin tool: the model decides to search
+
+Rule: when a mission has a last known point but no lost-person category, and no profile proposal is waiting,
+`POST /missions/{id}/subject/search` asks the model, not code, whether to search. Nemotron Nano gets the
+mission's facts and one tool, `search_public_bulletin(query)`. It calls the tool with a query it wrote, or
+it declines and says why (a `replay` mission has no missing person). The tool runs Tavily search on police,
+search-and-rescue and news domains, then extract, and a second Nano call returns each field with a verbatim
+quote and its URL. The result is a proposal. Approving it (`decide`) sets the subject and the Koester prior,
+and the agent re-plans the drones (`subject_set` event). Names are never stored (`docs/report/TAVILY.md`,
+"The subject from a public bulletin"). The trace from the offline demo (synthetic bulletin, scripted model):
+
+```text
+agent  model_call  subject: the model chose to search: missing hiker Mount Seymour police bulletin
+agent  tool_call   Tavily search (subject): missing hiker Mount Seymour police bulletin
+agent  tool_call   Tavily extract: 1 page(s)
+agent  model_call  subject profile extracted with quotes (names redacted)
+agent  proposal    p001 alert: Set subject profile: hiker, 34, red jacket, black hiking pants and a grey backpack, last seen 3:30 p.m. at the Mount Seymour trailhead parking lot
+human  decision    p001 approved by Search manager
+agent  proposal    p002 drone_leg: Send Drone 1 to sector … (reason: "Subject profile p001 approved …")
+```
+
+Tests: `tests/agent/test_subject.py`, including the model declining (no Tavily call), the hour's cache, a
+rejection, and no name in any file of the mission.
 
 ## End to end on a live mission
 
