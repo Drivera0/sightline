@@ -1,9 +1,9 @@
 // LANE_E §9 tests 2 (task states; POD in (0, 0.9]), the roster, the clue form, the header.
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
-import { clueProblem, CommandView, missionStatus, type CommandProps } from "./CommandView";
+import { clueProblem, CommandView, HINT_KEY, missionStatus, type CommandProps } from "./CommandView";
 
 const NOW = new Date("2026-10-24T22:00:00Z");
 const task = (sector_id: string, state: SectorTask["state"], team_id: string | null = null, pod: number | null = null): SectorTask => ({
@@ -159,6 +159,29 @@ describe("CommandView", () => {
     expect(b3).toHaveAttribute("title", "Proposed · drone coverage 25%");
     await userEvent.click(within(b3).getByRole("button", { expanded: false }));
     expect(b3).toHaveTextContent("Bravo Three · POA 6.9% · drone coverage 25%");
+  });
+
+  it("console, first visit: a hint says where things are, and stays dismissed", async () => {
+    localStorage.removeItem(HINT_KEY);
+    setup({ map: <div>map</div> });
+    const hint = screen.getByRole("complementary", { name: "How to use the console" });
+    expect(within(hint).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "→ Approve the agent's proposals on the right",
+      "← Assign teams to sectors on the left",
+      "↓ Add clues below the map",
+    ]);
+    expect(screen.getByText("Desktop recommended.")).toBeInTheDocument(); // shown under 1024 px
+    await userEvent.click(within(hint).getByRole("button", { name: "Got it" }));
+    expect(screen.queryByRole("complementary", { name: "How to use the console" })).toBeNull();
+    cleanup();
+    setup({ map: <div>map</div> });
+    expect(screen.queryByRole("complementary", { name: "How to use the console" })).toBeNull();
+  });
+
+  it("the shortcut overlay lists the console's keys", async () => {
+    const { SHORTCUT_GROUPS } = await import("../shell/shortcuts");
+    const console_ = SHORTCUT_GROUPS.find((g) => g.title === "Command console");
+    expect(console_?.shortcuts.flatMap((s) => s.keys)).toEqual(["Tab", "A", "X", "C"]);
   });
 
   it('never says "clear"', () => {

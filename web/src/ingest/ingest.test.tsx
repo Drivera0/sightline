@@ -75,6 +75,15 @@ describe("upload (test 9)", () => {
     expect(screen.getByLabelText("Rejected files")).toHaveTextContent("phone.jpg: no GPS position");
   });
 
+  it("shows the detector's progress after the upload's", async () => {
+    const upload = vi.fn(async (_a: unknown, _m: string, files: readonly File[]) => ({ accepted: files.map((f) => f.name), rejected: [] }));
+    render(<UploadPanel api={API} missionId="a1b2c3d4" upload={upload} processed={1} />);
+    await userEvent.upload(screen.getByLabelText("Choose photos"), [jpeg("DJI_0001.JPG"), jpeg("DJI_0002.JPG")]);
+    await waitFor(() => expect(screen.getByText("1 / 2 ranked by the detector…")).toBeInTheDocument());
+    expect(screen.getByLabelText("Detector progress")).toHaveAttribute("value", "1");
+    expect(screen.getByLabelText("Upload progress")).toHaveAttribute("max", "2");
+  });
+
   it("offers the map to pick the last known position", async () => {
     render(<NewSearch api={API} onCreated={vi.fn()} createMission={vi.fn()} />);
     const button = screen.getByRole("button", { name: "Pick on the map" });

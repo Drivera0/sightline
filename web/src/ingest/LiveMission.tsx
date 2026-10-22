@@ -16,7 +16,9 @@ import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoMission, loadDemoTrace } from "../
 import { TraceView, type TraceRun } from "../command/TraceView";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { usePick } from "../map/pick";
-import { Label, ModeChip, modeOf, Panel, Stat } from "../shell/components";
+import { KeyHint, Label, ModeChip, modeOf, Panel, Stat } from "../shell/components";
+import { ShortcutOverlay } from "../shell/ShortcutOverlay";
+import { SHORTCUT_GROUPS, type ShortcutGroup } from "../shell/shortcuts";
 import { Logo } from "../shell/Logo";
 import { RadioDesk } from "../radio/RadioDesk";
 import { LiveReview } from "../review/LiveReview";
@@ -55,6 +57,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
   const [tab, setTab] = useState<Tab>(demo && !DEMO_TABS.includes(initialTab) ? "command" : initialTab);
   const [demoNow, setDemoNow] = useState<Date | null>(null);
   const [demoSeed, setDemoSeed] = useState<string | null>(null);
+  const [keysOpen, setKeysOpen] = useState(false);
   const [card, setCard] = useState<string | null>(() => cardFromHash(window.location.hash));
   useEffect(() => {
     if (embedded) return undefined;
@@ -85,7 +88,10 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
     // C: the Command tab (D-R1's shortcut), unless typing; in the guided demo its own C key opens this step
     if (embedded) return undefined;
     const onKey = (e: KeyboardEvent) => {
-      if ((e.key === "c" || e.key === "C") && !isTyping(e.target) && !e.ctrlKey && !e.metaKey && !e.altKey) go("command");
+      if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "?") setKeysOpen((o) => !o); // the shortcut list, as in the guided demo
+      else if (e.key === "Escape") setKeysOpen(false);
+      else if ((e.key === "c" || e.key === "C") && !keysOpen) go("command");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -157,7 +163,12 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
   );
   return (
     <Frame aria-label={embedded ? "Demo mission" : undefined} className={frameClass}>
-      {!embedded && <AppBar demo={demo}>{isConsole && tabNav}</AppBar>}
+      {!embedded && (
+        <AppBar demo={demo} onShortcuts={() => setKeysOpen(true)}>
+          {isConsole && tabNav}
+        </AppBar>
+      )}
+      {keysOpen && <ShortcutOverlay groups={MISSION_SHORTCUTS} onClose={() => setKeysOpen(false)} />}
       {!embedded && !isConsole && (
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-col">
@@ -209,8 +220,19 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
       )}
 
       {tab === "photos" && (
+        <MissionSteps
+          steps={[
+            { label: "Upload photos", detail: progress.processed ? `${progress.processed} in` : "drag them in below", done: progress.processed > 0 },
+            { label: "Detector ranks", detail: progress.processed ? `${progress.processed} ranked` : "about a quarter second each", done: progress.processed > 0 },
+            { label: "Review candidates", detail: `${progress.candidates + s.promoted.length} to look at`, done: s.verdicts.length > 0 },
+            { label: "Command", detail: waiting ? `${waiting} approvals waiting` : "the map and the proposals", done: false },
+          ]}
+          onStep={(i) => i === 2 ? go("review") : i === 3 ? go("command") : undefined}
+        />
+      )}
+      {tab === "photos" && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <UploadPanel api={api} missionId={missionId} />
+          <UploadPanel api={api} missionId={missionId} processed={progress.processed} />
           <Panel className="flex flex-col gap-2" aria-label="During the flight">
             <Label>During the flight</Label>
             <p className="text-body text-text-2">
@@ -315,7 +337,8 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
 }
 
 /** The app's top line on mission pages: the logo back to the start, and the way back to the guided demo. */
-function AppBar({ demo, children }: { demo: boolean; children?: ReactNode }) {
+function AppBar({ demo, children, onShortcuts }: { demo: boolean; children?: ReactNode; onShortcuts: () => void }) {
+  const link = "text-text-2 underline-offset-4 hover:text-text hover:underline";
   return (
     <nav aria-label="Sightline" className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-2">
       <a href="#" className="flex items-center gap-2 text-body font-medium text-text" title="Back to the start">
@@ -324,18 +347,61 @@ function AppBar({ demo, children }: { demo: boolean; children?: ReactNode }) {
       </a>
       {children}
       <span className="flex items-center gap-4 text-small">
+        <button type="button" onClick={onShortcuts} className={`${link} flex items-center gap-1.5`} title="Keyboard shortcuts">
+          Shortcuts <KeyHint>?</KeyHint>
+        </button>
         {demo && (
-          <a href="#survey" className="text-accent-soft underline">
+          <a href="#survey" className={link}>
             Guided demo
           </a>
         )}
-        <a href="#new" className="text-text-2 underline">
+        <a href="#new" className={link}>
           New search
         </a>
       </span>
     </nav>
   );
 }
+
+/** Where this mission is, from photos to command: done steps in green, the next one marked "now". */
+function MissionSteps({ steps, onStep }: { steps: { label: string; detail: string; done: boolean }[]; onStep: (i: number) => void }) {
+  const current = steps.findIndex((x) => !x.done);
+  return (
+    <ol aria-label="Mission progress" className="grid gap-2 sm:grid-cols-4">
+      {steps.map((x, i) => (
+        <li key={x.label}>
+          <button
+            type="button"
+            onClick={() => onStep(i)}
+            aria-current={i === current ? "step" : undefined}
+            className={`flex w-full flex-col gap-0.5 rounded-sm border px-3 py-2 text-left ${i === current ? "border-border bg-surface-strong" : "border-line bg-surface-solid"}`}
+          >
+            <span className="flex items-center gap-2 text-small text-text">
+              <span data-tone={x.done ? "ok" : i === current ? "neutral" : "muted"} className="sl-pill" aria-hidden>
+                {x.done ? "✓" : i + 1}
+              </span>
+              {x.label}
+              {i === current && <span className="ml-auto text-caption text-text-3">now</span>}
+            </span>
+            <span className="text-caption text-text-2">{x.detail}</span>
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** The mission page's shortcut list: the console's keys and the review's, without the guided demo's steps. */
+const MISSION_SHORTCUTS: readonly ShortcutGroup[] = [
+  ...SHORTCUT_GROUPS.filter((g) => g.title === "Command console" || g.title === "Review"),
+  {
+    title: "Everywhere",
+    shortcuts: [
+      { keys: ["?"], description: "Show or hide this list" },
+      { keys: ["Esc"], description: "Close" },
+    ],
+  },
+];
 
 /** The demo mission's pre-seeded state in one sentence: what is there before anyone acts, and its date. */
 export function demoSeedWords(data: Partial<MissionData>, now: string): string {

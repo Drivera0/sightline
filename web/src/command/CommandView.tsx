@@ -58,7 +58,11 @@ export function CommandView(p: CommandProps) {
         aria-label="Command view"
         className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]"
       >
-        <div className="lg:col-span-3">
+        <div className="flex flex-col gap-2 lg:col-span-3">
+          <p className="rounded-sm border border-line bg-surface-solid px-3 py-2 text-caption text-text-2 lg:hidden">
+            <span className="font-medium text-text">Desktop recommended.</span> The console is laid out for a screen 1024 px or wider; here
+            its panels stack: map, sectors and teams, approvals, clues.
+          </p>
           <MissionHeader heading mission={p.mission} status={p.status} conditions={p.conditions} now={now()} />
         </div>
         <aside aria-label="Sectors and teams" className="order-2 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 lg:order-none">
@@ -67,6 +71,7 @@ export function CommandView(p: CommandProps) {
         </aside>
         <div className="order-1 flex min-h-0 flex-col gap-2 lg:order-none">
           <StatusLine proposals={p.proposals} teams={p.teams} tasks={p.tasks} clues={p.clues} />
+          <ConsoleHint />
           {p.aboveMap}
           <div className="h-[60vh] min-h-0 lg:h-auto lg:flex-1">{p.map}</div>
         </div>
@@ -135,6 +140,49 @@ export function MissionHeader({ mission, status, conditions: c, now, heading = f
         {old && <span className="text-caution"> · as of {hhmm(new Date(c!.fetched_at))}</span>}
       </p>
     </section>
+  );
+}
+
+export const HINT_KEY = "sightline.consoleHint";
+
+function hintSeen(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(HINT_KEY) === "seen";
+  } catch {
+    return false;
+  }
+}
+
+/** The console's first-visit hint: where things are, in three bullets. Dismissed once, per browser. */
+export function ConsoleHint() {
+  const [shown, setShown] = useState(() => !hintSeen());
+  if (!shown) return null;
+  const dismiss = () => {
+    setShown(false);
+    try {
+      globalThis.localStorage?.setItem(HINT_KEY, "seen");
+    } catch {
+      /* private mode: hidden for this page only */
+    }
+  };
+  return (
+    <aside aria-label="How to use the console" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-line bg-surface-solid px-3 py-1.5 text-caption text-text-2">
+      <span className="font-medium text-text">First time here?</span>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1">
+        <li>
+          <span className="text-accent">→</span> Approve the agent's proposals on the right
+        </li>
+        <li>
+          <span className="text-accent">←</span> Assign teams to sectors on the left
+        </li>
+        <li>
+          <span className="text-accent">↓</span> Add clues below the map
+        </li>
+      </ul>
+      <button type="button" onClick={dismiss} className="ml-auto rounded-full border border-border px-2.5 py-0.5 text-text-2 hover:text-text">
+        Got it
+      </button>
+    </aside>
   );
 }
 
