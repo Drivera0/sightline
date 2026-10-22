@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { DEMO_MISSION_ID } from "./command/demoMission";
-import { AboutSheet } from "./front/About";
 import { LiveCard, LiveMission, type MissionRoute } from "./ingest/LiveMission";
 import { NewSearch } from "./ingest/NewSearch";
 import { apiBase } from "./lib/api";
 import { DEMO, redirectFromHash, routeFromHash, type Route } from "./shell/flow";
+
+// About is a sheet a visitor opens later: its own chunk, out of the landing's first bundle.
+const AboutSheet = lazy(() => import("./front/About").then((m) => ({ default: m.AboutSheet })));
 
 /** The current hash, with old addresses (#survey, #judges, #m/<id>/command…) replaced by their one home. */
 function canonicalHash(): string {
@@ -59,20 +61,24 @@ export function App({ base = apiBase() }: { base?: string | null }) {
   }, [behindHash]);
   return (
     <>
-      <Console route={shown} base={base} />
-      {route.kind === "about" && <AboutSheet onClose={closeAbout} />}
+      <Console route={shown} base={base} covered={route.kind === "about"} />
+      {route.kind === "about" && (
+        <Suspense fallback={null}>
+          <AboutSheet onClose={closeAbout} />
+        </Suspense>
+      )}
     </>
   );
 }
 
-function Console({ route, base }: { route: Behind; base: string | null }) {
+function Console({ route, base, covered }: { route: Behind; base: string | null; covered: boolean }) {
   const api = useMemo(() => (base === null ? null : { base }), [base]);
   // one object across renders: a new one on each hash change re-ran the mission's load
   const demoApi = useMemo(() => api ?? { base: "" }, [api]);
   if (route.kind === "new") return <NewSearch api={api} onCreated={(id) => (window.location.hash = `#m/${id}/photos`)} />;
   if (route.kind === "card") return api ? <LiveCard api={api} missionId={route.id} sector={route.sector} /> : <NewSearch api={null} onCreated={() => undefined} />;
   // the demo mission needs no API (E-04): it is the whole public site
-  if (route.id === DEMO_MISSION_ID) return <LiveMission key="demo" api={demoApi} missionId={DEMO_MISSION_ID} route={route} />;
+  if (route.id === DEMO_MISSION_ID) return <LiveMission key="demo" api={demoApi} missionId={DEMO_MISSION_ID} route={route} covered={covered} />;
   if (api === null) return <NewSearch api={null} onCreated={() => undefined} />;
-  return <LiveMission key={route.id} api={api} missionId={route.id} route={route} />;
+  return <LiveMission key={route.id} api={api} missionId={route.id} route={route} covered={covered} />;
 }

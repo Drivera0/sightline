@@ -19,7 +19,7 @@ function canvas(w: number, h: number): CanvasRenderingContext2D | null {
   const el = document.createElement("canvas");
   el.width = w * RATIO;
   el.height = h * RATIO;
-  const ctx = el.getContext("2d");
+  const ctx = el.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
   ctx.scale(RATIO, RATIO);
   return ctx;

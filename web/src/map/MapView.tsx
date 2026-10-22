@@ -34,7 +34,11 @@ import {
   type BasemapMode,
 } from "./base/basemap";
 import { MAP_LAYER_IDS } from "./base/layerIds";
+import { configureMapWorker } from "../lib/mapWorker";
 import { setHoveredPin, setSelectedPin, syncBaseLayers, syncDetectionSource } from "./base/layers";
+
+// MapLibre (and its worker) load with the first map, not with the page: every map goes through this module.
+configureMapWorker();
 
 const DEFAULT_CENTER: [number, number] = [-122.945, 49.37];
 const EMPTY_STYLE: StyleSpecification = {

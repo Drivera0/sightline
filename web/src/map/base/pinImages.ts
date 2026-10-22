@@ -37,7 +37,7 @@ function canvas(
   const el = document.createElement("canvas");
   el.width = widthPx * RATIO;
   el.height = heightPx * RATIO;
-  const ctx = el.getContext("2d");
+  const ctx = el.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
   ctx.scale(RATIO, RATIO);
   return ctx;

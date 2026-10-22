@@ -183,7 +183,7 @@ export function TryPhoto({ cache, dir, onResult }: { cache: CacheBundle; dir: st
                     onClick={() => void trySample(s)}
                     className="inline-flex items-center gap-2 rounded-full border border-border px-2 py-1 text-text-2 hover:border-accent/60 hover:text-text disabled:opacity-40"
                   >
-                    <img src={cacheUrl(dir, s.frame.file)} alt="" className="size-6 rounded-full object-cover" />
+                    <img loading="lazy" decoding="async" width={24} height={24} src={cacheUrl(dir, s.frame.file)} alt="" className="size-6 rounded-full object-cover" />
                     {s.frame.id}
                   </button>
                 ))}

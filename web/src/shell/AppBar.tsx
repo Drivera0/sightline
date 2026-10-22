@@ -101,7 +101,7 @@ export function AppBar({ mission, views, action, extra }: { mission?: BarMission
         <div className="flex min-h-14 items-center gap-3 px-4 py-2 lg:gap-5 lg:px-6">
           <Brand />
           {mission && (
-            <div className="flex min-w-0 items-center gap-2" aria-label="Mission">
+            <div role="group" className="flex min-w-0 items-center gap-2" aria-label="Mission">
               <span aria-hidden className="hidden h-5 w-px bg-line sm:block" />
               <span className="truncate text-small font-medium text-text" title={mission.name}>
                 {mission.name}

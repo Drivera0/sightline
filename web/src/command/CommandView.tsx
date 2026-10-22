@@ -103,7 +103,7 @@ export function CommandView(p: CommandProps) {
       : "lg:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)]";
     const span = wide ? "lg:col-span-2" : "lg:col-span-3";
     return (
-      <div aria-label="Command view" className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-rows-[auto_minmax(0,1fr)_auto] ${grid}`}>
+      <div role="group" aria-label="Command view" className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-rows-[auto_minmax(0,1fr)_auto] ${grid}`}>
         <div className={`relative z-20 flex flex-col gap-2 ${span}`}>
           <MissionHeader
             bare
@@ -141,7 +141,7 @@ export function CommandView(p: CommandProps) {
             </>
           )}
         </aside>
-        <div className={`order-4 max-h-40 overflow-y-auto rounded-lg border border-line bg-surface-solid px-4 py-2.5 lg:order-none ${span}`}>
+        <div className={`order-4 max-h-40 overflow-y-auto rounded-lg lg:h-40 border border-line bg-surface-solid px-4 py-2.5 lg:order-none ${span}`}>
           <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} utc={p.status === "demo"} />
         </div>
         {p.cover && <div className="absolute inset-0 z-30 overflow-y-auto rounded-lg bg-bg">{p.cover}</div>}
@@ -149,7 +149,7 @@ export function CommandView(p: CommandProps) {
     );
   }
   return (
-    <div className="flex flex-col gap-4" aria-label="Command view">
+    <div role="group" className="flex flex-col gap-4" aria-label="Command view">
       <MissionHeader mission={p.mission} status={p.status} conditions={p.conditions} now={now()} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <div className="flex flex-col gap-4">
@@ -331,7 +331,7 @@ export function TaskBoard({
           const cut = col.state === "proposed" && !allProposed ? PROPOSED_SHOWN : all.length;
           const cards = all.slice(0, cut);
           return (
-            <div key={col.state} className="flex flex-col gap-1" aria-label={col.label}>
+            <div role="group" key={col.state} className="flex flex-col gap-1" aria-label={col.label}>
               <span className="flex items-baseline justify-between px-1 text-caption text-text-3">
                 <span className="font-medium text-text-2">{col.label} ({all.length})</span>
                 {col.state === "proposed" && all.length > 0 && <span title="Probability of area: how likely the person is in the sector, on the live map">POA</span>}
@@ -407,7 +407,7 @@ function TaskCard({
   const pill: [Tone, string] =
     t.state === "in_progress" ? ["ok", `Searching ${mins}m`] : t.state === "assigned" ? ["neutral", "Assigned"] : t.state === "searched" ? ["muted", `POD ${podPct}%`] : ["muted", "Proposed"];
   const sentence = `${status}${coverage !== undefined ? ` · drone coverage ${pct(coverage)}` : ""}`;
-  const quiet = "sl-tap rounded-full border border-line bg-surface-strong px-2 py-0.5 text-caption text-text-2 hover:border-border hover:text-text";
+  const quiet = "sl-tap min-h-6 rounded-full border border-line bg-surface-strong px-2 py-0.5 text-caption text-text-2 hover:border-border hover:text-text";
   const actions = (
     <>
       {t.state === "proposed" && !picking && (
@@ -477,7 +477,7 @@ function TaskCard({
             </>
           )}
           {picking && (
-            <div className="flex flex-wrap items-center gap-1.5" aria-label="Pick a team">
+            <div role="group" className="flex flex-wrap items-center gap-1.5" aria-label="Pick a team">
               <span className="text-text-3">Team on standby:</span>
               {standby.map((x) => (
                 <button key={x.id} type="button" className={quiet} onClick={() => void assign(x.id)}>
@@ -490,7 +490,7 @@ function TaskCard({
             </div>
           )}
           {podOpen && (
-            <div className="flex flex-col gap-1.5" aria-label="POD entry" title={POD_TIP}>
+            <div role="group" className="flex flex-col gap-1.5" aria-label="POD entry" title={POD_TIP}>
               <span className="text-text-3">{POD_TIP}</span>
               <div className="flex gap-1.5">
                 {[

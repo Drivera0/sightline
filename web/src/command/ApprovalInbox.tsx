@@ -49,7 +49,7 @@ function RecallFacts({ p, drone }: { p: Proposal; drone: Drone | undefined }) {
   const override = src?.ref === OVERRIDE_SOURCE;
   const url = src && /^https?:\/\//.test(src.ref) ? src.ref : null;
   return (
-    <div aria-label="Why recall" className="flex flex-col gap-1 rounded-sm border border-line px-2 py-1.5 text-caption">
+    <div role="group" aria-label="Why recall" className="flex flex-col gap-1 rounded-sm border border-line px-2 py-1.5 text-caption">
       {src && (
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           {url ? (
@@ -183,7 +183,7 @@ export function ApprovalInbox({
         <p className="basis-full text-caption text-text-3">The agent's proposals, with its reasons. Nothing happens until a person approves.</p>
       </header>
       {pending.length === 0 && (
-        <div aria-label="Nothing waiting" className="flex flex-col gap-1.5 rounded-sm border border-dashed border-line px-3 py-4 text-small">
+        <div role="group" aria-label="Nothing waiting" className="flex flex-col gap-1.5 rounded-sm border border-dashed border-line px-3 py-4 text-small">
           <p className="text-text-2">Nothing waiting. Proposals appear here when the agent has evidence; they need a person's approval.</p>
           {feedHref && (
             <a href={feedHref} className="sl-tap self-start text-accent-soft underline underline-offset-2 hover:text-text">
@@ -285,11 +285,11 @@ function PendingCard({
       </button>
       {isRecall(p) && <RecallFacts p={p} drone={drone} />}
       {p.evidence.length > 0 && !isRecall(p) && (
-        <div className="flex flex-wrap gap-2" aria-label="Evidence">
+        <div role="group" className="flex flex-wrap gap-2" aria-label="Evidence">
           {p.evidence.map((ev) =>
             IMAGE_EVIDENCE.includes(ev.kind) ? (
               <figure key={ev.ref} className="flex w-24 flex-col gap-1">
-                <img src={imageUrl(ev.ref)} alt={ev.caption} className="aspect-square w-24 rounded-sm object-cover" />
+                <img loading="lazy" decoding="async" src={imageUrl(ev.ref)} alt={ev.caption} className="aspect-square w-24 rounded-sm object-cover" />
                 <figcaption className="text-caption text-text-3">{ev.caption}</figcaption>
               </figure>
             ) : (
@@ -302,7 +302,7 @@ function PendingCard({
       )}
       {!editing && p.briefing && <p className="text-small text-text-2">Briefing: “{p.briefing}”</p>}
       {editing && (
-        <div className="flex flex-col gap-2" aria-label="Edit before approving">
+        <div role="group" className="flex flex-col gap-2" aria-label="Edit before approving">
           {p.kind === "assign_sector" && (
             <label className="flex items-center gap-2 text-small text-text-2">
               Team
