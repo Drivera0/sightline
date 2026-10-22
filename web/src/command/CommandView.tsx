@@ -13,7 +13,7 @@ import { FleetControls } from "./FleetControls";
 import { useMission } from "../lib/mission";
 import type { Clue, ClueDraft, Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
-import { KeyHint, ModeChip, modeOf, Panel, StatusPill, type Tone } from "../shell/components";
+import { Button, KeyHint, ModeChip, modeOf, Panel, StatusPill, type Tone } from "../shell/components";
 import { ApprovalInbox, type Decide } from "./ApprovalInbox";
 
 type TaskBody = { state: SectorTask["state"]; team_id?: string | null; pod?: number | null; note?: string | null };
@@ -40,6 +40,8 @@ export interface CommandProps {
   sideRail?: ReactNode;
   /** The live map: with it, the view is the full-screen console of LANE_E §7.1 (map in the middle). */
   map?: ReactNode;
+  /** Right above the map, phones only (the Photos view's strip: the map stays on screen while photos land). */
+  aboveMap?: ReactNode;
   /** Over the map, along its bottom edge (the demo mission's time scrubber). */
   overMap?: ReactNode;
   /** The console's right-hand rail in place of the approvals (the Photos, Review or Debrief view). */
@@ -125,9 +127,10 @@ export function CommandView(p: CommandProps) {
         </aside>
         <div className="order-1 flex min-h-0 flex-col gap-2 lg:order-none">
           <StatusLine proposals={p.proposals} teams={p.teams} tasks={p.tasks} clues={p.clues} />
+          {p.aboveMap}
           <div className="relative h-[52vh] min-h-0 lg:h-auto lg:flex-1">
             {p.map}
-            {p.overMap && <div className="pointer-events-none absolute inset-x-2 bottom-12 z-10 flex justify-center sm:inset-x-3">{p.overMap}</div>}
+            {p.overMap && <div className="pointer-events-none absolute inset-x-2 bottom-7 z-10 flex justify-center sm:inset-x-3">{p.overMap}</div>}
           </div>
         </div>
         <aside aria-label={p.rightRail ? "View" : "Approvals"} className="order-2 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 lg:order-none">
@@ -318,7 +321,9 @@ export function TaskBoard({
   const poa = (t: SectorTask) => live.get(t.sector_id)?.poa ?? t.poa;
   return (
     <section aria-label="Task board" data-tour="tasks" className="flex flex-col gap-2">
-      <span className="px-1 text-caption font-medium text-text-2">Task board</span>
+      <span className="px-1 text-caption font-medium text-text-2">
+        Task board <span className="font-normal text-text-3">· each sector, from proposed to searched</span>
+      </span>
       <div className={compact ? "flex flex-col gap-3" : "grid gap-3 md:grid-cols-4"}>
         {COLUMNS.map((col) => {
           const all = tasks.filter((t) => t.state === col.state).sort((a, b) => poa(b) - poa(a));
@@ -632,11 +637,14 @@ export function ClueLog({
   const callsign = (id: string) => teams.find((t) => t.id === id)?.callsign ?? (id === "command" ? "command" : id);
   return (
     <section aria-label="Clue log" className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
-        <span className="text-caption font-medium text-text-2">Clue log ({clues.length})</span>
-        <button type="button" aria-expanded={open} className="sl-tap rounded-full border border-border px-3 py-0.5 text-caption text-text-2 hover:text-text" onClick={() => setOpen(!open)}>
-          + Add clue
-        </button>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-small text-text-2">
+          <span className="font-medium text-text">Clue log ({clues.length})</span>
+          <span className="text-text-3"> · what teams and the public reported; each confirmed clue moves the map</span>
+        </span>
+        <Button aria-expanded={open} onClick={() => setOpen(!open)} className="ml-auto">
+          Add a clue
+        </Button>
       </div>
       {open && (
         <Panel className="p-3">

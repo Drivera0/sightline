@@ -13,7 +13,7 @@ import { CoachMark } from "../command/CoachMark";
 import { Debrief } from "../command/Debrief";
 import { candidatePosition, demoCards, landedFrames, RECORDED_ID } from "../command/demoReview";
 import { CHECKPOINTS, checkpoint, demoAt, MARK_COUNT, STORY_PROPOSAL, type Checkpoint, type DemoFull } from "../command/missionTime";
-import { PhotosRail } from "../command/PhotosRail";
+import { PhotoStrip, PhotosRail } from "../command/PhotosRail";
 import { PitchBar } from "../command/PitchBar";
 import { Scrubber } from "../command/Scrubber";
 import { landing, RUN_MS, storyClock, useStory } from "../command/story";
@@ -23,7 +23,7 @@ import { photoProgress, useMission } from "../lib/mission";
 import { clock, ClockZone, zone } from "../lib/time";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
-import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
+import { DEMO_CACHE, DEMO_MISSION_ID, demoConditionsData, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
 import type { ConditionsData } from "../command/ConditionsPanel";
 import { TraceView, type TraceRun } from "../command/TraceView";
@@ -87,8 +87,8 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
   const [view, setView] = useState<View>(() => route.view ?? (demo && route.t !== null ? checkpoint(route.t).view : "map"));
   const [keysOpen, setKeysOpen] = useState(false);
   const [tryOpen, setTryOpen] = useState(!!route.open.try);
-  const [radioOpen, setRadioOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(!!route.open.log);
+  const [preSeen, setPreSeen] = useState<number[]>([]);
   const [demoData, setDemoData] = useState<{ full: DemoFull; bundle: CacheBundle } | null>(null);
   const [bundle, setBundle] = useState<CacheBundle | null>(null);
 
@@ -223,6 +223,17 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
     },
     [demo, missionId],
   );
+  // phones: the bottom bar's Clues brings the clue log (under the map) on screen, the Trace sheet out of the way
+  const jumpToClues = () => {
+    if (view === "trace") go("map");
+    requestAnimationFrame(() => {
+      const log = document.querySelector<HTMLElement>('[aria-label="Clue log"]');
+      if (!log) return;
+      log.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+      if (!log.hasAttribute("tabindex")) log.setAttribute("tabindex", "-1");
+      log.focus({ preventScroll: true });
+    });
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -231,10 +242,11 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       else if (e.key === "Escape") setKeysOpen(false);
       else if (keysOpen) return;
       else if (e.key === "c" || e.key === "C") go("map");
-      else if (/^[1-5]$/.test(e.key) && !useStory.getState().tour) go(VIEWS[Number(e.key) - 1]!.id);
-      else if (e.key === " " && demo && !useStory.getState().tour && useStory.getState().progress < 1 && !(e.target instanceof HTMLButtonElement)) {
+      else if (/^[1-6]$/.test(e.key) && !useStory.getState().tour) go(VIEWS[Number(e.key) - 1]!.id);
+      else if (e.key === " " && demo && !useStory.getState().tour && !(e.target instanceof HTMLButtonElement)) {
+        // outside the story Space plays the clock on to the end, or pauses it
         e.preventDefault();
-        useStory.getState().toggle();
+        useStory.getState().play();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -312,6 +324,17 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
     <p className="text-small text-text-3">Loading the detector's settings…</p>
   );
   const progress = photoProgress(s);
+  // phones: the photos land in a strip right above the map, so the map stays in view while they do
+  const photoStrip =
+    view === "photos" && landed ? (
+      <PhotoStrip
+        landed={landed}
+        total={cache?.survey.frames.length ?? 0}
+        candidates={landed.reduce((n, f) => n + f.n_candidates, 0)}
+        playing={story.playing}
+        imageUrl={imageUrl}
+      />
+    ) : undefined;
   const photosRail = (
     <PhotosRail
       landed={landed}
@@ -362,15 +385,24 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       The radio desk isn't running on this server. Start the API with <code>serve --radio text</code> (or <code>real</code> for voices).
     </p>
   );
+  // the radio is a view of its own (the switch's Radio, key 6); under the approvals, a labelled way there
   const radioToggle = (
-    <section aria-label="Radio" className="flex flex-col gap-2">
-      <button type="button" aria-expanded={radioOpen} onClick={() => setRadioOpen(!radioOpen)} className="sl-tap flex items-center gap-2 self-start px-1 text-caption font-medium text-text-2 hover:text-text">
-        <span aria-hidden className={`font-mono transition-transform motion-reduce:transition-none ${radioOpen ? "rotate-90" : ""}`}>
-          ›
-        </span>
-        Radio desk
+    <section aria-label="Radio" className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-solid px-3 py-2">
+      <span className="text-small text-text-2">
+        <span className="font-medium text-text">Radio</span> · teams report here
+      </span>
+      <button type="button" onClick={() => go("radio")} className="sl-tap rounded-full border border-border px-3 py-0.5 text-small text-text hover:border-text-3">
+        Open Radio
       </button>
-      {radioOpen && radioDesk}
+    </section>
+  );
+  const radioRail = (
+    <section aria-label="Radio desk" className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5 px-1">
+        <span className="text-caption font-medium text-text-2">Radio</span>
+        <span className="text-caption text-text-3">Teams report by radio; Sightline answers, and a briefing goes out only when you press Transmit.</span>
+      </div>
+      <Panel className="p-3">{radioDesk}</Panel>
     </section>
   );
   const debrief = (
@@ -383,10 +415,11 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       judgesOpen={!!route.open.judges}
       traceHref={viewHash(missionId, "trace")}
       liveDebriefUrl={liveDebrief}
+      exports={{ missionUrl: demo ? null : `${api.base}/missions/${encodeURIComponent(missionId)}`, teams: s.teams }}
     />
   );
   const rightRail: ReactNode =
-    view === "photos" ? photosRail : view === "review" ? reviewRail : view === "debrief" ? debrief : view === "radio" ? <Panel className="p-3">{radioDesk}</Panel> : undefined;
+    view === "photos" ? photosRail : view === "review" ? reviewRail : view === "debrief" ? debrief : view === "radio" ? radioRail : undefined;
   const cover =
     view === "trace" ? (
       <div className="flex flex-col gap-3 p-1">
@@ -418,7 +451,9 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
         }
     : { label: "New search", href: "#new" };
   const barClock = demo ? `${clock(clockIso, true)} UTC` : s.mission ? `${clock(new Date(), false)} ${zone(new Date(), false)}` : null;
-  const mark = demo && story.tour ? CHECKPOINTS[t]?.mark : null;
+  // a checkpoint's pre-mark (t3: the clue log) comes once, before its own mark
+  const pre = demo && story.tour && !preSeen.includes(t) ? (CHECKPOINTS[t]?.pre ?? null) : null;
+  const mark = demo && story.tour ? (pre ?? CHECKPOINTS[t]?.mark) : null;
   const markIndex = CHECKPOINTS.filter((c) => c.mark && c.t <= t).length;
 
   return (
@@ -426,7 +461,12 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       <div className="flex min-h-dvh flex-col lg:h-dvh">
         <AppBar
           mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: modeOf(s.status), clock: barClock }}
-          views={{ current: view, onSelect: go, counts: { map: waiting || undefined } }}
+          views={{
+            current: view,
+            onSelect: go,
+            counts: { map: waiting || undefined },
+            jump: { label: "Clues", title: "The clue log: what teams and the public reported", count: s.clues.length || undefined, onClick: jumpToClues },
+          }}
           action={action}
           extra={
             <button type="button" onClick={() => setKeysOpen(true)} className="sl-tap hidden items-center gap-1.5 text-small text-text-2 hover:text-text md:inline-flex" title="Keyboard shortcuts">
@@ -444,7 +484,8 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
             }}
           />
         )}
-        <main className="flex min-h-0 flex-1 flex-col gap-3 p-3 pb-20 lg:px-4 lg:pb-3">
+        {/* a phone's coach mark sits along the bottom: room under the last panel so any target can scroll to the top */}
+        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-3 pb-20 lg:px-4 lg:pb-3 ${mark ? "max-sm:pb-[55vh]" : ""}`}>
           {s.error && (
             <p role="alert" className="text-small text-warn">
               {s.error}
@@ -469,6 +510,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
             sideRail={radioToggle}
             rightRail={rightRail}
             rightWide={view === "debrief"}
+            aboveMap={photoStrip}
             cover={cover}
             map={
               <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demoNow} fill />
@@ -480,7 +522,24 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
                   progress={story.progress}
                   playing={story.playing}
                   at={clockIso}
-                  onToggle={() => useStory.getState().toggle()}
+                  canPlay={!story.tour}
+                  through={story.through}
+                  hint={
+                    story.tour ? null : (
+                      <>
+                        Press Follow the search for the 3-minute story, or play the clock and use the views <span className="lg:hidden">below</span>
+                        <span className="max-lg:hidden">above</span>.
+                      </>
+                    )
+                  }
+                  onToggle={() => {
+                    const st = useStory.getState();
+                    if (st.tour) st.toggle();
+                    else {
+                      if (st.progress >= 1 && view === "debrief") setView("map");
+                      st.play();
+                    }
+                  }}
                   onSeek={(to) => {
                     const st = useStory.getState();
                     st.seek(to, { animate: to === st.t + 1 });
@@ -505,8 +564,10 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
             index={markIndex}
             count={MARK_COUNT}
             last={t === 5}
-            gate={checkpoint(t).gate === "approve" ? "Approve it on the card to send the team." : undefined}
-            onNext={() => (t === 5 ? useStory.getState().exit() : useStory.getState().next())}
+            gate={!pre && checkpoint(t).gate === "approve" ? "Approve it on the card to send the team." : undefined}
+            aside={mark.aside}
+            onAside={mark.aside ? () => setView("radio") : undefined}
+            onNext={() => (pre ? setPreSeen((s) => [...s, t]) : t === 5 ? useStory.getState().exit() : useStory.getState().next())}
             onBack={t > 1 ? () => useStory.getState().previous() : undefined}
             onExit={() => useStory.getState().exit()}
             onToggleClock={() => useStory.getState().toggle()}
@@ -554,11 +615,13 @@ function useConditionsData(api: Api, missionId: string, demo: boolean, condition
     };
   }, [api, missionId, demo, conditions?.fetched_at]); // re-read the trace when new conditions arrive
   const lookup = useMemo(() => latestLookup(trace), [trace]);
-  if (demo) return recorded;
   if (!conditions) return null;
   const drones = fleet?.drones ?? [];
   const weakest = drones.length ? drones.reduce((a, b) => (b.max_wind_kmh < a.max_wind_kmh ? b : a)) : null;
-  return { conditions, lookup, recorded: null, limitKmh: weakest?.max_wind_kmh ?? null, drone: weakest?.name ?? null };
+  const limit = { kmh: weakest?.max_wind_kmh ?? null, drone: weakest?.name ?? null };
+  // the demo: its own conditions on top (the same verdict as the row), the recorded lookup folded under them
+  if (demo) return recorded ? demoConditionsData(conditions, recorded, limit) : null;
+  return { conditions, lookup, recorded: null, limitKmh: limit.kmh, drone: limit.drone };
 }
 
 const TRACE_POLL_MS = 4000;

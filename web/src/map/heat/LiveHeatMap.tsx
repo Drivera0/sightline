@@ -36,6 +36,7 @@ import { LiveHeat, lookedAt } from "../../search/live";
 import { basemapStyle, chooseBasemapMode, readBasemapColors } from "../base/basemap";
 import { MapProvider, useMap } from "../MapView";
 import { cellKinds, surfaceData } from "./classes";
+import { cluesToFlash, type ClueSeen, FLASH_MS, flashFeatures, seenOf } from "./clueFlash";
 import { CLASS_ROWS, ContourGlyph, OUTSIDE_LABEL, swatchColor } from "./Legend";
 import { basemapKind, basemapLabelLayer, type BasemapKind, HEAT_PALETTES, type HeatPalette, muteImagery } from "./palette";
 import { gridCorners, HeatRaster, kindColors, kindPixels, surfaceTheme } from "./raster";
@@ -60,6 +61,8 @@ const TWEEN_MS = 600;
 
 type Feature = { type: "Feature"; properties: Record<string, unknown>; geometry: { type: string; coordinates: unknown } };
 const fc = (features: Feature[]) => ({ type: "FeatureCollection" as const, features });
+/** The flash of a clue just added or confirmed (clueFlash.ts). */
+const FLASH_ID = "sl-clue-flash";
 /** A theme token (MapLibre cannot read CSS variables). */
 const cssVar = (name: string, fallback: string) =>
   (typeof document === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue(name).trim()) || fallback;
@@ -342,6 +345,43 @@ function LiveLayers({
     syncTargets(map, teamTargets.current, points.filter((p) => p.properties.kind === "team"), "team");
   }, [map, ready, base, sectors, clues, teams, now, utc]);
 
+  // A clue added or confirmed: its circle and the cells it reweighted flash and fade, so the cause
+  // (the clue) and the effect (the map) are seen together. Reduced motion: no flash.
+  const cluesSeen = useRef<ClueSeen | null>(null);
+  useEffect(() => {
+    if (!map || !ready) return undefined;
+    const fresh = cluesToFlash(cluesSeen.current, clues);
+    cluesSeen.current = seenOf(clues);
+    if (fresh.length === 0 || prefersReducedMotion()) return undefined;
+    if (!map.getSource(FLASH_ID)) {
+      map.addSource(FLASH_ID, { type: "geojson", data: fc([]) as never });
+      map.addLayer({ id: `${FLASH_ID}-fill`, type: "fill", source: FLASH_ID, paint: { "fill-color": cssVar("--accent", "#ff7a1a"), "fill-opacity": 0 } });
+      map.addLayer({ id: `${FLASH_ID}-line`, type: "line", source: FLASH_ID, paint: { "line-color": cssVar("--accent", "#ff7a1a"), "line-width": 3, "line-opacity": 0 } });
+    }
+    setData(map, FLASH_ID, flashFeatures(base, fresh, updates) as unknown as Feature[]);
+    const start = performance.now();
+    let raf = 0;
+    const frame = (t: number) => {
+      // (a frame's timestamp can be a little before `start`)
+      const f = Math.min(1, Math.max(0, (t - start) / FLASH_MS));
+      // two quick pulses, then the fade
+      const k = 1 - f;
+      const a = Math.min(1, Math.max(0, k * (0.65 + 0.35 * Math.cos(f * 4 * Math.PI))));
+      map.setPaintProperty(`${FLASH_ID}-fill`, "fill-opacity", 0.6 * a);
+      map.setPaintProperty(`${FLASH_ID}-line`, "line-opacity", a);
+      if (k > 0) raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (map.getLayer(`${FLASH_ID}-fill`)) {
+        map.setPaintProperty(`${FLASH_ID}-fill`, "fill-opacity", 0);
+        map.setPaintProperty(`${FLASH_ID}-line`, "line-opacity", 0);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, ready, clues]);
+
   // The fleet: drones glide to each new report, a re-task animates out, relay dots travel. One
   // animation frame loop, running only while something moves (reduced motion: one still frame).
   useEffect(() => {
@@ -572,7 +612,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
           <LiveLayers base={mapBase} {...rest} onBasemap={setBasemap} />
         </MapProvider>
         {picking && (
-          <p role="status" className="absolute left-3 top-3 rounded-full border border-accent bg-bg/85 px-3 py-1 text-small text-accent-soft">
+          <p role="status" className="absolute right-3 top-3 z-10 rounded-full border border-accent bg-bg/85 px-3 py-1 text-small text-accent-soft">
             Click the map to place the clue (Esc cancels).
           </p>
         )}
@@ -626,8 +666,9 @@ export function legendOpenAtStart(): boolean {
 }
 
 /**
- * The legend floating on the console's map: a small "Legend" pill with the map-update count (bottom
- * left), opened by a click or the L key; open, two columns of at most four lines above the pill.
+ * The legend floating on the console's map: a small "Legend" pill with the map-update count (top left,
+ * away from the scrubber along the bottom), opened by a click or the L key; open, two columns of at most
+ * four lines under the pill.
  */
 export function FloatingLegend({ updates, palette }: { updates: number; palette?: HeatPalette }) {
   const [open, setOpen] = useState(legendOpenAtStart);
@@ -649,14 +690,14 @@ export function FloatingLegend({ updates, palette }: { updates: number; palette?
   }, []);
   return (
     <figcaption
-      className={`absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] border border-border bg-bg/85 backdrop-blur-[16px] ${open ? "rounded-md px-3 py-2" : "rounded-full px-2.5 py-1"}`}
+      className={`absolute top-3 left-3 z-10 flex max-h-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] flex-col overflow-y-auto border border-border bg-bg/85 backdrop-blur-[16px] ${open ? "rounded-md px-3 py-2" : "rounded-full px-2.5 py-1"}`}
       title={`${HEAT_CAPTION} Each sector shows its share of the probability (POA).`}
     >
-      <div id={bodyId} hidden={!open} className="mb-1.5 flex flex-col gap-1.5">
+      <div className="order-2 mt-1.5 flex flex-col gap-1.5" id={bodyId} hidden={!open}>
         <HeatKeyRow palette={palette} />
         <MapLegend columns />
       </div>
-      <div className="flex items-center gap-2.5">
+      <div className="order-1 flex items-center gap-2.5">
         <button
           type="button"
           aria-expanded={open}

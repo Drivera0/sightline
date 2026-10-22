@@ -21,15 +21,16 @@ import type { Checkpoint } from "../command/missionTime";
 
 export type View = "map" | "photos" | "review" | "trace" | "debrief" | "radio";
 
-/** The view switch, in the order the work flows; Radio is a rail toggle (and `#m/<id>/radio` on phones). */
-export const VIEWS: readonly { id: Exclude<View, "radio">; label: string; key: string }[] = [
-  { id: "map", label: "Map", key: "M" },
-  { id: "photos", label: "Photos", key: "P" },
-  { id: "review", label: "Review", key: "R" },
-  { id: "trace", label: "Trace", key: "T" },
-  { id: "debrief", label: "Debrief", key: "D" },
+/** The view switch, in the order the work flows; each says in a few words what it shows (its tooltip). */
+export const VIEWS: readonly { id: View; label: string; key: string; what: string }[] = [
+  { id: "map", label: "Map", key: "M", what: "the map, the task board and the approvals waiting for you" },
+  { id: "photos", label: "Photos", key: "P", what: "the drone photos as they land, and Try a photo" },
+  { id: "review", label: "Review", key: "R", what: "candidates the detector flagged, for a person to confirm" },
+  { id: "trace", label: "Trace", key: "T", what: "every step the agent took, and the event log" },
+  { id: "debrief", label: "Debrief", key: "D", what: "what the mission did, the measured results and the exports" },
+  { id: "radio", label: "Radio", key: "O", what: "the radio desk: teams report here and briefings go out" },
 ];
-const VIEW_IDS: readonly string[] = [...VIEWS.map((v) => v.id), "radio"];
+const VIEW_IDS: readonly string[] = VIEWS.map((v) => v.id);
 
 export type Route =
   | {

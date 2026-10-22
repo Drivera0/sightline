@@ -11,8 +11,12 @@ export interface ConditionsData {
   conditions: Conditions;
   /** The latest lookup from the trace (the quotes, the searches, the model), or null when none is traced. */
   lookup: Lookup | null;
-  /** A recorded run shown instead of live data (the demo mission): its label. */
+  /** A recorded run shown instead of live data: its label. */
   recorded: string | null;
+  /** The demo mission: its own conditions are a fixture (no pages read); this says so. */
+  fixture?: string;
+  /** A real recorded lookup shown under them, folded, to show how sources are read (its own time and verdict). */
+  example?: ConditionsData;
   /** The fleet's lowest drone wind limit and that drone's name; null without a fleet. */
   limitKmh: number | null;
   drone: string | null;
@@ -56,7 +60,7 @@ function Source({ f, lookup }: { f: Fact; lookup: Lookup | null }) {
   );
 }
 
-export function ConditionsPanel({ id, data, now, time }: { id: string; data: ConditionsData; now: Date; time: (iso: string) => string }) {
+export function ConditionsPanel({ id, data, now, time, label = "Conditions" }: { id: string; data: ConditionsData; now: Date; time: (iso: string) => string; label?: string }) {
   const { conditions: c } = data;
   const override = isOverride(c);
   const lookup = override ? null : data.lookup; // an override is never shown with a lookup's quotes
@@ -65,7 +69,7 @@ export function ConditionsPanel({ id, data, now, time }: { id: string; data: Con
   const facts = conditionsFacts(c, lookup, now);
   const alertDomains = [...new Set((lookup?.searches ?? []).filter((x) => x.label === "alerts" || x.label === "warnings").flatMap((x) => x.results.map((r) => domain(r.url))))];
   return (
-    <section id={id} aria-label="Conditions" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-4">
+    <section id={id} aria-label={label} className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <StatusPill tone={gate.tone}>{gate.text}</StatusPill>
         {override && (
@@ -73,7 +77,12 @@ export function ConditionsPanel({ id, data, now, time }: { id: string; data: Con
             Demo override: not from Tavily
           </StatusPill>
         )}
-        {data.recorded ? (
+        {data.fixture ? (
+          <span className="flex items-center gap-2 text-caption text-text-2">
+            <ModeChip mode="demo" />
+            {data.fixture}
+          </span>
+        ) : data.recorded ? (
           <span className="flex items-center gap-2 text-caption text-text-2">
             <ModeChip mode="replay" />
             {data.recorded}
@@ -157,7 +166,17 @@ export function ConditionsPanel({ id, data, now, time }: { id: string; data: Con
           Set by hand for a demo ({OVERRIDE_SOURCE}), not looked up: the next conditions lookup replaces it whole.
         </p>
       )}
-      {!lookup && !override && <p className="text-caption text-text-3">No conditions lookup in this mission's trace yet: the values above have no quotes to show.</p>}
+      {!lookup && !override && !data.fixture && <p className="text-caption text-text-3">No conditions lookup in this mission's trace yet: the values above have no quotes to show.</p>}
+      {data.example && (
+        <details className="rounded-lg border border-line text-caption" aria-label="A recorded live lookup">
+          <summary className="cursor-pointer px-3 py-2 text-text-2">
+            How a live lookup reads its sources: {data.example.recorded ?? "a recorded lookup"}. Another evening, so its own values and verdict.
+          </summary>
+          <div className="p-2">
+            <ConditionsPanel id={`${id}-example`} label="Recorded conditions lookup" data={data.example} now={new Date(data.example.conditions.fetched_at)} time={time} />
+          </div>
+        </details>
+      )}
     </section>
   );
 }

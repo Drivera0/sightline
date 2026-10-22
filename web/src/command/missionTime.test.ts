@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import type { MapBase, MapUpdate, MissionEvent } from "../contract";
 import type { MissionData } from "../lib/mission";
 import fixture from "./__fixtures__/demo_mission.json";
@@ -61,7 +61,16 @@ describe("mission time: the demo mission's checkpoints", () => {
     expect(s.proposals).toEqual([]);
     expect(s.mapUpdates).toEqual([]);
     expect(s.teams!.every((t) => t.status === "standby" && t.position?.lat === TRAILHEAD.lat)).toBe(true);
-    expect(s.fleet!.drones.every((d) => d.status === "idle")).toBe(true);
+    // nothing has flown yet: no drone on the map (no SIM marker, no battery label) until the survey flight
+    expect(s.fleet!.drones).toEqual([]);
+    expect(s.fleet!.legs).toEqual([]);
+  });
+
+  it("t1, photos land: the drones are back on the ground at the trailhead, idle, no leg", () => {
+    const s = at(1);
+    expect(s.fleet!.drones.length).toBeGreaterThan(0);
+    expect(s.fleet!.drones.every((d) => d.status === "idle" && d.leg_id === null && d.position?.lat === TRAILHEAD.lat)).toBe(true);
+    expect(demoAt(full, FLIGHT.start).fleet!.drones.length).toBeGreaterThan(0);
   });
 
   it("t1, photos land: every frame step on the map, in flight order; the frames stream in on the way", () => {
@@ -150,5 +159,66 @@ describe("the story's clock", () => {
     expect(useStory.getState()).toMatchObject({ t: 1, tour: false });
     useStory.getState().skipToNow();
     expect(useStory.getState()).toMatchObject({ t: 4, progress: 1, tour: false });
+  });
+
+  it("with reduced motion the scrubber's play jumps to the end", () => {
+    useStory.getState().reset();
+    useStory.getState().seek(1, { tour: false });
+    useStory.getState().play(); // the tests have no matchMedia: reduced motion
+    expect(useStory.getState()).toMatchObject({ t: 4, progress: 1, playing: false, through: null });
+  });
+
+  it("the scrubber's play runs the clock from the checkpoint it is at through to the end, and pauses", () => {
+    const had = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: false, media: q })) as unknown as typeof window.matchMedia;
+    onTestFinished(() => {
+      window.matchMedia = had;
+    });
+    useStory.getState().reset();
+    useStory.getState().seek(1, { tour: false });
+    useStory.getState().play();
+    expect(useStory.getState()).toMatchObject({ t: 2, progress: 0, playing: true, through: clockAt(1) });
+    useStory.getState().play(); // pause
+    expect(useStory.getState().playing).toBe(false);
+    useStory.getState().play(); // resume
+    for (const t of [3, 4]) {
+      useStory.getState().setProgress(1);
+      expect(useStory.getState()).toMatchObject({ t, progress: 0, playing: true });
+    }
+    useStory.getState().setProgress(1);
+    expect(useStory.getState()).toMatchObject({ t: 4, progress: 1, playing: false, through: null });
+    // at the end, play starts again from the call
+    useStory.getState().play();
+    expect(useStory.getState()).toMatchObject({ t: 1, playing: true, through: clockAt(0) });
+    // a click on a tick ends the play-through
+    useStory.getState().seek(3);
+    expect(useStory.getState().through).toBeNull();
+  });
+});
+
+describe("the run: drones fly their legs and teams walk out as the clock moves", () => {
+  const mid = new Date((new Date("2026-10-24T21:44:00Z").getTime() + new Date(fx.now).getTime()) / 2).toISOString();
+  const near = (a: { lat: number; lon: number } | null | undefined, b: { lat: number; lon: number }) => !!a && Math.abs(a.lat - b.lat) < 1e-6 && Math.abs(a.lon - b.lon) < 1e-6;
+
+  it("half way through the run every drone is between the trailhead and where it ends up, and moving", () => {
+    const end = demoAt(full, fx.now).fleet!.drones;
+    const a = demoAt(full, mid).fleet!.drones;
+    const b = demoAt(full, new Date(new Date(mid).getTime() + 60_000).toISOString()).fleet!.drones;
+    for (const [i, d] of a.entries()) {
+      expect(d.status).toBe("flying");
+      expect(near(d.position, TRAILHEAD)).toBe(false);
+      expect(near(d.position, end[i]!.position!)).toBe(false);
+      expect(near(d.position, b[i]!.position!)).toBe(false); // a minute later it is somewhere else
+    }
+    expect(demoAt(full, clockAt(4)).fleet!.drones.map((d) => d.position)).toEqual(end.map((d) => d.position));
+  });
+
+  it("a team out on a task walks from the trailhead to its last reported position", () => {
+    const t1 = (clock: string) => demoAt(full, clock).teams!.find((t) => t.id === "T1")!;
+    expect(near(t1("2026-10-24T21:44:00Z").position, TRAILHEAD)).toBe(true);
+    const walking = t1("2026-10-24T21:48:00Z");
+    expect(near(walking.position, TRAILHEAD)).toBe(false);
+    expect(near(walking.position, fx.teams!.find((t) => t.id === "T1")!.position!)).toBe(false);
+    expect(t1(fx.now).position).toEqual(fx.teams!.find((t) => t.id === "T1")!.position);
   });
 });

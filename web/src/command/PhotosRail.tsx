@@ -9,6 +9,60 @@ import { Badge, Label } from "../shell/components";
 /** How many of the newest photos are shown as pictures (each is a full survey photo). */
 export const PHOTO_TILES = 12;
 
+/** How many of the newest photos the phone strip shows. */
+export const STRIP_TILES = 5;
+
+/**
+ * The Photos view on a phone, above the map: the count, the bar and the newest few photos in one strip,
+ * so the map stays on screen while they land (the full rail is further down the page). Hidden at 1024 px
+ * and up, where the rail sits beside the map.
+ */
+export function PhotoStrip({
+  landed,
+  total,
+  candidates,
+  playing,
+  imageUrl,
+}: {
+  landed: readonly Frame[];
+  total: number;
+  candidates: number;
+  playing: boolean;
+  imageUrl: (rel: string) => string;
+}) {
+  const newest = [...landed].slice(-STRIP_TILES).reverse();
+  const share = total ? landed.length / total : 0;
+  return (
+    <section aria-label="Photos landing" data-tour="photos" className="flex flex-col gap-1.5 rounded-lg border border-line bg-surface-solid p-2 lg:hidden">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-mono text-small text-text">
+          {landed.length} <span className="text-text-3">of {total} placed</span>
+        </span>
+        <span className="font-mono text-caption text-text-2">
+          {candidates} {candidates === 1 ? "candidate" : "candidates"}
+        </span>
+      </div>
+      <div className="relative h-1 overflow-hidden rounded-full bg-surface-strong">
+        <div className="absolute inset-y-0 left-0 rounded-full bg-ok" style={{ width: `${Math.round(share * 100)}%` }} />
+        <progress className="sr-only" max={total} value={landed.length} aria-label="Photos placed on the map" />
+      </div>
+      {newest.length === 0 ? (
+        <p className="text-caption text-text-3">No photos yet: the drone is still flying.</p>
+      ) : (
+        <ul className="grid grid-cols-5 gap-1" aria-label="Newest photos">
+          {newest.map((f) => (
+            <li key={f.id} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-surface-strong">
+              {!playing && <img src={imageUrl(f.file)} alt={`Survey photo ${f.id}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
+              <span className="absolute bottom-0 left-0.5 font-mono text-[10px] leading-tight text-text-2">{f.id}</span>
+              {f.n_candidates > 0 && <span aria-label="Has a candidate" className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-accent ring-1 ring-bg" />}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function PhotosRail({
   landed,
   total,
@@ -39,7 +93,9 @@ export function PhotosRail({
   return (
     <section aria-label="Photos" data-tour="photos" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-2 px-1">
-        <span className="text-caption font-medium text-text-2">Photos</span>
+        <span className="text-caption font-medium text-text-2">
+          Photos <span className="font-normal text-text-3">· from the drone, newest first</span>
+        </span>
         <button type="button" onClick={onTry} aria-expanded={tryOpen} className="sl-tap rounded-full border border-border px-3 py-0.5 text-caption text-text-2 hover:text-text">
           {tryOpen ? "Hide Try a photo" : "Try a photo of your own"}
         </button>

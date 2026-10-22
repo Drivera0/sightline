@@ -12,6 +12,48 @@ describe("CoachMark", () => {
     expect(placeCard({ top: 100, left: 20, width: 300, height: 500 }, 390, 844)).toBeNull();
   });
 
+  it("keeps the status line and the scrubber in view: t4's mark beside the task board slides down its side", () => {
+    // the console at 1440 × 900: the task board on the left, the status line over the map, the scrubber on it
+    const board = { top: 117, left: 12, width: 324, height: 415 };
+    const status = { top: 122, left: 348, width: 680, height: 20 };
+    const scrubber = { top: 620, left: 360, width: 656, height: 50 };
+    expect(placeCard(board, 1440, 900, 150)).toEqual({ top: 117, left: 348 }); // what it did: over the status line
+    const at = placeCard(board, 1440, 900, 150, [status, scrubber])!;
+    expect(at).toEqual({ top: 532 - 150, left: 348 });
+    for (const a of [status, scrubber]) expect(at.top + 150 <= a.top || at.top >= a.top + a.height).toBe(true);
+    // nowhere free: the first spot, as before
+    expect(placeCard(board, 1440, 900, 150, [{ top: 0, left: 0, width: 1440, height: 900 }])).toEqual({ top: 117, left: 348 });
+  });
+
+  it("Esc ends it from the keyboard and gives focus back to the panel it pointed at", async () => {
+    const anchor = document.createElement("section");
+    anchor.setAttribute("data-tour", "tasks");
+    document.body.appendChild(anchor);
+    function Story({ on }: { on: boolean }) {
+      return on ? <CoachMark text="Teams are out." target='[data-tour="tasks"]' index={4} count={5} onNext={vi.fn()} onExit={() => rerender(<Story on={false} />)} onToggleClock={vi.fn()} /> : null;
+    }
+    const { rerender } = render(<Story on />);
+    expect(screen.getByRole("dialog")).toContainElement(document.activeElement as HTMLElement); // Next has focus
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(anchor);
+    expect(anchor).toHaveAttribute("tabindex", "-1");
+    anchor.remove();
+  });
+
+  it("leaves focus where the visitor put it when the story ends by a click elsewhere", () => {
+    const anchor = document.createElement("section");
+    anchor.setAttribute("data-tour", "tasks");
+    const other = document.createElement("button");
+    document.body.append(anchor, other);
+    const { unmount } = render(<CoachMark text="Teams are out." target='[data-tour="tasks"]' index={4} count={5} onNext={vi.fn()} onExit={vi.fn()} onToggleClock={vi.fn()} />);
+    other.focus();
+    unmount();
+    expect(document.activeElement).toBe(other);
+    anchor.remove();
+    other.remove();
+  });
+
   it("is one sentence with Next, Back and Exit; the arrows step, Space pauses the clock, Esc leaves", async () => {
     const on = { onNext: vi.fn(), onBack: vi.fn(), onExit: vi.fn(), onToggleClock: vi.fn() };
     render(<CoachMark text="Photos are landing." target="#nothing" index={2} count={5} {...on} />);

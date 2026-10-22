@@ -180,6 +180,7 @@ export function ApprovalInbox({
             onChange={(e) => saveOperator(e.target.value)}
           />
         </label>
+        <p className="basis-full text-caption text-text-3">The agent's proposals, with its reasons. Nothing happens until a person approves.</p>
       </header>
       {pending.length === 0 && (
         <div aria-label="Nothing waiting" className="flex flex-col gap-1.5 rounded-sm border border-dashed border-line px-3 py-4 text-small">

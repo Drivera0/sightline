@@ -8,7 +8,7 @@ instance (it never unmounts while you stay on a mission), one clock.
 | File | What |
 |---|---|
 | `flow.ts` | The address map: routes, views and every old address redirected (table below). |
-| `AppBar.tsx` | The one bar, one row: wordmark (opens About) · mission name, LIVE/DEMO chip, mission clock · view switch (Map · Photos · Review · Trace · Debrief, `aria-pressed`) · one button. Under 1024 px the view switch is a bar along the bottom of the screen. |
+| `AppBar.tsx` | The one bar, one row: wordmark (opens About) · mission name, LIVE/DEMO chip, mission clock · view switch (Map · Photos · Review · Trace · Debrief · Radio, `aria-pressed`) · one button. Under 1024 px the view switch is a bar along the bottom of the screen. |
 | `Sheet.tsx` | A sheet over the console (About): slides in, Esc or the dim closes it, focus goes back. |
 | `components.tsx` | The visual system from #159: `Button` (one orange primary per screen), `Panel` (opaque), `PageHeader`, `Page`, `Stat`, `Badge`, `StatusPill`, `ModeChip`, `KeyHint`, `EmptyState`. |
 | `Logo.tsx` | `Brand`: the logo and the name, a link to `#about`. |
@@ -22,7 +22,7 @@ instance (it never unmounts while you stay on a mission), one clock.
 | `#`, `` | `#m/demo`: the landing (t0, the pitch bar) |
 | `#m/demo?t=0..5` | the story at a checkpoint, its coach mark on |
 | `#m/<id>/map` · `photos` · `review` · `trace` · `debrief` | a view of a mission; on the demo `?t=0..3` sets the mission clock (none: the end of the timeline) |
-| `#m/<id>/radio` | the radio desk on its own (phones) |
+| `#m/<id>/radio` | the Radio view: the radio desk |
 | `#m/<id>/map/conditions` · `trace?log` · `debrief?judges` · `photos?try` | the Conditions panel, the event log, For judges, Try a photo open |
 | `#m/<id>/card/<sector>` | a sector's printable assignment card (live missions) |
 | `#new` | the empty console: start a search or load the demo mission |
@@ -45,5 +45,5 @@ Old addresses, kept so links in the docs, the Devposts and the video still land 
 ## Keys
 
 Story: → next, ← back, Space pauses the mission clock, Esc leaves the story (the console stays at that
-mission time). Views: 1–5, C back to the map. Console: Tab, A, X, W, L. Review: J/K (or the arrows), P, N, U.
+mission time). Views: 1–6 (6 is Radio), C back to the map. Console: Tab, A, X, W, L. Review: J/K (or the arrows), P, N, U.
 `?` lists them.

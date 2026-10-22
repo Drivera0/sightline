@@ -201,13 +201,13 @@ describe("a live mission's console", () => {
     expect(await screen.findByText(/radio desk isn't running on this server/)).toBeInTheDocument();
   });
 
-  it("keeps the radio desk a toggle in the rail beside the approvals (D-R3)", async () => {
+  it("keeps the radio one labelled step away: a Radio view, and Open Radio under the approvals (D-R3)", async () => {
     vi.stubGlobal("fetch", () => new Promise(() => {}));
     render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" route={missionRoute("a1b2c3d4", "map")} />);
-    const toggle = screen.getByRole("button", { name: /Radio desk/ });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(toggle);
+    expect(within(screen.getByRole("region", { name: "Radio" })).getByText(/teams report here/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Open Radio" }));
     expect(await screen.findByText(SAFETY_FRAME)).toBeInTheDocument();
+    for (const nav of screen.getAllByRole("navigation", { name: "Mission views" })) expect(within(nav).getByRole("button", { name: "Radio" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("links the mission's own debrief in the Debrief view, and shows the event log in the Trace view", async () => {
@@ -271,8 +271,12 @@ describe("the demo mission: the story on the one console", () => {
     expect(within(recorded).getByLabelText("Models")).toHaveTextContent("OpenCV 5 zoom native");
     expect(within(recorded).getByLabelText("Models")).toHaveTextContent("Nemotron-3.5-Super-VL");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    // t3: the gate waits for the visitor's approval
-    const gate = await screen.findByRole("dialog", { name: "The story, 3 of 5" });
+    // t3: first the clue log, once ("Clues move the map too"), then the gate waits for the visitor's approval
+    const clues = await screen.findByRole("dialog", { name: "The story, 3 of 5" });
+    expect(clues).toHaveTextContent("Clues move the map too");
+    await userEvent.keyboard("{ArrowRight}");
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "The story, 3 of 5" })).not.toHaveTextContent("Clues move the map too"));
+    const gate = screen.getByRole("dialog", { name: "The story, 3 of 5" });
     expect(gate).toHaveTextContent("Approve it on the card");
     const card = await screen.findByLabelText("Proposal p001");
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
@@ -286,6 +290,28 @@ describe("the demo mission: the story on the one console", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("region", { name: "Debrief" })).toBeInTheDocument();
     expect(window.location.hash).toBe("#m/demo/debrief");
+  });
+
+  it("tells one story about conditions: the row's verdict is the Conditions panel's", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo/map?t=4");
+    render(<App base={null} />);
+    const header = await screen.findByRole("region", { name: "Mission header" });
+    const row = await waitFor(() => {
+      const pill = header.querySelector("[data-tone]");
+      expect(pill).not.toBeNull();
+      return pill!;
+    });
+    await userEvent.click(await screen.findByRole("button", { name: /Sources and quotes/ }));
+    const panel = await screen.findByRole("region", { name: "Conditions" });
+    const verdict = await waitFor(() => panel.querySelector("[data-tone]")!);
+    expect(row).toHaveTextContent(/^Flyable/); // 22:00 UTC is 15:00 in Vancouver: daylight, light wind
+    expect(verdict.getAttribute("data-tone")).toBe(row.getAttribute("data-tone"));
+    expect(verdict).toHaveTextContent(/^Flyable/);
+    // the real recorded lookup is still there, folded, on its own evening with its own verdict
+    expect(within(panel).getByRole("region", { name: "Recorded conditions lookup" })).toHaveTextContent(/Not flyable/);
   });
 
   it("keeps the visitor's approval when the clock moves back and forth", async () => {

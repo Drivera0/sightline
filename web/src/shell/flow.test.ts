@@ -55,6 +55,6 @@ describe("routes: one console", () => {
     expect(viewHash("demo", "photos", 1)).toBe("#m/demo/photos?t=1");
     expect(viewHash("demo", "map")).toBe("#m/demo/map");
     expect(viewHash("0a1b2c3d", "review", 2)).toBe("#m/0a1b2c3d/review");
-    expect(VIEWS.map((v) => v.label)).toEqual(["Map", "Photos", "Review", "Trace", "Debrief"]);
+    expect(VIEWS.map((v) => v.label)).toEqual(["Map", "Photos", "Review", "Trace", "Debrief", "Radio"]);
   });
 });

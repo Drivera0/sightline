@@ -174,6 +174,88 @@ export interface Outcome {
   scripted: boolean;
 }
 
+/** One ledger record (agent.md, "The ledger"): a `note` whose output.type is "ledger". */
+export interface Ledger {
+  chainId: string;
+  kind: string;
+  /** The detection (a second look) or the leg. */
+  ref: string;
+  expected: number;
+  realised: number;
+  delta: number;
+}
+
+/** A ledger record's numbers, or null when the entry is not one. */
+export function ledgerOf(e: TraceEntry): Ledger | null {
+  const o = e.output;
+  if (e.kind !== "note" || !isObj(o) || o.type !== "ledger") return null;
+  const gain = (side: unknown) => (isObj(side) && typeof side.gain === "number" ? side.gain : null);
+  const [expected, realised] = [gain(o.expected), gain(o.realised)];
+  if (expected === null || realised === null) return null;
+  return {
+    chainId: String(o.chain_id ?? ""),
+    kind: String(o.kind ?? ""),
+    ref: String(o.ref ?? ""),
+    expected,
+    realised,
+    delta: typeof o.delta === "number" ? o.delta : realised - expected,
+  };
+}
+
+/** One step of a re-look chain (agent.md; relook_leg.py): a `note` whose output.type is "relook". */
+export interface RelookStep {
+  id: string;
+  chainId: string;
+  step: string;
+  /** The step in a few words, for its chip. */
+  words: string;
+}
+
+const metres = (v: unknown) => (typeof v === "number" ? `${Math.round(v)} m` : "?");
+const RELOOK_OUTCOME: Record<string, string> = { resolved: "resolved", unclear: "still unclear", not_redetected: "not seen again" };
+
+/** A re-look step in a few words, or null when the entry is not one. */
+export function relookOf(e: TraceEntry): RelookStep | null {
+  const o = e.output;
+  if (e.kind !== "note" || !isObj(o) || o.type !== "relook") return null;
+  const step = String(o.step ?? "");
+  const px = typeof o.box_long_px === "number" ? `${o.box_long_px} px` : null;
+  let w: string;
+  switch (step) {
+    case "unclear":
+      w = `unclear: ${px ?? "a box"} from ${metres(o.altitude_m)}`;
+      break;
+    case "leg":
+      w = `${compact(o.leg)} by ${compact(o.drone)} at ${metres(o.altitude_m)}${typeof o.pixel_factor === "number" ? `, ${compact(o.pixel_factor)}× pixels` : ""}`;
+      break;
+    case "photo":
+      w = `photo ${compact(o.frame)} from ${metres(o.altitude_m)}${o.detection ? `: ${compact(o.detection)}${px ? `, ${px}` : ""}` : ", nothing near the spot"}`;
+      break;
+    case "verdict":
+      w = `${compact(o.verdict)}: person ${compact(o.person)}`;
+      break;
+    case "outcome":
+      w = `outcome: ${RELOOK_OUTCOME[String(o.outcome)] ?? compact(o.outcome)}`;
+      break;
+    case "skipped":
+      w = `no leg: ${compact(o.why)}`;
+      break;
+    default:
+      w = step || "step";
+  }
+  return { id: e.id, chainId: String(o.chain_id ?? ""), step, words: w };
+}
+
+/** The models and tools a chain used, short ("Nemotron-3.5-Super-VL", "zoom_native"): its model chips. */
+export function chainModels(entries: readonly TraceEntry[]): string[] {
+  const out: string[] = [];
+  for (const e of entries) {
+    if (e.kind === "model_call" && e.model) out.push(words(e.model));
+    if (e.kind === "tool_call") out.push(spanName(e).replace(/ \(.*\)$/, ""));
+  }
+  return [...new Set(out)];
+}
+
 export interface Chain {
   id: string;
   /** The ids this chain is about: a detection, a verdict, a proposal. */
@@ -183,6 +265,10 @@ export interface Chain {
   stages: Stage[];
   outcomes: Outcome[];
   ms: number;
+  /** The chain's ledger records: expected against realised value of each second look and leg. */
+  ledger: Ledger[];
+  /** The chain's re-look steps, in trace order (unclear → leg → photo → verdict → outcome). */
+  relook: RelookStep[];
 }
 
 /**
@@ -199,7 +285,10 @@ export function chains(entries: readonly TraceEntry[]): Chain[] {
   };
   const byRef = new Map<string, number>();
   entries.forEach((e, i) => {
-    for (const r of e.refs) {
+    // a ledger or re-look note names its chain in its output too
+    const o = e.output;
+    const own = isObj(o) && (o.type === "ledger" || o.type === "relook") && typeof o.chain_id === "string" ? [o.chain_id] : [];
+    for (const r of new Set([...e.refs, ...own])) {
       const j = byRef.get(r);
       if (j === undefined) byRef.set(r, i);
       else union(i, j);
@@ -231,6 +320,8 @@ export function chains(entries: readonly TraceEntry[]): Chain[] {
       outcomes,
       // time in models and tools (a verdict's own ms already includes its model call)
       ms: es.filter((e) => e.kind === "model_call" || e.kind === "tool_call").reduce((n, e) => n + (msOf(e) ?? 0), 0),
+      ledger: es.map(ledgerOf).filter((x): x is Ledger => x !== null),
+      relook: es.map(relookOf).filter((x): x is RelookStep => x !== null),
     };
   });
 }

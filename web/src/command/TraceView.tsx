@@ -8,6 +8,7 @@ import { ModeChip, StatusPill, type Tone } from "../shell/components";
 import { useClock } from "../lib/time";
 import {
   ACTOR_ROLE,
+  chainModels,
   chains,
   imagesOf,
   inputSummary,
@@ -21,6 +22,7 @@ import {
   STAGES,
   stageOf,
   type Chain,
+  type Ledger,
   type Outcome,
 } from "./trace";
 
@@ -151,7 +153,7 @@ function ChainView({ chain, imageUrl }: { chain: Chain; imageUrl?: (rel: string)
             {time(chain.entries[0]!.at, true)} · {chain.entries.length} steps{chain.ms > 0 && ` · ${seconds(chain.ms)} in models and tools`}
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-caption text-text-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-caption text-text-2">
           <span className="text-text-3">Led to:</span>
           {chain.outcomes.length === 0 ? (
             <span className="text-text-3">no proposal (context the agent and the map use)</span>
@@ -159,13 +161,24 @@ function ChainView({ chain, imageUrl }: { chain: Chain; imageUrl?: (rel: string)
             chain.outcomes.map((o) => {
               const [tone, text] = outcomeWords(o);
               return (
-                <StatusPill key={o.proposal} tone={tone}>
+                <StatusPill key={o.proposal} tone={tone} className="sl-pill-wrap">
                   {text}
                 </StatusPill>
               );
             })
           )}
         </div>
+        {chain.relook.length > 0 && <RelookRow chain={chain} />}
+        {chain.ledger.length > 0 && (
+          <div aria-label="Ledger" className="flex min-w-0 flex-wrap items-center gap-2 text-caption text-text-2">
+            <span className="text-text-3" title="The ledger: the value the agent expected from each observation against the value it realised (agent.md, The ledger)">
+              Did it help:
+            </span>
+            {chain.ledger.map((l, i) => (
+              <LedgerChip key={`${l.kind}-${l.ref}-${i}`} l={l} />
+            ))}
+          </div>
+        )}
       </header>
       <ol className="flex flex-col divide-y divide-line">
         {chain.entries.map((e) => {
@@ -176,6 +189,80 @@ function ChainView({ chain, imageUrl }: { chain: Chain; imageUrl?: (rel: string)
         })}
       </ol>
     </article>
+  );
+}
+
+/** A gain in a few digits: 0.493, 0.000097, 0. */
+export function gainWords(v: number): string {
+  if (v === 0) return "0";
+  const a = Math.abs(v);
+  return String(Number(a >= 0.01 ? a.toFixed(3) : a.toPrecision(2)));
+}
+
+/** "+0.507", "−0.493", "±0". */
+export function deltaWords(v: number): string {
+  if (v === 0) return "±0";
+  return `${v > 0 ? "+" : "−"}${gainWords(v)}`;
+}
+
+const LEDGER_KIND: Record<string, string> = { second_look: "second look", leg: "leg" };
+
+/** One ledger record as two numbers: "expected 0.493 → realised 1 (Δ +0.507)". */
+function LedgerChip({ l }: { l: Ledger }) {
+  const sign = (v: number) => (v < 0 ? "−" : "");
+  return (
+    <span
+      data-ledger={l.ref}
+      title={`${LEDGER_KIND[l.kind] ?? l.kind} ${l.ref} (${l.chainId}): expected gain ${l.expected}, realised ${l.realised}, delta ${l.delta}`}
+      className="inline-flex max-w-full flex-wrap items-baseline gap-x-1.5 rounded-full border border-line bg-surface-strong px-2.5 py-px font-mono text-caption"
+    >
+      <span className="text-text-3">
+        {LEDGER_KIND[l.kind] ?? l.kind} {l.ref}
+      </span>
+      <span className="text-text-2">
+        expected {sign(l.expected)}
+        {gainWords(l.expected)} → realised {sign(l.realised)}
+        {gainWords(l.realised)}
+      </span>
+      <span className={l.delta > 0 ? "text-ok" : l.delta < 0 ? "text-caution" : "text-text-3"}>(Δ {deltaWords(l.delta)})</span>
+    </span>
+  );
+}
+
+/** A re-look chain (relook_leg.py): its steps as chips in order, then the models and tools it used. */
+function RelookRow({ chain }: { chain: Chain }) {
+  const models = chainModels(chain.entries);
+  const id = chain.relook[0]!.chainId;
+  return (
+    <div aria-label={`Re-look ${id}`} className="flex min-w-0 flex-col gap-1.5 text-caption text-text-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
+        <span className="pr-1 text-text-3">Re-look:</span>
+        <ol className="contents" aria-label="Re-look steps">
+        {chain.relook.map((r, i) => (
+          <li key={r.id} data-step={r.step} className="flex min-w-0 items-center gap-1">
+            {i > 0 && (
+              <span aria-hidden className="text-text-3">
+                →
+              </span>
+            )}
+            <StatusPill tone={r.step === "unclear" || r.step === "skipped" ? "caution" : r.step === "outcome" ? "ok" : "neutral"} dot={false} className="sl-pill-wrap">
+              {r.words}
+            </StatusPill>
+          </li>
+        ))}
+        </ol>
+      </div>
+      {models.length > 0 && (
+        <span className="flex flex-wrap items-center gap-1" aria-label="Models">
+          <span className="pr-1 text-text-3">Models:</span>
+          {models.map((m) => (
+            <span key={m} className="rounded-full border border-line bg-surface-strong px-2 py-px font-mono text-caption text-text-2">
+              {m}
+            </span>
+          ))}
+        </span>
+      )}
+    </div>
   );
 }
 

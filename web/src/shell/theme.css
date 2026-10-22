@@ -121,6 +121,9 @@ body {
 [data-tone="neutral"] { --c: var(--text-2); }
 [data-tone="muted"] { --c: var(--text-3); }
 .sl-pill-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--c); flex: none; }
+/* A pill with a sentence in it (the Trace's "Led to"): wraps inside its row instead of running off a phone. */
+.sl-pill.sl-pill-wrap { white-space: normal; height: auto; min-height: 20px; padding-block: 2px; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.sl-pill.sl-pill-wrap .sl-pill-dot { align-self: flex-start; margin-top: 5px; }
 /* Touch targets: at least 40 px tall on phones, tablets and touch screens; the desktop layout keeps its
    density. For links and buttons that would otherwise be one line of text tall. */
 @media (max-width: 1023.98px), (pointer: coarse) {

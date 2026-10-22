@@ -76,13 +76,30 @@ export async function loadDemoTrace(): Promise<{ runs: TraceRun[]; imageUrl: (re
  * conditions.json and trace.jsonl, copied as they were). The demo mission's own conditions are a fixture
  * with no sources, so the panel says it shows the recorded run instead.
  */
+/**
+ * The demo console's Conditions panel, telling the same story as its conditions row: the demo mission's
+ * own conditions (a fixture, so no quotes) on top, and the real recorded lookup folded under them as an
+ * example of how sources are read, on its own evening with its own verdict.
+ */
+export function demoConditionsData(own: Conditions, example: ConditionsData, limit: { kmh: number | null; drone: string | null } = { kmh: null, drone: null }): ConditionsData {
+  return {
+    conditions: own,
+    lookup: null,
+    recorded: null,
+    fixture: "The demo mission's own conditions: a fixture, no pages read",
+    example,
+    limitKmh: limit.kmh,
+    drone: limit.drone,
+  };
+}
+
 export async function loadDemoConditions(): Promise<ConditionsData> {
   const [c, trace] = await Promise.all([import("./__fixtures__/demo_conditions_recorded.json"), import("./__fixtures__/demo_trace_conditions.jsonl?raw")]);
   const conditions = c.default as unknown as Conditions;
   return {
     conditions,
     lookup: latestLookup(parseTrace(trace.default)),
-    recorded: `Recorded live lookup for Mount Seymour, ${conditions.fetched_at.slice(0, 10)} ${conditions.fetched_at.slice(11, 16)} UTC (the demo mission's own conditions are a fixture with no sources)`,
+    recorded: `Recorded live lookup for Mount Seymour, ${conditions.fetched_at.slice(0, 10)} ${conditions.fetched_at.slice(11, 16)} UTC`,
     limitKmh: null,
     drone: null,
   };
