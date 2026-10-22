@@ -18,7 +18,7 @@ The HERIDAL test set: 101 photos, 337 people, never used for training or thresho
 
 | HERIDAL test set | Recall | Precision | AP50 | Time per 4000×3000 photo |
 |---|---|---|---|---|
-| Sightline, strict VOC scoring (one box per person, IoU ≥ 0.5) | 0.864 | 0.802 | 0.868 | 0.25 s (GPU, Torch) · 1.9 s (CPU, OpenCV 5 `cv2.dnn`) |
+| Sightline, strict VOC scoring (one box per person, IoU ≥ 0.5) | 0.864 | 0.802 | 0.868 | 0.25 s (GPU, Torch) · 1.9 s (CPU, OpenCV 5 `cv2.dnn`) · 0.30 s (GPU, `cv2.dnn` on a custom CUDA build of OpenCV 5, [CV2_CUDA.md](docs/report/CV2_CUDA.md)) |
 | Sightline, loose SAR-APD scoring | 0.896 | 0.898 | — | same |
 | Human reference, SAR-APD (quoted by Pyrrö et al. 2021; not a matched study) | 0.68 | 0.59 | — | 33 s |
 

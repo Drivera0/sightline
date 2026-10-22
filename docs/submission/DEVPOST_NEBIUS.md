@@ -101,15 +101,15 @@ A Jetson field kit without internet; thermal for night searches; real drone phot
 
 ### Sources for every number
 
-1. `docs/report/OPENCV_REPORT.md:34-35`, `:281-283`; `README.md:39`, `:78`
-2. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:639-650`
-3. `docs/report/OPENCV_REPORT.md:464-471`; `docs/LANE_A_ML.md:314`
-4. `docs/report/OPENCV_REPORT.md:589-599`
+1. `docs/report/OPENCV_REPORT.md:34-35`, `:294-296`; `README.md:39`, `:78`
+2. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:652-663`
+3. `docs/report/OPENCV_REPORT.md:477-484`; `docs/LANE_A_ML.md:314`
+4. `docs/report/OPENCV_REPORT.md:602-612`
 5. `docs/feedback/nebius.md:71-74`
 6. `docs/feedback/radio.md:84`, `:101`
 7. `docs/feedback/nebius.md:173-176`; `README.md:92`
-8. `docs/report/OPENCV_REPORT.md:809-811`, `:924-927`
+8. `docs/report/OPENCV_REPORT.md:823-825`, `:938-941`
 9. `README.md:67`; `docs/architecture/agent.md` ("A second chain"); `scripts/creek_run.py`, `scripts/retask_chain.py`
 10. Ultralytics, "NVIDIA Jetson" guide, Orin Nano Super benchmark table, YOLO26n, TensorRT FP16 (https://docs.ultralytics.com/guides/nvidia-jetson/, read 2026-10-22)
 11. `docs/feedback/radio.md:76-79`, `:115-120`
-12. `docs/report/AGENT_EVAL.md` (failure handling, correct target, approval gate); `docs/report/OPENCV_REPORT.md:474-489`, `:504`, `:510-514`
+12. `docs/report/AGENT_EVAL.md` (failure handling, correct target, approval gate); `docs/report/OPENCV_REPORT.md:487-502`, `:517`, `:523-527`

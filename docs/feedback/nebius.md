@@ -68,14 +68,14 @@ go in; a JSON verdict comes out (person yes/no/unclear, posture, group size, clo
 
 | | Value | Source |
 |---|---|---|
-| Latency per call | p50 1.35 s, p90 1.65 s (max 2.19 s) | `docs/report/OPENCV_REPORT.md:469-470`; max over the 461 calls in `runs/verifier/*.csv` |
-| Tokens per call | about 890 in, 67 out (mean of all 461 calls) | `docs/report/OPENCV_REPORT.md:469` |
-| Cost per call (catalog prices) | about 0.00033, so about 0.33 per 1,000 uncertain detections; all 461 evaluation calls 461 × 0.00033 ≈ 0.15 | `docs/report/OPENCV_REPORT.md:470-471` |
-| JSON schema compliance | 461 / 461 valid on the first try | `docs/report/OPENCV_REPORT.md:471`; `docs/architecture/agent.md:221-222` |
+| Latency per call | p50 1.35 s, p90 1.65 s (max 2.19 s) | `docs/report/OPENCV_REPORT.md:482-483`; max over the 461 calls in `runs/verifier/*.csv` |
+| Tokens per call | about 890 in, 67 out (mean of all 461 calls) | `docs/report/OPENCV_REPORT.md:482` |
+| Cost per call (catalog prices) | about 0.00033, so about 0.33 per 1,000 uncertain detections; all 461 evaluation calls 461 × 0.00033 ≈ 0.15 | `docs/report/OPENCV_REPORT.md:483-484` |
+| JSON schema compliance | 461 / 461 valid on the first try | `docs/report/OPENCV_REPORT.md:484`; `docs/architecture/agent.md:221-222` |
 | Real people called `yes` (val, prompt v2) | 75 % of near-miss people (9 of 12), 86 % of queue people | `docs/LANE_A_ML.md:304`; run file `runs/verifier/val-verify-v2-20261020-165932.json` (local runs, not in git, named in `docs/LANE_A_ML.md` §6.8) |
 | False alarms called `no` (val, prompt v2) | 17 % of near-miss false alarms, 13 % of queue ones | the same run file |
 | Person boxes under 60 px (test) | 65 % answered `unclear`; 2 of 8 people called `yes` | `docs/LANE_A_ML.md:314` |
-| Effect on the search (test, once) | 4 more of 337 people found (recall 0.864 → 0.875, 95 % CI [+0.003, +0.023]) for 15 more false alarms | `docs/report/OPENCV_REPORT.md:464-465` |
+| Effect on the search (test, once) | 4 more of 337 people found (recall 0.864 → 0.875, 95 % CI [+0.003, +0.023]) for 15 more false alarms | `docs/report/OPENCV_REPORT.md:477-478` |
 
 **What worked.** Structured output was flawless. The model follows instructions to abstain: told to
 answer `unclear` when it can't tell, it does, rather than inventing. On a near-miss (detector 0.18) of a

@@ -97,19 +97,19 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 ### Sources for every number
 
 1. `README.md:78` (70 px, tiling, shrinking to 1024 px gives recall 0.234)
-2. `docs/report/OPENCV_REPORT.md:34-35`, `:282`
+2. `docs/report/OPENCV_REPORT.md:34-35`, `:295`
 3. `docs/report/OPENCV_REPORT.md:139-148`
 4. `docs/report/OPENCV_REPORT.md:153-160`, `:187-191`
-5. `docs/report/OPENCV_REPORT.md:215-243`, `:258-275`
+5. `docs/report/OPENCV_REPORT.md:228-256`, `:271-288`
 6. `docs/architecture/agent.md` (Evaluation, Observability)
-7. `docs/report/OPENCV_REPORT.md:328`
-8. `docs/report/OPENCV_REPORT.md:281-283`; scoring explained at `README.md:39`
-9. `README.md:40`; `docs/report/OPENCV_REPORT.md:295-302`
-10. `docs/report/OPENCV_REPORT.md:464-471`; `docs/LANE_A_ML.md:314`
-11. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:639-650`
-12. `docs/report/OPENCV_REPORT.md:589-599`
+7. `docs/report/OPENCV_REPORT.md:341`
+8. `docs/report/OPENCV_REPORT.md:294-296`; scoring explained at `README.md:39`
+9. `README.md:40`; `docs/report/OPENCV_REPORT.md:308-315`
+10. `docs/report/OPENCV_REPORT.md:477-484`; `docs/LANE_A_ML.md:314`
+11. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:652-663`
+12. `docs/report/OPENCV_REPORT.md:602-612`
 13. `docs/architecture/agent.md` ("One real chain"); `docs/architecture/av-chain/trace.jsonl`
-14. `docs/report/OPENCV_REPORT.md:778-780`
-15. `docs/report/OPENCV_REPORT.md:809-811`, `:924-927`
+14. `docs/report/OPENCV_REPORT.md:792-794`
+15. `docs/report/OPENCV_REPORT.md:823-825`, `:938-941`
 16. `docs/feedback/radio.md:84`, `:101`
-17. `docs/report/AGENT_EVAL.md` (correct target, approval gate, failure handling); `docs/report/OPENCV_REPORT.md:474-489`, `:504`, `:510-514`
+17. `docs/report/AGENT_EVAL.md` (correct target, approval gate, failure handling); `docs/report/OPENCV_REPORT.md:487-502`, `:517`, `:523-527`
