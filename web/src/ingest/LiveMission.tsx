@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from "react";
 import type { Api } from "../lib/api";
-import { cardFileUrl, fileUrl, getCard } from "../lib/api";
+import { cardFileUrl, fileUrl, getCard, getHealth } from "../lib/api";
 import type { AssignmentCard } from "../contract";
 import { AssignmentCardView } from "../command/AssignmentCardView";
 import { isTyping } from "../lib/keys";
@@ -82,6 +82,13 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+  // whether this server runs the radio desk (serve --radio): the desk shows only when it does
+  const [radioOn, setRadioOn] = useState(false);
+  useEffect(() => {
+    if (demo) return;
+    getHealth(api).then((h) => setRadioOn(!!h.radio), () => setRadioOn(false));
+  }, [api, demo]);
+  const radioDesk = <RadioDesk api={{ base: api.base, missionId }} teams={s.teams.map((t) => ({ id: t.id, callsign: t.callsign }))} />;
   const imageUrl = (rel: string) => (demo ? `${DEMO_CACHE}/${rel}` : fileUrl(api, missionId, rel));
   const tabs = demo ? TABS.filter((t) => DEMO_TABS.includes(t.id)) : TABS;
 
@@ -232,6 +239,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
           onAddClue={(draft) => useMission.getState().addClue(draft)}
           cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
           now={demo && demoNow ? () => demoNow : undefined}
+          sideRail={radioOn && !demo ? radioDesk : undefined}
           onPickOnMap={() => {
             document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
             return usePick.getState().request();
@@ -249,10 +257,15 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         />
       )}
 
-      {tab === "radio" && (
-        // The radio desk on this mission's teams (D-R3). Needs the API started with --radio.
-        <RadioDesk api={{ base: api.base, missionId }} teams={s.teams.map((t) => ({ id: t.id, callsign: t.callsign }))} />
-      )}
+      {tab === "radio" &&
+        (radioOn ? (
+          // The radio desk on this mission's teams (D-R3), also beside the approvals on the Command tab.
+          radioDesk
+        ) : (
+          <p role="status" className="text-body text-text-2">
+            The radio desk isn't running on this server. Start the API with <code>serve --radio text</code> (or <code>real</code> for voices).
+          </p>
+        ))}
 
       {tab === "feed" && (
         <EventFeed

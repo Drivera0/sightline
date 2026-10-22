@@ -112,5 +112,5 @@ It found one bug the unit tests didn't: DJI photos open in Pillow as **MPO**, no
       live review shows the second look's re-look images on demand (D-Q1); `web/src/noClear.test.ts` scans every
       visible string in `web/src` for "clear"/"cleared" against a reviewed list (test 10); **CI**
       (`.github/workflows/ci.yml`): ruff, pytest, smoke, tsc, vitest and the offline build check on every push to
-      `main` and every PR. The radio stays a tab of the live mission, not the command view's right rail.
+      `main` and every PR. The radio desk is also in the command view's right rail, under the approval inbox (D-R3; `/health` says `radio: true` when the server runs `serve --radio`, and only then is it shown).
 

@@ -90,7 +90,7 @@ def create_app(
     )
 
     @app.get("/health")
-    def health() -> dict[str, str | None]:
+    def health() -> dict[str, str | bool | None]:
         """``backend``: the configured detector. ``detector``: the one this process actually loaded
         (``cv2``/``torch``/``fake``; a missing ONNX falls back to torch), or null when none is loaded
         here yet (or the worker runs it, as on AWS)."""
@@ -102,6 +102,7 @@ def create_app(
             "contract_version": CONTRACT_VERSION,
             "backend": backend,
             "detector": None if loaded is None else detector_name(loaded),
+            "radio": bool(getattr(app.state, "radio", None)),  # the radio desk is mounted (serve --radio)
         }
 
     @app.post("/survey", status_code=202)
