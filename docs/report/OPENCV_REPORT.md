@@ -576,6 +576,10 @@ unless marked:
 - **Where the detector misses** (`docs/DETECTOR_LIMITS.md`): groups of people, clothing that
   matches pale or dark rock, people sitting or lying down; two sites (MED, CAB) hold 28 of the 46
   misses. Figures: `docs/figures/limits/`.
+- **Data for the roadmap, not used:** SARD (actors sitting and lying down, with fog and snow variants:
+  our lying-down failure mode), WiSARD (RGB-thermal pairs: the night and shade roadmap), HIT-UAV (thermal
+  at altitude) and SeaDronesSee (open water; CC0) would each target a gap above; nothing has been
+  retrained on them. Details and terms: `docs/DETECTOR_LIMITS.md` §6; survey: arXiv 2511.17674.
 - **Validation and test sites differ:** validation shares sites with training; four test sites
   are new. Validation numbers are an optimistic guide to new terrain.
 - **The second look is weak on the smallest people:** under 60 px it mostly abstains, and with a
