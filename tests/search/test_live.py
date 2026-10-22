@@ -205,9 +205,15 @@ def test_a_map_rebuilt_from_its_log_is_the_same_map() -> None:
 def test_lattice_sectors() -> None:
     grid = _map().base.grid
     layout = lattice_sectors(grid)
-    assert [s.id for s in layout.sectors][:5] == ["A1", "A2", "A3", "A4", "B1"] and len(
+    # map reference, as sectors.ts: column letters west → east, row numbers north → south
+    assert [s.id for s in layout.sectors][:5] == ["A1", "B1", "C1", "D1", "A2"] and len(
         layout.sectors
     ) == 16
+    b3 = next(s for s in layout.sectors if s.id == "B3").rect
+    assert (b3["east_min"], b3["south_min"]) == (
+        grid.cols * grid.cell_m / 4,
+        grid.rows * grid.cell_m / 2,
+    )
     sizes = [len(layout.cells_of(s.id)) for s in layout.sectors]
     assert sum(sizes) == grid.rows * grid.cols and set(sizes) == {400}  # every cell once, 20 × 20
     ring = layout.polygon("A1", grid)
