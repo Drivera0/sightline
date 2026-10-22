@@ -281,7 +281,7 @@ def test_conditions_and_what_other_lanes_still_owe(api) -> None:
     c = client.post(f"/missions/{mid}/conditions/refresh").json()  # lane B's, with the fake Tavily
     assert c["sunset"] and c["civil_twilight_end"] and c["sources"]  # sun times are computed locally
     assert c["wind_kmh"] is None  # no model in tests: nothing is filled without a quote
-    assert "lane B" in client.get(f"/missions/{mid}/cards/B3").json()["detail"]
+    assert client.get(f"/missions/{mid}/cards/B3").json()["sector_label"] == "Bravo Three"  # lane B's cards
     assert "lane C" in client.get(f"/missions/{mid}/debrief.md").json()["detail"]
     tele = {"drones": [], "leg_status": {}, "at": "2026-10-24T21:40:00Z"}
     assert client.put(f"/missions/{mid}/fleet", json=tele).status_code == 409  # no fleet yet

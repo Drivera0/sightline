@@ -480,7 +480,10 @@ def get_card(mission_id: str, sector_id: str, request: Request) -> Response:
     if layout is None:
         raise HTTPException(503, "assignment cards wait for lane C (C-S1 sectors)")
     base, _, ext = sector_id.partition(".")
-    card = assignment_card(mission_id, base, store, layout)
+    try:
+        card = assignment_card(mission_id, base, store, layout)
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from None
     if ext == "gpx":
         return Response(to_gpx(card), media_type="application/gpx+xml")
     if ext == "kml":

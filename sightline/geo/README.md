@@ -299,5 +299,20 @@ agent's recall alert (only with a drone up) and assignment briefings (daylight l
 Found while building it, fixed: the UTC date gave tomorrow's sunset in the evening ("flyable" in the dark); bare
 digits were accepted as quotes; the model picked different forecast hours on two runs (it is now told the time).
 
-Still lane B's: cards (B-K1), clue positions (`resolve_position`), map layers, replay/watch clients.
+## Assignment cards (B-K1, built by lane A, issue #74)
+
+`cards.py`: `assignment_card` (lattice sector outline and cells, POA from the live map, drone coverage = the
+share of cells a photo has seen, the entry = the edge point nearest the team, bearing/distance from the team,
+waypoints: entry + 4 corners + 25 m sweep lines, ≤ 40; look for = the subject + what the second look saw in the
+sector, with crops; conditions line and daylight left), `to_gpx` (GPX 1.1: `wpt`, boundary `trk`, sweep `rte`),
+`to_kml` (KML 2.2), `bearing_distance`, `sector_label` ("B3" → "Bravo Three", as the radio says it).
+`GET /missions/{id}/cards/{sector}` (`.gpx`, `.kml`); the radio's `get_sector_boundary` / `get_assignment` read it.
+Tests: `tests/geo/test_cards.py` (test 6, plus the API and the radio on a live mission).
+
+**Live (radio, real Nemotron):** "Sector Bravo Three is about two hundred fifty metres across, entry north-west
+corner, bearing one two four degrees, distance three hundred forty nine metres, over." Found while wiring it: the
+radio would have read sweep points and "north-west corner" as landmarks, and "124.0" as "point zero" (fixed).
+
+Still lane B's: clue positions (`resolve_position`; the API uses `effects.clue_from_draft` meanwhile), map layers,
+replay/watch clients; importing a card into CalTopo for the report screenshot.
 
