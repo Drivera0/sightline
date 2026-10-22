@@ -1,5 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, audio[controls], [tabindex]:not([tabindex="-1"])';
+
 /**
  * A sheet over the console (About, the mission form): it slides in from the right on a desktop and up
  * from the bottom on a phone, the console stays mounted behind it. Esc, the close button or a click on
@@ -14,6 +16,21 @@ export function Sheet({ label, onClose, children, width = "max-w-xl" }: { label:
       if (e.key === "Escape") {
         e.stopPropagation();
         onClose();
+      } else if (e.key === "Tab" && panel.current) {
+        // a modal sheet: Tab and Shift+Tab go round its own controls, never into the console behind it
+        const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.getClientRects().length > 0);
+        if (items.length === 0) return;
+        const first = items[0]!;
+        const last = items[items.length - 1]!;
+        const at = document.activeElement;
+        const inside = at instanceof Node && panel.current.contains(at);
+        if (e.shiftKey && (!inside || at === first || at === panel.current)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (!inside || at === last)) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener("keydown", onKey, true);

@@ -213,7 +213,7 @@ describe("a live mission's console", () => {
   it("links the mission's own debrief in the Debrief view, and shows the event log in the Trace view", async () => {
     vi.stubGlobal("fetch", () => new Promise(() => {}));
     render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" route={missionRoute("a1b2c3d4", "debrief")} />);
-    expect(screen.getByRole("link", { name: "This mission's debrief (markdown)" })).toHaveAttribute("href", "http://api.test/missions/a1b2c3d4/debrief.md");
+    expect(await screen.findByRole("link", { name: "This mission's debrief (markdown)" })).toHaveAttribute("href", "http://api.test/missions/a1b2c3d4/debrief.md");
     await userEvent.keyboard("4");
     await userEvent.click(screen.getByRole("button", { name: "Event log" }));
     expect(screen.getByRole("button", { name: "Event log" })).toHaveAttribute("aria-pressed", "true");
@@ -241,7 +241,7 @@ describe("the demo mission: the story on the one console", () => {
     expect(within(pitch).getByRole("heading", { level: 1 })).toHaveTextContent("The brain of a drone search.");
     expect(within(pitch).getByRole("button", { name: "Follow the search (3 min)" }).className).toMatch(/bg-accent/);
     await waitFor(() => expect(within(screen.getAllByRole("banner")[0]!).getByText("20:35 UTC")).toBeInTheDocument());
-    expect(screen.getByRole("group", { name: "Mission time" })).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: "Mission time" })).toBeInTheDocument();
     expect(await screen.findByText("car at the Mount Seymour trailhead, last seen 18:00")).toBeInTheDocument();
     expect(screen.queryByText("blue water bottle by the creek crossing")).toBeNull(); // not found yet at 20:35
     await userEvent.click(within(pitch).getByRole("button", { name: "Skip to now" }));
@@ -338,12 +338,12 @@ describe("the demo mission: the story on the one console", () => {
     window.history.replaceState(null, "", "#judges");
     const { unmount } = render(<App base={null} />);
     expect(screen.getAllByRole("button", { name: "Debrief", pressed: true })).toHaveLength(2);
-    expect(screen.getByText("For judges: where to look, in order").closest("details")).toHaveAttribute("open");
+    expect((await screen.findByText("For judges: where to look, in order")).closest("details")).toHaveAttribute("open");
     unmount();
     window.history.replaceState(null, "", "#try");
     render(<App base={null} />);
     expect(screen.getAllByRole("button", { name: "Photos", pressed: true })).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Hide Try a photo" })).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByRole("button", { name: "Hide Try a photo" })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("opens About over the console from the wordmark, and Esc goes back", async () => {

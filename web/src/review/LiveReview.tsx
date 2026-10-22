@@ -77,7 +77,7 @@ function Card({ c, rank, answer, current, onAnswer }: { c: ReviewCard; rank: num
   return (
     <li ref={el} aria-label={`Candidate ${c.id}`} aria-current={current || undefined} data-candidate={c.id} className={`flex flex-col gap-2 rounded-lg border bg-surface-solid p-2.5 ${current ? "border-border" : "border-line"}`}>
       <div className="flex gap-3">
-        <img src={c.crop} alt={`Crop of ${c.id}`} className="size-20 shrink-0 rounded-sm object-cover" />
+        <img loading="lazy" decoding="async" width={80} height={80} src={c.crop} alt={`Crop of ${c.id}`} className="size-20 shrink-0 rounded-sm object-cover" />
         <div className="flex min-w-0 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-mono text-small text-text-3">#{rank}</span>
@@ -121,7 +121,7 @@ function Card({ c, rank, answer, current, onAnswer }: { c: ReviewCard; rank: num
             <div className="grid grid-cols-2 gap-1">
               {c.relook!.map((r) => (
                 <figure key={r.url} className="flex flex-col gap-0.5">
-                  <img src={r.url} alt={`Re-look image ${r.name}`} className="aspect-square w-full rounded-sm object-cover" />
+                  <img loading="lazy" decoding="async" src={r.url} alt={`Re-look image ${r.name}`} className="aspect-square w-full rounded-sm object-cover" />
                   <figcaption className="text-caption text-text-3">{relookName(r.name)}</figcaption>
                 </figure>
               ))}

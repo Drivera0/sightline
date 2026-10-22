@@ -12,7 +12,7 @@ export const CHECKPOINT_EVERY = 25;
 
 /** A reweight (clue, ground evidence, conditions): p_i *= factor_i, then renormalise with outside. */
 export function applyReweight(s: MapState, cells: [number, number][]): MapState {
-  const p = Float64Array.from(s.p);
+  const p = new Float64Array(s.p);
   if (cells.length === 0) return { p, outside: s.outside };
   for (const [idx, f] of cells) {
     if (!(f > 0 && f <= MAX_FACTOR)) throw new Error(`every factor must be in (0, ${MAX_FACTOR}]`);
@@ -30,7 +30,7 @@ export function applyUpdate(s: MapState, u: Pick<MapUpdate, "kind" | "cells">): 
 }
 
 export function baseState(base: MapBase): MapState {
-  return { p: Float64Array.from(base.prior.p), outside: base.prior.outside };
+  return { p: new Float64Array(base.prior.p), outside: base.prior.outside };
 }
 
 /** The state after every update with seq <= upToSeq (all of them by default). Never mutates. */

@@ -168,7 +168,7 @@ export function NextSearch({
           </span>
         )}
       </div>
-      <div className="flex flex-col gap-2.5" aria-label="Where the probability is">
+      <div role="group" className="flex flex-col gap-2.5" aria-label="Where the probability is">
         <Label>Where the person could be</Label>
         <div className="flex h-2 w-full overflow-hidden rounded-full bg-surface-strong" aria-hidden="true">
           <span className="h-full bg-accent transition-[width] duration-300" style={{ width: `${shares.surveyed * 100}%` }} />

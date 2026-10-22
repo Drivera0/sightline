@@ -55,7 +55,7 @@ export function ensureDroneImage(map: Map, color: string): boolean {
   el.height = DRONE_IMAGE_PX * ratio;
   let ctx: CanvasRenderingContext2D | null = null;
   try {
-    ctx = el.getContext("2d");
+    ctx = el.getContext("2d", { willReadFrequently: true });
   } catch {
     ctx = null;
   }

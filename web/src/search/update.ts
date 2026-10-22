@@ -16,7 +16,7 @@ const RADIUS_TOLERANCE_M = 1e-6; // same as RADIUS_TOLERANCE_M in grid.py
 
 /** One look at some cells that found nobody: cells = [idx, pod][]. Never mutates s. */
 export function applyStep(s: MapState, cells: [number, number][]): MapState {
-  const p = Float64Array.from(s.p);
+  const p = new Float64Array(s.p);
   if (cells.length === 0) return { p, outside: s.outside };
 
   let stepped = 0;
@@ -38,7 +38,7 @@ export function applyStep(s: MapState, cells: [number, number][]): MapState {
 /** Apply steps[0 .. upTo-1] to prior; upTo is clamped to [0, steps.length]. Never mutates prior. */
 export function replay(prior: MapState, steps: { cells: [number, number][] }[], upTo: number): MapState {
   const n = Math.max(0, Math.min(steps.length, Math.floor(upTo)));
-  let s: MapState = { p: Float64Array.from(prior.p), outside: prior.outside };
+  let s: MapState = { p: new Float64Array(prior.p), outside: prior.outside };
   for (let k = 0; k < n; k++) s = applyStep(s, (steps[k] as { cells: [number, number][] }).cells);
   return s;
 }
@@ -108,7 +108,7 @@ export function applyReviewPerson(
   radiusM: number,
   step: { cells: [number, number][] } | null,
 ): MapState {
-  const p = Float64Array.from(s.p);
+  const p = new Float64Array(s.p);
   if (!step) return { p, outside: s.outside };
   const inRadius = new Set(cellsWithinRadius(grid, lat, lon, radiusM));
   let changed = false;

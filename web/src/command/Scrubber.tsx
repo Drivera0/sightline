@@ -84,7 +84,7 @@ export function Scrubber({
                   onClick={() => onSeek(c.t)}
                   aria-current={here ? "step" : undefined}
                   title={`${c.label}, ${clock(c.at, true)} UTC`}
-                  className="group flex min-w-0 flex-col items-center gap-0.5 rounded-sm px-1 outline-offset-0"
+                  className="group flex min-h-6 min-w-6 flex-col items-center gap-0.5 rounded-sm px-1 outline-offset-0"
                 >
                   <span
                     aria-hidden
