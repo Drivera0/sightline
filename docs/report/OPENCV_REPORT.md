@@ -2,10 +2,9 @@
 
 **OpenCV AI Competition 2026 · technical report · DRAFT (freeze Sat Oct 25, 12:00)**
 
-> **Status of this draft.** Lane A sections are written from committed results. Sections marked
-> **TODO (lane X)** need that lane's numbers or screenshots by Saturday 12:00; each says exactly
-> what is needed. Every number must come from a file in the repo or a cited source; anything
-> simulated is labelled simulated. Lead: Dan (lane A).
+> **Status of this draft.** Every section is written from committed results. One item is open: the
+> radio's word error rate on three human voices (§5.1, issue #49). Every number comes from a file in
+> the repo or a cited source; anything simulated is labelled simulated. Lead: Dan (lane A).
 
 Repository: https://github.com/Drivera0/sightline (tag `opencv-submit`) · Live demo:
 https://sightline-iota-sandy.vercel.app (demo) · Live mission API on AWS: https://44-227-39-234.sslip.io
@@ -77,7 +76,13 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
   with a verbatim quote; they decide whether drones may fly, how much a photo can see, how exposed the
   person is, and what briefings say (`sightline/geo/conditions.py`);
 - the front door, New search, and the live mission's command view: task board, teams, approval inbox,
-  clue log (§1).
+  clue log, live map with the drones, teams and clues, and printable assignment cards with GPX/KML for
+  the teams' handheld GPS (§1);
+- a **simulated drone fleet** that flies approved legs and sends its photos through the same API, the
+  creek scenario end to end (a team's clue re-tasks a drone; its photo shows the person), and the fleet
+  evaluation (§7.4), all labelled simulated;
+- the mission **debrief** from the log, and continuous integration (tests, the smoke test of the whole
+  live loop, and the web build on every change).
 
 Diff: `git diff bcs-final-submission..opencv-submit`.
 
@@ -186,6 +191,19 @@ The live map, sectors and planner added this sprint reuse these (each photo's st
 `pod.frame_step`, with `cv2.fillPoly` and `cv2.blur` per photo); they add no new OpenCV calls.
 Conditions add no OpenCV calls (text and arithmetic).
 
+### 4.4 Where a pin goes
+
+Each photo's position comes from the photo itself: EXIF GPS and the 35 mm focal length, and DJI XMP
+relative altitude and gimbal yaw and pitch (`sightline/geo/pose.py`); oblique photos (pitch far from
+straight down) and photos without a complete pose are refused with the reason. A detection's pixel is
+projected to the ground on a flat-ground model through the photo's footprint
+(`sightline/geo/project.py`). On the 28 nadir HERIDAL test photos with a full pose, the detector-box
+part of that error is a **median of 0.05 m and a 90th percentile of 0.13 m** (92 matched people). That is
+only the box's share: it leaves out GPS, altitude and terrain error, so pins keep a 10 m position
+radius rather than claiming centimetres (`docs/LANE_B_GEO.md`). Clues entered by a team at their own
+position use the team's last report and warn when it is more than 30 minutes old
+(`sightline/geo/clues.py`).
+
 ## 5. The agent (Agentic Vision)
 
 Full evidence: `docs/architecture/agent.md`. Summary:
@@ -240,7 +258,7 @@ its own reasoning (`docs/feedback/radio.md`, findings 5–11). Each is now check
 **Measured** (RTX 4080 SUPER for speech, Token Factory for the model; text turns, so speech
 recognition adds 45–153 ms): over 30 live turns, first sound p50 2.0 s and p90 3.0 s (a spoken
 "standby" when the model takes over 3 s), 6 / 6 clue reports drafted, read back and committed, 6 / 6
-conditions answers from the tool (`runs/radio/latency-20261020-202733.json`). The demo script
+conditions answers from the tool (`docs/evidence/radio-latency-20261020.json`). The demo script
 (transmit the assignment, ask for the boundary, report a clue, confirm) ran **5 / 5 times as
 scripted** with real voices (`scripts/radio_rehearse.py`). **TODO (lane E/A):** word error rate on
 three human voices (`scripts/radio_wer.py`).
@@ -434,6 +452,13 @@ HERIDAL photo covering 142 cells.
   the human steps scripted, both labelled in the trace. The search prior is a labelled placeholder
   (uniform, half outside the 1 km grid) until a cited lost-person prior; the clue and shelter factors of
   the live map are heuristics, labelled in `sightline/search/live.py`.
+- **Positions assume flat ground** under each photo; on steep terrain a pin can be further off than
+  its 10 m radius. The measured error covers the detector box only (§4.4).
+- **Conditions are only as good as what the web says:** a value is used only when the model quotes it
+  verbatim from a page and it is in range, so a forecast phrased unusually leaves the field empty rather
+  than guessed; offline, the last values are shown as stale with their time, or nothing. The visibility
+  factor and the exposure band (and the shelter shift it triggers) are planning heuristics, labelled so
+  in the command view.
 
 ## 9. Responsible use
 
@@ -448,6 +473,11 @@ HERIDAL photo covering 142 cells.
   (`tests/search/test_live.py::test_a_searched_sector_is_never_cleared`, and the task rule in
   `tests/pipeline/test_mission.py`).
 - **Every action is approved by a person and logged** with who and when.
+- **Conditions show their sources:** every Tavily call, page and extracted value with its quote is in
+  the mission's trace; stale values are labelled with their time; the heuristics say they are
+  heuristics on screen.
+- **The web app is scanned for the word** too: every visible string in `web/src` that contains
+  "clear"/"cleared" must be on a reviewed list of negations (`web/src/noClear.test.ts`).
 - **No secrets in the browser, the repo or the trace**; keys come from environment variables
   and, on AWS, Secrets Manager (§6).
 - **Honest evaluation:** thresholds and rules are chosen on validation; test is scored once per
