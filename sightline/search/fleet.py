@@ -13,7 +13,11 @@ the whole fleet in one ``PUT /fleet`` per tick (the store replaces the drone lis
 one sender keeps drones from overwriting each other). A drone joins when the ground station first
 hears it. ``--single`` keeps everything in one loop, as before, for tests and rehearsal scripts.
 
-Each drone moves along its leg at ``speed_ms × time_scale`` and takes a photo every
+Each drone is a simulated DJI Mavic 3 Enterprise (``Airframe``: 45 min flight, 38 min hover, 12 m/s
+wind limit, from DJI's spec page). It flies at its airspeed ``speed_ms`` (× ``time_scale``); its ground
+speed is the airspeed plus or minus the mission's wind (``conditions``), the battery drains with
+airspeed, and it leaves a leg for home when the battery left would not bring it back with the
+planner's 20 % reserve. It takes a photo every
 ``photo_every_m`` along the leg: a crop of a HERIDAL **validation** photo with EXIF GPS, the 35 mm
 focal length and DJI XMP altitude/yaw written for its simulated pose. Telemetry carries positions,
 battery, and only ``flying``/``done`` for its legs. The sim never creates, approves or reassigns legs.
@@ -53,7 +57,78 @@ SCENARIOS = Path(__file__).parent / "scenarios"
 VAL = Path("data/heridal/yolo_full/val")
 M_PER_DEG_LAT = 111_320.0
 DEFAULT_GSD_M = 0.0075  # HERIDAL at about 50 m when a source photo has no pose
-DRAIN_PCT_PER_MIN = 100 / 30  # 30 min endurance
+
+
+# --- the airframe and the wind ------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Airframe:
+    """A simulated DJI Mavic 3 Enterprise. Numbers from DJI's spec page
+    (https://enterprise.dji.com/mavic-3-enterprise/specs, read 2026-10-22): max flight time 45 min
+    "flying at a constant speed of 32.4 kph in a windless environment" (9 m/s), max hovering time
+    38 min (no wind), max wind speed resistance 12 m/s (takeoff and landing), max horizontal speed
+    15 m/s (Normal mode); both with the 5000 mAh Intelligent Flight Battery.
+
+    Drain depends on airspeed: 100 %/38 min hovering, 100 %/45 min at the 9 m/s cruise (a multirotor
+    is most efficient at moderate forward speed), rising linearly back to the hover rate at 15 m/s
+    (drag). A drain strictly proportional to airspeed would make hovering free, which no battery
+    does; the two DJI points pin the curve, the slope above cruise is our assumption."""
+
+    name: str = "DJI Mavic 3 Enterprise"
+    flight_min: float = 45.0
+    hover_min: float = 38.0
+    cruise_ms: float = 9.0
+    max_speed_ms: float = 15.0
+    max_wind_ms: float = 12.0
+
+    def drain_pct_per_min(self, airspeed_ms: float) -> float:
+        hover, cruise = 100 / self.hover_min, 100 / self.flight_min
+        v = min(max(airspeed_ms, 0.0), self.max_speed_ms)
+        if v <= self.cruise_ms:
+            return hover + (cruise - hover) * v / self.cruise_ms
+        return cruise + (hover - cruise) * (v - self.cruise_ms) / (
+            self.max_speed_ms - self.cruise_ms
+        )
+
+
+MAVIC_3E = Airframe()
+# The battery kept back for landing, as the planner's leg check (planner.py ``_limits``) keeps it.
+RESERVE_FRAC = 0.2
+
+
+@dataclass(frozen=True)
+class Wind:
+    """The mission's wind (``conditions.wind_kmh``, ``wind_dir_deg``: where it blows from)."""
+
+    speed_ms: float = 0.0
+    from_deg: float | None = None
+
+    @classmethod
+    def from_conditions(cls, c: Any) -> Wind:
+        if c is None:
+            return cls()
+        get = c.get if isinstance(c, dict) else lambda k: getattr(c, k, None)
+        kmh = get("wind_kmh")
+        return cls(speed_ms=(kmh or 0.0) / 3.6, from_deg=get("wind_dir_deg"))
+
+
+def ground_speed(airspeed_ms: float, track_deg: float, wind: Wind) -> float:
+    """Speed over the ground along ``track_deg`` at ``airspeed_ms``: the drone crabs into the
+    crosswind and the along-track component adds or subtracts. With no wind direction (the forecast
+    gave none) the wind is taken as a pure crosswind: slower both ways, never faster. 0 when the
+    crosswind is stronger than the airspeed."""
+    w = wind.speed_ms
+    if w <= 0:
+        return airspeed_ms
+    if wind.from_deg is None:
+        along, cross = 0.0, w
+    else:
+        rel = math.radians((wind.from_deg + 180.0) - track_deg)  # where the wind blows towards
+        along, cross = w * math.cos(rel), w * math.sin(rel)
+    if abs(cross) >= airspeed_ms:
+        return 0.0
+    return max(0.0, math.sqrt(airspeed_ms**2 - cross**2) + along)
 
 
 def _utc_now() -> str:
@@ -98,6 +173,11 @@ def _to_m(origin: LatLon, lon: float, lat: float) -> tuple[float, float]:
     east = (lon - origin.lon) * M_PER_DEG_LAT * math.cos(math.radians(origin.lat))
     north = (lat - origin.lat) * M_PER_DEG_LAT
     return east, north
+
+
+def _bearing(x: float, y: float, tx: float, ty: float) -> float:
+    """Compass bearing (degrees) from (x, y) to (tx, ty), local east/north metres."""
+    return math.degrees(math.atan2(tx - x, ty - y)) % 360
 
 
 def _to_ll(origin: LatLon, east: float, north: float) -> tuple[float, float]:
@@ -236,6 +316,7 @@ class FleetFeed:
     def __init__(self, http: Any, mission_id: str, retry_s: float = 2.0) -> None:
         self.http, self.mid, self.retry_s = http, mission_id, retry_s
         self.legs: dict[str, Leg] | None = None
+        self.conditions: dict | None = None
         self.last_id: str | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -253,6 +334,8 @@ class FleetFeed:
             self.last_id = eid or self.last_id
             if typ == "fleet.updated":
                 self.legs = active_legs(ev.get("data") or {})
+            elif typ == "conditions.updated":
+                self.conditions = ev.get("data")
             if self._stop.is_set():
                 return
 
@@ -284,6 +367,7 @@ class DroneSim:
         pool: FramePool,
         *,
         photo_every_m: float = 15.0,
+        airframe: Airframe = MAVIC_3E,
         now: Callable[[], str] | None = None,
         out: Callable[[str], None] = say,
     ) -> None:
@@ -299,6 +383,10 @@ class DroneSim:
         self.heading_deg = 0.0
         self.leg_status: dict[str, str] = {}
         self.photos = 0
+        self.airframe = airframe
+        self.home = self._pos_m()  # the launch point: where it flies back to
+        self.returning = False
+        self._wind_held = False
 
     @property
     def id(self) -> str:
@@ -306,10 +394,15 @@ class DroneSim:
 
     def report(self) -> dict:
         """What the ground station hears: the drone and the status of the legs it has flown."""
-        return {"drone": self.drone.model_dump(mode="json"), "leg_status": dict(self.leg_status)}
+        d = self.drone.model_dump(mode="json")
+        d["battery_pct"] = round(d["battery_pct"], 1)
+        return {"drone": d, "leg_status": dict(self.leg_status)}
 
-    def step(self, sim_dt: float, legs: dict[str, Leg]) -> None:
-        """``sim_dt`` simulated seconds: take the next approved leg, fly, photograph, drain."""
+    def step(self, sim_dt: float, legs: dict[str, Leg], wind: Wind | None = None) -> None:
+        """``sim_dt`` simulated seconds: take the next approved leg, fly it at the drone's airspeed
+        (its ground speed set by the wind), photograph, drain the battery, and turn home when the
+        battery left would not bring it back with the reserve."""
+        wind = wind or Wind()
         if self.leg is not None and self.leg.id not in legs:  # re-tasked: the store cancelled it
             self.out(f"{self.drone.name}: {self.leg.id} cancelled")
             self.leg = None
@@ -323,12 +416,53 @@ class DroneSim:
                 ),
                 None,
             )
-            if nxt is not None:
+            if nxt is not None and wind.speed_ms > self.airframe.max_wind_ms:
+                if not self._wind_held:
+                    self.out(f"{self.drone.name}: holds {nxt.id}: wind {wind.speed_ms:.0f} m/s is "
+                             f"above the {self.airframe.name}'s {self.airframe.max_wind_ms:.0f} m/s")  # fmt: skip
+                self._wind_held = True
+            elif nxt is not None:
+                self._wind_held = False
+                self.returning = False
                 self._start(nxt)
-        flying = self.leg is not None
-        self._fly(self.drone.speed_ms * sim_dt)
-        pct = max(0.0, self.drone.battery_pct - DRAIN_PCT_PER_MIN * sim_dt / 60 * flying)
-        self._set(battery_pct=round(pct, 1))
+        airspeed = self.drone.speed_ms
+        if self.leg is not None or self.returning:
+            self._fly(sim_dt, wind)
+            drain = self.airframe.drain_pct_per_min(airspeed)
+        elif self._airborne():
+            drain = self.airframe.drain_pct_per_min(0.0)  # waiting for a leg: hovering
+        else:
+            drain = 0.0  # landed
+        pct = max(0.0, self.drone.battery_pct - drain * sim_dt / 60)
+        self._set(battery_pct=pct)
+        if self.leg is not None and not self._enough_to_get_home(wind):
+            self.out(f"{self.drone.name}: leaves {self.leg.id} and flies home: "
+                     f"{self.drone.battery_pct:.0f} % left, {RESERVE_FRAC:.0%} kept in reserve")  # fmt: skip
+            self.leg = None
+            self._go_home()
+
+    def minutes_home(self, wind: Wind) -> float:
+        """Flight time back to the launch point against this wind (inf when it can't get there)."""
+        x, y = self._pos_m()
+        d = math.hypot(self.home[0] - x, self.home[1] - y)
+        if d < 1.0:
+            return 0.0
+        gs = ground_speed(self.drone.speed_ms, _bearing(x, y, *self.home), wind)
+        return math.inf if gs <= 0 else d / gs / 60
+
+    def _enough_to_get_home(self, wind: Wind) -> bool:
+        need = self.minutes_home(wind) * self.airframe.drain_pct_per_min(self.drone.speed_ms)
+        return self.drone.battery_pct - need >= RESERVE_FRAC * 100
+
+    def _airborne(self) -> bool:
+        x, y = self._pos_m()
+        return math.hypot(self.home[0] - x, self.home[1] - y) > 5.0
+
+    def _go_home(self) -> None:
+        self.returning = True
+        self.route = [self.home]
+        self.in_survey = False
+        self._set(status="returning")
 
     def _set(self, **update: Any) -> None:
         self.drone = self.drone.model_copy(update=update)
@@ -345,14 +479,19 @@ class DroneSim:
         self._set(status="flying", altitude_m=leg.altitude_m)
         self.out(f"{self.drone.name}: flying {leg.id} ({leg.sector_id or 'leg'})")
 
-    def _fly(self, dist_m: float) -> None:
-        while self.leg is not None and dist_m > 1e-9:
+    def _fly(self, seconds: float, wind: Wind) -> None:
+        """Fly the route for ``seconds`` at the drone's airspeed; the wind sets the ground speed on
+        each stretch (a crosswind stronger than the airspeed stops it: it holds and drains)."""
+        while (self.leg is not None or self.returning) and seconds > 1e-9:
             x, y = self._pos_m()
             tx, ty = self.route[0]
             gap = math.hypot(tx - x, ty - y)
             if gap > 1e-9:
-                self.heading_deg = math.degrees(math.atan2(tx - x, ty - y)) % 360
-            step = min(dist_m, gap)
+                self.heading_deg = _bearing(x, y, tx, ty)
+            gs = ground_speed(self.drone.speed_ms, self.heading_deg, wind) if gap > 1e-9 else 1.0
+            if gs <= 1e-9:
+                return
+            step = min(seconds * gs, gap)
             if self.in_survey:  # photos only along the leg, not on the way to its start
                 step = min(step, self.to_next_photo_m)
             nx, ny = (
@@ -360,7 +499,7 @@ class DroneSim:
             )
             lon, lat = _to_ll(self.scn.lkp, nx, ny)
             self._set(position=LatLon(lat=lat, lon=lon))
-            dist_m -= step
+            seconds -= step / gs
             if self.in_survey:
                 self.to_next_photo_m -= step
                 if self.to_next_photo_m <= 1e-9:
@@ -368,6 +507,13 @@ class DroneSim:
                     self.to_next_photo_m = self.photo_every_m
             if math.hypot(tx - nx, ty - ny) <= 1e-6:
                 self.route.pop(0)
+                if self.returning:
+                    if not self.route:
+                        self.returning = False
+                        self._set(status="idle")
+                        self.out(f"{self.drone.name}: home, {self.drone.battery_pct:.0f} % left")
+                    continue
+                assert self.leg is not None
                 if not self.in_survey:  # reached the first waypoint: the survey starts with a photo
                     self.in_survey = True
                     self._photo()
@@ -503,17 +649,15 @@ class FleetSim:
         self.out(f"fleet: {', '.join(d.drone.name for d in self.drones)} (simulated)")
 
     def _approved(self) -> dict[str, Leg]:
-        """The legs to fly: from the event stream when it is following the mission (``run``), else
-        one ``GET /state`` (tests, or the stream reconnecting)."""
-        return approved_legs(self.http, self.mid, self.feed)
+        return mission_view(self.http, self.mid, self.feed)[0]
 
     def tick(self, dt_s: float) -> None:
         """``dt_s`` wall seconds: drones take their next approved leg, fly, photograph; telemetry."""
         sim_dt = dt_s * self.time_scale
         self.sim_s += sim_dt
-        legs = self._approved()
+        legs, wind = mission_view(self.http, self.mid, self.feed)
         for d in self.drones:
-            d.step(sim_dt, legs)
+            d.step(sim_dt, legs, wind)
         self.clue_sent = post_scripted_clue(self, self.sim_s)
         for d in self.drones:
             self.gcs.hear(d.report())
@@ -546,11 +690,13 @@ class FleetSim:
                 self.feed.stop()
 
 
-def approved_legs(http: Any, mission_id: str, feed: FleetFeed | None) -> dict[str, Leg]:
+def mission_view(http: Any, mission_id: str, feed: FleetFeed | None) -> tuple[dict[str, Leg], Wind]:
+    """The legs to fly and the wind: from the event stream when it is following the mission
+    (``run``), else one ``GET /state`` (tests, or the stream reconnecting)."""
     if feed is not None and feed.legs is not None:
-        return dict(feed.legs)
-    fleet = _call(http, "GET", f"/missions/{mission_id}/state").json()["fleet"] or {}
-    return active_legs(fleet)
+        return dict(feed.legs), Wind.from_conditions(feed.conditions)
+    st = _call(http, "GET", f"/missions/{mission_id}/state").json()
+    return active_legs(st["fleet"] or {}), Wind.from_conditions(st.get("conditions"))
 
 
 def post_scripted_clue(sim: Any, sim_s: float) -> bool:
@@ -610,7 +756,7 @@ def drone_loop(
     while not stop.is_set():
         _drain(control)
         try:
-            sim.step(cfg.dt_s * cfg.time_scale, approved_legs(http, cfg.mission_id, feed))
+            sim.step(cfg.dt_s * cfg.time_scale, *mission_view(http, cfg.mission_id, feed))
         except Offline as e:
             sim.out(f"offline ({e}); retrying")
         reports.put(sim.report())

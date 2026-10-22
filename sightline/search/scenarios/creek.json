@@ -1,5 +1,6 @@
 {
   "name": "creek (simulated fleet)",
+  "airframe": "DJI Mavic 3 Enterprise (simulated): 45 min flight at 9 m/s, 38 min hover, 12 m/s wind limit (43.2 km/h); see sightline/search/fleet.py Airframe.",
   "note": "Rehearsal scenario for the Nebius video (LANE_C §5.6): three simulated drones over the demo area at Mount Seymour. 'hidden' is the truth: the sim uses it only to choose which photo crop a drone gets; it is never sent to the API. 'negatives' lists the crops (free of any labelled person) a photo gets when it does not cover the hidden point.",
   "lkp": {
     "lat": 49.375,
@@ -18,7 +19,7 @@
       "altitude_m": 50.0,
       "speed_ms": 8.0,
       "battery_pct": 100.0,
-      "max_wind_kmh": 38.0,
+      "max_wind_kmh": 43.2,
       "status": "idle",
       "leg_id": null
     },
@@ -33,7 +34,7 @@
       "altitude_m": 50.0,
       "speed_ms": 8.0,
       "battery_pct": 100.0,
-      "max_wind_kmh": 38.0,
+      "max_wind_kmh": 43.2,
       "status": "idle",
       "leg_id": null
     },
@@ -48,7 +49,7 @@
       "altitude_m": 50.0,
       "speed_ms": 8.0,
       "battery_pct": 100.0,
-      "max_wind_kmh": 38.0,
+      "max_wind_kmh": 43.2,
       "status": "idle",
       "leg_id": null
     }
