@@ -73,7 +73,7 @@ def test_values_are_kept_only_with_a_verbatim_quote_that_says_them() -> None:
             },
         ],
     )
-    values, quotes, alerts, _ = extract_fields(DOCS, client)
+    values, quotes, alerts, _, urls = extract_fields(DOCS, client)
     assert {k: v for k, v in values.items() if v is not None} == {
         "wind_kmh": 20,
         "gust_kmh": 40,
@@ -81,14 +81,18 @@ def test_values_are_kept_only_with_a_verbatim_quote_that_says_them() -> None:
         "precip_prob": 0.3,
     }
     assert all(q in DOCS[0]["text"] for q in quotes.values())
+    # each kept quote names the page it was verified in
+    assert urls == dict.fromkeys(quotes, DOCS[0]["url"])
     assert [a["title"] for a in alerts] == ["Lower Seymour trail closed"] and alerts[0][
         "url"
     ] == "https://bcparks.ca/a"
 
 
 def test_a_reply_that_is_not_json_fills_nothing() -> None:
-    values, quotes, alerts, _ = extract_fields(DOCS, FakeChatClient(default="Sorry, I can't."))
-    assert set(values.values()) == {None} and quotes == {} and alerts == []
+    values, quotes, alerts, _, urls = extract_fields(
+        DOCS, FakeChatClient(default="Sorry, I can't.")
+    )
+    assert set(values.values()) == {None} and quotes == {} and alerts == [] and urls == {}
 
 
 # --- test 2: sun times -----------------------------------------------------------------------------
@@ -229,8 +233,10 @@ def test_every_tavily_call_and_the_extraction_are_in_the_trace(tmp_path: Path) -
         ("conditions", "model_call", "conditions extracted with quotes"),
     ]
     model = store.trace_entries(mid)[-1]
+    # the page the quote was verified in (doc 0), so the web app links the exact page
+    page = model.input["documents"][0]
     assert model.output["fields"] == {
-        "wind_kmh": {"value": 20.0, "quote": "Wind southeast 20 km/h"}
+        "wind_kmh": {"value": 20.0, "quote": "Wind southeast 20 km/h", "url": page}
     }
 
 

@@ -14,6 +14,8 @@ repo, out = Path(sys.argv[1]), Path(sys.argv[2])
 out.mkdir(parents=True, exist_ok=True)
 SITE = "http://localhost:5201/"
 SEEN = "try{localStorage.setItem('sightline.consoleHint','seen')}catch(e){}"
+# lane B's real B3 card fixture (the sector of caltopo-import.png), rendered first by the dev page
+CARD = Path(tempfile.mkdtemp()) / "card-B3.png"
 
 PAGE = """<!doctype html><html><head><meta charset=utf-8><style>
 html,body{{margin:0;width:1920px;height:1080px;background:#0a0b0d;display:flex;align-items:center;justify-content:center;gap:40px;font-family:system-ui}}
@@ -55,7 +57,7 @@ JOBS = [
         compose(
             "card",
             [
-                repo / "docs/architecture/screens/assignment-card.png",
+                CARD,
                 repo / "docs/architecture/screens/caltopo-import.png",
             ],
             900,
@@ -73,6 +75,11 @@ JOBS = [
 
 with sync_playwright() as p:
     b = p.chromium.launch()
+    card = b.new_page(viewport={"width": 1000, "height": 900})
+    card.goto(SITE + "command.html?card=B3")
+    card.wait_for_timeout(2000)
+    card.screenshot(path=str(CARD), full_page=True)
+    card.close()
     for name, url, wait, js in JOBS:
         ctx = b.new_context(viewport={"width": 1920, "height": 1080}, device_scale_factor=1)
         ctx.add_init_script(SEEN)

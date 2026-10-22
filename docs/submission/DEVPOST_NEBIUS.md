@@ -22,12 +22,12 @@ Production: burn in captions; name Nebius and NVIDIA with audio; mark "Not for K
 
 **Gallery (in this order):**
 
-1. *The command view: drone detections on the probability map, the task board, the approval inbox.* (`docs/architecture/screens/command-view.png`)
-2. *Which NVIDIA model did what: the re-look crop and the native zoom Nemotron VL answered from, with its trace line.* (`docs/architecture/av-chain/`)
-3. *The radio desk: Parakeet hears the team, Nemotron 3 Super answers from tools, Magpie speaks; clues are read back before they are logged.* (screenshot to take)
-4. *A team's clue re-tasks the nearest simulated drone; the approval inbox shows the planner's reason.* (`docs/architecture/screens/approval-inbox.png`)
-5. *Architecture with Token Factory, the GPU speech models and the Serverless Job marked.* (`docs/architecture/system.png`)
-6. *Results: detector vs the human baseline, the fleet simulation, radio latency.* (screenshot of the results table)
+1. *The command view on the demo mission (DEMO chip, simulated data): detections on the probability map, the task board, the approval inbox.* (`docs/submission/figures/command-view-detections-task-board-approval-inbox.png`)
+2. *Which NVIDIA model did what: the Trace tab's model strip, and the re-look crop and native zoom Nemotron VL answered from, with its trace line.* (`docs/submission/figures/trace-which-model-did-what-second-look.png`)
+3. *The radio desk on a live local mission: Team Two reports a backpack (typed here; in voice mode Parakeet transcribes it and Magpie speaks the replies), Nemotron 3 Super on Token Factory parses it, Sightline reads the clue back, and logs it on the map only after "affirmative".* (`docs/submission/figures/radio-desk-clue-read-back-before-it-is-logged.png`)
+4. *A team's clue re-tasks the nearest simulated drone; the approval inbox shows the planner's reason.* (to take once the planner branch lands; the demo fixtures have no re-task proposal)
+5. *The live architecture: photos → `cv2.dnn` on AWS → map → agent with Nemotron on Token Factory → human approval, and Tavily for conditions. Not drawn: the speech models (Parakeet, Magpie) run on the GPU desktop, and batch detection runs as a Nebius Serverless Job.* (`docs/submission/figures/architecture-photos-cv2dnn-map-agent-approval-on-aws.png`)
+6. *Results in the app: the detector vs people reviewing by eye. The fleet simulation and radio latency numbers are in the report's tables.* (`docs/submission/figures/results-detector-vs-human-baseline.png`)
 
 ---
 
