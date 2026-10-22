@@ -43,13 +43,13 @@ done
 
 # --- S3: originals ------------------------------------------------------------------------------
 BUCKET="$PREFIX-$ACCOUNT-$REGION"
-if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+if ! aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
   aws s3api create-bucket --bucket "$BUCKET" --create-bucket-configuration LocationConstraint="$REGION" >/dev/null
 fi
 aws s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration \
   BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-configuration \
-  '{"Rules":[{"ID":"originals-30-days","Status":"Enabled","Filter":{"Prefix":"missions/"},"Expiration":{"Days":30}}]}'
+  '{"Rules":[{"ID":"originals-30-days","Status":"Enabled","Filter":{"Prefix":"missions/"},"Expiration":{"Days":30}}]}' >/dev/null
 aws s3api put-bucket-tagging --bucket "$BUCKET" --tagging "TagSet=[{$TAGS}]"
 say "S3 bucket $BUCKET"
 
@@ -66,13 +66,13 @@ say "SQS $QUEUE_URL (dead letters: $DLQ_URL)"
 # --- Secrets Manager: API keys ------------------------------------------------------------------
 SECRET_ID="$PREFIX/api-keys"
 SECRET_JSON=$(python3 -c 'import json,os; print(json.dumps({k: os.environ.get(k, "") for k in ("NEBIUS_API_KEY", "TAVILY_API_KEY")}))')
+# The ARN comes from the call itself: a describe right after a create can still say "not found".
 if aws secretsmanager describe-secret --secret-id "$SECRET_ID" >/dev/null 2>&1; then
-  aws secretsmanager put-secret-value --secret-id "$SECRET_ID" --secret-string "$SECRET_JSON" >/dev/null
+  SECRET_ARN=$(aws secretsmanager put-secret-value --secret-id "$SECRET_ID" --secret-string "$SECRET_JSON" --query ARN --output text)
 else
-  aws secretsmanager create-secret --name "$SECRET_ID" --secret-string "$SECRET_JSON" --tags "$TAGS" >/dev/null
+  SECRET_ARN=$(aws secretsmanager create-secret --name "$SECRET_ID" --secret-string "$SECRET_JSON" --tags "$TAGS" --query ARN --output text)
 fi
 unset SECRET_JSON
-SECRET_ARN=$(aws secretsmanager describe-secret --secret-id "$SECRET_ID" --query ARN --output text)
 say "secret $SECRET_ID (keys only, values not shown)"
 
 # --- CloudWatch log group -------------------------------------------------------------------------
