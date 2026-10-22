@@ -18,6 +18,9 @@ from the facts it was given (``write_briefing``). There is no ``dismiss_detectio
 | leg_done     | leg id       | next ``drone_leg`` for that drone                               |
 | tick         | mission id   | ``assign_sector`` for standby teams                            |
 
+A repeated event makes no duplicate: a detection is verified once and promoted at most once, and a
+person confirmed again reuses the pending (or approved) alert; the repeat is a trace note.
+
 A re-plan is one proposal per drone at most, each approved on its own; the planner discounts
 sectors a ground team is assigned to or searching.
 """
@@ -231,6 +234,33 @@ def _add(store: Any, mission_id: str, cause: tuple[str, ...] = (), **fields: Any
     return p
 
 
+def _alert_reason(detection_id: str) -> str:
+    return f"confirmed detection {detection_id} as a person"
+
+
+def _repeat(
+    store: Any,
+    mission_id: str,
+    what: str,
+    ref: str,
+    reused: list[Proposal],
+    earlier: list[Proposal] | None = None,
+) -> list[Proposal]:
+    """A repeated event: no new proposal. The pending ones (``reused``) are returned, and a trace
+    note names them, or the decided ones in ``earlier``, so the repeat is visible."""
+    named = reused or earlier or []
+    said = ", ".join(f"{p.id} ({p.status})" for p in named) or "nothing was proposed then"
+    trace_call(
+        store,
+        mission_id,
+        actor="agent",
+        kind="note",
+        summary=f"repeat {what}: no new proposal; {said}",
+        refs=[ref, *(p.id for p in named)],
+    )
+    return reused
+
+
 def _pending(state: dict, kind: tuple[str, ...], key: str, value: str) -> list[Proposal]:
     return [
         p
@@ -384,6 +414,11 @@ def _on_detection(store, mission_id, detection_id, client, detector) -> list[Pro
     det, _ = store.get_detection(mission_id, detection_id)
     if det.conf < VERIFY_BAND[0] or client is None:
         return []
+    state = store.state(mission_id)
+    if any(v.detection_id == det.id for v in state["verdicts"]):
+        # a repeated event (a re-delivered hook): verified once, promoted at most once
+        return _repeat(store, mission_id, f"detection {det.id}", det.id,
+                       _pending(state, ("promote_detection",), "detection", det.id))  # fmt: skip
     v = verify(store, mission_id, detection_id, client, detector)
     if det.conf >= CANDIDATE_THRESHOLD or v.person != "yes":
         return []  # queue items get a verdict badge only; nothing is ever dismissed
@@ -420,6 +455,16 @@ def _on_review(store, mission_id, detection_id, answer, client, detector) -> lis
         return []
     det, frame = store.get_detection(mission_id, detection_id)
     state = store.state(mission_id)
+    earlier = [
+        p
+        for p in state["proposals"]
+        if p.kind == "alert"
+        and p.status in ("pending", "approved")
+        and _alert_reason(det.id) in p.reason
+    ]
+    if earlier:  # the same confirmation again (a second click, two reviewers): one alert
+        return _repeat(store, mission_id, f"review of {det.id}", det.id,
+                       [p for p in earlier if p.status == "pending"], earlier)  # fmt: skip
     live, layout = _layout(store, mission_id)
     sector = _sector_at(live, layout, det.lat, det.lon)
     verdict = next((v for v in state["verdicts"] if v.detection_id == det.id), None)
@@ -438,7 +483,7 @@ def _on_review(store, mission_id, detection_id, answer, client, detector) -> lis
             mission_id,
             kind="alert",
             summary=f"Alert all teams: person confirmed in photo {frame.id} (sector {sector})",
-            reason=f"Reviewer confirmed detection {det.id} as a person.",
+            reason=f"Reviewer {_alert_reason(det.id)}.",
             briefing=write_briefing(facts, client, store, mission_id, (det.id,)),
             target={"team": "all"},
             evidence=evidence,
