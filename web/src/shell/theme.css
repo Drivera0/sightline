@@ -329,3 +329,24 @@ body {
   .sl-lit, .sl-lit-hold { animation: none; opacity: 0; }
   .sl-cell, .sl-ring { animation: none; }
 }
+
+/* Printing an assignment card (E-09): white paper, black text, nothing from the dark theme. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  :root {
+    color-scheme: light;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000;
+  }
+  .assignment-card,
+  .assignment-card * {
+    color: #000 !important;
+    border-color: #888 !important;
+    box-shadow: none !important;
+  }
+}

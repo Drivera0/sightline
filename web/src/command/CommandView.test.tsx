@@ -85,6 +85,11 @@ describe("CommandView", () => {
     expect(p.onAddClue).toHaveBeenCalledWith(expect.objectContaining({ lat: 49.373123, lon: -122.935765, at_team_position: false, reported_by: "command" }));
   });
 
+  it("links each assigned or in-progress sector to its assignment card (E-09)", () => {
+    setup({ tasks: [task("B3", "assigned"), task("C2", "in_progress"), task("A1", "proposed")], cardHref: (s) => `#card/${s}` });
+    expect(screen.getAllByRole("link", { name: "Card" }).map((a) => a.getAttribute("href"))).toEqual(["#card/B3", "#card/C2"]);
+  });
+
   it("shows the five likeliest unassigned sectors, the rest on request", async () => {
     const tasks = Array.from({ length: 13 }, (_, i) => task(`X${i}`, "proposed"));
     const sectors = tasks.map((t, i) => ({ sector_id: t.sector_id, label: t.sector_id, poa: 0.01 * (i + 1), drone_coverage: 0 }));
