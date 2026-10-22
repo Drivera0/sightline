@@ -13,5 +13,4 @@ Mounted in the live mission page (`web/src/ingest/LiveMission.tsx`, tab **Approv
 transmitted from the inbox. Checked in Chromium against the real server (val photos, cv2.dnn, Nemotron):
 screenshot in `docs/architecture/screens/approval-inbox.png`.
 
-Lane A also built the **front door** (`web/src/front/`: `FrontDoor.tsx`, `copy.ts` with LANE_E §6.2's words exactly, the default route `#`, test 6). Still lane E's: the rest of the command view (task board, roster, clue log, event feed with
-filters, assignment card), `__fixtures__` for demo mode.
+Lane A also built the **front door** (`web/src/front/`: `FrontDoor.tsx`, `copy.ts` with LANE_E §6.2's words exactly, the default route `#`, test 6). Lane A also built `CommandView.tsx` (mission header with conditions, task board with POD entry capped at 90%, team roster, clue log with Add clue) as the **Command** tab, and `GET /missions/{id}/sectors` (live POA and drone coverage). Still lane E's: lane B's map in the middle, event feed filters, the printable assignment card page, `__fixtures__` for demo mode.

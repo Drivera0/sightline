@@ -98,6 +98,15 @@ export const getState = (api: Api, id: string) => call<MissionStateResponse>(api
 export const getSurvey = (api: Api, id: string) => call<Survey>(api, "GET", `${m(id)}/survey`);
 export const getDetections = (api: Api, id: string) => call<Detections>(api, "GET", `${m(id)}/detections`);
 export const getMapBase = (api: Api, id: string) => call<MapBase>(api, "GET", `${m(id)}/map_base`);
+/** A sector now (GET /sectors): label, POA on the live map, drone coverage. */
+export interface SectorNow {
+  sector_id: string;
+  label: string;
+  poa: number;
+  drone_coverage: number;
+}
+export const getSectors = (api: Api, id: string) => call<SectorNow[]>(api, "GET", `${m(id)}/sectors`);
+
 export const getMapUpdates = (api: Api, id: string, after = 0) =>
   call<MapUpdate[]>(api, "GET", `${m(id)}/map_updates?after=${after}`);
 

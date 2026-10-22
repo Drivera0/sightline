@@ -43,7 +43,12 @@ approved briefing waits in the radio's outbound queue until the operator presses
 *The front door, the default page: who it is for, how photos get in (after each landing from the SD card,
 or during the flight), and that the demo's flight is simulated, before anything is clicked.*
 
-**TODO (lane E):** a screenshot of the command view (task board, roster, clue log).
+![Command view](../architecture/screens/command-view.png)
+
+*The command view on a live mission (HERIDAL validation photos at their site near Mostar; conditions from
+Tavily; Nemotron): sectors move from proposed to searched with a POD (never "cleared"), each with its
+probability on the live map and its drone coverage; the teams with their positions' age; the agent's
+proposal waiting for approval; the clue log.*
 
 ## 2. What is new since BCS Hackathon 2026 (disclosure)
 
@@ -65,8 +70,8 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
 - conditions from live web search (Tavily): forecast, warnings and park alerts, each value kept only
   with a verbatim quote; they decide whether drones may fly, how much a photo can see, how exposed the
   person is, and what briefings say (`sightline/geo/conditions.py`);
-- the front door, New search, the live mission page and the approval inbox (§1); the rest of the
-  command view is **TODO (lane E)**.
+- the front door, New search, and the live mission's command view: task board, teams, approval inbox,
+  clue log (§1).
 
 Diff: `git diff bcs-final-submission..opencv-submit`.
 

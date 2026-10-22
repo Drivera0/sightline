@@ -207,7 +207,9 @@ class RadioTools:
             )
         if c.get("flyable") is not None:
             out["drones_can_fly"] = "yes" if c["flyable"] else "no"
-        if c.get("civil_twilight_end"):
+        if c.get("civil_twilight_end") and not (c.get("flyability_reason") or "").startswith(
+            "before dawn"
+        ):
             from sightline.radio.protocol import local_clock
 
             out["daylight_until"] = f"{local_clock(c['civil_twilight_end'])} local"

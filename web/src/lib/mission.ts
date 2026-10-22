@@ -23,7 +23,7 @@ import type {
   Verdict,
 } from "../contract";
 import * as api from "./api";
-import type { Api } from "./api";
+import type { Api, SectorNow } from "./api";
 
 export const EVENT_TYPES: readonly MissionEvent["type"][] = [
   "photo.processed", "detection.new", "verdict", "map.updated", "proposal.new", "proposal.decided",
@@ -48,11 +48,13 @@ export interface MissionData {
   promoted: string[];
   mapBase: MapBase | null;
   mapUpdates: MapUpdate[];
+  /** Each sector's POA and drone coverage on the live map (refreshed after map updates). */
+  sectors: SectorNow[];
 }
 
 export const EMPTY: MissionData = {
   mission: null, tasks: [], teams: [], clues: [], proposals: [], verdicts: [], fleet: null,
-  conditions: null, events: [], survey: null, detections: null, promoted: [], mapBase: null, mapUpdates: [],
+  conditions: null, events: [], survey: null, detections: null, promoted: [], mapBase: null, mapUpdates: [], sectors: [],
 };
 
 function upsert<T>(list: readonly T[], item: T, key: (x: T) => string): T[] {
@@ -152,9 +154,13 @@ interface MissionStore extends MissionData {
   setTask: (sector: string, body: { state: SectorTask["state"]; team_id?: string | null; pod?: number | null; note?: string | null }) => Promise<void>;
   /** Re-read the survey and detections (after a photo is processed). */
   refreshPhotos: () => Promise<void>;
+  /** Re-read the sectors' POA and coverage (after the map changes; at most every 2 s). */
+  refreshSectors: () => Promise<void>;
+  updateTeam: (teamId: string, patch: Partial<Team>) => Promise<void>;
 }
 
 let source: EventSourceLike | null = null;
+let lastSectors = 0;
 let demoSeq = 0;
 
 const now = () => new Date().toISOString().replace(/\.\d+Z$/, "Z");
@@ -178,15 +184,16 @@ export const useMission = create<MissionStore>((set, get) => {
       get().disconnect();
       set({ ...EMPTY, status: "connecting", error: null, api: a });
       try {
-        const [state, survey, detections, mapBase, mapUpdates] = await Promise.all([
+        const [state, survey, detections, mapBase, mapUpdates, sectors] = await Promise.all([
           api.getState(a, missionId),
           api.getSurvey(a, missionId),
           api.getDetections(a, missionId),
           api.getMapBase(a, missionId).catch(() => null),
           api.getMapUpdates(a, missionId).catch(() => [] as MapUpdate[]),
+          api.getSectors(a, missionId).catch(() => [] as SectorNow[]),
         ]);
         const { events, ...rest } = state;
-        set({ ...rest, events, survey, detections, mapBase, mapUpdates, promoted: [] });
+        set({ ...rest, events, survey, detections, mapBase, mapUpdates, sectors, promoted: [] });
         const Ctor = deps.EventSource ?? (globalThis.EventSource as unknown as EventSourceCtor);
         const es = new Ctor(api.eventsUrl(a, missionId, events.at(-1)?.id ?? null));
         source = es;
@@ -197,6 +204,7 @@ export const useMission = create<MissionStore>((set, get) => {
             const ev = JSON.parse(e.data as string) as MissionEvent;
             set((s) => applyEvent(s, ev));
             if (ev.type === "photo.processed") void get().refreshPhotos();
+            if (ev.type === "map.updated") void get().refreshSectors();
           });
         }
         set({ status: "live" });
@@ -222,6 +230,34 @@ export const useMission = create<MissionStore>((set, get) => {
       const [survey, detections] = await Promise.all([api.getSurvey(a, mid()), api.getDetections(a, mid())]);
       // Keep detections that arrived by event while this was loading.
       set((s) => ({ survey, detections: mergeDetections(detections, s.detections) }));
+    },
+
+    refreshSectors: async () => {
+      const a = get().api;
+      const now = Date.now();
+      if (!a || now - lastSectors < 2000) return;
+      lastSectors = now;
+      try {
+        set({ sectors: await api.getSectors(a, mid()) });
+      } catch {
+        /* the next map update tries again */
+      }
+    },
+
+    updateTeam: async (teamId, patch) => {
+      const before = get().teams;
+      set({ teams: before.map((t) => (t.id === teamId ? { ...t, ...patch } : t)) });
+      const a = get().api;
+      if (!a) {
+        const team = get().teams.find((t) => t.id === teamId);
+        if (team) demoEvent("team.updated", `${team.callsign}: ${team.status}`, teamId, team);
+        return;
+      }
+      try {
+        await api.patchTeam(a, mid(), teamId, patch);
+      } catch (e) {
+        set({ teams: before, error: e instanceof Error ? e.message : String(e) });
+      }
     },
 
     decide: async (pid, decision, by, reason, edits) => {

@@ -424,6 +424,7 @@ export interface Conditions {
 }
 export interface ConditionAlert {
   kind: "closure" | "warning" | "advisory" | "other";
+  title: string;
   text: string;
   url: string;
 }

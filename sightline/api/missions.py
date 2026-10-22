@@ -328,6 +328,34 @@ def get_map_base(mission_id: str, request: Request) -> dict:
         raise HTTPException(404, str(e)) from e
 
 
+@missions_router.get("/missions/{mission_id}/sectors")
+def get_sectors(mission_id: str, request: Request) -> list[dict]:
+    """Each sector now: label, POA on the live map, and drone coverage (the share of its cells a
+    photo has looked at), for the command view's task board (lane E). Read-only."""
+    from sightline.geo.cards import sector_label
+
+    store = _store(request, mission_id)
+    layout = effects._layout(store, mission_id)
+    if layout is None:
+        return []
+    live = store.live(mission_id)
+    poa = live.sector_poa(layout)
+    canopy = live.canopy()
+    out = []
+    for s in layout.sectors:
+        cells = layout.cells_of(s.id)
+        seen = sum(canopy[int(i)] is not None for i in cells) / len(cells)
+        out.append(
+            {
+                "sector_id": s.id,
+                "label": sector_label(s.id),
+                "poa": round(poa[s.id], 4),
+                "drone_coverage": round(seen, 3),
+            }
+        )
+    return out
+
+
 @missions_router.get("/missions/{mission_id}/map_updates")
 def get_map_updates(mission_id: str, request: Request, after: int = 0) -> list[dict]:
     return _dump(_store(request, mission_id).map_updates(mission_id, after))
