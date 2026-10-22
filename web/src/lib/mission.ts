@@ -282,7 +282,9 @@ export const useMission = create<MissionStore>((set, get) => {
     useDemo: (data, clock) => {
       get().disconnect();
       demoClock = clock ? new Date(clock).toISOString().replace(/\.\d+Z$/, "Z") : null;
-      demoSeq = data.events?.length ?? 0;
+      // past the highest id loaded (a mission seen part-way through its timeline skips some), so a new
+      // event never reuses one
+      demoSeq = Math.max(data.events?.length ?? 0, ...(data.events ?? []).map((e) => Number(/^e(\d+)$/.exec(e.id)?.[1] ?? 0)));
       set({ ...EMPTY, links: fleetLinksFromEvents(data.events ?? []), ...data, status: "demo", error: null, api: null });
     },
 
