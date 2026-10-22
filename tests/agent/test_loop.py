@@ -13,13 +13,13 @@ import numpy as np
 import pytest
 
 from sightline.agent import loop
-from sightline.agent._stubs import StubLiveMap, lattice_sectors
 from sightline.agent.llm import ChatResult, FakeChatClient
 from sightline.agent.runner import BudgetClient, BudgetExceeded
 from sightline.contract import (
     Clue,
     Conditions,
     Detection,
+    Distribution,
     Drone,
     FleetState,
     Frame,
@@ -31,6 +31,8 @@ from sightline.contract import (
 )
 from sightline.ml.types import Box, RawDetection
 from sightline.search.grid import cell_center, make_grid
+from sightline.search.live import LiveMap
+from sightline.search.sectors import lattice_sectors
 from tests.agent.fake_store import FakeMissionStore
 
 LKP = LatLon(lat=49.37, lon=-122.94)
@@ -129,7 +131,10 @@ def mission():
     layout = lattice_sectors(grid)
     p = np.zeros(grid.rows * grid.cols)
     p[layout.cells_of("B3")] = 1 / len(layout.cells_of("B3"))
-    store.live_maps[mid] = StubLiveMap(grid, p)
+    base = LiveMap.start(LKP, size_m=1000, cell_m=20).base
+    store.live_maps[mid] = LiveMap(
+        base.model_copy(update={"prior": Distribution(p=p.tolist(), outside=0.0)})
+    )
     b3 = cell_center(grid, int(layout.cells_of("B3")[len(layout.cells_of("B3")) // 2]))
 
     store.upsert_team(mid, _team("T1", "Team One", "standby", b3))
