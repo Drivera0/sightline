@@ -301,6 +301,11 @@ export function Shell({
         event.preventDefault();
         return;
       }
+      if (event.key === "c" || event.key === "C") {
+        window.location.hash = "#m/demo/command"; // the command view on the demo mission (no API needed)
+        event.preventDefault();
+        return;
+      }
       if (event.key === "?") {
         setShowShortcuts((open) => !open);
         return;

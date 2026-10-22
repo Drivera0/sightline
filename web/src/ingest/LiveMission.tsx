@@ -7,6 +7,7 @@ import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard } from "../lib/api";
 import type { AssignmentCard } from "../contract";
 import { AssignmentCardView } from "../command/AssignmentCardView";
+import { isTyping } from "../lib/keys";
 import { photoProgress, useMission } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
@@ -72,6 +73,14 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
     void useMission.getState().connect(missionId, api);
     return () => useMission.getState().disconnect();
   }, [api, missionId, demo]);
+  useEffect(() => {
+    // C: the Command tab (D-R1's shortcut), unless typing
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key === "c" || e.key === "C") && !isTyping(e.target) && !e.ctrlKey && !e.metaKey && !e.altKey) go("command");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   const imageUrl = (rel: string) => (demo ? `${DEMO_CACHE}/${rel}` : fileUrl(api, missionId, rel));
   const tabs = demo ? TABS.filter((t) => DEMO_TABS.includes(t.id)) : TABS;
 

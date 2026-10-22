@@ -130,6 +130,13 @@ describe("live mission tabs", () => {
     expect(tabFromHash("#m/a1b2c3d4/nope")).toBe("photos");
   });
 
+  it("C goes to the Command tab, but not while typing", async () => {
+    render(<LiveMission api={pending} missionId="a1b2c3d4" initialTab="feed" />);
+    await userEvent.keyboard("c");
+    expect(screen.getByRole("button", { name: "Command" })).toHaveAttribute("aria-pressed", "true");
+    expect(window.location.hash).toBe("#m/a1b2c3d4/command");
+  });
+
   it("mounts the radio desk, safety frame first, and links the debrief", async () => {
     render(<LiveMission api={pending} missionId="a1b2c3d4" initialTab="radio" />);
     expect(screen.getByText(SAFETY_FRAME)).toBeInTheDocument();
