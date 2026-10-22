@@ -1,10 +1,9 @@
 # Sightline: the brain of a drone search
 
-**OpenCV AI Competition 2026 · technical report · DRAFT (freeze Sat Oct 25, 12:00)**
+**OpenCV AI Competition 2026 · technical report · code freeze Sat Oct 25, 12:00 PT**
 
-> **Status of this draft.** Every section is written from committed results. One item is open: the
-> radio's word error rate on three human voices (§5.1, issue #49). Every number comes from a file in
-> the repo or a cited source; anything simulated is labelled simulated. Lead: Dan (lane A).
+> Every number comes from a file in the repo or a cited source; anything simulated is labelled
+> simulated, and what we could not verify is marked. Lead: Dan (lane A).
 
 Repository: https://github.com/Drivera0/sightline (tag `opencv-submit`) · Live demo:
 https://sightline-iota-sandy.vercel.app (demo) · Live mission API on AWS: https://44-227-39-234.sslip.io
@@ -316,8 +315,8 @@ lines, and 2.5 s p50 (p90 3.0 s) with real voices over the 18 turns of the demo 
 "standby" when the model takes over 3 s), 6 / 6 clue reports drafted, read back and committed, 6 / 6
 conditions answers from the tool (`docs/evidence/radio-latency-20261020.json`). The demo script
 (transmit the assignment, ask for the boundary, report a clue, confirm) ran **5 / 5 times as
-scripted** with real voices (`scripts/radio_rehearse.py`). **TODO (lane E/A):** word error rate on
-three human voices (`scripts/radio_wer.py`).
+scripted** with real voices (`scripts/radio_rehearse.py`). WER on three human voices: pending
+recordings (#49) (`scripts/radio_wer.py`).
 
 ### 5.2 Re-tasking a drone
 
