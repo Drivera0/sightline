@@ -29,7 +29,7 @@ needed. The results come back through the job's logs: `nebius_batch_detect.py --
 JSON files between markers, and `collect.py` writes them to `deploy/nebius/.job/out/` (tested in
 `tests/ml/test_nebius_batch.py`). The script creates a Container Registry once (`.state.env`, gitignored),
 pushes, runs `nebius ai job create` on `cpu-d3` / `4vcpu-16gb` with a 1 h timeout (the minimum), waits, reads the
-logs and deletes the job. Set `SUBNET_ID` if the project has several subnets, and `PLATFORM`/`PRESET` to
+logs and deletes the job. Set `SUBNET_ID` if the project has several subnets, and `NEBIUS_PLATFORM`/`NEBIUS_PRESET` to
 change the VM. Docs read 2026-10-22: https://docs.nebius.com/serverless/jobs/manage.md. Price: cpu-d3 is
 $0.015 per vCPU-hour + $0.0045 per GiB-hour from Oct 1, 2026, so about $0.13/h for 4vcpu-16gb plus disk.
 
@@ -40,5 +40,8 @@ same photo that gave the live run's candidate, and no other.
 ## Still to do (lane A)
 
 - [x] job script, results through the logs, local run (above)
-- [ ] `nebius` CLI login (Dan), then `bash deploy/nebius/run_job.sh`
-- [ ] record time and cost in `docs/feedback/nebius.md` ("Serverless Jobs") and the README's NVIDIA + Nebius table
+- [x] run on Nebius (2026-10-22): `REGION=us-north1 NEBIUS_PRESET=16vcpu-64gb bash deploy/nebius/run_job.sh`: 711 photos in
+  483 s inside the job (0.68 s each, 16 vCPUs), 677 s from create to completed, about $0.10; the same 180 boxes and
+  one candidate (f0665, 0.735) as the local run. **Use us-north1** (or another region with quota): this tenant has 0
+  CPU-VM quota in eu-north1 and us-central1. The profile's project is the us-north1 default project
+- [x] time, cost and what went wrong in `docs/feedback/nebius.md` ("Serverless Jobs") and the README table

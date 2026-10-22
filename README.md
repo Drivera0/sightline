@@ -62,7 +62,7 @@ Every language and vision model call goes through **Nebius Token Factory** at ru
 | Radio-style briefings for ground teams, written only from given facts and post-checked (≤ 60 words, never "clear", no invented numbers) | Nemotron 3 Nano (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`) | Token Factory | `sightline/agent/loop.py` |
 | Planning text and tool calls | Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b`) | Token Factory | `sightline/agent/llm.py` (`MODEL_REASON`) |
 | **Coming (lane E):** the radio desk: speech in, an answer, speech out | Parakeet TDT 0.6B v2 (speech to text), Nemotron with tools, Magpie TTS | GPU desktop / Token Factory | `sightline/radio/` |
-| **Coming (A-N1, Oct 27):** batch detection of the simulated fleet's photos | the Sightline detector on OpenCV 5 `cv2.dnn` | Nebius Serverless Job | `scripts/nebius_batch_detect.py`, `deploy/nebius/` |
+| Batch detection of the simulated fleet's photos: 711 photos in 483 s on 16 vCPUs, about $0.10 (2026-10-22) | the Sightline detector on OpenCV 5 `cv2.dnn` | Nebius Serverless Job (CPU, us-north1) | `deploy/nebius/run_job.sh`, `scripts/nebius_batch_detect.py` |
 
 How the models fit together, and a real trace of one decision: [docs/architecture/agent.md](docs/architecture/agent.md). Measured on 461 live verifier calls: p50 1.35 s and p90 1.65 s per call, about 890 tokens in and 67 out, every reply valid JSON. What worked and what didn't: [docs/feedback/nebius.md](docs/feedback/nebius.md).
 

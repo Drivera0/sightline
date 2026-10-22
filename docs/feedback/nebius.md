@@ -3,7 +3,7 @@
 Draft for the Nebius "Most Valuable Feedback" form (MASTER_PLAN §8.2, LANE_A §5.8): per tool,
 what we used it for, what worked, what needs work, onboarding, and whether we'd build on it again,
 with numbers. Measured 2026-10-20 on Nebius Token Factory. Lane E adds `radio.md` (Parakeet,
-Magpie, tool calling over voice); the Serverless Job section is filled in after A-N1.
+Magpie, tool calling over voice). The Serverless Job section is from the A-N1 run on 2026-10-22.
 
 **Prices** (Token Factory model catalog, https://tokenfactory.nebius.com/model-catalog.md, read
 2026-10-20; per million tokens, the page states no currency): Nemotron-3.5-Super-VL 0.30 in /
@@ -103,4 +103,48 @@ use it as advice that a person approves, which is how Sightline treats every mod
 
 ## Serverless Jobs
 
-Filled in after A-N1 (Mon Oct 27): batch detection of the fleet scenario's photos, time and cost.
+**What we used it for.** Batch person detection over a simulated drone fleet's photos ("process sensor
+data at scale"): the 711 photos of the creek scenario (crops of HERIDAL validation photos at simulated
+poses), run through the Sightline detector on OpenCV 5 `cv2.dnn` on CPU, no GPU and no torch. One
+container image with the photos inside; the results come back through the job's logs. Code:
+`deploy/nebius/run_job.sh`, `scripts/nebius_batch_detect.py`.
+
+**Numbers** (2026-10-22, us-north1, `cpu-d3` / `16vcpu-64gb`, 2.09 GB image in Container Registry):
+
+| | Value |
+|---|---|
+| Detection inside the job | 711 photos in 483 s, 0.68 s per photo on 16 vCPUs |
+| `ai job create` → `COMPLETED` | 677 s, so about 3 min of VM start and image pull before the first photo |
+| Result | 180 boxes, one candidate (f0665 at 0.735): the same output as the same image under local Docker (32 CPUs, 0.47 s/photo), and the photo over the scenario's hidden person |
+| Cost (list prices, our estimate) | 16 × $0.015 + 64 × $0.0045 = $0.53 per hour for the VM; 677 s ≈ **$0.10**, plus the 50 GiB disk for those minutes (< $0.01) and the image in the registry |
+
+**What worked.** Once logged in, `nebius ai job create` with an image from a registry in the same project
+needed no registry credentials, and `nebius ai job logs` gave the whole stdout back, which was enough to
+return results without a bucket. The VM is deleted on completion, so nothing keeps billing. Per-second
+billing makes short batch jobs cheap even with the 1 h minimum timeout setting.
+
+**What needs work.**
+- **Quota surprise:** the tenant's home region (eu-north1) and us-central1 have a **0 vCPU quota for CPU VMs**,
+  while other regions have 200. The job failed with `ResourceExhausted … compute.instance.non-gpu.vcpu`;
+  nothing in the console's first run or the CLI's defaults hints at it. A default project in the home region
+  that can't run a CPU job is a trap; a hint naming a region with quota would save the guess.
+- **CLI onboarding:** `nebius profile create` prompts interactively and fails with `Error: ^D` when stdin is not
+  a terminal (it ran inside a tool that captures output); `--no-browser` plus explicit flags worked. A profile
+  without `--parent-id` then makes `nebius iam project list` fail with `'' is invalid for parentId` instead of
+  listing the projects the user can pick from.
+- **Deprecations mid-onboarding:** `iam project` and `iam tenant` print deprecation warnings pointing to
+  `iam v2`, so the commands in older guides already warn.
+- **No CPU example in the Serverless Jobs docs:** every example is a GPU job; whether `cpu-d3` presets work for
+  jobs had to be inferred from the Compute docs (they do).
+- **Registry cleanup:** deleting an image failed the first time without a message we could act on; on retry
+  it worked, and the registry can only be deleted once empty.
+- Small: `PLATFORM` is a common environment variable (WSL sets `PLATFORM=WSL`), so our script's own
+  `PLATFORM` default picked it up and the API answered `Platform "WSL" was not found`; our bug, but an
+  error listing the valid platforms would have shortened it.
+
+**Onboarding time:** from the first `ai job create` (failed: the `PLATFORM` clash, then the quota) to the first
+completed job took about 15 minutes by our logs, and the successful job itself 11 minutes. Add the time from CLI
+install to login from Dan's notes.
+
+**Would we build on it again?** Yes for batch CPU work like this: a container, a command, logs back, billed by
+the second. We would check quotas per region first.

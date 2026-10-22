@@ -18,8 +18,8 @@ SRC=${1:-$(ls -d runs/creek/*/missions/*/frames/orig 2>/dev/null | tail -1)}
 [ -d "$SRC" ] || { echo "no photo folder (run scripts/creek_run.py, or pass one)"; exit 1; }
 STATE=deploy/nebius/.state.env
 WORK=deploy/nebius/.job
-PLATFORM=${PLATFORM:-cpu-d3}
-PRESET=${PRESET:-4vcpu-16gb}
+PLATFORM=${NEBIUS_PLATFORM:-cpu-d3}  # not $PLATFORM: WSL sets PLATFORM=WSL
+PRESET=${NEBIUS_PRESET:-4vcpu-16gb}
 NAME=sightline-batch-$(date +%Y%m%d-%H%M%S)
 
 rm -rf "$WORK" && mkdir -p "$WORK/photos" "$WORK/out"
@@ -55,7 +55,8 @@ T0=$(date +%s)
 JOB=$(nebius ai job create --name "$NAME" --image "$IMAGE" \
   --container-command "python scripts/nebius_batch_detect.py" --args "/in /out --print-results" \
   --platform "$PLATFORM" --preset "$PRESET" --timeout 1h --disk-size 50Gi \
-  ${SUBNET_ID:+--subnet-id "$SUBNET_ID"} --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["metadata"]["id"])')
+  ${SUBNET_ID:+--subnet-id "$SUBNET_ID"} --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["metadata"]["id"])') \
+  || { echo "job create failed (the CLI's error is above)"; exit 1; }
 echo "job $JOB ($PLATFORM $PRESET)"
 while :; do
   S=$(nebius ai job get "$JOB" --format json | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status",{}).get("state","?"))')
