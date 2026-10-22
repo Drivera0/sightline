@@ -707,6 +707,19 @@ def plan_assignments(
     return out, table
 
 
+def walk_minutes(
+    grid: Grid,
+    at: LatLon,
+    to: Sector | LatLon,
+    cfg: PlannerConfig = PlannerConfig(),  # noqa: B008 - frozen dataclass, never mutated
+) -> float:
+    """Minutes on foot from ``at`` to a sector's centre or a point, straight line at the planner's
+    ``walking_kmh`` (an assumption, as in ``plan_assignments``)."""
+    dest = latlon_to_local_m(grid, to) if isinstance(to, LatLon) else _centre(to)
+    pace = (cfg.walking_kmh or 3.0) * 1000 / 60
+    return math.dist(latlon_to_local_m(grid, at), dest) / pace
+
+
 def _centre(s: Sector) -> tuple[float, float]:
     return (
         (s.rect["east_min"] + s.rect["east_max"]) / 2,

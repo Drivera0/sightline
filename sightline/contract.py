@@ -410,6 +410,9 @@ class Mission(_Model):
     base_camp: BaseCamp | None = None
     status: Literal["searching", "found", "suspended"] = "searching"
     found: Found | None = None  # set exactly when status is "found"
+    # a team out in the field not heard from for this long is overdue (a planning choice: no
+    # published ground-SAR interval; aviation flight following uses 15-30 min)
+    check_in_min: float = Field(default=30.0, gt=0, le=24 * 60)
 
 
 # --- map (C) -------------------------------------------------------------------------------
@@ -471,10 +474,15 @@ class Team(_Model):
     id: str
     callsign: str
     members: int = Field(ge=1)
-    status: Literal["standby", "assigned", "searching", "returning", "off_duty"]
+    status: Literal["standby", "assigned", "searching", "returning", "off_duty", "overdue"]
     position: LatLon | None
     position_at: str | None
     note: str | None
+    # 1.3: the last radio turn, clue or position report from the team (not its position's time)
+    last_heard_at: str | None = None
+    # 1.3: minutes on foot to the current assignment (or back to base camp when recalled), the
+    # planner's straight-line walking estimate; null with no assignment
+    eta_min: float | None = None
 
 
 class ClueDraft(_Model):

@@ -155,3 +155,105 @@ def test_found_with_a_position_finds_its_sector_and_refuses_unknown_teams(api) -
     r = client.post(f"/missions/{mid}/found", json={"team": "T2", "lat": p.lat, "lon": p.lon},
                     headers=AUTH)  # fmt: skip
     assert r.json()["found"]["sector"] == "B3"
+
+
+# --- last heard, ETA, overdue --------------------------------------------------------------------
+
+
+def _team(store, mid, tid):
+    return next(t for t in store.state(mid)["teams"] if t.id == tid)
+
+
+def test_last_heard_moves_with_a_position_report_a_clue_a_radio_turn_and_a_relay(api) -> None:
+    from sightline.contract import RadioTurn
+    from sightline.radio.mount import StoreMissionApi
+
+    client, store, _ = api
+    mid = mission(client)
+    r = client.patch(f"/missions/{mid}/teams/T2", headers=AUTH, json={
+        "position": {"lat": 49.371, "lon": -122.946}, "position_at": "2026-10-24T21:00:00Z"})  # fmt: skip
+    assert r.status_code == 200
+    assert _team(store, mid, "T2").last_heard_at == "2026-10-24T21:00:00Z"
+    checkins = [e for e in store.events(mid) if (e.data or {}).get("checkin")]
+    assert checkins[-1].data["checkin"]["how"] == "position report"
+
+    clue = {"kind": "object", "text": "glove", "lat": 49.371, "lon": -122.946,
+            "reported_by": "T3", "source": "form"}  # fmt: skip
+    assert client.post(f"/missions/{mid}/clues", json=clue, headers=AUTH).status_code == 201
+    assert _team(store, mid, "T3").last_heard_at is not None
+
+    turn = RadioTurn(id="r0001", direction="in", callsign="Team Four", transcript="Sightline, Team Four, radio check",
+                     reply="Team Four, Sightline. Loud and clear.", audio=None, state="answered", actions=[],
+                     asr_ms=None, llm_ms=None, tts_ms=None, at="2026-10-24T21:05:00Z")  # fmt: skip
+    StoreMissionApi(store).record_turn(mid, turn)
+    assert _team(store, mid, "T4").last_heard_at == "2026-10-24T21:05:00Z"
+
+    relay = {"team_id": "T1", "via": ["D3"], "hops": 1, "heard_at": "2026-10-24T21:06:00Z",
+             "age_s": 40, "lat": 49.372, "lon": -122.944}  # fmt: skip
+    assert client.post(f"/missions/{mid}/fleet/relay", json=relay, headers=AUTH).status_code == 200
+    assert _team(store, mid, "T1").last_heard_at == "2026-10-24T21:06:00Z"
+    # an older report never moves it back
+    from sightline.mission.command import heard
+
+    heard(store, mid, "T1", "2026-10-24T20:00:00Z", None)
+    assert _team(store, mid, "T1").last_heard_at == "2026-10-24T21:06:00Z"
+
+
+def test_an_approved_assignment_carries_the_walking_eta(api) -> None:
+    from sightline.contract import Proposal
+    from sightline.mission import effects
+    from sightline.mission.command import eta_to
+
+    client, store, _ = api
+    mid = mission(client)
+    p = store.add_proposal(mid, Proposal(
+        id="", kind="assign_sector", summary="Assign sector C2 to Team One", reason="r", briefing=None,
+        target={"team": "T1", "sector": "C2"}, evidence=[], status="pending", created_by="agent",
+        created_at="2026-10-24T21:00:00Z", decided_at=None, decided_by=None, decision_reason=None,
+        edits=None))  # fmt: skip
+    p = store.decide_proposal(mid, p.id, "approve", "Dana")
+    effects.on_decision(store, mid, p)
+    t = _team(store, mid, "T1")
+    assert t.status == "assigned" and t.eta_min == eta_to(store, mid, t, "C2") and t.eta_min > 0
+    assert eta_to(store, mid, t, None) == 0  # staged at the base camp: no walk back
+
+
+def test_a_team_out_of_contact_past_the_check_in_interval_goes_overdue_and_comes_back(api) -> None:
+    from sightline.mission.command import check_overdue, heard
+
+    client, store, hooks = api
+    mid = mission(client)
+    t = _team(store, mid, "T3")
+    store.upsert_team(
+        mid, t.model_copy(update={"status": "searching", "last_heard_at": "2026-10-24T21:00:00Z"})
+    )
+    assert check_overdue(store, mid, "2026-10-24T21:30:00Z", hooks) == []  # 30 min: not yet
+    assert check_overdue(store, mid, "2026-10-24T21:32:00Z", hooks) == ["T3"]
+    assert _team(store, mid, "T3").status == "overdue"
+    assert ("on_team_overdue", "T3") in hooks.calls
+    note = [e for e in store.events(mid) if (e.data or {}).get("checkin", {}).get("overdue")][-1]
+    assert note.summary == "Team Three not heard for 32 min (check-in every 30 min)"
+    assert check_overdue(store, mid, "2026-10-24T21:40:00Z", hooks) == []  # once
+    heard(store, mid, "T3", "2026-10-24T21:41:00Z", None)
+    t = _team(store, mid, "T3")
+    assert t.status == "searching" and t.last_heard_at == "2026-10-24T21:41:00Z"
+    # standby teams at base are never overdue; the interval is the mission's
+    store.update_mission(mid, check_in_min=60)
+    store.upsert_team(mid, t.model_copy(update={"last_heard_at": "2026-10-24T21:00:00Z"}))
+    assert check_overdue(store, mid, "2026-10-24T21:45:00Z", hooks) == []
+
+
+def test_the_scheduler_checks_for_overdue_teams(api) -> None:
+    from sightline.mission.scheduler import Scheduler
+
+    client, store, hooks = api
+    mid = mission(client)
+    t = _team(store, mid, "T2")
+    store.upsert_team(
+        mid, t.model_copy(update={"status": "assigned", "last_heard_at": "2000-01-01T00:00:00Z"})
+    )
+    s = Scheduler(hooks)
+    s.store = store
+    s.mission_active(mid)
+    s.run_once()
+    assert _team(store, mid, "T2").status == "overdue"

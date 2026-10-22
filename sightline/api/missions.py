@@ -626,6 +626,9 @@ def post_fleet_relay(mission_id: str, body: FleetRelay, request: Request) -> dic
         raise HTTPException(404, "no such team")
     store.upsert_team(mission_id, team.model_copy(
         update={"position": LatLon(lat=body.lat, lon=body.lon), "position_at": body.heard_at}))  # fmt: skip
+    from sightline.mission.command import heard
+
+    heard(store, mission_id, team.id, body.heard_at, None)  # the relay note is the check-in
     relay = {**body.model_dump(), "callsign": body.callsign or team.callsign}
     ev = store.emit(mission_id, "mission.note", relay_summary(relay), ref=body.team_id,
                     data={"relay": relay, "simulated": True})  # fmt: skip

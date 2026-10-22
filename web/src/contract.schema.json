@@ -1757,6 +1757,12 @@
             }
           ],
           "default": null
+        },
+        "check_in_min": {
+          "default": 30.0,
+          "exclusiveMinimum": 0,
+          "maximum": 1440,
+          "type": "number"
         }
       },
       "required": [
@@ -2627,7 +2633,8 @@
             "assigned",
             "searching",
             "returning",
-            "off_duty"
+            "off_duty",
+            "overdue"
           ],
           "type": "string"
         },
@@ -2660,6 +2667,28 @@
               "type": "null"
             }
           ]
+        },
+        "last_heard_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "eta_min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

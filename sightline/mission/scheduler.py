@@ -84,6 +84,15 @@ class Scheduler:
                 self._conditions[m] = now
         for m in ticks:
             self._tick(m)
+        if self.store is not None:  # teams out of contact past the mission's check-in interval
+            from sightline.mission.command import check_overdue
+            from sightline.mission.store import now_iso
+
+            for m in active:
+                try:
+                    check_overdue(self.store, m, now_iso(), self.hooks)
+                except Exception:
+                    log.exception("overdue check failed for %s", m)
         if self.refresh_conditions is not None:
             for m in conds:
                 try:

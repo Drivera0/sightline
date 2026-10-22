@@ -263,6 +263,7 @@ export interface Mission {
   base_camp?: BaseCamp | null;
   status?: "searching" | "found" | "suspended";
   found?: Found | null;
+  check_in_min?: number;
 }
 /**
  * 1.3: where teams stage and drones launch from and return to.
@@ -326,10 +327,12 @@ export interface Team {
   id: string;
   callsign: string;
   members: number;
-  status: "standby" | "assigned" | "searching" | "returning" | "off_duty";
+  status: "standby" | "assigned" | "searching" | "returning" | "off_duty" | "overdue";
   position: LatLon | null;
   position_at: string | null;
   note: string | null;
+  last_heard_at?: string | null;
+  eta_min?: number | null;
 }
 export interface ClueDraft {
   kind: "object" | "track" | "sighting" | "sound" | "other";

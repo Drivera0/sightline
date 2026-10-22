@@ -113,7 +113,12 @@ def on_decision(store: MissionStore, mission_id: str, p: Proposal) -> None:
             )
         team = next((t for t in state["teams"] if t.id == team_id), None)
         if team is not None:
-            store.upsert_team(mission_id, team.model_copy(update={"status": "assigned"}))
+            from sightline.mission.command import eta_to
+
+            eta = eta_to(store, mission_id, team, sector_id)
+            store.upsert_team(
+                mission_id, team.model_copy(update={"status": "assigned", "eta_min": eta})
+            )
     elif p.kind == "retask_drone" and "home" in p.target:
         # a recall: the store already cancelled the drone's leg and approved the home leg (the
         # re-task path); the feed says so in words, with the reason it was approved on
@@ -180,6 +185,10 @@ def on_team_update(store: MissionStore, mission_id: str, team: Team, hooks: Any 
     old = next((t for t in store.state(mission_id)["teams"] if t.id == team.id), None)
     store.upsert_team(mission_id, team)
     if team.position is not None and (old is None or old.position != team.position):
+        from sightline.mission.command import heard
+
+        # a position report is a check-in (1.3): last heard, and back from overdue
+        team = heard(store, mission_id, team.id, team.position_at or now_iso(), "position report")
         _hook(hooks, "on_team_position", store, mission_id, team.id)
     return team
 
@@ -228,6 +237,10 @@ def on_clue(
 ) -> tuple[Clue, MapUpdate | None | str]:
     """Add the (confirmed) clue, reweight the map around it (C), then tell the agent."""
     clue = store.add_clue(mission_id, clue)
+    if any(t.id == clue.reported_by for t in store.state(mission_id)["teams"]):
+        from sightline.mission.command import heard
+
+        heard(store, mission_id, clue.reported_by, clue.at, None)  # the clue is the check-in
     update = _map(store, mission_id, lambda live: live.clue_update(clue))
     _hook(hooks, "on_clue", store, mission_id, clue.id)
     return clue, update

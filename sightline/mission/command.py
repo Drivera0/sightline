@@ -10,12 +10,21 @@ the board with the map as it is.
 
 from __future__ import annotations
 
+import logging
+from datetime import datetime
 from typing import Any
 
 import numpy as np
 
 from sightline.contract import Found, LatLon
 from sightline.mission.store import MissionStore, now_iso
+
+log = logging.getLogger(__name__)
+OUT = ("assigned", "searching", "returning")  # a team out in the field: it can be overdue
+
+
+def _t(iso: str) -> datetime:
+    return datetime.fromisoformat(iso)
 
 
 class ActionError(ValueError):
@@ -118,3 +127,93 @@ def mark_found(
     store.emit(mission_id, "mission.note", f"{summary} (by {by})", ref=team_id,
                data={"found": found.model_dump(), "by": by})  # fmt: skip
     return m
+
+
+# --- last heard, ETA, overdue -------------------------------------------------------------------
+
+
+def team_id_for(teams: list[Any], who: str) -> str | None:
+    """A team's id from its id or its callsign ("T2" or "Team Two"), else None."""
+    w = who.strip().lower()
+    return next((t.id for t in teams if w in (t.id.lower(), t.callsign.lower())), None)
+
+
+def _was(store: MissionStore, mission_id: str, team_id: str) -> str:
+    """The status a team had before it went overdue (its last overdue check-in says)."""
+    for ev in reversed(store.events(mission_id)):
+        c = (ev.data or {}).get("checkin") if ev.type == "mission.note" else None
+        if c and c.get("team") == team_id and c.get("overdue"):
+            return c.get("was") or "searching"
+    return "searching"
+
+
+def heard(store: MissionStore, mission_id: str, team_id: str, at: str, how: str | None) -> Any:
+    """The team was heard at ``at`` (a radio turn, a clue, a position report, a relay):
+    ``last_heard_at`` moves forward, and an overdue team is back in contact (its status before).
+    ``how``: the check-in event's words ("position report"); None when the turn or clue is already
+    the timeline's entry. Returns the team."""
+    team = team_of(store, mission_id, team_id)
+    last = team.last_heard_at
+    update: dict[str, Any] = {}
+    if last is None or _t(at) >= _t(last):
+        update["last_heard_at"] = at
+    back = team.status == "overdue"
+    if back:
+        update["status"] = _was(store, mission_id, team_id)
+    if update:
+        team = team.model_copy(update=update)
+        store.upsert_team(mission_id, team)
+    if how or back:
+        text = f"{team.callsign}: {how or 'heard'}" + (", back in contact" if back else "")
+        store.emit(mission_id, "mission.note", text, ref=team_id,
+                   data={"checkin": {"team": team_id, "at": at, "how": how, "overdue": False,
+                                     "back_in_contact": back}})  # fmt: skip
+    return team
+
+
+def eta_to(store: MissionStore, mission_id: str, team: Any, sector_id: str | None) -> float | None:
+    """Minutes on foot from the team (its last position, else the base camp) to the sector, or back
+    to the base camp with no sector (the planner's walking estimate); None without a map."""
+    from sightline.mission.effects import _layout
+    from sightline.search.planner import walk_minutes
+
+    try:
+        grid = store.live(mission_id).base.grid
+    except ValueError:
+        return None
+    m = store.get(mission_id)
+    camp = LatLon(lat=m.base_camp.lat, lon=m.base_camp.lon) if m.base_camp else m.area.lkp
+    at = team.position or camp
+    if sector_id is None:
+        return round(walk_minutes(grid, at, camp))
+    layout = _layout(store, mission_id)
+    sector = next((s for s in layout.sectors if s.id == sector_id), None) if layout else None
+    return None if sector is None else round(walk_minutes(grid, at, sector))
+
+
+def check_overdue(store: MissionStore, mission_id: str, now: str, hooks: Any = None) -> list[str]:
+    """Teams out in the field (assigned, searching, returning) not heard for longer than the
+    mission's ``check_in_min`` become ``overdue``: a check-in event says for how long, and the agent
+    hears (``hooks.on_team_overdue``). Returns the teams that went overdue now."""
+    m = store.get(mission_id)
+    if m.status == "found":
+        return []
+    out = []
+    for t in store.state(mission_id)["teams"]:
+        if t.status not in OUT or t.last_heard_at is None:
+            continue
+        minutes = (_t(now) - _t(t.last_heard_at)).total_seconds() / 60
+        if minutes <= m.check_in_min:
+            continue
+        store.upsert_team(mission_id, t.model_copy(update={"status": "overdue"}))
+        store.emit(mission_id, "mission.note",
+                   f"{t.callsign} not heard for {minutes:.0f} min (check-in every {m.check_in_min:g} min)",
+                   ref=t.id, data={"checkin": {"team": t.id, "overdue": True, "minutes": round(minutes),
+                                               "was": t.status, "last_heard_at": t.last_heard_at}})  # fmt: skip
+        out.append(t.id)
+        if hooks is not None:
+            try:
+                hooks.on_team_overdue(store, mission_id, t.id)
+            except Exception:
+                log.exception("hooks.on_team_overdue failed")
+    return out
