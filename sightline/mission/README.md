@@ -59,8 +59,8 @@ These weren't spelled out in the contract; each is one place in `store.py` to ch
    speech models live in their own environment (`sightline/radio/README.md`).
 9. **Mission API choices:** new missions get teams T1–T4 (3 members each, a placeholder) on standby;
    sector tasks are seeded only once C's `lattice_sectors` exists. A rejection needs a reason (422).
-   A clue's default radius by kind (`CLUE_RADIUS_M`: object 25 m … sound 200 m) stands in for B's
-   `resolve_position`. `/health` now returns `contract_version` and `backend` (contract §13).
+   Clue positions and default radii come from B's `resolve_position` (`sightline/geo/clues.py`);
+   its warnings (stale team fix, outside the grid) go to the feed as `mission.note`. `/health` now returns `contract_version` and `backend` (contract §13).
 10. **Frame ids are given out at upload** (`POST /photos` returns them, contract §13), so the worker
    must process each mission's jobs in order and never drop one: a detector failure still adds the
    frame with no detections (`photo.processed` says `detector failed`). Photos are checked at upload
