@@ -358,3 +358,15 @@ def test_a_photo_outside_the_search_area_says_so(api) -> None:
     ctx.queue.join()
     done = next(e for e in ctx.store.events(mid) if e.type == "photo.processed")
     assert done.data["map"].startswith("photo outside the search area")
+
+
+def test_sectors_report_live_poa_and_drone_coverage(api) -> None:
+    client, ctx, _ = api
+    mid = _mission(client)
+    before = {s["sector_id"]: s for s in client.get(f"/missions/{mid}/sectors").json()}
+    assert len(before) == 16 and before["B3"]["label"] == "Bravo Three" and before["B3"]["drone_coverage"] == 0
+    _upload(client, mid, ("a.jpg", drone_photo()))
+    ctx.queue.join()
+    after = client.get(f"/missions/{mid}/sectors").json()
+    looked = [s for s in after if s["drone_coverage"] > 0]
+    assert looked and all(s["poa"] < before[s["sector_id"]]["poa"] for s in looked)  # a look lowers POA

@@ -7,13 +7,15 @@ import type { Api } from "../lib/api";
 import { fileUrl } from "../lib/api";
 import { photoProgress, useMission } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
+import { CommandView } from "../command/CommandView";
 import { Badge, Label, Panel, Stat } from "../shell/components";
 import { LiveReview } from "../review/LiveReview";
 import { uploadCommand } from "./upload";
 import { UploadPanel } from "./UploadPanel";
 
-type Tab = "photos" | "review" | "approvals" | "feed";
+type Tab = "command" | "photos" | "review" | "approvals" | "feed";
 const TABS: { id: Tab; label: string }[] = [
+  { id: "command", label: "Command" },
   { id: "photos", label: "Photos" },
   { id: "review", label: "Review" },
   { id: "approvals", label: "Approvals" },
@@ -23,7 +25,7 @@ const STATUS_WORDS = { idle: "", connecting: "Connecting…", live: "Live", reco
 
 export function tabFromHash(hash: string): Tab {
   const step = hash.split("/")[2];
-  return step === "review" || step === "approvals" || step === "feed" ? step : "photos";
+  return step === "command" || step === "review" || step === "approvals" || step === "feed" ? step : "photos";
 }
 
 export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Api; missionId: string; initialTab?: Tab }) {
@@ -138,6 +140,24 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         <p role="alert" className="text-small text-warn">
           {s.error}
         </p>
+      )}
+
+      {tab === "command" && (
+        <CommandView
+          mission={s.mission}
+          status={s.status}
+          conditions={s.conditions}
+          tasks={s.tasks}
+          sectors={s.sectors}
+          teams={s.teams}
+          clues={s.clues}
+          proposals={s.proposals}
+          imageUrl={(rel) => fileUrl(api, missionId, rel)}
+          onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
+          onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
+          onAddClue={(draft) => useMission.getState().addClue(draft)}
+          onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
+        />
       )}
 
       {tab === "approvals" && (

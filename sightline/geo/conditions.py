@@ -29,7 +29,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Any, ClassVar, Protocol
 from zoneinfo import ZoneInfo
@@ -62,6 +62,9 @@ QUOTE_WORDS = {
     "temp_c": r"°|temperature|high|low|plus|minus|\bc\b",
     "visibility_km": r"km|visib",
 }
+# What a search team acts on: trails, roads, parks, weather, hazards. Used for alerts from searches
+# without trusted local domains.
+OPERATIONAL = r"trail|road|clos(ed|ure)|park|weather|wind|rain|snow|storm|fog|fire|flood|avalanche|rockfall|landslide|evacuat"
 TZ = "America/Vancouver"  # the demo's area; the local date and hour decide what applies now
 ALERT_KINDS = ("closure", "warning", "advisory", "other")
 
@@ -120,26 +123,43 @@ def _norm(text: str) -> str:
 # --- derive (all heuristics) -------------------------------------------------------------------
 
 
-def sun_times(lat: float, lon: float, day: date, tz: str = "America/Vancouver") -> tuple[str, str]:
-    """(sunset, end of civil twilight) as UTC ISO strings, computed locally with astral."""
-    from astral import LocationInfo
+def local_tz(lat: float, lon: float) -> tzinfo:
+    """The demo area's time zone (Vancouver, with daylight saving); elsewhere the solar offset, one
+    hour per 15° of longitude: close enough to pick the local date, without a time-zone database."""
+    if 45 <= lat <= 60 and -130 <= lon <= -114:
+        return ZoneInfo(TZ)
+    return timezone(timedelta(hours=round(lon / 15)))
+
+
+def sun_times(lat: float, lon: float, day: date, tz: str | tzinfo | None = None) -> tuple[str, str]:
+    """(sunset, end of civil twilight) as UTC ISO strings, computed locally with astral, for the
+    local calendar ``day`` (time zone: ``local_tz`` unless given)."""
+    from astral import Observer
     from astral.sun import sun
 
-    s = sun(
-        LocationInfo(latitude=lat, longitude=lon, timezone=tz).observer,
-        date=day,
-        tzinfo=ZoneInfo(tz),
-    )
+    zone = ZoneInfo(tz) if isinstance(tz, str) else tz or local_tz(lat, lon)
+    s = sun(Observer(latitude=lat, longitude=lon), date=day, tzinfo=zone)
     iso = lambda t: t.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return iso(s["sunset"]), iso(s["dusk"])
 
 
+def dawn_time(lat: float, lon: float, day: date, tz: tzinfo | None = None) -> str:
+    """Start of civil twilight (first light usable for photos) on the local ``day``, UTC ISO."""
+    from astral import Observer
+    from astral.sun import dawn
+
+    t = dawn(Observer(latitude=lat, longitude=lon), date=day, tzinfo=tz or local_tz(lat, lon))
+    return t.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def flyability(
-    c: Conditions, fleet_max_wind_kmh: float | None, now: str
+    c: Conditions, fleet_max_wind_kmh: float | None, now: str, dawn: str | None = None
 ) -> tuple[bool | None, str | None, str]:
-    """(flyable, flyable_until, reason). Not flyable when gusts (else wind) reach the fleet's lowest
-    wind limit, precipitation is ≥ 1 mm/h, or it is after civil twilight. Unknown when no wind data.
-    Until: end of civil twilight (no hourly series is read)."""
+    """(flyable, flyable_until, reason). Not flyable before civil dawn (``dawn``) or after civil
+    twilight, when gusts (else wind) reach the fleet's lowest wind limit, or with precipitation
+    ≥ 1 mm/h. Unknown when no wind data. Until: end of civil twilight (no hourly series is read)."""
+    if dawn and _t(now) < _t(dawn):
+        return False, None, f"before dawn: no light for photos until {dawn[11:16]} UTC"
     if c.civil_twilight_end and _t(now) >= _t(c.civil_twilight_end):
         return False, None, "after civil twilight: no light for photos"
     gust = c.gust_kmh if c.gust_kmh is not None else c.wind_kmh
@@ -236,7 +256,12 @@ def _number_in(quote: str, value: float, field: str) -> bool:
 
 
 def extract_fields(
-    docs: list[dict], client: Any, *, model: str | None = None, now: str | None = None
+    docs: list[dict],
+    client: Any,
+    *,
+    model: str | None = None,
+    now: str | None = None,
+    place: str | None = None,
 ) -> tuple[dict, dict[str, str], list[dict], Any]:
     """(values, field → supporting quote, alerts, the model result). A value is kept only when its
     quote is verbatim in its document, carries the number, and is in range; else null."""
@@ -295,6 +320,14 @@ def extract_fields(
             or not 0 <= k < len(docs)
             or not q
             or _norm(q) not in _norm(docs[k]["text"])
+        ):
+            continue
+        # Searches without trusted local domains return regional news: live, for an area near Mostar,
+        # a road closure 120 km away. Such an alert must name the place.
+        about = _norm(f"{a.get('title', '')} {a.get('text', '')} {q}")
+        if place and (
+            not any(w in about for w in re.findall(r"[a-z]{4,}", _norm(place)))
+            or not re.search(OPERATIONAL, about)  # live: a national travel advisory got through
         ):
             continue
         alerts.append(
@@ -484,7 +517,11 @@ def fetch_conditions(
     alerts: list[dict] = []
     if client is not None and docs:
         try:
-            values, quotes, alerts, r = extract_fields(docs, client, now=now)
+            # with trusted local domains (the demo area), any alert they return is local
+            local = bool(queries.alerts_domains)
+            values, quotes, alerts, r = extract_fields(
+                docs, client, now=now, place=None if local else area.name.split(",")[0]
+            )
             _trace(
                 store,
                 mission_id,
@@ -507,8 +544,9 @@ def fetch_conditions(
     lkp = area.lkp
     # The local date, not the UTC one: in Vancouver every evening is already tomorrow in UTC, and
     # live that gave tomorrow's sunset at 19:00 local and "flyable" in the dark.
-    local_day = _t(now).astimezone(ZoneInfo(TZ)).date()
-    sunset, dusk = sun_times(lkp.lat, lkp.lon, local_day, TZ)
+    zone = local_tz(lkp.lat, lkp.lon)
+    local_day = _t(now).astimezone(zone).date()
+    sunset, dusk = sun_times(lkp.lat, lkp.lon, local_day, zone)
     base = Conditions(
         fetched_at=now,
         stale=False,
@@ -534,7 +572,9 @@ def fetch_conditions(
         exposure_band=None,
         exposure_note="",
     )
-    flyable, until, reason = flyability(base, fleet_max_wind_kmh, now)
+    flyable, until, reason = flyability(
+        base, fleet_max_wind_kmh, now, dawn_time(lkp.lat, lkp.lon, local_day, zone)
+    )
     band, note = exposure_band(base, last_seen_at, now)
     # the forecast and the alerts: a fog advisory hides people in photos as much as fog in the forecast
     text = " ".join(d["text"][:DOC_CHARS] for d in docs if d["search"] == "forecast")

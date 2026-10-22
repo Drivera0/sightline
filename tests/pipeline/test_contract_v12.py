@@ -183,3 +183,10 @@ def test_every_live_model_is_in_the_typescript_contract() -> None:
                 f"{name} missing: run `pnpm gen:contract` in web/"
             )
     assert '"1.0" | "1.1" | "1.2"' in ts
+
+
+def test_a_field_called_title_survives_into_typescript() -> None:
+    """ConditionAlert.title was dropped: the schema cleanup removed every key named "title"."""
+    ts = (ROOT / "web/src/contract.ts").read_text()
+    alert = ts[ts.index("export interface ConditionAlert") :].split("}")[0]
+    assert "title: string;" in alert

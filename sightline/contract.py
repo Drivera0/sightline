@@ -734,6 +734,8 @@ def _for_json2ts(node: Any, named: bool = False) -> Any:
             out["additionalItems"] = False
         elif key == "$defs":
             out[key] = {name: _for_json2ts(d, named=True) for name, d in value.items()}
+        elif key == "properties":  # field names, not keywords: a field may be called "title"
+            out[key] = {name: _for_json2ts(d) for name, d in value.items()}
         else:
             out[key] = _for_json2ts(value)
     return out
