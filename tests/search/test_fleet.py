@@ -214,3 +214,122 @@ def test_the_creek_scenario_lists_its_frames() -> None:
     assert len(scn.drones) == 3 and all(d.simulated for d in scn.drones)
     assert scn.positive["image"].endswith(".jpg") and len(scn.negatives) == 12
     assert all(len(n["box"]) == 4 and n["image"] != scn.positive["image"] for n in scn.negatives)
+
+
+# --- one process per drone ----------------------------------------------------------------------
+
+
+class _Threads:
+    """A stand-in multiprocessing context: the drones run in threads with the test's API client."""
+
+    @staticmethod
+    def Queue():
+        import queue
+
+        return queue.Queue()
+
+    @staticmethod
+    def Event():
+        import threading
+
+        return threading.Event()
+
+    @staticmethod
+    def Process(target, args, name, daemon):
+        import threading
+
+        return threading.Thread(target=target, args=args, name=name, daemon=daemon)
+
+
+def _scenario_file(tmp: Path, scn: Scenario, **extra) -> Path:
+    import json
+
+    p = tmp / "scn.json"
+    body = {
+        "name": scn.name,
+        "lkp": scn.lkp.model_dump(),
+        "drones": [d.model_dump(mode="json") for d in scn.drones],
+        "hidden": scn.hidden.model_dump(),
+        "positive": {},
+        "clue": None,
+        **extra,
+    }
+    p.write_text(json.dumps(body))
+    return p
+
+
+def _wait(cond, fleet, tries: int = 400) -> None:
+    import time
+
+    for _ in range(tries):
+        fleet.tick()
+        if cond():
+            return
+        time.sleep(0.02)
+
+
+def test_each_drone_runs_on_its_own_and_joins_through_the_ground_station(world) -> None:
+    """``run``: a drone loop per drone with its own state; the ground station PUTs the fleet."""
+    from sightline.search.fleet import FleetProcesses, drone_loop
+
+    http, ctx, store, hooks, mid, _bodies, tmp = world
+    one = _scenario()
+    two = [*one.drones, one.drones[0].model_copy(update={"id": "D2", "name": "Drone 2"})]
+    scn = Scenario(name="t", lkp=one.lkp, drones=two, hidden=HIDDEN, positive={}, clue=None)
+    path = _scenario_file(tmp, scn)
+    lines: list[str] = []
+    pool = Pool(tmp)
+    loops: dict = {}
+
+    def target(cfg, reports, control, stop) -> None:
+        loops[cfg.drone_id] = drone_loop(
+            cfg, http, scn, pool, reports, control, stop, out=lines.append
+        )
+
+    fleet = FleetProcesses(http, "http://test", mid, str(path), time_scale=20.0, dt_s=0.05,
+                           out=lines.append, ctx=_Threads, target=target)  # fmt: skip
+    fleet.start()
+    try:
+        fleet_now = lambda: store.state(mid)["fleet"]
+        _wait(lambda: fleet_now() is not None and len(fleet_now().drones) == 2, fleet)
+        assert sorted(d.id for d in fleet_now().drones) == ["D1", "D2"]
+        assert sum("joined the mission" in x for x in lines) == 2
+        _leg_over_hidden(store, mid)  # a leg for D1 only
+        _wait(lambda: fleet_now().legs[0].status == "done", fleet)
+    finally:
+        fleet.shutdown()
+    ctx.queue.join()
+    assert store.state(mid)["fleet"].legs[0].status == "done"
+    assert ("on_leg_done", "L1") in hooks.calls
+    frames = store.survey(mid).frames
+    assert frames and all(f.source.image.startswith("SIM_D1_") for f in frames)
+    assert loops["D1"].photos == len(frames) and loops["D2"].photos == 0
+
+
+def _hello(cfg, reports, control, stop) -> None:
+    import os
+
+    reports.put({"id": cfg.drone_id, "pid": os.getpid()})
+
+
+def test_run_starts_one_os_process_per_drone(tmp_path: Path) -> None:
+    import os
+    import time
+
+    from sightline.search.fleet import FleetProcesses, _drain
+
+    path = _scenario_file(tmp_path, Scenario.load("creek"))
+    fleet = FleetProcesses(None, "http://unused", "m", str(path), out=lambda s: None, target=_hello)
+    fleet.start()
+    got: list[dict] = []
+    try:
+        for _ in range(400):
+            got += _drain(fleet.reports)
+            if len(got) == 3:
+                break
+            time.sleep(0.05)
+    finally:
+        fleet.shutdown()
+    assert sorted(x["id"] for x in got) == ["D1", "D2", "D3"]
+    pids = {x["pid"] for x in got}
+    assert len(pids) == 3 and os.getpid() not in pids
