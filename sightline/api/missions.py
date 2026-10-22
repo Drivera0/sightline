@@ -25,6 +25,7 @@ from fastapi.responses import StreamingResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 
+from sightline.api.limits import MAX_PHOTO_BYTES, photo_type_problem, safe_filename
 from sightline.api.sse import event_stream
 from sightline.contract import (
     ClueDraft,
@@ -46,7 +47,6 @@ from sightline.mission.scheduler import Scheduler
 from sightline.mission.store import MissionStore, now_iso
 
 MAX_FILES = 50
-MAX_PHOTO_BYTES = 60_000_000
 MAX_PIXELS = 100_000_000
 DEFAULT_TEAMS = [("T1", "Team One"), ("T2", "Team Two"), ("T3", "Team Three"), ("T4", "Team Four")]
 TEAM_MEMBERS = 3  # placeholder until the search manager edits the roster
@@ -269,7 +269,7 @@ async def get_events(
 
 def _check_photo(name: str, data: bytes) -> None:
     if len(data) > MAX_PHOTO_BYTES:
-        raise PhotoRejected(f"larger than {MAX_PHOTO_BYTES // 1_000_000} MB")
+        raise PhotoRejected(f"larger than {MAX_PHOTO_BYTES / 1_000_000:g} MB")
     try:
         with Image.open(io.BytesIO(data)) as im:
             # DJI photos are MPO (a JPEG with a second, preview picture), seen on HERIDAL photos.
@@ -296,9 +296,18 @@ async def post_photos(
     store = _store(request, mission_id)
     if not 1 <= len(files) <= MAX_FILES:
         raise HTTPException(422, f"send 1 to {MAX_FILES} photos")
+    for (
+        f
+    ) in files:  # the whole batch is refused if one file is not a photo (sightline/api/limits.py)
+        problem = photo_type_problem(f.filename or "photo.jpg", f.content_type)
+        if problem:
+            raise HTTPException(415, problem)
     accepted, rejected = [], []
     for f in files:
-        name = os.path.basename(f.filename or "photo.jpg")
+        name = f.filename or "photo.jpg"
+        if not safe_filename(name):  # a label only, never a path; refused rather than trimmed
+            rejected.append({"name": os.path.basename(name), "reason": "unsafe file name"})
+            continue
         data = await f.read(MAX_PHOTO_BYTES + 1)
         try:
             _check_photo(name, data)

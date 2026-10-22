@@ -13,6 +13,8 @@ services:
     <<: *sightline
     command: ["python", "-m", "sightline.pipeline", "serve", "--host", "0.0.0.0", "--port", "8000",
               "--mission-root", "/data/missions", "--queue", "sqs", "--radio", "text"]
+    environment:
+      SIGHTLINE_TRUST_PROXY: "1"   # behind Caddy: the write rate limit keys on X-Forwarded-For
     logging:
       driver: awslogs
       options: { awslogs-region: "${AWS_REGION}", awslogs-group: /sightline, awslogs-stream: api }

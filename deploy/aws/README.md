@@ -101,6 +101,20 @@ the API), then `bash deploy/aws/resize.sh c7i.2xlarge` afterwards (back to the d
 photo after a boot, against ~12 s on c7i.xlarge. Found while testing it: AWS reports the old size for a few seconds after
 a change, so the script waits until it reports the new one.
 
+## During judging
+
+**Status:** keep the instance **running** at c7i.2xlarge (api, worker and Caddy; ≈ $8.60 a day, plus well under $1 for S3,
+SQS, CloudWatch and Secrets Manager), and stop it once judging ends. `.github/workflows/judging-check.yml` runs
+`remote_check.py --read-only` **every 6 hours** (and on demand: `gh workflow run judging-check`). That covers health, CORS,
+an earlier mission and its event stream, and a 404. It needs no credentials and leaves nothing on the box. Point it at the
+box with `gh variable set API_URL --body https://<ip-with-dashes>.sslip.io` (default: the address above) and
+`gh variable set MISSION --body <an earlier mission id>`. Pause it with `gh variable set JUDGING_CHECK --body off` while
+the box is stopped on purpose. **When the issue "Judging endpoint check failed" opens:** read the output in the issue.
+If health timed out, the instance is probably stopped: `aws ec2 start-instances --instance-ids <id>`. If health answers
+but a check fails, look at CloudWatch `/sightline` (api, worker) and run `bash deploy/aws/update.sh` to redeploy `main`.
+Then run the full `remote_check.py` by hand (above) and `gh workflow run judging-check`. The issue closes itself when a
+check passes.
+
 ## Still to do
 
 - [x] `worker` command, SQS FIFO queue, S3 originals, CloudWatch metrics, Secrets Manager (lane A)

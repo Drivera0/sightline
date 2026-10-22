@@ -7,6 +7,13 @@ Vercel site; a new mission; one real HERIDAL **val** photo through upload → SQ
 ``photo.processed`` with candidates, timed; the event stream (SSE) replays that mission's events;
 an unknown mission is a 404; with ``--mission``, an earlier mission is still there (data survived a
 restart). Exit code 1 on any failure. Uses the agent's real model (a few cents of tokens).
+
+``--read-only`` (the scheduled GitHub check, ``.github/workflows/judging-check.yml``): no writes, no
+photo, no tokens spent and no test missions left on the public box: health, CORS, the earlier
+mission, its event stream, the 404. Needs no credentials and no HERIDAL data.
+
+The first line printed is the summary (``remote check PASSED 7/7 ...`` or ``remote check FAILED ...``),
+then one line per check (also on stderr while it runs).
 If the instance runs with a write token, set ``SIGHTLINE_API_TOKEN`` here too: writes send it.
 """
 
@@ -53,19 +60,26 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--api", required=True)
     ap.add_argument("--mission", help="an earlier mission id that must still exist")
     ap.add_argument("--photo", type=Path, default=PHOTO)
+    ap.add_argument(
+        "--read-only", action="store_true", help="no writes: health, CORS, --mission, SSE, 404"
+    )
     args = ap.parse_args(argv)
     api = args.api.rstrip("/")
     failures: list[str] = []
-    state: dict = {}
+    state: dict = {"sse": args.mission}
+    lines: list[str] = []  # printed after the summary
 
     def check(name: str, fn) -> None:
         t0 = time.perf_counter()
         try:
             note = fn()
-            print(f"  ok   {name} ({time.perf_counter() - t0:.1f} s){f': {note}' if note else ''}")
+            lines.append(
+                f"  ok   {name} ({time.perf_counter() - t0:.1f} s){f': {note}' if note else ''}"
+            )
         except Exception as e:  # noqa: BLE001 - every failure is reported, then the next check runs
             failures.append(name)
-            print(f"  FAIL {name}: {e}")
+            lines.append(f"  FAIL {name}: {e or type(e).__name__}")
+        print(lines[-1], file=sys.stderr, flush=True)  # progress while it runs
 
     def health():
         status, _, body = req(f"{api}/health", timeout=15)
@@ -91,10 +105,12 @@ def main(argv: list[str] | None = None) -> int:
         ).encode()
         status, _, out = req(f"{api}/missions", "POST", body, {"Content-Type": "application/json"})
         assert status == 201, (status, out[:200])
-        state["mid"] = json.loads(out)["mission_id"]
+        state["mid"] = state["sse"] = json.loads(out)["mission_id"]
         return state["mid"]
 
     def photo():
+        if not args.photo.is_file():
+            raise AssertionError(f"{args.photo} not found (HERIDAL val photos; or use --read-only)")
         b = uuid.uuid4().hex
         data = (
             (
@@ -126,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     def sse():
-        r = urllib.request.Request(f"{api}/missions/{state['mid']}/events")
+        r = urllib.request.Request(f"{api}/missions/{state['sse']}/events")
         types = []
         with urllib.request.urlopen(r, timeout=20) as resp:
             for line in resp:
@@ -140,22 +156,35 @@ def main(argv: list[str] | None = None) -> int:
         status, _, _ = req(f"{api}/missions/deadbeef/state")
         assert status == 404, status
 
-    print(f"remote check: {api}")
     checks = [("HTTPS + health", health), ("CORS for the Vercel site", cors)]
     if args.mission:
         checks.append(("earlier mission kept", earlier))
-    checks += [
-        ("create a mission", create),
-        ("val photo → processed", photo),
-        ("event stream (SSE)", sse),
-        ("unknown mission → 404", unknown),
-    ]
+    if not args.read_only:
+        checks += [("create a mission", create), ("val photo → processed", photo)]
+    if not args.read_only or args.mission:
+        checks.append(("event stream (SSE)", sse))
+    checks.append(("unknown mission → 404", unknown))
+    ran = 0
     for name, fn in checks:
         check(name, fn)
+        ran += 1
         if failures and name == "HTTPS + health":
             break
-    print("remote check:", "FAILED " + ", ".join(failures) if failures else "all passed")
+    print(summary(api, len(checks), ran, failures, args.read_only))
+    print("\n".join(lines))
     return 1 if failures else 0
+
+
+def summary(api: str, total: int, ran: int, failures: list[str], read_only: bool = False) -> str:
+    """The one-line verdict printed first (and the first line of the GitHub issue)."""
+    mode = " (read-only)" if read_only else ""
+    if not failures:
+        return f"remote check PASSED {total}/{total}{mode} against {api}"
+    skipped = f", {total - ran} not run" if ran < total else ""
+    return (
+        f"remote check FAILED {len(failures)}/{total}{mode} against {api}: "
+        f"{', '.join(failures)}{skipped}"
+    )
 
 
 if __name__ == "__main__":
