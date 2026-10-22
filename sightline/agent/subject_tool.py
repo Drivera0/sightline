@@ -317,15 +317,10 @@ def _set_prior(store: Any, mission_id: str, category: str) -> str:
 
 
 def apply_decision(store: Any, mission_id: str, p: Proposal, hooks: Any = None) -> None:
-    """After a decision on a subject proposal: trace it; on approval set the subject and the prior
-    and queue the re-plan (``hooks.on_subject_set``). Anything else is left alone."""
-    if not is_subject_proposal(p) or p.status not in ("approved", "rejected"):
+    """After a decision on a subject proposal (the decide endpoint has traced it): on approval set
+    the subject and the prior and queue the re-plan (``hooks.on_subject_set``)."""
+    if not is_subject_proposal(p):
         return
-    trace_call(store, mission_id, actor="human", kind="decision",
-               summary=f"{p.id} {p.status} by {p.decided_by}"
-               + (f": {p.decision_reason}" if p.decision_reason else ""),
-               output={"proposal": p.id, "status": p.status, "by": p.decided_by},
-               refs=[p.id])  # fmt: skip
     if p.status != "approved":
         return
     _set_subject(store, mission_id, p.target["profile"])

@@ -63,3 +63,5 @@ for the detector rows (`uv sync`, the `data-v1`, `weights-v2` and `model-onnx-v2
 | Docker dress run from nothing: 805 s; pytest 1108 passed, 4 skipped | `deploy/dressrun/README.md:55-78` | `bash deploy/dressrun/run.sh` (writes `runs/dressrun/<timestamp>/times.md`) |
 | Judge's 10-minute path: about 3 minutes once packages are downloaded | `deploy/dressrun/README.md:80-96` | the commands there |
 | Cosmos Reason as a second verifier: harness and mocked tests only, not run | `docs/report/COSMOS_VERIFIER.md:3-11` | `uv run pytest tests/agent/test_eval_verifier.py`; the command in that file (needs `NVIDIA_API_KEY`) |
+| ICS 204 per team, ICS 214 from the trace, and CalTopo GeoJSON from a live mission; searched areas say "searched at POD 0.6" | `docs/EXPORTS.md`; `sightline/geo/exports.py`; golden 204 `tests/geo/golden/ics204_T1.md` | `uv run pytest tests/geo/test_exports.py` |
+| Every human decision made through the API is in the trace (who, status, reason) | `sightline/api/missions.py` (`_trace_decision`); `tests/geo/test_exports.py::test_ics214_api_includes_a_recall_decided_through_the_api` | `uv run pytest tests/geo/test_exports.py -k recall` |

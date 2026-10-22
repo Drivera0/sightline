@@ -203,7 +203,8 @@ def test_a_rejection_is_traced_and_changes_nothing(api) -> None:
     body = {"decision": "reject", "by": "SM", "reason": "different case"}
     assert client.post(f"/missions/{mid}/proposals/{pid}/decide", json=body).status_code == 200
     assert store.get(mid).subject is None
-    assert store.trace_entries(mid)[-1].summary == f"{pid} rejected by SM: different case"
+    last = store.trace_entries(mid)[-1]
+    assert last.kind == "decision" and last.output["reason"] == "different case"
     # the same profile is not proposed again (the hour's lookup is reused)
     again = client.post(f"/missions/{mid}/subject/search").json()
     assert again["proposal"] is None and "rejected" in again["why"]

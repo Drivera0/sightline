@@ -478,13 +478,25 @@ def decide(mission_id: str, pid: str, body: Decision, request: Request) -> dict:
         raise HTTPException(404, str(e)) from e
     except ValueError as e:
         raise HTTPException(409, str(e)) from e
+    _trace_decision(store, mission_id, p)
     effects.on_decision(store, mission_id, p)
     _subject_decision(store, mission_id, p, _ctx(request).hooks)
     return _dump(p)
 
 
+def _trace_decision(store: MissionStore, mission_id: str, p: Any) -> None:
+    """The human decision in the trace (who, what, why): the ICS 214 and 204 read it from there."""
+    from sightline.agent.trace import trace_call
+
+    trace_call(store, mission_id, actor="human", kind="decision",
+               summary=f"{p.id} {p.status} by {p.decided_by}",
+               output={"proposal": p.id, "status": p.status, "by": p.decided_by,
+                       "reason": p.decision_reason, "edits": p.edits},
+               refs=[p.id, *p.target.values()])  # fmt: skip
+
+
 def _subject_decision(store: MissionStore, mission_id: str, p: Any, hooks: Any) -> None:
-    """A subject profile proposal (the bulletin tool): traced; on approval the subject and prior."""
+    """A subject profile proposal (the bulletin tool): on approval, the subject and the prior."""
     from sightline.agent.subject_tool import apply_decision
 
     apply_decision(store, mission_id, p, hooks)
