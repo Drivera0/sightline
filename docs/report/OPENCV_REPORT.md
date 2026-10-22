@@ -723,6 +723,7 @@ gh release download weights-v2   -R Drivera0/sightline -D data/weights/release_v
 gh release download model-onnx-v2 -R Drivera0/sightline -D data/weights/release_v2
 uv run pytest tests/ml tests/agent tests/radio             # no GPU, network or keys needed
 uv run --extra ml python scripts/parity_table.py           # §4.1 (needs the HERIDAL data, scripts/README.md)
+CUDA_VISIBLE_DEVICES= uv run --extra ml python scripts/parity_table.py --splits test --device cpu   # §7.1 on CPU only: 12 min 48 s on 16 cores (README)
 uv run --extra ml python scripts/eval_verifier.py          # §7.2 (needs NEBIUS_API_KEY)
 uv run --extra ml python scripts/av_chain.py               # §5 chain, then scripts/trace_excerpt.py
 uv run python scripts/radio_rehearse.py --runs 5           # §5.1, against a running radio server
