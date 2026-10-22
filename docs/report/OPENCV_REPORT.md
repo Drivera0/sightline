@@ -846,7 +846,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
 | Compute cost of a 500-photo mission | about $0.67 (AWS detector, second look, Tavily); about $0.49 with detection on a Nebius Serverless Job; detector energy about 17 Wh (estimate) | §4.1 |
 | Reproduce the test table, `cv2.dnn` only, CPU | 4 min 58 s (about 5 min 10 s end to end) | §12.1; `scripts/reproduce_cv2.py` |
 | Reproduce with both backends, CPU | 12 min 48 s (about 14 min end to end) | §12.2; `README.md` |
-| Docker dress run from nothing | 805 s (13.4 min); pytest 1108 passed, 4 skipped | §12.3; `deploy/dressrun/README.md` |
+| Docker dress run from nothing | 492 s (8.2 min); pytest 1373 passed, 14 skipped | §12.3; `deploy/dressrun/README.md` |
 
 ## 10. Limitations and failure cases
 
@@ -1051,19 +1051,22 @@ identical scores, 363 of 363 boxes matching one to one.
 
 `bash deploy/dressrun/run.sh` (needs Docker and git) builds a clean image from what a fresh clone has, with
 no GPU, keys or HERIDAL download, runs the tests, the smoke test of the live loop, the demo cache's contract
-check, the mission API with the `cv2.dnn` detector and `remote_check.py` against it, and the web build, and
-writes `runs/dressrun/<timestamp>/times.md` (`deploy/dressrun/README.md`). Measured on commit `7571a94`:
+check (with the ICS 204, ICS 214 and CalTopo exports and the subject bulletin search), the mission API with the
+`cv2.dnn` detector and `remote_check.py` against it, the same with the detector behind HTTP
+(`SIGHTLINE_DETECT_URL`), the web build and a check of the built one-console site, and writes
+`runs/dressrun/<timestamp>/times.md` (`deploy/dressrun/README.md`). Measured on commit `de32e70`:
 
 | Stage | Seconds |
 |---|---:|
-| install-python-deps (from `uv.lock`) | 259.3 |
-| install-web-deps, fetch-model, fetch-caches, install-project | 20.5 |
-| pytest (1108 passed, 4 skipped) | 158.9 |
-| smoke | 13.1 |
-| validate-demo-cache, demo-cache-metrics | 1.0 |
-| api-remote-check | 2.5 |
-| web-build | 2.9 |
-| **end to end** (build 618.6, run 186.6) | **805.4** (13.4 min) |
+| install-python-deps (from `uv.lock`) | 139.3 |
+| install-web-deps, fetch-model, fetch-caches, install-project | 17.4 |
+| pytest (1373 passed, 14 skipped) | 90.3 |
+| smoke (exports and subject search included) | 12.5 |
+| validate-demo-cache, demo-cache-metrics | 0.5 |
+| api-remote-check | 2.3 |
+| api-remote-detector | 3.3 |
+| web-build, web-dist-check | 2.1 |
+| **end to end** (build 367.5, run 124.8) | **492.4** (8.2 min) |
 
 ### 12.4 The judge's 10-minute path
 

@@ -28,7 +28,8 @@ RUN set -e; case "${TARGETARCH:-amd64}" in \
     echo "$sum  /usr/local/bin/pnpm" | sha256sum -c -; \
     chmod +x /usr/local/bin/pnpm
 
-COPY deploy/dressrun/stage.sh /usr/local/bin/stage
+# --chmod: the file is 644 in a checkout where git does not track modes (core.fileMode=false).
+COPY --chmod=0755 deploy/dressrun/stage.sh /usr/local/bin/stage
 ENV PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     UV_NO_CACHE=1 \

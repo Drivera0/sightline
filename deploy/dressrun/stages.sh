@@ -43,8 +43,12 @@ print("SAR   precision", m["sar"]["precision"], "recall", m["sar"]["recall"], "A
 [ -n "${NEBIUS_API_KEY:-}" ] || export SIGHTLINE_FAKE_LLM=1
 [ -n "${TAVILY_API_KEY:-}" ] || export SIGHTLINE_FAKE_TAVILY=1
 run api-remote-check bash deploy/dressrun/api_check.sh
+# The same with the detector behind HTTP (SIGHTLINE_DETECT_URL), as with the Nebius endpoint.
+run api-remote-detector bash deploy/dressrun/api_check.sh remote
 
 run web-build bash -c 'cd web && VITE_CACHE_DIR=demo pnpm build && du -sh dist'
+# The built site as a static host serves it: index.html, its bundle, the one-console routes.
+run web-dist-check bash deploy/dressrun/web_check.sh
 
 if [ "$fail" -eq 0 ]; then echo "dress run: all stages passed"; else echo "dress run: FAILED"; fi
 exit "$fail"
