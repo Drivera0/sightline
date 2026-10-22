@@ -43,7 +43,7 @@ def apply_update(p: np.ndarray, outside: float, u: MapUpdate) -> tuple[np.ndarra
 
 GROUND_POD_MAX = 0.9
 SUM_TOLERANCE = 1e-9
-_CLEAR = re.compile(r"\bclear(ed)?\b", re.IGNORECASE)
+_CLEAR = re.compile(r"\bclear(s|ed|ing)?\b", re.IGNORECASE)
 _TEXT_KEYS = {"summary", "reason", "briefing", "note", "decision_reason"}  # invariant 4
 # Ground truth must never reach a mission file (contract §2): person boxes, which photos hold a person.
 _TRUTH_KEY = re.compile(r"truth|^gt_|_gt$|has_person|hidden_person|person_box", re.IGNORECASE)

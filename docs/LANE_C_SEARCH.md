@@ -194,7 +194,7 @@ def write_test_vectors(out: Path = Path("web/src/search/__fixtures__/update_vect
 - Repeated looks at a cell are treated as independent.
 - The canopy classifier has MAE 0.34 against the 20 hand-scored crops (`tests/search/fixtures/canopy_report.md`; the best of 180 threshold sets gives 0.32 on the same crops, so the defaults were kept). It finds green forest well, but misses pale, autumn and dry trees (it looks for green texture), reads dark lawn as shadow, and reads bright textured rock as canopy.
 - A "Person" answer is a candidate sighting, not a find of the missing person. Next steps, not built: a "matches the subject description?" question, which would make a candidate the main one or rule it out; excluding searchers by the teams' GPS tracks; several missing people, as an expected count per cell instead of one probability map.
-- "Not a person" applies `review_pod` (0.9) within the radius. This over-clears, because a rejected crop covers only about 2.6 m (a 128 × 128 px window at 0.02 m/px, contract §7). The correct rule would release the frame's normal pod, but that needs the held pods in `map.json` (a contract change). Not done.
+- "Not a person" applies `review_pod` (0.9) within the radius. This lowers the probability too far, because a rejected crop covers only about 2.6 m (a 128 × 128 px window at 0.02 m/px, contract §7). The correct rule would release the frame's normal pod, but that needs the held pods in `map.json` (a contract change). Not done.
 
 ## Robustness: does the gain survive the canopy error?
 

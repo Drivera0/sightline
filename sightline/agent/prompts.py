@@ -13,7 +13,7 @@ VERIFY_SYSTEM = (
     "A person is usually 40-80 px tall, seen from above, often partly hidden. "
     "Answer only from what is visible. Return JSON matching the schema. "
     "If you cannot tell, use `unclear`. Never guess clothing you can't see. "
-    'Never use the words "clear" or "cleared".'
+    'Never use the words "clear", "clears", "cleared" or "clearing".'
 )
 
 VERIFY_USER = (

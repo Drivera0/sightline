@@ -108,7 +108,7 @@ def test_the_tables_hold_the_log_and_never_say_clear(mission) -> None:
     assert "approved by SM" in md
     assert "searched by Team Two at POD 50 %" in md
     assert "gusts 55" in md and "boot prints" in md
-    assert not __import__("re").search(r"\bclear(ed)?\b", md, __import__("re").I)
+    assert not __import__("re").search(r"\bclear(s|ed|ing)?\b", md, __import__("re").I)
     unsearched = md.split("## Not yet searched by a team, by POA")[1].split("##")[0]
     assert "| B3 |" not in unsearched and unsearched.count("\n| ") == 16  # 15 sectors + header
     assert "## Summary" not in md  # no client, no narrative

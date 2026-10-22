@@ -1412,7 +1412,7 @@ def main() -> None:
         scn = Scenario.load(scenario)
         pool = FramePool(scn)
         say(
-            f"{scn.name}: {len(scn.drones)} drones, {len(pool.negatives)} clear crops, positive {pool.positive.image.name}"
+            f"{scn.name}: {len(scn.drones)} drones, {len(pool.negatives)} no-person crops, positive {pool.positive.image.name}"
         )
 
     app()

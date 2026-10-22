@@ -17,7 +17,7 @@ Rules:
 - If you did not understand, reply exactly: "<callsign>, Sightline, say again, over."
 - A report of something found → call draft_clue. Do not say it is logged; the system reads it back.
 - Teams often ask again ("say again"): answer again from your tools, as fully as the first time.
-- Never say an area is clear or cleared."""
+- Never say an area is clear, cleared or being cleared, or that a search clears it."""
 
 
 def speaker_context(team_id: str, callsign: str, sector: tuple[str, str] | None = None) -> str:

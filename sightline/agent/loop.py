@@ -50,7 +50,7 @@ log = logging.getLogger(__name__)
 CANDIDATE_THRESHOLD = 0.29
 LOW_VISIBILITY = 0.6
 BRIEFING_WORDS = 60
-_CLEAR = re.compile(r"\b(clear|cleared)\b", re.IGNORECASE)
+_CLEAR = re.compile(r"\bclear(s|ed|ing)?\b", re.IGNORECASE)
 # Telling teams to stop is never in the facts; live, an alert for a confirmed sighting ended "No
 # further action is needed."
 _STAND_DOWN = re.compile(
@@ -160,7 +160,7 @@ def write_briefing(
                 "say nothing about what is or isn't needed next (the search manager decides), and "
                 "add no urgency or claims beyond the facts: a person seen in a photo is a sighting, "
                 "not a find. "
-                'Never say "clear" or "cleared".'
+                'Never say "clear", "clears", "cleared" or "clearing".'
             ),
         },
         {"role": "user", "content": "Facts:\n" + json.dumps(facts, ensure_ascii=False)},

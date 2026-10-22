@@ -18,7 +18,7 @@ from sightline.contract import LatLon, Leg, Proposal
 from tests.agent.fake_store import FakeMissionStore
 
 KEY = "nb-test-key-0123456789abcdef"
-CLEAR = re.compile(r"\bclear(ed)?\b", re.IGNORECASE)
+CLEAR = re.compile(r"\bclear(s|ed|ing)?\b", re.IGNORECASE)
 
 
 @pytest.fixture

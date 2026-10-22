@@ -50,7 +50,7 @@ NO = YES.replace('"yes"', '"no"')
 BRIEFING = (
     "Team One, Sightline. Search sector B3 for an adult in a red jacket, possibly lying down."
 )
-CLEAR = re.compile(r"\bclear(ed)?\b", re.IGNORECASE)
+CLEAR = re.compile(r"\bclear(s|ed|ing)?\b", re.IGNORECASE)
 
 
 class _CentreDetector:
@@ -468,6 +468,8 @@ FACTS = {"team": "Team Two", "sector": "B3", "daylight_left": "2 h 40 min"}
     [
         ("Team Two, search sector B3; 2 h 40 min of daylight left.", None),
         ("Team Two, sector B3 is clear.", "clear"),
+        ("Team Two, your search clears sector B3.", "clear"),
+        ("Team Two, keep clearing sector B3.", "clear"),
         ("Team Two, sector B3, 3 h of daylight left.", "numbers not in the facts"),
         ("word " * 61, "more than 60 words"),
         # live, from Nemotron: read aloud, this is one breathless line

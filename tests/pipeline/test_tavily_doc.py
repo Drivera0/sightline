@@ -24,4 +24,4 @@ def test_the_recall_moment_has_its_command_and_says_tavily_was_faked() -> None:
     assert "scripts/recall_demo.py --serve-local" in section
     assert "Tavily and the model faked" in section
     assert (ROOT / "scripts/recall_demo.py").is_file()
-    assert not re.search(r"\bclear(ed)?\b", section, re.IGNORECASE)
+    assert not re.search(r"\bclear(s|ed|ing)?\b", section, re.IGNORECASE)
