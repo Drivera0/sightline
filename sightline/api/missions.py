@@ -198,7 +198,7 @@ def create_mission(body: NewMission, request: Request) -> dict:
     m = store.create(
         body.name, body.area_name, body.lkp, body.mode, body.last_seen_at, body.subject
     )
-    store.put_map_base(m.mission_id, start_map_base(body.lkp))
+    store.put_map_base(m.mission_id, start_map_base(body.lkp, subject=body.subject))
     for tid, callsign in DEFAULT_TEAMS:
         store.upsert_team(
             m.mission_id,
@@ -485,7 +485,7 @@ def patch_team(mission_id: str, tid: str, patch: dict, request: Request) -> dict
         new = Team.model_validate({**team.model_dump(), **patch, "id": tid})
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
-    store.upsert_team(mission_id, new)
+    effects.on_team_update(store, mission_id, new, _ctx(request).hooks)  # a new position re-plans
     return _dump(new)
 
 

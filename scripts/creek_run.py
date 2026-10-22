@@ -3,8 +3,10 @@
     uv run python scripts/creek_run.py              # offline rehearsal: fake model, fake Tavily
     uv run python scripts/creek_run.py --live       # Nemotron + Tavily with the keys in .env
 
-1. Three simulated drones (``sightline.search.fleet``, labelled) fly opening legs over the northern
-   sectors, approved by a scripted search manager.
+1. Three simulated drones (``sightline.search.fleet``, labelled) join; the agent proposes their
+   opening legs from the planner and a scripted search manager approves them. With
+   ``--scripted-opening`` (or if the agent proposes none) the manager rejects them and flies the
+   hard-coded northern sectors instead, away from the creek.
 2. Team Two reports a blue backpack by the creek (scripted ``POST /clues``; live by radio in the video).
 3. The clue reweights the map; the agent re-plans and proposes re-tasking a drone; the scripted
    manager approves; the sim drops the old leg and flies the new one.
@@ -52,6 +54,11 @@ def main(argv: list[str] | None = None) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("--live", action="store_true", help="real Nemotron and Tavily (.env keys)")
+    ap.add_argument(
+        "--scripted-opening",
+        action="store_true",
+        help=f"reject the agent's opening legs and fly {', '.join(OPENING)} (the video's story)",
+    )
     ap.add_argument("--time-scale", type=float, default=15.0)
     ap.add_argument("--limit-s", type=float, default=900.0, help="give up after this long")
     args = ap.parse_args(argv)
@@ -146,9 +153,31 @@ def main(argv: list[str] | None = None) -> int:
                 out=lambda s: mark(f"fleet: {s}"),
             )
             sim.register()
+            # the agent proposes the opening legs when the fleet joins (one per drone)
+            n_drones = len(store.state(mid)["fleet"].drones)
+
+            def openers() -> list[Proposal]:
+                return [p for p in store.state(mid)["proposals"] if p.status == "pending"
+                        and p.kind == "drone_leg" and p.created_by == "planner"]  # fmt: skip
+
+            wait_until = time.monotonic() + 10
+            while len(openers()) < n_drones and time.monotonic() < wait_until:
+                time.sleep(0.2)
+            agent_legs = openers()
+            if agent_legs and not args.scripted_opening:
+                for p in agent_legs:
+                    call(base, "POST", f"/missions/{mid}/proposals/{p.id}/decide",
+                         {"decision": "approve", "by": MANAGER})  # fmt: skip
+                mark(
+                    f"agent's opening legs approved: {', '.join(p.leg.sector_id for p in agent_legs)}"
+                )
+            for p in agent_legs if args.scripted_opening else []:
+                call(base, "POST", f"/missions/{mid}/proposals/{p.id}/decide",
+                     {"decision": "reject", "by": MANAGER, "reason": "scripted opening legs for this run"})  # fmt: skip
             live = store.live(mid)
             layout = lattice_sectors(live.base.grid)
-            for drone, sector in zip(store.state(mid)["fleet"].drones, OPENING, strict=True):
+            scripted = OPENING if args.scripted_opening or not agent_legs else ()
+            for drone, sector in zip(store.state(mid)["fleet"].drones, scripted, strict=False):
                 leg = next(
                     x
                     for x in candidate_legs(
@@ -172,7 +201,8 @@ def main(argv: list[str] | None = None) -> int:
                     f"/missions/{mid}/proposals/{p.id}/decide",
                     {"decision": "approve", "by": MANAGER},
                 )
-            mark(f"opening legs approved: {', '.join(OPENING)}")
+            if scripted:
+                mark(f"scripted opening legs approved: {', '.join(scripted)}")
 
             def fly() -> None:
                 while not stop.is_set():
@@ -255,9 +285,12 @@ def main(argv: list[str] | None = None) -> int:
 
     problems = validate_mission(out / "missions", mid)
     st = store.state(mid)
-    ok = bool(reviewed) and any(p.kind == "retask_drone" and p.status == "approved" for p in st["proposals"]) \
+    retasked = any(p.kind == "retask_drone" and p.status == "approved" for p in st["proposals"])
+    # with the agent's opening legs a drone may already be over the creek: no re-task is needed then
+    ok = bool(reviewed) and (retasked or not scripted) \
         and any(p.kind == "alert" and p.status == "approved" for p in st["proposals"])  # fmt: skip
     summary = {"mission": mid, "live_models": args.live, "time_scale": args.time_scale, "photos": sim.photos,
+               "opening": "scripted" if scripted else "agent", "retasked": retasked,
                "wall_s": timeline[-1][0], "complete": ok, "validate_mission": problems, "timeline": timeline}  # fmt: skip
     (out / "creek_run.json").write_text(json.dumps(summary, indent=1))
     print(

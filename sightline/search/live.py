@@ -15,8 +15,9 @@ from ``map_base.json`` + the log (``from_base`` + ``apply`` in order) is the sam
 | ``conditions_update`` | reweight / conditions | exposure rising to high/severe (once per level): cells with canopy ≥ 0.5 × ``SHELTER_FACTOR`` |
 
 The clue and shelter factors are heuristics: a ``MapUpdate`` carries no note (contract §12), so they
-are labelled here, in ``README_LIVE.md`` and in the report's limitations; the prior is the labelled
-placeholder (no invented ring numbers).
+are labelled here, in ``README_LIVE.md`` and in the report's limitations. The prior is Koester's
+lost-person distance rings when the mission's subject names a category (``prior.subject_category``,
+cited numbers only), else the labelled uniform placeholder.
 
 Built by lane A for lane C (issue #64); lane C owns this file.
 """
@@ -41,7 +42,7 @@ from sightline.contract import (
 )
 from sightline.search.grid import cell_center, cells_within_radius, make_grid
 from sightline.search.pod import FrameInput, frame_step
-from sightline.search.prior import placeholder_prior
+from sightline.search.prior import koester_prior, prior_source, subject_category
 from sightline.search.sectors import SectorLayout
 from sightline.search.update import MAX_FACTOR, apply_reweight, apply_step
 
@@ -96,11 +97,14 @@ class LiveMap:
         cell_m: float = 5.0,
         size_m: float = 1000.0,
         prior: Literal["placeholder"] = "placeholder",
+        subject: str | None = None,
     ) -> LiveMap:
-        """A new mission's map around the last known position, with the labelled placeholder
-        prior (uniform, half the probability outside the grid)."""
+        """A new mission's map around the last known position. The prior is Koester's distance
+        rings for the category the free-text ``subject`` names (``prior.koester_prior``), else the
+        labelled placeholder (uniform, half the probability outside the grid)."""
         grid = make_grid(lkp, size_m=size_m, cell_m=cell_m)
-        p, outside = placeholder_prior(grid)
+        category = subject_category(subject)
+        p, outside = koester_prior(grid, lkp, category)
         base = MapBase(
             contract_version=CONTRACT_VERSION,
             grid=grid,
@@ -110,7 +114,7 @@ class LiveMap:
                 recall_source=RECALL_SOURCE,
                 pod_cap=POD_CAP,
                 review_pod=REVIEW_POD,
-                prior_source=prior,
+                prior_source=prior if category is None else prior_source(category),
             ),
             prior=Distribution(p=[float(x) for x in p], outside=float(outside)),
             canopy=[None] * (grid.rows * grid.cols),

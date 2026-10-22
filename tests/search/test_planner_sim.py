@@ -80,3 +80,43 @@ def test_three_coordinated_drones_find_sooner_than_one() -> None:
         horizon=60,
     )
     assert three["found_within_30_min"] > one["found_within_30_min"]
+
+
+# --- the mission: opening legs, re-plans, ground teams (planner v2) ------------------------------
+
+
+def test_opening_legs_send_every_drone_to_its_own_sector() -> None:
+    from sightline.search.planner_sim import plan_mission
+
+    at_start = [p for p in plan_mission(_scn(), CFG, 3, 0, 30) if p.start_min == 0]
+    assert sorted(p.leg.drone_id for p in at_start) == ["D1", "D2", "D3"]
+    assert len({p.leg.sector_id for p in at_start}) == 3
+
+
+def test_a_replan_fills_every_idle_drone_or_only_the_best() -> None:
+    from sightline.search.planner_sim import plan_mission
+
+    scn = _scn()
+    clue = with_clue(scn, local_m_to_latlon(scn.grid, 350, 350), 30)
+    starts = {
+        r: [p for p in plan_mission(scn, CFG, 3, 0, 30, replan=r, opening=False, clue=clue)
+            if p.start_min == 0]
+        for r in ("one", "idle")
+    }  # fmt: skip
+    assert len(starts["one"]) == 1 and starts["one"][0].leg.sector_id == "D4"  # the clue's sector
+    assert len(starts["idle"]) == 3 and starts["idle"][0].leg.sector_id == "D4"
+
+
+def test_teams_search_with_their_pod_and_drones_keep_out_when_excluded() -> None:
+    from sightline.search.planner_sim import plan_mission
+
+    scn = _scn()
+    passes = plan_mission(scn, PlannerConfig(team_discount=1.0), 3, 2, 60, search_min=20)
+    teams = [p for p in passes if p.leg is None]
+    assert teams and {p.pod for p in teams} == {0.5}
+    for t in teams:  # no drone starts a leg in a team's sector while the team is on it
+        busy_until = max(t.cell_time.values())
+        assert not [p for p in passes if p.leg is not None and p.leg.sector_id == t.sector_id
+                    and t.start_min <= p.start_min < busy_until]  # fmt: skip
+    found = minutes_to_find(scn, [teams[0]], PlannerConfig(), 200, 0.0, 1)
+    assert np.isfinite(found).any() and (found[np.isfinite(found)] >= teams[0].start_min).all()

@@ -63,6 +63,9 @@ def test_hooks_return_fast_and_enqueue(store, mission_id, runner) -> None:
         ("on_clue", ("c001",)),
         ("on_conditions", ()),
         ("on_leg_done", ("L001",)),
+        ("on_task_searched", ("B2",)),
+        ("on_team_position", ("T1",)),
+        ("on_fleet_join", ()),
         ("on_tick", ()),
     ]:
         start = time.perf_counter()

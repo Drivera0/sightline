@@ -54,11 +54,14 @@ class PhotoJob:
     name: str = ""  # the uploaded file's name, for messages
 
 
-def start_map_base(lkp, *, size_m: float = 1000.0, cell_m: float = 5.0) -> MapBase:
-    """A new mission's map: lane C's ``LiveMap.start(lkp).base`` (the labelled placeholder prior)."""
+def start_map_base(
+    lkp, *, size_m: float = 1000.0, cell_m: float = 5.0, subject: str | None = None
+) -> MapBase:
+    """A new mission's map: lane C's ``LiveMap.start(lkp).base`` (Koester's rings when the
+    subject names a lost-person category, else the labelled placeholder prior)."""
     from sightline.search.live import LiveMap
 
-    return LiveMap.start(lkp, cell_m=cell_m, size_m=size_m).base
+    return LiveMap.start(lkp, cell_m=cell_m, size_m=size_m, subject=subject).base
 
 
 def read_photo_pose(path: Path) -> Pose:
