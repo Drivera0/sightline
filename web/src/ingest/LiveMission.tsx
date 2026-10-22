@@ -23,7 +23,7 @@ import { photoProgress, useMission } from "../lib/mission";
 import { clock, ClockZone, zone } from "../lib/time";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
-import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
+import { DEMO_CACHE, DEMO_MISSION_ID, demoConditionsData, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
 import type { ConditionsData } from "../command/ConditionsPanel";
 import { TraceView, type TraceRun } from "../command/TraceView";
@@ -615,11 +615,13 @@ function useConditionsData(api: Api, missionId: string, demo: boolean, condition
     };
   }, [api, missionId, demo, conditions?.fetched_at]); // re-read the trace when new conditions arrive
   const lookup = useMemo(() => latestLookup(trace), [trace]);
-  if (demo) return recorded;
   if (!conditions) return null;
   const drones = fleet?.drones ?? [];
   const weakest = drones.length ? drones.reduce((a, b) => (b.max_wind_kmh < a.max_wind_kmh ? b : a)) : null;
-  return { conditions, lookup, recorded: null, limitKmh: weakest?.max_wind_kmh ?? null, drone: weakest?.name ?? null };
+  const limit = { kmh: weakest?.max_wind_kmh ?? null, drone: weakest?.name ?? null };
+  // the demo: its own conditions on top (the same verdict as the row), the recorded lookup folded under them
+  if (demo) return recorded ? demoConditionsData(conditions, recorded, limit) : null;
+  return { conditions, lookup, recorded: null, limitKmh: limit.kmh, drone: limit.drone };
 }
 
 const TRACE_POLL_MS = 4000;

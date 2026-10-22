@@ -292,6 +292,28 @@ describe("the demo mission: the story on the one console", () => {
     expect(window.location.hash).toBe("#m/demo/debrief");
   });
 
+  it("tells one story about conditions: the row's verdict is the Conditions panel's", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo/map?t=4");
+    render(<App base={null} />);
+    const header = await screen.findByRole("region", { name: "Mission header" });
+    const row = await waitFor(() => {
+      const pill = header.querySelector("[data-tone]");
+      expect(pill).not.toBeNull();
+      return pill!;
+    });
+    await userEvent.click(await screen.findByRole("button", { name: /Sources and quotes/ }));
+    const panel = await screen.findByRole("region", { name: "Conditions" });
+    const verdict = await waitFor(() => panel.querySelector("[data-tone]")!);
+    expect(row).toHaveTextContent(/^Flyable/); // 22:00 UTC is 15:00 in Vancouver: daylight, light wind
+    expect(verdict.getAttribute("data-tone")).toBe(row.getAttribute("data-tone"));
+    expect(verdict).toHaveTextContent(/^Flyable/);
+    // the real recorded lookup is still there, folded, on its own evening with its own verdict
+    expect(within(panel).getByRole("region", { name: "Recorded conditions lookup" })).toHaveTextContent(/Not flyable/);
+  });
+
   it("keeps the visitor's approval when the clock moves back and forth", async () => {
     vi.stubGlobal("fetch", demoFetch());
     useMission.setState({ ...EMPTY, status: "idle" });
