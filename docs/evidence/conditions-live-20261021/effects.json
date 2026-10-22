@@ -1,0 +1,21 @@
+{
+ "flying": {
+  "flyable": false,
+  "reason": "after civil twilight: no light for photos",
+  "planner_legs": []
+ },
+ "seeing": {
+  "visibility_factor": 1.0,
+  "pod_open_ground": 0.864,
+  "pod_if_clear_air": 0.864
+ },
+ "shelter": {
+  "exposure_band": "moderate",
+  "exposure_note": "moderate: wind 40 km/h (planning heuristic, not a medical assessment)",
+  "shelter_update_cells": null,
+  "why_none": "exposure below high: no shift (or canopy unknown)"
+ },
+ "briefing_facts": {
+  "weather": "wind 20 km/h, gusts 40 km/h"
+ }
+}
