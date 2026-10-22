@@ -12,12 +12,12 @@
 | `assignment-card-gpx-kml-opened-in-caltopo.png` | O4: assignment card for B3, and the same sector's GPX in CalTopo | lane B's real B3 card fixture (`web/command.html?card=B3`) + `docs/architecture/screens/caltopo-import.png` (B3) |
 | `architecture-photos-cv2dnn-map-agent-approval-on-aws.png` | O5, N5: the live architecture | `docs/architecture/live.png` |
 | `results-detector-vs-human-baseline.png` | O6, N6: detector vs people by eye; the other numbers are in the report's tables | the guided demo's Results step, `#results` |
+| `clue-retasks-the-nearest-drone.png` | N4: a team's clue re-tasks a drone (Drone 1's cancelled leg L001 over B2 fading out, its new leg L004 over C3) | `#m/demo/command`, 100 ms after the map first draws (`render_retask.py`) |
 | `conditions-tavily-quotes-sources-flyability.png` | extra (Tavily): each condition with its quote and page, the model, the flyability gate | `#m/demo/command`, then `W` |
 | `front-door-the-product-first.png` | extra (cover candidate): the front door | `#` |
 
 ## Still open
 
-- **N4:** a clue re-tasks the nearest drone. The demo fixtures have no re-task proposal, so this waits for the planner branch.
 - **N5:** `live.png` doesn't draw the speech models or the Serverless Job. The caption says where they run instead.
 
 ## The radio desk capture (N3)
@@ -44,4 +44,5 @@ The desk's log lives in the page, so take the screenshot before reloading.
 ln -s /path/to/web/public/cache/demo web/public/cache/demo   # the demo cache (not committed)
 cd web && VITE_CACHE_DIR=demo npx vite --port 5201 --strictPort &   # note the PID; kill it by PID after
 python docs/submission/figures/render_gallery.py . docs/submission/figures   # a Python with playwright + Chromium
+python docs/submission/figures/render_retask.py docs/submission/figures       # N4, under a fake clock (the re-task fades in 1.5 s)
 ```
