@@ -40,7 +40,8 @@ export interface CommandProps {
 }
 
 const pct = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
-const hhmm = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+/** HH:MM; the demo mission tells its scripted timeline in UTC (its fixtures are dated in UTC). */
+const hhmm = (d: Date, utc = false) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23", ...(utc ? { timeZone: "UTC" } : {}) });
 const minutesSince = (iso: string, now: Date) => Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 60000));
 
 export function CommandView(p: CommandProps) {
@@ -80,7 +81,7 @@ export function CommandView(p: CommandProps) {
           {p.sideRail}
         </aside>
         <div className="order-4 max-h-40 overflow-y-auto rounded-lg border border-line bg-surface-solid px-4 py-2.5 lg:order-none lg:col-span-3">
-          <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} />
+          <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} utc={p.status === "demo"} />
         </div>
       </div>
     );
@@ -98,12 +99,13 @@ export function CommandView(p: CommandProps) {
           {p.sideRail}
         </div>
       </div>
-      <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} />
+      <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} utc={p.status === "demo"} />
     </div>
   );
 }
 
 export function MissionHeader({ mission, status, conditions: c, now, heading = false }: { mission: Mission | null; status: string; conditions: Conditions | null; now: Date; heading?: boolean }) {
+  const utc = status === "demo"; // the demo's scripted timeline, as its fixtures are dated
   const bits: string[] = [];
   if (c) {
     if (c.wind_kmh !== null) bits.push(`wind ${c.wind_kmh.toFixed(0)} km/h${c.gust_kmh !== null ? `, gusts ${c.gust_kmh.toFixed(0)}` : ""}`);
@@ -113,14 +115,14 @@ export function MissionHeader({ mission, status, conditions: c, now, heading = f
       const left = (new Date(c.civil_twilight_end).getTime() - now.getTime()) / 60000;
       bits.push(left > 0 ? `daylight ${Math.floor(left / 60)} h ${Math.round(left % 60)} m` : "after dark");
     }
-    bits.push(c.flyable === true ? `flyable until ~${c.flyable_until ? hhmm(new Date(c.flyable_until)) : "dusk"}` : c.flyable === false ? `not flyable: ${c.flyability_reason}` : "flyability unknown");  // prettier-ignore
+    bits.push(c.flyable === true ? `flyable until ~${c.flyable_until ? hhmm(new Date(c.flyable_until), utc) : "dusk"}` : c.flyable === false ? `not flyable: ${c.flyability_reason}` : "flyability unknown");  // prettier-ignore
     // lane B's planning heuristics, labelled as such (B-W2): they move the map, they don't measure anything
     if (c.visibility_factor < 1) bits.push(`visibility ×${c.visibility_factor.toFixed(1)} (heuristic)`);
     if (c.exposure_band) bits.push(`exposure ${c.exposure_band} (planning heuristic)`);
   }
   const old = c ? minutesSince(c.fetched_at, now) > 60 : false;
   const fly: [Tone, string] = !c || c.flyable === null ? ["muted", "Flyability unknown"] : c.flyable ? ["ok", "Flyable"] : ["alert", "Not flyable"];
-  const words = `${c ? bits.join(" · ") : "not yet fetched"}${c && c.alerts.length ? ` · ${c.alerts.map((a) => a.title).join("; ")}` : ""}${old ? ` · as of ${hhmm(new Date(c!.fetched_at))}` : ""}`;
+  const words = `${c ? bits.join(" · ") : "not yet fetched"}${c && c.alerts.length ? ` · ${c.alerts.map((a) => a.title).join("; ")}` : ""}${old ? ` · as of ${hhmm(new Date(c!.fetched_at), utc)}` : ""}`;
   const Name = heading ? "h1" : "span";
   // One row (LANE_E §7.1, compressed): name, where the data comes from, the clock, flyability, then the
   // conditions in words (cut with an ellipsis; the whole line is the tooltip).
@@ -129,7 +131,8 @@ export function MissionHeader({ mission, status, conditions: c, now, heading = f
       <Name className="truncate text-body font-medium text-text">{mission?.name ?? "…"}</Name>
       <ModeChip mode={modeOf(status)} />
       <span className="font-mono text-small text-text-2" title="Mission clock">
-        {hhmm(now)}
+        {hhmm(now, utc)}
+        {utc && " UTC"}
       </span>
       <StatusPill tone={fly[0]}>{fly[1]}</StatusPill>
       {c && c.alerts.length > 0 && <StatusPill tone="caution">{c.alerts.length === 1 ? "1 alert" : `${c.alerts.length} alerts`}</StatusPill>}
@@ -137,7 +140,7 @@ export function MissionHeader({ mission, status, conditions: c, now, heading = f
         <span className="text-text-3">Conditions: </span>
         {c ? bits.join(" · ") : "not yet fetched"}
         {c && c.alerts.length > 0 && <span className="text-caution"> · {c.alerts.map((a) => a.title).join("; ")}</span>}
-        {old && <span className="text-caution"> · as of {hhmm(new Date(c!.fetched_at))}</span>}
+        {old && <span className="text-caution"> · as of {hhmm(new Date(c!.fetched_at), utc)}</span>}
       </p>
     </section>
   );
@@ -526,11 +529,14 @@ export function ClueLog({
   teams,
   onAddClue,
   onPickOnMap,
+  utc = false,
 }: {
   clues: readonly Clue[];
   teams: readonly Team[];
   onAddClue: CommandProps["onAddClue"];
   onPickOnMap?: CommandProps["onPickOnMap"];
+  /** Times in UTC (the demo mission's scripted timeline). */
+  utc?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<ClueDraft["kind"]>("object");
@@ -651,7 +657,7 @@ export function ClueLog({
         <ul className="flex flex-col divide-y divide-line" aria-label="Clues">
           {newest.map((c) => (
             <li key={c.id} className="flex items-center gap-3 py-1 text-small">
-              <span className="w-10 shrink-0 font-mono text-text-2">{hhmm(new Date(c.at))}</span>
+              <span className="w-10 shrink-0 font-mono text-text-2">{hhmm(new Date(c.at), utc)}</span>
               <span className="w-9 shrink-0 font-mono text-caption text-text-3">{c.id}</span>
               <span className="min-w-0 flex-1 truncate text-text" title={c.text}>
                 {c.text}

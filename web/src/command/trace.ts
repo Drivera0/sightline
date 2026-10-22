@@ -157,11 +157,21 @@ export function imagesOf(e: TraceEntry): string[] {
   return [...new Set(out)];
 }
 
+const SCRIPTED = /\bscripted\b/i;
+
+/** A decision a script made for a demo run ("scripted approval"), not a person. */
+export function isScripted(e: TraceEntry): boolean {
+  const o = e.output;
+  return e.kind === "decision" && (SCRIPTED.test(e.summary) || (isObj(o) && typeof o.by === "string" && SCRIPTED.test(o.by)));
+}
+
 export interface Outcome {
   proposal: string;
   kind: string;
   status: string | null;
   by: string | null;
+  /** Approved by a script for a demo run, not by a person: shown in amber, never as a real decision. */
+  scripted: boolean;
 }
 
 export interface Chain {
@@ -209,7 +219,8 @@ export function chains(entries: readonly TraceEntry[]): Chain[] {
         const o = e.output as Obj;
         const pid = String(o.proposal ?? e.refs.find((r) => /^p\d/.test(r)) ?? "");
         const d = es.find((x) => x.kind === "decision" && isObj(x.output) && (x.output as Obj).proposal === pid)?.output as Obj | undefined;
-        return { proposal: pid, kind: String(o.kind ?? ""), status: d ? String(d.status) : null, by: d && typeof d.by === "string" ? d.by : null };
+        const by = d && typeof d.by === "string" ? d.by : null;
+        return { proposal: pid, kind: String(o.kind ?? ""), status: d ? String(d.status) : null, by, scripted: by !== null && SCRIPTED.test(by) };
       });
     return {
       id: es[0]!.id,

@@ -75,7 +75,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
         ({ data, now }) => {
           useMission.getState().useDemo(data);
           setDemoNow(new Date(now));
-          setDemoSeed(demoSeedWords(data, now));
+          setDemoSeed(demoSeedWords(data));
         },
         (e: unknown) => useMission.setState({ status: "error", error: e instanceof Error ? e.message : String(e) }),
       );
@@ -404,19 +404,16 @@ const MISSION_SHORTCUTS: readonly ShortcutGroup[] = [
 ];
 
 /** The demo mission's pre-seeded state in one sentence: what is there before anyone acts, and its date. */
-export function demoSeedWords(data: Partial<MissionData>, now: string): string {
+export function demoSeedWords(data: Partial<MissionData>): string {
   const n = (k: number, one: string) => `${k} ${one}${k === 1 ? "" : "s"}`;
-  const proposals = data.proposals ?? [];
-  const waiting = proposals.filter((p) => p.status === "pending").length;
-  const when = new Date(now).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "UTC" });
-  return `Pre-seeded demo: ${n(data.clues?.length ?? 0, "clue")}, ${n(proposals.length, "proposal")} (${waiting} waiting), ${n(data.teams?.length ?? 0, "team")} and ${n(data.tasks?.length ?? 0, "sector task")}, fixtures dated ${when} UTC (a scripted timeline); what you change stays in this tab.`;
+  return `Pre-seeded demo, scripted timeline: ${n(data.clues?.length ?? 0, "clue")}, ${n(data.proposals?.length ?? 0, "proposal")}, ${n(data.teams?.length ?? 0, "team")}. What you change stays in this tab.`;
 }
 
 function DemoSeedNote({ words }: { words: string }) {
   return (
-    <p aria-label="Demo data" className="flex items-start gap-2 text-caption text-text-2">
+    <p aria-label="Demo data" className="flex min-w-0 items-center gap-2 text-caption text-text-2">
       <ModeChip mode="demo" />
-      <span className="pt-0.5">{words}</span>
+      <span className="truncate" title={words}>{words}</span>
     </p>
   );
 }

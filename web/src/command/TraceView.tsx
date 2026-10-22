@@ -10,6 +10,7 @@ import {
   chains,
   imagesOf,
   inputSummary,
+  isScripted,
   modelUse,
   msOf,
   outputSummary,
@@ -66,13 +67,15 @@ export function TraceView({ runs, imageUrl, empty }: { runs: readonly TraceRun[]
 function ModelStrip({ entries, chainCount }: { entries: readonly TraceEntry[]; chainCount: number }) {
   const { models, tools } = modelUse(entries);
   const proposals = entries.filter((e) => e.kind === "proposal").length;
-  const decided = entries.filter((e) => e.kind === "decision").length;
+  const decided = entries.filter((e) => e.kind === "decision" && !isScripted(e)).length;
+  const scripted = entries.filter(isScripted).length;
   return (
     <div aria-label="Which model did what" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-small font-medium text-text">Which model did what</span>
         <span className="text-caption text-text-3">
           {entries.length} steps · {chainCount} {chainCount === 1 ? "chain" : "chains"} · {proposals} {proposals === 1 ? "proposal" : "proposals"} · {decided} decided by a person
+          {scripted > 0 && <span className="text-caution"> · {scripted} scripted approval{scripted === 1 ? "" : "s"} (demo run)</span>}
         </span>
       </div>
       <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -122,6 +125,8 @@ function RunView({ run, imageUrl }: { run: TraceRun; imageUrl?: (rel: string) =>
 
 function outcomeWords(o: Outcome): [Tone, string] {
   if (o.status === null) return ["action", `${o.proposal} ${o.kind}: waiting for a person`];
+  // a scripted approval (a demo run) is amber, so it never reads as a person's decision
+  if (o.scripted) return ["caution", `${o.proposal} ${o.kind} → ${o.status} by a script, not a person: ${o.by}`];
   return [o.status === "approved" ? "ok" : "muted", `${o.proposal} ${o.kind} → ${o.status}${o.by ? ` by ${o.by}` : ""}`];
 }
 
@@ -187,7 +192,7 @@ function Step({ e, stage, imageUrl }: { e: TraceEntry; stage: string | null; ima
       >
         <span className="text-caption text-text-3">{stage ?? ""}</span>
         <span>
-          <StatusPill tone={SPAN_TONE[e.kind]} dot={false}>
+          <StatusPill tone={isScripted(e) ? "caution" : SPAN_TONE[e.kind]} dot={false} title={isScripted(e) ? "Scripted approval for a demo run, not a person's decision" : undefined}>
             {SPAN_WORDS[e.kind]}
           </StatusPill>
         </span>

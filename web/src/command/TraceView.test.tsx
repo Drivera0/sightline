@@ -20,7 +20,7 @@ describe("trace helpers", () => {
     const [c] = chains(showcase!.entries);
     expect(chains(showcase!.entries)).toHaveLength(1);
     expect(c!.stages).toEqual(["perception", "decision", "action", "approval"]);
-    expect(c!.outcomes).toEqual([{ proposal: "p001", kind: "promote_detection", status: "approved", by: "Search manager (scripted approval for this demo run)" }]);
+    expect(c!.outcomes).toEqual([{ proposal: "p001", kind: "promote_detection", status: "approved", by: "Search manager (scripted approval for this demo run)", scripted: true }]);
     expect(c!.ms).toBe(1414); // the VL call; the verdict's own ms is not counted twice
     // the conditions lookup has no ids: its steps join on the actor
     expect(chains(conditions!.entries)).toHaveLength(1);
@@ -71,7 +71,11 @@ describe("TraceView", () => {
     expect(strip).toHaveTextContent("nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B");
     expect(strip).toHaveTextContent("Tavily search ×3");
     const chain = screen.getByRole("article", { name: "Chain f0001-d01 · v0001 · p001" });
-    expect(chain).toHaveTextContent("p001 promote_detection → approved by Search manager");
+    // the showcase approval was scripted: amber, and it says so; it never reads as a person's decision
+    const outcome = within(chain).getByText(/p001 promote_detection → approved by a script, not a person/);
+    expect(outcome.closest("[data-tone]")).toHaveAttribute("data-tone", "caution");
+    expect(within(chain).getByRole("listitem", { name: "Approval t000006" }).querySelector("[data-tone]")).toHaveAttribute("data-tone", "caution");
+    expect(strip).toHaveTextContent("0 decided by a person · 1 scripted approval (demo run)");
     const step = within(chain).getByRole("listitem", { name: "Model t000003" });
     expect(step).toHaveTextContent("1.4 s");
     await userEvent.click(within(step).getByRole("button"));

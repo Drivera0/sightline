@@ -178,6 +178,11 @@ describe("CommandView", () => {
     expect(screen.queryByRole("complementary", { name: "How to use the console" })).toBeNull();
   });
 
+  it("demo: the header clock tells the fixtures' scripted time, in UTC", () => {
+    setup({ status: "demo" });
+    expect(screen.getByLabelText("Mission header")).toHaveTextContent("22:00 UTC");
+  });
+
   it("the shortcut overlay lists the console's keys", async () => {
     const { SHORTCUT_GROUPS } = await import("../shell/shortcuts");
     const console_ = SHORTCUT_GROUPS.find((g) => g.title === "Command console");
