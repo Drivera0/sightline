@@ -102,7 +102,9 @@ def create_app(
             "contract_version": CONTRACT_VERSION,
             "backend": backend,
             "detector": None if loaded is None else detector_name(loaded),
-            "radio": bool(getattr(app.state, "radio", None)),  # the radio desk is mounted (serve --radio)
+            "radio": bool(
+                getattr(app.state, "radio", None)
+            ),  # the radio desk is mounted (serve --radio)
         }
 
     @app.post("/survey", status_code=202)
