@@ -6,7 +6,7 @@
 
 import { useState, type KeyboardEvent } from "react";
 import type { EvidenceRef, Proposal, Team } from "../contract";
-import { Badge, Label, Panel } from "../shell/components";
+import { Label, Panel, StatusPill } from "../shell/components";
 
 export type Decide = (
   pid: string,
@@ -64,7 +64,7 @@ export function ApprovalInbox({
   return (
     <section aria-label="Approval inbox" className="flex flex-col gap-3">
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <Label>Approvals · {pending.length} waiting</Label>
+        <Label className={pending.length ? "text-accent!" : undefined}>Approvals · {pending.length} waiting</Label>
         <label className="flex items-center gap-2 text-small text-text-2">
           You are
           <input
@@ -86,7 +86,7 @@ export function ApprovalInbox({
           <ul className="flex flex-col gap-1 pt-2" aria-label="Decided proposals">
             {decided.map((p) => (
               <li key={p.id} className="flex flex-wrap gap-2 text-small">
-                <Badge kind="info">{p.status}</Badge>
+                <StatusPill tone={p.status === "approved" ? "ok" : "muted"} dot={false}>{p.status}</StatusPill>
                 <span className="text-text">{p.summary}</span>
                 {p.decided_by && (
                   <span className="text-text-3">
@@ -141,9 +141,9 @@ function PendingCard({
   };
 
   return (
-    <Panel tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} className="flex flex-col gap-2 p-3 focus:outline focus:outline-accent">
+    <Panel tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} className="flex flex-col gap-2 border-l-2 border-l-accent bg-surface-solid p-3 focus:outline focus:outline-accent">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge kind="info">{KIND_WORDS[p.kind]}</Badge>
+        <StatusPill tone="action">{KIND_WORDS[p.kind]}</StatusPill>
         <span className="text-body text-text">{p.summary}</span>
         <span className="ml-auto font-mono text-caption text-text-3">
           {p.id} · {p.created_by}

@@ -15,7 +15,7 @@ import { EventFeed } from "../command/EventFeed";
 import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoMission } from "../command/demoMission";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { usePick } from "../map/pick";
-import { Badge, Label, Panel, Stat } from "../shell/components";
+import { Label, ModeChip, modeOf, Panel, Stat } from "../shell/components";
 import { Logo } from "../shell/Logo";
 import { RadioDesk } from "../radio/RadioDesk";
 import { LiveReview } from "../review/LiveReview";
@@ -136,17 +136,17 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
     <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demo && demoNow ? demoNow : undefined} fill={isConsole} />
   );
   const tabNav = (
-    <nav className="flex gap-2" aria-label="Mission views">
+    <nav className="flex flex-wrap gap-0.5 rounded-full border border-line bg-surface-solid p-0.5" aria-label="Mission views">
       {tabs.map((t) => (
         <button
           key={t.id}
           type="button"
           aria-pressed={tab === t.id}
           onClick={() => go(t.id)}
-          className={`rounded-full border px-4 py-1.5 text-small ${tab === t.id ? "border-accent text-text" : "border-border text-text-2"}`}
+          className={`rounded-full px-3.5 py-1 text-small transition-colors ${tab === t.id ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--border)]" : "text-text-2 hover:text-text"}`}
         >
           {t.label}
-          {t.id === "approvals" && waiting > 0 && <span className="ml-1 font-mono text-accent-soft">{waiting}</span>}
+          {t.id === "approvals" && waiting > 0 && <span className="ml-1.5 font-mono text-accent">{waiting}</span>}
         </button>
       ))}
     </nav>
@@ -162,7 +162,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           {s.mission?.subject && <span className="text-small text-text-2">Looking for: {s.mission.subject}</span>}
         </div>
         <span role="status" className="flex items-center gap-2">
-          <Badge kind="info">{STATUS_WORDS[s.status]}</Badge>
+          <ModeChip mode={modeOf(s.status)}>{STATUS_WORDS[s.status] || undefined}</ModeChip>
         </span>
       </header>
       )}
@@ -310,8 +310,8 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
 /** The app's top line on mission pages: the logo back to the start, and the way back to the guided demo. */
 function AppBar({ demo, children }: { demo: boolean; children?: ReactNode }) {
   return (
-    <nav aria-label="Sightline" className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-3">
-      <a href="#" className="flex items-center gap-2 text-title font-medium text-text" title="Back to the start">
+    <nav aria-label="Sightline" className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-2">
+      <a href="#" className="flex items-center gap-2 text-body font-medium text-text" title="Back to the start">
         <Logo />
         Sightline
       </a>

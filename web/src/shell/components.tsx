@@ -37,29 +37,60 @@ export function Stat({ value, label, source }: { value: ReactNode; label: string
 
 export type BadgeKind = "simulated" | "placeholder" | "info";
 
-const BADGE_STYLES: Record<BadgeKind, string> = {
-  simulated: "border-accent-soft/50 text-accent-soft",
-  placeholder: "border-warn/50 text-warn",
-  info: "border-border text-text-2",
-};
+/** Status colours, by meaning (theme.css `.sl-pill`): orange `action` only for "needs a person". */
+export type Tone = "ok" | "caution" | "alert" | "action" | "neutral" | "muted";
+
+const BADGE_TONES: Record<BadgeKind, Tone> = { simulated: "caution", placeholder: "caution", info: "neutral" };
 
 /**
  * Honesty badge. The label always says what is simulated, colour is only a hint:
  * "Simulated flight path", "Simulated evaluation", "Placeholder prior", "10 m position uncertainty".
+ * Same chip as the LIVE / DEMO / SIM mode chips (an opaque fill, readable over the map's heat).
  */
 export function Badge({ kind, children }: { kind: BadgeKind; children: ReactNode }) {
   return (
-    <span
-      data-kind={kind}
-      className={cx(
-        // A dark fill keeps the label readable where it sits over the map's pale heat.
-        "inline-flex items-center rounded-full border bg-bg/75 px-3 py-1 font-mono text-label uppercase tracking-label",
-        BADGE_STYLES[kind],
-      )}
-    >
+    <span data-kind={kind} data-tone={BADGE_TONES[kind]} data-mode="badge" className="sl-pill">
       {children}
     </span>
   );
+}
+
+/** A status in words with its colour (`--c`): a team searching, a sector in progress, flyability. */
+export function StatusPill({ tone = "neutral", dot = true, title, children, className }: { tone?: Tone; dot?: boolean; title?: string; children: ReactNode; className?: string }) {
+  return (
+    <span data-tone={tone} title={title} className={cx("sl-pill", className)}>
+      {dot && <span aria-hidden className="sl-pill-dot" />}
+      {children}
+    </span>
+  );
+}
+
+export type Mode = "live" | "demo" | "sim" | "offline" | "connecting";
+const MODE: Record<Mode, { tone: Tone; word: string; title: string }> = {
+  live: { tone: "ok", word: "Live", title: "Connected to the mission server" },
+  demo: { tone: "neutral", word: "Demo", title: "Demo mission: fixtures in the page, no server" },
+  sim: { tone: "caution", word: "Sim", title: "Simulated" },
+  offline: { tone: "alert", word: "Offline", title: "Not connected to the mission server" },
+  connecting: { tone: "muted", word: "Connecting", title: "Connecting to the mission server" },
+};
+
+/** LIVE / DEMO / SIM: where the data on screen comes from, in one chip style everywhere. */
+export function ModeChip({ mode, children }: { mode: Mode; children?: ReactNode }) {
+  const m = MODE[mode];
+  return (
+    <span data-mode={mode} data-tone={m.tone} title={m.title} className="sl-pill">
+      <span aria-hidden className="sl-pill-dot" />
+      {children ?? m.word}
+    </span>
+  );
+}
+
+/** The mission stream's status word → its mode chip. */
+export function modeOf(status: string): Mode {
+  if (status === "live") return "live";
+  if (status === "demo") return "demo";
+  if (status === "error") return "offline";
+  return "connecting";
 }
 
 /** A one-off handwritten note, like the pitch deck's. Never for data or labels. */
