@@ -511,8 +511,8 @@ photo comes in; the detector finds a person-sized box at 0.83, 20 px wide in the
 heuristic picks `zoom_native`; from the native-pixel zoom, Nemotron VL answers *yes, sitting, blue jacket,
 dark head covering*. A reviewer confirms it and the search manager logs the sighting as a clue (both scripted,
 and labelled so in the trace). The clue doubles sector B3's share of the probability (3.2 % → 6.9 %); the
-agent re-plans and the planner proposes **`retask_drone`**: *"Re-task Drone 1 to sector B3: expected to rule out
-3.1 % of the probability in 12 min (0.26 %/min), 1.1× the next best (sector B2). Within battery (95 %)."*
+agent re-plans and the planner proposes **`retask_drone`**: *"Re-task Drone 1 to sector B3: expected to lower the
+remaining probability by 3.1 % in 12 min (0.26 %/min), 1.1× the next best (sector B2). Within battery (95 %)."*
 On approval Drone 1's leg over A1 is cancelled and the new leg approved; `validate_mission` passes.
 
 | Review crop (1000×750 frame) | OpenCV 5 native zoom |

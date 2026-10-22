@@ -229,7 +229,7 @@ the trace says). Excerpt (`scripts/trace_excerpt.py --proposal p004`):
 2026-10-22T01:49:34.480Z  human    note       Search manager (scripted for this run): logged the sighting as clue c001 (100 m, the default for a sighting)
 2026-10-22T01:49:34.492Z  agent    proposal   p004 retask_drone: Re-task Drone 1 to sector B3 (3.1% expected)
     target {'drone': 'D1', 'leg': 'L002'}
-    reason: After clue c001 (sighting, high reliability: person in photo f0005, confirmed by the reviewer) in sector B3, which now holds 6.9% of the probability. Sector B3: expected to rule out 3.1% of the probability in 12 min (0.26%/min) — 1.1× the next best for Drone 1 (sector B2). Within battery (95%).
+    reason: After clue c001 (sighting, high reliability: person in photo f0005, confirmed by the reviewer) in sector B3, which now holds 6.9% of the probability. Sector B3: expected to lower the remaining probability by 3.1% in 12 min (0.26%/min) — 1.1× the next best for Drone 1 (sector B2). Within battery (95%).
 2026-10-22T01:50:00.642Z  human    decision   p004 approved by Search manager (scripted approval for this run)
     {'proposal': 'p004'}
 ```
@@ -252,8 +252,8 @@ change an `unclear` ended the chain. Now the agent asks for a better photo of th
   photo there. Then two lines 10 m apart over a 20 m square (one photo's width at 25 m). Its
   `expected_clearance` is Σ p · POD over the cells within 10 m. Its reason is in numbers: *"Second look
   at f0001-d01 was unclear: box 21 px, too small to verify; a pass at 25 m gives about 4× the pixels
-  (50 m → 25 m). Drone 3 is 438 m away: 1.1 min there and over the spot, expected to rule out 0.010 %
-  of the probability."* The factor is (altitude / 25)².
+  (50 m → 25 m). Drone 3 is 438 m away: 1.1 min there and over the spot, expected to lower the remaining
+  probability by 0.010 %."* The factor is (altitude / 25)².
 - **Approval.** The leg goes through the normal approval path. While it waits, re-plans leave that
   drone alone (`_replan` skips it).
 - **The low pass.** The fleet sim flies it. Below 50 m a photo's crop follows the leg's altitude
@@ -314,7 +314,7 @@ fixture (`SIGHTLINE_FAKE_LLM=1 SIGHTLINE_FAKE_VL=relook`: `unclear`, then `yes`)
 
 ```text
 [   1.0 s] proposal p004 retask_drone: Re-look at f0001-d01 from 25 m: re-task Drone 3
-           Second look at f0001-d01 was unclear: box 21 px, too small to verify; a pass at 25 m gives about 4× the pixels (50 m → 25 m). Drone 3 is 438 m away: 1.1 min there and over the spot, expected to rule out 0.010% of the probability.
+           Second look at f0001-d01 was unclear: box 21 px, too small to verify; a pass at 25 m gives about 4× the pixels (50 m → 25 m). Drone 3 is 438 m away: 1.1 min there and over the spot, expected to lower the remaining probability by 0.010%.
 [   2.0 s] L004 flown by D3 at 25 m: 5 photos, 1.08 sim min
 [   2.0 s] proposal p005 promote_detection: Add f0002-d01 to the review queue: second look says likely a person
 

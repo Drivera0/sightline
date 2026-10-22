@@ -25,6 +25,16 @@ ALLOWED_STRINGS: tuple[str, ...] = (
     "or that a search clears it",  # the radio prompt's version of the same rule
 )
 
+# "Rule out" says the same thing as "clear": a searched area is lowered, never removed. In what
+# ``sightline/`` writes, only the sanctioned negations may use it. The docs explain the planner
+# with it in places ("each photo rules out less"), so there only the proposal-reason form is banned.
+RULE_OUT = re.compile(r"\brul(e|es|ed|ing) out\b", re.IGNORECASE)
+RULE_OUT_NEGATIONS: tuple[str, ...] = (
+    "nothing is ever ruled out",  # the debrief prompt
+    "no sector is ruled out",  # the debrief footer
+)
+REASON_RULE_OUT = re.compile(r"\bexpected to rule out\b", re.IGNORECASE)
+
 
 def _strings(path: Path) -> list[str]:
     """The string constants in a module, without docstrings (those are for developers)."""
@@ -64,12 +74,44 @@ def test_no_sightline_string_says_an_area_clears_or_is_clearing() -> None:
     assert found == []
 
 
+def test_no_sightline_string_says_an_area_is_ruled_out() -> None:
+    found = [
+        f"{p.relative_to(ROOT)}: {s[:100]!r}"
+        for p in sorted((ROOT / "sightline").rglob("*.py"))
+        for s in _strings(p)
+        if RULE_OUT.search(s) and not any(n in s for n in RULE_OUT_NEGATIONS)
+    ]
+    assert found == []
+
+
+def test_no_doc_quotes_a_reason_that_rules_out() -> None:
+    found = [
+        f"{p.relative_to(ROOT)}:{i}: {line.strip()[:100]}"
+        for p in sorted((ROOT / "docs").rglob("*.md"))
+        if p.parent.name != "review"  # the hostile review quotes the old wording it asked to fix
+        for i, line in enumerate(p.read_text().splitlines(), 1)
+        if REASON_RULE_OUT.search(line)
+    ]
+    assert found == []
+
+
+def test_the_reasons_say_lowered() -> None:
+    from sightline.agent import relook_leg
+    from sightline.search import planner
+
+    for mod in (planner, relook_leg):
+        assert any(
+            "expected to lower the remaining probability by" in s
+            for s in _strings(Path(mod.__file__))
+        )
+
+
 def test_the_reviewed_lists_are_not_stale() -> None:
     docs = "\n".join(p.read_text() for p in (ROOT / "docs").rglob("*.md"))
     strings = "\n".join(s for p in (ROOT / "sightline").rglob("*.py") for s in _strings(p))
     for a in ALLOWED_DOCS:
         assert a in docs, a
-    for a in ALLOWED_STRINGS:
+    for a in ALLOWED_STRINGS + RULE_OUT_NEGATIONS:
         assert a in strings, a
 
 
