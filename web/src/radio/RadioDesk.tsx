@@ -3,7 +3,7 @@
 // queue until the operator presses Transmit. Nothing is ever transmitted that wasn't approved.
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Badge, KeyHint, Label, Panel } from "../shell/components";
+import { KeyHint, Label, Panel, StatusPill, type Tone } from "../shell/components";
 import * as defaultApi from "./api";
 import { isStandby, type OutboundItem, type RadioApi, type RadioTurn, type TurnResponse, type TurnStandby } from "./api";
 import { playChunks as defaultPlay } from "./player";
@@ -21,6 +21,15 @@ const STATE_WORDS: Record<RadioTurn["state"], string> = {
   discarded: "Clue discarded",
   transmitted: "Transmitted",
   say_again: "Say again",
+};
+
+const STATE_TONE: Record<RadioTurn["state"], Tone> = {
+  answered: "neutral",
+  awaiting_confirm: "caution",
+  committed: "ok",
+  discarded: "muted",
+  transmitted: "ok",
+  say_again: "caution",
 };
 
 const POLL_MS = 300;
@@ -316,14 +325,14 @@ export function RadioDesk({
       </form>
 
       {error && (
-        <p role="alert" className="text-small text-warn">
+        <p role="alert" className="text-small text-caution">
           {error}
         </p>
       )}
 
       {awaiting && (
-        <div className="rounded-md border border-warn/50 p-3" aria-label="Awaiting confirmation">
-          <Label className="text-warn">Awaiting confirmation from {callsign(awaiting.callsign)}</Label>
+        <div className="rounded-sm border border-caution/40 bg-surface-solid p-3" aria-label="Awaiting confirmation">
+          <Label className="text-caution!">Awaiting confirmation from {callsign(awaiting.callsign)}</Label>
           <p className="text-body text-text">{awaiting.reply}</p>
           <p className="text-small text-text-3">Nothing is logged until the team says "affirmative".</p>
         </div>
@@ -333,7 +342,7 @@ export function RadioDesk({
         <Label>Outbound · approved by the search manager</Label>
         {outbound.length === 0 && <p className="text-small text-text-3">Nothing waiting to be transmitted.</p>}
         {outbound.map((o) => (
-          <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3">
+          <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-line bg-surface-solid p-3">
             <div className="flex min-w-0 flex-col">
               <span className="text-small text-text-2">
                 To {o.target.team === "all" ? "all teams" : callsign(o.target.team ?? null)} · {o.summary}
@@ -356,10 +365,10 @@ export function RadioDesk({
         <Label>Log · newest first</Label>
         {turns.length === 0 && <p className="text-small text-text-3">No radio traffic yet.</p>}
         {[...turns].reverse().map((t: LoggedTurn) => (
-          <div key={t.id} className="flex flex-col gap-1 rounded-md border border-border p-3">
+          <div key={t.id} className="flex flex-col gap-1 rounded-sm border border-line bg-surface-solid p-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-small text-text-3">{time(t.at)}</span>
-              <Badge kind="info">{STATE_WORDS[t.state]}</Badge>
+              <StatusPill tone={STATE_TONE[t.state]} dot={t.state === "awaiting_confirm"}>{STATE_WORDS[t.state]}</StatusPill>
               <span className="font-mono text-caption text-text-3">
                 ASR {ms(t.asr_ms)} · model {ms(t.llm_ms)} · voice {voice(t.tts_ms)}
                 {t.heard_ms != null && <> · first sound {ms(t.heard_ms)}</>}
@@ -372,7 +381,7 @@ export function RadioDesk({
             )}
             {t.reply && (
               <p className="text-body text-text">
-                <span className="text-accent-soft">Sightline:</span> {t.reply}
+                <span className="font-medium text-text-2">Sightline:</span> {t.reply}
               </p>
             )}
           </div>

@@ -119,7 +119,7 @@ export function SurveyPicker({
           </svg>
         )}
       </span>
-      {simulatedPath && <span className="truncate text-caption text-accent-soft">Simulated flight path</span>}
+      {simulatedPath && <span className="truncate text-caption text-caution">Simulated flight path</span>}
       {choosable && (
         <select
           aria-label="Survey"
@@ -408,7 +408,7 @@ export function Shell({
               <div className="flex flex-col gap-2 border-b border-border px-3 pb-3 pt-2 sm:hidden">
                 <span className="flex flex-col">
                   <span className="text-body text-text">{shortSurveyName(survey.area.name)}</span>
-                  {survey.simulated_path && <span className="text-caption text-accent-soft">Simulated flight path</span>}
+                  {survey.simulated_path && <span className="text-caption text-caution">Simulated flight path</span>}
                 </span>
                 {cacheDir && onCacheDirChange && surveyOptions.length > 0 && (
                   <SurveySelect options={surveyOptions} value={cacheDir} onChange={changeSurvey} />
