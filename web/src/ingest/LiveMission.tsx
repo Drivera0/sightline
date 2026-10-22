@@ -138,15 +138,19 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
   }
 
   const Frame = embedded ? "section" : "main";
-  // The Command tab is the full-screen console (LANE_E §7.1); the other tabs keep the reading column.
+  // The Command tab is the console (LANE_E §7.1): full screen on its own, and inside the guided demo's frame
+  // (three columns from 1280 px, stacked below). The other tabs keep the reading column.
   const isConsole = tab === "command" && !embedded;
+  const consoleLayout = tab === "command";
   const frameClass = embedded
-    ? "flex flex-col gap-4"
+    ? consoleLayout
+      ? "flex flex-col gap-3 xl:min-h-0 xl:flex-1"
+      : "flex flex-col gap-4"
     : isConsole
       ? "flex flex-col gap-3 p-3 lg:h-dvh lg:px-4"
       : `mx-auto flex ${tab === "trace" ? "max-w-7xl" : "max-w-5xl"} flex-col gap-4 p-4 lg:p-8`;
   const heatMap = (
-    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demo && demoNow ? demoNow : undefined} fill={isConsole} />
+    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demo && demoNow ? demoNow : undefined} fill={consoleLayout} />
   );
   const tabNav = (
     <nav className="flex flex-wrap gap-0.5 rounded-full border border-line bg-surface-solid p-0.5" aria-label="Mission views">
@@ -196,7 +200,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
       </section>
       )}
 
-      {!isConsole && (
+      {!consoleLayout && (
       <nav className="flex gap-2" aria-label="Mission actions">
         {tabNav}
         {!demo && (
@@ -274,7 +278,6 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
         </p>
       )}
 
-      {tab === "command" && !isConsole && heatMap}
       {tab === "command" && (
         <CommandView
           mission={s.mission}
@@ -292,9 +295,11 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
           now={demo && demoNow ? () => demoNow : undefined}
           sideRail={radioOn && !demo ? radioDesk : undefined}
-          map={isConsole ? heatMap : undefined}
-          aboveMap={isConsole && demo && demoSeed ? <DemoSeedNote words={demoSeed} /> : undefined}
-          conditionsData={isConsole ? conditionsData : null}
+          map={heatMap}
+          wideAt={embedded ? "xl" : "lg"}
+          headerStart={embedded ? tabNav : undefined}
+          aboveMap={demo && demoSeed ? <DemoSeedNote words={demoSeed} /> : undefined}
+          conditionsData={conditionsData}
           conditionsOpen={window.location.hash.split("/")[3] === "conditions"}
           onPickOnMap={() => {
             document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
