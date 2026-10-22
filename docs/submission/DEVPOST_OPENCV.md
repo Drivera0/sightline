@@ -41,7 +41,8 @@ Measured, with the caveat beside each number:
 
 - **The detector finds 89.6 % of people on the HERIDAL test set against 68 % for people reviewing by eye, scored the study's loose SAR-APD way; under strict VOC scoring it is 86.4 %** [8]. Two early model choices saw test scores, so test is slightly optimistic, and we say so [9].
 - **The second look finds 4 more of 337 people on test at the cost of 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023], p < 0.05), and is advisory:** a person approves each promotion [10].
-- **In simulation, on a flat prior, three coordinated drones find the person within 30 minutes in 20.9 % of trials, against 20.0 % for a hand split and 6.8 % for one drone (3×). With a clue the edge over the hand split is 3 points** [11].
+- **In simulation, with a clue at the start, three drones planning on one shared map find the person within 30 minutes in 22.7 % of trials against 20.0 % for a hand split; with realistic wind, battery swaps, GPS error and link loss the lead holds (15.9 % vs 11.5 %, seed ranges apart). With no clue they are level, and we say so** [11].
+- **On the whole live system, the agent sent the drone, the alert, the team and the promotion to the person's sector or detection in every run of its evaluation (fake models, scripted detector), the approval-gate checks passed in 12 of 12 runs, and with Token Factory fully down a mission pays about 82 s in all, not minutes per call** [17].
 - **The planner's honest result:** on a flat prior it is no better than a fixed serpentine. With a clue it flies there first, and finds the person within 30 minutes in 10.7 % of trials against 6.3 % [12].
 
 ## Inspiration
@@ -84,7 +85,7 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 
 ## What's next
 
-- Thermal imagery for night searches; a cited lost-person prior (Koester) in place of the labelled placeholder.
+- Thermal imagery for night searches; a larger search grid for hiker missions, whose Koester rings reach well past the 1 km grid.
 - DJI FlightHub 2 so photos arrive by themselves.
 - A word error rate on real volunteers' voices over real handsets.
 - A field trial with a search-and-rescue team.
@@ -95,19 +96,20 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 
 ### Sources for every number
 
-1. `README.md:66` (70 px, tiling, shrinking to 1024 px gives recall 0.234)
-2. `docs/report/OPENCV_REPORT.md:19-20`, `:332`
-3. `docs/report/OPENCV_REPORT.md:146-151`
-4. `docs/report/OPENCV_REPORT.md:156-163`
-5. `docs/report/OPENCV_REPORT.md:165-192`
+1. `README.md:78` (70 px, tiling, shrinking to 1024 px gives recall 0.234)
+2. `docs/report/OPENCV_REPORT.md:34-35`, `:282`
+3. `docs/report/OPENCV_REPORT.md:139-148`
+4. `docs/report/OPENCV_REPORT.md:153-160`, `:187-191`
+5. `docs/report/OPENCV_REPORT.md:215-243`, `:258-275`
 6. `docs/architecture/agent.md` (Evaluation, Observability)
-7. `docs/report/OPENCV_REPORT.md:304`
-8. `docs/report/OPENCV_REPORT.md:331-333`; scoring explained at `README.md:42`
-9. `README.md:56`; `docs/report/OPENCV_REPORT.md:505-507`
-10. `docs/report/OPENCV_REPORT.md:350-355`; `docs/LANE_A_ML.md:314`
-11. `docs/report/OPENCV_REPORT.md:417-429`
-12. `docs/report/OPENCV_REPORT.md:395-403`
+7. `docs/report/OPENCV_REPORT.md:328`
+8. `docs/report/OPENCV_REPORT.md:281-283`; scoring explained at `README.md:39`
+9. `README.md:40`; `docs/report/OPENCV_REPORT.md:295-302`
+10. `docs/report/OPENCV_REPORT.md:464-471`; `docs/LANE_A_ML.md:314`
+11. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:639-650`
+12. `docs/report/OPENCV_REPORT.md:589-599`
 13. `docs/architecture/agent.md` ("One real chain"); `docs/architecture/av-chain/trace.jsonl`
-14. `docs/report/OPENCV_REPORT.md:441-443`
-15. `docs/report/OPENCV_REPORT.md:466-467`, `:512-514`
+14. `docs/report/OPENCV_REPORT.md:778-780`
+15. `docs/report/OPENCV_REPORT.md:809-811`, `:924-927`
 16. `docs/feedback/radio.md:84`, `:101`
+17. `docs/report/AGENT_EVAL.md` (correct target, approval gate, failure handling); `docs/report/OPENCV_REPORT.md:474-489`, `:504`, `:510-514`

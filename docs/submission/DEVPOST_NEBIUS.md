@@ -36,7 +36,8 @@ For search managers, Sightline turns drone photos and radio reports into one map
 Measured, with the caveat beside each number:
 
 - **The detector finds 89.6 % of people on the HERIDAL test set against 68 % for people reviewing by eye, scored the study's loose SAR-APD way; under strict VOC scoring it is 86.4 %** [1].
-- **In simulation, on a flat prior, three coordinated drones find the person within 30 minutes in 20.9 % of trials, against 20.0 % for a hand split and 6.8 % for one drone (3×); with a clue the edge over the hand split is 3 points** [2].
+- **In simulation, with a clue at the start, three drones planning on one shared map find the person within 30 minutes in 22.7 % of trials against 20.0 % for a hand split; with realistic wind, battery swaps, GPS error and link loss the lead holds (15.9 % vs 11.5 %, seed ranges apart); with no clue they are level** [2].
+- **With Token Factory fully down, a mission now pays about 82 s in all (a circuit breaker after 4 failed attempts), and on the whole live system the agent sent the drone, alert, team and promotion to the person's sector or detection in every run of its evaluation, with the approval-gate checks passing in 12 of 12 runs (fake models)** [12].
 - **Nemotron VL's second look finds 4 more of 337 people on test at the cost of 15 more false alarms (95 % CI of the gain [+0.003, +0.023], p < 0.05), and is advisory** [3].
 - **The planner adds nothing on a flat prior; with a clue it finds the person within 30 minutes in 10.7 % of trials against 6.3 % for a fixed order** [4].
 
@@ -55,12 +56,12 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio and Eagle Eyes
 
 ## How we built it
 
-Every language and vision model call goes through **Nebius Token Factory** at run time, through one OpenAI-compatible client (`sightline/agent/llm.py:23-25`). Every model is an NVIDIA open model:
+Every language and vision model call goes through **Nebius Token Factory** at run time, through one OpenAI-compatible client (`sightline/agent/llm.py:203`). Every model is an NVIDIA open model:
 
 | Job | NVIDIA model | Runs on | Code |
 |---|---|---|---|
 | Second look at uncertain detections (crop + OpenCV re-look images → JSON verdict) | `nvidia/Nemotron-3.5-Super-VL` | Token Factory | `sightline/agent/verify.py` |
-| Briefings for teams; reading conditions pages with quotes | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Token Factory | `agent/loop.py:151`, `geo/conditions.py:316` |
+| Briefings for teams; reading conditions pages with quotes | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Token Factory | `agent/loop.py:160`, `geo/conditions.py:317` |
 | Radio turns with tool calls | `nvidia/nemotron-3-super-120b-a12b` | Token Factory | `radio/turn.py:232` |
 | Speech to text | Parakeet TDT 0.6B v2 | RTX 4080 SUPER (NeMo) | `radio/asr.py` |
 | Text to speech | Magpie TTS multilingual 357M | RTX 4080 SUPER (NeMo) | `radio/tts.py` |
@@ -100,14 +101,15 @@ A Jetson field kit without internet; thermal for night searches; real drone phot
 
 ### Sources for every number
 
-1. `docs/report/OPENCV_REPORT.md:19-20`, `:331-333`; `README.md:42`, `:66`
-2. `docs/report/OPENCV_REPORT.md:417-429`
-3. `docs/report/OPENCV_REPORT.md:350-355`; `docs/LANE_A_ML.md:314`
-4. `docs/report/OPENCV_REPORT.md:395-403`
+1. `docs/report/OPENCV_REPORT.md:34-35`, `:281-283`; `README.md:39`, `:78`
+2. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:639-650`
+3. `docs/report/OPENCV_REPORT.md:464-471`; `docs/LANE_A_ML.md:314`
+4. `docs/report/OPENCV_REPORT.md:589-599`
 5. `docs/feedback/nebius.md:71-74`
 6. `docs/feedback/radio.md:84`, `:101`
-7. `docs/feedback/nebius.md:173-176`; `README.md:80`
-8. `docs/report/OPENCV_REPORT.md:466-467`, `:512-514`
-9. `README.md:33`; `docs/architecture/agent.md` ("A second chain"); `scripts/creek_run.py`, `scripts/retask_chain.py`
+7. `docs/feedback/nebius.md:173-176`; `README.md:92`
+8. `docs/report/OPENCV_REPORT.md:809-811`, `:924-927`
+9. `README.md:67`; `docs/architecture/agent.md` ("A second chain"); `scripts/creek_run.py`, `scripts/retask_chain.py`
 10. Ultralytics, "NVIDIA Jetson" guide, Orin Nano Super benchmark table, YOLO26n, TensorRT FP16 (https://docs.ultralytics.com/guides/nvidia-jetson/, read 2026-10-22)
 11. `docs/feedback/radio.md:76-79`, `:115-120`
+12. `docs/report/AGENT_EVAL.md` (failure handling, correct target, approval gate); `docs/report/OPENCV_REPORT.md:474-489`, `:504`, `:510-514`
