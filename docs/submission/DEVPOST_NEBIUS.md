@@ -100,7 +100,7 @@ Every language and vision model call goes through **Nebius Token Factory** at ru
 
 ## What we learned
 
-Tool calling with thinking off needs code-side guards for anything safety-relevant. Thinking tokens count against `max_tokens`, silently. A Serverless Endpoint needs no TLS or auth code of ours, but its CLI prints the token in plain text and it has no scale to zero, so a stopped endpoint takes 272.9 s to answer again [18]. Details, per tool: `docs/feedback/nebius.md`, `docs/feedback/radio.md`.
+Tool calling with thinking off needs code-side guards for anything safety-relevant. Thinking tokens count against `max_tokens`, silently. A Serverless Endpoint needs no TLS or auth code of ours, but its CLI prints the token in plain text and it has no scale to zero, so a stopped endpoint takes 272.9 s to answer again [18]. NVIDIA's hosted catalogue lists Cosmos Reason, but every call to it returns 404 and nothing marks it retired; the stand-in second verifier (Nemotron 3 Nano Omni) was slower and less precise than Nemotron-3.5-Super-VL, which stays (`docs/report/COSMOS_VERIFIER.md`). Details, per tool: `docs/feedback/nebius.md`, `docs/feedback/radio.md`.
 
 ## What's next
 

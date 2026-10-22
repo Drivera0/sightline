@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from sightline.radio.asr import FakeAsr
+from sightline.radio.asr import RADIO_BOOST, FakeAsr, boosting_overrides
 from sightline.radio.protocol import (
     classify_reply,
     fix_callsign_words,
@@ -112,6 +112,28 @@ def test_normalize_parakeet_niner(heard: str, normal: str) -> None:
 def test_normalize_niner_fix_keeps_words(text: str, normal: str) -> None:
     """Only "<digits>9er" and "nine or" inside a number change; real words and real "or"s stay."""
     assert normalize(text) == normal
+
+
+def test_normalize_without_the_niner_fix_keeps_parakeets_spelling() -> None:
+    """``niner_fix=False`` is the "raw" WER of ``scripts/radio_wer.py``: everything else still applies."""
+    assert normalize("Team Four, 49er.381", niner_fix=False) == "team 4 49 er 381"
+    assert normalize("point nine or three six", niner_fix=False) == "point 9 or 36"
+    assert normalize("four niner point three eight one", niner_fix=False) == "49.381"
+
+
+def test_boosting_overrides_for_nemo() -> None:
+    """The ``decoding.greedy`` keys ``ParakeetAsr(boost=...)`` sets; no phrases, no boosting."""
+    assert boosting_overrides([]) == {} and boosting_overrides(["  ", ""]) == {}
+    cfg = boosting_overrides([" niner", "niner", "Team Two"], alpha=0.5, score=2.0)
+    assert cfg == {
+        "boosting_tree": {
+            "key_phrases_list": ["niner", "Team Two"],
+            "context_score": 2.0,
+            "depth_scaling": 2.0,
+        },
+        "boosting_tree_alpha": 0.5,
+    }
+    assert "niner" in RADIO_BOOST and "Sightline" in RADIO_BOOST and "POD" in RADIO_BOOST
 
 
 # --- test 2: parse_callsign and classify_reply --------------------------------------------------

@@ -1,0 +1,171 @@
+photo,index,conf,tp,long_px,person,posture,group_size,tools,ms,model_ms,tokens_in,tokens_out,calls,reason
+train_BLA_0008,3,0.271238774061203,False,64,yes,lying,1,zoom_native,11218,11143,818,465,1,"The zoomed image shows a human shape with a head, body, and limbs in a lying position, wearing white clothing."
+train_BLA_0008,4,0.15688149631023407,False,47,unclear,unknown,,zoom_native,25461,25397,818,1201,1,"The dark object in the center is not clearly a person, and the other object's shape is too indistinct to confirm a human form."
+train_BRA_1002,3,0.344659686088562,False,43,yes,unknown,1,zoom_native,23719,23664,818,978,1,a person's shape with head and body visible in the zoomed crop
+train_BRA_1002,4,0.28012070059776306,False,53,unclear,unknown,,zoom_native+redetect_region,6600,6318,1106,265,1,"The visible shapes do not clearly show a human form (head, body, limbs) as required to confirm a person."
+train_BRA_1002,5,0.2566272020339966,False,33,yes,standing,1,zoom_native,41685,41625,818,1673,1,"a red and blue shape with visible head and body, indicating a person"
+train_BRA_1052,1,0.18230551481246948,False,51,yes,standing,1,zoom_native,3159,3103,818,326,1,"the zoomed image shows a shape with a head and body, consistent with a person's outline"
+train_BRA_1053,1,0.4455939829349518,True,55,yes,standing,1,zoom_native,28017,27961,818,1239,1,"the red shape in the zoomed image appears to be a person with red clothing, partially obscured by trees."
+train_BRK_2054,2,0.4025042653083801,False,53,yes,lying,1,enhance_contrast+zoom_native,10484,10366,1095,370,1,a person with red upper garment and dark lower garment is visible
+train_BRK_2054,3,0.361182302236557,False,87,yes,sitting,1,enhance_contrast+zoom_native,7374,7315,1095,292,1,"A human figure with a red top and dark pants is visible, showing head, body, and limbs."
+train_BRS_0035,2,0.3863292336463928,False,24,unclear,unknown,,enhance_contrast+zoom_native,19549,19493,1095,1019,1,The shape is too indistinct to confirm if it is a person.
+train_BRS_0035,3,0.194353848695755,False,46,unclear,unknown,,zoom_native,8181,8124,818,288,1,"The visible red patch does not clearly show a human shape (head, body, limbs) as required to confirm a person."
+train_BRS_0035,4,0.19251060485839844,False,47,yes,standing,1,enhance_contrast+zoom_native,10070,10013,1095,379,1,"the shape has a head, body, and limbs, indicating a person"
+train_BRS_0040,0,0.44867560267448425,True,47,yes,standing,1,zoom_native,14334,14278,818,552,1,"A human shape with a green upper garment (likely a jacket or hood) and dark lower garment is visible, showing head, body, and limbs."
+train_CAP_0013,0,0.49624165892601013,True,74,yes,standing,1,zoom_native,4992,4940,818,215,1,a yellow-clad figure with a human-like shadow is visible
+train_GOR_2056,2,0.16506005823612213,False,59,unclear,unknown,,zoom_native,39238,39182,818,1304,1,"The shape is too small and indistinct to confirm a human form, with no distinct head, body, or limb details visible."
+train_GOR_2058,3,0.19763244688510895,False,74,yes,standing,1,zoom_native,6237,6182,818,183,1,The shape shows a head and body outline consistent with a person standing.
+train_GOR_3012,2,0.22508342564105988,False,75,unclear,unknown,,zoom_native+redetect_region,21814,21561,1106,972,1,"The blue shape in the center is a patch of color without visible human features like head, body, or limbs, so it's unclear if it's a person."
+train_GOR_3013,2,0.20392628014087677,False,64,unclear,unknown,,zoom_native+redetect_region,11914,11657,1106,430,1,"The blue object is visible but lacks distinct human features like head, body, or limbs to confirm a person."
+train_GOR_3015,2,0.17858989536762238,False,52,yes,standing,1,zoom_native,9506,9450,818,279,1,a person with a striped shirt and blue jeans is visible
+train_GOR_3015,3,0.17107972502708435,False,60,unclear,unknown,,zoom_native+redetect_region,32214,31961,1106,1401,1,"The shape in the yellow box is ambiguous and could be a person or another object, making it unclear if a person is visible."
+train_GOR_3017,2,0.19054648280143738,False,63,yes,unknown,1,zoom_native+redetect_region,24720,24462,1106,828,1,"the yellow box highlights a shape with a visible head and body, indicating a person"
+train_GOR_3040,1,0.17860668897628784,False,120,no,unknown,,zoom_native+redetect_region,36153,35909,1106,1468,1,No human shape is visible in the images; only ground and a vehicle are present.
+train_JAS_0068,1,0.15923847258090973,True,42,yes,sitting,1,zoom_native,3616,3559,818,413,1,"The zoomed image shows a person with blue clothing and a white object, confirming a human shape."
+train_JAS_0086,1,0.2743436098098755,False,48,unclear,unknown,,zoom_native,20123,20052,818,714,1,"The white shape and red object in the crop do not show a distinct human shape (head, body, limbs) to confirm a person."
+train_MED_3001,4,0.47462835907936096,True,65,yes,lying,2,zoom_native+redetect_region,12939,12678,1106,490,1,visible person shapes with clothing and posture in the centre area
+train_MED_3001,5,0.16159410774707794,False,111,yes,lying,1,zoom_native+redetect_region,28090,27839,1106,1163,1,"A person in a white shirt is visible at the center, lying on the ground."
+train_MED_3009,3,0.17383399605751038,False,40,unclear,unknown,,zoom_native+redetect_region,7077,6837,1106,194,1,"No visible human shape (head, body, limbs) in the center; only rocks and terrain are apparent."
+train_MED_3030,5,0.37759894132614136,False,56,yes,unknown,1,zoom_native,50231,50173,818,2101,1,the zoom shows a person with blue clothing on rocky terrain
+train_RAK_0077,2,0.15631318092346191,False,43,unclear,unknown,,zoom_native,6032,5975,818,231,1,"The red spot in the zoomed image is not clearly identifiable as a human shape with visible head, body, or limbs."
+train_SB_0004,2,0.22524648904800415,False,55,unclear,unknown,,zoom_native,6345,6288,818,331,1,"The image shows a colorful object but lacks visible human features like head, limbs, or distinct outline to confirm a person."
+train_SB_0009,3,0.42233407497406006,False,53,unclear,unknown,,zoom_native+redetect_region,11745,11515,1106,450,1,"The shape in the yellow box is too indistinct to confirm a human form with visible head, body, or limbs."
+train_SB_0009,4,0.17813454568386078,False,54,unclear,unknown,,zoom_native,24625,24566,818,1125,1,the central shape is ambiguous and cannot be confirmed as a human form
+train_SB_0009,5,0.166278675198555,False,40,unclear,unknown,,zoom_native+redetect_region,8983,8708,1106,326,1,"The blue object is a patch of color without visible human features like head, body, or limbs, so it's unclear if it's a person."
+train_SB_0028,3,0.4729841649532318,False,49,yes,unknown,1,zoom_native+redetect_region,14136,13871,1106,453,1,"the red object has a head and body shape visible from above, indicating a person."
+train_SB_0028,4,0.3727874457836151,False,63,unclear,unknown,,zoom_native,3442,3385,818,120,1,"No visible human shape, only vegetation and terrain features."
+train_SB_0028,5,0.17457127571105957,False,53,unclear,unknown,,zoom_native+redetect_region,11322,11064,1106,361,1,"The dark shape in the zoomed images does not clearly show a human form with head, body, or limbs, making it impossible to confirm if it is a person."
+train_SB_0040,3,0.34548020362854004,False,65,yes,unknown,1,zoom_native+redetect_region,6945,6703,1106,277,1,The yellow shape shows a head and body outline consistent with a person.
+train_TRS_0031,2,0.35120657086372375,False,80,yes,lying,1,zoom_native,5407,5350,818,226,1,"The zoomed image shows a human shape with a head, body, limbs, and visible clothing (dark top, blue shoes) in a lying posture."
+train_VRD_0004,1,0.24063314497470856,False,61,unclear,unknown,,zoom_native,50050,49993,818,2360,1,the black shape is too indistinct to confirm as a person
+train_VRD_0004,2,0.18749961256980896,False,36,unclear,unknown,,zoom_native,7402,7344,818,264,1,"The visible shape is too indistinct to confirm a human form, as it may be a non-human object like a bag or rock."
+train_VRD_0143,2,0.3165871202945709,False,112,unclear,unknown,,zoom_native+redetect_region,5302,5043,1106,194,1,"The light-colored shape in the center is ambiguous and could be a rock or other object, with no distinct human features visible."
+train_VRD_2008,1,0.2955310344696045,False,37,unclear,unknown,,zoom_native,13598,13538,818,383,1,The zoomed image shows indistinct shapes that may resemble a person but lack distinct features to confirm.
+train_VRD_2008,2,0.19318921864032745,False,66,yes,unknown,1,zoom_native+redetect_region,18626,18358,1106,767,1,"the yellow box highlights a shape with red, white, and black colors that resembles a person's clothing from above"
+train_VRD_2025,2,0.24478721618652344,False,42,yes,lying,1,zoom_native,9531,9473,818,419,1,"The zoomed image shows a dark shape with a light-colored section that resembles a person's form, including what appears to be clothing."
+train_VRD_2031,1,0.40569818019866943,False,42,unclear,unknown,,zoom_native,43680,43621,818,2611,1,the shape is partly hidden and lacks distinct human features to confirm it is a person
+train_VRD_2037,1,0.28748953342437744,False,44,unclear,unknown,,zoom_native,7935,7879,818,365,1,"The shape is not clearly identifiable as a person due to lack of visible human outline, head, body, or limbs."
+train_VRD_2037,2,0.1679660975933075,False,55,unclear,unknown,,zoom_native,34047,33992,818,1526,1,The central shape is too small and ambiguous to confirm if it is a person.
+train_VRD_3004,2,0.49351000785827637,False,134,unclear,unknown,,zoom_native+redetect_region,26901,26617,1106,952,1,"The blue shape is visible but lacks distinct evidence of a human head, body, or limbs, making it impossible to confirm if it is a person."
+train_VRD_3015,1,0.24993886053562164,False,41,unclear,unknown,,zoom_native,17530,17472,818,711,1,"The shapes in the center are indistinct and may be rocks or other objects, not clearly a person."
+train_VRD_3015,2,0.24274848401546478,False,52,yes,standing,1,zoom_native,5831,5772,818,211,1,"visible human shape with head, body, and limbs in the zoomed view"
+train_VRD_3089,1,0.1858789175748825,True,67,yes,sitting,1,zoom_native,8576,8519,818,320,1,"The zoomed image shows a blue-clad figure with a visible head and body, confirming a person."
+train_VRD_3108,1,0.3687402606010437,False,73,yes,standing,1,zoom_native,5045,4985,818,184,1,The zoomed image shows a person with a blue shirt and dark pants standing.
+train_VRD_3108,2,0.3214373290538788,False,82,yes,standing,1,zoom_native+redetect_region,5385,5068,1106,205,1,"The figure has a visible head, torso, and limbs with a blue shirt and dark pants, confirming a person's shape."
+train_ZRI_2013,20,0.494403600692749,True,43,yes,unknown,1,zoom_native,5354,5298,818,241,1,"The zoomed image shows a human-shaped figure with a light-colored top and dark hair, confirming a person."
+train_ZRI_2013,21,0.4483621418476105,True,83,yes,sitting,1,zoom_native,3962,3915,818,168,1,The zoomed image clearly shows a person sitting on a bench with visible clothing and posture.
+train_ZRI_2013,22,0.4445044994354248,False,84,yes,lying,1,enhance_contrast+zoom_native,25651,25600,1095,1075,1,the shape shows a person lying on the ground with visible head and body outline
+train_ZRI_2013,23,0.4069570004940033,False,50,yes,sitting,1,enhance_contrast+zoom_native,17847,17795,1095,911,1,A person is visible near the red slide with a seated posture and dark clothing.
+train_ZRI_2013,24,0.4038165211677551,True,61,yes,sitting,1,zoom_native,10443,10395,818,429,1,"A person is sitting on a bench, with a black top visible."
+train_ZRI_2013,25,0.40162521600723267,False,82,yes,lying,1,zoom_native+redetect_region,9662,9405,1106,312,1,"the shape has a head, body, and limbs visible from above, indicating a person"
+train_ZRI_2013,26,0.3991198241710663,False,66,yes,unknown,1,enhance_contrast+zoom_native,13358,13306,1095,437,1,The shape shows a person's head and body with visible clothing details.
+train_ZRI_2013,27,0.39719104766845703,False,54,yes,unknown,1,zoom_native+redetect_region,16738,16506,1106,421,1,"the shape has a head and body, indicating a person."
+train_ZRI_2013,28,0.3941653072834015,False,72,yes,lying,1,zoom_native+redetect_region,4970,4740,1106,415,1,"a person is visible in the yellow box with a head, body, and limbs, wearing white top and dark lower clothing with light shoes"
+train_ZRI_2013,29,0.3774951696395874,False,59,yes,sitting,2,zoom_native,9514,9465,818,308,1,visible human figures with distinct clothing and posture in the zoomed area
+train_ZRI_2013,30,0.375015527009964,False,92,yes,lying,1,zoom_native,6113,6066,818,273,1,A person with red and blue clothing is visible at the bottom of the slide structure.
+train_ZRI_2013,31,0.3581194281578064,False,58,yes,sitting,1,zoom_native,4363,4315,818,171,1,"A human figure with head, body, and limbs is visible sitting on a bench."
+train_ZRI_2013,32,0.35355883836746216,False,86,yes,lying,1,zoom_native+redetect_region,4990,4744,1106,186,1,"The shape shows a head, torso, and limbs in a lying position on the ground."
+train_ZRI_2013,33,0.3292064964771271,False,50,yes,lying,1,zoom_native,4769,4722,818,177,1,The zoomed image shows a person with a green top and pink lower garment lying on the ground.
+train_ZRI_2013,34,0.297024130821228,False,65,yes,lying,1,zoom_native+redetect_region,9963,9713,1106,318,1,"the shape shows a head, body, and limbs consistent with a person lying on the ground."
+train_ZRI_2013,35,0.28772225975990295,False,42,yes,lying,1,zoom_native,16724,16678,818,593,1,"the zoomed image shows a figure with a head and body, indicating a person lying on the ground."
+train_ZRI_2013,36,0.2846997082233429,False,52,yes,lying,1,zoom_native,13280,13233,818,582,1,"the shape has a head, body, and limbs consistent with a person, partially obscured by trees"
+train_ZRI_2013,37,0.26149481534957886,False,95,yes,sitting,1,zoom_native,9773,9727,818,408,1,a person is visible sitting on a bench with another individual in a stroller nearby.
+train_ZRI_2013,38,0.25197723507881165,False,46,yes,sitting,2,zoom_native,29631,29584,818,1077,1,"two people visible in the zoomed center area, one in light blue shirt sitting, another with pink item"
+train_ZRI_2013,39,0.22426731884479523,True,42,yes,sitting,1,zoom_native,11522,11475,818,169,1,The zoomed image shows a person in blue clothing near the bench.
+train_ZRI_2013,40,0.18047508597373962,False,36,yes,unknown,2,zoom_native,27228,27182,818,1275,1,"Top-down view shows multiple human figures with heads and bodies, wearing blue and white clothing near green and red structures."
+train_ZRI_2013,41,0.16788919270038605,False,81,yes,sitting,1,zoom_native+redetect_region,6457,6218,1106,302,1,visible human shape with head and body near the bench.
+train_ZRI_2021,7,0.41483938694000244,True,108,yes,sitting,5,zoom_native,28286,28240,818,1103,1,a group of people is visible with a person in white top and red pants at the center area
+train_ZRI_2021,8,0.41095292568206787,True,96,yes,unknown,1,zoom_native,56580,56533,818,2664,1,"The central figure is a person with a head, body, and limbs, wearing dark clothing and a yellow object, but posture is unclear."
+train_ZRI_2021,9,0.40308624505996704,False,50,unclear,unknown,,zoom_native,15368,0,0,0,0,No second look: the model call failed (InternalServerError).
+train_ZRI_2021,10,0.33519110083580017,False,48,unclear,unknown,,zoom_native,46,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2021,11,0.19890780746936798,False,86,unclear,unknown,,zoom_native,1553,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2038,0,0.3541599214076996,False,54,unclear,unknown,,zoom_native,1555,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2038,1,0.31506600975990295,True,68,unclear,unknown,,zoom_native,1561,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2038,2,0.15961740911006927,False,87,unclear,unknown,,zoom_native,1563,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2043,2,0.31737470626831055,True,49,unclear,unknown,,zoom_native,1557,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2043,3,0.2315061241388321,False,75,unclear,unknown,,enhance_contrast+zoom_native,1567,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2043,4,0.17989018559455872,False,42,unclear,unknown,,enhance_contrast+zoom_native,1559,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2057,2,0.4871727526187897,True,79,unclear,unknown,,zoom_native,1554,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2057,3,0.3637106418609619,False,81,unclear,unknown,,zoom_native+redetect_region,1554,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2057,4,0.3212485909461975,False,54,unclear,unknown,,enhance_contrast+zoom_native,1555,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2057,5,0.23069527745246887,False,77,unclear,unknown,,zoom_native+redetect_region,1563,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,18,0.4877486824989319,True,106,unclear,unknown,,zoom_native+redetect_region,1560,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,19,0.48545026779174805,True,47,unclear,unknown,,enhance_contrast+zoom_native,1563,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,20,0.4723174273967743,False,61,unclear,unknown,,zoom_native,1556,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,21,0.4526175856590271,False,51,unclear,unknown,,enhance_contrast+zoom_native,1557,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,22,0.4467647969722748,True,101,unclear,unknown,,zoom_native,1555,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,23,0.40537482500076294,False,80,unclear,unknown,,zoom_native+redetect_region,1562,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,24,0.3745761811733246,False,54,unclear,unknown,,enhance_contrast+zoom_native,1557,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,25,0.32776370644569397,False,63,unclear,unknown,,zoom_native,1556,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,26,0.24125783145427704,False,90,unclear,unknown,,zoom_native,1555,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,27,0.20711618661880493,False,61,unclear,unknown,,enhance_contrast+zoom_native,1554,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,28,0.17869386076927185,True,84,unclear,unknown,,zoom_native,1552,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,29,0.15705502033233643,False,80,unclear,unknown,,zoom_native,1551,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2061,30,0.15091681480407715,False,59,unclear,unknown,,zoom_native,1557,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,23,0.49039506912231445,True,81,unclear,unknown,,zoom_native,1553,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,24,0.45798033475875854,False,41,unclear,unknown,,enhance_contrast+zoom_native,1567,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,25,0.42967602610588074,False,89,unclear,unknown,,enhance_contrast+zoom_native,1553,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,26,0.3920803964138031,False,67,unclear,unknown,,zoom_native,1565,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,27,0.35700470209121704,False,80,unclear,unknown,,zoom_native,1556,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,28,0.27921831607818604,False,61,unclear,unknown,,zoom_native,1553,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,29,0.2707413136959076,False,56,unclear,unknown,,zoom_native+redetect_region,1569,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,30,0.26519936323165894,False,64,unclear,unknown,,zoom_native,1556,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,31,0.23509690165519714,False,108,unclear,unknown,,zoom_native+redetect_region,1572,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,32,0.21757948398590088,False,74,unclear,unknown,,zoom_native,1553,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,33,0.18187649548053741,False,55,unclear,unknown,,zoom_native,1566,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,34,0.1642477959394455,True,75,unclear,unknown,,zoom_native,1553,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2062,35,0.15606287121772766,False,73,unclear,unknown,,zoom_native,1566,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2071,7,0.4239489436149597,True,75,yes,sitting,3,zoom_native,6428,4865,818,225,1,Three people are visible sitting on a bench with identifiable clothing colors.
+train_ZRI_2071,8,0.39851224422454834,False,126,unclear,unknown,,enhance_contrast+zoom_native,25076,25028,1095,904,1,"The shapes in the center are too indistinct to confirm a human form, as they could be rocks, logs, or other objects."
+train_ZRI_2071,9,0.3257528245449066,True,62,yes,standing,1,enhance_contrast+zoom_native,3158,3110,1095,364,1,"visible human shape with head, body, and limbs"
+train_ZRI_2071,10,0.2716807723045349,False,44,yes,standing,1,zoom_native,3907,3862,818,488,1,"the zoomed image shows a human shape with visible head, body, and limbs, confirming a person."
+train_ZRI_2071,11,0.2126617282629013,False,57,unclear,unknown,,enhance_contrast+zoom_native,10839,10794,1095,543,1,"The images are too low-resolution to confirm a person's shape (head, body, limbs) despite the light-colored area possibly being clothing."
+train_ZRI_2071,12,0.16635945439338684,True,55,yes,sitting,3,zoom_native,23929,23873,818,1128,1,people sitting on a bench
+train_ZRI_2073,0,0.3578100800514221,False,56,yes,standing,1,enhance_contrast+zoom_native,20794,20745,1095,646,1,"a dark shape with a rounded top (head) and vertical structure (body/limb) visible in the center, indicating a person's outline"
+train_ZRI_2073,1,0.2824578285217285,False,120,unclear,unknown,,zoom_native,4246,4198,818,161,1,No visible human shape or outline in the images.
+train_ZRI_2076,0,0.3908142149448395,False,122,yes,sitting,3,zoom_native+redetect_region,8252,8029,1106,282,1,yellow boxes indicate detected human shapes with visible clothing and posture
+train_ZRI_2076,1,0.3503184914588928,True,59,yes,sitting,3,zoom_native,8926,8881,818,310,1,three people are visible sitting together on the path with distinct clothing colors
+train_ZRI_2076,2,0.2996622920036316,True,57,yes,sitting,3,zoom_native,9035,8990,818,365,1,Multiple human figures with visible clothing and sitting posture are present in the center of the crop.
+train_ZRI_2076,3,0.2638591229915619,False,73,unclear,unknown,,zoom_native,4734,4689,818,184,1,No visible human shape; the green and red objects do not form a recognizable person outline.
+train_ZRI_2076,4,0.22127920389175415,True,57,yes,sitting,2,zoom_native,5726,5681,818,264,1,"The zoomed image shows a person in a white top and another in red, confirming human presence."
+train_ZRI_2076,5,0.1870066523551941,False,60,no,unknown,,zoom_native,33065,33021,818,1460,1,"No person is visible at the center of the crop; the central area contains pots, while people are located in the lower left."
+train_ZRI_2076,6,0.17642003297805786,False,87,unclear,unknown,,zoom_native,17513,17462,818,681,1,"The shape near the planter is ambiguous and lacks distinct visible features of a person such as head, body, or limbs."
+train_ZRI_2076,7,0.1742716282606125,False,96,yes,standing,1,zoom_native,50502,50458,818,2130,1,"A person is visible in the zoomed area with a human shape, but clothing details are not clearly distinguishable."
+train_ZRI_2076,8,0.15605132281780243,False,94,unclear,unknown,,enhance_contrast+zoom_native,4760,4714,1095,137,1,The visible shape is too indistinct to confirm a human form.
+train_ZRI_2077,3,0.4042154848575592,True,71,unclear,unknown,,enhance_contrast+zoom_native,22638,22587,1095,872,1,"The images are too low-resolution to confirm a human shape with visible head, body, or limbs."
+train_ZRI_2077,4,0.3685452938079834,False,53,yes,standing,1,zoom_native,13266,13218,818,193,1,a person is standing next to a stroller with a child in the zoomed view
+train_ZRI_2077,5,0.315779447555542,True,55,yes,sitting,3,zoom_native,7147,7101,818,266,1,Visible human shapes with distinct clothing colors sitting together on a bench.
+train_ZRI_2077,6,0.26889145374298096,True,57,yes,sitting,3,zoom_native,30275,30227,818,1447,1,"the zoom shows a person sitting on a bench with visible clothing colors including blue, red, and white"
+train_ZRI_2077,7,0.2372332066297531,True,63,unclear,unknown,,zoom_native,7819,0,0,0,0,No second look: the model call failed (InternalServerError).
+train_ZRI_2079,5,0.4974454641342163,False,63,unclear,unknown,,zoom_native,45,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2079,6,0.41479259729385376,True,69,unclear,unknown,,zoom_native,1557,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2079,7,0.3097946047782898,False,53,unclear,unknown,,zoom_native,1578,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2079,8,0.2726706266403198,False,74,unclear,unknown,,zoom_native+redetect_region,1571,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2079,9,0.2640621066093445,False,54,unclear,unknown,,zoom_native,1555,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2079,10,0.24387229979038239,False,83,unclear,unknown,,zoom_native,1556,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2079,11,0.2353789359331131,False,106,unclear,unknown,,zoom_native,1556,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2079,12,0.1906520575284958,True,78,unclear,unknown,,enhance_contrast+zoom_native,1575,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2079,13,0.17262589931488037,False,65,unclear,unknown,,enhance_contrast+zoom_native,1564,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2079,14,0.15729720890522003,False,48,unclear,unknown,,zoom_native,1561,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2079,15,0.15183882415294647,False,55,unclear,unknown,,zoom_native,1559,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2084,11,0.34518954157829285,True,59,unclear,unknown,,zoom_native,1566,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_2084,12,0.1676403433084488,False,73,unclear,unknown,,zoom_native,1560,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3008,21,0.43603387475013733,False,74,unclear,unknown,,zoom_native+redetect_region,1546,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3008,22,0.4005821943283081,False,79,unclear,unknown,,zoom_native+redetect_region,1546,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3008,23,0.3675484359264374,False,99,unclear,unknown,,zoom_native+redetect_region,1548,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3008,24,0.32738569378852844,True,57,unclear,unknown,,zoom_native,1543,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3008,25,0.30428630113601685,True,52,unclear,unknown,,zoom_native,1547,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3008,26,0.2787981927394867,False,43,unclear,unknown,,zoom_native,1548,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3008,27,0.2674780488014221,False,72,unclear,unknown,,zoom_native,1556,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3008,28,0.18496417999267578,False,65,unclear,unknown,,enhance_contrast+zoom_native,1545,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3014,15,0.392775297164917,True,80,unclear,unknown,,zoom_native,1550,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3014,16,0.33383631706237793,False,39,unclear,unknown,,enhance_contrast+zoom_native,1552,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3014,17,0.3138089179992676,False,91,unclear,unknown,,zoom_native+redetect_region,1549,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3014,18,0.29823240637779236,False,79,unclear,unknown,,zoom_native,1549,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3014,19,0.2933243215084076,False,67,unclear,unknown,,zoom_native+redetect_region,1560,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3014,20,0.24005256593227386,False,108,unclear,unknown,,zoom_native,1579,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3027,17,0.3503457307815552,True,87,unclear,unknown,,zoom_native,1543,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3027,18,0.2757960855960846,True,100,unclear,unknown,,zoom_native,1547,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3027,19,0.22532521188259125,False,115,unclear,unknown,,zoom_native+redetect_region,1566,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3027,20,0.15975241363048553,True,104,unclear,unknown,,zoom_native,1556,0,0,0,0,No second look: the model call failed (CircuitOpen).
+train_ZRI_3027,21,0.1575983613729477,False,119,unclear,unknown,,zoom_native,1573,0,0,0,0,No second look: the model call failed (CircuitOpen).

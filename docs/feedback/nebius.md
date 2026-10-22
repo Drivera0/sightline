@@ -70,7 +70,7 @@ go in; a JSON verdict comes out (person yes/no/unclear, posture, group size, clo
 
 | | Value | Source |
 |---|---|---|
-| Latency per call | p50 1.35 s, p90 1.65 s (max 2.19 s) | `docs/report/OPENCV_REPORT.md:542-543`; max over the 461 calls in `docs/evidence/verifier/*/*.csv` |
+| Latency per call | p50 1.35 s, p90 1.65 s (max 2.19 s) | `docs/report/OPENCV_REPORT.md:542-543`; max over the 461 calls in the three Nemotron VL runs' CSVs in `docs/evidence/verifier/` (the three `*-20261020-*` folders; not the Omni folder, §10) |
 | Tokens per call | about 890 in, 67 out (mean of all 461 calls) | `docs/report/OPENCV_REPORT.md:542` |
 | Cost per call (catalog prices) | about 0.00033, so about 0.33 per 1,000 uncertain detections; all 461 evaluation calls 461 × 0.00033 ≈ 0.15 | `docs/report/OPENCV_REPORT.md:543-544` |
 | JSON schema compliance | 461 / 461 valid on the first try | `docs/report/OPENCV_REPORT.md:544`; `docs/architecture/agent.md:339-340` |
@@ -285,10 +285,30 @@ No Hugging Face token needed.
 inverse-text-normalisation switch would help. **It does not know the ICAO / radio word "niner"**: "four
 niner point three eight one" came out as "49er.381", "one two two point niner four zero" as
 "122.9er40", and "point niner three six" as "point nine or three six". Every coordinate error in our
-WER set was this one word. We normalise it in code (`sightline/radio/protocol.py`, `normalize`), but a
-radio-vocabulary hint or custom vocabulary (word boosting for "niner", "affirmative", "say again") at
-inference time should fix it upstream for every SAR, aviation or marine voice agent. NeMo pins its own
+WER set was this one word. We normalise it in code (`sightline/radio/protocol.py`, `normalize`). NeMo pins its own
 Lightning and torch versions, so it needs its own environment (`docs/feedback/radio.md:175-176`).
+
+**Word boosting (measured 2026-10-22).** NeMo 3.0's phrase boosting fixes "niner" in the model: with 22
+radio phrases at alpha 1, context score 1, raw WER (no "niner" repair) went from 0.080 to 0.025 and
+coordinates from 0 / 2 to 2 / 2 on the same 20 clips, at no time cost (47 vs 48 ms per clip). After our
+normaliser both are 0.025, so we keep it off by default. The hosted model on build.nvidia.com honours
+Riva's word boosting too: with verbatim transcripts, 0.043 → 0.031 raw, 1 / 2 → 2 / 2 coordinates
+(`docs/feedback/radio.md`, "Word boosting"). Finding it locally took about 15 minutes of reading NeMo's
+source, from the first search to the first boosted transcript (the classes are in `context_biasing`, but
+the switch is `decoding.greedy.boosting_tree`, a key missing from Parakeet's shipped config, so setting
+it raises `ConfigAttributeError: Missing key boosting_tree` until it is added with `open_dict`); hosted,
+about 10 minutes (the model page shows no function id or gRPC example outside the browser; we read the id
+from the NVCF function list). What
+the API lacks: (1) **a documented, model-specific weight scale.** Locally, twice the working weight
+inserts "Negative" into "request a new assignment"; Riva's tutorial suggests boost scores of 20–100, and
+on the hosted endpoint 20 rewrote whole phrases into boosted words ("fife POD Sightline East at four
+niner point niner niner …") and 5 already wrote "How much Delta Is Left"; only 1 helped. For a voice
+agent that reads back confirmations, an inserted "Negative" or "Affirmative" is a safety problem, so a
+recommended range per model, or a boost that can only re-rank and never insert, would matter.
+(2) **Boosting in `transcribe()`** (a `boost=[...]` argument) instead of a decoder rebuild, and in
+Parakeet's shipped config. (3) **Hosted default text normalisation** writes "four niner.374" and "122
+point niner": mixed forms no parser expects (0 / 2 coordinates, boosting or not); `verbatim_transcripts`
+avoids it, but it is not mentioned on the model page.
 
 **Onboarding.** `uv pip install "nemo_toolkit[asr,tts]"`, then our spike script runs in about 2 minutes
 and downloads about 3 GB once (`docs/feedback/radio.md:172`). Start of the spike → first transcript and first spoken reply: about 75 minutes (2026-10-20
@@ -329,3 +349,52 @@ follow-up; nothing to change. One ask: a note on the credits page saying which s
 credit covers, so a first job is not planned in a region with no quota (§5).
 
 **Would we use it again?** Yes.
+
+## 10. NVIDIA hosted API (build.nvidia.com): a second verifier
+
+**What we used it for.** An evaluation-only test of a second vision model for the second look (§2), on
+`https://integrate.api.nvidia.com/v1` with a free trial key: the same 170 val near-miss crops (40 real
+people, 130 false alarms), the same prompt and JSON schema, `--workers 1 --min-interval 1.6`. Nothing at
+run time uses this endpoint. Write-up: `docs/report/COSMOS_VERIFIER.md`; run files in
+`docs/evidence/verifier/val-verify-v2-omni-20261022-160937/`.
+
+**Measured** (2026-10-22):
+
+| | Value |
+|---|---|
+| Cosmos Reason (`nvidia/cosmos-reason2-8b`) | listed by `GET /v1/models`, but every chat completion returns HTTP 404 "Function … not found for account" |
+| `nvidia/cosmos3-nano-reasoner`, `nvidia/cosmos-reason1-7b`, `nvidia/vila` | HTTP 404 |
+| `nvidia/nemotron-nano-12b-v2-vl` | HTTP 410, end of life 2026-08-26 |
+| Nemotron 3 Nano Omni (`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`), the model we ran instead | 98 of 170 calls answered; 2 HTTP 500s, after which our client's circuit breaker skipped 70 crops |
+| Omni on the 98 answered crops, against Nemotron-3.5-Super-VL on the same crops | people called `yes` 20/21 (VL 16/21); false alarms called `yes` 43/77 (VL 25/77), `no` 2/77 (VL 12/77); `yes` precision 0.317 (VL 0.390) |
+| Omni model time and tokens per verdict (answered calls, reasoning on) | p50 10.8 s, p90 33.0 s; about 930 in, 650 out (VL: 1.3 s, 1.7 s; 920 in, 68 out) |
+
+**What worked.** The same `openai` client and the same `verify()` call ran unchanged against a second
+endpoint with only `--base-url` and `--model`; images as data URIs and the strict JSON schema were accepted,
+and every answered reply was valid JSON on the first try. Omni, in reasoning mode, called `yes` on 4 of the
+5 answered people VL had left `unclear`.
+
+**What needs work.**
+- **The catalogue and the live service disagree.** `GET /v1/models` lists `nvidia/cosmos-reason2-8b`,
+  and the build.nvidia.com page for it shows Cosmos3 Nano Reasoner, yet the id returns 404 for a trial
+  account and no Cosmos3 id answers. A client that checks the models list at start-up, as we suggest
+  for Token Factory (§1), would still pick a model that cannot be called.
+- **No deprecation signal.** Nothing in `/v1/models` marks a model as retired or not available to the
+  account; we found out per id, by calling it. The 410 for `nemotron-nano-12b-v2-vl` named the end-of-life
+  date, which is the right answer; a 404 "Function … not found for account" for a listed model is not.
+  A `deprecated` / `end_of_life` field, or dropping retired ids from the listing, would fix it.
+- **The trial rate limit is not stated where you call the API.** We kept to 37.5 requests a minute
+  because 40 a minute is the limit trial users report on NVIDIA's developer forum, where a moderator says
+  it depends on the model and current load
+  (https://forums.developer.nvidia.com/t/request-for-nvidia-build-api-rate-limit-increase-40-rpm-200-rpm/378450,
+  read 2026-10-22); we did not find the number in the API reference or the terms. A rate-limit header on
+  each reply would let a client pace itself.
+- **Trial reliability.** Two HTTP 500s in 98 calls at 37.5 requests a minute, each lasting long enough that
+  three retries (1, 2, 4 s) failed. Fine for an evaluation, not for an inline check during a search.
+
+**Onboarding.** A free key and the OpenAI-compatible base URL were all our existing client needed. Most
+of the time went into finding a vision model that still answers.
+
+**Would we build with it again?** For evaluation, yes: it is the easiest way to try an NVIDIA model that
+is not on Token Factory. Cosmos is still the second verifier we want, once an id answers;
+Nemotron-3.5-Super-VL on Token Factory stays as the second look.
