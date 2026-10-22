@@ -40,7 +40,7 @@ def test_the_recall_shot_has_a_label_and_is_in_the_nebius_cut() -> None:
     label = cfg["labels"]["recall"]
     assert label["number"] and "clear" not in label["text"].lower()
     segs = [s if isinstance(s, str) else s.get("shot") for s in cfg["cuts"]["nebius"]["segments"]]
-    assert "recall" in segs and segs.index("recall") > segs.index("live_radio")
+    assert "recall" in segs and segs.index("live_link") < segs.index("recall") < segs.index("radio")
 
 
 def test_the_override_route_the_guard_looks_for_is_the_api_s() -> None:

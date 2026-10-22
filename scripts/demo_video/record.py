@@ -1,24 +1,26 @@
 """Record the demo flow as one 1920x1080 screen recording, shot by shot (WIN_RESEARCH §8).
 
-    uv run --extra video python scripts/demo_video/record.py                       # demo-only flow
+    uv run --extra video python scripts/demo_video/record.py                       # the demo story
+    uv run --extra video python scripts/demo_video/record.py --live --serve-local  # + the simulated fleet live
     uv run --extra video python scripts/demo_video/record.py --live --api http://127.0.0.1:8000
 
 Builds the site (``VITE_CACHE_DIR=demo``), serves it with ``vite preview`` on port 5202 (started and
-stopped by PID by this script), drives Chromium through the guided demo and the command console with
-eased mouse moves and the keyboard, and writes into the run folder:
+stopped by PID by this script), drives Chromium through the one console (PR #171): the landing at t0
+with the pitch bar, the mission-time story's coach marks t1-t5, the Trace, the Conditions panel, the
+simulated fleet, the radio desk and the Debrief, with eased mouse moves and clicks, and writes into the
+run folder:
 
 - ``master.webm``: the recording (Playwright ``recordVideo``, 1920x1080);
 - ``shots.json``: every shot's id, target duration and actual start/end in the recording, and whether
-  it ran, was skipped (a route or element that isn't there yet, the API down) or failed;
-- ``snaps/<shot>.png``: the last frame of each shot, to check a run without watching it.
+  it ran, was skipped (an element that isn't there, the API down) or failed;
+- ``snaps/<NN>_<shot>.png``: the last frame of each shot, to check a run without watching it.
 
 Deterministic where the app allows: a fixed viewport and scale, a fixed time zone and locale, motion
-allowed (``prefers-reduced-motion: no-preference``), and the page clock started at the demo mission's
-own ``now`` (its fixture), so the header clock, daylight left and ages read the same on every run.
+allowed (``prefers-reduced-motion: no-preference``), the page clock started at the demo mission's own
+``now`` (its fixture), and 400 ms of settle before each shot.
 
-Shots for parts other workers are still adding (the Trace tab at ``#m/demo/trace``, a drone re-task on
-the console) look for their route or element first and are skipped, with the reason in shots.json,
-when it isn't there, so the same script works before and after those merge.
+``--live`` adds the moments that need a mission API (the simulated fleet's link controls and the
+gusts → no-fly → recall); without an API they are skipped, with the reason in shots.json.
 """
 
 from __future__ import annotations
@@ -33,7 +35,6 @@ import signal
 import socket
 import subprocess
 import sys
-import threading
 import time
 import urllib.request
 from collections.abc import Callable
@@ -229,11 +230,6 @@ def local_file(rel: str) -> Path:
     except (OSError, subprocess.CalledProcessError):
         pass
     return here
-
-
-def val_photos() -> Path:
-    """HERIDAL validation photos (never the test split)."""
-    return local_file("data/heridal/yolo_full/val/images")
 
 
 # --- reading the shots back off the video ----------------------------------------------------------
@@ -449,6 +445,7 @@ class Director:
             s.status, s.note, s.end_s = "skipped", skip, s.start_s
             print(f"  skip {sid}: {skip}", flush=True)
             return s
+        self.pause(0.4)  # settle: the last shot's motion and any re-render finish off the clock
         self.color = SYNC_COLORS[self.marked % 2]
         self.sync(self.color)
         s.start_s = self.now()
@@ -486,410 +483,265 @@ class Director:
         return s
 
 
-# --- the demo-only shots ---------------------------------------------------------------------------
+# --- the demo shots: the story on the one console --------------------------------------------------
 
 
 def demo_shots(d: Director) -> None:
-
+    """The demo mission's story (PR #171): the console at t0 with the pitch bar, then the mission-time
+    scrubber's coach marks t1-t5, with the Trace, the Conditions panel, the simulated fleet and the radio
+    desk's recorded briefing on the way. No API needed: the demo mission is fixtures and the demo cache."""
     p = d.page
 
-    def step_bar(label: str):
-        return p.get_by_role("navigation", name="Demo steps").get_by_role(
-            "button", name=re.compile(label)
-        )
+    def mark():
+        """The coach mark's card (the story is on)."""
+        return p.get_by_role("dialog", name=re.compile(r"^The story"))
 
-    def go_step(label: str, key: str, *ctas):
-        """The step's own primary button if there is one, else the step bar, else its number key."""
-        b = d.first(*ctas, timeout=2.5) if ctas else None
+    def mark_next():
+        b = d.first(mark().get_by_role("button", name=re.compile(r"^(Next|Done)$")), timeout=4)
         if b is None:
-            b = d.first(step_bar(label), timeout=1.5)
-        if b is not None:
-            d.click(b)
-        else:
-            d.key(key)
-
-    def front():
-        d.goto(d.base + "/")
-        d.pause(2.0)
-        btn = d.first(
-            p.get_by_role("button", name=re.compile("Watch a demo search", re.IGNORECASE)),
-            p.get_by_role("link", name=re.compile("Watch a demo", re.IGNORECASE)),
-            timeout=8,
-        )
-        if btn is None:
-            raise RuntimeError("no 'Watch a demo search' on the front door")
-        d.to(btn, 1.2)
-        d.pause(1.2)
-        d.click(btn)
-
-    def survey():
-        p.wait_for_load_state("networkidle")
-        d.pause(1.5)
-        # look over the survey: the map and its photos
-        d.move(SIZE["width"] * 0.42, SIZE["height"] * 0.48, 1.4)
-        d.pause(2.5)
-        d.move(SIZE["width"] * 0.60, SIZE["height"] * 0.40, 1.4)
-        d.pause(2.0)
-
-    def rank():
-        go_step("Rank", "2", p.get_by_role("button", name=re.compile(r"^Start: rank")))
-        # the scan plays; the CTA appears when it's done
-        d.pause(1.0)
-        d.move(SIZE["width"] * 0.5, SIZE["height"] * 0.55, 1.2)
-        d.first(p.get_by_role("button", name=re.compile(r"Start review")), timeout=12)
-
-    def review():
-        go_step("Review", "3", p.get_by_role("button", name=re.compile(r"Start review")))
-        d.pause(2.5)
-        for k in ("p", "n", "p"):  # three candidates, answered with the keyboard
-            d.key(k, 2.6)
-        d.pause(1.0)
-
-    def search():
-        go_step(
-            "Search next", "4", p.get_by_role("button", name=re.compile(r"See where to search"))
-        )
-        d.pause(2.0)
-        play = d.first(
-            p.locator('[data-testid="mount-heat"] button[aria-label="Play"]'),
-            p.get_by_role("button", name="Play"),
-            timeout=3,
-        )
-        if play is not None:
-            try:
-                d.click(play)
-            except Exception as e:  # noqa: BLE001 - the replay is a nice-to-have; the map is the shot
-                print(f"    (search: no replay: {type(e).__name__})", flush=True)
-        d.pause(3.0)
-        d.move(SIZE["width"] * 0.45, SIZE["height"] * 0.5, 1.5)
-
-    def operate():
-        go_step("Command", "5", p.get_by_role("button", name=re.compile(r"Run the search")))
-        d.pause(2.0)
-        d.move(SIZE["width"] * 0.5, SIZE["height"] * 0.6, 1.2)
-
-    def console():
-        d.hash("#m/demo/command", 2.5)
-        card = d.first(
-            p.locator('[aria-label="Task board"] [aria-label^="Sector "]'),
-            p.locator('[aria-label^="Sector "]'),
-            timeout=8,
-        )
-        if card is None:
-            raise RuntimeError("no task cards on the console")
-        d.to(card, 1.2)
-        d.pause(2.0)
-        cards = p.locator('[aria-label="Task board"] [aria-label^="Sector "]')
-        if cards.count() > 2:
-            d.to(cards.nth(2), 1.0)
-            d.pause(1.5)
-        team = d.first(p.locator('[aria-label="Teams"] button'), timeout=1)
-        if team is not None:
-            d.click(team)  # selecting a team flies the map to it
-            d.pause(2.0)
-
-    def approvals():
-        tab = d.first(
-            p.get_by_role("navigation", name="Mission views").get_by_role(
-                "button", name=re.compile(r"^Approvals")
-            ),
-            timeout=3,
-        )
-        if tab is not None:
-            d.click(tab)
-            d.pause(1.5)
-        card = d.first(p.locator('[aria-label^="Proposal "]'), timeout=5)
-        if card is None:
-            raise RuntimeError("no pending proposal in the inbox")
-        reason = d.first(card.locator("button[aria-expanded]"), timeout=1)
-        if reason is not None:
-            d.click(reason)
-            d.pause(2.0)
-        approve = card.get_by_role("button", name=re.compile(r"^Approve"))
-        d.to(approve, 0.9)
-        d.pause(1.0)
-        d.click(approve)
-        d.pause(1.5)
-        decided = d.first(p.locator("summary", has_text=re.compile(r"^Decided")), timeout=2)
-        if decided is not None:
-            d.click(decided)
-            d.pause(2.5)
-
-    def clue():
-        tab = d.first(
-            p.get_by_role("navigation", name="Mission views").get_by_role(
-                "button", name=re.compile(r"^Command")
-            ),
-            timeout=2,
-        )
-        if tab is not None and tab.get_attribute("aria-pressed") != "true":
-            d.click(tab)
-            d.pause(2.0)
-        add = d.first(p.get_by_role("button", name=re.compile(r"Add clue")), timeout=5)
-        if add is None:
-            raise RuntimeError("no 'Add clue' button")
-        d.click(add)
-        form = p.get_by_role("form", name="Add clue")
-        d.type(form.get_by_label("What"), "blue backpack by the creek")
-        d.pause(0.6)
-        form.get_by_label("Where").select_option("latlon")
-        d.pause(0.8)
-        pick = d.first(form.get_by_role("button", name=re.compile("Pick on map")), timeout=2)
-        mapfig = d.first(
-            p.locator("figure[aria-label='Live map'] canvas"),
-            p.locator("figure[aria-label='Live map']"),
-            timeout=3,
-        )
-        if pick is not None and mapfig is not None:
-            d.click(pick)
-            d.pause(0.8)
-            d.to(mapfig, 1.4, 0.42, 0.58)
-            d.pause(0.4)
-            d.page.mouse.down()
-            d.pause(0.08)
-            d.page.mouse.up()
-            d.pause(1.0)
-        lat = form.get_by_label("Latitude")
-        if not lat.input_value():  # the pick didn't land: type a point inside the demo area
-            raise RuntimeError("the map pick gave no position")
-        form.get_by_label("Reliability").select_option("high")
-        d.pause(0.6)
-        d.click(form.get_by_role("button", name=re.compile(r"^Add$")))
-        d.pause(3.0)
-        d.move(SIZE["width"] * 0.5, SIZE["height"] * 0.45, 1.2)
-
-    def retask_cards():
-        return p.locator(
-            '[aria-label^="Proposal "]', has_text=re.compile(r"re-?task", re.IGNORECASE)
-        )
-
-    def fleet_on_map() -> bool:
-        legend = p.locator('[aria-label="Map legend"]', has_text=re.compile(r"Re-tasked"))
-        return (
-            legend.count() > 0
-            and p.get_by_text(re.compile(r"Drones? .{0,3}\(simulated\)")).count() > 0
-        )
-
-    def fleet_guard() -> str | None:
-        # a pending re-task card: approve it on camera; else the demo fixture's re-task, already
-        # approved in its timeline (Drone 1 sent to the water-bottle clue's sector): show it on the map
-        if retask_cards().count() == 0 and not fleet_on_map():
-            return "no drone re-task on the demo console (no pending card, no simulated fleet on the map)"
-        return None
-
-    def fleet():
-        card = d.first(retask_cards(), timeout=1)
-        if card is not None:
-            d.to(card, 1.0)
-            d.pause(2.5)
-            d.click(card.get_by_role("button", name=re.compile(r"^Approve")))
-            d.pause(4.0)  # the drone turns on the map
-            return
-        mapfig = p.locator("figure[aria-label='Live map']").first
-        # the drones fly south of the console's first view, under the map legend: out a step, then
-        # drag the map up so the three drones and the re-tasked route are in the open
-        d.to(mapfig, 1.2, 0.6, 0.6)
-        d.pause(0.6)
-        p.mouse.wheel(0, 480)
-        d.pause(1.5)
-        d.page.mouse.down()
-        d.move(d.x, d.y - 260, 1.4)
-        d.page.mouse.up()
-        d.pause(2.0)
-        key = d.first(
-            p.locator('[aria-label="Map legend"] li', has_text=re.compile(r"Re-tasked")), timeout=2
-        )
-        if key is not None:
-            d.to(key, 1.2)
-            d.pause(2.0)
-        d.to(mapfig, 1.2, 0.55, 0.5)
-        d.pause(2.0)
-
-    def trace_guard() -> str | None:
-        d.hash("#m/demo/command", 0.8)
-        views = p.get_by_role("navigation", name="Mission views")
-        if views.get_by_role("button", name=re.compile(r"^Trace")).count() == 0:
-            return "no Trace tab on the demo mission yet (#m/demo/trace not merged)"
-        return None
-
-    def trace():
-        d.hash("#m/demo/trace", 2.0)
-        rows = d.first(p.get_by_role("row"), p.locator("li"), timeout=3)
-        if rows is not None:
-            d.to(rows, 1.2)
-        d.pause(2.0)
-        p.mouse.wheel(0, 500)
-        d.pause(3.0)
-
-    def feed():
-        tab = d.first(
-            p.get_by_role("navigation", name="Mission views").get_by_role(
-                "button", name=re.compile(r"^Feed")
-            ),
-            timeout=2,
-        )
-        if tab is not None:
-            d.click(tab)
-        else:
-            d.hash("#m/demo/feed")
-        d.pause(2.5)
-        p.mouse.wheel(0, 400)
-        d.pause(2.5)
-
-    # targets: the §8 OpenCV outline's lengths, scaled to what each screen has to show
-    d.shot("front", 7, front)
-    d.shot("survey", 9, survey)
-    d.shot("rank", 12, rank)
-    d.shot("review", 14, review)
-    d.shot("search", 12, search)
-    d.shot("operate", 7, operate)
-    d.shot("console", 12, console)
-    d.shot("approvals", 14, approvals)
-    d.shot("clue", 18, clue)
-    d.shot("fleet", 12, fleet, skip=fleet_guard())
-    d.shot("trace", 14, trace, skip=trace_guard())
-    d.shot("feed", 8, feed)
-
-
-# --- the live shots --------------------------------------------------------------------------------
-
-
-class Replay:
-    """`python -m sightline.client replay` in a subprocess: real-GPS val photos at drone pace."""
-
-    def __init__(self, api: str, mission: str | None, limit: int, pace: float, out: Path):
-        self.mission = mission
-        self.lines: list[str] = []
-        cmd = [sys.executable, "-m", "sightline.client", "replay", "--api", api, "--pace", str(pace),
-               "--limit", str(limit), "--photos", str(val_photos())]  # fmt: skip
-        if mission:
-            cmd += ["--mission", mission]
-        self.log = open(out / "replay.log", "w")  # noqa: SIM115 - closed in stop()
-        self.proc = subprocess.Popen(
-            cmd,
-            cwd=ROOT,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            start_new_session=True,
-        )
-        print(f"replay: pid {self.proc.pid}, {limit} photos every {pace} s", flush=True)
-        self.ready = threading.Event()
-        threading.Thread(target=self._read, daemon=True).start()
-
-    def _read(self) -> None:
-        assert self.proc.stdout is not None
-        for line in self.proc.stdout:
-            self.log.write(line)
-            self.log.flush()
-            self.lines.append(line.rstrip())
-            m = re.match(r"mission ([0-9a-f]{8}):", line)
-            if m and not self.mission:
-                self.mission = m.group(1)
-            if self.mission:
-                self.ready.set()
-        self.ready.set()
-
-    def stop(self) -> None:
-        stop(self.proc, "replay")
-        self.log.close()
-
-
-def live_shots(
-    d: Director, api: str, mission: str | None, limit: int, pace: float
-) -> Replay | None:
-    p = d.page
-    down = api_up(api)
-    ids = [
-        ("live_upload", 12),
-        ("live_photos", 20),
-        ("live_review", 16),
-        ("live_console", 14),
-        ("live_radio", 10),
-    ]
-    if down:
-        for sid, t in ids:
-            d.shot(sid, t, lambda: None, mode="live", skip=f"API down: {down}")
-        return None
-    replay = Replay(api, mission, limit, pace, d.out)
-    replay.ready.wait(30)
-    mid = replay.mission
-    if not mid:
-        for sid, t in ids:
-            d.shot(
-                sid,
-                t,
-                lambda: None,
-                mode="live",
-                skip=f"replay gave no mission id: {replay.lines[-3:]}",
-            )
-        return replay
+            raise RuntimeError("no Next on the coach mark")
+        d.click(b)
 
     def views(name: str):
-        return p.get_by_role("navigation", name="Mission views").get_by_role(
+        return p.get_by_role("navigation", name="Mission views").first.get_by_role(
             "button", name=re.compile(rf"^{name}")
         )
 
-    def upload():
-        d.hash(f"#m/{mid}/photos", 2.0)
-        code = d.first(p.locator("code"), timeout=5)
-        if code is not None:
-            d.to(code, 1.2, 0.3)
-            d.pause(2.5)
-            copy = d.first(p.get_by_role("button", name="Copy"), timeout=1)
-            if copy is not None:
-                d.click(copy)
+    def mapfig():
+        return p.locator("figure[aria-label='Live map']").first
+
+    def marker(prefix: str):
+        return p.locator(f"figure[aria-label='Live map'] [aria-label^='{prefix}']").first
+
+    def card(cid: str):
+        return p.locator(f'[data-candidate="{cid}"]').first
+
+    def call():
+        """t0: the landing, the pitch bar over the console at the call."""
+        d.goto(d.base + "/")
+        pitch = d.first(
+            p.get_by_role("region", name="Sightline"),
+            p.locator('section[aria-label="Sightline"]'),
+            timeout=10,
+        )
+        if pitch is None:
+            raise RuntimeError("no pitch bar on the landing")
+        d.pause(1.2)
+        d.to(pitch.locator("p").first, 1.2, 0.25, 0.5)
+        d.pause(2.0)
+        d.to(mapfig(), 1.2, 0.5, 0.5)  # the last known point
+        d.pause(1.6)
+        follow = pitch.get_by_role("button", name=re.compile(r"^Follow the search"))
+        d.to(follow, 1.0)
+        d.pause(1.0)
+        d.click(follow, settle=0.2)
 
     def photos():
-        d.move(SIZE["width"] * 0.3, SIZE["height"] * 0.25, 1.2)  # the counters tick as photos land
-        d.pause(6.0)
-        d.move(SIZE["width"] * 0.55, SIZE["height"] * 0.25, 1.2)
-
-    def review():
-        go = p.get_by_role("button", name="Go to review")
-        b = (
-            d.first(go, timeout=3)
-            if go.count() and go.first.is_enabled()
-            else d.first(views("Review"), timeout=3)
-        )
-        if b is not None:
-            d.click(b)
-        else:
-            d.hash(f"#m/{mid}/review")
+        """t1: the clock runs over the survey flight; photos land and the map fills."""
+        d.move(SIZE["width"] * 0.48, SIZE["height"] * 0.5, 1.2)
         d.pause(2.5)
-        for _ in range(3):
-            d.key("j", 2.5)
-
-    def console():
-        b = d.first(views("Command"), timeout=2)
-        if b is not None:
-            d.click(b)
-        else:
-            d.hash(f"#m/{mid}/command")
+        counter = d.first(p.get_by_text(re.compile(r"of \d+ placed")), timeout=3)
+        if counter is not None:
+            d.to(counter, 1.0)
+        # the run into t1 takes 6 s; the tiles turn into pictures when it stops
+        d.first(mark().get_by_role("button", name="Next"), timeout=8)
+        d.pause(1.0)
+        tiles = p.locator('[aria-label="Newest photos"] li')
+        if tiles.count() > 4:
+            d.to(tiles.nth(4), 1.0)
         d.pause(2.0)
-        m = d.first(p.locator("figure[aria-label='Live map']"), timeout=4)
-        if m is not None:
-            d.to(m, 1.4, 0.5, 0.5)
-            p.mouse.wheel(0, -300)
+
+    def confirm():
+        """t2: the three cards; the 0.18 card's second look opened; Person marked, the pin lands."""
+        mark_next()
+        d.pause(1.5)
+        rec = card("recorded-f0001-d01")
+        if rec.count() == 0:
+            raise RuntimeError("no recorded 0.18 card in the review rail")
+        d.to(rec.locator("img").first, 1.0)
+        d.pause(1.2)
+        d.to(rec.get_by_label("Models"), 0.9)  # OpenCV 5 zoom native · Nemotron-3.5-Super-VL
+        d.pause(2.0)
+        d.click(rec.get_by_role("button", name=re.compile(r"Show the second look")))
+        d.pause(2.5)
+        d.click(rec.get_by_role("button", name="Person", exact=True))
+        d.pause(1.0)
+        first = card("f0336-d01")
+        d.click(first.get_by_role("button", name="Person", exact=True))
+        d.pause(0.8)
+        row = d.first(
+            p.get_by_text(re.compile(r"person confirmed by the image reviewer in f0336")), timeout=3
+        )
+        if row is not None:  # the sighting in the clue log, then its pin on the map
+            d.to(row, 1.0, 0.2)
+            d.pause(1.0)
+        d.to(mapfig(), 1.1, 0.51, 0.53)
+        d.pause(1.5)
+
+    def trace():
+        """The Trace on that chain: tool_call → model_call → verdict → proposal → decision."""
+        d.click(views("Trace"))
+        d.pause(1.5)
+        chain = d.first(p.locator('article[aria-label^="Chain f0001-d01"]'), timeout=5)
+        if chain is None:
+            raise RuntimeError("no f0001-d01 chain in the trace")
+        d.to(chain, 1.0, 0.1, 0.05)
+        d.pause(1.0)
+        steps = chain.locator("li[aria-label]")
+        for i in range(steps.count()):
+            d.to(steps.nth(i), 0.6, 0.25, 0.5)
+            d.pause(0.9)
+        model = d.first(chain.locator("li[aria-label^='Model'] button[aria-expanded]"), timeout=1)
+        if model is not None:
+            d.click(model)
+            d.pause(2.5)
+
+    def next_():
+        """t3: back on the story; the agent's proposal, approved by the visitor."""
+        d.hash("#m/demo?t=3", 1.8)
+        prop = d.first(p.locator('[data-proposal="p001"]'), timeout=5)
+        if prop is None:
+            raise RuntimeError("no proposal p001 at t3")
+        d.to(prop, 1.0, 0.4, 0.45)  # the reason and the briefing
+        d.pause(2.5)
+        approve = prop.get_by_role("button", name=re.compile(r"^Approve"))
+        d.to(approve, 0.9)
+        d.pause(0.8)
+        d.click(approve, settle=0.6)
+
+    def run():
+        """t4: the clock runs on (3.5 s): teams out, the drones fly their legs, B4 searched at POD 60 %."""
+        d.move(SIZE["width"] * 0.55, SIZE["height"] * 0.48, 1.2)
+        d.pause(3.0)
+        d.first(mark().get_by_role("button", name="Next"), timeout=6)
+        b4 = d.first(
+            p.locator(
+                'aside[aria-label="Sectors and teams"] li, aside[aria-label="Sectors and teams"] button',
+                has_text=re.compile(r"Bravo Four"),
+            ),
+            timeout=2,
+        )
+        if b4 is not None:
+            d.to(b4, 1.0)
+            d.pause(2.5)
+        drone = d.first(marker("Drone 1"), timeout=2)
+        if drone is not None:
+            d.to(drone, 1.1)
+            d.pause(1.5)
+
+    def conditions():
+        """The Conditions panel (W) with its sources: the story steps aside (Esc), the console stays at t4."""
+        d.key("Escape", 0.8)
+        btn = d.first(p.get_by_role("button", name=re.compile(r"Sources and quotes")), timeout=3)
+        if btn is None:
+            raise RuntimeError("no Sources and quotes button (no conditions on the demo)")
+        d.click(btn)
+        d.pause(1.5)
+        panel = p.get_by_role("region", name="Conditions").first
+        for label in ("Wind", "Gusts"):
+            f = d.first(panel.locator(f'[aria-label="{label}"]'), timeout=1)
+            if f is not None:
+                d.to(f, 0.9, 0.3)
+                d.pause(1.6)
+        pages = d.first(
+            panel.locator("summary", has_text=re.compile(r"Searches and pages read")), timeout=1
+        )
+        if pages is not None:
+            d.click(pages)
+            d.pause(2.5)
+        d.key("w", 0.6)  # closed again
+
+    def fleet():
+        """The simulated fleet at t4: D2's link lost, D3 degraded, Team Two relayed through D1."""
+        m = mapfig()
+        d.to(m, 1.0, 0.63, 0.55)
+        p.mouse.wheel(0, -320)  # in on the drones east of the LKP
+        d.pause(1.6)
+        for who in ("Drone 2", "Drone 3", "Team Two", "Drone 1"):
+            mk = d.first(marker(who), timeout=1)
+            if mk is not None:
+                d.to(mk, 0.9)
+                d.pause(1.5)
+        d.to(m, 0.8, 0.63, 0.55)
+        p.mouse.wheel(0, 300)  # back out to the whole area
+        d.pause(0.8)
 
     def radio():
-        b = d.first(views("Radio"), timeout=2)
-        if b is not None:
-            d.click(b)
-        else:
-            d.hash(f"#m/{mid}/radio")
-        d.pause(3.0)
+        """The radio desk on the demo: the one briefing Sightline read out (NVIDIA Magpie TTS, recorded)."""
+        toggle = d.first(p.get_by_role("button", name=re.compile(r"^.?\s*Radio desk")), timeout=3)
+        if toggle is None:
+            raise RuntimeError("no Radio desk toggle in the rail")
+        if toggle.get_attribute("aria-expanded") != "true":
+            d.click(toggle)
+        d.pause(1.2)
+        play = d.first(
+            p.get_by_role("button", name=re.compile(r"Play the radio briefing")), timeout=2
+        )
+        if play is not None:
+            d.click(play)
+        d.pause(2.0)
+        clip = d.first(p.get_by_role("group", name="Sightline on the radio"), timeout=1)
+        words = clip.locator("summary").first if clip is not None else None
+        if words is not None and words.count():
+            d.click(words)  # the words it read out
+            d.pause(1.0)
+            d.to(clip, 0.8, 0.6, 0.8)
+        d.pause(2.0)
 
-    shot = d.shot("live_upload", 12, upload, mode="live")
-    shot.extra["mission"] = mid
-    d.shot("live_photos", 20, photos, mode="live")
-    d.shot("live_review", 16, review, mode="live")
-    d.shot("live_console", 14, console, mode="live")
-    d.shot("live_radio", 10, radio, mode="live")
-    return replay
+    def results():
+        """t5: the debrief beside the map; the three numbers."""
+        d.hash("#m/demo?t=5", 2.0)
+        if (
+            d.first(
+                p.get_by_role("region", name="Debrief"),
+                p.locator('[data-tour="debrief"]'),
+                timeout=5,
+            )
+            is None
+        ):
+            raise RuntimeError("no Debrief at t5")
+        d.pause(1.0)
+        for name in ("People found", "Time per full photo", "Ground to search"):
+            n = d.first(p.get_by_text(re.compile(rf"^{name}$", re.IGNORECASE)), timeout=1)
+            if n is not None:
+                d.to(n, 0.9, 0.5, 4.0)  # the big number under the label
+                d.pause(1.6)
+
+    def breaks():
+        """The three "what breaks first" lines (docs/submission/WHAT_BREAKS_FIRST.md), on screen >= 6 s."""
+        lines = p.locator('ol[aria-label="What breaks first"]').first
+        if lines.count() == 0:
+            raise RuntimeError("no 'What breaks first' in the debrief")
+        rail = p.locator('[data-tour="debrief"]').first
+        d.to(rail, 0.8, 0.5, 0.6)
+        for _ in range(30):  # scroll the rail by hand until the lines sit in the upper half
+            box = lines.bounding_box()
+            if box and box["y"] < SIZE["height"] * 0.42:
+                break
+            p.mouse.wheel(0, 260)
+            d.pause(0.18)
+        d.pause(0.8)
+        items = lines.locator("li")
+        for i in range(items.count()):
+            d.to(items.nth(i), 1.0, 0.35, 0.5)
+            d.pause(2.2)
+        d.pause(1.5)
+
+    # targets: the §8 outline's beats, scaled to what each screen has to show
+    d.shot("call", 10, call)
+    d.shot("photos", 13, photos)
+    d.shot("confirm", 20, confirm)
+    d.shot("trace", 17, trace)
+    d.shot("next", 9, next_)
+    d.shot("run", 12, run)
+    d.shot("conditions", 13, conditions)
+    d.shot("fleet", 15, fleet)
+    d.shot("radio", 11, radio)
+    d.shot("results", 10, results)
+    d.shot("breaks", 20, breaks)
 
 
-# --- the recall shot (the Tavily moment) -------------------------------------------------------------
+# --- the live shots: the simulated fleet on a local or AWS API ---------------------------------------
 
 OVERRIDE_PATH = "/missions/{mission_id}/conditions/override"
 
@@ -910,17 +762,29 @@ def recall_guard(api: str, openapi: Callable[[str], dict] | None = None) -> str 
     return None
 
 
-def recall_shot(d: Director, api: str) -> None:
-    """Gusts → no-fly → recall on a fresh live mission with the simulated fleet in the air
-    (``scripts/recall_demo.py``'s steps; set up before the shot, off camera): the console's Fleet
-    controls set gusts of 50 km/h as a demo override, the agent's recall cards arrive quoting it, a
-    person approves them, and the drones turn home on the map."""
+LIVE_SHOTS = (("live_link", 18), ("recall", 32))
+
+
+def live_shots(d: Director, api: str, mission: str | None) -> None:
+    """A fresh mission with the creek scenario's three simulated drones in the air (``scripts/recall_demo.py``'s
+    steps, set up off camera), then on camera:
+
+    - ``live_link``: the console's Fleet controls degrade D2's link (the ring on the map turns), and Team Two
+      loses its signal (the scenario's own link event, given early) so the drones near it relay its position;
+    - ``recall``: Fleet controls set gusts of 50 km/h (a demo override, labelled so), the conditions say no
+      flying, the agent's recall cards arrive quoting the fact and the Mavic 3E's 43 km/h limit, each is
+      approved, and the drones turn home.
+
+    recall_demo's sim runs in one loop without the event stream, so a link change asked for at the console
+    (``POST /fleet/link``, a request) is handed to the sim by this script, as the per-process fleet's feed
+    would; the sim then reports it back and the map shows it."""
     p = d.page
     skip = api_up(api) or recall_guard(api)
     if skip is None and not local_file("data/heridal/yolo_full/val").exists():
         skip = "no HERIDAL val photos for the fleet sim"
     if skip:
-        d.shot("recall", 25, lambda: None, mode="live", skip=skip)
+        for sid, t in LIVE_SHOTS:
+            d.shot(sid, t, lambda: None, mode="live", skip=skip)
         return
     sys.path.insert(0, str(ROOT / "scripts"))
     from recall_demo import Recall
@@ -929,23 +793,65 @@ def recall_shot(d: Director, api: str) -> None:
     run = Recall(api, lambda s: lines.append(s), time_scale=15.0)
     try:
         try:  # mission, conditions, fleet joins, opening legs approved, drones flying
-            mid = run.setup()
+            mid = run.setup(mission)
         except Exception as e:  # noqa: BLE001 - one broken shot must not lose the recording
-            d.shot(
-                "recall",
-                25,
-                lambda: None,
-                mode="live",
-                skip=f"setup failed: {type(e).__name__}: {e}",
-            )
+            for sid, t in LIVE_SHOTS:
+                d.shot(
+                    sid, t, lambda: None, mode="live", skip=f"setup failed: {type(e).__name__}: {e}"
+                )
             return
 
-        def shoot():
-            d.hash(f"#m/{mid}/command", 3.0)
-            m = d.first(p.locator("figure[aria-label='Live map']"), timeout=6)
+        def mapfig():
+            return p.locator("figure[aria-label='Live map']").first
+
+        def link():
+            d.hash(f"#m/{mid}/map", 3.0)
+            m = d.first(mapfig(), timeout=6)
             if m is not None:
                 d.to(m, 1.2, 0.5, 0.5)
-                d.pause(2.0)  # the drones on their legs
+                d.pause(1.5)  # the drones on their legs
+            controls = d.first(
+                p.get_by_role("region", name="Fleet controls"),
+                p.locator('section[aria-label="Fleet controls"]'),
+                timeout=4,
+            )
+            if controls is None:
+                raise Skip("no Fleet controls on the live console")
+            degrade = controls.get_by_role("button", name=re.compile(r"^Degrade link"))
+            d.to(degrade, 1.0)
+            d.pause(0.8)
+            d.click(degrade)
+            drone = (degrade.text_content() or "D2").split()[-1]
+            run.sim.set_link(
+                drone, "degraded", by="command (demo controls)"
+            )  # the request, handed to the sim
+            # Team Two loses its signal (the scenario schedules it at 420 s; here it comes early)
+            run.sim.set_link("T2", "no_signal", by="fleet sim (scenario)")
+            d.pause(1.5)
+            mk = d.first(
+                p.locator(f"figure[aria-label='Live map'] [aria-label^='Drone {drone[-1]}']"),
+                timeout=3,
+            )
+            if mk is not None:
+                d.to(mk, 1.2)
+                d.pause(2.0)
+            # the relay: a drone within the relay radius of Team Two carries its position
+            end = time.monotonic() + 8
+            while not run.sim.gcs.relays and time.monotonic() < end:
+                time.sleep(0.3)
+            team = d.first(
+                p.locator("figure[aria-label='Live map'] [aria-label^='Team Two']"), timeout=2
+            )
+            if team is not None:
+                d.to(team, 1.2)
+            d.pause(2.5)
+            info["relays"] = len(run.sim.gcs.relays)
+
+        info: dict = {}
+        shot = d.shot("live_link", 18, link, mode="live")
+        shot.extra.update(mission=mid, **info)
+
+        def recall():
             gusts = d.first(
                 p.get_by_role("button", name=re.compile(r"^Set gusts .*demo override")), timeout=3
             )
@@ -955,21 +861,26 @@ def recall_shot(d: Director, api: str) -> None:
                 d.click(gusts)
             else:  # no Fleet controls on this build: the same call the button makes
                 run.gusts()
+            d.pause(1.5)
+            status = d.first(p.get_by_text(re.compile(r"^Not flyable")), timeout=4)
+            if status is not None:  # the conditions line says no flying
+                d.to(status, 1.0)
+                d.pause(1.5)
             recall = p.locator('[aria-label^="Proposal "]', has_text=re.compile(r"\bRecall\b"))
-            card = d.first(recall, timeout=15)
-            if card is None:
+            first = d.first(recall, timeout=15)
+            if first is None:
                 raise Skip("no recall proposal arrived within 15 s")
-            d.to(card, 1.0)
-            why = d.first(card.get_by_label("Why recall"), timeout=1)
+            d.to(first, 1.0)
+            why = d.first(first.get_by_label("Why recall"), timeout=1)
             if why is not None:
                 d.to(why, 0.8)
             d.pause(3.0)  # read the quoted fact and its source
             for _ in range(len(run.state()["fleet"]["drones"])):
-                card = d.first(recall, timeout=2)
-                if card is None:
+                c = d.first(recall, timeout=2)
+                if c is None:
                     break
-                d.to(card, 0.6)  # new cards (team assignments) can push it down the inbox
-                d.click(card.get_by_role("button", name=re.compile(r"^Approve")))
+                d.to(c, 0.6)  # new cards can push it down the inbox
+                d.click(c.get_by_role("button", name=re.compile(r"^Approve")))
                 d.pause(1.2)
             # any a click missed (the inbox moved under the pointer): the same approval, off camera
             left = [
@@ -978,13 +889,12 @@ def recall_shot(d: Director, api: str) -> None:
                 if x["status"] == "pending" and "home" in x["target"]
             ]
             run.approve(left)
-            if m is not None:
-                d.to(m, 1.2, 0.5, 0.5)
+            d.to(mapfig(), 1.2, 0.5, 0.5)
             d.pause(5.0)  # the drones turn home
 
-        shot = d.shot("recall", 25, shoot, mode="live")
+        shot = d.shot("recall", 32, recall, mode="live")
         shot.extra["mission"] = mid
-        shot.extra["timeline"] = lines[-12:]
+        shot.extra["timeline"] = lines[-14:]
     finally:
         run.close()
 
@@ -1011,10 +921,8 @@ def main(argv: list[str] | None = None) -> int:
         help="with --live: start a local mission API for the run (fake LLM and Tavily, radio in text) and stop it after",
     )
     ap.add_argument(
-        "--mission", help="live mission id to resume (default: the replay starts a new one)"
+        "--mission", help="live mission id to put the simulated fleet on (default: a new one)"
     )
-    ap.add_argument("--replay-limit", type=int, default=12, help="photos the replay sends")
-    ap.add_argument("--replay-pace", type=float, default=2.0, help="seconds between photos")
     ap.add_argument("--headed", action="store_true", help="show the browser (debugging)")
     ap.add_argument(
         "--no-clock", action="store_true", help="don't pin the page clock to the fixture's now"
@@ -1038,7 +946,7 @@ def main(argv: list[str] | None = None) -> int:
     # (the demo console reads the fixture's now either way)
     pinned = not args.no_clock and not args.live
 
-    site = replay = server = None
+    site = server = None
     dist = None
     t_wall = time.monotonic()
     try:
@@ -1064,8 +972,7 @@ def main(argv: list[str] | None = None) -> int:
             print("recording", flush=True)
             demo_shots(d)
             if args.live:
-                replay = live_shots(d, api, args.mission, args.replay_limit, args.replay_pace)
-                recall_shot(d, api)
+                live_shots(d, api, args.mission)
             d.pause(1.5)  # a beat on the last frame
             total = d.now()
             video = page.video
@@ -1103,8 +1010,6 @@ def main(argv: list[str] | None = None) -> int:
         bad = [s for s in d.shots if s.status == "failed"]
         return 1 if bad else 0
     finally:
-        if replay is not None:
-            replay.stop()
         stop(site, "site")
         stop(server, "api")
         log.close()
