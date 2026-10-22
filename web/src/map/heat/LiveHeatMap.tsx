@@ -118,7 +118,7 @@ function LiveLayers({
 }: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase; onBasemap?: (kind: BasemapKind) => void }): ReactNode {
   const { map, onPick } = useMap();
   const links = useMission((s) => s.links);
-  const { utc } = useClock();
+  const { tz } = useClock();
   const glide = useMemo(() => new FleetGlide(), []);
   const seen = useRef<Record<string, SeenCancel>>({});
   const firstLook = useRef(true);
@@ -340,10 +340,10 @@ function LiveLayers({
     const { lines, labels } = sectorFeatures(sectors);
     setData(map, LIVE_IDS.sectors, lines);
     setData(map, LIVE_IDS.sectorLabels, labels);
-    const points = pointFeatures(base, clues, teams, null, now ?? new Date(), (iso) => clock(iso, utc));
+    const points = pointFeatures(base, clues, teams, null, now ?? new Date(), (iso) => clock(iso, tz));
     setData(map, LIVE_IDS.points, points);
     syncTargets(map, teamTargets.current, points.filter((p) => p.properties.kind === "team"), "team");
-  }, [map, ready, base, sectors, clues, teams, now, utc]);
+  }, [map, ready, base, sectors, clues, teams, now, tz]);
 
   // A clue added or confirmed: its circle and the cells it reweighted flash and fade, so the cause
   // (the clue) and the effect (the map) are seen together. Reduced motion: no flash.

@@ -20,7 +20,7 @@ import { landing, RUN_MS, storyClock, useStory } from "../command/story";
 import { isTyping } from "../lib/keys";
 import { cacheUrl, loadCache } from "../lib/cache";
 import { photoProgress, useMission } from "../lib/mission";
-import { clock, ClockZone, zone } from "../lib/time";
+import { clockWithZone, ClockZone, DEMO_TZ, utcLabel } from "../lib/time";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_CACHE, DEMO_MISSION_ID, demoConditionsData, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
@@ -262,7 +262,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
 
   const imageUrl = (rel: string) => (demo ? `${DEMO_CACHE}/${rel}` : fileUrl(api, missionId, rel));
   const conditionsData = useConditionsData(api, missionId, demo, s.conditions, s.fleet);
-  const clockZone = useMemo(() => ({ utc: demo }), [demo]);
+  const clockZone = useMemo(() => ({ tz: demo ? DEMO_TZ : false }), [demo]);
   const demoNow = useMemo(() => (demo ? new Date(clockIso) : undefined), [demo, clockIso]);
   const waiting = s.proposals.filter((p) => p.status === "pending").length;
   const liveDebrief = demo ? undefined : `${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`;
@@ -450,7 +450,10 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
           },
         }
     : { label: "New search", href: "#new" };
-  const barClock = demo ? `${clock(clockIso, true)} UTC` : s.mission ? `${clock(new Date(), false)} ${zone(new Date(), false)}` : null;
+  // the incident's local time ("13:35 PDT" on the demo, Mount Seymour), the same moment in UTC on hover
+  const barAt = demo ? new Date(clockIso) : new Date();
+  const barClock = demo || s.mission ? clockWithZone(barAt, clockZone.tz) : null;
+  const barTitle = `Mission clock · ${utcLabel(barAt)}`;
   // a checkpoint's pre-mark (t3: the clue log) comes once, before its own mark
   const pre = demo && story.tour && !preSeen.includes(t) ? (CHECKPOINTS[t]?.pre ?? null) : null;
   const mark = demo && story.tour ? (pre ?? CHECKPOINTS[t]?.mark) : null;
@@ -460,7 +463,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
     <ClockZone.Provider value={clockZone}>
       <div className="flex min-h-dvh flex-col lg:h-dvh">
         <AppBar
-          mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: modeOf(s.status), clock: barClock }}
+          mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: modeOf(s.status), clock: barClock, clockTitle: barTitle }}
           views={{
             current: view,
             onSelect: go,

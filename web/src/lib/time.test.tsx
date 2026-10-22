@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { MissionEvent, Proposal } from "../contract";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { EventFeed } from "../command/EventFeed";
-import { clock, ClockZone } from "./time";
+import { clock, clockWithZone, ClockZone, DEMO_TZ, utcLabel, zone } from "./time";
 
 const AT = "2026-10-24T15:01:09Z";
 
 describe("the mission pages' clock", () => {
-  it("is 24-hour, in UTC on the demo and in the browser's zone on a live mission", () => {
+  it("is 24-hour, in UTC or in the browser's zone", () => {
     expect(clock(AT, true)).toBe("15:01");
     expect(clock(AT, true, true)).toBe("15:01:09");
     const d = new Date(AT);
@@ -18,6 +18,15 @@ describe("the mission pages' clock", () => {
     expect(clock("not a time", true)).toBe("not a time");
   });
 
+  it("reads an incident's own zone with its name: the demo at Mount Seymour is 13:35 PDT, 20:35 UTC on hover", () => {
+    expect(clock("2026-10-24T20:35:00Z", DEMO_TZ)).toBe("13:35");
+    expect(zone(new Date("2026-10-24T20:35:00Z"), DEMO_TZ)).toBe("PDT");
+    expect(clockWithZone("2026-10-24T20:35:00Z", DEMO_TZ)).toBe("13:35 PDT");
+    expect(clockWithZone("2026-12-01T20:35:00Z", DEMO_TZ)).toBe("12:35 PST");
+    expect(utcLabel("2026-10-24T20:35:00Z")).toBe("20:35 UTC");
+    expect(zone(new Date(), true)).toBe("UTC");
+  });
+
   it("formats the approvals' decided time like the feed beside it (no 12-hour 03:01 PM)", () => {
     const decided = {
       id: "p001", kind: "alert", status: "approved", summary: "Sound heard near the creek", reason: "r", target: {}, evidence: [],
@@ -25,7 +34,7 @@ describe("the mission pages' clock", () => {
     } as unknown as Proposal;
     const ev = { id: "e00001", type: "proposal.decided", at: AT, summary: "p001 approved by Ana", ref: "p001", data: null } as MissionEvent;
     render(
-      <ClockZone.Provider value={{ utc: true }}>
+      <ClockZone.Provider value={{ tz: true }}>
         <ApprovalInbox proposals={[decided]} teams={[]} onDecide={() => undefined} imageUrl={(r) => r} />
         <EventFeed events={[ev]} />
       </ClockZone.Provider>,

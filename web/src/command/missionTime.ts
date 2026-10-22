@@ -1,5 +1,5 @@
 // Mission time on the demo mission: the one timeline the story and the console share. The demo mission
-// is one set of fixtures (demoMission.ts) dated on a scripted evening; this module says what of it is
+// is one set of fixtures (demoMission.ts) dated on a scripted afternoon; this module says what of it is
 // visible at a given mission clock, so the story's six checkpoints are six clock readings of the same
 // mission, not six screens. `demoAt(full, clock, user)` is pure: the console's store (`useMission`) is
 // loaded with it whenever the scrubber moves.
@@ -21,7 +21,7 @@ export interface CheckpointDef {
   id: "call" | "photos" | "confirm" | "next" | "run" | "results";
   /** The scrubber's tick label. */
   label: string;
-  /** The mission clock at this checkpoint (the fixtures' scripted evening, UTC). */
+  /** The mission clock at this checkpoint (ISO, UTC as the fixtures are dated; shown in Vancouver time). */
   at: string;
   /** The view the story shows here. */
   view: StoryView;

@@ -16,8 +16,9 @@ measured results with how each is measured, what breaks first, For judges, the l
 over the console: the agent's trace or the event log).
 
 **Mission time on the demo mission.** `missionTime.ts` gives the demo mission a `t` dimension: six
-checkpoints of its scripted evening (20:35 the call, 21:18 photos land, 21:31 confirm, 21:42 where next, 22:00
-run, 22:00 results) and `demoAt(full, clock, user)`, the fixtures as they stood at a clock reading with the
+checkpoints of its scripted afternoon, told in Mount Seymour's local time (13:35 PDT the call, 14:18 photos land,
+14:31 confirm, 14:42 where next, 15:00 run, 15:00 results; the fixtures are dated in UTC, and the app bar and
+the scrubber show UTC on hover: `lib/time.ts`, `DEMO_TZ`) and `demoAt(full, clock, user)`, the fixtures as they stood at a clock reading with the
 visitor's own actions replayed on top (one data model: the same fixtures, filtered by their own times; the
 two ground searches are retimed into the run, `RETIME`). `story.ts` holds the clock (checkpoint, progress,
 playing), whether the coach marks are on, and the visitor's actions as events. `Scrubber.tsx` is the time

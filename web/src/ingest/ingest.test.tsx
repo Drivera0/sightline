@@ -240,14 +240,14 @@ describe("the demo mission: the story on the one console", () => {
     const pitch = screen.getByRole("region", { name: "Sightline" });
     expect(within(pitch).getByRole("heading", { level: 1 })).toHaveTextContent("The brain of a drone search.");
     expect(within(pitch).getByRole("button", { name: "Follow the search (3 min)" }).className).toMatch(/bg-accent/);
-    await waitFor(() => expect(within(screen.getAllByRole("banner")[0]!).getByText("20:35 UTC")).toBeInTheDocument());
+    await waitFor(() => expect(within(screen.getAllByRole("banner")[0]!).getByText("13:35 PDT")).toBeInTheDocument());
     expect(screen.getByRole("group", { name: "Mission time" })).toBeInTheDocument();
     expect(await screen.findByText("car at the Mount Seymour trailhead, last seen 18:00")).toBeInTheDocument();
-    expect(screen.queryByText("blue water bottle by the creek crossing")).toBeNull(); // not found yet at 20:35
+    expect(screen.queryByText("blue water bottle by the creek crossing")).toBeNull(); // not found yet at 13:35 PDT (20:35 UTC)
     await userEvent.click(within(pitch).getByRole("button", { name: "Skip to now" }));
     expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull();
     expect(await screen.findByText("blue water bottle by the creek crossing")).toBeInTheDocument();
-    expect(within(screen.getAllByRole("banner")[0]!).getByText("22:00 UTC")).toBeInTheDocument();
+    expect(within(screen.getAllByRole("banner")[0]!).getByText("15:00 PDT")).toBeInTheDocument();
     expect(window.location.hash).toBe("#m/demo/map");
   });
 
