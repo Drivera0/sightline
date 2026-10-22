@@ -45,4 +45,16 @@ describe("useSelection", () => {
     expect(frameIdOf("f0500-d12")).toBe("f0500");
     expect(() => frameIdOf("detection-1")).toThrow(/detection id/);
   });
+
+  it("selects one team, drone or clue at a time, and clear() drops them (D-M2)", () => {
+    const s = useSelection.getState();
+    s.selectTeam("T2");
+    expect(useSelection.getState().selectedTeamId).toBe("T2");
+    s.selectClue("c003");
+    expect(useSelection.getState()).toMatchObject({ selectedTeamId: null, selectedClueId: "c003" });
+    s.selectDrone("D1");
+    expect(useSelection.getState()).toMatchObject({ selectedClueId: null, selectedDroneId: "D1" });
+    s.clear();
+    expect(useSelection.getState()).toMatchObject({ selectedDroneId: null, selectedTeamId: null, selectedClueId: null });
+  });
 });
