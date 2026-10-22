@@ -105,4 +105,4 @@ a change, so the script waits until it reports the new one.
 - [x] `setup.sh` run on the team account (lane A); per-photo latency above
 - [x] Instance size: c7i.xlarge normally (stopped between demos), c7i.4xlarge while recording (`resize.sh`)
 - [ ] Dashboard screenshot for the OpenCV report §6 (after a longer run)
-- [ ] `update.sh` (deploy the latest `main` over SSM: start, fetch, rebuild, recreate, wait for `/health`): written, **not run yet**. The instance still runs the code from its first build (before #79–#84). Run it, then `remote_check.py`, then stop the instance
+- [x] `update.sh` (deploy the latest `main` over SSM: start, fetch, rebuild, recreate, wait for `/health`). Run 2026-10-22 to `3806c20` (#86); `remote_check.py` all 7 passed (val photo 13.5 s upload → processed); debrief and sector outlines answer on AWS; instance stopped after
