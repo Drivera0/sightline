@@ -1,8 +1,8 @@
 # Sightline
 
-![Sightline walkthrough: survey, rank, review, search next, results](docs/media/sightline-demo.gif)
+![Sightline command console: a clue lands on the map, then the simulated fleet with a drone re-tasked to it](docs/report/figures/demo.gif)
 
-*The five steps on the demo survey, 29 s, sped up in places (recorded from the local build; the flight path and the search evaluation are simulated).*
+*The command console on the demo mission, 18 s: a clue added on the map, then the fleet with Drone 1 re-tasked to the water-bottle clue (recorded from the local build by `scripts/demo_video/run.sh`; the mission, the drones and their links are simulated).*
 
 Sightline is the brain of a drone search for a missing person: it finds the likeliest people in hundreds of drone photos with OpenCV 5, and turns every photo, searched sector and radio report into one probability map of where the person could still be. From that map an agent proposes where drones and ground teams go next, and a search manager approves every move before anything happens. It assists searchers and never rules an area out; it began at BCS Hackathon 2026 and became a live system for the OpenCV and Nebius hackathons.
 

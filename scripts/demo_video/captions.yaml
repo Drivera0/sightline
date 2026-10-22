@@ -19,12 +19,12 @@ labels:
   console:      {text: "The command console", number: true}
   approvals:    {text: "A person approves the agent's proposal", number: true}
   clue:         {text: "A clue lands on the map", number: true}
-  fleet:        {text: "Re-task the nearest drone", number: true}
+  fleet:        {text: "A drone re-tasked to a clue (simulated fleet)", number: true}
   trace:        {text: "Re-look trace: tool → model → result → proposal", number: true}
   feed:         {text: "Every action in the mission feed", number: true}
   live_upload:  {text: "Live · photos upload from the command post", number: true}
   live_photos:  {text: "Live · each photo is scored as it lands", number: true}
-  live_review:  {text: "Live · verdicts on each candidate", number: true}
+  live_review:  {text: "Live · each candidate with its second look (HERIDAL val photos)", number: true}
   live_console: {text: "Live · the console on a real mission", number: true}
   live_radio:   {text: "Live · the radio desk", number: true}
   recall:       {text: "Live · gusts over the drones' limit: the agent proposes a recall", number: true}
@@ -64,17 +64,17 @@ cuts:
     segments:
       - {shot: front, speed: 2}
       - {shot: live_upload, speed: 2}
-      - rank          # detection
-      - review
-      - live_photos
-      - live_review
+      - {shot: rank, speed: 2}          # detection
+      - {shot: review, speed: 1.5}
+      - {shot: live_photos, speed: 2}
+      - {shot: live_review, speed: 1.5}
       - trace         # re-look: which NVIDIA model did what
-      - clue          # re-task: clue -> map shifts
-      - fleet         # -> the agent diverts the nearest drone, approved
-      - approvals
-      - console       # card / radio
-      - live_radio
-      - recall        # Tavily moment: gusts -> no-fly -> recall, the cited source on the card
+      - {shot: clue, speed: 1.5}        # re-task: clue -> map shifts
+      - {shot: fleet, speed: 1.5}       # -> the re-tasked drone on the map
+      - {shot: approvals, speed: 1.5}
+      - {shot: console, speed: 1.5}     # card / radio
+      - {shot: live_radio, speed: 1.5}
+      - {shot: recall, speed: 1.25}     # Tavily moment: gusts -> no-fly -> recall, the cited source on the card
       - {slot: tavily, s: 15}
       - {slot: architecture, s: 15}
       - {slot: limits, s: 10}
@@ -88,4 +88,14 @@ gif:
   width: 800
   max_mb: 10
   min_motion: 0.5
-  candidates: [review, search, rank, clue, console, trace, fleet]
+  # first choice: the console ending on the fleet's re-tasked drone (the 20 s up to the fleet shot's end:
+  # the clue landing, then the pan to the drones); a console holds still more than the review, so its
+  # own lower bar
+  candidates:
+    - {shot: fleet, end_aligned: true, min_motion: 0.1}
+    - review
+    - search
+    - rank
+    - clue
+    - console
+    - trace

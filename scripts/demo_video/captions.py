@@ -9,7 +9,8 @@ In the run folder, from ``master.webm`` + ``shots.json`` + ``captions.yaml`` (ne
 - ``master_captioned.mp4``: the same with the labels burned in;
 - ``cut_opencv.mp4`` (<= 5:00) and ``cut_nebius.mp4`` (<= 3:00): silent cuts in each video's story
   order, 12 s of black at the start and 10 s at the end for the on-camera clips, black slots where a
-  slide goes; ``cut_<name>.json`` lists every segment with its source and output times;
+  slide goes, cut from ``master.mp4`` with their own labels (``cut_<name>.srt``, numbered in the cut's
+  order); ``cut_<name>.json`` lists every segment with its source and output times;
 - ``demo.gif``: 20 s for the README (fps 10, 800 px wide, one palette, < 10 MB), first and last frame
   matched so it loops.
 
@@ -57,10 +58,11 @@ def ran(shots: list[dict]) -> list[dict]:
 # --- (0) the labels ---------------------------------------------------------------------------------
 
 
-def labels(doc: dict, cfg: dict) -> list[tuple[dict, str]]:
+def labels(spans: list[tuple[str, float, float]], cfg: dict) -> list[tuple[float, float, str]]:
+    """(start, end, text) for each (shot id, start, end) in the order they play, numbered in that order."""
     out, n = [], 0
-    for s in ran(doc["shots"]):
-        lab = cfg["labels"].get(s["id"])
+    for sid, a, b in spans:
+        lab = cfg["labels"].get(sid)
         if not lab:
             continue
         text = lab["text"]
@@ -69,20 +71,23 @@ def labels(doc: dict, cfg: dict) -> list[tuple[dict, str]]:
             text = f"{n} · {text}"
         if "clear" in text.lower():
             raise SystemExit(
-                f"label for {s['id']} says 'clear': a searched area is 'searched at POD x'"
+                f"label for {sid} says 'clear': a searched area is 'searched at POD x'"
             )
-        out.append((s, text))
+        out.append((a, b, text))
     return out
 
 
-def write_srt(doc: dict, cfg: dict, path: Path) -> None:
+def srt(spans: list[tuple[str, float, float]], cfg: dict, path: Path) -> None:
     st = cfg["style"]
     lines = []
-    for i, (s, text) in enumerate(labels(doc, cfg), 1):
-        a, b = s["start_s"] + st["lead_in_s"], s["end_s"] - st["lead_out_s"]
-        lines += [str(i), f"{ts(a)} --> {ts(b)}", text, ""]
+    for i, (a, b, text) in enumerate(labels(spans, cfg), 1):
+        lines += [str(i), f"{ts(a + st['lead_in_s'])} --> {ts(b - st['lead_out_s'])}", text, ""]
     path.write_text("\n".join(lines))
     print(f"  wrote {path} ({len(lines) // 4} labels)")
+
+
+def write_srt(doc: dict, cfg: dict, path: Path) -> None:
+    srt([(s["id"], s["start_s"], s["end_s"]) for s in ran(doc["shots"])], cfg, path)
 
 
 # --- (a, b) the masters -----------------------------------------------------------------------------
@@ -122,10 +127,14 @@ def remux(doc: dict, d: Path) -> None:
     )
 
 
+def subtitles(cfg: dict, name: str) -> str:
+    """The subtitles filter for a run-folder relative .srt (run ffmpeg from the run folder: the filter's
+    own quoting doesn't take a full path)."""
+    return f"subtitles={name}:force_style='{cfg['style']['force_style']}'"
+
+
 def burn(cfg: dict, d: Path) -> None:
-    # the filter's own quoting: the paths are run-folder relative, so run from there
-    style = cfg["style"]["force_style"]
-    vf = f"subtitles=captions.srt:force_style='{style}'"
+    vf = subtitles(cfg, "captions.srt")
     print(f"  $ (in {d}) ffmpeg -i master.mp4 -vf {vf} … master_captioned.mp4", flush=True)
     subprocess.run(
         [
@@ -181,7 +190,11 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
     return segs
 
 
-def cut(d: Path, name: str, segs: list[dict]) -> None:
+def cut(d: Path, name: str, segs: list[dict], cfg: dict) -> None:
+    """The segments from the uncaptioned master, then this cut's own labels burned in: numbered in the
+    cut's order and timed to its (sped-up, trimmed) segments, so a step number never runs backwards."""
+    srt([(x["name"], x["at"], x["at"] + x["s"]) for x in segs if x["kind"] == "shot"], cfg,
+        d / f"cut_{name}.srt")  # fmt: skip
     parts, labels_ = [], []
     for i, x in enumerate(segs):
         lab = f"v{i}"
@@ -194,25 +207,18 @@ def cut(d: Path, name: str, segs: list[dict]) -> None:
                 f"[0:v]trim=start={x['in']:.3f}:end={x['out']:.3f},setpts=(PTS-STARTPTS)/{x['speed']},fps={FPS},format=yuv420p,setsar=1[{lab}]"
             )
         labels_.append(f"[{lab}]")
-    graph = ";".join(parts) + f";{''.join(labels_)}concat=n={len(segs)}:v=1:a=0[out]"
-    out = d / f"cut_{name}.mp4"
-    run(
-        [
-            "ffmpeg",
-            "-v",
-            "error",
-            "-y",
-            "-i",
-            str(d / "master_captioned.mp4"),
-            "-filter_complex",
-            graph,
-            "-map",
-            "[out]",
-            "-an",
-            *X264,
-            str(out),
-        ]
+    graph = (
+        ";".join(parts)
+        + f";{''.join(labels_)}concat=n={len(segs)}:v=1:a=0[c];[c]{subtitles(cfg, f'cut_{name}.srt')}[out]"
     )
+    out = d / f"cut_{name}.mp4"
+    print(f"  $ (in {d}) ffmpeg -i master.mp4 -filter_complex … {out.name}", flush=True)
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-i", "master.mp4", "-filter_complex", graph, "-map", "[out]",
+         "-an", *X264, out.name],
+        cwd=d,
+        check=True,
+    )  # fmt: skip
     total = segs[-1]["at"] + segs[-1]["s"]
     (d / f"cut_{name}.json").write_text(
         json.dumps({"video": out.name, "total_s": round(total, 3), "segments": segs}, indent=2)
@@ -236,28 +242,34 @@ def frames(video: Path, start: float, dur: float, fps: int = 10, size: tuple[int
 def pick_loop(doc: dict, cfg: dict, video: Path) -> tuple[float, float, str, float]:
     """(start, duration, shot, end match): the first candidate, in the config's order of preference, with
     enough happening in its window; its end is the frame within duration ±2 s closest to its first frame
-    (the GIF then fades that end into the first frame, so the loop has no jump)."""
+    (the GIF then fades that end into the first frame, so the loop has no jump). A candidate is a shot id
+    or ``{shot, end_aligned, min_motion}``: ``end_aligned`` takes the window that ends with the shot (a
+    short shot then keeps the screen before it instead of running into the next page)."""
     g = cfg["gif"]
     total = doc["total_s"]
     by_id = {s["id"]: s for s in ran(doc["shots"])}
-    for sid in g["candidates"]:
+    for c in g["candidates"]:
+        c = {"shot": c} if isinstance(c, str) else c
+        sid = c["shot"]
         s = by_id.get(sid)
         if not s:
             continue
-        start = s["start_s"] + 0.5
         dur = g["duration_s"]
-        if start + dur + 2 > total:
+        start, slack = s["start_s"] + 0.5, 2.0
+        if c.get("end_aligned"):
+            start, slack = max(0.0, s["end_s"] - 0.3 - dur), 0.0
+        if start + dur + slack > total:
             continue
-        f = frames(video, start, dur + 2)
+        f = frames(video, start, dur + slack)
         if len(f) < 10 * (dur - 2):
             continue
         motion = float(abs(f[1:] - f[:-1]).mean())
-        lo, hi = 10 * (dur - 2), min(len(f), 10 * (dur + 2))
+        lo, hi = 10 * (dur - 2), min(len(f), 10 * (dur + slack))
         score, i = min((float(abs(f[k] - f[0]).mean()), k) for k in range(lo, hi))
         print(
             f"  gif candidate {sid:10} start {start:6.1f}  motion {motion:5.2f}  end match {score:5.2f} at {i / 10:.1f} s"
         )
-        if motion >= g.get("min_motion", 0.5):
+        if motion >= c.get("min_motion", g.get("min_motion", 0.5)):
             return start, i / 10, sid, score
     start = next(iter(by_id.values()))["start_s"] if by_id else 0.0
     return start, float(g["duration_s"]), "first shot", float("nan")
@@ -270,11 +282,15 @@ def gif(doc: dict, cfg: dict, d: Path) -> None:
     out = d / "demo.gif"
     fade = 0.5
     for fps, width in ((g["fps"], g["width"]), (8, 720), (8, 640), (6, 560)):
-        # the window, then its own first half second faded over its end: the last frame is the first
+        # the window from just after its half-second mark, its own first half second (and a frame)
+        # faded in over its end: the last frame is the window at `fade` exactly and the loop goes on
+        # at the frame after it, so it has no jump (fading back to frame 0 replayed half a second)
+        head = fade + 1 / fps
         graph = (
             f"[0:v]trim=0:{dur:.3f},setpts=PTS-STARTPTS,fps={fps},scale={width}:-1:flags=lanczos,split[a][h];"
-            f"[h]trim=0:{fade},setpts=PTS-STARTPTS[head];"
-            f"[a][head]xfade=transition=fade:duration={fade}:offset={dur - fade:.3f},split[x][y];"
+            f"[a]trim=start={head:.3f},setpts=PTS-STARTPTS[body];"
+            f"[h]trim=0:{head:.3f},setpts=PTS-STARTPTS[head];"
+            f"[body][head]xfade=transition=fade:duration={fade}:offset={dur - head - fade:.3f},split[x][y];"
             "[x]palettegen=stats_mode=diff[p];[y][p]paletteuse=dither=bayer:bayer_scale=5"
         )
         run(
@@ -300,10 +316,10 @@ def gif(doc: dict, cfg: dict, d: Path) -> None:
         if mb < g["max_mb"]:
             break
         print(f"  {mb:.1f} MB is over {g['max_mb']} MB: smaller")
-    meta = {"gif": out.name, "shot": sid, "source_start_s": round(start, 3), "duration_s": round(dur, 3), "end_match": round(score, 3),
+    meta = {"gif": out.name, "shot": sid, "source_start_s": round(start, 3), "duration_s": round(dur - fade, 3), "end_match": round(score, 3),
             "fps": fps, "width": width, "mb": round(out.stat().st_size / 1e6, 2)}  # fmt: skip
     (d / "gif.json").write_text(json.dumps(meta, indent=2) + "\n")
-    print(f"  {out}: {meta['mb']} MB, {dur:.1f} s from '{sid}' at {start:.1f} s")
+    print(f"  {out}: {meta['mb']} MB, {dur - fade:.1f} s from '{sid}' at {start:.1f} s")
 
 
 # --- main -------------------------------------------------------------------------------------------
@@ -341,9 +357,9 @@ def main(argv: list[str] | None = None) -> int:
         burn(cfg, d)
     if "cuts" in steps:
         for name, spec in cfg["cuts"].items():
-            if need(d / f"cut_{name}.mp4", d / "master_captioned.mp4", shots, cfgp):
+            if need(d / f"cut_{name}.mp4", d / "master.mp4", shots, cfgp):
                 print(f"cut_{name}.mp4")
-                cut(d, name, plan_cut(doc, spec))
+                cut(d, name, plan_cut(doc, spec), cfg)
     if "gif" in steps and need(d / "demo.gif", d / "master_captioned.mp4", cfgp):
         print("demo.gif")
         gif(doc, cfg, d)
