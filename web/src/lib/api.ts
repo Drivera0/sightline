@@ -1,6 +1,10 @@
 // Typed calls to the mission API (contract §13, LANE_D §4 D-M1). The base URL comes from
 // VITE_API_URL; with none set the site is demo-only (`hasApi()` is false). Built by lane A for
 // lane D (issue #51).
+//
+// VITE_API_TOKEN (build time) is sent as `Authorization: Bearer <token>` on writes, for an API started
+// with SIGHTLINE_API_TOKEN. Only for a private deployment, never the public site: the token is baked
+// into the bundle, so anyone who loads the page can read it.
 
 import type {
   AssignmentCard,
@@ -59,16 +63,37 @@ export function hasApi(): boolean {
   return apiBase() !== null;
 }
 
+/** The API's write token (VITE_API_TOKEN), or null. Private deployments only: it ships in the bundle. */
+export function apiToken(
+  env: { VITE_API_TOKEN?: string } = import.meta.env as { VITE_API_TOKEN?: string },
+): string | null {
+  const token = env.VITE_API_TOKEN?.trim();
+  return token ? token : null;
+}
+
 export interface Api {
   base: string;
   fetch?: typeof fetch;
+  /** The write token; undefined = VITE_API_TOKEN, null = none. */
+  token?: string | null;
+}
+
+/** `Authorization` for a write. Reads go without it: a GET with it would need a CORS preflight. */
+export function authHeaders(api: Api, method: string): Record<string, string> {
+  if (method === "GET" || method === "HEAD") return {};
+  const token = api.token === undefined ? apiToken() : api.token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 async function call<T>(api: Api, method: string, path: string, body?: unknown): Promise<T> {
   const f = api.fetch ?? fetch;
+  const headers = {
+    ...authHeaders(api, method),
+    ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+  };
   const res = await f(`${api.base}${path}`, {
     method,
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    headers: Object.keys(headers).length ? headers : undefined,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) {
@@ -157,7 +182,11 @@ export const patchTeam = (api: Api, id: string, tid: string, patch: Partial<Team
 export async function uploadPhotos(api: Api, id: string, files: readonly File[]): Promise<UploadResult> {
   const form = new FormData();
   for (const f of files) form.append("files", f, f.name);
-  const res = await (api.fetch ?? fetch)(`${api.base}${m(id)}/photos`, { method: "POST", body: form });
+  const res = await (api.fetch ?? fetch)(`${api.base}${m(id)}/photos`, {
+    method: "POST",
+    headers: authHeaders(api, "POST"),
+    body: form,
+  });
   if (!res.ok) throw new ApiError(res.status, `upload failed (HTTP ${res.status})`);
   return (await res.json()) as UploadResult;
 }

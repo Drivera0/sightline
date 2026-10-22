@@ -65,6 +65,10 @@ bash deploy/aws/teardown.sh                           # everything gone
 On Vercel, set `VITE_API_URL=https://<ip-with-dashes>.sslip.io` so the site's live missions use it
 (`SIGHTLINE_CORS_ORIGINS` in `setup.sh` already allows the Vercel site).
 
+**Write token during judging (optional):** over SSM, add `SIGHTLINE_API_TOKEN=$(openssl rand -hex 16)` to `deploy/aws/.env` on the instance and run `docker compose -f deploy/aws/docker-compose.yml --env-file deploy/aws/.env up -d api`; POST/PUT/PATCH/DELETE then need `Authorization: Bearer <token>` (clients and `remote_check.py` send it from the same variable), while reads, `/health` and SSE stay open, so the public site can watch but not create missions or upload. Delete the line and recreate `api` to open it again.
+
+**CORS, as it is:** browsers may call from the origins in `SIGHTLINE_CORS_ORIGINS` (the Vercel site) and from `http://localhost:*` / `http://127.0.0.1:*`, methods GET/POST/PATCH/PUT, any header, no cookies or credentials; CORS only limits browsers, so without the token any script can still write.
+
 **Cost:** c7i.2xlarge (8 vCPU, the default since Oct 22) is about $0.36 an hour in us-west-2 (≈ $8.60 a day running; c7i.xlarge $0.18 missed the 10 s per photo target); S3, SQS, CloudWatch and
 Secrets Manager stay well under $1 for a demo. Stop the instance between demos; `teardown.sh` after judging.
 
