@@ -127,8 +127,16 @@ def conditions_facts(c: Conditions | None, now: str) -> dict[str, str]:
 
 
 def template_briefing(facts: dict) -> str:
-    """The fallback briefing: the facts, one short sentence each, nothing added."""
-    return " ".join(f"{k.replace('_', ' ').capitalize()}: {v}." for k, v in facts.items() if v)
+    """The fallback briefing: the facts, one short sentence each, nothing added. A value that
+    already ends a sentence (a proposal reason ends with ".") gets no second period."""
+
+    def sentence(v: Any) -> str:
+        t = str(v).strip()
+        return t if t.endswith((".", "!", "?")) else f"{t}."
+
+    return " ".join(
+        f"{k.replace('_', ' ').capitalize()}: {sentence(v)}" for k, v in facts.items() if v
+    )
 
 
 def write_briefing(

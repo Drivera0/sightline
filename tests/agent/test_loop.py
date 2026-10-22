@@ -463,6 +463,20 @@ def test_never_dismisses_and_never_says_clear(mission) -> None:
 FACTS = {"team": "Team Two", "sector": "B3", "daylight_left": "2 h 40 min"}
 
 
+def test_template_briefing_never_doubles_a_period() -> None:
+    # live, on the assign-sector card: "... from the last known point.. Subject ..."
+    facts = {
+        "why": "Sector B3 holds 12.0% of the probability: Team Two has no position yet: about 9 min "
+        "on foot from the last known point.",
+        "subject": "adult hiker, blue jacket",
+        "daylight_left": "2 h 40 min",
+    }
+    text = loop.template_briefing(facts)
+    assert ".." not in text
+    assert "last known point. Subject: adult hiker, blue jacket. Daylight left: 2 h 40 min." in text
+    assert loop.template_briefing({"a": "ends?", "b": "x. "}) == "A: ends? B: x."
+
+
 @pytest.mark.parametrize(
     "text,problem",
     [
