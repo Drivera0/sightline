@@ -177,7 +177,7 @@ describe("design critique fixes", () => {
   });
 
   it("drops the small labels that repeated each section's title", () => {
-    render(<ResultsSummary metrics={demo()} candidateIds={["a"]} />);
+    render(<ResultsSummary metrics={demo()} />);
     expect(screen.queryByText("Where it still misses")).toBeNull();
     expect(screen.queryByText("Answers so far")).toBeNull();
     expect(screen.queryByText("Photos looked at before every person is found")).toBeNull();

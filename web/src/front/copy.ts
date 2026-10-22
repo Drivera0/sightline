@@ -1,17 +1,12 @@
-// The front door's words (LANE_E §6.2): as written there, with the button names made one name per
-// place in the 2026-10-22 redesign (Dan approved): "Guided demo", "Console", "New search", "For judges".
-// Propose other changes to Dan, don't improvise. Tests read these constants. Built by lane A for lane E (issue #70).
+// The front door's words (LANE_E §6.2), as written there. Since the one-console redesign there is no
+// front door: the tagline heads the landing's pitch bar, and the rest is the About sheet (#about) and the
+// Debrief's footer. Propose changes to Dan, don't improvise. Built by lane A for lane E (issue #70).
 
 export const HERO = {
   title: "Sightline",
   eyebrow: "Drone search and rescue",
   tagline: "The brain of a drone search.",
   body: "Drones and ground teams feed one probability map. The map tells both where to look next — on screen at the command post, and by voice over the radio.",
-  /** The primary button with a mission server (New search). */
-  start: "Start a new search",
-  /** The primary button on the public demo site, which has no mission server: the console on the demo mission. */
-  startNoServer: "Open the console",
-  demo: "Guided demo",
   honesty:
     "The demo uses real aerial search-and-rescue photos (HERIDAL) placed on a simulated flight over Mount Seymour. Everything simulated is labelled.",
 } as const;
@@ -84,14 +79,12 @@ export const ROADMAP = [
 
 export const FOOTER = {
   data: "Photos: HERIDAL (Božić-Štulić, Marušić & Gotovac, 2019), CC BY 3.0. Basemap © OpenStreetMap contributors.",
-  results: "Results",
-  tryPhoto: "Try a photo",
   code: "Code on GitHub",
   codeUrl: "https://github.com/Drivera0/sightline",
 } as const;
 
 /** One standard briefing in Sightline's voice: NVIDIA Magpie TTS multilingual 357M, speaker 0 (E-13),
- *  generated offline with `sightline/radio/tts.py` and served from public/front/ (works with Wi-Fi off). */
+ *  generated offline with `sightline/radio/tts.py` and served from public/front/ (works with Wi-Fi off). In About and the Debrief. */
 export const RADIO_CLIP = {
   label: "Hear Sightline on the radio",
   detail: "NVIDIA Magpie TTS, 12 s",
@@ -99,6 +92,3 @@ export const RADIO_CLIP = {
   transcript:
     "Team Two, Sightline. New assignment, sector Bravo Three. Enter from the east ridge, bearing two seven zero, six hundred metres. Looking for a red jacket, possibly lying down. Two hours forty of daylight. Over.",
 } as const;
-
-/** The one place the front door says "clear": a negation in Principle 1 (LANE_E §9 test 1 allowlist). */
-export const CLEAR_ALLOWLIST = ["Sightline never marks an area clear."] as const;

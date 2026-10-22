@@ -73,7 +73,8 @@ describe("the cards, in plain words", () => {
   it("says what the strict score demands beside the strict figure", () => {
     render(<ResultsSummary metrics={demo()} />);
     expect(within(card("People found")).getByText(/test photos the detector never saw in training/)).toBeInTheDocument();
-    for (const el of writing("VOC")) expect(ownText(el)).toMatch(/box must match the person closely/);
+    // the "what breaks first" lines are quoted word for word from the report (they name strict VOC as the report does)
+    for (const el of writing("VOC").filter((e) => !e.closest("[aria-label='What breaks first']"))) expect(ownText(el)).toMatch(/box must match the person closely/);
     expect(writing("VOC").length).toBeGreaterThan(0);
   });
 

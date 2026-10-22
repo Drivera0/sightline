@@ -1,11 +1,11 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CacheBundle } from "../contract";
 import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
 import { routeFromHash } from "../shell/flow";
-import { TryPage, TryPhoto } from "./TryPhoto";
+import { TryPhoto } from "./TryPhoto";
 
 let cache: CacheBundle;
 beforeEach(async () => {
@@ -37,16 +37,13 @@ describe("TryPhoto", () => {
     expect(await screen.findByText(/model is not included in this build/)).toBeInTheDocument();
   });
 
-  it("is a page at #try with the app bar, not a dialog that traps the keyboard", async () => {
+  it("is an action in the Photos rail: #try opens it there, and nothing traps the keyboard", async () => {
     stubModel(false);
     const pageKeys = vi.fn();
     window.addEventListener("keydown", pageKeys);
-    render(<TryPage cache={cache} dir="sample" />);
-    expect(routeFromHash("#try")).toEqual({ kind: "try" });
+    render(<TryPhoto cache={cache} dir="sample" />);
+    expect(routeFromHash("#try")).toEqual({ kind: "mission", id: "demo", view: "photos", t: null, open: { try: true } });
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("heading", { level: 1, name: "Run Sightline's detector in your browser" })).toBeInTheDocument();
-    expect(within(screen.getByRole("navigation", { name: "Sightline" })).getByRole("link", { name: "Guided demo" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Rank step/ })).toHaveAttribute("href", "#rank");
     await userEvent.keyboard("3");
     expect(pageKeys).toHaveBeenCalled(); // nothing swallows the keys
     window.removeEventListener("keydown", pageKeys);

@@ -271,7 +271,7 @@ function PendingCard({
   };
 
   return (
-    <Panel ref={cardRef} tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} className="flex flex-col gap-2 border-l-2 border-l-accent bg-surface-solid p-3 focus:outline focus:outline-accent">
+    <Panel ref={cardRef} tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} data-proposal={p.id} className="flex flex-col gap-2 border-l-2 border-l-accent bg-surface-solid p-3 focus:outline focus:outline-accent">
       <div className="flex flex-wrap items-center gap-2">
         <StatusPill tone="action">{kindWords(p)}</StatusPill>
         <span className="text-body text-text">{isRecall(p) ? recallSummary(p.summary, drone?.battery_pct) : p.summary}</span>

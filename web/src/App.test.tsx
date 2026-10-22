@@ -1,128 +1,64 @@
-import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { App, discoverAvailableSurveys, surveyCandidates } from "./App";
-import { loadCache, useCache } from "./lib/cache";
-import { diskFetch } from "./lib/diskFetch";
-import { useSelection } from "./lib/selection";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { App } from "./App";
+import type { MissionRoute } from "./ingest/LiveMission";
 
-describe("App", () => {
-  beforeEach(() => {
-    window.location.hash = "#survey"; // the demo flow (the default route is the front door)
-    useCache.getState().reset();
-    useSelection.getState().clear();
-    vi.unstubAllGlobals();
+// The console itself is tested in ingest.test.tsx; here, only which console the address opens.
+vi.mock("./ingest/LiveMission", () => ({
+  LiveMission: ({ missionId, route }: { missionId: string; route: MissionRoute }) => (
+    <p data-testid="console">
+      {missionId} {String(route.view)} {String(route.t)} {Object.keys(route.open).join(",")}
+    </p>
+  ),
+  LiveCard: ({ sector }: { sector: string }) => <p data-testid="card">card {sector}</p>,
+}));
+vi.mock("./ingest/LkpPicker", () => ({ LkpPicker: () => <div /> }));
+
+const open = (hash: string, base: string | null = null) => {
+  window.history.replaceState(null, "", hash || "#");
+  if (!hash) window.history.replaceState(null, "", window.location.pathname);
+  return render(<App base={base} />);
+};
+
+describe("App: one console behind every address", () => {
+  it("opens the demo mission's landing at the site's root", () => {
+    open("");
+    expect(window.location.hash).toBe("#m/demo");
+    expect(screen.getByTestId("console")).toHaveTextContent("demo null null");
   });
 
-  it("switches between simulated and real-position caches and clears stale selection", async () => {
-    const source = await loadCache("sample", diskFetch());
-    const demo = structuredClone(source);
-    demo.manifest.survey_id = "seymour-demo";
-    demo.survey.survey_id = "seymour-demo";
-    const real = structuredClone(source);
-    real.manifest.survey_id = "heridal-real-gps";
-    real.manifest.simulated_path = false;
-    real.survey.survey_id = "heridal-real-gps";
-    real.survey.simulated_path = false;
-    real.survey.area.name = "HERIDAL SB site (real EXIF positions)";
-    vi.stubGlobal(
-      "fetch",
-      diskFetch({
-        "/cache/demo/manifest.json": () => Response.json(demo.manifest),
-        "/cache/demo/survey.json": () => Response.json(demo.survey),
-        "/cache/demo/detections.json": () => Response.json(demo.detections),
-        "/cache/demo/map.json": () => Response.json(demo.map),
-        "/cache/demo/metrics.json": () => Response.json(demo.metrics),
-        "/cache/real-gps/manifest.json": () => Response.json(real.manifest),
-        "/cache/real-gps/survey.json": () => Response.json(real.survey),
-        "/cache/real-gps/detections.json": () => Response.json(real.detections),
-        "/cache/real-gps/map.json": () => Response.json(real.map),
-        "/cache/real-gps/metrics.json": () => Response.json(real.metrics),
-      }),
-    );
-    useSelection.getState().selectDetection("f0001-d01");
-    render(<App dir="demo" />);
-    await screen.findByRole("heading", { name: /Mount Seymour/ });
-
-    await userEvent.selectOptions(
-      await screen.findByRole("combobox", { name: "Survey" }),
-      "real-gps",
-    );
-
-    expect(await screen.findByText("HERIDAL SB site")).toBeInTheDocument();
-    expect(useSelection.getState().selectedDetectionId).toBeNull();
-
-    useSelection.getState().selectDetection("f0001-d01");
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Survey" }), "demo");
-    expect(await screen.findByText("Mount Seymour")).toBeInTheDocument();
-    expect(useSelection.getState().selectedDetectionId).toBeNull();
+  it.each([
+    ["#survey", "#m/demo?t=1", "demo null 1"],
+    ["#review", "#m/demo?t=2", "demo null 2"],
+    ["#searchnext", "#m/demo?t=3", "demo null 3"],
+    ["#results", "#m/demo?t=5", "demo null 5"],
+    ["#command", "#m/demo/map", "demo map null"],
+    ["#judges", "#m/demo?t=5&judges", "demo null 5 judges"],
+    ["#try", "#m/demo/photos?try", "demo photos null try"],
+    ["#m/demo/command/conditions", "#m/demo/map/conditions", "demo map null conditions"],
+  ])("sends the old address %s to %s", (from, to, shown) => {
+    open(from);
+    expect(window.location.hash).toBe(to);
+    expect(screen.getByTestId("console")).toHaveTextContent(shown);
   });
 
-  it("shows a loading state, then the shell", async () => {
-    vi.stubGlobal("fetch", diskFetch());
-    render(<App dir="sample" />);
-
-    expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
-    expect(await screen.findByRole("navigation", { name: "Demo steps" })).toBeInTheDocument();
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  it("opens a live mission only with a mission server; without one, the empty console offers the demo", () => {
+    open("#m/a1b2c3d4/review", "https://api.example.org");
+    expect(screen.getByTestId("console")).toHaveTextContent("a1b2c3d4 review");
+    document.body.innerHTML = "";
+    open("#m/a1b2c3d4/review", null);
+    expect(screen.getByRole("link", { name: "Load the demo mission" })).toHaveAttribute("href", "#m/demo/map");
   });
 
-  it("shows which file failed and how to fix it, with no tabs", async () => {
-    vi.stubGlobal("fetch", diskFetch());
-    render(<App dir="missing-cache" />);
-
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/manifest\.json/);
-    expect(alert).toHaveTextContent(/pipeline/);
-    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+  it("puts About over the console last on screen", async () => {
+    open("#m/demo/trace");
+    window.location.hash = "#about";
+    expect(await screen.findByRole("dialog", { name: "About Sightline" })).toBeInTheDocument();
+    expect(screen.getByTestId("console")).toHaveTextContent("demo trace");
   });
 
-  it("only offers surveys whose manifest loads", async () => {
-    const options = surveyCandidates(false);
-    const fetchManifest = vi.fn<typeof fetch>(async (input) =>
-      String(input) === "/cache/demo/manifest.json"
-        ? Response.json({ contract_version: "1.1" })
-        : new Response("not found", { status: 404 }),
-    );
-
-    await expect(discoverAvailableSurveys(options, fetchManifest)).resolves.toEqual([
-      { dir: "demo", label: "Mount Seymour simulation" },
-    ]);
-  });
-
-  it("keeps a working survey selector on the error screen", async () => {
-    const demo = await loadCache("sample", diskFetch());
-    demo.manifest.survey_id = "seymour-demo";
-    demo.survey.survey_id = "seymour-demo";
-    const demoFiles: Record<string, () => Response> = {
-      "/cache/demo/manifest.json": () => Response.json(demo.manifest),
-      "/cache/demo/survey.json": () => Response.json(demo.survey),
-      "/cache/demo/detections.json": () => Response.json(demo.detections),
-      "/cache/demo/map.json": () => Response.json(demo.map),
-      "/cache/demo/metrics.json": () => Response.json(demo.metrics),
-      "/cache/sample/manifest.json": () => new Response("not found", { status: 404 }),
-      "/cache/real-gps/manifest.json": () => new Response("not found", { status: 404 }),
-    };
-    vi.stubGlobal("fetch", diskFetch(demoFiles));
-    render(<App dir="missing-cache" />);
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(/manifest\.json/);
-    const picker = await screen.findByRole("combobox", { name: "Survey" });
-    expect(within(picker).getAllByRole("option").map((option) => option.textContent)).toEqual([
-      "Choose a survey",
-      "Mount Seymour simulation",
-    ]);
-
-    await userEvent.selectOptions(picker, "demo");
-    expect(await screen.findByRole("navigation", { name: "Demo steps" })).toBeInTheDocument();
-  });
-
-  it("keeps sample data out of production survey candidates", () => {
-    expect(surveyCandidates(false).map((option) => option.dir)).toEqual(["demo", "real-gps"]);
-    expect(surveyCandidates(true).map((option) => option.dir)).toEqual([
-      "sample",
-      "demo",
-      "real-gps",
-    ]);
+  it("opens a sector's printable card on a live mission", () => {
+    open("#m/a1b2c3d4/card/B3", "https://api.example.org");
+    expect(screen.getByTestId("card")).toHaveTextContent("card B3");
   });
 });

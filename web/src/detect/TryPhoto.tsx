@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CacheBundle } from "../contract";
 import { cacheUrl } from "../lib/cache";
 import { reviewItems } from "../review/items";
-import { AppBar } from "../shell/AppBar";
-import { Badge, Page, PageHeader, Panel } from "../shell/components";
+import { Badge, Panel } from "../shell/components";
 import { detectPhoto, loadDetector, modelAvailable, type Backend } from "./runDetector";
 import { OVERLAP, SLICE_PX, type Detection } from "./tiling";
 
@@ -25,33 +24,22 @@ interface Shown {
 
 const mb = (bytes: number) => `${(bytes / 1e6).toFixed(1)} MB`;
 
-/** Try a photo, at `#try`: a page of its own, linked from Rank, For judges and the guided demo's menu. */
-export function TryPage({ cache, dir }: { cache: CacheBundle; dir: string }) {
-  return (
-    <>
-      <AppBar current="try" />
-      <Page>
-        <PageHeader
-          eyebrow="Try a photo"
-          title="Run Sightline's detector in your browser"
-          sub="Drop in an aerial photo, or pick one of the survey's, and see what the detector flags. Nothing is uploaded."
-        />
-        <TryPhoto cache={cache} dir={dir} />
-        <p className="text-small text-text-3">
-          Back to the <a className="text-text-2 underline underline-offset-2" href="#rank">guided demo's Rank step</a>, or see how the detector compares in{" "}
-          <a className="text-text-2 underline underline-offset-2" href="#results">Results</a>.
-        </p>
-      </Page>
-    </>
-  );
-}
-
 /**
  * "Try your own photo": the detector, running in the visitor's browser on a photo they drop in.
  * Same weights, slicing, merge and threshold as the pipeline. Said plainly: it runs on their
  * device, and on photos that aren't aerial search photos its boxes mean nothing.
  */
-export function TryPhoto({ cache, dir }: { cache: CacheBundle; dir: string }) {
+/** What a run found, for the Review rail: the photo (an address of its own) and the boxes above the cut-off. */
+export interface TriedPhoto {
+  url: string;
+  name: string;
+  width: number;
+  height: number;
+  boxes: Detection[];
+  ms: number;
+}
+
+export function TryPhoto({ cache, dir, onResult }: { cache: CacheBundle; dir: string; onResult?: (r: TriedPhoto) => void }) {
   const threshold = cache.metrics.detector.threshold;
   const [available, setAvailable] = useState<boolean | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -93,14 +81,17 @@ export function TryPhoto({ cache, dir }: { cache: CacheBundle; dir: string }) {
         const start = performance.now();
         const dets = await detectPhoto(detector, bitmap, (done, total) => setPhase({ kind: "running", done, total }));
         setBoxes(dets);
-        setPhase({ kind: "done", ms: performance.now() - start });
+        const took = performance.now() - start;
+        setPhase({ kind: "done", ms: took });
+        // its own address: this panel revokes its preview when it closes, the Review rail keeps showing it
+        onResult?.({ url: URL.createObjectURL(blob), name, width: bitmap.width, height: bitmap.height, boxes: dets.filter((d) => d.conf >= threshold), ms: took });
       } catch (err) {
         setPhase({ kind: "error", message: err instanceof Error ? err.message : String(err) });
       } finally {
         bitmap.close();
       }
     },
-    [busy],
+    [busy, onResult, threshold],
   );
 
   const onFile = (file: File | undefined) => {
@@ -266,7 +257,7 @@ function Status({ phase, kept }: { phase: Phase; kept: number }) {
   );
 }
 
-function BoxLayer({ shown, boxes }: { shown: Shown; boxes: Detection[] }) {
+export function BoxLayer({ shown, boxes }: { shown: Shown; boxes: Detection[] }) {
   // Same box and the same "contain" fit as the image, so photo pixels line up.
   return (
     <svg
