@@ -121,6 +121,35 @@ class MissionContext:
         effects.on_conditions(self.store, mission_id, c, self.hooks)
         return c
 
+    def override_conditions(
+        self, mission_id: str, gust_kmh: float, wind_kmh: float | None, by: str
+    ) -> Any:
+        """A labelled synthetic conditions record (``override (demo)``), traced and announced as
+        such, then passed on exactly like a refresh (map, agent): the demo's and the video's way to
+        make the gusts happen on demand."""
+        from sightline.agent.trace import trace_call
+        from sightline.geo.conditions import OVERRIDE_SOURCE, override_conditions
+
+        m = self.store.get(mission_id)
+        fleet = self.store.state(mission_id)["fleet"]
+        max_wind = min((d.max_wind_kmh for d in fleet.drones), default=None) if fleet else None
+        c = override_conditions(
+            m.area.name, gust_kmh=gust_kmh, wind_kmh=wind_kmh, fleet_max_wind_kmh=max_wind
+        )
+        fields = {"gust_kmh": gust_kmh} | ({"wind_kmh": wind_kmh} if wind_kmh is not None else {})
+        summary = f"Conditions {OVERRIDE_SOURCE} by {by}: " + ", ".join(
+            f"{k.split('_')[0]} {v:g} km/h" for k, v in fields.items()
+        )
+        trace_call(self.store, mission_id, actor="conditions", kind="note",
+                   summary=f"{summary} (not from Tavily)",
+                   output={"source": OVERRIDE_SOURCE, "by": by, "flyable": c.flyable,
+                           "reason": c.flyability_reason,
+                           "fields": {k: {"value": v, "quote": None, "url": None} for k, v in fields.items()}})  # fmt: skip
+        self.store.emit(mission_id, "mission.note", f"{summary}: {c.flyability_reason}",
+                        data={"conditions_override": {**fields, "by": by}})  # fmt: skip
+        effects.on_conditions(self.store, mission_id, c, self.hooks)
+        return c
+
     def detector(self) -> Any:
         if self._detector is None:
             self._detector = self.detector_factory()
@@ -597,6 +626,26 @@ def refresh_conditions(mission_id: str, request: Request) -> dict:
         return _dump(_ctx(request).refresh_conditions(mission_id))
     except LookupError as e:
         raise HTTPException(503, str(e)) from None
+
+
+class ConditionsOverride(BaseModel):
+    gust_kmh: float = Field(ge=0, le=250)
+    wind_kmh: float | None = Field(default=None, ge=0, le=200)
+    by: str = Field(default="demo", max_length=80)
+
+
+@missions_router.post("/missions/{mission_id}/conditions/override")
+def override_conditions(mission_id: str, body: ConditionsOverride, request: Request) -> dict:
+    """Demo and video only: a synthetic conditions record labelled ``override (demo)`` (sources,
+    reason, trace, feed), handled like a refresh, so gusts over the limit give the recall on demand.
+    Refused for a real fleet; the next ``conditions/refresh`` puts the real lookup back."""
+    store = _store(request, mission_id)
+    fleet = store.state(mission_id)["fleet"]
+    if fleet is not None and not fleet.simulated:
+        raise HTTPException(409, "a conditions override is for a simulated fleet only")
+    return _dump(
+        _ctx(request).override_conditions(mission_id, body.gust_kmh, body.wind_kmh, body.by)
+    )
 
 
 @missions_router.get("/missions/{mission_id}/cards/{sector_id}")

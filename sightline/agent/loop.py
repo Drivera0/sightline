@@ -14,7 +14,7 @@ from the facts it was given (``write_briefing``). There is no ``dismiss_detectio
 | task_searched | sector id   | re-plan, as for a clue (the team's step is on the map)          |
 | team_position | team id     | ``assign_sector`` if that team is on standby; ``drone_leg`` for idle drones with no pending one |
 | fleet_join   | mission id   | opening ``drone_leg`` for every idle drone                      |
-| conditions   | mission id   | ``alert`` to recall drones when flying turns unsafe; re-plan when visibility drops below 0.6 |
+| conditions   | mission id   | not flyable: ``retask_drone`` home for each flying drone (target ``home``), the reason quoting the Tavily fact and its page; re-plan when visibility drops below 0.6 |
 | leg_done     | leg id       | next ``drone_leg`` for that drone                               |
 | tick         | mission id   | ``assign_sector`` for standby teams                            |
 
@@ -23,6 +23,10 @@ person confirmed again reuses the pending (or approved) alert; the repeat is a t
 
 A re-plan is one proposal per drone at most, each approved on its own; the planner discounts
 sectors a ground team is assigned to or searching.
+
+A recall is a ``retask_drone`` whose leg flies home (``planner.home_leg``) and whose target has
+``home``, not a new proposal kind: a new kind would change the frozen contract (§10), and approving
+a re-task already cancels the current leg in the store, which is what a recall needs.
 """
 
 from __future__ import annotations
@@ -58,7 +62,11 @@ _NUMBER = re.compile(r"[A-Za-z]*\d+(?:[.,]\d+)?")
 
 # What the last conditions event looked like per mission, to act only on a change.
 _last_conditions: dict[str, tuple[bool | None, float]] = {}
+# The drones recalled in the current unflyable spell, per mission: one recall each.
+_recalled: dict[str, set[str]] = {}
 _lock = threading.Lock()
+# A conditions record put in by hand for a demo (POST /conditions/override), never from Tavily.
+OVERRIDE_SOURCE = "override (demo)"
 
 
 # --- briefings ---------------------------------------------------------------------------------
@@ -113,6 +121,8 @@ def conditions_facts(c: Conditions | None, now: str) -> dict[str, str]:
         out["weather"] = ", ".join(weather)
     if c.alerts:
         out["alerts"] = "; ".join(a.title for a in c.alerts[:2])
+    if c.flyable is False:  # why there is no drone cover (the planner proposes no legs)
+        out["drones"] = f"grounded, {c.flyability_reason}"
     return out
 
 
@@ -324,6 +334,11 @@ def _replan(
     state = store.state(mission_id)
     if state["fleet"] is None:
         return []
+    c = state["conditions"]
+    if c is not None and c.flyable is False:  # the planner proposes nothing: say why, once per call
+        trace_call(store, mission_id, actor="agent", kind="note", refs=cause,
+                   summary=f"No drone legs proposed: not flyable ({c.flyability_reason})")  # fmt: skip
+        return []
     live, layout = _layout(store, mission_id)
     fleet = state["fleet"]
 
@@ -525,31 +540,160 @@ def _on_clue(store, mission_id, clue_id) -> list[Proposal]:
     return _replan(store, mission_id, why, cause=(clue.id,))
 
 
+def is_override(c: Conditions | None) -> bool:
+    """Conditions put in by hand for a demo (``OVERRIDE_SOURCE``), never from a Tavily lookup."""
+    return c is not None and OVERRIDE_SOURCE in c.sources
+
+
+def _hhmm(iso: str) -> str:
+    return f"{iso[11:16]} UTC"
+
+
+def _domain(url: str) -> str:
+    from urllib.parse import urlparse
+
+    return urlparse(url).netloc.removeprefix("www.") or url
+
+
+def conditions_source(store: Any, mission_id: str, c: Conditions, field: str) -> dict:
+    """Where ``field``'s value came from: ``{"quote", "url", "source"}``. From the latest conditions
+    lookup in the trace (``fetch_conditions`` traces each kept value with its verbatim quote and the
+    page it was verified in) when its value is the one in ``c``; the demo override says so and has
+    neither quote nor page."""
+    if is_override(c):
+        return {"quote": None, "url": None, "source": OVERRIDE_SOURCE}
+    value = getattr(c, field)
+    for e in reversed(store.trace_entries(mission_id)):
+        out = e.output or {}
+        if e.actor != "conditions" or not isinstance(out.get("fields"), dict):
+            continue
+        f = out["fields"].get(field) or {}
+        same = f.get("value") is not None and value is not None and abs(f["value"] - value) < 0.51
+        if out.get("source") != OVERRIDE_SOURCE and same and f.get("quote"):
+            url = f.get("url") or None
+            return {"quote": f["quote"], "url": url, "source": _domain(url) if url else "Tavily"}
+        break  # only the latest lookup counts
+    return {"quote": None, "url": None, "source": "Tavily, no quote in the trace"}
+
+
+def _launch_point(store: Any, mission_id: str, drone_id: str) -> LatLon:
+    """Where the drone took off: its position in the first fleet report that has one, else the
+    mission's last known point."""
+    for ev in store.events(mission_id):
+        if ev.type != "fleet.updated" or not isinstance(ev.data, dict):
+            continue
+        d = next((x for x in ev.data.get("drones", []) if x.get("id") == drone_id), None)
+        if d and d.get("position"):
+            return LatLon.model_validate(d["position"])
+    return store.get(mission_id).area.lkp
+
+
+def _limit_name(limit: float) -> str:
+    """The simulated fleet's airframe when the limit is its 12 m/s (43.2 km/h)."""
+    from sightline.search.fleet import MAVIC_3E
+
+    return "DJI Mavic 3E limit" if abs(limit - MAVIC_3E.max_wind_ms * 3.6) < 0.5 else "drone limit"
+
+
+def recall_reason(
+    store: Any, mission_id: str, c: Conditions, limit: float | None
+) -> tuple[str, EvidenceRef]:
+    """Why the drones come home, in one line with its source, and the evidence pointing at it:
+    civil twilight passed; else the gust (or wind) value, the quote it was read from verbatim, the
+    page, when it was fetched and the limit it reached; else the flyability reason."""
+    from datetime import datetime
+
+    when = _hhmm(c.fetched_at)
+    if c.civil_twilight_end and datetime.fromisoformat(c.fetched_at) >= datetime.fromisoformat(
+        c.civil_twilight_end
+    ):
+        why = (
+            f"Civil twilight ended at {_hhmm(c.civil_twilight_end)} (computed for the area; "
+            f"as of {when}): no light for photos."
+        )
+        return why, EvidenceRef(kind="conditions", ref=c.fetched_at, caption=c.flyability_reason)
+    field = "gust_kmh" if c.gust_kmh is not None else "wind_kmh"
+    value = getattr(c, field)
+    if value is not None and limit is not None and value >= limit:
+        src = conditions_source(store, mission_id, c, field)
+        word = "Gusts" if field == "gust_kmh" else "Wind"
+        quote = f'"{src["quote"]}", ' if src["quote"] else ""
+        label = src["source"] + (", not from Tavily" if src["source"] == OVERRIDE_SOURCE else "")
+        why = (
+            f"{word} {value:.0f} km/h ({quote}{label}, as of {when}) > {_limit_name(limit)} "
+            f"{limit:.0f} km/h."
+        )
+        caption = src["quote"] or f"{word.lower()} {value:.0f} km/h ({label})"
+        return why, EvidenceRef(kind="conditions", ref=src["url"] or src["source"], caption=caption)
+    why = f"Not flyable: {c.flyability_reason} (as of {when})."
+    return why, EvidenceRef(kind="conditions", ref=c.fetched_at, caption=c.flyability_reason)
+
+
+def _recall(store: Any, mission_id: str, c: Conditions) -> list[Proposal]:
+    """A ``retask_drone`` home (``home_leg``, target ``home``) for each flying drone, each for a
+    person to approve; the reason quotes the fact that grounds them. Pending leg proposals are
+    superseded: nothing should take off into it. One recall per drone per unflyable spell."""
+    from sightline.search.planner import home_leg
+
+    state = store.state(mission_id)
+    fleet = state["fleet"]
+    if fleet is None:
+        return []
+    for p in state["proposals"]:
+        if (
+            p.status == "pending"
+            and p.kind in ("drone_leg", "retask_drone")
+            and "home" not in p.target
+        ):
+            store.set_proposal_status(mission_id, p.id, "superseded", by="agent")
+    limit = min((d.max_wind_kmh for d in fleet.drones), default=None)
+    why, source = recall_reason(store, mission_id, c, limit)
+    legs = {x.id: x for x in fleet.legs}
+    out = []
+    for d in fleet.drones:
+        current = legs.get(d.leg_id) if d.leg_id else None
+        with _lock:
+            done = _recalled.setdefault(mission_id, set())
+            if d.status != "flying" or d.id in done:
+                continue
+            done.add(d.id)
+        if current is not None and current.sector_id is None:
+            continue  # already flying home
+        leg = home_leg(d, _launch_point(store, mission_id, d.id), store.next_id(mission_id, "L"),
+                       f"Recall: {why}")  # fmt: skip
+        sector = f"leaves sector {current.sector_id}, " if current and current.sector_id else ""
+        away = f"{leg.est_minutes:.0f} min" if leg.est_minutes >= 1 else "under a minute"
+        out.append(
+            _add(
+                store,
+                mission_id,
+                kind="retask_drone",
+                summary=f"Recall {d.name}: fly home now ({sector}battery {d.battery_pct:.0f}%)",
+                reason=f"{why} Recall {d.name} to its launch point, {away} away.",
+                target={"drone": d.id, "leg": leg.id, "home": "recall"},
+                leg=leg,
+                evidence=[
+                    source,
+                    EvidenceRef(kind="leg", ref=leg.id, caption="home to the launch point"),
+                ],
+                created_by="agent",
+            )
+        )
+    return out
+
+
 def _on_conditions(store, mission_id) -> list[Proposal]:
     c: Conditions | None = store.state(mission_id)["conditions"]
     if c is None:
         return []
     with _lock:
-        prev_flyable, prev_vis = _last_conditions.get(mission_id, (None, 1.0))
+        _, prev_vis = _last_conditions.get(mission_id, (None, 1.0))
         _last_conditions[mission_id] = (c.flyable, c.visibility_factor)
-    fleet = store.state(mission_id)["fleet"]
-    in_air = fleet is not None and any(d.status in ("flying", "returning") for d in fleet.drones)
-    # A recall only when a drone is up: live, a mission with no drones got "Recall drones" at dusk.
-    if c.flyable is False and prev_flyable is not False and in_air:
-        return [
-            _add(
-                store,
-                mission_id,
-                kind="alert",
-                summary="Recall drones: flying conditions are no longer safe",
-                reason=c.flyability_reason,
-                target={"drone": "all"},
-                evidence=[
-                    EvidenceRef(kind="conditions", ref=c.fetched_at, caption=c.flyability_reason)
-                ],
-                created_by="agent",
-            )
-        ]
+        if c.flyable is not False:
+            _recalled.pop(mission_id, None)  # the next unflyable spell recalls again
+    # Only drones in the air are recalled: live, a mission with no drones got "Recall drones" at dusk.
+    if c.flyable is False:
+        return _recall(store, mission_id, c)
     if c.visibility_factor < LOW_VISIBILITY <= prev_vis:
         why = f"Visibility factor fell to {c.visibility_factor:.2f}; re-planned with it."
         return _replan(store, mission_id, why)

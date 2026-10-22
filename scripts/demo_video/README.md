@@ -64,6 +64,8 @@ bash scripts/demo_video/run.sh --live --api <url> --mission <id>     # resume th
 
 After the demo shots, `--live` records a live mission: `live_upload` (the Photos tab with the watch command), `live_photos` (the counters ticking while `python -m sightline.client replay` sends real-GPS HERIDAL **val** photos at drone pace in a subprocess: `--replay-limit 12 --replay-pace 2`), `live_review` (candidates with their second-look verdicts), `live_console` (the console on the live map) and `live_radio` (the radio desk). The site is built with `VITE_API_URL` set to the API. If the API doesn't answer `/health`, those shots are skipped and `shots.json` says why. The page clock isn't pinned in live mode, since a live mission's events carry real times.
 
+Then `recall` (25 s, **guarded**: it runs only when the API has `POST /missions/{id}/conditions/override` in its `/openapi.json` and the HERIDAL val photos are there for the fleet sim): off camera, a fresh mission gets the creek scenario's three simulated drones in the air (`scripts/recall_demo.py`'s steps, a calm demo override first if the real conditions say no flying); on camera, the console's **Fleet controls** set gusts of 50 km/h (a demo override, labelled so on screen), the agent's recall cards arrive quoting the fact and the DJI Mavic 3E's 43 km/h limit, each is approved, and the drones turn home on the map. `shots.json` keeps the mission id and the fleet's last lines under the shot's `extra`.
+
 `--serve-local` runs `python -m sightline.pipeline serve --radio text` with the agent and Tavily faked (`SIGHTLINE_FAKE_LLM=1`, `SIGHTLINE_FAKE_TAVILY=1`), its missions under `<run>/api/`, the cv2 detector from `web/public/models/sightline-detector-v2.onnx`. Tested here: 12 photos processed (about 3 s each), 4 candidates with verdicts, the live heat on the console, the radio desk. Without the `conditions` extra the server logs that it can't fetch conditions (`astral` missing); `run.sh` passes `--extra conditions`. Never point it at AWS for a rehearsal: start AWS only for the real recording (and run `scripts/remote_check.py` first).
 
 ## Captions and cuts (`captions.py`, `captions.yaml`)
@@ -73,7 +75,7 @@ After the demo shots, `--live` records a live mission: `live_upload` (the Photos
 The cuts are made from `master_captioned.mp4`, silent, with 12 s of black at the start and 10 s at the end for the on-camera clips:
 
 - **OpenCV (≤ 5:00)**: front → survey → live upload/photos → rank → review → live review → search → trace → approvals → fleet → console → clue → live console → radio → feed, then black slots for the architecture (35 s), numbers (35 s) and limits (20 s) slides.
-- **Nebius (≤ 3:00)**: front and upload at 2× → detection (rank, review, live photos and review) → re-look (trace) → re-task (clue, fleet, approvals) → card/radio (console, radio) → black slots for Tavily (15 s), architecture (15 s) and limits (10 s).
+- **Nebius (≤ 3:00)**: front and upload at 2× → detection (rank, review, live photos and review) → re-look (trace) → re-task (clue, fleet, approvals) → card/radio (console, radio) → the recall (gusts → no-fly → recall, live) → black slots for Tavily (15 s), architecture (15 s) and limits (10 s).
 
 A shot that didn't run is left out. When the shots don't fit, each is trimmed from its tail by the same factor (`"trimmed"` in `cut_<name>.json`). Edit the `cuts:` section to reorder, change a speed or resize a slot.
 

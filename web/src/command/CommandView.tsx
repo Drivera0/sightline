@@ -7,7 +7,9 @@ import { useSelection } from "../lib/selection";
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { isTyping } from "../lib/keys";
 import { ConditionsPanel, type ConditionsData } from "./ConditionsPanel";
-import { dayNote } from "./conditions";
+import { dayNote, isOverride } from "./conditions";
+import { FleetControls } from "./FleetControls";
+import { useMission } from "../lib/mission";
 import type { Clue, ClueDraft, Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { KeyHint, ModeChip, modeOf, Panel, StatusPill, type Tone } from "../shell/components";
@@ -92,6 +94,12 @@ export function CommandView(p: CommandProps) {
   const hasConditions = !!p.map && !!p.conditionsData;
   // a recorded run (the demo) is read on its own clock
   const panelNow = p.conditionsData?.recorded ? new Date(p.conditionsData.conditions.fetched_at) : now();
+  // the simulated fleet's demo controls and the drones' battery and position (live missions only)
+  const api = useMission((s) => s.api);
+  const fleet = useMission((s) => s.fleet);
+  const links = useMission((s) => s.links);
+  const controls =
+    api && p.mission ? <FleetControls api={api} missionId={p.mission.mission_id} fleet={fleet} links={links} conditions={p.conditions} /> : null;
   useEffect(() => {
     if (!hasConditions) return undefined;
     const onKey = (e: KeyboardEvent) => {
@@ -138,6 +146,7 @@ export function CommandView(p: CommandProps) {
         <aside aria-label="Sectors and teams" className={`order-2 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 ${w.inPlace}`}>
           <TaskBoard compact tasks={p.tasks} sectors={p.sectors} teams={p.teams} onSetTask={p.onSetTask} onUpdateTeam={p.onUpdateTeam} now={now()} cardHref={p.cardHref} />
           <TeamRoster teams={p.teams} tasks={p.tasks} now={now()} />
+          {controls}
         </aside>
         <div className={`order-1 flex min-h-0 flex-col gap-2 ${w.inPlace}`}>
           <StatusLine proposals={p.proposals} teams={p.teams} tasks={p.tasks} clues={p.clues} />
@@ -146,7 +155,7 @@ export function CommandView(p: CommandProps) {
           <div className={`h-[60vh] min-h-0 ${w.map}`}>{p.map}</div>
         </div>
         <aside aria-label="Approvals" className={`order-3 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 ${w.inPlace}`}>
-          <ApprovalInbox proposals={p.proposals} teams={p.teams} onDecide={p.onDecide} imageUrl={p.imageUrl} />
+          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} />
           {p.sideRail}
         </aside>
         <div className={`order-4 ${w.clues} overflow-y-auto rounded-lg border border-line bg-surface-solid px-4 py-2.5 ${w.inPlace} ${w.span}`}>
@@ -162,9 +171,10 @@ export function CommandView(p: CommandProps) {
         <div className="flex flex-col gap-4">
           <TaskBoard tasks={p.tasks} sectors={p.sectors} teams={p.teams} onSetTask={p.onSetTask} onUpdateTeam={p.onUpdateTeam} now={now()} cardHref={p.cardHref} />
           <TeamRoster teams={p.teams} tasks={p.tasks} now={now()} />
+          {controls}
         </div>
         <div className="flex flex-col gap-4">
-          <ApprovalInbox proposals={p.proposals} teams={p.teams} onDecide={p.onDecide} imageUrl={p.imageUrl} />
+          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} />
           {p.sideRail}
         </div>
       </div>
@@ -194,6 +204,7 @@ export function MissionHeader({
   const bits: string[] = [];
   if (c) {
     if (c.wind_kmh !== null) bits.push(`wind ${c.wind_kmh.toFixed(0)} km/h${c.gust_kmh !== null ? `, gusts ${c.gust_kmh.toFixed(0)}` : ""}`);
+    else if (c.gust_kmh !== null) bits.push(`gusts ${c.gust_kmh.toFixed(0)} km/h`);
     if (c.precip_mm_h) bits.push(`rain ${c.precip_mm_h.toFixed(1)} mm/h`);
     if (c.flyability_reason.startsWith("before dawn")) bits.push("before dawn");
     else if (c.civil_twilight_end) {
@@ -220,6 +231,11 @@ export function MissionHeader({
         {utc && " UTC"}
       </span>
       <StatusPill tone={fly[0]}>{fly[1]}</StatusPill>
+      {isOverride(c) && (
+        <StatusPill tone="caution" dot={false} title="Conditions set by hand for a demo (override (demo)), not from Tavily">
+          Demo override
+        </StatusPill>
+      )}
       {c && c.alerts.length > 0 && <StatusPill tone="caution">{c.alerts.length === 1 ? "1 alert" : `${c.alerts.length} alerts`}</StatusPill>}
       <Line
         className="sl-tap min-w-0 flex-1 text-left text-small text-text-2 max-lg:basis-full lg:truncate"

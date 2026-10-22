@@ -212,6 +212,55 @@ def flyability(
     )
 
 
+OVERRIDE_SOURCE = "override (demo)"  # also sightline.agent.loop.OVERRIDE_SOURCE
+
+
+def override_conditions(
+    area: str,
+    *,
+    gust_kmh: float,
+    wind_kmh: float | None,
+    fleet_max_wind_kmh: float | None,
+    now: str | None = None,
+) -> Conditions:
+    """A labelled synthetic record for demos and the video (``POST /conditions/override``): the
+    given wind and gusts, every other field empty, ``sources == [OVERRIDE_SOURCE]`` and the reason
+    starting with it, so nothing reads it as a Tavily lookup. Never cached with real lookups and
+    never merged with one: the next real refresh replaces it whole. Flyability is the same check
+    as a lookup's, on wind only: daylight is not checked, so the demo runs at any hour."""
+    now = now or _now()
+    base = Conditions(
+        fetched_at=now,
+        stale=False,
+        area=area,
+        sources=[OVERRIDE_SOURCE],
+        wind_kmh=wind_kmh,
+        gust_kmh=gust_kmh,
+        wind_dir_deg=None,
+        precip_mm_h=None,
+        precip_prob=None,
+        temp_c=None,
+        visibility_km=None,
+        sunset=None,
+        civil_twilight_end=None,
+        alerts=[],
+        flyable=None,
+        flyable_until=None,
+        flyability_reason="",
+        visibility_factor=1.0,
+        exposure_band=None,
+        exposure_note=f"{OVERRIDE_SOURCE}: no exposure estimate",
+    )
+    flyable, until, reason = flyability(base, fleet_max_wind_kmh, now)
+    return base.model_copy(
+        update={
+            "flyable": flyable,
+            "flyable_until": until,
+            "flyability_reason": f"{OVERRIDE_SOURCE}: {reason}",
+        }
+    )
+
+
 def visibility_factor(c: Conditions, now: str, text: str = "") -> float:
     """How much of a photo's usual chance to see a person survives the weather (multiplies POD):
     × 0.7 for rain ≥ 0.5 mm/h, × 0.6 for visibility < 2 km or fog/mist in the forecast, × 0.8
