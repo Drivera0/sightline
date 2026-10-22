@@ -112,13 +112,13 @@ A Jetson field kit without internet; thermal for night searches; real drone phot
 2. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:712-723`
 3. `docs/report/OPENCV_REPORT.md:537-544`; `docs/LANE_A_ML.md:314`
 4. `docs/report/OPENCV_REPORT.md:662-672`
-5. `docs/feedback/nebius.md:71-74`
+5. `docs/feedback/nebius.md:72-75`
 6. `docs/feedback/radio.md:84`, `:101`
-7. `docs/feedback/nebius.md:173-176`; `README.md:103`
+7. `docs/feedback/nebius.md:174-177`; `README.md:103`
 8. `docs/report/OPENCV_REPORT.md:884-886`, `:999-1002`
 9. `README.md:78`; `docs/architecture/agent.md` ("A second chain"); `scripts/creek_run.py`, `scripts/retask_chain.py`
 10. Ultralytics, "NVIDIA Jetson" guide, Orin Nano Super benchmark table, YOLO26n, TensorRT FP16 (https://docs.ultralytics.com/guides/nvidia-jetson/, read 2026-10-22)
 11. `docs/feedback/radio.md:76-79`, `:115-120`
 12. `docs/report/AGENT_EVAL.md` (failure handling, correct target, approval gate); `docs/report/OPENCV_REPORT.md:547-562`, `:577`, `:583-587`
 13. `docs/submission/WHAT_BREAKS_FIRST.md`; `docs/report/OPENCV_REPORT.md:853-855`, `:537-538`, `:884-886`; `docs/DETECTOR_LIMITS.md:39`, `:54`
-14. `docs/report/OPENCV_REPORT.md` §4.1 (inputs: `:374`, `:377`, `:381`; `docs/feedback/nebius.md:74`, `:174-177`; `docs/report/TAVILY.md:15`; `docs/report/CV2_CUDA.md:143`)
+14. `docs/report/OPENCV_REPORT.md` §4.1 (inputs: `:374`, `:377`, `:381`; `docs/feedback/nebius.md:75`, `:175-178`; `docs/report/TAVILY.md:15`; `docs/report/CV2_CUDA.md:143`)
