@@ -81,29 +81,29 @@ A shot that didn't run is left out. When the shots don't fit, each is trimmed fr
 
 The GIF takes the first candidate shot (`gif.candidates`, in order of preference) with enough movement in its window (a candidate's own `min_motion` overrides the default), ends it on the frame within 20 ± 2 s closest to its first frame, and fades its first half second in over its end, playing on from the frame after: the last frame is the frame before the first, so the loop has no jump. `end_aligned: true` takes the window that ends with the shot: `fleet` (the first choice) is 12 s, so its 20 s start on the same console while the clue lands, and never run into the Trace page. Larger than 10 MB, it retries at lower fps and width.
 
-## Last run (live, `--serve-local`, this machine, 2026-10-22)
+## Last run (live, `--serve-local`, this machine, 2026-10-22, after #150)
 
-`runs/video/20261022-030506/`: 259.2 s master; shot times from the sync mark, nothing skipped:
+`runs/video/20261022-033407/`: 272.3 s master; shot times from the sync mark, nothing skipped:
 
 | Shot | Start | End | Length | Target |
 |---|---|---|---|---|
 | front | 0.6 | 7.1 | 6.5 | 7 |
-| survey | 7.7 | 14.7 | 7.0 | 9 |
-| rank | 15.3 | 31.2 | 15.9 | 12 |
-| review | 31.6 | 45.2 | 13.6 | 14 |
-| search | 45.6 | 57.6 | 12.1 | 12 |
-| operate | 58.3 | 64.5 | 6.2 | 7 |
-| console | 64.5 | 75.8 | 11.3 | 12 |
-| approvals | 76.2 | 90.2 | 14.1 | 14 |
-| clue | 90.6 | 109.3 | 18.7 | 18 |
-| fleet | 109.8 | 122.3 | 12.6 | 12 |
-| trace | 123.8 | 137.4 | 13.7 | 14 |
-| feed | 137.8 | 145.8 | 8.0 | 8 |
-| live_upload | 147.2 | 157.4 | 10.1 | 12 |
-| live_photos | 157.8 | 176.6 | 18.8 | 20 |
-| live_review | 176.6 | 192.2 | 15.6 | 16 |
-| live_console | 192.6 | 204.6 | 12.1 | 14 |
-| live_radio | 205.0 | 215.0 | 10.0 | 10 |
-| recall | 224.8 | 256.3 | 31.5 | 25 |
+| survey | 7.6 | 16.6 | 9.0 | 9 |
+| rank | 17.2 | 32.4 | 15.2 | 12 |
+| review | 32.8 | 48.2 | 15.4 | 14 |
+| search | 48.6 | 60.0 | 11.4 | 12 |
+| operate | 60.6 | 67.6 | 7.0 | 7 |
+| console | 68.2 | 79.7 | 11.5 | 12 |
+| approvals | 80.1 | 94.1 | 14.0 | 14 |
+| clue | 94.4 | 114.8 | 20.4 | 18 |
+| fleet | 115.2 | 128.7 | 13.5 | 12 |
+| trace | 131.8 | 143.5 | 11.6 | 14 |
+| feed | 143.8 | 151.8 | 8.0 | 8 |
+| live_upload | 153.2 | 165.4 | 12.1 | 12 |
+| live_photos | 165.8 | 185.4 | 19.7 | 20 |
+| live_review | 185.8 | 201.5 | 15.8 | 16 |
+| live_console | 201.9 | 215.9 | 14.0 | 14 |
+| live_radio | 216.2 | 226.2 | 10.0 | 10 |
+| recall | 235.8 | 269.5 | 33.8 | 25 |
 
-Cuts: OpenCV 4:59.5 (16 shots, each trimmed to 0.937 of its length), Nebius 2:59.5 (13 shots, trimmed to 0.915 after the speed-ups). GIF: 2.4 MB, 18.0 s from `fleet` (the console: the clue lands, then the fleet with Drone 1 re-tasked). The demo-only run (`runs/video/20261022-030114/`) has the same 12 demo shots, none skipped. Wall time: about 4.5 min to record the live run, about 2 min for the encodes.
+Cuts: OpenCV 4:59.5 (16 shots, each trimmed to 0.901 of its length), Nebius 2:59.5 (13 shots, trimmed to 0.887 after the speed-ups). GIF: 2.6 MB, 19.1 s from `fleet` (the console: the clue lands, then the fleet with Drone 1 re-tasked). Recall: all three drones recalled and home. Wall time: about 5 min to record the live run, about 2 min for the encodes.
