@@ -5,7 +5,39 @@ import { useState, type DragEvent } from "react";
 import * as defaultApi from "../lib/api";
 import type { Api, UploadResult } from "../lib/api";
 import { Label, Panel } from "../shell/components";
-import { batches, photoFiles } from "./upload";
+import { batches, hostLabel, photoFiles, uploadCommand } from "./upload";
+
+/**
+ * During the flight: the `watch` command for the laptop the photos land on. The prose names the host
+ * ("connected to 127.0.0.1"); the exact command, origin and all, is in the code line and on the Copy button.
+ */
+export function WatchPanel({ base, missionId }: { base: string; missionId: string }) {
+  const command = uploadCommand(base, missionId);
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard?.writeText(command).then(
+      () => setCopied(true),
+      () => undefined,
+    );
+  };
+  return (
+    <Panel className="flex flex-col gap-2" aria-label="During the flight">
+      <Label>During the flight</Label>
+      <p className="text-body text-text-2">
+        On the laptop the drone's photos land on, watch the folder: each photo is sent once its copy has finished, in batches of up to
+        10, and kept in a queue while there is no connection. This mission is connected to <span className="text-text">{hostLabel(base)}</span>;
+        run this, with PHOTO_FOLDER replaced by the SD card or sync folder:
+      </p>
+      <code aria-label="Watch command" className="block overflow-x-auto whitespace-pre-wrap break-all rounded-sm bg-surface-strong p-2 font-mono text-caption text-text-2">
+        {command}
+      </code>
+      <button type="button" className="sl-tap self-start rounded-full border border-border px-3 py-1 text-small text-text-2" onClick={copy}>
+        {copied ? "Copied" : "Copy the command"}
+      </button>
+      <p className="text-small text-text-3">In production the drone's own cloud upload (DJI FlightHub 2) would post here directly (roadmap).</p>
+    </Panel>
+  );
+}
 
 /** A thin progress bar with its words (the native <progress> keeps its role and numbers for screen readers). */
 function Bar({ label, value, max, words }: { label: string; value: number; max: number; words: string }) {

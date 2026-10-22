@@ -27,6 +27,7 @@ import { relayFeatures } from "../base/relayLayer";
 import { teamFeatures } from "../base/teamLayer";
 import { useMission, type DroneLink } from "../../lib/mission";
 import { isTyping } from "../../lib/keys";
+import { clock, useClock } from "../../lib/time";
 import { useSelection } from "../../lib/selection";
 import type { SectorNow } from "../../lib/api";
 import { prefersReducedMotion } from "../../metrics/motion";
@@ -80,11 +81,12 @@ export function pointFeatures(
   teams: readonly Team[],
   fleet: FleetState | null = null,
   now: Date = new Date(),
+  time?: (iso: string) => string,
 ): MissionFeature[] {
   const callsign = (id: string) => teams.find((t) => t.id === id)?.callsign ?? (id === "command" ? "command" : id);
   return [
     point("lkp", "", "Last known point", "accent", base.lkp.lon, base.lkp.lat),
-    ...clueFeatures(clues, callsign),
+    ...clueFeatures(clues, callsign, time),
     ...teamFeatures(teams, now),
     ...droneFeatures(fleet),
   ];
@@ -93,6 +95,7 @@ export function pointFeatures(
 function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, proposals = [], now }: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase }): ReactNode {
   const { map, onPick } = useMap();
   const links = useMission((s) => s.links);
+  const { utc } = useClock();
   const glide = useMemo(() => new FleetGlide(), []);
   const seen = useRef<Record<string, SeenCancel>>({});
   const firstLook = useRef(true);
@@ -259,8 +262,8 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
     const { lines, labels } = sectorFeatures(sectors);
     setData(map, LIVE_IDS.sectors, lines);
     setData(map, LIVE_IDS.sectorLabels, labels);
-    setData(map, LIVE_IDS.points, pointFeatures(base, clues, teams, null, now ?? new Date()));
-  }, [map, ready, base, sectors, clues, teams, now]);
+    setData(map, LIVE_IDS.points, pointFeatures(base, clues, teams, null, now ?? new Date(), (iso) => clock(iso, utc)));
+  }, [map, ready, base, sectors, clues, teams, now, utc]);
 
   // The fleet: drones glide to each new report, a re-task animates out, relay dots travel. One
   // animation frame loop, running only while something moves (reduced motion: one still frame).

@@ -60,6 +60,7 @@ describe("RadioDesk", () => {
     expect(screen.getByText(SAFETY_FRAME)).toBeInTheDocument();
     expect(await screen.findByText("Nothing waiting to be transmitted.")).toBeInTheDocument();
     expect(screen.getByText("No radio traffic yet.")).toBeInTheDocument();
+    expect(screen.getByText(/To start a turn, choose Speaking as, then keep V .* pressed while you speak; or type what the team says and press Send\./)).toBeInTheDocument();
   });
 
   it("text fallback posts the text as the selected team, logs the turn and plays its chunks", async () => {

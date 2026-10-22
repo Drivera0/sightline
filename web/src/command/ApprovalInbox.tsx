@@ -4,9 +4,10 @@
 // briefing goes to the radio's outbound queue; nothing is transmitted from here. Keys act on the focused
 // card only. Built by lane A for lane E (issue #70).
 
-import { useState, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Drone, EvidenceRef, Proposal, Team } from "../contract";
 import { Label, Panel, StatusPill } from "../shell/components";
+import { useClock } from "../lib/time";
 import { domain, OVERRIDE_SOURCE } from "./conditions";
 
 export type Decide = (
@@ -30,6 +31,17 @@ const IMAGE_EVIDENCE: readonly EvidenceRef["kind"][] = ["crop", "frame", "relook
 /** A recall: a re-task whose leg flies the drone home (target `home`), proposed when conditions ground the drones. */
 export const isRecall = (p: Proposal) => p.kind === "retask_drone" && p.target.home !== undefined;
 const kindWords = (p: Proposal) => (isRecall(p) ? "Recall drone" : KIND_WORDS[p.kind]);
+
+/**
+ * A recall's summary carries the battery when the agent proposed it ("battery 97%"): say so, and put the
+ * fleet's live value beside it ("battery 97% at proposal, now 95%"), so the card never shows an old number as current.
+ */
+export function recallSummary(summary: string, liveBatteryPct?: number): string {
+  return summary.replace(/battery (\d+(?:\.\d+)?) ?%/, (_, at: string) => {
+    const now = liveBatteryPct === undefined ? "" : `, now ${liveBatteryPct.toFixed(0)}%`;
+    return `battery ${at}% at proposal${now}`;
+  });
+}
 
 /** The fact that grounded the drones, where it came from, and the drone's battery and position. */
 function RecallFacts({ p, drone }: { p: Proposal; drone: Drone | undefined }) {
@@ -60,7 +72,7 @@ function RecallFacts({ p, drone }: { p: Proposal; drone: Drone | undefined }) {
       )}
       {drone && (
         <span className="text-text-2">
-          {drone.name}: battery {drone.battery_pct.toFixed(0)}%, {drone.status}
+          {drone.name} now: battery {drone.battery_pct.toFixed(0)}%, {drone.status}
           {drone.position && (
             <span className="font-mono text-text-3">
               {" "}
@@ -72,6 +84,25 @@ function RecallFacts({ p, drone }: { p: Proposal; drone: Drone | undefined }) {
     </div>
   );
 }
+/** The nearest ancestor that scrolls vertically (the console's Approvals rail), or null (the page). */
+function scroller(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const y = getComputedStyle(p).overflowY;
+    if ((y === "auto" || y === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;
+}
+
+/** Scroll `el`'s rail so `el` sits at its top; with no rail, the page brings it into view. */
+export function bringToTop(el: HTMLElement): void {
+  const rail = scroller(el);
+  if (!rail) {
+    el.scrollIntoView?.({ block: "nearest" });
+    return;
+  }
+  rail.scrollTop += el.getBoundingClientRect().top - rail.getBoundingClientRect().top;
+}
+
 const OPERATOR_KEY = "sightline.operator";
 
 function loadOperator(): string {
@@ -82,7 +113,6 @@ function loadOperator(): string {
   }
 }
 
-const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 
 export function ApprovalInbox({
   proposals,
@@ -90,6 +120,7 @@ export function ApprovalInbox({
   drones = [],
   onDecide,
   imageUrl,
+  feedHref,
 }: {
   proposals: readonly Proposal[];
   teams: readonly Team[];
@@ -97,7 +128,10 @@ export function ApprovalInbox({
   drones?: readonly Drone[];
   onDecide: Decide;
   imageUrl: (rel: string) => string;
+  /** The mission's feed, linked when nothing is waiting (none inside the guided demo, which owns the address). */
+  feedHref?: string;
 }) {
+  const { time } = useClock();
   const [operator, setOperator] = useState(loadOperator);
   const saveOperator = (name: string) => {
     setOperator(name);
@@ -110,6 +144,27 @@ export function ApprovalInbox({
   const newestFirst = [...proposals].sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
   const pending = newestFirst.filter((p) => p.status === "pending");
   const decided = newestFirst.filter((p) => p.status !== "pending");
+
+  // After a decision the card leaves the list: bring the next pending card to the top of the rail (and
+  // focus it, so A and X act on it), rather than leave the rail scrolled to the middle of a card.
+  const cards = useRef(new Map<string, HTMLElement>());
+  const [handoff, setHandoff] = useState<{ decided: string; next: string } | null>(null);
+  const pendingIds = pending.map((p) => p.id).join(" ");
+  useLayoutEffect(() => {
+    if (!handoff || pendingIds.split(" ").includes(handoff.decided)) return; // not out of the list yet
+    const el = cards.current.get(handoff.next);
+    if (el) {
+      bringToTop(el);
+      el.focus({ preventScroll: true });
+    }
+    setHandoff(null);
+  }, [handoff, pendingIds]);
+  const decide: Decide = (pid, ...rest) => {
+    const i = pending.findIndex((p) => p.id === pid);
+    const next = pending[i + 1] ?? pending[i - 1];
+    setHandoff(next ? { decided: pid, next: next.id } : null);
+    return onDecide(pid, ...rest);
+  };
 
   return (
     <section aria-label="Approval inbox" className="flex flex-col gap-3">
@@ -126,7 +181,16 @@ export function ApprovalInbox({
           />
         </label>
       </header>
-      {pending.length === 0 && <p className="text-small text-text-3">Nothing waiting. The agent's proposals appear here.</p>}
+      {pending.length === 0 && (
+        <div aria-label="Nothing waiting" className="flex flex-col gap-1.5 rounded-sm border border-dashed border-line px-3 py-4 text-small">
+          <p className="text-text-2">Nothing waiting. Proposals appear here when the agent has evidence; they need a person's approval.</p>
+          {feedHref && (
+            <a href={feedHref} className="sl-tap self-start text-accent-soft underline underline-offset-2 hover:text-text">
+              See what the agent is doing in the feed
+            </a>
+          )}
+        </div>
+      )}
       {pending.map((p) => (
         <PendingCard
           key={p.id}
@@ -134,8 +198,12 @@ export function ApprovalInbox({
           teams={teams}
           drone={drones.find((d) => d.id === p.target.drone)}
           by={operator.trim() || "Search manager"}
-          onDecide={onDecide}
+          onDecide={decide}
           imageUrl={imageUrl}
+          cardRef={(el) => {
+            if (el) cards.current.set(p.id, el);
+            else cards.current.delete(p.id);
+          }}
         />
       ))}
       {decided.length > 0 && (
@@ -148,7 +216,7 @@ export function ApprovalInbox({
                 <span className="text-text">{p.summary}</span>
                 {p.decided_by && (
                   <span className="text-text-3">
-                    {p.status === "approved" ? "Approved" : p.status === "rejected" ? "Rejected" : p.status} by {p.decided_by} at {time(p.decided_at)}
+                    {p.status === "approved" ? "Approved" : p.status === "rejected" ? "Rejected" : p.status} by {p.decided_by} at {p.decided_at ? time(p.decided_at) : ""}
                     {p.decision_reason ? `: ${p.decision_reason}` : ""}
                   </span>
                 )}
@@ -168,6 +236,7 @@ function PendingCard({
   by,
   onDecide,
   imageUrl,
+  cardRef,
 }: {
   p: Proposal;
   teams: readonly Team[];
@@ -175,6 +244,7 @@ function PendingCard({
   by: string;
   onDecide: Decide;
   imageUrl: (rel: string) => string;
+  cardRef?: (el: HTMLDivElement | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -201,10 +271,10 @@ function PendingCard({
   };
 
   return (
-    <Panel tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} className="flex flex-col gap-2 border-l-2 border-l-accent bg-surface-solid p-3 focus:outline focus:outline-accent">
+    <Panel ref={cardRef} tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} className="flex flex-col gap-2 border-l-2 border-l-accent bg-surface-solid p-3 focus:outline focus:outline-accent">
       <div className="flex flex-wrap items-center gap-2">
         <StatusPill tone="action">{kindWords(p)}</StatusPill>
-        <span className="text-body text-text">{p.summary}</span>
+        <span className="text-body text-text">{isRecall(p) ? recallSummary(p.summary, drone?.battery_pct) : p.summary}</span>
         <span className="ml-auto font-mono text-caption text-text-3">
           {p.id} · {p.created_by}
         </span>

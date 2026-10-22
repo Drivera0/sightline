@@ -2,9 +2,10 @@
 // proposals say who and when; keys act on the focused card only.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Drone, Proposal, Team } from "../contract";
-import { ApprovalInbox } from "./ApprovalInbox";
+import { ApprovalInbox, recallSummary } from "./ApprovalInbox";
 
 const AT = "2026-10-24T21:40:00Z";
 const p = (over: Partial<Proposal>): Proposal => ({
@@ -78,12 +79,52 @@ describe("ApprovalInbox", () => {
     expect(screen.getByLabelText("Why reject")).toBeInTheDocument();
   });
 
+  it("after an approval, brings the next pending card to the top of the rail and focuses it", async () => {
+    // jsdom has no layout: the rail scrolls (1000 px in 300), its top at 100 px; the next card's top is at 340 px
+    const rect = (top: number) => ({ top, bottom: top + 200, left: 0, right: 300, width: 300, height: 200, x: 0, y: top, toJSON: () => ({}) });
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return rect(this.getAttribute("aria-label") === "Approvals rail" ? 100 : this.getAttribute("aria-label") === "Proposal p001" ? 340 : 0);
+    });
+    function Rail() {
+      const [list, setList] = useState([p({ id: "p001", created_at: "2026-10-24T21:40:00Z" }), p({ id: "p002", created_at: "2026-10-24T21:45:00Z" })]);
+      return (
+        <div aria-label="Approvals rail" style={{ overflowY: "auto" }}>
+          <ApprovalInbox
+            proposals={list}
+            teams={TEAMS}
+            onDecide={(pid) => setList((l) => l.map((x) => (x.id === pid ? { ...x, status: "approved" as const } : x)))}
+            imageUrl={(r) => r}
+          />
+        </div>
+      );
+    }
+    render(<Rail />);
+    const rail = screen.getByLabelText("Approvals rail");
+    let top = 120; // scrolled down into p002's card
+    Object.defineProperty(rail, "scrollHeight", { value: 1000 });
+    Object.defineProperty(rail, "clientHeight", { value: 300 });
+    Object.defineProperty(rail, "scrollTop", { get: () => top, set: (v: number) => void (top = v) });
+    await userEvent.click(within(screen.getByLabelText("Proposal p002")).getByRole("button", { name: /Approve/ }));
+    expect(screen.queryByLabelText("Proposal p002")).toBeNull();
+    expect(top).toBe(120 + 240); // p001's top now meets the rail's top
+    expect(document.activeElement).toBe(screen.getByLabelText("Proposal p001")); // A and X act on it next
+    spy.mockRestore();
+  });
+
+  it("with nothing waiting, says what will appear and links the feed", () => {
+    render(<ApprovalInbox proposals={[]} teams={TEAMS} onDecide={vi.fn()} imageUrl={(r) => r} feedHref="#m/demo/feed" />);
+    const empty = screen.getByLabelText("Nothing waiting");
+    expect(empty).toHaveTextContent("Proposals appear here when the agent has evidence; they need a person's approval.");
+    expect(within(empty).getByRole("link", { name: "See what the agent is doing in the feed" })).toHaveAttribute("href", "#m/demo/feed");
+  });
+
   it("decided proposals collapse below, saying who decided and when", () => {
     setup([
       p({ id: "p001", status: "approved", decided_by: "Dana", decided_at: AT }),
       p({ id: "p002", status: "rejected", decided_by: "Dana", decided_at: AT, decision_reason: "duplicate" }),
     ]);
-    expect(screen.getByText("Nothing waiting. The agent's proposals appear here.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing waiting. Proposals appear here when the agent has evidence; they need a person's approval.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /feed/ })).toBeNull(); // no feed to link to
     const decided = screen.getByLabelText("Decided proposals");
     expect(decided).toHaveTextContent(/Approved by Dana at/);
     expect(decided).toHaveTextContent(/Rejected by Dana at .*: duplicate/);
@@ -116,11 +157,20 @@ describe("a recall", () => {
     const why = within(card).getByLabelText("Why recall");
     expect(within(why).getByText(QUOTE).tagName).toBe("Q");
     expect(within(why).getByRole("link", { name: /weather\.gc\.ca/ })).toHaveAttribute("href", URL);
-    expect(why).toHaveTextContent("Drone 2: battery 62%, flying at 49.37712, -122.93601");
+    expect(why).toHaveTextContent("Drone 2 now: battery 62%, flying at 49.37712, -122.93601");
     expect(within(card).queryByText("leg L009")).toBeNull(); // the facts block replaces the chips
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
     expect(onDecide).toHaveBeenCalledWith("p007", "approve", "Search manager", undefined, undefined);
     expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+  });
+
+  it("labels the summary's battery 'at proposal' and puts the fleet's live value beside it", () => {
+    const at97 = { ...recall(URL, QUOTE), summary: "Recall Drone 2: fly home now (leaves sector C3, battery 97%)" };
+    render(<ApprovalInbox proposals={[at97]} teams={TEAMS} drones={[{ ...D2, battery_pct: 95.2 }]} onDecide={vi.fn()} imageUrl={(r) => r} />);
+    const card = screen.getByLabelText("Proposal p007");
+    expect(within(card).getByText("Recall Drone 2: fly home now (leaves sector C3, battery 97% at proposal, now 95%)")).toBeInTheDocument();
+    expect(within(card).getByLabelText("Why recall")).toHaveTextContent("Drone 2 now: battery 95%");
+    expect(recallSummary("Recall Drone 2: fly home now (battery 97%)")).toBe("Recall Drone 2: fly home now (battery 97% at proposal)");
   });
 
   it("says a demo override is not from Tavily, with no link", () => {

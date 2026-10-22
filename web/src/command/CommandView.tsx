@@ -6,6 +6,7 @@
 import { useSelection } from "../lib/selection";
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { isTyping } from "../lib/keys";
+import { clock } from "../lib/time";
 import { ConditionsPanel, type ConditionsData } from "./ConditionsPanel";
 import { dayNote, isOverride } from "./conditions";
 import { FleetControls } from "./FleetControls";
@@ -51,6 +52,8 @@ export interface CommandProps {
   /** Before the mission header, on its row (the console only): the guided demo's mission tabs. */
   headerStart?: ReactNode;
   now?: () => Date;
+  /** The mission's feed, linked from the approvals when nothing is waiting. */
+  feedHref?: string;
 }
 
 /** The console's breakpoint classes, spelled out so Tailwind sees each one. */
@@ -77,8 +80,8 @@ const CONSOLE = {
 } as const;
 
 const pct = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
-/** HH:MM; the demo mission tells its scripted timeline in UTC (its fixtures are dated in UTC). */
-const hhmm = (d: Date, utc = false) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23", ...(utc ? { timeZone: "UTC" } : {}) });
+/** HH:MM, the mission pages' one clock (lib/time): the demo mission tells its scripted timeline in UTC. */
+const hhmm = (d: Date, utc = false) => clock(d, utc);
 const minutesSince = (iso: string, now: Date) => Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 60000));
 
 export function CommandView(p: CommandProps) {
@@ -92,6 +95,7 @@ export function CommandView(p: CommandProps) {
   const [condOpen, setCondOpen] = useState(p.conditionsOpen ?? false);
   const condId = useId();
   const hasConditions = !!p.map && !!p.conditionsData;
+  const utc = p.status === "demo"; // the demo's fixtures are dated in UTC; a live mission reads local time
   // a recorded run (the demo) is read on its own clock
   const panelNow = p.conditionsData?.recorded ? new Date(p.conditionsData.conditions.fetched_at) : now();
   // the simulated fleet's demo controls and the drones' battery and position (live missions only)
@@ -139,7 +143,7 @@ export function CommandView(p: CommandProps) {
           {hasConditions && condOpen && (
             // over the console, under the header (the map keeps its place); W or Esc closes it
             <div className="absolute inset-x-0 top-full mt-1 max-h-[75vh] overflow-y-auto rounded-lg shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]">
-              <ConditionsPanel id={condId} data={p.conditionsData!} now={panelNow} time={(iso) => `${hhmm(new Date(iso), true)} UTC${dayNote(iso, panelNow)}`} />
+              <ConditionsPanel id={condId} data={p.conditionsData!} now={panelNow} time={(iso) => `${hhmm(new Date(iso), utc)}${utc ? " UTC" : ""}${dayNote(iso, panelNow, utc)}`} />
             </div>
           )}
         </div>
@@ -155,7 +159,7 @@ export function CommandView(p: CommandProps) {
           <div className={`h-[60vh] min-h-0 ${w.map}`}>{p.map}</div>
         </div>
         <aside aria-label="Approvals" className={`order-3 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 ${w.inPlace}`}>
-          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} />
+          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} />
           {p.sideRail}
         </aside>
         <div className={`order-4 ${w.clues} overflow-y-auto rounded-lg border border-line bg-surface-solid px-4 py-2.5 ${w.inPlace} ${w.span}`}>
@@ -174,7 +178,7 @@ export function CommandView(p: CommandProps) {
           {controls}
         </div>
         <div className="flex flex-col gap-4">
-          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} />
+          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} />
           {p.sideRail}
         </div>
       </div>

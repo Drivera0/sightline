@@ -9,6 +9,7 @@ import type { AssignmentCard, Conditions, FleetState, TraceEntry } from "../cont
 import { AssignmentCardView } from "../command/AssignmentCardView";
 import { isTyping } from "../lib/keys";
 import { photoProgress, useMission, type MissionData } from "../lib/mission";
+import { ClockZone } from "../lib/time";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
@@ -18,14 +19,13 @@ import type { ConditionsData } from "../command/ConditionsPanel";
 import { TraceView, type TraceRun } from "../command/TraceView";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { usePick } from "../map/pick";
-import { KeyHint, Label, ModeChip, modeOf, Panel, Stat } from "../shell/components";
+import { KeyHint, Label, ModeChip, modeOf, Stat } from "../shell/components";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS, type ShortcutGroup } from "../shell/shortcuts";
 import { Logo } from "../shell/Logo";
 import { RadioDesk } from "../radio/RadioDesk";
 import { LiveReview } from "../review/LiveReview";
-import { uploadCommand } from "./upload";
-import { UploadPanel } from "./UploadPanel";
+import { UploadPanel, WatchPanel } from "./UploadPanel";
 
 type Tab = "command" | "photos" | "review" | "approvals" | "radio" | "feed" | "trace";
 const TABS: { id: Tab; label: string }[] = [
@@ -52,13 +52,21 @@ export function cardFromHash(hash: string): string | null {
   return step === "card" && sector ? decodeURIComponent(sector) : null;
 }
 
+/** The loaded demo mission's clock and seed note, kept beside the store (`useMission`) that holds its state. */
+let demoLoaded: { now: string; seed: string } | null = null;
+/** The store still holds the demo mission: no live mission has replaced it since it was loaded. */
+const demoKept = () => {
+  const s = useMission.getState();
+  return demoLoaded !== null && s.status === "demo" && s.mission?.mission_id === DEMO_MISSION_ID;
+};
+
 /** `embedded`: inside the guided demo's frame (its Command step), which owns the header and the address. */
 export function LiveMission({ api, missionId, initialTab = "photos", embedded = false }: { api: Api; missionId: string; initialTab?: Tab; embedded?: boolean }) {
   const s = useMission();
   const demo = missionId === DEMO_MISSION_ID;
   const [tab, setTab] = useState<Tab>(demo && !DEMO_TABS.includes(initialTab) ? "command" : initialTab);
-  const [demoNow, setDemoNow] = useState<Date | null>(null);
-  const [demoSeed, setDemoSeed] = useState<string | null>(null);
+  const [demoNow, setDemoNow] = useState<Date | null>(() => (demo && demoKept() ? new Date(demoLoaded!.now) : null));
+  const [demoSeed, setDemoSeed] = useState<string | null>(() => (demo && demoKept() ? demoLoaded!.seed : null));
   const [keysOpen, setKeysOpen] = useState(false);
   const [card, setCard] = useState<string | null>(() => cardFromHash(window.location.hash));
   useEffect(() => {
@@ -73,15 +81,28 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
 
   useEffect(() => {
     if (demo) {
+      // The demo mission's store outlives a tab change or a remount: what was approved a moment ago stays.
+      if (demoKept()) {
+        setDemoNow(new Date(demoLoaded!.now));
+        setDemoSeed(demoLoaded!.seed);
+        return undefined;
+      }
+      let live = true;
       loadDemoMission().then(
         ({ data, now }) => {
+          if (!live) return;
           useMission.getState().useDemo(data);
+          demoLoaded = { now, seed: demoSeedWords(data) };
           setDemoNow(new Date(now));
-          setDemoSeed(demoSeedWords(data));
+          setDemoSeed(demoLoaded.seed);
         },
-        (e: unknown) => useMission.setState({ status: "error", error: e instanceof Error ? e.message : String(e) }),
+        (e: unknown) => {
+          if (live) useMission.setState({ status: "error", error: e instanceof Error ? e.message : String(e) });
+        },
       );
-      return undefined;
+      return () => {
+        live = false;
+      };
     }
     void useMission.getState().connect(missionId, api);
     return () => useMission.getState().disconnect();
@@ -115,7 +136,11 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
   };
   const conditionsData = useConditionsData(api, missionId, demo, s.conditions, s.fleet);
   const progress = photoProgress(s);
-  const waiting = s.proposals.filter((p) => p.status === "pending").length;
+  // one clock on the page: the demo's fixtures in UTC, a live mission in local time (lib/time)
+  const clockZone = useMemo(() => ({ utc: demo }), [demo]);
+  // the guided demo owns the address, so its frame links nowhere
+  const feedHref = embedded ? undefined : `#m/${missionId}/feed`;
+  const waiting =s.proposals.filter((p) => p.status === "pending").length;
 
   if (s.status === "error") {
     return (
@@ -169,6 +194,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
     </nav>
   );
   return (
+    <ClockZone.Provider value={clockZone}>
     <Frame aria-label={embedded ? "Demo mission" : undefined} className={frameClass}>
       {!embedded && (
         <AppBar demo={demo} onShortcuts={() => setKeysOpen(true)}>
@@ -240,24 +266,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
       {tab === "photos" && (
         <div className="grid gap-4 lg:grid-cols-2">
           <UploadPanel api={api} missionId={missionId} processed={progress.processed} />
-          <Panel className="flex flex-col gap-2" aria-label="During the flight">
-            <Label>During the flight</Label>
-            <p className="text-body text-text-2">
-              On the laptop the drone's photos land on, watch the folder: each photo is sent once its copy has finished, batches of up
-              to 10, and kept in a queue while there is no connection (replace PHOTO_FOLDER with the SD card or sync folder):
-            </p>
-            <code className="block overflow-x-auto rounded-sm bg-surface-strong p-2 font-mono text-small text-text">{uploadCommand(api.base, missionId)}</code>
-            <button
-              type="button"
-              className="self-start rounded-full border border-border px-3 py-1 text-small text-text-2"
-              onClick={() => void navigator.clipboard?.writeText(uploadCommand(api.base, missionId))}
-            >
-              Copy
-            </button>
-            <p className="text-small text-text-3">
-              In production the drone's own cloud upload (DJI FlightHub 2) would post here directly (roadmap).
-            </p>
-          </Panel>
+          <WatchPanel base={api.base} missionId={missionId} />
         </div>
       )}
 
@@ -294,6 +303,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           onAddClue={(draft) => useMission.getState().addClue(draft)}
           cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
           now={demo && demoNow ? () => demoNow : undefined}
+          feedHref={feedHref}
           sideRail={radioOn && !demo ? radioDesk : undefined}
           map={heatMap}
           wideAt={embedded ? "xl" : "lg"}
@@ -313,7 +323,9 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
         <ApprovalInbox
           proposals={s.proposals}
           teams={s.teams}
+          drones={s.fleet?.drones}
           imageUrl={imageUrl}
+          feedHref={feedHref}
           onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
         />
       )}
@@ -343,6 +355,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
         />
       )}
     </Frame>
+    </ClockZone.Provider>
   );
 }
 
@@ -419,7 +432,7 @@ const MISSION_SHORTCUTS: readonly ShortcutGroup[] = [
 /** The demo mission's pre-seeded state in one sentence: what is there before anyone acts, and its date. */
 export function demoSeedWords(data: Partial<MissionData>): string {
   const n = (k: number, one: string) => `${k} ${one}${k === 1 ? "" : "s"}`;
-  return `Pre-seeded demo, scripted timeline: ${n(data.clues?.length ?? 0, "clue")}, ${n(data.proposals?.length ?? 0, "proposal")}, ${n(data.teams?.length ?? 0, "team")}. What you change stays in this tab.`;
+  return `Pre-seeded demo, scripted timeline: ${n(data.clues?.length ?? 0, "clue")}, ${n(data.proposals?.length ?? 0, "proposal")}, ${n(data.teams?.length ?? 0, "team")}. What you change stays while you're on this mission.`;
 }
 
 function DemoSeedNote({ words }: { words: string }) {

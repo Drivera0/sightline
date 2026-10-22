@@ -54,7 +54,7 @@ describe("the demo's pre-seeded note", () => {
   it("says what is pre-seeded and when, in one sentence", async () => {
     const { demoSeedWords } = await import("../ingest/LiveMission");
     expect(demoSeedWords(fixture as never)).toBe(
-      "Pre-seeded demo, scripted timeline: 5 clues, 6 proposals, 4 teams. What you change stays in this tab.",
+      "Pre-seeded demo, scripted timeline: 5 clues, 6 proposals, 4 teams. What you change stays while you're on this mission.",
     );
   });
 });

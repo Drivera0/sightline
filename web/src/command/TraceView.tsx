@@ -5,6 +5,7 @@
 import { useState } from "react";
 import type { TraceEntry } from "../contract";
 import { ModeChip, StatusPill, type Tone } from "../shell/components";
+import { useClock } from "../lib/time";
 import {
   ACTOR_ROLE,
   chains,
@@ -42,7 +43,6 @@ const SPAN_TONE: Record<TraceEntry["kind"], Tone> = {
 };
 
 export const seconds = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
-const clock = (iso: string) => iso.slice(11, 19);
 
 export function TraceView({ runs, imageUrl, empty }: { runs: readonly TraceRun[]; imageUrl?: (rel: string) => string | null; empty?: string }) {
   const all = runs.flatMap((r) => r.entries);
@@ -133,6 +133,7 @@ function outcomeWords(o: Outcome): [Tone, string] {
 function ChainView({ chain, imageUrl }: { chain: Chain; imageUrl?: (rel: string) => string | null }) {
   const title = chain.refs.length ? chain.refs.join(" · ") : `${chain.actors.join(", ")} · ${chain.entries.length} steps`;
   let lastStage: string | null = null;
+  const { time } = useClock();
   return (
     <article aria-label={`Chain ${title}`} className="overflow-hidden rounded-lg border border-line bg-surface-solid">
       <header className="flex flex-col gap-1.5 border-b border-line px-4 py-3">
@@ -147,7 +148,7 @@ function ChainView({ chain, imageUrl }: { chain: Chain; imageUrl?: (rel: string)
             ))}
           </ol>
           <span className="ml-auto text-caption text-text-3">
-            {clock(chain.entries[0]!.at)} · {chain.entries.length} steps{chain.ms > 0 && ` · ${seconds(chain.ms)} in models and tools`}
+            {time(chain.entries[0]!.at, true)} · {chain.entries.length} steps{chain.ms > 0 && ` · ${seconds(chain.ms)} in models and tools`}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-caption text-text-2">
