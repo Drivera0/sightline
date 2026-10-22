@@ -258,7 +258,8 @@ def test_caltopo_api_on_an_empty_mission(api) -> None:
     fc = r.json()
     _check_caltopo(fc)
     classes = [f["properties"]["class"] for f in fc["features"]]
-    assert classes.count("Folder") == 5 and classes.count("Marker") == 1  # the LKP only
+    # the LKP and the four teams staged at the base camp (1.3)
+    assert classes.count("Folder") == 5 and classes.count("Marker") == 5
     assert classes.count("Shape") == 16  # the sector outlines
 
 

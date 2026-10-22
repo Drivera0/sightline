@@ -1,4 +1,4 @@
-"""Pydantic v2 models of docs/01_CONTRACT.md (v1.2). The doc wins if the two disagree.
+"""Pydantic v2 models of docs/01_CONTRACT.md (v1.3). The doc wins if the two disagree.
 
 Only lane D edits this file. Rounding (contract section 2) happens at write time in `dump_json`,
 never inside the models.
@@ -14,12 +14,13 @@ from typing import Annotated, Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-CONTRACT_VERSION = "1.2"
+CONTRACT_VERSION = "1.3"
 # What readers accept. 1.1 only adds optional fields (map.params.prior_source,
 # metrics.search_sim.in_survey), so a 1.0 file is a valid 1.1 file with those fields null.
 # 1.2 only adds live-mission files (section 12); the static cache files are unchanged.
+# 1.3 only adds optional live-mission fields and models (the command post, section 15).
 # Everything the pipeline writes is stamped CONTRACT_VERSION.
-ContractVersion = Literal["1.0", "1.1", "1.2"]
+ContractVersion = Literal["1.0", "1.1", "1.2", "1.3"]
 
 Probability = Annotated[float, Field(ge=0.0, le=1.0)]
 FRAME_ID = r"^f\d{4}$"
@@ -378,6 +379,14 @@ class Manifest(_Model):
 # --- mission -------------------------------------------------------------------------------
 
 
+class BaseCamp(_Model):
+    """1.3: where teams stage and drones launch from and return to."""
+
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    name: str
+
+
 class Mission(_Model):
     contract_version: ContractVersion
     mission_id: str
@@ -387,6 +396,8 @@ class Mission(_Model):
     mode: Literal["live", "demo", "replay"]
     last_seen_at: str | None
     subject: str | None
+    # 1.3 (section 15): null only in missions created before 1.3
+    base_camp: BaseCamp | None = None
 
 
 # --- map (C) -------------------------------------------------------------------------------
@@ -496,6 +507,7 @@ class Drone(_Model):
     max_wind_kmh: float = Field(gt=0)
     status: Literal["idle", "flying", "returning", "charging", "offline"]
     leg_id: str | None
+    home: LatLon | None = None  # 1.3: where it launches from and returns to (the base camp)
 
 
 class Leg(_Model):

@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 from sightline.api.limits import MAX_PHOTO_BYTES, photo_type_problem, safe_filename
 from sightline.api.sse import event_stream
 from sightline.contract import (
+    BaseCamp,
     ClueDraft,
     FleetTelemetry,
     LatLon,
@@ -217,16 +218,19 @@ class NewMission(BaseModel):
     last_seen_at: str | None = None
     subject: str | None = None
     mode: Literal["live", "demo", "replay"] = "live"
+    base_camp: BaseCamp | None = None  # 1.3; default: the last known point
 
 
 @missions_router.post("/missions", status_code=201)
 def create_mission(body: NewMission, request: Request) -> dict:
-    """A mission with its map (placeholder prior until C-L1), teams T1–T4 on standby, and the
-    sector tasks once C's lattice sectors exist."""
+    """A mission with its map (placeholder prior until C-L1), teams T1–T4 on standby at the base
+    camp, and the sector tasks once C's lattice sectors exist."""
     store = _ctx(request).store
     m = store.create(
-        body.name, body.area_name, body.lkp, body.mode, body.last_seen_at, body.subject
-    )
+        body.name, body.area_name, body.lkp, body.mode, body.last_seen_at, body.subject,
+        base_camp=body.base_camp,
+    )  # fmt: skip
+    camp = LatLon(lat=m.base_camp.lat, lon=m.base_camp.lon)
     store.put_map_base(m.mission_id, start_map_base(body.lkp, subject=body.subject))
     for tid, callsign in DEFAULT_TEAMS:
         store.upsert_team(
@@ -236,8 +240,8 @@ def create_mission(body: NewMission, request: Request) -> dict:
                 callsign=callsign,
                 members=TEAM_MEMBERS,
                 status="standby",
-                position=None,
-                position_at=None,
+                position=camp,  # staged at the base camp (not a report: last_heard_at stays null)
+                position_at=m.created_at,
                 note=None,
             ),
         )

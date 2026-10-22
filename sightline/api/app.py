@@ -1,7 +1,7 @@
 """The API: live missions (contract §13, ``sightline/api/missions.py``) and the sprint-1 upload
 of a zip of drone photos that returns a cache (LANE_D section 6.6).
 
-    GET  /health            -> {"status": "ok", "contract_version": "1.2", "backend": "cv2" | "torch"}
+    GET  /health            -> {"status": "ok", "contract_version": "1.3", "backend": "cv2" | "torch"}
     /missions/...           -> the mission API, when ``create_app`` gets ``missions`` or ``mission_root``
     /missions/{id}/radio/...-> the radio desk on those missions, with ``radio="text"|"real"``
     GET  /cache/...         -> the cache folder as static files

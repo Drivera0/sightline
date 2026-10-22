@@ -679,8 +679,12 @@ def conditions_source(store: Any, mission_id: str, c: Conditions, field: str) ->
 
 
 def _launch_point(store: Any, mission_id: str, drone_id: str) -> LatLon:
-    """Where the drone took off: its position in the first fleet report that has one, else the
-    mission's last known point."""
+    """Where the drone returns to: its ``home`` (1.3: the base camp unless set), else its position
+    in the first fleet report that has one, else the mission's last known point."""
+    fleet = store.state(mission_id)["fleet"]
+    drone = next((d for d in fleet.drones if d.id == drone_id), None) if fleet else None
+    if drone is not None and drone.home is not None:
+        return drone.home
     for ev in store.events(mission_id):
         if ev.type != "fleet.updated" or not isinstance(ev.data, dict):
             continue

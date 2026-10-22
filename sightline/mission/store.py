@@ -34,6 +34,7 @@ from pydantic import BaseModel
 from sightline.contract import (
     CONTRACT_VERSION,
     Area,
+    BaseCamp,
     Clue,
     Conditions,
     Detection,
@@ -67,6 +68,11 @@ M = TypeVar("M", bound=BaseModel)
 
 def now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def default_base_camp(lkp: LatLon) -> BaseCamp:
+    """A mission's base camp when none is given: the last known point (where a search starts)."""
+    return BaseCamp(lat=lkp.lat, lon=lkp.lon, name="Base camp (last known point)")
 
 
 def _default_live_factory(base: MapBase) -> Any:
@@ -209,7 +215,9 @@ class MissionStore:
         mode: str,
         last_seen_at: str | None = None,
         subject: str | None = None,
+        base_camp: BaseCamp | None = None,
     ) -> Mission:
+        """``base_camp`` (1.3): where teams stage and drones launch; default the last known point."""
         area = Area(name=area_name, lkp=lkp)
         while True:
             mission_id = secrets.token_hex(4)
@@ -228,6 +236,7 @@ class MissionStore:
             mode=mode,  # type: ignore[arg-type]
             last_seen_at=last_seen_at,
             subject=subject,
+            base_camp=base_camp or default_base_camp(lkp),
         )
         survey = Survey(
             contract_version=CONTRACT_VERSION,
@@ -585,7 +594,12 @@ class MissionStore:
             fleet = FleetState.model_validate(raw)
             by_id = {x.id: x for x in fleet.drones}
             drones = [
-                x.model_copy(update={"leg_id": by_id[x.id].leg_id if x.id in by_id else None})
+                x.model_copy(
+                    update={
+                        "leg_id": by_id[x.id].leg_id if x.id in by_id else None,
+                        "home": x.home or (by_id[x.id].home if x.id in by_id else None),
+                    }
+                )
                 for x in t.drones
             ]
             allowed = {"approved": {"flying", "done"}, "flying": {"done"}}

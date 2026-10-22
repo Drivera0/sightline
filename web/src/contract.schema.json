@@ -190,6 +190,32 @@
       "title": "AssignmentCard",
       "type": "object"
     },
+    "BaseCamp": {
+      "additionalProperties": false,
+      "description": "1.3: where teams stage and drones launch from and return to.",
+      "properties": {
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lat",
+        "lon",
+        "name"
+      ],
+      "title": "BaseCamp",
+      "type": "object"
+    },
     "BaselineHuman": {
       "additionalProperties": false,
       "properties": {
@@ -695,7 +721,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -864,6 +891,17 @@
               "type": "null"
             }
           ]
+        },
+        "home": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LatLon"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1272,7 +1310,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -1327,7 +1366,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -1377,7 +1417,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -1539,7 +1580,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -1599,7 +1641,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -1642,6 +1685,17 @@
               "type": "null"
             }
           ]
+        },
+        "base_camp": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BaseCamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -2462,7 +2516,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },

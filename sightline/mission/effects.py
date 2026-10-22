@@ -277,9 +277,12 @@ def on_fleet(store: MissionStore, mission_id: str, t: FleetTelemetry, hooks: Any
     if store.state(mission_id)["fleet"] is None:
         if not t.drones:
             raise ValueError("no fleet yet: send the drones first")
-        from sightline.contract import FleetState
+        from sightline.contract import FleetState, LatLon
 
-        drones = [d.model_copy(update={"leg_id": None}) for d in t.drones]
+        camp = store.get(mission_id).base_camp
+        home = LatLon(lat=camp.lat, lon=camp.lon) if camp else None
+        # each drone launches from and returns to the base camp unless it says otherwise (1.3)
+        drones = [d.model_copy(update={"leg_id": None, "home": d.home or home}) for d in t.drones]
         fleet = FleetState(
             simulated=all(d.simulated for d in drones), drones=drones, legs=[], updated_at=t.at
         )

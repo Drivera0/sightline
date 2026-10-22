@@ -201,6 +201,8 @@ class Scenario:
     # no_signal?}]; the position is the simulator's truth for the team, sent only when relayed
     teams: tuple[dict, ...] = ()
     relay_radius_m: float = 300.0
+    # 1.3: the mission's base camp; drones with no ``home`` of their own launch from and return to it
+    base_camp: LatLon | None = None
 
     @classmethod
     def load(cls, name_or_path: str) -> Scenario:
@@ -220,6 +222,9 @@ class Scenario:
             links=tuple(d.get("links", ())),
             teams=tuple(d.get("teams", ())),
             relay_radius_m=d.get("relay_radius_m", 300.0),
+            base_camp=LatLon(lat=d["base_camp"]["lat"], lon=d["base_camp"]["lon"])
+            if d.get("base_camp")
+            else None,
         )
 
 
@@ -477,7 +482,9 @@ class DroneSim:
         self.leg_status: dict[str, str] = {}
         self.photos = 0
         self.airframe = airframe
-        self.home = self._pos_m()  # the launch point: where it flies back to
+        # the launch point it flies back to: its ``home`` (the base camp), else where it starts
+        home = drone.home or scenario.base_camp
+        self.home = _to_m(scenario.lkp, home.lon, home.lat) if home else self._pos_m()
         self.returning = False
         self._wind_held = False
         self.link = "connected"  # set by the ground station's link model

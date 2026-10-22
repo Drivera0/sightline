@@ -17,7 +17,7 @@ export interface CacheBundle {
   mission?: MissionBundle | null;
 }
 export interface Manifest {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   survey_id: string;
   generated_at: string;
   git_sha: string | null;
@@ -44,7 +44,7 @@ export interface StageResult {
   seconds: number;
 }
 export interface Survey {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   survey_id: string;
   simulated_path: boolean;
   area: Area;
@@ -88,7 +88,7 @@ export interface Pose {
   gsd_m: number;
 }
 export interface Detections {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   model: string;
   save_threshold: number;
   candidate_threshold: number;
@@ -114,7 +114,7 @@ export interface Detection {
   radius_m: number;
 }
 export interface MapFile {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   grid: Grid;
   lkp: LatLon;
   params: Params;
@@ -156,7 +156,7 @@ export interface TopCell {
   canopy: number | null;
 }
 export interface Metrics {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   detector: DetectorMetrics;
   baseline_human: BaselineHuman;
   ablations: Ablation[];
@@ -252,7 +252,7 @@ export interface MissionBundle {
   radio_turn: RadioTurn;
 }
 export interface Mission {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   mission_id: string;
   name: string;
   area: Area;
@@ -260,9 +260,18 @@ export interface Mission {
   mode: "live" | "demo" | "replay";
   last_seen_at: string | null;
   subject: string | null;
+  base_camp?: BaseCamp | null;
+}
+/**
+ * 1.3: where teams stage and drones launch from and return to.
+ */
+export interface BaseCamp {
+  lat: number;
+  lon: number;
+  name: string;
 }
 export interface MapBase {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   grid: Grid;
   lkp: LatLon;
   params: Params;
@@ -392,6 +401,7 @@ export interface Drone {
   max_wind_kmh: number;
   status: "idle" | "flying" | "returning" | "charging" | "offline";
   leg_id: string | null;
+  home?: LatLon | null;
 }
 export interface FleetTelemetry {
   drones: Drone[];

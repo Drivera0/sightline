@@ -1,9 +1,9 @@
-# 01 · The Data Contract (v1.2)
+# 01 · The Data Contract (v1.3)
 
 > **Read this before writing any code that reads or writes the cache.**
 > This file is the single source of truth for every file the lanes exchange.
 > If your code and this file disagree, this file wins. Change it only by team agreement (see §10).
-> §5–§9 are the static cache files; §12–§14 (v1.2) are live missions, the mission API and the in-process interfaces.
+> §5–§9 are the static cache files; §12–§14 (v1.2) are live missions, the mission API and the in-process interfaces; §15 (v1.3) adds the command post: base camp, found, last heard, direct actions, one timeline, ICS 309 and the D4H log push.
 
 ---
 
@@ -33,7 +33,7 @@ Rules that follow from this:
 | File paths in JSON | Relative to the cache folder root, forward slashes, e.g. `"frames/f0042.jpg"`. |
 | Floats in JSON | Lat/lon: 6 decimals. In `map.json`: step `pod`, `canopy` and `top_cells.p` to 4 decimals, but **`prior` and `final` probabilities unrounded** (full float64; cell values are around 1e-4, so rounding would break the sum checks). Everything else: 3 decimals. |
 | Missing values | `null`, never omitted, never `NaN`. |
-| Version | Every top-level JSON file the pipeline writes has `"contract_version": "1.2"`. Readers also accept `"1.0"` and `"1.1"`: 1.1 only adds optional fields, which read as `null` in a 1.0 file, and 1.2 only adds live-mission files (§12). |
+| Version | Every top-level JSON file the pipeline writes has `"contract_version": "1.3"`. Readers also accept `"1.0"`–`"1.2"`: 1.1 only adds optional fields, which read as `null` in a 1.0 file, 1.2 only adds live-mission files (§12), and 1.3 only adds optional live-mission fields and models (§15). |
 
 ---
 
@@ -70,7 +70,7 @@ Written last by the pipeline. Used for debugging and for the website's "about th
 
 ```json
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "survey_id": "seymour-demo",
   "generated_at": "2026-11-07T18:30:00Z",
   "git_sha": "a1b2c3d",
@@ -105,7 +105,7 @@ One entry per frame. **Writers:** D (frame list, flight order, ranking) using B'
 
 ```json
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "survey_id": "seymour-demo",
   "simulated_path": true,
   "area": {
@@ -162,7 +162,7 @@ All detections for all frames, in one file. **Writers:** D, using A's detector o
 
 ```json
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "model": "yolo11s-heridal-tiled-hn",
   "save_threshold": 0.05,
   "candidate_threshold": 0.25,
@@ -214,7 +214,7 @@ The search grid. **Writer:** D, using C's functions. The website replays the ste
 
 ```json
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "grid": {
     "origin_nw": {"lat": 49.374492, "lon": -122.951898},
     "cell_m": 20,
@@ -284,7 +284,7 @@ Everything the metrics screen and the pitch quote. **Writers:** D, from A's, C's
 
 ```json
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "detector": {
     "model": "yolo11s-heridal-tiled-hn",
     "test_images": 101,
@@ -357,6 +357,7 @@ All zeros above are placeholders; the sample cache uses plausible fake numbers, 
 
 - **1.1** (additive, agreed by lanes C and D): `map.json` `params.prior_source: string | null`; `metrics.json` `search_sim.in_survey: {trials, methods} | null`. Writers stamp `"1.1"`; readers accept `"1.0"` and `"1.1"`.
 - **1.2** (2026-10-21, additive): live missions (§12–§14): mission files, `MapUpdate` (step + reweight), verdicts, tasks, teams, clues, proposals, fleet, conditions, assignment cards, events, agent trace, radio turns; the mission API; the in-process interfaces. The static cache files (§5–§9) are unchanged: writers stamp `"1.2"`, readers accept `"1.0"`–`"1.2"`. Merged from the v1.2 draft by lane A for lane D (issue #51).
+- **1.3** (2026-10-22, additive): the command post (§15): `Mission.base_camp`, `status`, `found`, `check_in_min`; `Drone.home`; `Team.last_heard_at`, `eta_min` and the `overdue` status; direct actions; one timeline (`TimelineEntry`); ICS 309; the D4H log push. Every new field is optional with a default, so a 1.2 mission still loads. Writers stamp `"1.3"`, readers accept `"1.0"`–`"1.3"`.
 
 **Frozen at hour 3.** After that, only additive changes (new optional fields) unless the whole team agrees.
 
@@ -690,7 +691,7 @@ All JSON bodies are the models above. Errors: `{"detail": str}` with 4xx. No aut
 | `GET /missions/{id}/debrief.md` | — | markdown from C's `debrief()` | E debrief button |
 | `GET /missions/{id}/files/{path}` | — | frames, crops, relook crops, radio audio | web |
 | `/missions/{id}/radio/...` | see `LANE_E_OPS_VOICE.md` §8.3 | | E |
-| `GET /health` | — | `{"status":"ok", "contract_version":"1.2", "backend": "cv2"\|"torch"}` | smoke test |
+| `GET /health` | — | `{"status":"ok", "contract_version":"1.3", "backend": "cv2"\|"torch"}` | smoke test |
 
 Fleet in v1.2 is simulated only: legs are approved through proposals; there is no "fly" endpoint for real hardware.
 
