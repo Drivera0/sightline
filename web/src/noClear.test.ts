@@ -7,9 +7,6 @@ import { describe, expect, it } from "vitest";
 
 const ALLOWED: readonly string[] = [
   "Sightline never marks an area clear.", // front door, Principle 1 (a negation)
-  "Review cleared", // the reviewer's saved answers were reset, not an area
-  "Clear the answers saved in this browser for this survey", // same: a button's tooltip
-  "as cleared: send a ground team to check.", // "… not counted as cleared: …"
   "unsearched, not cleared.", // a negation
   "never marks ground as cleared.", // a negation
 ];

@@ -1,7 +1,6 @@
 import { useId, type ReactNode } from "react";
+import { WHAT_BREAKS_FIRST } from "../front/judges";
 import type { Metrics } from "../contract";
-import { ResetReview } from "../review/ResetReview";
-import { useReview, type Answer } from "../review/store";
 import { Badge, Label } from "../shell/components";
 import { Sourced } from "../shell/Popover";
 import { ablationDisplayRows, count, deltaPts, duration, IN_USE_ROW, pct, seconds, speedup } from "./format";
@@ -23,7 +22,6 @@ export { duration };
 export function ResultsSummary({
   metrics,
   cellM,
-  candidateIds = [],
   surveyId,
 }: {
   metrics: Metrics;
@@ -31,8 +29,6 @@ export function ResultsSummary({
   surveyId?: string;
   /** The search grid's cell size, to turn simulated cells into ground area. */
   cellM?: number;
-  /** The review queue's detections, for the live "your review" summary. */
-  candidateIds?: readonly string[];
 }) {
   const { detector, baseline_human: human, ranking, search_sim: sim } = metrics;
   const inside = sim.in_survey;
@@ -53,14 +49,14 @@ export function ResultsSummary({
   const randomSource = `Expected position of the last of k = ${ranking.n_positive} photos with a person among N = ${ranking.n_frames} in a uniformly random order: k(N+1)/(k+1); spread is the exact 10th-90th percentile (metrics.ranking)`;
 
   return (
-    <section aria-label="Results" className="flex flex-col gap-5">
+    <section aria-label="Results" className="@container flex flex-col gap-5">
       <div className="sl-rise flex flex-col gap-2">
-        <Label>Step 5 of 5 · Results</Label>
+        <Label>Results · the detector and the map, measured</Label>
         {trivial ? (
           <>
-            <h1 className="max-w-4xl text-headline font-medium tracking-[-0.01em]">
+            <h2 className="max-w-4xl text-title font-medium tracking-[-0.01em] @xl:text-headline">
               <Sourced source={rankingSource}>Every photo in this survey contains a person.</Sourced>
-            </h1>
+            </h2>
             <p className="max-w-3xl text-body text-text-2">
               There is nothing for Sightline to sort here, so the queue simply opens on the photo it is most
               sure shows a person. The Mount Seymour survey shows what the sorting saves.
@@ -68,10 +64,10 @@ export function ResultsSummary({
           </>
         ) : (
           <>
-            <h1 className="max-w-4xl text-headline font-medium tracking-[-0.01em]">
+            <h2 className="max-w-4xl text-title font-medium tracking-[-0.01em] @xl:text-headline">
               All {ranking.n_positive} {photos} were in the{" "}
               <Sourced source={rankingSource}>first {ranked} photos</Sourced> of the queue.
-            </h1>
+            </h2>
             <p className="max-w-3xl text-body text-text-2">
               That is <span className="font-medium text-text">{share(ranked)}</span> of the {count(ranking.n_frames)} photos
               {random ? (
@@ -93,7 +89,7 @@ export function ResultsSummary({
       {/* The page answers three questions a search team asks, in order (status first, detail last):
           does it find people faster, can we trust it, and where do we search next. */}
       <Part title="At a glance" lead="The three numbers that matter to a search team.">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 @xl:grid-cols-3">
           <Card
             label="People found"
             value={detector.sar.recall}
@@ -208,12 +204,8 @@ export function ResultsSummary({
         </Part>
       )}
 
-      <Part title="When not to rely on it" lead="Where the detector misses people, so a searcher knows when to look harder.">
+      <Part title="What breaks first" lead="Where it fails, said before anyone asks: the same three lines as the report, the Devposts and the video.">
         <Limits />
-      </Part>
-
-      <Part title="Your review" lead="Your own answers on this survey, saved in this browser.">
-        <YourReview candidateIds={candidateIds} />
       </Part>
 
       {/* Detail for judges and the curious, folded away so it doesn't compete with the answers above.
@@ -301,86 +293,6 @@ function hectares(cells: number, cellM: number): string {
   return `${ha >= 10 ? Math.round(ha) : ha.toFixed(1)} ha`;
 }
 
-const ANSWER_ROWS: [Answer, string, string][] = [
-  ["person", "People sighted", "bg-ok"],
-  ["not_person", "Not a person", "bg-text-3"],
-  ["unsure", "Unsure", "bg-warn"],
-];
-
-/**
- * The reviewer's own session, from this browser's saved answers: how many candidates they
- * answered, what they said, and how long it took them. Measured live, never stored in the cache.
- */
-function YourReview({ candidateIds }: { candidateIds: readonly string[] }) {
-  const answers = useReview((s) => s.answers);
-  const history = useReview((s) => s.history);
-  const ids = new Set(candidateIds);
-  const mine = history.filter((h) => ids.has(h.detectionId));
-  const answered = candidateIds.filter((id) => answers[id] !== undefined);
-  const tally = (a: Answer) => answered.filter((id) => answers[id] === a).length;
-  // The median gap between answers: a pause (or a break between sessions) doesn't inflate it.
-  const gapS = medianGapSeconds(mine.map((h) => h.at));
-  const total = candidateIds.length;
-
-  return (
-    <div
-      className="sl-rise flex flex-col gap-4 rounded-lg border border-line bg-surface-solid p-5"
-      style={{ animationDelay: "240ms" }}
-    >
-      <div className="flex justify-end">
-        <ResetReview />
-      </div>
-      {total === 0 ? (
-        <p className="text-small text-text-3">This survey has no candidates to review.</p>
-      ) : answered.length === 0 ? (
-        <p className="text-body text-text-2">
-          You haven&apos;t answered any of the {total} candidates yet: the spots the detector flagged as a possible
-          person. Press <span className="font-mono">3</span> to review them; your answers will be summarised here.
-        </p>
-      ) : (
-        <>
-          <p className="text-title text-text">
-            {answered.length === total ? "All" : answered.length} of {total} candidates answered
-            {gapS !== null && (
-              <span className="text-text-2">, a median of {seconds(gapS)} per answer</span>
-            )}
-          </p>
-          <div className="flex h-2.5 overflow-hidden rounded-full bg-surface-strong" role="img" aria-label="Answers by kind">
-            {ANSWER_ROWS.map(([a, , tone]) => (
-              <span key={a} className={`sl-grow h-full ${tone}`} style={{ width: `${(tally(a) / total) * 100}%` }} />
-            ))}
-          </div>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-small sm:grid-cols-4">
-            {ANSWER_ROWS.map(([a, label, tone]) => (
-              <div key={a} className="flex flex-col gap-0.5">
-                <dt className="flex items-center gap-1.5 text-text-3">
-                  <span aria-hidden="true" className={`size-2 rounded-full ${tone}`} />
-                  {label}
-                </dt>
-                <dd className="font-mono text-title text-text">{tally(a)}</dd>
-              </div>
-            ))}
-            <div className="flex flex-col gap-0.5">
-              <dt className="text-text-3">Not answered</dt>
-              <dd className="font-mono text-title text-text-2">{total - answered.length}</dd>
-            </div>
-          </dl>
-          <p className="text-small text-text-3">
-            People you marked are pinned on the map as sightings; each &ldquo;Not a person&rdquo; updated the search map where the
-            drone looked.
-          </p>
-        </>
-      )}
-    </div>
-  );
-}
-
-/**
- * The bars WhyResolution draws, in story order, with a short label each: shrunk photos fail
- * whatever the weights, a model trained on whole 1920 px photos does better, training on
- * full-resolution tiles is what pays off, and a single full-resolution pass works too. The other
- * rows stay in the details table.
- */
 const RESOLUTION_BARS: readonly [name: string, short: string][] = [
   ["Stock model, no tiling", "Stock, shrunk photo"],
   ["Fine-tuned on tiles, run on shrunk photos", "Fine-tuned, shrunk photo"],
@@ -476,29 +388,23 @@ function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"];
 
 /** Where the detector still fails, from docs/DETECTOR_LIMITS.md: said up front, not buried. */
 function Limits() {
-  const items = [
-    ["Groups", "people standing close together, where one box covers the group and a neighbour is missed"],
-    ["Camouflage", "white or grey clothing on pale limestone, dark clothing on dark rock"],
-    ["Posture", "people sitting on benches or beside objects, or lying down"],
-  ];
   return (
-    <div
-      className="sl-rise flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-5"
-      style={{ animationDelay: "360ms" }}
-    >
+    <div className="sl-rise flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-5" style={{ animationDelay: "360ms" }}>
       <div className="flex flex-wrap items-baseline justify-end gap-3">
-        <Sourced source="docs/DETECTOR_LIMITS.md: the failure cases the team found reviewing the test set" align="end">
-          <span className="text-label text-text-3">Known limits (team testing)</span>
+        <Sourced source="docs/submission/WHAT_BREAKS_FIRST.md, with each line's source in the report" align="end">
+          <span className="text-label text-text-3">From the report</span>
         </Sourced>
       </div>
-      <ul className="grid gap-3 md:grid-cols-3">
-        {items.map(([title, body]) => (
-          <li key={title} className="flex flex-col gap-1 border-l-2 border-warn/50 pl-3">
-            <span className="text-body text-text">{title}</span>
-            <span className="text-small text-text-2">{body}</span>
+      <ol aria-label="What breaks first" className="flex flex-col gap-3">
+        {WHAT_BREAKS_FIRST.map((l, i) => (
+          <li key={l.lead} className="flex gap-3 border-l-2 border-warn/50 pl-3">
+            <span className="font-mono text-small text-text-3">{i + 1}</span>
+            <span className="text-small text-text-2">
+              <span className="font-medium text-text">{l.lead}</span> {l.rest}
+            </span>
           </li>
         ))}
-      </ul>
+      </ol>
       <p className="text-small text-text-3">
         That is why Sightline ranks photos for a person to check instead of deciding on its own, and why the search map
         never marks ground as cleared.

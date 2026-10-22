@@ -40,29 +40,22 @@ export interface CommandProps {
   sideRail?: ReactNode;
   /** The live map: with it, the view is the full-screen console of LANE_E §7.1 (map in the middle). */
   map?: ReactNode;
-  /** Between the status line and the map (the console only): the demo's pre-seeded note, the first-visit hint. */
-  aboveMap?: ReactNode;
+  /** Over the map, along its bottom edge (the demo mission's time scrubber). */
+  overMap?: ReactNode;
+  /** The console's right-hand rail in place of the approvals (the Photos, Review or Debrief view). */
+  rightRail?: ReactNode;
+  /** The right rail is the wide debrief panel; the task board steps aside on a desktop. */
+  rightWide?: boolean;
+  /** Over the whole console, the map still mounted under it (the Trace view). */
+  cover?: ReactNode;
   /** The conditions with their quotes and sources (the console's Conditions panel, W); none: no panel. */
   conditionsData?: ConditionsData | null;
-  /** Open the Conditions panel at first (the #judges link: `#m/<id>/command/conditions`). */
+  /** Open the Conditions panel at first (`#m/<id>/map/conditions`). */
   conditionsOpen?: boolean;
-  /** Before the mission header (the console only): beside it from 1280 px, above it below that. */
-  headerStart?: ReactNode;
   now?: () => Date;
   /** The mission's feed, linked from the approvals when nothing is waiting. */
   feedHref?: string;
 }
-
-/** The console's breakpoint classes: three columns from lg (1024 px), stacked below. Spelled out so Tailwind sees each one. */
-const CONSOLE = {
-  grid: "lg:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]",
-  span: "lg:col-span-3",
-  narrowOnly: "lg:hidden",
-  inPlace: "lg:order-none",
-  map: "lg:h-auto lg:flex-1",
-  clues: "max-h-40",
-  px: "1024",
-} as const;
 
 const pct = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
 /** HH:MM, the mission pages' one clock (lib/time): the demo mission tells its scripted timeline in UTC. */
@@ -99,33 +92,25 @@ export function CommandView(p: CommandProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [hasConditions]);
   if (p.map) {
-    const w = CONSOLE;
-    // LANE_E §7.1: header across the top; task board and teams | map | approvals and radio; clue log along the bottom.
-    // Each rail scrolls on its own so the map never leaves the screen.
+    const wide = !!p.rightWide;
+    // The one console: conditions across the top; task board and teams | map | the view's rail; clue log
+    // along the bottom. Each rail scrolls on its own so the map never leaves the screen. Under 1024 px the
+    // panels stack, map first.
+    const grid = wide
+      ? "lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)]"
+      : "lg:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)]";
+    const span = wide ? "lg:col-span-2" : "lg:col-span-3";
     return (
-      <div
-        aria-label="Command view"
-        className={`grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 ${w.grid}`}
-      >
-        <div className={`relative z-20 flex flex-col gap-2 ${w.span}`}>
-          <p className={`rounded-sm border border-line bg-surface-solid px-3 py-2 text-caption text-text-2 ${w.narrowOnly}`}>
-            <span className="font-medium text-text">Desktop recommended.</span> The console is laid out for a screen {w.px} px or wider; here
-            its panels stack: map, sectors and teams, approvals, clues.
-          </p>
-          {/* stacked below 1280 px: side by side, the header was squeezed to a one-word column on a phone */}
-          <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
-            {p.headerStart}
-            <div className="min-w-0 xl:flex-1">
-              <MissionHeader
-                heading
-                mission={p.mission}
-                status={p.status}
-                conditions={p.conditions}
-                now={now()}
-                toggle={hasConditions ? { open: condOpen, controls: condId, onToggle: () => setCondOpen(!condOpen) } : undefined}
-              />
-            </div>
-          </div>
+      <div aria-label="Command view" className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 lg:grid-rows-[auto_minmax(0,1fr)_auto] ${grid}`}>
+        <div className={`relative z-20 flex flex-col gap-2 ${span}`}>
+          <MissionHeader
+            bare
+            mission={p.mission}
+            status={p.status}
+            conditions={p.conditions}
+            now={now()}
+            toggle={hasConditions ? { open: condOpen, controls: condId, onToggle: () => setCondOpen(!condOpen) } : undefined}
+          />
           {hasConditions && condOpen && (
             // over the console, under the header (the map keeps its place); W or Esc closes it
             <div className="absolute inset-x-0 top-full mt-1 max-h-[75vh] overflow-y-auto rounded-lg shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]">
@@ -133,24 +118,30 @@ export function CommandView(p: CommandProps) {
             </div>
           )}
         </div>
-        <aside aria-label="Sectors and teams" className={`order-2 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 ${w.inPlace}`}>
+        <aside aria-label="Sectors and teams" className={`order-3 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 lg:order-none ${wide ? "lg:hidden" : ""}`}>
           <TaskBoard compact tasks={p.tasks} sectors={p.sectors} teams={p.teams} onSetTask={p.onSetTask} onUpdateTeam={p.onUpdateTeam} now={now()} cardHref={p.cardHref} />
           <TeamRoster teams={p.teams} tasks={p.tasks} now={now()} />
           {controls}
         </aside>
-        <div className={`order-1 flex min-h-0 flex-col gap-2 ${w.inPlace}`}>
+        <div className="order-1 flex min-h-0 flex-col gap-2 lg:order-none">
           <StatusLine proposals={p.proposals} teams={p.teams} tasks={p.tasks} clues={p.clues} />
-          <ConsoleHint />
-          {p.aboveMap}
-          <div className={`h-[60vh] min-h-0 ${w.map}`}>{p.map}</div>
+          <div className="relative h-[52vh] min-h-0 lg:h-auto lg:flex-1">
+            {p.map}
+            {p.overMap && <div className="pointer-events-none absolute inset-x-2 bottom-12 z-10 flex justify-center sm:inset-x-3">{p.overMap}</div>}
+          </div>
         </div>
-        <aside aria-label="Approvals" className={`order-3 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 ${w.inPlace}`}>
-          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} />
-          {p.sideRail}
+        <aside aria-label={p.rightRail ? "View" : "Approvals"} className="order-2 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 lg:order-none">
+          {p.rightRail ?? (
+            <>
+              <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} />
+              {p.sideRail}
+            </>
+          )}
         </aside>
-        <div className={`order-4 ${w.clues} overflow-y-auto rounded-lg border border-line bg-surface-solid px-4 py-2.5 ${w.inPlace} ${w.span}`}>
+        <div className={`order-4 max-h-40 overflow-y-auto rounded-lg border border-line bg-surface-solid px-4 py-2.5 lg:order-none ${span}`}>
           <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} utc={p.status === "demo"} />
         </div>
+        {p.cover && <div className="absolute inset-0 z-30 overflow-y-auto rounded-lg bg-bg">{p.cover}</div>}
       </div>
     );
   }
@@ -179,6 +170,7 @@ export function MissionHeader({
   conditions: c,
   now,
   heading = false,
+  bare = false,
   toggle,
 }: {
   mission: Mission | null;
@@ -186,6 +178,8 @@ export function MissionHeader({
   conditions: Conditions | null;
   now: Date;
   heading?: boolean;
+  /** Without the name, the mode and the clock (the console: they are in the app bar). */
+  bare?: boolean;
   /** The conditions line opens the Conditions panel (sources, quotes, the flyability gate). */
   toggle?: { open: boolean; controls: string; onToggle: () => void };
 }) {
@@ -214,11 +208,15 @@ export function MissionHeader({
   // conditions in words (cut with an ellipsis; the whole line is the tooltip).
   return (
     <section className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line bg-surface-solid px-3 py-2 lg:flex-nowrap" aria-label="Mission header">
-      <Name className="truncate text-body font-medium text-text">{mission?.name ?? "…"}</Name>
-      <ModeChip mode={modeOf(status)} />
-      <span className="font-mono text-small text-text-2" title="Mission clock">
-        {hhmm(now, utc)} {zone(now, utc)}
-      </span>
+      {!bare && (
+        <>
+          <Name className="truncate text-body font-medium text-text">{mission?.name ?? "…"}</Name>
+          <ModeChip mode={modeOf(status)} />
+          <span className="font-mono text-small text-text-2" title="Mission clock">
+            {hhmm(now, utc)} {zone(now, utc)}
+          </span>
+        </>
+      )}
       <StatusPill tone={fly[0]}>{fly[1]}</StatusPill>
       {isOverride(c) && (
         <StatusPill tone="caution" dot={false} title="Conditions set by hand for a demo (override (demo)), not from Tavily">
@@ -242,49 +240,6 @@ export function MissionHeader({
         </button>
       )}
     </section>
-  );
-}
-
-export const HINT_KEY = "sightline.consoleHint";
-
-function hintSeen(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(HINT_KEY) === "seen";
-  } catch {
-    return false;
-  }
-}
-
-/** The console's first-visit hint: where things are, in three bullets. Dismissed once, per browser. */
-export function ConsoleHint() {
-  const [shown, setShown] = useState(() => !hintSeen());
-  if (!shown) return null;
-  const dismiss = () => {
-    setShown(false);
-    try {
-      globalThis.localStorage?.setItem(HINT_KEY, "seen");
-    } catch {
-      /* private mode: hidden for this page only */
-    }
-  };
-  return (
-    <aside aria-label="How to use the console" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-line bg-surface-solid px-3 py-1.5 text-caption text-text-2">
-      <span className="font-medium text-text">First time here?</span>
-      <ul className="flex flex-wrap gap-x-4 gap-y-1">
-        <li>
-          <span className="text-accent">→</span> Approve the agent's proposals on the right
-        </li>
-        <li>
-          <span className="text-accent">←</span> Assign teams to sectors on the left
-        </li>
-        <li>
-          <span className="text-accent">↓</span> Add clues below the map
-        </li>
-      </ul>
-      <button type="button" onClick={dismiss} className="ml-auto rounded-full border border-border px-2.5 py-0.5 text-text-2 hover:text-text">
-        Got it
-      </button>
-    </aside>
   );
 }
 
@@ -362,7 +317,7 @@ export function TaskBoard({
   const callsign = (id: string | null) => teams.find((t) => t.id === id)?.callsign ?? id ?? "";
   const poa = (t: SectorTask) => live.get(t.sector_id)?.poa ?? t.poa;
   return (
-    <section aria-label="Task board" className="flex flex-col gap-2">
+    <section aria-label="Task board" data-tour="tasks" className="flex flex-col gap-2">
       <span className="px-1 text-caption font-medium text-text-2">Task board</span>
       <div className={compact ? "flex flex-col gap-3" : "grid gap-3 md:grid-cols-4"}>
         {COLUMNS.map((col) => {

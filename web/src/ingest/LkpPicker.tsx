@@ -47,7 +47,7 @@ function PickLayer({ point, onPick }: { point: { lat: number; lon: number } | nu
   return null;
 }
 
-export function LkpPicker({ point, onPick }: { point: { lat: number; lon: number } | null; onPick: (p: { lat: number; lon: number }) => void }) {
+export function LkpPicker({ point, onPick, className = "h-64 rounded-sm border border-border", zoom = 13 }: { point: { lat: number; lon: number } | null; onPick: (p: { lat: number; lon: number }) => void; className?: string; zoom?: number }) {
   const style = useMemo(() => {
     const key = import.meta.env.VITE_MAPTILER_KEY?.trim() || undefined;
     return basemapStyle(chooseBasemapMode(key, navigator.onLine), key, readBasemapColors());
@@ -55,8 +55,8 @@ export function LkpPicker({ point, onPick }: { point: { lat: number; lon: number
   // the map is centred once (where the point was when it opened); later picks don't move it
   const center = useMemo<[number, number]>(() => (point ? [point.lon, point.lat] : DEFAULT_CENTER), []);
   return (
-    <div className="h-64 overflow-hidden rounded-sm border border-border" aria-label="Pick the last known position on the map">
-      <MapProvider className="h-full w-full" initialCenter={center} initialZoom={13} mapStyle={style}>
+    <div className={`overflow-hidden ${className}`} aria-label="Pick the last known position on the map">
+      <MapProvider className="h-full w-full" initialCenter={center} initialZoom={zoom} mapStyle={style}>
         <PickLayer point={point} onPick={onPick} />
       </MapProvider>
     </div>

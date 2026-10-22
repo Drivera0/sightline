@@ -5,6 +5,8 @@
 
 import { create } from "zustand";
 import type { MissionEvent } from "../contract";
+import type { TriedPhoto } from "../detect/TryPhoto";
+import type { LiveAnswer } from "../review/LiveReview";
 import { prefersReducedMotion } from "../metrics/motion";
 import { checkpoint, clockAt, type Checkpoint } from "./missionTime";
 
@@ -25,6 +27,10 @@ export interface StoryState {
   started: boolean;
   /** What the visitor did on the demo console, as the events the console made (replayed when the clock moves). */
   user: MissionEvent[];
+  /** The visitor's answers in the demo's Review rail (a live mission's go to the server). */
+  answers: Record<string, LiveAnswer>;
+  /** The last photo run through Try a photo: its result leads the Review rail. */
+  tried: TriedPhoto | null;
   seek: (t: Checkpoint, opts?: { animate?: boolean; tour?: boolean }) => void;
   setProgress: (progress: number) => void;
   /** Space: pause or resume the clock's run into the checkpoint. */
@@ -38,10 +44,12 @@ export interface StoryState {
   /** "Skip to now": the mission as it stands at the end of the timeline, no story. */
   skipToNow: () => void;
   record: (events: readonly MissionEvent[]) => void;
+  answer: (id: string, answer: LiveAnswer) => void;
+  setTried: (tried: TriedPhoto | null) => void;
   reset: () => void;
 }
 
-const INITIAL = { t: 4 as Checkpoint, progress: 1, playing: false, tour: false, pitch: false, started: false, user: [] as MissionEvent[] };
+const INITIAL = { t: 4 as Checkpoint, progress: 1, playing: false, tour: false, pitch: false, started: false, user: [] as MissionEvent[], answers: {} as Record<string, LiveAnswer>, tried: null as TriedPhoto | null };
 
 export const useStory = create<StoryState>((set, get) => ({
   ...INITIAL,
@@ -69,6 +77,8 @@ export const useStory = create<StoryState>((set, get) => ({
   exit: () => set({ tour: false, pitch: false, playing: false, progress: 1 }),
   skipToNow: () => set({ t: 4, progress: 1, playing: false, tour: false, pitch: false, started: true }),
   record: (events) => set((s) => ({ user: [...s.user, ...events] })),
+  answer: (id, answer) => set((s) => ({ answers: { ...s.answers, [id]: answer } })),
+  setTried: (tried) => set({ tried }),
   reset: () => set({ ...INITIAL }),
 }));
 

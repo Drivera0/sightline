@@ -110,7 +110,7 @@ describe("on the Results page", () => {
 
   it("is grouped into sections that each answer one question", () => {
     render(<ResultsSummary metrics={demo()} surveyId="seymour-demo" cellM={5} />);
-    for (const name of ["At a glance", "How much looking it saves", "When not to rely on it", "Your review"]) {
+    for (const name of ["At a glance", "How much looking it saves", "What breaks first"]) {
       expect(screen.getByRole("region", { name })).toBeInTheDocument();
     }
   });

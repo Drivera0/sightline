@@ -1,47 +1,40 @@
 // LANE_D §6 test 9 (ingest) and test 8 (review in live mode), plus the live routes.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Detections, Verdict } from "../contract";
-import { LiveRoutes } from "../App";
+import { App } from "../App";
+import { useStory } from "../command/story";
+import { diskFetch } from "../lib/diskFetch";
 import { LiveReview, liveReviewItems, relookName, verdictWords } from "../review/LiveReview";
 import { EMPTY, useMission } from "../lib/mission";
-import { redirectFromHash, routeFromHash } from "../shell/flow";
+import type { Route } from "../shell/flow";
 import { SAFETY_FRAME } from "../radio/RadioDesk";
-import { cardFromHash, LiveMission, tabFromHash } from "./LiveMission";
+import { LiveMission } from "./LiveMission";
 import { NewSearch } from "./NewSearch";
 import { batches, hostLabel, photoFiles, uploadCommand } from "./upload";
 import { UploadPanel, WatchPanel } from "./UploadPanel";
 
 // MapLibre needs WebGL, which jsdom lacks; the real pick was checked in Chromium.
 vi.mock("./LkpPicker", () => ({ LkpPicker: () => <div aria-label="Pick the last known position on the map" /> }));
+vi.mock("../map/heat/LiveHeatMap", () => ({ LiveHeatMap: () => <figure aria-label="Live map" /> }));
 
 const API = { base: "http://api.test" };
 const jpeg = (name: string) => new File(["x"], name, { type: "image/jpeg" });
 
-describe("routes", () => {
-  it("knows New search, live missions and the demo", () => {
-    expect(routeFromHash("#new")).toEqual({ kind: "new" });
-    expect(routeFromHash("#m/a1b2c3d4/review")).toEqual({ kind: "mission", id: "a1b2c3d4" });
-    expect(routeFromHash("#review")).toEqual({ kind: "demo" });
-    expect(routeFromHash("#m/demo/command")).toEqual({ kind: "mission", id: "demo" });
-    expect(routeFromHash("#command")).toEqual({ kind: "mission", id: "demo" });
-    expect(routeFromHash("#m/../../x")).toEqual({ kind: "demo" });
-  });
-
-  it("on the demo-only site, hands over the demo mission first and never shows a developer message", () => {
-    render(<LiveRoutes route={{ kind: "new" }} base={null} />);
-    const box = screen.getByRole("region", { name: "No mission server" });
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("The live mission server runs during demos and judging");
-    expect(box).toHaveTextContent("Here is the demo mission instead.");
-    expect(box).not.toHaveTextContent("VITE_API_URL");
-    const links = within(box).getAllByRole("link");
-    expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
-      ["Open the console", "#m/demo/command"],
-      ["Guided demo", "#survey"],
-    ]);
-    // the app bar is above it, with a way back
-    expect(within(screen.getByRole("banner")).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "#");
+describe("New search: the console's empty state", () => {
+  it("on the demo-only site, hands over the demo mission and never shows a developer message", async () => {
+    window.history.replaceState(null, "", "#new");
+    render(<App base={null} />);
+    const sheet = screen.getByRole("region", { name: "Start a search" });
+    expect(within(sheet).getByRole("heading", { level: 1 })).toHaveTextContent("Drop photos or watch a folder");
+    expect(sheet).toHaveTextContent("The live mission server runs during demos and judging");
+    expect(sheet).not.toHaveTextContent("VITE_API_URL");
+    expect(within(sheet).getByRole("link", { name: "Load the demo mission" })).toHaveAttribute("href", "#m/demo/map");
+    expect(within(sheet).getByLabelText("Latitude")).toBeDisabled();
+    // the same app bar: the wordmark opens About
+    expect(within(screen.getAllByRole("banner")[0]!).getByRole("link", { name: "Sightline" })).toHaveAttribute("href", "#about");
+    expect(await screen.findByLabelText("Pick the last known position on the map")).toBeInTheDocument(); // the empty map
   });
 });
 
@@ -89,14 +82,6 @@ describe("upload (test 9)", () => {
     await waitFor(() => expect(screen.getByText("1 / 2 ranked by the detector…")).toBeInTheDocument());
     expect(screen.getByLabelText("Detector progress")).toHaveAttribute("value", "1");
     expect(screen.getByLabelText("Upload progress")).toHaveAttribute("max", "2");
-  });
-
-  it("offers the map to pick the last known position", async () => {
-    render(<NewSearch api={API} onCreated={vi.fn()} createMission={vi.fn()} />);
-    const button = screen.getByRole("button", { name: "Pick on the map" });
-    await userEvent.click(button);
-    expect(button).toHaveAttribute("aria-expanded", "true");
-    expect(await screen.findByText(/Click where the person was last seen/)).toBeInTheDocument();
   });
 
   it("names the host in prose, never the bare origin, and copies the exact command", async () => {
@@ -179,26 +164,26 @@ describe("review in live mode (test 8)", () => {
   });
 });
 
-describe("live mission tabs", () => {
-  // the state request never answers: the tabs still render, with no mission data yet
+const missionRoute = (id: string, view: Extract<Route, { kind: "mission" }>["view"], open = {}) => ({ kind: "mission" as const, id, view, t: null, open });
+
+describe("a live mission's console", () => {
+  // the state request never answers: the views still render, with no mission data yet
   const pending = { base: "http://api.test", fetch: (() => new Promise(() => {})) as unknown as typeof fetch };
+  afterEach(() => vi.unstubAllGlobals());
 
-  it("knows a sector's card from the address", () => {
-    expect(cardFromHash("#m/a1b2c3d4/card/B3")).toBe("B3");
-    expect(cardFromHash("#m/a1b2c3d4/card")).toBeNull();
-    expect(cardFromHash("#m/a1b2c3d4/command")).toBeNull();
-  });
-
-  it("knows the radio tab from the address", () => {
-    expect(tabFromHash("#m/a1b2c3d4/radio")).toBe("radio");
-    expect(tabFromHash("#m/a1b2c3d4/nope")).toBe("photos");
-  });
-
-  it("C goes to the Console tab, but not while typing", async () => {
-    render(<LiveMission api={pending} missionId="a1b2c3d4" initialTab="feed" />);
+  it("C goes back to the map, 1-5 switch views, but not while typing", async () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+    render(<LiveMission api={pending} missionId="a1b2c3d4" route={missionRoute("a1b2c3d4", "trace")} />);
+    const bar = screen.getAllByRole("banner")[0]!;
+    const views = within(bar.parentElement as HTMLElement).getAllByRole("navigation", { name: "Mission views" })[0]!;
+    expect(within(views).getByRole("button", { name: "Trace" })).toHaveAttribute("aria-pressed", "true");
     await userEvent.keyboard("c");
-    expect(screen.getByRole("button", { name: "Console" })).toHaveAttribute("aria-pressed", "true");
-    expect(window.location.hash).toBe("#m/a1b2c3d4/command");
+    expect(within(views).getByRole("button", { name: /Map/ })).toHaveAttribute("aria-pressed", "true");
+    expect(window.location.hash).toBe("#m/a1b2c3d4/map");
+    await userEvent.keyboard("2");
+    expect(within(views).getByRole("button", { name: "Photos" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("During the flight")).toBeInTheDocument(); // the watch command, in the Photos rail
+    expect(within(bar).getByRole("link", { name: "New search" })).toHaveAttribute("href", "#new");
   });
 
   // /health answers (radio on or off); everything else stays pending
@@ -210,87 +195,142 @@ describe("live mission tabs", () => {
         : new Promise(() => {})) as unknown as typeof fetch,
   });
 
-  it("says when the server has no radio desk", async () => {
-    render(<LiveMission api={withHealth(false)} missionId="a1b2c3d4" initialTab="radio" />);
+  it("says when the server has no radio desk (#m/<id>/radio, for phones)", async () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+    render(<LiveMission api={withHealth(false)} missionId="a1b2c3d4" route={missionRoute("a1b2c3d4", "radio")} />);
     expect(await screen.findByText(/radio desk isn't running on this server/)).toBeInTheDocument();
   });
 
-  it("puts the radio desk beside the approvals in the console (D-R3)", async () => {
-    render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" initialTab="command" />);
+  it("keeps the radio desk a toggle in the rail beside the approvals (D-R3)", async () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+    render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" route={missionRoute("a1b2c3d4", "map")} />);
+    const toggle = screen.getByRole("button", { name: /Radio desk/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
     expect(await screen.findByText(SAFETY_FRAME)).toBeInTheDocument();
   });
 
-  it("mounts the radio desk, safety frame first, and links the debrief", async () => {
-    render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" initialTab="radio" />);
-    expect(await screen.findByText(SAFETY_FRAME)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Debrief" })).toHaveAttribute("href", "http://api.test/missions/a1b2c3d4/debrief.md");
-    await userEvent.click(screen.getByRole("button", { name: "Feed" }));
-    expect(screen.getByRole("link", { name: "Debrief (markdown)" })).toHaveAttribute(
-      "href",
-      "http://api.test/missions/a1b2c3d4/debrief.md",
-    );
+  it("links the mission's own debrief in the Debrief view, and shows the event log in the Trace view", async () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+    render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" route={missionRoute("a1b2c3d4", "debrief")} />);
+    expect(screen.getByRole("link", { name: "This mission's debrief (markdown)" })).toHaveAttribute("href", "http://api.test/missions/a1b2c3d4/debrief.md");
+    await userEvent.keyboard("4");
+    await userEvent.click(screen.getByRole("button", { name: "Event log" }));
+    expect(screen.getByRole("button", { name: "Event log" })).toHaveAttribute("aria-pressed", "true");
   });
 });
 
-describe("the demo mission (E-04)", () => {
-  it("opens with no API: command, approvals and feed only, labelled a demo", async () => {
-    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ steps: [], prior: { p: [], outside: 0 } })));
-    render(<LiveRoutes route={{ kind: "mission", id: "demo" }} base={null} />);
-    expect(await screen.findByText("Demo mission · simulated data, no server")).toBeInTheDocument();
-    expect(within(screen.getByRole("navigation", { name: "Mission views" })).queryByRole("button", { name: "Photos" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Debrief" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: /Approvals/ }));
-    expect(await screen.findByText("Promote f0127-d01 to the review queue")).toBeInTheDocument();
-    vi.unstubAllGlobals();
-  });
+/** The demo cache in tests: the repository's sample cache stands in for it (the demo cache isn't in git). */
+const demoFetch = () => {
+  const disk = diskFetch();
+  return (input: RequestInfo | URL) => disk(String(input).replace("/cache/demo/", "/cache/sample/"));
+};
+const settle = () => new Promise((r) => setTimeout(r, 30));
 
-  it("keeps an approval across a hash change and a remount: the state stays while you're on the mission", async () => {
-    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ steps: [], prior: { p: [], outside: 0 } })));
+describe("the demo mission: the story on the one console", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("lands at t0 with the pitch bar and one primary button; Skip to now leaves the console at the end of the timeline", async () => {
+    vi.stubGlobal("fetch", demoFetch());
     useMission.setState({ ...EMPTY, status: "idle" });
-    const route = { kind: "mission", id: "demo" } as const;
-    const pending = () => useMission.getState().proposals.filter((p) => p.status === "pending").length;
-    const settle = () => new Promise((r) => setTimeout(r, 50));
-    const { rerender, unmount } = render(<LiveRoutes route={route} base={null} />);
-    await userEvent.click(screen.getByRole("button", { name: /Approvals/ }));
-    const card = (await screen.findByText("Promote f0127-d01 to the review queue")).closest("[aria-label^='Proposal']") as HTMLElement;
-    const before = pending();
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#");
+    render(<App base={null} />);
+    expect(window.location.hash).toBe("#m/demo");
+    const pitch = screen.getByRole("region", { name: "Sightline" });
+    expect(within(pitch).getByRole("heading", { level: 1 })).toHaveTextContent("The brain of a drone search.");
+    expect(within(pitch).getByRole("button", { name: "Follow the search (3 min)" }).className).toMatch(/bg-accent/);
+    await waitFor(() => expect(within(screen.getAllByRole("banner")[0]!).getByText("20:35 UTC")).toBeInTheDocument());
+    expect(screen.getByRole("group", { name: "Mission time" })).toBeInTheDocument();
+    expect(await screen.findByText("car at the Mount Seymour trailhead, last seen 18:00")).toBeInTheDocument();
+    expect(screen.queryByText("blue water bottle by the creek crossing")).toBeNull(); // not found yet at 20:35
+    await userEvent.click(within(pitch).getByRole("button", { name: "Skip to now" }));
+    expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull();
+    expect(await screen.findByText("blue water bottle by the creek crossing")).toBeInTheDocument();
+    expect(within(screen.getAllByRole("banner")[0]!).getByText("22:00 UTC")).toBeInTheDocument();
+    expect(window.location.hash).toBe("#m/demo/map");
+  });
+
+  it("follows the story: the photos rail, then the review with the recorded second look, the approval gate, the debrief", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo");
+    render(<App base={null} />);
+    await settle();
+    await userEvent.click(screen.getByRole("button", { name: "Follow the search (3 min)" }));
+    // t1 (jsdom asks for reduced motion: the clock jumps)
+    const mark = await screen.findByRole("dialog", { name: "The story, 1 of 5" });
+    expect(mark).toHaveTextContent("Photos are landing");
+    expect(screen.getByRole("region", { name: "Photos" })).toBeInTheDocument();
+    expect(window.location.hash).toBe("#m/demo?t=1");
+    await userEvent.keyboard("{ArrowRight}");
+    expect(await screen.findByRole("dialog", { name: "The story, 2 of 5" })).toHaveTextContent("second look");
+    const review = screen.getByRole("region", { name: "Review" });
+    const recorded = within(review).getByLabelText("Candidate recorded-f0001-d01");
+    expect(within(recorded).getByLabelText("Models")).toHaveTextContent("OpenCV 5 zoom native");
+    expect(within(recorded).getByLabelText("Models")).toHaveTextContent("Nemotron-3.5-Super-VL");
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    // t3: the gate waits for the visitor's approval
+    const gate = await screen.findByRole("dialog", { name: "The story, 3 of 5" });
+    expect(gate).toHaveTextContent("Approve it on the card");
+    const card = await screen.findByLabelText("Proposal p001");
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
-    expect(pending()).toBe(before - 1);
-    rerender(<LiveRoutes route={route} base={null} />); // what a hash change does (Command -> Trace)
+    expect(await screen.findByRole("dialog", { name: "The story, 4 of 5" })).toHaveTextContent("searched at POD 60 %");
+    expect(await screen.findByText("POD 60%")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByRole("dialog", { name: "The story, 5 of 5" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Debrief" })).toHaveTextContent("What breaks first");
+    // Esc leaves the story; the console stays at that mission time
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("region", { name: "Debrief" })).toBeInTheDocument();
+    expect(window.location.hash).toBe("#m/demo/debrief");
+  });
+
+  it("keeps the visitor's approval when the clock moves back and forth", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo/map");
+    render(<App base={null} />);
+    const card = (await screen.findByText("Promote f0127-d01 to the review queue")).closest("[aria-label^='Proposal']") as HTMLElement;
+    await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
+    const status = () => useMission.getState().proposals.find((p) => p.id === "p004")?.status;
+    expect(status()).toBe("approved");
+    useStory.getState().seek(2);
     await settle();
-    expect(pending()).toBe(before - 1);
+    expect(status()).toBeUndefined(); // not proposed yet at 21:31
+    useStory.getState().seek(4);
+    await settle();
+    expect(status()).toBe("approved");
+  });
+
+  it("opens For judges in the debrief from #judges, and Try a photo in the Photos rail from #try", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#judges");
+    const { unmount } = render(<App base={null} />);
+    expect(screen.getAllByRole("button", { name: "Debrief", pressed: true })).toHaveLength(2);
+    expect(screen.getByText("For judges: where to look, in order").closest("details")).toHaveAttribute("open");
     unmount();
-    render(<LiveRoutes route={route} base={null} />);
-    await settle();
-    expect(pending()).toBe(before - 1);
-    vi.unstubAllGlobals();
+    window.history.replaceState(null, "", "#try");
+    render(<App base={null} />);
+    expect(screen.getAllByRole("button", { name: "Photos", pressed: true })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Hide Try a photo" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("opens About over the console from the wordmark, and Esc goes back", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo/map");
+    render(<App base={null} />);
+    window.location.hash = "#about";
+    const sheet = await screen.findByRole("dialog", { name: "About Sightline" });
+    expect(sheet).toHaveTextContent("How it works");
+    expect(sheet).toHaveTextContent("HERIDAL");
+    expect(screen.getByLabelText("Command view")).toBeInTheDocument(); // the console stays behind it
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(window.location.hash).toBe("#m/demo/map"));
   });
 });
-
-describe("the console (the guided demo's former Command step)", () => {
-  it("is one place: #operate and #command redirect to it, and it sits under the app bar with its tabs in the bar", async () => {
-    expect(redirectFromHash("#operate")).toBe("#m/demo/command");
-    expect(redirectFromHash("#command")).toBe("#m/demo/command");
-    vi.stubGlobal("fetch", () => new Promise(() => {})); // the demo's map never arrives: the layout alone (jsdom has no WebGL)
-    window.history.replaceState(null, "", "#m/demo/command");
-    useMission.setState({ ...EMPTY, status: "idle" }); // not the previous test's mission
-    render(<LiveMission api={{ base: "" }} missionId="demo" initialTab="command" />);
-    const bar = screen.getByRole("navigation", { name: "Sightline" }).closest("header") as HTMLElement; // the app bar
-    const tabs = within(bar).getByRole("navigation", { name: "Mission views" });
-    // Console, Trace, Feed on a desktop; Approvals only on phones (lg:hidden)
-    expect(within(tabs).getAllByRole("button").map((b) => b.textContent)).toEqual(["Console", "Approvals", "Trace", "Feed"]);
-    expect(within(tabs).getByRole("button", { name: /Approvals/ }).className).toMatch(/lg:hidden/);
-    expect(within(tabs).getByRole("button", { name: "Console" })).toHaveAttribute("aria-pressed", "true");
-    const view = screen.getByLabelText("Command view");
-    expect(view.className).toMatch(/lg:grid-cols-\[/); // three columns from 1024 px
-    expect(within(view).getByRole("complementary", { name: "Sectors and teams" })).toBeInTheDocument();
-    expect(within(view).getByRole("complementary", { name: "Approvals" })).toBeInTheDocument();
-    expect(view).toHaveTextContent("laid out for a screen 1024 px or wider");
-    await userEvent.click(within(tabs).getByRole("button", { name: "Trace" }));
-    expect(window.location.hash).toBe("#m/demo/trace");
-    // the tabs stay in the bar on every tab
-    expect(within(screen.getByRole("navigation", { name: "Sightline" }).closest("header") as HTMLElement).getByRole("button", { name: "Trace" })).toHaveAttribute("aria-pressed", "true");
-    vi.unstubAllGlobals();
-  });
-});
-

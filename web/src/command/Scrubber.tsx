@@ -29,7 +29,7 @@ export function Scrubber({
       role="group"
       aria-label="Mission time"
       data-tour="scrubber"
-      className="pointer-events-auto flex w-full items-center gap-3 rounded-lg border border-border bg-surface-solid px-2 py-1.5 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.8)]"
+      className="@container pointer-events-auto flex w-full items-center gap-3 rounded-lg border border-border bg-surface-solid px-2 py-1.5 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.8)]"
     >
       <button
         type="button"
@@ -76,7 +76,7 @@ export function Scrubber({
                     aria-hidden
                     className={`mt-[7px] size-2.5 rounded-full border-2 transition-colors ${here ? "border-accent bg-accent" : past ? "border-accent bg-surface-solid" : "border-text-3 bg-surface-solid group-hover:border-text-2"}`}
                   />
-                  <span className={`truncate text-caption ${here ? "text-text" : "text-text-3 group-hover:text-text-2"} ${here ? "" : "max-md:sr-only"}`}>{c.label}</span>
+                  <span className={`truncate text-caption ${here ? "text-text" : "text-text-3 group-hover:text-text-2"} ${here ? "" : "@max-xl:sr-only"}`}>{c.label}</span>
                 </button>
               </li>
             );

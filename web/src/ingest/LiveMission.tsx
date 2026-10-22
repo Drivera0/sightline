@@ -1,420 +1,537 @@
-// A live mission (LANE_D §5.5–5.6: D-I1 progress, D-Q1 review in live mode, D-L1 first pass):
-// photos in, candidates reviewed, everything that happens in the feed, all from useMission. Lane E's
-// command view and lane C's live heat (above it, on the Console tab) mount here. Built by lane A for lane D (#51).
+// The one console: a mission's map, rails and views under one app bar, for a live mission and for the
+// demo mission alike. The map never unmounts; the views (Map · Photos · Review · Trace · Debrief) change
+// the rail beside it or lay a sheet over the console. On the demo mission the same console is the story:
+// the mission clock (missionTime.ts, story.ts) moves through six checkpoints, coach marks point at the real
+// panels, and leaving the story leaves you in the console at that mission time. Built by lane A.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
-import type { AssignmentCard, Conditions, FleetState, TraceEntry } from "../contract";
+import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent, TraceEntry } from "../contract";
 import { AssignmentCardView } from "../command/AssignmentCardView";
+import { CoachMark } from "../command/CoachMark";
+import { Debrief } from "../command/Debrief";
+import { candidatePosition, demoCards, landedFrames, RECORDED_ID } from "../command/demoReview";
+import { CHECKPOINTS, checkpoint, demoAt, MARK_COUNT, STORY_PROPOSAL, type Checkpoint, type DemoFull } from "../command/missionTime";
+import { PhotosRail } from "../command/PhotosRail";
+import { PitchBar } from "../command/PitchBar";
+import { Scrubber } from "../command/Scrubber";
+import { landing, RUN_MS, storyClock, useStory } from "../command/story";
 import { isTyping } from "../lib/keys";
-import { photoProgress, useMission, type MissionData } from "../lib/mission";
-import { ClockZone } from "../lib/time";
-import { ApprovalInbox } from "../command/ApprovalInbox";
+import { cacheUrl, loadCache } from "../lib/cache";
+import { photoProgress, useMission } from "../lib/mission";
+import { clock, ClockZone, zone } from "../lib/time";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
 import type { ConditionsData } from "../command/ConditionsPanel";
 import { TraceView, type TraceRun } from "../command/TraceView";
+import { BoxLayer, TryPhoto, type TriedPhoto } from "../detect/TryPhoto";
+import { RadioClip } from "../front/RadioClip";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
+import { prefersReducedMotion } from "../metrics/motion";
 import { usePick } from "../map/pick";
-import { AppBar, rememberMission } from "../shell/AppBar";
-import { Button, KeyHint, ModeChip, modeOf, Page, PageHeader, Panel, Stat } from "../shell/components";
-import { DEMO_CONSOLE_HASH } from "../shell/flow";
+import { AppBar, rememberMission, type BarAction } from "../shell/AppBar";
+import { Button, KeyHint, modeOf, Page, Panel, Stat } from "../shell/components";
+import { DEMO_CONSOLE_HASH, VIEWS, viewHash, type Route, type View } from "../shell/flow";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
-import { SHORTCUT_GROUPS, type ShortcutGroup } from "../shell/shortcuts";
+import { SHORTCUT_GROUPS } from "../shell/shortcuts";
 import { RadioDesk } from "../radio/RadioDesk";
-import { LiveReview } from "../review/LiveReview";
+import { LiveReview, ReviewRail, type LiveAnswer } from "../review/LiveReview";
 import { UploadPanel, WatchPanel } from "./UploadPanel";
 
-type Tab = "command" | "photos" | "review" | "approvals" | "radio" | "feed" | "trace";
-/**
- * In the order the work flows: photos in, people confirm, the search manager acts, the audit follows.
- * Approvals and Radio live in the console's rails on a desktop; on phones (< lg) they are tabs of their
- * own, and `#m/<id>/approvals` and `#m/<id>/radio` open them full screen at any width.
- */
-const TABS: { id: Tab; label: string; phoneOnly?: boolean }[] = [
-  { id: "photos", label: "Photos" },
-  { id: "review", label: "Review" },
-  { id: "command", label: "Console" },
-  { id: "approvals", label: "Approvals", phoneOnly: true },
-  { id: "radio", label: "Radio", phoneOnly: true },
-  { id: "trace", label: "Trace" },
-  { id: "feed", label: "Feed" },
-];
-/** The demo mission has no API: no photos, review, radio, cards or debrief. Its Trace tab shows recorded runs. */
-const DEMO_TABS: readonly Tab[] = ["command", "approvals", "trace", "feed"];
-const STATUS_WORDS = { idle: "", connecting: "Connecting…", live: "Live", reconnecting: "Reconnecting…", demo: "Demo", error: "Offline" };
+export type MissionRoute = Extract<Route, { kind: "mission" }>;
 
-export function tabFromHash(hash: string): Tab {
-  const step = hash.split("/")[2];
-  return TABS.some((t) => t.id === step) ? (step as Tab) : "photos";
+/** The demo cache's folder (the Photos and Review rails, the measured results, Try a photo's samples). */
+export const DEMO_DIR = "demo";
+
+/** The demo mission, loaded once per page: the fixtures to "now" and the demo cache. */
+let demoLoad: Promise<{ full: DemoFull; bundle: CacheBundle }> | null = null;
+function loadDemo(): Promise<{ full: DemoFull; bundle: CacheBundle }> {
+  demoLoad ??= loadCache(DEMO_DIR).then(async (bundle) => {
+    const { data, now } = await loadDemoMission(fetch, undefined, Promise.resolve(bundle.map));
+    return { full: { data, now }, bundle };
+  });
+  demoLoad.catch(() => {
+    demoLoad = null; // a reload of the page or the view tries again
+  });
+  return demoLoad;
 }
 
-/** `#m/<id>/card/<sector>`: that sector's assignment card (E-09), else null. */
-export function cardFromHash(hash: string): string | null {
-  const [, , step, sector] = hash.split("/");
-  return step === "card" && sector ? decodeURIComponent(sector) : null;
+/** The demo cache alone (a live mission's Debrief numbers and Try a photo's samples). */
+let bundleLoad: Promise<CacheBundle> | null = null;
+function loadBundle(): Promise<CacheBundle> {
+  bundleLoad ??= loadCache(DEMO_DIR);
+  bundleLoad.catch(() => {
+    bundleLoad = null;
+  });
+  return bundleLoad;
 }
 
-/** The loaded demo mission's clock and seed note, kept beside the store (`useMission`) that holds its state. */
-let demoLoaded: { now: string; seed: string } | null = null;
-/** The store still holds the demo mission: no live mission has replaced it since it was loaded. */
-const demoKept = () => {
-  const s = useMission.getState();
-  return demoLoaded !== null && s.status === "demo" && s.mission?.mission_id === DEMO_MISSION_ID;
-};
+/** The demo mission's clock, the story's checkpoint and the view, as an address. */
+function demoHash(view: View, t: Checkpoint, tour: boolean, pitch: boolean): string {
+  if (pitch) return "#m/demo";
+  if (tour) return `#m/demo?t=${t}`;
+  return viewHash(DEMO_MISSION_ID, view, t >= 4 ? null : t);
+}
 
-/**
- * A mission's pages under one app bar, its tabs in the bar's centre on every tab. The Console tab is the
- * full-screen console; the other tabs sit in the page column.
- */
-export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Api; missionId: string; initialTab?: Tab }) {
+/** Each event the visitor's actions made on the demo console, under an id of its own (u0001…). */
+let userSeq = 0;
+const asUserEvent = (e: MissionEvent): MissionEvent => ({ ...e, id: `u${String(++userSeq).padStart(4, "0")}` });
+
+export function LiveMission({ api, missionId, route }: { api: Api; missionId: string; route: MissionRoute }) {
   const s = useMission();
   const demo = missionId === DEMO_MISSION_ID;
-  const [tab, setTab] = useState<Tab>(demo && !DEMO_TABS.includes(initialTab) ? "command" : initialTab);
-  const [demoNow, setDemoNow] = useState<Date | null>(() => (demo && demoKept() ? new Date(demoLoaded!.now) : null));
-  const [demoSeed, setDemoSeed] = useState<string | null>(() => (demo && demoKept() ? demoLoaded!.seed : null));
+  const story = useStory();
+  const [view, setView] = useState<View>(() => route.view ?? (demo && route.t !== null ? checkpoint(route.t).view : "map"));
   const [keysOpen, setKeysOpen] = useState(false);
-  const [card, setCard] = useState<string | null>(() => cardFromHash(window.location.hash));
+  const [tryOpen, setTryOpen] = useState(!!route.open.try);
+  const [radioOpen, setRadioOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(!!route.open.log);
+  const [demoData, setDemoData] = useState<{ full: DemoFull; bundle: CacheBundle } | null>(null);
+  const [bundle, setBundle] = useState<CacheBundle | null>(null);
+
+  // The address decides where the console opens: the landing, a checkpoint of the story, or a view.
+  const routeKey = `${missionId}|${route.view}|${route.t}|${JSON.stringify(route.open)}`;
   useEffect(() => {
-    const onHash = () => {
-      setCard(cardFromHash(window.location.hash));
-      if (!cardFromHash(window.location.hash)) setTab(tabFromHash(window.location.hash));
-    };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-  // the app bar's Console leads back here from any page while this live mission is the last one opened
+    if (route.open.try) setTryOpen(true);
+    if (route.open.log) setLogOpen(true);
+    if (!demo) {
+      setView(route.view ?? "map");
+      return;
+    }
+    const st = useStory.getState();
+    if (route.view === null && route.t === null) {
+      landing();
+      setView("map");
+    } else if (route.view === null && route.t !== null) {
+      if (route.t === 0) landing();
+      else st.seek(route.t, { tour: true });
+      setView(checkpoint(route.t).view);
+    } else if (route.view !== null) {
+      if (route.t !== null) st.seek(route.t, { tour: false });
+      else if (!st.started || st.tour || st.pitch) st.skipToNow();
+      setView(route.view);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey]);
+
   useEffect(() => {
     if (!demo) rememberMission(missionId);
   }, [demo, missionId]);
 
+  // Load the mission: the demo's fixtures and cache, or a live mission over the API.
   useEffect(() => {
+    let live = true;
     if (demo) {
-      // The demo mission's store outlives a tab change or a remount: what was approved a moment ago stays.
-      if (demoKept()) {
-        setDemoNow(new Date(demoLoaded!.now));
-        setDemoSeed(demoLoaded!.seed);
-        return undefined;
-      }
-      let live = true;
-      loadDemoMission().then(
-        ({ data, now }) => {
-          if (!live) return;
-          useMission.getState().useDemo(data, now);
-          demoLoaded = { now, seed: demoSeedWords(data) };
-          setDemoNow(new Date(now));
-          setDemoSeed(demoLoaded.seed);
-        },
-        (e: unknown) => {
-          if (live) useMission.setState({ status: "error", error: e instanceof Error ? e.message : String(e) });
-        },
+      loadDemo().then(
+        (d) => live && setDemoData(d),
+        (e: unknown) => live && useMission.setState({ status: "error", error: e instanceof Error ? e.message : String(e) }),
       );
       return () => {
         live = false;
       };
     }
     void useMission.getState().connect(missionId, api);
-    return () => useMission.getState().disconnect();
+    loadBundle().then(
+      (b) => live && setBundle(b),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+      useMission.getState().disconnect();
+    };
   }, [api, missionId, demo]);
+  const cache = demo ? (demoData?.bundle ?? null) : bundle;
+
+  // The demo mission at the story's clock, the visitor's own actions on top.
+  const clockIso = storyClock(story);
+  const derivedIds = useRef<Set<string>>(new Set());
   useEffect(() => {
-    // C: the Console tab (D-R1's shortcut), unless typing
+    if (!demo || !demoData) return;
+    const state = demoAt(demoData.full, clockIso, story.user);
+    derivedIds.current = new Set((state.events ?? []).map((e) => e.id));
+    useMission.getState().useDemo(state, clockIso);
+  }, [demo, demoData, clockIso, story.user]);
+  // what the visitor does on the demo console is kept as events of their own, replayed when the clock moves
+  useEffect(() => {
+    if (!demo) return undefined;
+    return useMission.subscribe((m) => {
+      if (m.status !== "demo") return;
+      const fresh = m.events.filter((e) => !derivedIds.current.has(e.id));
+      if (fresh.length === 0) return;
+      for (const e of fresh) derivedIds.current.add(e.id);
+      useStory.getState().record(fresh.map(asUserEvent));
+    });
+  }, [demo]);
+
+  // The clock's run into a checkpoint (reduced motion: a jump), updating the console ten times a second.
+  useEffect(() => {
+    if (!demo || !story.playing) return undefined;
+    if (prefersReducedMotion()) {
+      useStory.getState().setProgress(1);
+      return undefined;
+    }
+    const duration = RUN_MS[story.t] || 1;
+    let raf = 0;
+    let last = performance.now();
+    let written = last;
+    let p = useStory.getState().progress;
+    const frame = (now: number) => {
+      p = Math.min(1, p + (now - last) / duration);
+      last = now;
+      if (p >= 1 || now - written >= 100) {
+        written = now;
+        useStory.getState().setProgress(p);
+      }
+      if (p < 1) raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [demo, story.playing, story.t]);
+
+  // The story moves the view with it, and keeps the address on the moment it shows.
+  useEffect(() => {
+    if (!demo || !story.tour) return;
+    setView(checkpoint(story.t).view);
+  }, [demo, story.tour, story.t]);
+  useEffect(() => {
+    // only while the address is this mission's (the About sheet keeps #about over it)
+    if (!demo || !story.started || !/^#m\/demo(\/|\?|$)/.test(window.location.hash)) return;
+    const want = demoHash(view, story.t, story.tour, story.pitch);
+    if (window.location.hash !== want) window.history.replaceState(null, "", want);
+  }, [demo, view, story.t, story.tour, story.pitch, story.started]);
+
+  // t3's gate: the visitor's approval of the story's proposal runs the clock to t4.
+  useEffect(() => {
+    if (!demo || !story.tour || story.t !== 3 || story.progress < 1) return;
+    const decided = story.user.some((e) => e.type === "proposal.decided" && e.ref === STORY_PROPOSAL);
+    if (decided) useStory.getState().seek(4, { animate: true });
+  }, [demo, story.tour, story.t, story.progress, story.user]);
+
+  const go = useCallback(
+    (v: View) => {
+      setView(v);
+      if (demo) {
+        const st = useStory.getState();
+        if (st.tour || st.pitch) st.exit();
+      }
+      if (!demo) window.history.replaceState(null, "", viewHash(missionId, v));
+    },
+    [demo, missionId],
+  );
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === "?") setKeysOpen((o) => !o); // the shortcut list, as in the guided demo
+      if (e.key === "?") setKeysOpen((o) => !o);
       else if (e.key === "Escape") setKeysOpen(false);
-      else if ((e.key === "c" || e.key === "C") && !keysOpen) go("command");
+      else if (keysOpen) return;
+      else if (e.key === "c" || e.key === "C") go("map");
+      else if (/^[1-5]$/.test(e.key) && !useStory.getState().tour) go(VIEWS[Number(e.key) - 1]!.id);
+      else if (e.key === " " && demo && !useStory.getState().tour && useStory.getState().progress < 1 && !(e.target instanceof HTMLButtonElement)) {
+        e.preventDefault();
+        useStory.getState().toggle();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [go, keysOpen, demo]);
+
   // whether this server runs the radio desk (serve --radio): the desk shows only when it does
   const [radioOn, setRadioOn] = useState(false);
   useEffect(() => {
     if (demo) return;
     getHealth(api).then((h) => setRadioOn(!!h.radio), () => setRadioOn(false));
   }, [api, demo]);
-  const radioDesk = <RadioDesk api={{ base: api.base, missionId }} teams={s.teams.map((t) => ({ id: t.id, callsign: t.callsign }))} />;
-  const imageUrl = (rel: string) => (demo ? `${DEMO_CACHE}/${rel}` : fileUrl(api, missionId, rel));
-  const tabs = demo ? TABS.filter((t) => DEMO_TABS.includes(t.id)) : TABS;
 
-  const go = (t: Tab) => {
-    setTab(t);
-    setCard(null);
-    window.history.replaceState(null, "", `#m/${missionId}/${t}`);
-  };
+  const imageUrl = (rel: string) => (demo ? `${DEMO_CACHE}/${rel}` : fileUrl(api, missionId, rel));
   const conditionsData = useConditionsData(api, missionId, demo, s.conditions, s.fleet);
-  const progress = photoProgress(s);
-  // one clock on the page: the demo's fixtures in UTC, a live mission in local time (lib/time)
   const clockZone = useMemo(() => ({ utc: demo }), [demo]);
-  const feedHref = `#m/${missionId}/feed`;
+  const demoNow = useMemo(() => (demo ? new Date(clockIso) : undefined), [demo, clockIso]);
   const waiting = s.proposals.filter((p) => p.status === "pending").length;
-  const liveId = demo ? undefined : missionId;
+  const liveDebrief = demo ? undefined : `${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`;
 
   if (s.status === "error") {
     return (
-      <>
-        <AppBar current="console" wide missionId={liveId} />
+      <div className="flex min-h-dvh flex-col">
+        <AppBar mission={{ name: missionId === "demo" ? "Mount Seymour (demo)" : `Mission ${missionId}`, mode: "offline", clock: null }} />
         <Page>
           <Panel role="alert" className="flex max-w-2xl flex-col gap-3">
             <h1 className="text-title font-medium text-text">Could not open mission {missionId}</h1>
             <p className="text-body text-text-2">{s.error}</p>
             <div className="flex flex-wrap gap-2 pt-1">
               <Button variant="primary" href={DEMO_CONSOLE_HASH}>
-                Open the demo console
+                Open the demo mission
               </Button>
               <Button href="#new">New search</Button>
             </div>
           </Panel>
         </Page>
-      </>
+      </div>
     );
   }
 
-  if (card && !demo) {
-    return (
-      <main className="mx-auto max-w-5xl p-4 lg:p-8 print:p-0">
-        <LiveCard api={api} missionId={missionId} sector={card} />
-      </main>
-    );
-  }
-
-  // The Console tab is the console (LANE_E §7.1): full screen, three columns from 1024 px, stacked below.
-  const isConsole = tab === "command";
-  const heatMap = (
-    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demo && demoNow ? demoNow : undefined} fill={isConsole} />
+  // ---- the rails ----
+  const frameCount = s.mapUpdates.filter((u) => u.source === "frame").length;
+  const landed = demo ? landedFrames(cache, frameCount) : null;
+  const cards = demo ? demoCards(cache, landed ?? [], imageUrl, new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime()) : [];
+  const answerDemo = (id: string, a: LiveAnswer) => {
+    useStory.getState().answer(id, a);
+    if (a !== "person" || id === RECORDED_ID) return;
+    const at = candidatePosition(cache, id);
+    if (at && !s.clues.some((c) => c.text.includes(id))) {
+      void useMission.getState().addClue({
+        kind: "sighting",
+        text: `person confirmed by the image reviewer in ${at.frame} (${id}, detector ${at.conf.toFixed(2)})`,
+        lat: at.lat,
+        lon: at.lon,
+        at_team_position: false,
+        radius_m: 10,
+        reliability: "high",
+        reported_by: "command",
+        source: "form",
+        confirmed_by_turn: null,
+      });
+    }
+  };
+  const tried = story.tried ? <TriedCard tried={story.tried} onClose={() => useStory.getState().setTried(null)} /> : undefined;
+  const tryPanel = cache ? (
+    <TryPhoto
+      cache={cache}
+      dir={DEMO_DIR}
+      onResult={(r) => {
+        useStory.getState().setTried(r);
+        go("review");
+      }}
+    />
+  ) : (
+    <p className="text-small text-text-3">Loading the detector's settings…</p>
   );
-  const tabNav = (
-    <nav className="flex shrink-0 gap-0.5 rounded-full border border-line bg-surface-solid p-0.5" aria-label="Mission views">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          aria-pressed={tab === t.id}
-          onClick={() => go(t.id)}
-          className={
-            `sl-tap whitespace-nowrap rounded-full px-3.5 py-1 text-small transition-colors ${tab === t.id ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--border)]" : "text-text-2 hover:text-text"}` +
-            // in the console's rails on a desktop; still shown there when opened by its address
-            (t.phoneOnly && tab !== t.id ? " lg:hidden" : "")
-          }
-        >
-          {t.label}
-          {t.id === "approvals" && waiting > 0 && <span className="ml-1.5 font-mono text-accent">{waiting}</span>}
-        </button>
-      ))}
-    </nav>
+  const progress = photoProgress(s);
+  const photosRail = (
+    <PhotosRail
+      landed={landed}
+      total={cache?.survey.frames.length ?? 0}
+      candidates={landed ? landed.reduce((n, f) => n + f.n_candidates, 0) : progress.candidates}
+      playing={demo && story.playing}
+      imageUrl={(rel) => cacheUrl(DEMO_DIR, rel)}
+      tryPanel={tryPanel}
+      tryOpen={tryOpen}
+      onTry={() => setTryOpen(!tryOpen)}
+      live={
+        demo ? undefined : (
+          <>
+            <section aria-label="Progress" className="grid grid-cols-3 gap-3 rounded-lg border border-line bg-surface-solid p-3">
+              <Stat value={progress.processed} label="Processed" />
+              <Stat value={progress.medianS === null ? "–" : progress.medianS < 1 ? `${Math.round(progress.medianS * 1000)} ms` : `${progress.medianS.toFixed(1)} s`} label="Per photo" />
+              <Stat value={progress.candidates + s.promoted.length} label="Candidates" />
+            </section>
+            <UploadPanel api={api} missionId={missionId} processed={progress.processed} />
+            <WatchPanel base={api.base} missionId={missionId} />
+          </>
+        )
+      }
+    />
   );
-  const shortcuts = (
-    <button type="button" onClick={() => setKeysOpen(true)} className="sl-tap hidden items-center gap-1.5 text-small text-text-2 hover:text-text md:inline-flex" title="Keyboard shortcuts">
-      Shortcuts <KeyHint>?</KeyHint>
-    </button>
+  const reviewRail = demo ? (
+    <ReviewRail cards={cards} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Candidates appear here as the survey's photos land." />
+  ) : (
+    <LiveReview
+      detections={s.detections}
+      survey={s.survey}
+      verdicts={s.verdicts}
+      promoted={s.promoted}
+      imageUrl={(rel) => fileUrl(api, missionId, rel)}
+      onAnswer={(id, answer) => void useMission.getState().review(id, answer)}
+      top={tried}
+    />
   );
-  const errorLine = s.error && (
-    <p role="alert" className="text-small text-warn">
-      {s.error}
+  const radioDesk = demo ? (
+    <div className="flex flex-col gap-2 text-small text-text-2">
+      <p>The radio desk runs with the mission server: teams talk to Sightline, it answers with Nemotron and NVIDIA Magpie TTS. Here is one briefing it read out.</p>
+      <RadioClip />
+    </div>
+  ) : radioOn ? (
+    <RadioDesk api={{ base: api.base, missionId }} teams={s.teams.map((t) => ({ id: t.id, callsign: t.callsign }))} />
+  ) : (
+    <p role="status" className="text-small text-text-2">
+      The radio desk isn't running on this server. Start the API with <code>serve --radio text</code> (or <code>real</code> for voices).
     </p>
   );
+  const radioToggle = (
+    <section aria-label="Radio" className="flex flex-col gap-2">
+      <button type="button" aria-expanded={radioOpen} onClick={() => setRadioOpen(!radioOpen)} className="sl-tap flex items-center gap-2 self-start px-1 text-caption font-medium text-text-2 hover:text-text">
+        <span aria-hidden className={`font-mono transition-transform motion-reduce:transition-none ${radioOpen ? "rotate-90" : ""}`}>
+          ›
+        </span>
+        Radio desk
+      </button>
+      {radioOpen && radioDesk}
+    </section>
+  );
+  const debrief = (
+    <Debrief
+      missionName={s.mission?.name ?? "…"}
+      so={s}
+      metrics={cache?.metrics ?? null}
+      cellM={cache?.map.grid.cell_m}
+      surveyId={cache?.survey.survey_id}
+      judgesOpen={!!route.open.judges}
+      traceHref={viewHash(missionId, "trace")}
+      liveDebriefUrl={liveDebrief}
+    />
+  );
+  const rightRail: ReactNode =
+    view === "photos" ? photosRail : view === "review" ? reviewRail : view === "debrief" ? debrief : view === "radio" ? <Panel className="p-3">{radioDesk}</Panel> : undefined;
+  const cover =
+    view === "trace" ? (
+      <div className="flex flex-col gap-3 p-1">
+        <div className="flex items-center gap-0.5 self-start rounded-full border border-line bg-surface-solid p-0.5" role="group" aria-label="Trace or event log">
+          {[
+            { on: !logOpen, label: "The agent's trace", set: false },
+            { on: logOpen, label: "Event log", set: true },
+          ].map((x) => (
+            <button key={x.label} type="button" aria-pressed={x.on} onClick={() => setLogOpen(x.set)} className={`sl-tap rounded-full px-3.5 py-1 text-small ${x.on ? "bg-surface-strong text-text" : "text-text-2 hover:text-text"}`}>
+              {x.label}
+            </button>
+          ))}
+        </div>
+        {logOpen ? <EventFeed events={s.events} /> : <TraceTab api={api} missionId={missionId} demo={demo} />}
+      </div>
+    ) : undefined;
+
+  // ---- the bar ----
+  const t = story.t;
+  const action: BarAction | null = demo
+    ? story.pitch || story.tour
+      ? null
+      : {
+          label: "Follow the search",
+          onClick: () => {
+            landing();
+            useStory.getState().begin();
+          },
+        }
+    : { label: "New search", href: "#new" };
+  const barClock = demo ? `${clock(clockIso, true)} UTC` : s.mission ? `${clock(new Date(), false)} ${zone(new Date(), false)}` : null;
+  const mark = demo && story.tour ? CHECKPOINTS[t]?.mark : null;
+  const markIndex = CHECKPOINTS.filter((c) => c.mark && c.t <= t).length;
+
   return (
     <ClockZone.Provider value={clockZone}>
-      <div className={isConsole ? "flex min-h-full flex-col lg:h-dvh" : "flex min-h-full flex-col"}>
-        <AppBar current="console" wide missionId={liveId} center={tabNav} extra={shortcuts} />
-        {keysOpen && <ShortcutOverlay groups={MISSION_SHORTCUTS} onClose={() => setKeysOpen(false)} />}
-
-        {isConsole ? (
-          <main className="flex min-h-0 flex-1 flex-col gap-3 p-3 lg:px-4">
-            {errorLine}
-            <CommandView
-              mission={s.mission}
-              status={s.status}
-              conditions={s.conditions}
-              tasks={s.tasks}
-              sectors={s.sectors}
-              teams={s.teams}
-              clues={s.clues}
-              proposals={s.proposals}
-              imageUrl={imageUrl}
-              onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
-              onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
-              onAddClue={(draft) => useMission.getState().addClue(draft)}
-              cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
-              now={demo && demoNow ? () => demoNow : undefined}
-              feedHref={feedHref}
-              sideRail={radioOn && !demo ? radioDesk : undefined}
-              map={heatMap}
-              aboveMap={demo && demoSeed ? <DemoSeedNote words={demoSeed} /> : undefined}
-              conditionsData={conditionsData}
-              conditionsOpen={window.location.hash.split("/")[3] === "conditions"}
-              onPickOnMap={() => {
-                document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
-                return usePick.getState().request();
-              }}
-              onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
-            />
-          </main>
-        ) : (
-          <Page className="gap-6">
-            <PageHeader
-              eyebrow={demo ? "Demo mission · simulated data, no server" : `Live mission · ${missionId}`}
-              title={s.mission?.name ?? "…"}
-              sub={s.mission?.subject ? `Looking for: ${s.mission.subject}` : undefined}
-              aside={
-                <span role="status" className="flex items-center gap-2">
-                  <ModeChip mode={modeOf(s.status)}>{STATUS_WORDS[s.status] || undefined}</ModeChip>
-                </span>
-              }
-            />
-
-            {!demo && (
-              <section aria-label="Progress" className="grid grid-cols-3 gap-4">
-                <Stat value={progress.processed} label="Photos processed" />
-                <Stat
-                  value={progress.medianS === null ? "–" : progress.medianS < 1 ? `${Math.round(progress.medianS * 1000)} ms` : `${progress.medianS.toFixed(1)} s`}
-                  label="Median per photo"
+      <div className="flex min-h-dvh flex-col lg:h-dvh">
+        <AppBar
+          mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: modeOf(s.status), clock: barClock }}
+          views={{ current: view, onSelect: go, counts: { map: waiting || undefined } }}
+          action={action}
+          extra={
+            <button type="button" onClick={() => setKeysOpen(true)} className="sl-tap hidden items-center gap-1.5 text-small text-text-2 hover:text-text md:inline-flex" title="Keyboard shortcuts">
+              Shortcuts <KeyHint>?</KeyHint>
+            </button>
+          }
+        />
+        {keysOpen && <ShortcutOverlay groups={SHORTCUT_GROUPS} onClose={() => setKeysOpen(false)} />}
+        {demo && story.pitch && (
+          <PitchBar
+            onFollow={() => useStory.getState().begin()}
+            onSkip={() => {
+              useStory.getState().skipToNow();
+              setView("map");
+            }}
+          />
+        )}
+        <main className="flex min-h-0 flex-1 flex-col gap-3 p-3 pb-20 lg:px-4 lg:pb-3">
+          {s.error && (
+            <p role="alert" className="text-small text-warn">
+              {s.error}
+            </p>
+          )}
+          <CommandView
+            mission={s.mission}
+            status={s.status}
+            conditions={s.conditions}
+            tasks={s.tasks}
+            sectors={s.sectors}
+            teams={s.teams}
+            clues={s.clues}
+            proposals={s.proposals}
+            imageUrl={imageUrl}
+            onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
+            onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
+            onAddClue={(draft) => useMission.getState().addClue(draft)}
+            cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
+            now={demoNow ? () => demoNow : undefined}
+            feedHref={`${viewHash(missionId, "trace")}?log`}
+            sideRail={radioToggle}
+            rightRail={rightRail}
+            rightWide={view === "debrief"}
+            cover={cover}
+            map={
+              <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demoNow} fill />
+            }
+            overMap={
+              demo ? (
+                <Scrubber
+                  t={t}
+                  progress={story.progress}
+                  playing={story.playing}
+                  at={clockIso}
+                  onToggle={() => useStory.getState().toggle()}
+                  onSeek={(to) => {
+                    const st = useStory.getState();
+                    st.seek(to, { animate: to === st.t + 1 });
+                    if (!st.tour) setView(to === 5 ? "debrief" : view === "debrief" ? "map" : view);
+                  }}
                 />
-                <Stat value={progress.candidates + s.promoted.length} label="Candidates" />
-              </section>
-            )}
-
-            {!demo && (
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Mission actions">
-                {tab !== "review" && (
-                  <Button variant="primary" disabled={progress.candidates + s.promoted.length === 0} onClick={() => go("review")}>
-                    Go to review
-                  </Button>
-                )}
-                <Button href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`} target="_blank" rel="noreferrer">
-                  Debrief
-                </Button>
-              </div>
-            )}
-
-            {tab === "photos" && (
-              <MissionSteps
-                steps={[
-                  { label: "Upload photos", detail: progress.processed ? `${progress.processed} in` : "drag them in below", done: progress.processed > 0 },
-                  { label: "Detector ranks", detail: progress.processed ? `${progress.processed} ranked` : "about a quarter second each", done: progress.processed > 0 },
-                  { label: "Review candidates", detail: `${progress.candidates + s.promoted.length} to look at`, done: s.verdicts.length > 0 },
-                  { label: "Console", detail: waiting ? `${waiting} approvals waiting` : "the map and the proposals", done: false },
-                ]}
-                onStep={(i) => (i === 2 ? go("review") : i === 3 ? go("command") : undefined)}
-              />
-            )}
-            {tab === "photos" && (
-              <div className="grid gap-4 lg:grid-cols-2">
-                <UploadPanel api={api} missionId={missionId} processed={progress.processed} />
-                <WatchPanel base={api.base} missionId={missionId} />
-              </div>
-            )}
-
-            {tab === "review" && (
-              <LiveReview
-                detections={s.detections}
-                survey={s.survey}
-                verdicts={s.verdicts}
-                promoted={s.promoted}
-                imageUrl={(rel) => fileUrl(api, missionId, rel)}
-                onAnswer={(id, answer) => void useMission.getState().review(id, answer)}
-              />
-            )}
-
-            {errorLine}
-
-            {tab === "approvals" && (
-              <ApprovalInbox
-                proposals={s.proposals}
-                teams={s.teams}
-                drones={s.fleet?.drones}
-                imageUrl={imageUrl}
-                feedHref={feedHref}
-                onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
-              />
-            )}
-
-            {tab === "radio" &&
-              (radioOn ? (
-                // The radio desk on this mission's teams (D-R3), also beside the approvals in the console.
-                radioDesk
-              ) : (
-                <p role="status" className="text-body text-text-2">
-                  The radio desk isn't running on this server. Start the API with <code>serve --radio text</code> (or <code>real</code> for voices).
-                </p>
-              ))}
-
-            {tab === "trace" && <TraceTab api={api} missionId={missionId} demo={demo} />}
-
-            {tab === "feed" && (
-              <EventFeed
-                events={s.events}
-                extra={
-                  !demo && (
-                    <a className="text-small text-accent-soft underline" href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`} target="_blank" rel="noreferrer">
-                      Debrief (markdown)
-                    </a>
-                  )
-                }
-              />
-            )}
-          </Page>
+              ) : undefined
+            }
+            conditionsData={conditionsData}
+            conditionsOpen={!!route.open.conditions}
+            onPickOnMap={() => {
+              document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
+              return usePick.getState().request();
+            }}
+            onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
+          />
+        </main>
+        {mark && (
+          <CoachMark
+            text={mark.text}
+            target={mark.target}
+            index={markIndex}
+            count={MARK_COUNT}
+            last={t === 5}
+            gate={checkpoint(t).gate === "approve" ? "Approve it on the card to send the team." : undefined}
+            onNext={() => (t === 5 ? useStory.getState().exit() : useStory.getState().next())}
+            onBack={t > 1 ? () => useStory.getState().previous() : undefined}
+            onExit={() => useStory.getState().exit()}
+            onToggleClock={() => useStory.getState().toggle()}
+          />
         )}
       </div>
     </ClockZone.Provider>
   );
 }
 
-/** Where this mission is, from photos to command: done steps in green, the next one marked "now". */
-function MissionSteps({ steps, onStep }: { steps: { label: string; detail: string; done: boolean }[]; onStep: (i: number) => void }) {
-  const current = steps.findIndex((x) => !x.done);
+/** Your own photo from Try a photo, at the top of the Review rail: what the detector flagged, on your device. */
+function TriedCard({ tried, onClose }: { tried: TriedPhoto; onClose: () => void }) {
+  const n = tried.boxes.length;
   return (
-    <ol aria-label="Mission progress" className="grid gap-2 sm:grid-cols-4">
-      {steps.map((x, i) => (
-        <li key={x.label}>
-          <button
-            type="button"
-            onClick={() => onStep(i)}
-            aria-current={i === current ? "step" : undefined}
-            className={`flex w-full flex-col gap-0.5 rounded-sm border px-3 py-2 text-left ${i === current ? "border-border bg-surface-strong" : "border-line bg-surface-solid"}`}
-          >
-            <span className="flex items-center gap-2 text-small text-text">
-              <span data-tone={x.done ? "ok" : i === current ? "neutral" : "muted"} className="sl-pill" aria-hidden>
-                {x.done ? "✓" : i + 1}
-              </span>
-              {x.label}
-              {i === current && <span className="ml-auto text-caption text-text-3">now</span>}
-            </span>
-            <span className="text-caption text-text-2">{x.detail}</span>
-          </button>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-/** The mission page's shortcut list: the console's keys and the review's, without the guided demo's steps. */
-const MISSION_SHORTCUTS: readonly ShortcutGroup[] = [
-  ...SHORTCUT_GROUPS.filter((g) => g.title === "Console" || g.title === "Review"),
-  {
-    title: "Everywhere",
-    shortcuts: [
-      { keys: ["?"], description: "Show or hide this list" },
-      { keys: ["Esc"], description: "Close" },
-    ],
-  },
-];
-
-/** The demo mission's pre-seeded state in one sentence: what is there before anyone acts, and its date. */
-export function demoSeedWords(data: Partial<MissionData>): string {
-  const n = (k: number, one: string) => `${k} ${one}${k === 1 ? "" : "s"}`;
-  return `Pre-seeded demo, scripted timeline: ${n(data.clues?.length ?? 0, "clue")}, ${n(data.proposals?.length ?? 0, "proposal")}, ${n(data.teams?.length ?? 0, "team")}. What you change stays while you're on this mission.`;
-}
-
-function DemoSeedNote({ words }: { words: string }) {
-  return (
-    <p aria-label="Demo data" className="flex min-w-0 items-center gap-2 text-caption text-text-2">
-      <ModeChip mode="demo" />
-      <span className="truncate" title={words}>{words}</span>
-    </p>
+    <div aria-label="Your photo" className="flex flex-col gap-2 rounded-lg border border-accent/40 bg-surface-solid p-2.5">
+      <div className="relative overflow-hidden rounded-sm bg-surface-strong">
+        <img src={tried.url} alt={tried.name} className="block max-h-56 w-full object-contain" />
+        <BoxLayer shown={{ url: tried.url, name: tried.name, width: tried.width, height: tried.height }} boxes={tried.boxes} />
+      </div>
+      <p className="text-small text-text-2">
+        <span className="text-text">Your photo:</span> {n} {n === 1 ? "person" : "people"} flagged in {(tried.ms / 1000).toFixed(1)} s on this device. It has
+        no position on this mission, so nothing is pinned.
+      </p>
+      <button type="button" onClick={onClose} className="sl-tap self-start text-caption text-text-3 underline hover:text-text">
+        Remove
+      </button>
+    </div>
   );
 }
 
@@ -444,7 +561,7 @@ function useConditionsData(api: Api, missionId: string, demo: boolean, condition
 
 const TRACE_POLL_MS = 4000;
 
-/** The Trace tab: the live mission's trace (polled with `after`), or the demo's recorded runs. */
+/** The Trace view: the live mission's trace (polled with `after`), or the demo's recorded runs. */
 function TraceTab({ api, missionId, demo }: { api: Api; missionId: string; demo: boolean }) {
   const [runs, setRuns] = useState<TraceRun[] | null>(null);
   const [imageUrl, setImageUrl] = useState<(rel: string) => string | null>(() => (rel: string) => fileUrl(api, missionId, rel));
@@ -500,7 +617,8 @@ function TraceTab({ api, missionId, demo }: { api: Api; missionId: string; demo:
   );
 }
 
-function LiveCard({ api, missionId, sector }: { api: Api; missionId: string; sector: string }) {
+/** A sector's printable assignment card (`#m/<id>/card/<sector>`, live missions). */
+export function LiveCard({ api, missionId, sector }: { api: Api; missionId: string; sector: string }) {
   const [card, setCard] = useState<AssignmentCard | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -513,21 +631,27 @@ function LiveCard({ api, missionId, sector }: { api: Api; missionId: string; sec
       live = false;
     };
   }, [api, missionId, sector]);
-  if (error) {
-    return (
-      <p role="alert" className="text-body text-warn">
-        No card for sector {sector}: {error}. <a className="underline" href={`#m/${missionId}/command`}>Back to the console</a>
-      </p>
-    );
-  }
-  if (!card) return <p className="text-small text-text-3">Loading the card for sector {sector}…</p>;
   return (
-    <AssignmentCardView
-      card={card}
-      gpxUrl={cardFileUrl(api, missionId, sector, "gpx")}
-      kmlUrl={cardFileUrl(api, missionId, sector, "kml")}
-      imageUrl={(rel) => fileUrl(api, missionId, rel)}
-      backHref={`#m/${missionId}/command`}
-    />
+    <main className="mx-auto max-w-5xl p-4 lg:p-8 print:p-0">
+      {error ? (
+        <p role="alert" className="text-body text-warn">
+          No card for sector {sector}: {error}.{" "}
+          <a className="underline" href={viewHash(missionId, "map")}>
+            Back to the console
+          </a>
+        </p>
+      ) : !card ? (
+        <p className="text-small text-text-3">Loading the card for sector {sector}…</p>
+      ) : (
+        <AssignmentCardView
+          card={card}
+          gpxUrl={cardFileUrl(api, missionId, sector, "gpx")}
+          kmlUrl={cardFileUrl(api, missionId, sector, "kml")}
+          imageUrl={(rel) => fileUrl(api, missionId, rel)}
+          backHref={viewHash(missionId, "map")}
+        />
+      )}
+    </main>
   );
 }
+

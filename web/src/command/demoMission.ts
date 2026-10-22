@@ -32,10 +32,12 @@ export function cacheBase(map: MapFile): MapBase {
 export async function loadDemoMission(
   fetchFn: typeof fetch = fetch,
   fixture: () => Promise<Fixture> = async () => (await import("./__fixtures__/demo_mission.json")).default as unknown as Fixture,
+  /** The demo cache's map when it is already loaded (the console loads the whole cache for its rails). */
+  loaded?: Promise<MapFile>,
 ): Promise<{ data: Partial<MissionData>; now: string }> {
   const [fx, map] = await Promise.all([
     fixture(),
-    fetchFn(`${DEMO_CACHE}/map.json`).then((r) => {
+    loaded ?? fetchFn(`${DEMO_CACHE}/map.json`).then((r) => {
       if (!r.ok) throw new Error(`the demo map is missing (${r.status})`);
       return r.json() as Promise<MapFile>;
     }),

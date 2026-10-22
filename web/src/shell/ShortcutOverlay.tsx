@@ -2,8 +2,8 @@ import { useEffect, useRef } from "react";
 import { KeyHint, Label, Panel } from "./components";
 import { SHORTCUT_GROUPS, type ShortcutGroup } from "./shortcuts";
 
-/** `groups`: the ones that apply on this page (a mission page leaves out the guided demo's steps). */
-export function ShortcutOverlay({ onClose, onTour, groups = SHORTCUT_GROUPS }: { onClose: () => void; onTour?: () => void; groups?: readonly ShortcutGroup[] }) {
+/** The console's keys (`?`). */
+export function ShortcutOverlay({ onClose, groups = SHORTCUT_GROUPS }: { onClose: () => void; groups?: readonly ShortcutGroup[] }) {
   const closeButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -35,19 +35,6 @@ export function ShortcutOverlay({ onClose, onTour, groups = SHORTCUT_GROUPS }: {
             Close
           </button>
         </div>
-        {onTour && (
-          <button
-            type="button"
-            onClick={onTour}
-            className="mb-5 flex w-full items-center justify-between gap-3 rounded-sm border border-accent/50 bg-accent/10 px-4 py-3 text-left hover:bg-accent/20"
-          >
-            <span className="flex flex-col">
-              <span className="text-body text-text">Watch the 60-second tour</span>
-              <span className="text-small text-text-2">The five steps, played for you with captions</span>
-            </span>
-            <KeyHint>T</KeyHint>
-          </button>
-        )}
         {groups.map((group) => (
           <section key={group.title} className="mb-4 last:mb-0">
             <Label>{group.title}</Label>

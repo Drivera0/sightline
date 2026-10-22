@@ -3,19 +3,22 @@ export interface ShortcutGroup {
   shortcuts: { keys: string[]; description: string }[];
 }
 
-/** Shown by the `?` overlay. Review keys are specified in LANE_D_PIPELINE section 9.2. */
+/** Shown by the `?` overlay on the console. Review keys are specified in LANE_D_PIPELINE section 9.2. */
 export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
-    title: "Review",
+    title: "The story",
     shortcuts: [
-      { keys: ["J", "↓"], description: "Next crop" },
-      { keys: ["K", "↑"], description: "Previous crop" },
-      { keys: ["P"], description: "Person" },
-      { keys: ["N"], description: "Not a person" },
-      { keys: ["U"], description: "Unsure" },
-      { keys: ["Z"], description: "Undo" },
-      { keys: ["Enter"], description: "Full frame view" },
-      { keys: ["M"], description: "Show on map" },
+      { keys: ["→"], description: "Next checkpoint" },
+      { keys: ["←"], description: "Previous checkpoint" },
+      { keys: ["Space"], description: "Pause or play the mission clock" },
+      { keys: ["Esc"], description: "Leave the story (the console stays at that mission time), or close" },
+    ],
+  },
+  {
+    title: "Views",
+    shortcuts: [
+      { keys: ["1", "2", "3", "4", "5"], description: "Map, Photos, Review, Trace, Debrief" },
+      { keys: ["C"], description: "Back to the map" },
     ],
   },
   {
@@ -25,17 +28,21 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["A"], description: "Approve the focused proposal" },
       { keys: ["X"], description: "Reject the focused proposal (asks for a one-line reason)" },
       { keys: ["W"], description: "Open or close the Conditions panel: sources, quotes, the flyability gate" },
-      { keys: ["C"], description: "Back to the Console tab from another tab" },
+      { keys: ["L"], description: "Open or close the map legend" },
+    ],
+  },
+  {
+    title: "Review",
+    shortcuts: [
+      { keys: ["J", "↓"], description: "Next candidate" },
+      { keys: ["K", "↑"], description: "Previous candidate" },
+      { keys: ["P"], description: "Person" },
+      { keys: ["N"], description: "Not a person" },
+      { keys: ["U"], description: "Unsure" },
     ],
   },
   {
     title: "Everywhere",
-    shortcuts: [
-      { keys: ["1", "2", "3", "4", "5"], description: "Jump to a guided demo step: Survey, Rank, Review, Search next, Results" },
-      { keys: ["C"], description: "Open the console (the demo console, or this mission's Console tab)" },
-      { keys: ["T"], description: "Watch the guided tour (any key or click stops it)" },
-      { keys: ["?"], description: "Show or hide this list" },
-      { keys: ["Esc"], description: "Close" },
-    ],
+    shortcuts: [{ keys: ["?"], description: "Show or hide this list" }],
   },
 ];
