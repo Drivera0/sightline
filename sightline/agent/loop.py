@@ -166,7 +166,9 @@ def _sector_at(live: Any, layout: Any, lat: float, lon: float) -> str | None:
     return layout.sectors[int(layout.cell_sector[idx])].id
 
 
-def _add(store: Any, mission_id: str, **fields: Any) -> Proposal:
+def _add(store: Any, mission_id: str, cause: tuple[str, ...] = (), **fields: Any) -> Proposal:
+    """A pending proposal, traced with its target and ``cause`` (the clue or leg that led to it),
+    so the trace links the evidence to the proposal."""
     p = store.add_proposal(
         mission_id,
         Proposal(
@@ -187,7 +189,7 @@ def _add(store: Any, mission_id: str, **fields: Any) -> Proposal:
         kind="proposal",
         summary=f"{p.id} {p.kind}: {p.summary}",
         output={"proposal": p.id, "kind": p.kind, "target": p.target, "reason": p.reason},
-        refs=[p.id, *p.target.values()],
+        refs=[p.id, *p.target.values(), *cause],
     )
     return p
 
@@ -200,7 +202,9 @@ def _pending(state: dict, kind: tuple[str, ...], key: str, value: str) -> list[P
     ]
 
 
-def _propose_leg(store: Any, mission_id: str, state: dict, leg: Leg, why: str) -> Proposal:
+def _propose_leg(
+    store: Any, mission_id: str, state: dict, leg: Leg, why: str, cause: tuple[str, ...] = ()
+) -> Proposal:
     """A leg proposal for ``leg.drone_id``; that drone's older pending leg proposals are
     superseded. ``retask_drone`` when the drone is already flying a leg."""
     drone = next(d for d in state["fleet"].drones if d.id == leg.drone_id)
@@ -212,6 +216,7 @@ def _propose_leg(store: Any, mission_id: str, state: dict, leg: Leg, why: str) -
     return _add(
         store,
         mission_id,
+        cause,
         kind="retask_drone" if retask else "drone_leg",
         summary=f"{verb} sector {leg.sector_id} ({leg.expected_clearance:.1%} expected)",
         reason=f"{why} {leg.reason}".strip(),
@@ -222,7 +227,9 @@ def _propose_leg(store: Any, mission_id: str, state: dict, leg: Leg, why: str) -
     )
 
 
-def _replan(store: Any, mission_id: str, why: str, drone_id: str | None = None) -> list[Proposal]:
+def _replan(
+    store: Any, mission_id: str, why: str, drone_id: str | None = None, cause: tuple[str, ...] = ()
+) -> list[Proposal]:
     state = store.state(mission_id)
     if state["fleet"] is None:
         return []
@@ -231,7 +238,7 @@ def _replan(store: Any, mission_id: str, why: str, drone_id: str | None = None) 
     if drone_id is not None:  # plan for that drone only (the others' legs still count as taken)
         fleet = fleet.model_copy(update={"drones": [d for d in fleet.drones if d.id == drone_id]})
     legs = propose_legs(live, layout, fleet, state["conditions"], now_iso())
-    return [_propose_leg(store, mission_id, state, legs[0], why)] if legs else []
+    return [_propose_leg(store, mission_id, state, legs[0], why, cause)] if legs else []
 
 
 def _assign(
@@ -370,7 +377,7 @@ def _on_clue(store, mission_id, clue_id) -> list[Proposal]:
     poa = live.sector_poa(layout).get(sector) if sector else None
     where = f" in sector {sector}, which now holds {poa:.1%} of the probability" if poa else ""
     why = f"After clue {clue.id} ({clue.kind}, {clue.reliability} reliability: {clue.text}){where}."
-    return _replan(store, mission_id, why)
+    return _replan(store, mission_id, why, cause=(clue.id,))
 
 
 def _on_conditions(store, mission_id) -> list[Proposal]:
@@ -406,7 +413,9 @@ def _on_leg_done(store, mission_id, leg_id) -> list[Proposal]:
     leg = next((leg for leg in fleet.legs if leg.id == leg_id), None) if fleet else None
     if leg is None:
         return []
-    return _replan(store, mission_id, f"Leg {leg_id} is done.", drone_id=leg.drone_id)
+    return _replan(
+        store, mission_id, f"Leg {leg_id} is done.", drone_id=leg.drone_id, cause=(leg_id,)
+    )
 
 
 def _on_tick(store, mission_id, client) -> list[Proposal]:
