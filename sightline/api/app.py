@@ -34,6 +34,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from sightline.api.auth import WriteToken, token_from_env
+from sightline.api.limits import BodyLimit, RateLimit, rate_from_env
 from sightline.api.missions import MissionContext, missions_router
 from sightline.contract import CONTRACT_VERSION
 from sightline.pipeline.formats import SurveyFrameEntry, SurveyFrameFile, write_json
@@ -62,8 +63,11 @@ def create_app(
     radio: str | None = None,
     queue: str = "local",
     api_token: str | None = None,
+    rate_limit: tuple[int, float] | None | str = "env",
 ) -> FastAPI:
-    """``api_token``: the write token (default: ``SIGHTLINE_API_TOKEN``); none leaves it open."""
+    """``api_token``: the write token (default: ``SIGHTLINE_API_TOKEN``); none leaves it open.
+    ``rate_limit``: (writes, seconds) per client IP, None for none, default ``SIGHTLINE_RATE_LIMIT``
+    (``sightline/api/limits.py``: 300 per 60 s unless set; the tests set it off)."""
     cache_root.mkdir(parents=True, exist_ok=True)
     app = FastAPI(title="Sightline upload API")
     jobs: dict[str, dict] = {}
@@ -82,10 +86,16 @@ def create_app(
             app.state.radio = radio_context(missions.store, hooks=missions.hooks, voices=radio)
             app.include_router(radio_router)
 
-    # Added before CORS, so CORS wraps it: a 401 still carries the CORS headers the browser needs.
+    # Outermost last: CORS → rate limit → write token → body size → the routes. CORS wraps the
+    # others, so a 401, 413 or 429 still carries the CORS headers the browser needs to read it.
+    app.add_middleware(BodyLimit)
     token = api_token or token_from_env()
     if token:
         app.add_middleware(WriteToken, token=token)
+    rate = rate_from_env() if rate_limit == "env" else rate_limit
+    if rate:
+        trust = os.environ.get("SIGHTLINE_TRUST_PROXY", "") == "1"
+        app.add_middleware(RateLimit, requests=rate[0], seconds=rate[1], trust_proxy=trust)
 
     # The web app calls the API from another origin: Vite on localhost in development, the Vercel
     # site in production (SIGHTLINE_CORS_ORIGINS, comma-separated). No cookies, no credentials.
