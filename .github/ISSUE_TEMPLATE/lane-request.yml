@@ -1,0 +1,36 @@
+name: Lane request
+description: Ask another lane for a function, endpoint, field or component it owns (docs CROSS_LANE §4)
+title: "[X→Y] "
+body:
+  - type: dropdown
+    id: to
+    attributes:
+      label: To lane
+      options: [A, B, C, D, E]
+    validations: { required: true }
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options: [type:need, type:bug, type:contract, type:heads-up]
+    validations: { required: true }
+  - type: input
+    id: summary
+    attributes: { label: Summary, description: One sentence. }
+    validations: { required: true }
+  - type: textarea
+    id: why
+    attributes: { label: Why / what it blocks, description: "Task IDs on our side (e.g. E-06), and what happens without it." }
+  - type: textarea
+    id: ask
+    attributes: { label: Exact ask, description: "Signature, field, endpoint or component: precise enough to implement without a conversation." }
+    validations: { required: true }
+  - type: textarea
+    id: check
+    attributes: { label: Acceptance check, description: A command or click path that proves it's done. }
+  - type: textarea
+    id: workaround
+    attributes: { label: Our workaround meanwhile, description: The stub or fixture we're using, and where. }
+  - type: textarea
+    id: links
+    attributes: { label: Links, description: "Plan sections, file:line, error output." }

@@ -79,7 +79,7 @@ These weren't spelled out in the contract; each is one place in `store.py` to ch
 
 - [x] **D-C1** contract v1.2 (lane A, PR #52)
 - [x] **D-M0** `MissionStore` + `validate_mission`, tests 2–3 (lane A)
-- [ ] D-G1 repo hygiene (sprint docs into `docs/`, labels, issue templates). **`CLAUDE.md` is skipped on purpose (team choice): don't add it.**
+- [~] D-G1 repo hygiene (lane A, 2026-10-22): **labels** (`scripts/setup_labels.sh`, run: every `lane:`/`from:` A–E, `type:*`, `blocking`), `.github/ISSUE_TEMPLATE/lane-request.yml`, `scripts/lane_inbox.sh`, CI. **Not done on purpose:** `CLAUDE.md`, `.claude/settings.json` and the Claude skills (team choice: no Claude config in the repo), and the sprint docs in `docs/` (Dan's call). Branch protection is off
 - [x] **D-A1** mission API + SSE (`sightline/api/missions.py`, `sse.py`), test 6 (lane A)
 - [x] **D-P1** per-photo pipeline + local queue, test 4; detector via `make_detector()` (closes #8 for the live path) (lane A)
 - [x] `effects.py` (§5.4), test 5 (lane A)
