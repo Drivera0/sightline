@@ -214,7 +214,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
       )}
 
       {tab === "command" && (
-        <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} />
+        <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demo && demoNow ? demoNow : undefined} />
       )}
       {tab === "command" && (
         <CommandView
