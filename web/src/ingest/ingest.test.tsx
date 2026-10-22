@@ -6,6 +6,8 @@ import type { Detections, Verdict } from "../contract";
 import { LiveRoutes } from "../App";
 import { LiveReview, liveReviewItems, verdictWords } from "../review/LiveReview";
 import { routeFromHash } from "../shell/flow";
+import { SAFETY_FRAME } from "../radio/RadioDesk";
+import { LiveMission, tabFromHash } from "./LiveMission";
 import { NewSearch } from "./NewSearch";
 import { batches, photoFiles, uploadCommand } from "./upload";
 import { UploadPanel } from "./UploadPanel";
@@ -109,5 +111,25 @@ describe("review in live mode (test 8)", () => {
     const card = screen.getByLabelText("Candidate f0001-d02");
     await userEvent.click(card.querySelector("button")!);
     expect(onAnswer).toHaveBeenCalledWith("f0001-d02", "person");
+  });
+});
+
+describe("live mission tabs", () => {
+  // the state request never answers: the tabs still render, with no mission data yet
+  const pending = { base: "http://api.test", fetch: (() => new Promise(() => {})) as unknown as typeof fetch };
+
+  it("knows the radio tab from the address", () => {
+    expect(tabFromHash("#m/a1b2c3d4/radio")).toBe("radio");
+    expect(tabFromHash("#m/a1b2c3d4/nope")).toBe("photos");
+  });
+
+  it("mounts the radio desk, safety frame first, and links the debrief", async () => {
+    render(<LiveMission api={pending} missionId="a1b2c3d4" initialTab="radio" />);
+    expect(screen.getByText(SAFETY_FRAME)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Feed" }));
+    expect(screen.getByRole("link", { name: "Debrief (markdown)" })).toHaveAttribute(
+      "href",
+      "http://api.test/missions/a1b2c3d4/debrief.md",
+    );
   });
 });
