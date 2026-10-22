@@ -140,6 +140,34 @@ def ground_speed(airspeed_ms: float, track_deg: float, wind: Wind) -> float:
     return max(0.0, math.sqrt(airspeed_ms**2 - cross**2) + along)
 
 
+# The API's rate limit (sightline/api/limits.py) answers 429 with Retry-After; the fleet waits and
+# tries again, at most RETRY_TIMES times, never longer than RETRY_MAX_S at once.
+RETRY_TIMES = 5
+RETRY_MAX_S = 30.0
+
+
+def retry_after_s(r: httpx.Response) -> float:
+    """Seconds a 429 asks to wait (``Retry-After`` in seconds; 1 when missing or unreadable)."""
+    try:
+        return min(RETRY_MAX_S, max(0.0, float(r.headers.get("retry-after", "1"))))
+    except ValueError:
+        return 1.0
+
+
+def _send(http: Any, method: str, path: str, *, sleep: Callable[[float], None] | None = None, **kw: Any) -> httpx.Response:  # fmt: skip
+    """``sightline.client._call`` (it adds ``auth_headers()``: the write token), retried after a 429
+    as ``Retry-After`` says. Photo bodies are bytes, so a retry sends them again unchanged."""
+    for attempt in range(RETRY_TIMES + 1):
+        try:
+            return _call(http, method, path, **kw)
+        except Exception as e:  # httpx.HTTPStatusError (FastAPI's TestClient raises its own copy)
+            resp = getattr(e, "response", None)
+            if getattr(resp, "status_code", None) != 429 or attempt == RETRY_TIMES:
+                raise
+            (sleep or time.sleep)(retry_after_s(resp))  # type: ignore[arg-type]
+    raise AssertionError("unreachable")
+
+
 def _utc_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -422,6 +450,7 @@ class DroneSim:
         self.returning = False
         self._wind_held = False
         self.link = "connected"  # set by the ground station's link model
+        self.outbox: list[tuple[str, bytes]] = []  # photos taken this tick: one POST at its end
         self.buffer: list[tuple[str, bytes]] = []  # photos kept on board while the link is down
         self._steps = 0
 
@@ -485,6 +514,9 @@ class DroneSim:
                      f"{self.drone.battery_pct:.0f} % left, {RESERVE_FRAC:.0%} kept in reserve")  # fmt: skip
             self.leg = None
             self._go_home()
+        if self.outbox:  # the tick's photos in one request (the API's rate limit counts requests)
+            photos, self.outbox = self.outbox, []
+            self._upload(photos)
 
     def set_link(self, link: str) -> int:
         """The link model changed this drone's link. Back to connected: the photos kept on board
@@ -609,14 +641,14 @@ class DroneSim:
         )
         data = stamp(crop, p.lat, p.lon, self.drone.altitude_m, self.heading_deg, taken)
         if self.link == "connected":
-            self._upload([(name, data)])
+            self.outbox.append((name, data))
         else:  # degraded: up every other tick; lost: kept until the link is back
             self.buffer.append((name, data))
 
     def _upload(self, photos: list[tuple[str, bytes]]) -> None:
         for k in range(0, len(photos), 50):  # POST /photos takes 1..50
             files = [("files", (n, d, "image/jpeg")) for n, d in photos[k : k + 50]]
-            r = _call(self.http, "POST", f"/missions/{self.mid}/photos", files=files).json()
+            r = _send(self.http, "POST", f"/missions/{self.mid}/photos", files=files).json()
             for x in r["rejected"]:
                 self.out(f"{x['name']} rejected: {x['reason']}")
 
@@ -848,7 +880,7 @@ class GroundStation:
             "leg_status": dict(self.leg_status),
             "at": self.now(),
         }
-        return _call(self.http, "PUT", f"/missions/{self.mid}/fleet", json=body).json()
+        return _send(self.http, "PUT", f"/missions/{self.mid}/fleet", json=body).json()
 
     def set_link(self, change: LinkChange, sim_s: float) -> bool:
         """Queue a link change (``advance`` returns it); False when it changes nothing."""
@@ -890,7 +922,7 @@ class GroundStation:
         if not self.teams:
             return
         have = {
-            t["id"] for t in _call(self.http, "GET", f"/missions/{self.mid}/state").json()["teams"]
+            t["id"] for t in _send(self.http, "GET", f"/missions/{self.mid}/state").json()["teams"]
         }
         for t in self.teams.values():
             if t["id"] in have:
@@ -898,7 +930,7 @@ class GroundStation:
             body = {"id": t["id"], "callsign": t["callsign"], "members": t.get("members", 3),
                     "status": "searching", "position": t.get("position"), "position_at": self.now(),
                     "note": "simulated team (fleet scenario)"}  # fmt: skip
-            _call(self.http, "POST", f"/missions/{self.mid}/teams", json=body)
+            _send(self.http, "POST", f"/missions/{self.mid}/teams", json=body)
 
     def relay(self, sim_s: float) -> list[dict]:
         """Each cut-off team's latest check-in, carried by the drones near it (``relay_route``);
@@ -940,7 +972,7 @@ class GroundStation:
         body = {"team_id": tid, "callsign": team.get("callsign"), "via": via, "hops": len(via),
                 "heard_at": heard_at, "age_s": round(age), "lat": pos.lat, "lon": pos.lon}  # fmt: skip
         self.out(relay_summary(body))
-        _call(self.http, "POST", f"/missions/{self.mid}/fleet/relay", json=body)
+        _send(self.http, "POST", f"/missions/{self.mid}/fleet/relay", json=body)
         self.relays.append(body)
         return [body]
 
@@ -950,7 +982,7 @@ class GroundStation:
                 "by": change.by, "report": True, "last_heard_at": self.heard_at.get(change.target),
                 "synced": synced}  # fmt: skip
         self.out(link_summary({**body, "at": self.now()}))
-        _call(self.http, "POST", f"/missions/{self.mid}/fleet/link", json=body)
+        _send(self.http, "POST", f"/missions/{self.mid}/fleet/link", json=body)
 
 
 # --- one loop (--single, tests, creek_run) ----------------------------------------------------------
@@ -1072,7 +1104,7 @@ def mission_view(http: Any, mission_id: str, feed: FleetFeed | None) -> tuple[di
     (``run``), else one ``GET /state`` (tests, or the stream reconnecting)."""
     if feed is not None and feed.legs is not None:
         return dict(feed.legs), Wind.from_conditions(feed.conditions)
-    st = _call(http, "GET", f"/missions/{mission_id}/state").json()
+    st = _send(http, "GET", f"/missions/{mission_id}/state").json()
     return active_legs(st["fleet"] or {}), Wind.from_conditions(st.get("conditions"))
 
 
@@ -1082,7 +1114,7 @@ def post_scripted_clue(sim: Any, sim_s: float) -> bool:
     if not sim.scripted_clue or not clue or sim.clue_sent or sim_s < clue["after_s"]:
         return sim.clue_sent
     draft = {k: v for k, v in clue.items() if k != "after_s"}
-    _call(sim.http, "POST", f"/missions/{sim.mid}/clues", json=draft)
+    _send(sim.http, "POST", f"/missions/{sim.mid}/clues", json=draft)
     sim.out(f"scripted clue (rehearsal): {draft['text']}")
     return True
 
@@ -1345,7 +1377,7 @@ def main() -> None:
         """Ask a running fleet to change a link (``POST /fleet/link``; the sim applies it)."""
         with httpx.Client(base_url=api, timeout=30) as http:
             body = {"target": target, "link": link, "for_s": for_s, "by": "command (CLI)"}
-            _call(http, "POST", f"/missions/{mission}/fleet/link", json=body)
+            _send(http, "POST", f"/missions/{mission}/fleet/link", json=body)
         say(link_summary(body))
 
     @app.command("check")
