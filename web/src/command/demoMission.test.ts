@@ -27,7 +27,7 @@ describe("demo mission", () => {
     expect(pending).toHaveLength(2);
     expect(pending.flatMap((p) => p.evidence).some((e) => e.kind === "crop" && e.ref.startsWith("crops/f"))).toBe(true);
     expect(fixture.sectors).toHaveLength(16);
-    expect(JSON.stringify(fixture)).not.toMatch(/\bclear(ed)?\b/i);
+    expect(JSON.stringify(fixture)).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 
   it("turns the cache's steps into the map log, then the ground searches", async () => {

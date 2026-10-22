@@ -48,6 +48,6 @@ describe("FrontDoor", () => {
     render(<FrontDoor onStartNew={() => {}} onWatchDemo={() => {}} />);
     let text = document.body.textContent ?? "";
     for (const ok of CLEAR_ALLOWLIST) text = text.replaceAll(ok, "");
-    expect(text).not.toMatch(/\bclear(ed)?\b/i);
+    expect(text).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 });

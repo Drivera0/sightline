@@ -179,10 +179,10 @@ describe("standby", () => {
 });
 
 describe("radio copy", () => {
-  it('never says "clear" or "cleared" (LANE_E §9 test 1)', () => {
+  it('never says "clear", "clears", "cleared" or "clearing" (LANE_E §9 test 1)', () => {
     const dir = join(__dirname);
     for (const f of readdirSync(dir).filter((f) => /\.tsx?$/.test(f) && !f.endsWith(".test.tsx"))) {
-      expect(readFileSync(join(dir, f), "utf8"), f).not.toMatch(/\bclear(ed)?\b/i);
+      expect(readFileSync(join(dir, f), "utf8"), f).not.toMatch(/\bclear(s|ed|ing)?\b/i);
     }
   });
 });

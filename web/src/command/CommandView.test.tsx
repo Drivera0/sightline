@@ -200,6 +200,6 @@ describe("CommandView", () => {
 
   it('never says "clear"', () => {
     setup();
-    expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+    expect(document.body.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 });

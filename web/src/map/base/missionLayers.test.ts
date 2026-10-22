@@ -59,6 +59,6 @@ describe("live-mission layers", () => {
 
   it("never says clear", () => {
     const all = JSON.stringify([clueFeatures([]), teamFeatures([], NOW), droneFeatures(null), legFeatures(null)]);
-    expect(all).not.toMatch(/\bclear(ed)?\b/i);
+    expect(all).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 });

@@ -45,7 +45,7 @@ describe("assignment card", () => {
     expect(screen.getByText(/Daylight left: 95 min/)).toBeInTheDocument();
     expect(screen.getByText("Channel 2, callsign Sightline")).toBeInTheDocument();
     expect(screen.getByText(/reads every clue back; confirm it before it is logged/)).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+    expect(document.body.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 
   it("prints, and downloads GPX and KML", async () => {
