@@ -28,9 +28,13 @@ describe("routes", () => {
     expect(routeFromHash("#m/../../x")).toEqual({ kind: "demo" });
   });
 
-  it("says live missions need the API on a demo-only site", () => {
+  it("on the demo-only site, hands over the demo mission first and never shows a developer message", () => {
     render(<LiveRoutes route={{ kind: "new" }} base={null} />);
-    expect(screen.getByRole("alert")).toHaveTextContent("VITE_API_URL");
+    const box = screen.getByRole("region", { name: "No mission server" });
+    expect(box).toHaveTextContent("The live mission server runs during demos and judging; here is the demo mission.");
+    expect(box).not.toHaveTextContent("VITE_API_URL");
+    const links = screen.getAllByRole("link").filter((a) => a.getAttribute("href") !== "#");
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["#m/demo/command", "#survey"]);
   });
 });
 

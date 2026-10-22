@@ -8,7 +8,7 @@ import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
 import type { AssignmentCard, TraceEntry } from "../contract";
 import { AssignmentCardView } from "../command/AssignmentCardView";
 import { isTyping } from "../lib/keys";
-import { photoProgress, useMission } from "../lib/mission";
+import { photoProgress, useMission, type MissionData } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
@@ -54,6 +54,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
   const demo = missionId === DEMO_MISSION_ID;
   const [tab, setTab] = useState<Tab>(demo && !DEMO_TABS.includes(initialTab) ? "command" : initialTab);
   const [demoNow, setDemoNow] = useState<Date | null>(null);
+  const [demoSeed, setDemoSeed] = useState<string | null>(null);
   const [card, setCard] = useState<string | null>(() => cardFromHash(window.location.hash));
   useEffect(() => {
     if (embedded) return undefined;
@@ -71,6 +72,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
         ({ data, now }) => {
           useMission.getState().useDemo(data);
           setDemoNow(new Date(now));
+          setDemoSeed(demoSeedWords(data, now));
         },
         (e: unknown) => useMission.setState({ status: "error", error: e instanceof Error ? e.message : String(e) }),
       );
@@ -266,6 +268,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           now={demo && demoNow ? () => demoNow : undefined}
           sideRail={radioOn && !demo ? radioDesk : undefined}
           map={isConsole ? heatMap : undefined}
+          aboveMap={isConsole && demo && demoSeed ? <DemoSeedNote words={demoSeed} /> : undefined}
           onPickOnMap={() => {
             document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
             return usePick.getState().request();
@@ -331,6 +334,24 @@ function AppBar({ demo, children }: { demo: boolean; children?: ReactNode }) {
         </a>
       </span>
     </nav>
+  );
+}
+
+/** The demo mission's pre-seeded state in one sentence: what is there before anyone acts, and its date. */
+export function demoSeedWords(data: Partial<MissionData>, now: string): string {
+  const n = (k: number, one: string) => `${k} ${one}${k === 1 ? "" : "s"}`;
+  const proposals = data.proposals ?? [];
+  const waiting = proposals.filter((p) => p.status === "pending").length;
+  const when = new Date(now).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "UTC" });
+  return `Pre-seeded demo: ${n(data.clues?.length ?? 0, "clue")}, ${n(proposals.length, "proposal")} (${waiting} waiting), ${n(data.teams?.length ?? 0, "team")} and ${n(data.tasks?.length ?? 0, "sector task")}, fixtures dated ${when} UTC (a scripted timeline); what you change stays in this tab.`;
+}
+
+function DemoSeedNote({ words }: { words: string }) {
+  return (
+    <p aria-label="Demo data" className="flex items-start gap-2 text-caption text-text-2">
+      <ModeChip mode="demo" />
+      <span className="pt-0.5">{words}</span>
+    </p>
   );
 }
 

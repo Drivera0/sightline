@@ -35,7 +35,7 @@ two ground searches) into `useMission().useDemo`. The fixtures are generated, no
 6 proposals with 2 pending carrying real crops, 30 events, fair-weather conditions, and the 16 sectors' POA and
 drone coverage from `LiveMap` over the cache). The script validates them against the contract and refuses the
 word "clear". Only the Command, Approvals and Feed tabs show, labelled "Demo mission · simulated data, no
-server"; actions change the fixtures in memory. Linked from "Live missions aren't available here". Screenshot:
+server"; actions change the fixtures in memory. Linked first from "Start a new search" on the demo-only site (`NoServer` in `App.tsx`), and the console says what is pre-seeded and its date in one line. Screenshot:
 `docs/architecture/screens/demo-command.png`. Known: an action taken in the demo is stamped with the real
 clock, not the demo's 21:00 timeline.
 
