@@ -157,6 +157,13 @@ Parakeet heard (plus `wer.json`). If `--one-file` finds the wrong number of phra
 (default 0.6 s) or raise `--silence-db` (default -35, e.g. -30 for a noisy room). `--synthetic` runs the
 same on Magpie's voices as a labelled baseline.
 
+**Recording the WER set.** `uv run python scripts/radio_wer_record.py --voice dan` (optional `--port 8765`)
+serves a local page at http://localhost:8765 (open it as `localhost`, not an IP, or the browser blocks the
+microphone). It shows phrase N of 20 in large text with a level meter; Space records and stops, Enter goes
+to the next phrase, Redo overwrites the take. Each take lands in `data/radio_wer/<voice>/NN.webm`, the
+one-file-per-phrase layout above. The "Radio" toggle only notes `{"via": "handheld radio"}` in that
+folder's `notes.json`, so record the radio set under its own voice name (`--voice dan-radio`).
+
 ## How to reproduce
 
 ```bash
