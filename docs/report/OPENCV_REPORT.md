@@ -57,7 +57,10 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
 - the AWS deployment (§6);
 - the live map (every photo, review, searched sector and clue updates it) and the information-gain
   planner that sends drones and teams where they rule out the most probability per minute (§5.2);
-- the command view and front door (**TODO (lane E)**), conditions from live web search (**TODO (lane B)**).
+- conditions from live web search (Tavily): forecast, warnings and park alerts, each value kept only
+  with a verbatim quote; they decide whether drones may fly, how much a photo can see, how exposed the
+  person is, and what briefings say (`sightline/geo/conditions.py`);
+- the command view and front door (**TODO (lane E)**).
 
 Diff: `git diff bcs-final-submission..opencv-submit`.
 
@@ -164,7 +167,7 @@ contrast on a low-contrast fixture; the zoom reads the right native pixels for a
 
 The live map, sectors and planner added this sprint reuse these (each photo's step is
 `pod.frame_step`, with `cv2.fillPoly` and `cv2.blur` per photo); they add no new OpenCV calls.
-**TODO (lane B):** any new uses in conditions or cards.
+Conditions add no OpenCV calls (text and arithmetic).
 
 ## 5. The agent (Agentic Vision)
 

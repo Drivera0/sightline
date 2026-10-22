@@ -79,6 +79,34 @@ def check_briefing(text: str, facts: dict) -> list[str]:
     return problems
 
 
+def conditions_facts(c: Conditions | None, now: str) -> dict[str, str]:
+    """What a team needs from lane B's conditions, as briefing facts: daylight left, wind and rain,
+    alerts (closures, warnings). Nothing when there are no conditions or a value is unknown."""
+    if c is None:
+        return {}
+    out: dict[str, str] = {}
+    if c.civil_twilight_end:
+        from datetime import datetime
+
+        left = (
+            datetime.fromisoformat(c.civil_twilight_end) - datetime.fromisoformat(now)
+        ).total_seconds() / 60
+        if left > 0:
+            out["daylight_left"] = f"{int(left // 60)} h {int(left % 60)} min"
+    weather = []
+    if c.wind_kmh is not None:
+        weather.append(f"wind {c.wind_kmh:.0f} km/h")
+    if c.gust_kmh is not None:
+        weather.append(f"gusts {c.gust_kmh:.0f} km/h")
+    if c.precip_mm_h:
+        weather.append(f"rain {c.precip_mm_h:g} mm/h")
+    if weather:
+        out["weather"] = ", ".join(weather)
+    if c.alerts:
+        out["alerts"] = "; ".join(a.title for a in c.alerts[:2])
+    return out
+
+
 def template_briefing(facts: dict) -> str:
     """The fallback briefing: the facts, one short sentence each, nothing added."""
     return " ".join(f"{k.replace('_', ' ').capitalize()}: {v}." for k, v in facts.items() if v)
@@ -267,7 +295,12 @@ def _assign(
             summary=f"Assign sector {sector} to {team.callsign}",
             reason=reason,
             briefing=write_briefing(
-                {"team": team.callsign, "sector": sector, **facts},
+                {
+                    "team": team.callsign,
+                    "sector": sector,
+                    **facts,
+                    **conditions_facts(state["conditions"], now_iso()),
+                },
                 client,
                 store,
                 mission_id,
@@ -390,7 +423,10 @@ def _on_conditions(store, mission_id) -> list[Proposal]:
     with _lock:
         prev_flyable, prev_vis = _last_conditions.get(mission_id, (None, 1.0))
         _last_conditions[mission_id] = (c.flyable, c.visibility_factor)
-    if c.flyable is False and prev_flyable is not False:
+    fleet = store.state(mission_id)["fleet"]
+    in_air = fleet is not None and any(d.status in ("flying", "returning") for d in fleet.drones)
+    # A recall only when a drone is up: live, a mission with no drones got "Recall drones" at dusk.
+    if c.flyable is False and prev_flyable is not False and in_air:
         return [
             _add(
                 store,

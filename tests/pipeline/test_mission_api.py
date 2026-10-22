@@ -275,10 +275,12 @@ def test_tasks_need_a_pod_exactly_when_searched(api) -> None:
     assert client.post(url, json={"state": "assigned", "team_id": "T2"}).status_code == 200
 
 
-def test_other_lanes_parts_say_what_they_wait_for(api) -> None:
+def test_conditions_and_what_other_lanes_still_owe(api) -> None:
     client, _, _ = api
     mid = _mission(client)
-    assert "lane B" in client.post(f"/missions/{mid}/conditions/refresh").json()["detail"]
+    c = client.post(f"/missions/{mid}/conditions/refresh").json()  # lane B's, with the fake Tavily
+    assert c["sunset"] and c["civil_twilight_end"] and c["sources"]  # sun times are computed locally
+    assert c["wind_kmh"] is None  # no model in tests: nothing is filled without a quote
     assert "lane B" in client.get(f"/missions/{mid}/cards/B3").json()["detail"]
     assert "lane C" in client.get(f"/missions/{mid}/debrief.md").json()["detail"]
     tele = {"drones": [], "leg_status": {}, "at": "2026-10-24T21:40:00Z"}
