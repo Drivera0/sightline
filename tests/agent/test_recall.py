@@ -30,14 +30,26 @@ def _fresh_agent_memory():
     loop._recalled.clear()
 
 
+class SyncHooks:
+    """The agent's conditions hook, run at once on this thread; every other hook does nothing (the
+    tests call the agent for those themselves)."""
+
+    def on_conditions(self, store, mission_id: str) -> None:
+        loop.handle("conditions", store, mission_id, mission_id, client=None)
+
+    def __getattr__(self, name: str):
+        return lambda *a: None
+
+
 @pytest.fixture
 def api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     # no first lookup in the background: it would race the conditions each test puts in
     monkeypatch.setattr("sightline.api.missions._first_conditions", lambda ctx, mid: None)
     store = MissionStore(tmp_path / "missions")
-    ctx = MissionContext(store, queue=LocalQueue(), hooks=None)
+    ctx = MissionContext(store, queue=LocalQueue(), hooks=SyncHooks())
     app = create_app(cache_root=tmp_path / "cache", data_root=tmp_path / "up", missions=ctx)
     with TestClient(app) as client:
+        client.ctx = ctx  # type: ignore[attr-defined]
         yield client, store
 
 
@@ -104,3 +116,74 @@ def test_a_rejected_recall_needs_a_reason_and_leaves_the_leg(api) -> None:
     body["reason"] = "the gusts are on the ridge, not over the creek"
     assert client.post(f"/missions/{mid}/proposals/{p.id}/decide", json=body).status_code == 200
     assert {x.id: x.status for x in store.state(mid)["fleet"].legs}[leg] == "flying"
+
+
+# --- the demo override and the scheduled refresh ------------------------------------------------
+
+
+def test_the_demo_override_is_labelled_everywhere_and_triggers_the_recall(api) -> None:
+    client, store = api
+    mid, _ = _flying(client, store)
+    r = client.post(f"/missions/{mid}/conditions/override", json={"gust_kmh": 50})
+    assert r.status_code == 200, r.text
+    c = r.json()
+    assert c["sources"] == ["override (demo)"] and c["gust_kmh"] == 50 and c["flyable"] is False
+    assert (
+        c["flyability_reason"]
+        == "override (demo): gusts 50 km/h at or above the drones' limit of 43 km/h"
+    )
+    assert c["wind_kmh"] is None and c["alerts"] == []  # nothing from a real lookup mixed in
+    (p,) = [p for p in store.state(mid)["proposals"] if p.status == "pending"]
+    assert p.target["home"] == "recall" and "(override (demo), not from Tavily, as of" in p.reason
+    (note,) = [e for e in store.trace_entries(mid) if e.actor == "conditions"]
+    assert note.kind == "note" and note.summary.startswith(
+        "Conditions override (demo) by demo: gust 50 km/h"
+    )
+    assert any(
+        e.type == "mission.note" and "override (demo)" in e.summary for e in store.events(mid)
+    )
+    # the next real lookup replaces it whole (fake Tavily in tests)
+    real = client.post(f"/missions/{mid}/conditions/refresh").json()
+    assert "override (demo)" not in real["sources"] and real["gust_kmh"] is None
+
+
+def test_the_override_is_refused_for_a_real_fleet_and_checks_its_numbers(api) -> None:
+    client, _ = api
+    mid = client.post("/missions", json={"name": "S", "area_name": "Mount Seymour", "lkp": LKP}).json()["mission_id"]  # fmt: skip
+    assert (
+        client.post(f"/missions/{mid}/conditions/override", json={"gust_kmh": -1}).status_code
+        == 422
+    )
+    real = {**DRONE, "simulated": False}
+    client.put(f"/missions/{mid}/fleet", json={"drones": [real], "leg_status": {}, "at": AT})
+    r = client.post(f"/missions/{mid}/conditions/override", json={"gust_kmh": 50})
+    assert r.status_code == 409 and "simulated fleet only" in r.text
+
+
+def test_a_scheduled_refresh_with_gusts_recalls(api, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The 30-minute refresh (Scheduler → refresh_conditions → effects → the agent's hook), with a
+    lookup that read gusts of 50 km/h and traced its quote and page."""
+    from sightline.agent.trace import trace_call
+    from sightline.mission.scheduler import Scheduler
+
+    client, store = api
+    mid, _ = _flying(client, store)
+    url = "https://weather.gc.ca/forecast/hourly/bc-74_metric_e.html"
+
+    def fetch(area, *, fleet_max_wind_kmh, store, mission_id, **kw):
+        assert fleet_max_wind_kmh == 43.2  # the fleet's weakest airframe
+        trace_call(store, mission_id, actor="conditions", kind="model_call", summary="conditions extracted with quotes",
+                   output={"fields": {"gust_kmh": {"value": 50, "quote": "gusting to 50", "url": url}}})  # fmt: skip
+        return _gusts(store, mission_id).model_copy(update={"sources": [url]})
+
+    monkeypatch.setattr("sightline.api.missions._fetch_conditions", lambda: fetch)
+    t = [0.0]
+    sched = Scheduler(None, refresh_conditions=client.ctx.refresh_conditions, clock=lambda: t[0])
+    sched.mission_active(mid)
+    t[0] = 1801.0
+    sched.run_once()
+    (p,) = [p for p in store.state(mid)["proposals"] if p.status == "pending"]
+    assert p.reason.startswith(
+        'Gusts 50 km/h ("gusting to 50", weather.gc.ca, as of 20:05 UTC) > DJI Mavic 3E limit 43 km/h.'
+    )
+    assert p.evidence[0].ref == url

@@ -1,4 +1,5 @@
-"""``python -m sightline.client replay|watch`` (LANE_B §4): see ``sightline/client/__init__.py``."""
+"""``python -m sightline.client replay|watch`` (LANE_B §4): see ``sightline/client/__init__.py``.
+``conditions --gust 50`` is the demo's conditions override (``POST /conditions/override``)."""
 
 from __future__ import annotations
 
@@ -55,6 +56,29 @@ def watch_cmd(
             raise typer.BadParameter(str(e)) from e
         except KeyboardInterrupt:
             typer.echo("stopped")
+
+
+@app.command("conditions")
+def conditions_cmd(
+    api: Annotated[str, typer.Option(help="API base URL")],
+    mission: Annotated[str, typer.Option()],
+    gust: Annotated[float | None, typer.Option(help="km/h: a demo override (labelled so)")] = None,
+    wind: Annotated[float | None, typer.Option(help="km/h, with --gust")] = None,
+    real: Annotated[bool, typer.Option(help="look the real conditions up again (Tavily)")] = False,
+) -> None:
+    """Demo only: ``--gust 50`` puts in a conditions record labelled "override (demo)" (the agent
+    recalls flying drones when it is over their limit); ``--real`` refreshes from Tavily."""
+    from sightline.client import _call
+
+    if (gust is None) == (not real):
+        raise typer.BadParameter("give --gust KMH or --real")
+    with httpx.Client(base_url=api, timeout=TIMEOUT) as http:
+        if real:
+            c = _call(http, "POST", f"/missions/{mission}/conditions/refresh").json()
+        else:
+            body = {"gust_kmh": gust, "wind_kmh": wind, "by": "demo (CLI)"}
+            c = _call(http, "POST", f"/missions/{mission}/conditions/override", json=body).json()
+    typer.echo(f"{c['sources']}: flyable {c['flyable']}: {c['flyability_reason']}")
 
 
 if __name__ == "__main__":

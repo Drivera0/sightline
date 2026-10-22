@@ -662,13 +662,14 @@ def _recall(store: Any, mission_id: str, c: Conditions) -> list[Proposal]:
         leg = home_leg(d, _launch_point(store, mission_id, d.id), store.next_id(mission_id, "L"),
                        f"Recall: {why}")  # fmt: skip
         sector = f"leaves sector {current.sector_id}, " if current and current.sector_id else ""
+        away = f"{leg.est_minutes:.0f} min" if leg.est_minutes >= 1 else "under a minute"
         out.append(
             _add(
                 store,
                 mission_id,
                 kind="retask_drone",
                 summary=f"Recall {d.name}: fly home now ({sector}battery {d.battery_pct:.0f}%)",
-                reason=f"{why} Recall {d.name} to its launch point, {leg.est_minutes:.0f} min away.",
+                reason=f"{why} Recall {d.name} to its launch point, {away} away.",
                 target={"drone": d.id, "leg": leg.id, "home": "recall"},
                 leg=leg,
                 evidence=[
