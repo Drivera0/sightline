@@ -109,3 +109,28 @@ clue arrives, so the two rules give **identical** results.
 - Only the categories listed above are included. Hunters, children and other categories were not
   in the sources that could be checked.
 - `creek_run.py` with the agent's opening legs: see the PR for the run result.
+
+## Reasons that name their evidence
+
+Each assignment and drone-leg reason now says what moved its sector since the last plan, from the
+map log (`planner.sector_moves`, `evidence_line`), in at most 45 words so a briefing can quote it.
+Before, a reason gave the sector's share and the planner's numbers but not why the share was what it
+was, so "why did the clue not move the team?" had no answer on the card.
+
+| | Reason |
+|---|---|
+| Before (demo p003) | Sector C2 holds 5.5% of the probability, 48% of it under tree cover where a drone sees poorly (drone POD 0.45): a ground team adds the most here; Team One is nearest (465 m, about 9 min on foot). |
+| After (demo p003) | C2 · 5.5 % of remaining probability, up from 3.1 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here. |
+| After (demo p004) | B2 · 5.2 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 47% under tree cover (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot). |
+
+How it works. "The last plan" is the map version of the last planner `tool_call` of the same kind
+(legs or assignments) in the trace. The log is replayed from the prior to that version, then each
+later update's change to every sector's share is read off and grouped by cause: each clue (id and
+its first five words), the photos over the sector, the photos over other sectors, each ground
+search, reviews, shelter. Causes under 0.1 point of the whole are not named. With nothing named the
+reason says "no new evidence", and "highest remaining probability of the open sectors" when it is.
+The core (sector, share, causes, and for a leg the expected step) always fits; the rest (the next
+best, battery, daylight, the team's walk) is added while the reason stays within 45 words. The
+replay costs about 0.13 s on the demo's 504 map updates. The planner's ranking and the evidence line
+of every sector it considered are in the trace (`docs/architecture/agent.md`, "The planner as a tool
+call"). Tests: `tests/search/test_planner_evidence.py`, `tests/agent/test_planner_trace.py`.

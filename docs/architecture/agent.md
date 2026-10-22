@@ -144,7 +144,7 @@ The same six trace lines as a table (every value from `av-chain/trace.jsonl`, li
 | 2 `verifier` tool_call | `zoom_native` (OpenCV 5, `relook.py:91`) | the box; heuristics: 21 px long side, aspect 1.00, grey spread 32.2 | `relook/f0001-d01-zoom_native.jpg`, cut from native pixels | 0 | the small box chose the zoom; the zoom is the image the model answers from |
 | 3 `verifier` model_call | `nvidia/Nemotron-3.5-Super-VL`, prompt `verify-v2` | the review crop + the native zoom; 809 tokens in | `person: yes, posture: lying, group 1, white top, dark pants`; 61 tokens out | 1414 | a `yes` on a near-miss is the condition for a promotion |
 | 4 `verifier` verdict | — | — | verdict `v0001`: person yes, tool `zoom_native` | 1488 (tool + model) | the verdict is stored on the detection and handed to the agent loop |
-| 5 `agent` proposal | `loop.py:455` (`_on_detection`) | verdict `v0001` | `p001 promote_detection`, reason: "confidence 0.18 is below the review threshold 0.29; the second look (zoom_native) says…" | — | a pending proposal in the approval inbox; nothing changes until a person decides |
+| 5 `agent` proposal | `loop.py:537` (`_on_detection`) | verdict `v0001` | `p001 promote_detection`, reason: "confidence 0.18 is below the review threshold 0.29; the second look (zoom_native) says…" | — | a pending proposal in the approval inbox; nothing changes until a person decides |
 | 6 `human` decision | — | `p001` | approved, by "Search manager (scripted approval for this demo run)" | — | the detection joins the review queue |
 
 **The approval in this showcase run was scripted**, and the trace says so in its own words (span 6).
@@ -375,7 +375,7 @@ secrets in the trace (test 7).
   `unclear` on a box under 60 px sends a drone back at 25 m for about 4× the pixels, and the new
   photo goes through the same pipeline (the third chain above, `sightline/agent/relook_leg.py`).
 - **Orchestration and appropriate autonomy (25 %).** Events go through hooks that only enqueue
-  (`sightline/agent/hooks.py:36-78`) to one loop (`sightline/agent/loop.py:794`, `handle`) that turns
+  (`sightline/agent/hooks.py:36-78`) to one loop (`sightline/agent/loop.py:887`, `handle`) that turns
   each into proposals. Models are used where they add information (vision verdicts, briefings,
   conditions, radio); the planner and code decide the rest. Autonomy stops at the proposal: the
   diamond in the workflow diagram, enforced by the API (`sightline/api/missions.py:470`).
@@ -401,3 +401,51 @@ secrets in the trace (test 7).
   (`scripts/av_chain.py`, `scripts/retask_chain.py`). The Trace view shows each chain in the product
   (`#m/<id>/trace`, `web/src/command/TraceView.tsx`; `#m/demo/trace` without a server). The gap we know
   about: the recorded approvals are scripted until the video run.
+
+## The planner as a tool call
+
+Assignment and drone-leg chains start with the planner, traced like the second look's OpenCV tools:
+`tool_call` (planner) → `model_call` (the briefing, for an assignment) → `proposal` → `decision`.
+`loop._trace_plan` writes it with `trace_call` just before the proposals, only when the plan gives
+a team or a drone something new (a tick that proposes nothing leaves no entry). Its refs are the
+picked drones or teams, their sectors and the cause (a clue, a leg), the same ids the proposals
+carry, so the Trace view joins them into one chain.
+
+| Field | Content |
+|---|---|
+| `actor`, `kind` | `planner`, `tool_call` |
+| `summary` | `propose_legs: D1 → C2 (map v1, 16 sectors ranked)` or `propose_assignments: T1 → C2 (…)` |
+| `input` | `map_seq` (the seq of the last map update: the map version planned on), `since_map_seq` (the map version of the last plan of the same kind; 0 before the first), `drones` (id, status, battery, position) or `teams` (standby: id, callsign, status, position), `sectors_considered` (every sector the planner scored), and for legs `why` (the trigger) |
+| `output` | `plan` (`legs` or `assignments`), `map_seq`, `ranked` (the best 8: sector, score (`score_per_min` and `worth` for legs; `score` = POA × (1 − drone POD) for teams), `poa`, `drone_pod` and `tree_cover` for teams, `evidence`), `chosen` (drone or team, sector, reason), `ms` |
+
+**Reasons name their evidence.** Every assignment and drone-leg reason starts with what moved its
+sector since the last plan of that kind, read off the map log (`planner.sector_moves`): the log is
+replayed from the prior, each update's change to every sector's share is read off, and the changes
+are grouped by cause (each clue by id with its first five words, the photos over the sector, the
+photos over other sectors, each ground search, reviews, shelter). A cause under 0.1 point is not
+named. Nothing named: "no new evidence", plus "highest remaining probability of the open sectors"
+when it is. The reason is at most 45 words (`planner.REASON_WORDS`), so a 60-word briefing can quote
+it; the trigger in front of a leg's reason ("After clue c001 in sector C2.") counts. It never says
+"clear" or "rule out" (`tests/pipeline/test_no_clear_scan.py`).
+
+The demo fixture (`web/src/command/__fixtures__/demo_trace.jsonl`, `scripts/make_command_fixtures.py`,
+fake models, scripted approval), proposal p003:
+
+```text
+2026-10-24T21:42:00Z  planner  tool_call  propose_assignments: T1 → C2 (map v504, 15 sectors ranked)
+    input  map_seq 504 · since_map_seq 0 · teams [T1 Team One, standby] · 15 sectors considered
+    ranked C2 score 0.0301, poa 0.0547, drone POD 0.45: "C2 · 5.5 % of remaining probability, up from 3.1 %:
+           c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it"
+           B2 score 0.0282 …, C3 score 0.0279 …  (129 ms)
+2026-10-24T21:42:00Z  agent    model_call briefing
+    model fake/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B · facts.why = the reason below
+2026-10-24T21:42:00Z  agent    proposal   p003 assign_sector: Assign sector C2 to Team One
+    reason: C2 · 5.5 % of remaining probability, up from 3.1 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.
+2026-10-24T21:43:00Z  human    decision   p003 approved by Search manager (scripted for the demo fixture)
+```
+
+The next team plan (p004, Team Two, map v504 again) says "B2 · 5.2 % of remaining probability: no
+new evidence; highest remaining probability of the open sectors": nothing came in between, which
+answers "why did the clue not move the team?" from the card itself. Tests:
+`tests/search/test_planner_evidence.py`, `tests/agent/test_planner_trace.py` (on the real store and
+API, through `GET /missions/{id}/trace`).
