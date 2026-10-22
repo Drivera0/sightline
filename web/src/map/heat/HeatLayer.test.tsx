@@ -173,7 +173,7 @@ describe("HeatLayer", () => {
   it("adds the heat raster before grid-outline and recolours the canvas, never the geometry", () => {
     const m = mockMap(true);
     const flyTo = vi.fn();
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo, onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer />
@@ -253,7 +253,7 @@ describe("HeatLayer", () => {
       },
     };
     const m = mockMap(true);
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
     render(
       <CacheContext.Provider value={sliverCache}>
         <HeatLayer />
@@ -279,7 +279,7 @@ describe("HeatLayer", () => {
 
   it("moves the drone icon and its trail with the slider, pointing along the flight, above the heat", () => {
     const m = mockMap(true);
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer />
@@ -309,7 +309,7 @@ describe("HeatLayer", () => {
 
   it("labels the sectors on the map and lists them by remaining probability", () => {
     const m = mockMap(true);
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer />
@@ -328,7 +328,7 @@ describe("HeatLayer", () => {
 
   it("review variant: live heat under the pins with a readout, no replay, no side panel", () => {
     const m = mockMap(true);
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer variant="review" />
@@ -351,7 +351,7 @@ describe("HeatLayer", () => {
 
   it("adds the layers on top when lane B has not drawn yet", () => {
     const m = mockMap(false);
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer />
@@ -362,7 +362,7 @@ describe("HeatLayer", () => {
 
   it("draws a flown 'Person' answer as a candidate sighting: darkest, ringed, with its reading", () => {
     const m = mockMap(true);
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer />
@@ -388,7 +388,7 @@ describe("HeatLayer", () => {
   it("rings a flown 'Unsure' area in amber, lists it under the sectors, and keeps the map unchanged", () => {
     const m = mockMap(true);
     const flyTo = vi.fn();
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo, onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer />
@@ -431,7 +431,7 @@ describe("HeatLayer", () => {
 
   it("review variant: says how many unsure areas are kept, only when there are some", () => {
     const m = mockMap(true);
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer variant="review" />
@@ -450,7 +450,7 @@ describe("HeatLayer", () => {
 
   it("shows the found banner inside the side panel, not over the map", () => {
     const m = mockMap(true);
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer />
@@ -465,7 +465,7 @@ describe("HeatLayer", () => {
 
   it("links the Search next list and its patch markers: hover or click a row rings its marker", () => {
     const m = mockMap(true);
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer />
@@ -489,7 +489,7 @@ describe("HeatLayer", () => {
 
   it("side panel order: sightings, then Search next (unsure areas at its top), then the sectors", () => {
     const m = mockMap(true);
-    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+    ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
     render(
       <CacheContext.Provider value={cache}>
         <HeatLayer />
@@ -520,7 +520,7 @@ describe("HeatLayer", () => {
     })) as unknown as typeof window.matchMedia;
     try {
       const m = mockMap(true);
-      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
       const slot = document.createElement("div");
       document.body.appendChild(slot);
       const { container } = render(
@@ -576,7 +576,7 @@ describe("HeatLayer", () => {
     window.matchMedia = fake.media;
     try {
       const m = mockMap(true);
-      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
       render(
         <CacheContext.Provider value={cache}>
           <HeatLayer />
@@ -596,7 +596,7 @@ describe("HeatLayer", () => {
     window.matchMedia = fakeMedia({ wide: true, roomy: false, reduced: true }).media;
     try {
       const m = mockMap(true);
-      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn() };
+      ctx.value = { map: m.map as unknown as MapContextValue["map"], flyTo: vi.fn(), onPick: () => () => {} };
       render(
         <CacheContext.Provider value={cache}>
           <HeatLayer />

@@ -2,7 +2,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Clue, MapBase, Team } from "../../contract";
-import { LiveHeatMap, pointFeatures, sectorFeatures } from "./LiveHeatMap";
+import type { FleetState } from "../../contract";
+import { LiveHeatMap, legFeatures, pointFeatures, sectorFeatures } from "./LiveHeatMap";
 
 const base = { lkp: { lat: 49.37, lon: -122.945 } } as MapBase;
 const ring: [number, number][] = [[0, 1], [1, 1], [1, 0], [0, 0], [0, 1]];
@@ -31,5 +32,18 @@ describe("live map features", () => {
   it("says when there is no map yet", () => {
     render(<LiveHeatMap mapBase={null} updates={[]} sectors={[]} clues={[]} teams={[]} />);
     expect(screen.getByText(/once the mission has its search area/)).toBeInTheDocument();
+  });
+
+  it("draws drones (labelled simulated) and only approved or flying legs", () => {
+    const fleet = {
+      drones: [{ id: "D1", name: "Drone 1", simulated: true, position: { lat: 49.371, lon: -122.94 } }],
+      legs: [
+        { id: "L1", status: "flying", waypoints: ring },
+        { id: "L2", status: "done", waypoints: ring },
+        { id: "L3", status: "approved", waypoints: ring },
+      ],
+    } as unknown as FleetState;
+    expect(legFeatures(fleet).map((f) => f.properties.id)).toEqual(["L1", "L3"]);
+    expect(pointFeatures(base, [], [], fleet).at(-1)?.properties.label).toBe("Drone 1 (simulated)");
   });
 });

@@ -5,7 +5,8 @@
 // Built by lane A for lanes C and B (issues #64, #74).
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map } from "maplibre-gl";
-import type { Clue, MapBase, MapUpdate, Team } from "../../contract";
+import type { Clue, FleetState, MapBase, MapUpdate, Team } from "../../contract";
+import { usePick } from "../pick";
 import type { SectorNow } from "../../lib/api";
 import { prefersReducedMotion } from "../../metrics/motion";
 import { LiveHeat, lookedAt } from "../../search/live";
@@ -19,6 +20,7 @@ export const LIVE_IDS = {
   sectors: "live-heat-sectors",
   sectorLabels: "live-heat-sector-labels",
   points: "live-heat-points",
+  legs: "live-heat-legs",
   pointLabels: "live-heat-point-labels",
 } as const;
 const TWEEN_MS = 600;
@@ -46,8 +48,15 @@ export function sectorFeatures(sectors: readonly SectorNow[]): { lines: Feature[
   return { lines, labels };
 }
 
-/** The last-known point, clues and teams with a known position, as labelled points. */
-export function pointFeatures(base: MapBase, clues: readonly Clue[], teams: readonly Team[]): Feature[] {
+/** Legs approved or being flown, as lines (B's leg layer, first pass). */
+export function legFeatures(fleet: FleetState | null): Feature[] {
+  return (fleet?.legs ?? [])
+    .filter((l) => l.status === "approved" || l.status === "flying")
+    .map((l) => ({ type: "Feature", properties: { id: l.id, status: l.status }, geometry: { type: "LineString", coordinates: l.waypoints } }));
+}
+
+/** The last-known point, clues, teams and drones with a known position, as labelled points. */
+export function pointFeatures(base: MapBase, clues: readonly Clue[], teams: readonly Team[], fleet: FleetState | null = null): Feature[] {
   const pt = (kind: string, label: string, lon: number, lat: number): Feature => ({
     type: "Feature",
     properties: { kind, label },
@@ -57,11 +66,15 @@ export function pointFeatures(base: MapBase, clues: readonly Clue[], teams: read
     pt("lkp", "Last known point", base.lkp.lon, base.lkp.lat),
     ...clues.map((c) => pt("clue", `${c.id} ${c.kind}`, c.lon, c.lat)),
     ...teams.filter((t) => t.position).map((t) => pt("team", t.callsign, t.position!.lon, t.position!.lat)),
+    ...(fleet?.drones ?? [])
+      .filter((d) => d.position)
+      .map((d) => pt("drone", `${d.name}${d.simulated ? " (simulated)" : ""}`, d.position!.lon, d.position!.lat)),
   ];
 }
 
-function LiveLayers({ base, updates, sectors, clues, teams }: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase }): ReactNode {
-  const { map } = useMap();
+function LiveLayers({ base, updates, sectors, clues, teams, fleet = null }: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase }): ReactNode {
+  const { map, onPick } = useMap();
+  const pending = usePick((s) => s.pending);
   const heat = useMemo(() => new LiveHeat(base), [base]);
   const raster = useMemo(() => new HeatRaster(base.grid), [base]);
   const scaleMax = useMemo(() => heatScaleMax(base.prior.p), [base]);
@@ -77,11 +90,12 @@ function LiveLayers({ base, updates, sectors, clues, teams }: Omit<LiveHeatMapPr
         map.addSource(LIVE_IDS.heat, { type: "canvas", canvas: raster.canvas, coordinates: gridCorners(base.grid), animate: false });
         map.addLayer({ id: LIVE_IDS.heat, type: "raster", source: LIVE_IDS.heat, paint: { "raster-opacity": 0.85, "raster-resampling": "nearest", "raster-fade-duration": 0 } });
       }
-      for (const id of [LIVE_IDS.sectors, LIVE_IDS.sectorLabels, LIVE_IDS.points]) {
+      for (const id of [LIVE_IDS.sectors, LIVE_IDS.sectorLabels, LIVE_IDS.points, LIVE_IDS.legs]) {
         if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: fc([]) });
       }
       const color = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
       if (!map.getLayer(LIVE_IDS.sectors)) {
+        map.addLayer({ id: LIVE_IDS.legs, type: "line", source: LIVE_IDS.legs, paint: { "line-color": color("--accent", "#ff7a1a"), "line-opacity": ["match", ["get", "status"], "flying", 0.9, 0.5], "line-width": 1.5, "line-dasharray": [2, 1] } });
         map.addLayer({ id: LIVE_IDS.sectors, type: "line", source: LIVE_IDS.sectors, paint: { "line-color": color("--text", "#f2f2f0"), "line-opacity": 0.5, "line-width": 1 } });
         map.addLayer({
           id: LIVE_IDS.sectorLabels,
@@ -95,8 +109,8 @@ function LiveLayers({ base, updates, sectors, clues, teams }: Omit<LiveHeatMapPr
           type: "circle",
           source: LIVE_IDS.points,
           paint: {
-            "circle-radius": ["match", ["get", "kind"], "lkp", 6, 5],
-            "circle-color": ["match", ["get", "kind"], "lkp", color("--accent", "#ff7a1a"), "clue", color("--warn", "#ffc48f"), color("--ok", "#7ee2a0")],
+            "circle-radius": ["match", ["get", "kind"], "lkp", 6, "drone", 6, 5],
+            "circle-color": ["match", ["get", "kind"], "lkp", color("--accent", "#ff7a1a"), "clue", color("--warn", "#ffc48f"), "drone", color("--text", "#f2f2f0"), color("--ok", "#7ee2a0")],
             "circle-stroke-color": color("--bg", "#0a0b0d"),
             "circle-stroke-width": 1.5,
           },
@@ -143,8 +157,18 @@ function LiveLayers({ base, updates, sectors, clues, teams }: Omit<LiveHeatMapPr
     const { lines, labels } = sectorFeatures(sectors);
     setData(map, LIVE_IDS.sectors, lines);
     setData(map, LIVE_IDS.sectorLabels, labels);
-    setData(map, LIVE_IDS.points, pointFeatures(base, clues, teams));
-  }, [map, ready, base, sectors, clues, teams]);
+    setData(map, LIVE_IDS.points, pointFeatures(base, clues, teams, fleet));
+    setData(map, LIVE_IDS.legs, legFeatures(fleet));
+  }, [map, ready, base, sectors, clues, teams, fleet]);
+
+  // A pick asked for elsewhere on the page (the clue form): B's onPick answers it.
+  useEffect(() => {
+    if (!pending || !ready) return undefined;
+    return onPick(
+      (p) => pending(p),
+      () => pending(null),
+    );
+  }, [pending, ready, onPick]);
 
   return null;
 }
@@ -159,6 +183,7 @@ export interface LiveHeatMapProps {
   sectors: readonly SectorNow[];
   clues: readonly Clue[];
   teams: readonly Team[];
+  fleet?: FleetState | null;
 }
 
 export function LiveHeatMap({ mapBase, ...rest }: LiveHeatMapProps): ReactNode {
@@ -167,6 +192,7 @@ export function LiveHeatMap({ mapBase, ...rest }: LiveHeatMapProps): ReactNode {
     return basemapStyle(chooseBasemapMode(key, navigator.onLine), key, readBasemapColors());
   }, []);
   const center = useMemo<[number, number] | undefined>(() => (mapBase ? [mapBase.lkp.lon, mapBase.lkp.lat] : undefined), [mapBase]);
+  const picking = usePick((s) => s.pending !== null);
   if (!mapBase) return <p className="text-small text-text-3">The map appears once the mission has its search area.</p>;
   return (
     <figure aria-label="Live map" className="flex flex-col gap-2">
@@ -175,6 +201,11 @@ export function LiveHeatMap({ mapBase, ...rest }: LiveHeatMapProps): ReactNode {
           <LiveLayers base={mapBase} {...rest} />
         </MapProvider>
       </div>
+      {picking && (
+        <p role="status" className="text-small text-accent-soft">
+          Click the map to place the clue (Esc cancels).
+        </p>
+      )}
       <figcaption className="text-small text-text-3">
         Where the person could be now, on the cells a photo has looked at (darker: more likely); grey: not photographed yet.
         {" "}
