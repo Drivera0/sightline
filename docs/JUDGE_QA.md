@@ -100,11 +100,12 @@ writes says otherwise (`docs/report/OPENCV_REPORT.md:840-848`).
 
 ### 11. Radio: WER on a real volunteer's voice over a real handset?
 
-Not measured yet. The 20 phrases and the scoring script are ready (`docs/feedback/radio.md:137-145`,
-issue #49); what is missing is three people recording them. Today's numbers are from typed lines and
-Magpie's voice, plus real-voice rehearsals timed end to end (`docs/feedback/radio.md:101`,
-`docs/report/OPENCV_REPORT.md:821-822`). Recording three voices, with and without radio sound, would
-answer it.
+Measured on one voice so far, direct microphone, not a handset: 20 phrases, 162 words, WER 0.086 as
+transcribed and 0.025 after the radio desk's own normalisation, with both coordinates exactly right
+(`docs/evidence/radio_wer/20261022-101034/wer.md`, `docs/feedback/radio.md:190-207`). The one real
+finding: Parakeet does not know the radio word "niner" and writes "49er" or "nine or"; the normaliser
+now resolves both. Two more voices and a set through a handheld radio are still to be recorded (issue
+#49); until then this is one speaker, not a population.
 
 ### 12. Can I reproduce the HERIDAL test table in 10 minutes on a laptop without a GPU?
 
