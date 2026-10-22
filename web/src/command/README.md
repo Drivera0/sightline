@@ -38,3 +38,16 @@ word "clear". Only the Command, Approvals and Feed tabs show, labelled "Demo mis
 server"; actions change the fixtures in memory. Linked from "Live missions aren't available here". Screenshot:
 `docs/architecture/screens/demo-command.png`. Known: an action taken in the demo is stamped with the real
 clock, not the demo's 21:00 timeline.
+
+## Audit fixes (lane A, 2026-10-22)
+
+- **Task moves are enforced on the server** (E-05, §9 test 2): `effects.TASK_MOVES` allows proposed → assigned,
+  assigned → in progress or back to proposed, in progress → searched, searched → proposed (reopen), and the same
+  state again (reassign); `searched` needs POD above 0 and at most 90 %. Tested in `test_mission_api.py`.
+- **Clue form** (E-08, test 5): lat/lon range checks with a message, an optional radius (empty: the default for
+  the kind); the server refuses a position off the globe too (`resolve_position`).
+- **Event feed** (E-10): `EventFeed.tsx`, newest first, the last 50, filter chips by kind. It stays a tab of
+  the live mission rather than the command view's right rail.
+- **Roster fly-to** (E-06): a team's callsign selects it (`useSelection().selectTeam`, D-M2), and the live map
+  flies to its position; clicking a team, drone or clue on the map selects it.
+

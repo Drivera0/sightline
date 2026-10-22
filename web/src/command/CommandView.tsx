@@ -3,6 +3,7 @@
 // approval inbox, the clue log. Built by lane A for lane E (issue #70); lane B's map goes in the middle
 // once it reads live missions.
 
+import { useSelection } from "../lib/selection";
 import { useEffect, useState, type FormEvent } from "react";
 import type { Clue, ClueDraft, Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
@@ -285,6 +286,7 @@ const STATUS_WORDS: Record<Team["status"], string> = {
 };
 
 export function TeamRoster({ teams, tasks, now }: { teams: readonly Team[]; tasks: readonly SectorTask[]; now: Date }) {
+  const selected = useSelection((s) => s.selectedTeamId);
   return (
     <section aria-label="Teams" className="flex flex-col gap-2">
       <Label>Teams</Label>
@@ -292,8 +294,17 @@ export function TeamRoster({ teams, tasks, now }: { teams: readonly Team[]; task
         {teams.map((t) => {
           const sector = tasks.find((x) => x.team_id === t.id && (x.state === "assigned" || x.state === "in_progress"));
           return (
-            <div key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-2 text-small">
-              <span className="w-28 text-text">{t.callsign}</span>
+            <div key={t.id} className={`flex flex-wrap items-center gap-3 px-4 py-2 text-small ${selected === t.id ? "bg-accent/10" : ""}`}>
+              {/* selecting a team flies the live map to it (D-M2), when it has a position */}
+              <button
+                type="button"
+                className="w-28 text-left text-text underline-offset-2 hover:underline"
+                aria-pressed={selected === t.id}
+                title={t.position ? "Show on the map" : "No position yet"}
+                onClick={() => useSelection.getState().selectTeam(selected === t.id ? null : t.id)}
+              >
+                {t.callsign}
+              </button>
               <Badge kind="info">{STATUS_WORDS[t.status]}</Badge>
               <span className="text-text-3">{t.members} people</span>
               <span className="text-text-3">{t.position_at ? `pos ${minutesSince(t.position_at, now)} min ago` : "no position"}</span>
@@ -307,6 +318,18 @@ export function TeamRoster({ teams, tasks, now }: { teams: readonly Team[]; task
 }
 
 const KINDS: ClueDraft["kind"][] = ["object", "track", "sighting", "sound", "other"];
+
+/** What's wrong with a clue before it's sent (LANE_E §9 test 5), or null. */
+export function clueProblem(text: string, where: "team" | "latlon", lat: string, lon: string, radius: string): string | null {
+  if (!text.trim()) return "Say what was found.";
+  if (where === "latlon") {
+    const [a, o] = [Number(lat), Number(lon)];
+    if (lat.trim() === "" || !Number.isFinite(a) || a < -90 || a > 90) return "Latitude must be a number from -90 to 90.";
+    if (lon.trim() === "" || !Number.isFinite(o) || o < -180 || o > 180) return "Longitude must be a number from -180 to 180.";
+  }
+  if (radius.trim() !== "" && !(Number(radius) > 0)) return "The radius must be more than 0 m (or empty for the default).";
+  return null;
+}
 
 export function ClueLog({
   clues,
@@ -327,17 +350,21 @@ export function ClueLog({
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
   const [reliability, setReliability] = useState<ClueDraft["reliability"]>("medium");
+  const [radius, setRadius] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
   const field = "rounded-sm border border-border bg-surface-strong px-2 py-1 text-small text-text";
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    const why = clueProblem(text, where, lat, lon, radius);
+    setProblem(why);
+    if (why) return;
     const draft: ClueDraft = {
       kind,
       text: text.trim(),
       lat: where === "latlon" ? Number(lat) : null,
       lon: where === "latlon" ? Number(lon) : null,
       at_team_position: where === "team",
-      radius_m: null,
+      radius_m: radius.trim() ? Number(radius) : null,
       reliability,
       reported_by: where === "team" ? team : "command",
       source: "form",
@@ -403,6 +430,15 @@ export function ClueLog({
                 )}
               </>
             )}
+            <input
+              aria-label="Radius (m)"
+              className={`${field} w-24`}
+              inputMode="numeric"
+              placeholder="radius m"
+              title="How far from the point it could be. Empty: the default for its kind (object 30 m … sound 200 m)."
+              value={radius}
+              onChange={(e) => setRadius(e.target.value)}
+            />
             <select aria-label="Reliability" className={field} value={reliability} onChange={(e) => setReliability(e.target.value as ClueDraft["reliability"])}>
               <option value="low">low</option>
               <option value="medium">medium</option>
@@ -411,6 +447,11 @@ export function ClueLog({
             <button type="submit" className="rounded-full border border-accent px-3 py-1 text-small text-text">
               Add
             </button>
+            {problem && (
+              <p role="alert" className="basis-full text-small text-warn">
+                {problem}
+              </p>
+            )}
           </form>
         </Panel>
       )}

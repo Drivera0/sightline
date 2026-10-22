@@ -275,6 +275,37 @@ def test_tasks_need_a_pod_exactly_when_searched(api) -> None:
     assert client.post(url, json={"state": "assigned", "team_id": "T2"}).status_code == 200
 
 
+def _search(client: TestClient, mid: str, sector: str, pod: float) -> None:
+    """Assign, start and mark searched, as the command view does."""
+    url = f"/missions/{mid}/tasks/{sector}"
+    for body in ({"state": "assigned", "team_id": "T2"}, {"state": "in_progress", "team_id": "T2"},
+                 {"state": "searched", "team_id": "T2", "pod": pod}):  # fmt: skip
+        assert client.post(url, json=body).status_code == 200, body
+
+
+def test_tasks_move_only_as_the_command_view_moves_them(api) -> None:
+    """LANE_E §7.2 / §9 test 2: proposed → assigned → in progress → searched, unassign, reopen."""
+    client, _, _ = api
+    mid = _mission(client)
+    url = f"/missions/{mid}/tasks/B3"
+    r = client.post(url, json={"state": "searched", "pod": 0.6})
+    assert r.status_code == 422 and "can't go from proposed to searched" in r.text
+    assert client.post(url, json={"state": "in_progress", "team_id": "T2"}).status_code == 422
+    assert client.post(url, json={"state": "assigned", "team_id": "T2"}).status_code == 200
+    assert (
+        client.post(url, json={"state": "assigned", "team_id": "T3"}).status_code == 200
+    )  # reassign
+    assert client.post(url, json={"state": "proposed"}).status_code == 200  # unassign
+    _search(client, mid, "B3", 0.5)
+    assert client.post(url, json={"state": "in_progress", "team_id": "T2"}).status_code == 422
+    assert client.post(url, json={"state": "proposed"}).status_code == 200  # reopen
+    _search(client, mid, "C2", 0.9)
+    r = client.post(f"/missions/{mid}/tasks/A1", json={"state": "assigned", "team_id": "T1"})
+    client.post(f"/missions/{mid}/tasks/A1", json={"state": "in_progress", "team_id": "T1"})
+    r = client.post(f"/missions/{mid}/tasks/A1", json={"state": "searched", "pod": 0.0})
+    assert r.status_code == 422 and "above 0" in r.text
+
+
 def test_conditions_and_what_other_lanes_still_owe(api) -> None:
     client, _, _ = api
     mid = _mission(client)
@@ -323,7 +354,7 @@ def test_reassigning_a_searched_sector_clears_its_pod(api) -> None:
     """Found by the smoke test: the task kept POD 0.6 while "assigned"."""
     client, ctx, _ = api
     mid = _mission(client)
-    client.post(f"/missions/{mid}/tasks/B3", json={"state": "searched", "pod": 0.6})
+    _search(client, mid, "B3", 0.6)
     pid = _propose(ctx, mid)
     assert (
         client.post(

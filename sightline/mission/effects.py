@@ -118,12 +118,28 @@ def on_decision(store: MissionStore, mission_id: str, p: Proposal) -> None:
         )
 
 
+# Which state a sector task can move to (LANE_E §7.2): assign, start or unassign, mark searched, reopen.
+TASK_MOVES: dict[str, set[str]] = {
+    "proposed": {"assigned"},
+    "assigned": {"in_progress", "proposed"},
+    "in_progress": {"searched"},
+    "searched": {"proposed"},
+}
+
+
 def on_task_update(
     store: MissionStore, mission_id: str, task: SectorTask, hooks: Any = None
 ) -> MapUpdate | None | str:
-    """Save the task; a sector ``searched`` with a POD steps the map over its cells (C)."""
+    """Save the task; a sector ``searched`` with a POD steps the map over its cells (C). Only the
+    command view's moves are allowed (LANE_E §7.2, ``TASK_MOVES``)."""
+    old = next((t for t in store.state(mission_id)["tasks"] if t.sector_id == task.sector_id), None)
+    before = old.state if old else "proposed"
+    if task.state != before and task.state not in TASK_MOVES[before]:
+        raise ValueError(f"sector {task.sector_id} can't go from {before} to {task.state}")
     if task.state == "searched" and task.pod is None:
         raise ValueError("a searched sector needs a POD")
+    if task.state == "searched" and not 0 < task.pod <= 0.9:
+        raise ValueError("POD must be above 0 and at most 90 %")
     if task.state != "searched" and task.pod is not None:
         raise ValueError("POD is only set when the sector is searched")
     store.upsert_task(mission_id, task)

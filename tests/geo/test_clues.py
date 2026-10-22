@@ -58,3 +58,10 @@ def test_default_radii_by_kind_and_a_given_radius_wins() -> None:
         "object": 30.0, "track": 75.0, "sighting": 100.0, "sound": 200.0, "other": 75.0,
     }  # fmt: skip
     assert default_radius(_draft(lat=1, lon=1, radius_m=12)) == 12
+
+
+def test_a_position_off_the_globe_is_an_error() -> None:
+    with pytest.raises(ValueError, match="latitude must be"):
+        resolve_position(_draft(lat=91.0, lon=0.0), [], GRID, NOW)
+    with pytest.raises(ValueError, match="longitude -180 to 180"):
+        resolve_position(_draft(lat=49.0, lon=-200.0), [], GRID, NOW)

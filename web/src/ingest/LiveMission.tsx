@@ -11,6 +11,7 @@ import { isTyping } from "../lib/keys";
 import { photoProgress, useMission } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
+import { EventFeed } from "../command/EventFeed";
 import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoMission } from "../command/demoMission";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { usePick } from "../map/pick";
@@ -254,21 +255,16 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
       )}
 
       {tab === "feed" && (
-        <Panel aria-label="Mission feed" className="flex flex-col gap-1">
-          {!demo && (
-            <a className="self-end text-small text-accent-soft underline" href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`} target="_blank" rel="noreferrer">
-              Debrief (markdown)
-            </a>
-          )}
-          {s.events.length === 0 && <p className="text-small text-text-3">Nothing yet.</p>}
-          {[...s.events].reverse().map((e) => (
-            <div key={e.id} className="flex gap-3 text-small">
-              <span className="font-mono text-text-3">{e.at.slice(11, 19)}</span>
-              <span className="font-mono text-text-2">{e.type}</span>
-              <span className="text-text">{e.summary}</span>
-            </div>
-          ))}
-        </Panel>
+        <EventFeed
+          events={s.events}
+          extra={
+            !demo && (
+              <a className="text-small text-accent-soft underline" href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`} target="_blank" rel="noreferrer">
+                Debrief (markdown)
+              </a>
+            )
+          }
+        />
       )}
     </main>
   );
