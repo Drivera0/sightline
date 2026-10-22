@@ -131,6 +131,92 @@ The approvals were scripted for the run (`decided_by` says so). With real Tavily
 fresh lookup before the override, and a recall from real gusts quotes the forecast page instead of "override
 (demo)".
 
+## The subject from a public bulletin: the model decides to search
+
+The conditions lookup above runs on a timer. This second use of Tavily is **the agent's own choice**. The
+probability map's prior uses Koester's lost-person distance rings (`sightline/search/prior.py`). Those rings
+need a lost-person category (hiker or dementia), and a mission created with a last known point but no usable
+subject starts uniform. `POST /missions/{id}/subject/search` (a write: with `SIGHTLINE_API_TOKEN` set it
+needs the bearer token) gives Nemotron Nano the mission's facts (area, last known point, last seen time, date,
+mode) and one tool, `search_public_bulletin(query)`. The model either calls the tool with a query it wrote
+or says in a sentence why not. For example, a `replay` mission re-runs old photos and has no missing person
+to look for. Code decides only when to ask: no category yet, and no profile proposal already waiting.
+
+Code: `sightline/agent/subject_tool.py` (the decision, the proposal, the approval) and
+`sightline/geo/subject.py` (Tavily and the extraction). Tests: `tests/agent/test_subject.py`.
+
+**Search, then extract**, as Tavily's agent guidance recommends (https://docs.tavily.com/agents.md: use
+`include_domains` "when source trust matters", search to find sources, then extract the chosen URLs for
+grounded answers):
+
+1. One Tavily `search` with the model's query: `search_depth="advanced"`, 5 results, `chunks_per_source=3`,
+   and `include_domains` limited to police, search and rescue, and local news:
+   `rcmp.ca`, `rcmp-grc.gc.ca`, `bcsara.com`, `northshorerescue.com`, `vpd.ca`, `nsnews.com`, `cbc.ca`,
+   `ctvnews.ca`, `globalnews.ca`, `vancouversun.com` (BC first, because the demo is on Mount Seymour; the list is
+   `SOURCE_DOMAINS`, short as Tavily advises).
+2. One Tavily `extract` of the top two pages, for their full text.
+3. **Nemotron 3 Nano reads them** (JSON, temperature 0) and returns age, category, last seen time, last seen
+   place and clothing, each **with the quote it came from** and the page. As for the weather, a value is
+   kept only if its quote is found verbatim in that page and actually says it: the age must be a number in
+   the quote, the category is read from the quote with the prior's own rule (`subject_category`: "hiker",
+   "hiking", "backpacker", "dementia", "Alzheimer's"), a time quote must hold a time, and half of a place's
+   or clothing's words must be in its quote. Otherwise the field stays empty.
+
+**Privacy: no name is stored.** The model is told never to put a name in a value, and to list the names it
+saw. That list is used only for redaction and is then dropped. Code also finds names the way bulletins write
+them ("Jordan Example, 34", "34-year-old Jordan Example", "Mr. Example"). Every name, and each part of it,
+becomes `[name]` in the quotes, page titles and URLs before anything is traced or cached. Quotes are checked
+against the page first and stored redacted after, so a stored quote is verbatim except for `[name]`. A URL
+whose path holds the name is stored with `[name]` in it, and such a link no longer opens. The mission's
+subject becomes the profile text, which never has a name. The model's raw reply is not traced; only the
+redacted fields are. `tests/agent/test_subject.py` reads every file of the mission after an approval and
+finds no name.
+
+**One proposal, for a person to approve.** A profile with a category becomes a proposal in the normal inbox:
+
+```
+Set subject profile: hiker, 34, red jacket, black hiking pants and a grey backpack, last seen 3:30 p.m.
+at the Mount Seymour trailhead parking lot
+reason: From a public bulletin found with Tavily: Category hiker ("a hiker who did not return from a day
+hike", synthetic demo bulletin); Age 34 ("[name], 34, a hiker", synthetic demo bulletin); Last seen 3:30 p.m.
+("last seen at about 3:30 p.m.", …); … Approving sets the lost-person category to
+hiker/temperate_mountainous: the prior becomes Koester lost-person rings, hiker/temperate_mountainous
+(n=568; Sava, Twardy, Koester & Sonwalkar 2015 …), weight 0.8 + uniform, and the drones are re-planned on it.
+```
+
+Approving it sets the mission's subject to the profile, rebuilds the prior with that category's rings (the
+map's updates so far are replayed on the new prior), and the agent re-plans the drones. Each new leg's reason
+starts "Subject profile p001 approved". The proposal is an `alert` with target `{"subject": "profile", ...}`
+and no briefing, so the radio never sends it. A new proposal kind would change the frozen contract (§10), as
+for the recall. The trace, in order (`actor="agent"`, then the person):
+
+```
+agent  model_call  subject: the model chose to search: missing hiker Mount Seymour police bulletin
+agent  tool_call   Tavily search (subject): missing hiker Mount Seymour police bulletin
+agent  tool_call   Tavily extract: 1 page(s)
+agent  model_call  subject profile extracted with quotes (names redacted)
+agent  proposal    p001 alert: Set subject profile: hiker, 34, red jacket, …
+human  decision    p001 approved by Search manager
+```
+
+**Cost.** At most one search and one extract per mission per clock hour: the redacted result is cached in
+the mission's `subject_cache/<YYYYMMDDHH>.json` and a second request in the hour reuses it with no Tavily call.
+A failed lookup is not cached. While a profile waits for a decision no new search is made, and a profile a
+person rejected is not proposed again.
+
+**Offline demo.** With `SIGHTLINE_FAKE_TAVILY=1` the search returns a synthetic bulletin from the test
+fixtures (`tests/geo/fixtures/subject_bulletin_synthetic.html`). Its page and title say "SYNTHETIC, for the
+demo": the person, the case and the agency are made up, and its URL is on the reserved `.invalid` domain.
+With `SIGHTLINE_FAKE_LLM=1` a scripted model calls the tool and reads that page with the quotes above. The
+trace and the sample proposal above come from that path.
+
+**The live run** (`scripts/subject_live.py --area … --lat … --lon … --last-seen …`) makes a fresh mission at
+the place and time of a resolved, public RCMP or SAR release about a hiker who was found, lets the model write its
+query, and saves `request.json`, `result.json` (values, quotes, URLs), `proposal.json` and `trace.jsonl` under
+`docs/evidence/subject/<timestamp>/`, all redacted. **It has not been run yet:** the branch that added the tool
+had no `TAVILY_API_KEY` or `NEBIUS_API_KEY` in its shell. Until a live run is committed, every result on this
+page comes from the synthetic bulletin and the scripted model.
+
 ## Limits
 
 - Values are only as good as the pages: a forecast phrased unusually leaves a field empty rather than
@@ -139,3 +225,7 @@ fresh lookup before the override, and a recall from real gusts quotes the foreca
   map, they don't measure anything.
 - Alerts are kept only when they name the area and are operational (closures, warnings), so a generic
   regional bulletin doesn't trigger a recall.
+- The bulletin tool reads only what the pages say. A category it cannot quote leaves the prior uniform. The
+  terrain part of the category is the prior's default (temperate mountainous) unless the quote says flat,
+  dry or desert. Name redaction is by pattern and by the model's list: a name written some other way
+  could slip past both, so the tool only searches when a person asks for it.

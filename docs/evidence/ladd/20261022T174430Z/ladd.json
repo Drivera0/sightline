@@ -1,0 +1,75 @@
+{
+  "timestamp": "20261022T174430Z",
+  "synthetic": false,
+  "dataset": {
+    "name": "LADD (Lacmus Drone Dataset)",
+    "root": "/home/driver/sightline/data/ladd/extracted",
+    "archive_sha256": "a5776be947843530d0b914f0fb9079ef549463d67b19e064a0abd02a52f1ac0c",
+    "which": "every photo of the Supervisely copy (datasets ds0; it carries no split)",
+    "photos": 1365,
+    "people": 4733,
+    "photos_without_people": 0,
+    "median_box_short_side_px": 52,
+    "photo_sizes": [
+      "4000x2250",
+      "4000x3000",
+      "4056x2280",
+      "4056x3040",
+      "4864x3648",
+      "5472x3078",
+      "5472x3648"
+    ]
+  },
+  "model": {
+    "onnx": "sightline-detector-v2.onnx",
+    "sha256": "095fcc4340c0b9069e2706999e2cc360d7e973a189d4b722f8dd9143d91dcf88"
+  },
+  "threshold": 0.29,
+  "threshold_source": "frozen on HERIDAL val in sprint 1; not re-chosen",
+  "merge_nms_iou": 0.5,
+  "voc": {
+    "precision": 0.5091,
+    "recall": 0.5164,
+    "ap50": 0.4578
+  },
+  "sar": {
+    "precision": 0.6769,
+    "recall": 0.6488,
+    "ap": 0.6483
+  },
+  "counts": {
+    "found": 2444,
+    "missed": 2289,
+    "false_alarms": 2357,
+    "false_alarms_per_photo": 1.727
+  },
+  "heridal_reference": {
+    "test": {
+      "precision": 0.802,
+      "recall": 0.864,
+      "ap50": 0.868
+    },
+    "test_unseen_sites_recall": 0.825
+  },
+  "run": {
+    "where": "CUDA (cuda, ENGINE_CLASSIC)",
+    "backend": "cuda",
+    "workers": 1,
+    "threads": 32,
+    "photos_detected": 1365,
+    "wall_s": 471.7,
+    "detect_s": 470.7,
+    "s_per_photo": 0.345,
+    "resumed_from_previous": 0
+  },
+  "machine": {
+    "cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+    "logical_cpus": 32,
+    "ram_gb": 30.2,
+    "os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.11.17",
+    "opencv": "5.0.0",
+    "cuda_visible_devices": null
+  },
+  "git_commit": "cf13b4392b4c7cbce8769009cf11bf7ba66abd00"
+}

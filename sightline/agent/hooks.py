@@ -71,3 +71,8 @@ def on_fleet_join(store: Any, mission_id: str) -> None:
 def on_tick(store: Any, mission_id: str) -> None:
     """Every 5 min or 25 photos (D's scheduler): standby teams get ``assign_sector`` proposals."""
     _submit("tick", store, mission_id, mission_id)
+
+
+def on_subject_set(store: Any, mission_id: str, proposal_id: str) -> None:
+    """A subject profile was approved (the prior now has its category): re-plan the drones."""
+    _submit("subject_set", store, mission_id, proposal_id)

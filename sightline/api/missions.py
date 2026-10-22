@@ -480,6 +480,7 @@ def decide(mission_id: str, pid: str, body: Decision, request: Request) -> dict:
         raise HTTPException(409, str(e)) from e
     _trace_decision(store, mission_id, p)
     effects.on_decision(store, mission_id, p)
+    _subject_decision(store, mission_id, p, _ctx(request).hooks)
     return _dump(p)
 
 
@@ -492,6 +493,13 @@ def _trace_decision(store: MissionStore, mission_id: str, p: Any) -> None:
                output={"proposal": p.id, "status": p.status, "by": p.decided_by,
                        "reason": p.decision_reason, "edits": p.edits},
                refs=[p.id, *p.target.values()])  # fmt: skip
+
+
+def _subject_decision(store: MissionStore, mission_id: str, p: Any, hooks: Any) -> None:
+    """A subject profile proposal (the bulletin tool): on approval, the subject and the prior."""
+    from sightline.agent.subject_tool import apply_decision
+
+    apply_decision(store, mission_id, p, hooks)
 
 
 class TaskUpdate(BaseModel):
@@ -638,6 +646,17 @@ def refresh_conditions(mission_id: str, request: Request) -> dict:
         return _dump(_ctx(request).refresh_conditions(mission_id))
     except LookupError as e:
         raise HTTPException(503, str(e)) from None
+
+
+@missions_router.post("/missions/{mission_id}/subject/search")
+def search_subject(mission_id: str, request: Request) -> dict:
+    """The agent's bulletin tool (``sightline/agent/subject_tool.py``): with no lost-person
+    category, the model decides whether to search police, SAR and news sites (Tavily) for a public
+    bulletin; a profile it finds, with quotes and URLs and no names, is a proposal in the inbox."""
+    from sightline.agent import subject_tool
+
+    store = _store(request, mission_id)
+    return subject_tool.search_subject(store, mission_id, client=subject_tool.default_client())
 
 
 class ConditionsOverride(BaseModel):

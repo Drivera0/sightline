@@ -17,6 +17,7 @@ from the facts it was given (``write_briefing``). There is no ``dismiss_detectio
 | conditions   | mission id   | not flyable: ``retask_drone`` home for each flying drone (target ``home``), the reason quoting the Tavily fact and its page; re-plan when visibility drops below 0.6 |
 | leg_done     | leg id       | next ``drone_leg`` for that drone                               |
 | tick         | mission id   | ``assign_sector`` for standby teams                            |
+| subject_search / subject_set | mission id / proposal id | the bulletin tool (``subject_tool``): a ``Set subject profile`` proposal; after its approval, a re-plan |
 
 A repeated event makes no duplicate: a detection is verified once and promoted at most once, and a
 person confirmed again reuses the pending (or approved) alert; the repeat is a trace note.
@@ -795,4 +796,8 @@ def handle(
         return _on_fleet_join(store, mission_id)
     if event == "tick":
         return _on_tick(store, mission_id, client)
+    if event in ("subject_search", "subject_set"):  # the bulletin tool (agent/subject_tool.py)
+        from sightline.agent import subject_tool
+
+        return subject_tool.handle(event, store, mission_id, ref, client=client)
     raise ValueError(f"unknown agent event {event!r}")
