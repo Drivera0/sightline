@@ -36,7 +36,7 @@ describe("vercel.json (the auto-deployed site)", () => {
   it("fetches the in-browser detector into the site's own /models/ before building, without failing the build", () => {
     expect(config.buildCommand).toContain("bash scripts/fetch-model.sh");
     expect(fetchModel).toContain(
-      "https://github.com/Drivera0/sightline/releases/download/model-onnx-v2/sightline-detector-v2.onnx",
+      "https://github.com/Drivera0/sightline/releases/download/model-onnx-v2/sightline-detector-v2-dynamic.onnx",
     );
     expect(fetchModel).toContain('OUT="public/models/sightline-detector-v2.onnx"');
     expect(fetchModel).toMatch(/SHA256="[0-9a-f]{64}"/);
