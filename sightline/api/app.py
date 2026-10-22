@@ -1,6 +1,8 @@
-"""Stretch goal: upload a zip of drone photos, get a cache back (LANE_D section 6.6).
+"""The API: live missions (contract §13, ``sightline/api/missions.py``) and the sprint-1 upload
+of a zip of drone photos that returns a cache (LANE_D section 6.6).
 
-    GET  /health            -> {"status": "ok"}
+    GET  /health            -> {"status": "ok", "contract_version": "1.2", "backend": "cv2" | "torch"}
+    /missions/...           -> the mission API, when ``create_app`` gets ``missions`` or ``mission_root``
     GET  /cache/...         -> the cache folder as static files
     POST /survey            -> zip of JPEGs; runs place -> ... -> export in the background
     GET  /survey/<id>       -> {"status": "running" | "done" | "failed", ...}
@@ -13,6 +15,7 @@ image is decoded and re-saved by Pillow.
 from __future__ import annotations
 
 import io
+import os
 import posixpath
 import re
 import shutil
@@ -27,6 +30,8 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from sightline.api.missions import MissionContext, missions_router
+from sightline.contract import CONTRACT_VERSION
 from sightline.pipeline.formats import SurveyFrameEntry, SurveyFrameFile, write_json
 from sightline.pipeline.geometry import FRAME_H_PX, FRAME_W_PX
 from sightline.pipeline.lanes import Lanes
@@ -48,15 +53,27 @@ def create_app(
     max_upload_bytes: int = 1_000_000_000,
     max_unpacked_bytes: int = 2_000_000_000,
     max_images: int = 1000,
+    missions: MissionContext | None = None,
+    mission_root: Path | None = None,
 ) -> FastAPI:
     cache_root.mkdir(parents=True, exist_ok=True)
     app = FastAPI(title="Sightline upload API")
     jobs: dict[str, dict] = {}
     pipeline_lock = threading.Lock()  # one detector run at a time: the GPU is shared
 
+    if missions is None and mission_root is not None:
+        from sightline.mission import MissionStore
+
+        missions = MissionContext(MissionStore(mission_root))
+        missions.start()
+    if missions is not None:
+        app.state.missions = missions
+        app.include_router(missions_router)
+
     @app.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok"}
+        backend = (os.environ.get("SIGHTLINE_BACKEND") or "cv2").lower()
+        return {"status": "ok", "contract_version": CONTRACT_VERSION, "backend": backend}
 
     @app.post("/survey", status_code=202)
     def post_survey(background_tasks: BackgroundTasks, file: UploadFile) -> dict[str, str]:
