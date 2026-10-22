@@ -104,6 +104,8 @@ export interface SectorNow {
   label: string;
   poa: number;
   drone_coverage: number;
+  /** The outline, a closed [lon, lat] ring (servers before #83 leave it out). */
+  polygon?: [number, number][];
 }
 export const getSectors = (api: Api, id: string) => call<SectorNow[]>(api, "GET", `${m(id)}/sectors`);
 

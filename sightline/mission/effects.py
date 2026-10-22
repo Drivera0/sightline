@@ -52,8 +52,9 @@ def _layout(store: MissionStore, mission_id: str) -> Any | None:
 
 
 def sector_overview(store: MissionStore, mission_id: str) -> list[dict]:
-    """Each sector now: label, POA on the live map, and drone coverage (the share of its cells a
-    photo has looked at). For ``GET /sectors`` (the command view) and the debrief."""
+    """Each sector now: label, POA on the live map, drone coverage (the share of its cells a photo
+    has looked at) and its outline (closed [lon, lat] ring). For ``GET /sectors`` (the command view
+    and the live map) and the debrief."""
     from sightline.geo.cards import sector_label
 
     layout = _layout(store, mission_id)
@@ -72,6 +73,7 @@ def sector_overview(store: MissionStore, mission_id: str) -> list[dict]:
                 "label": sector_label(s.id),
                 "poa": round(poa[s.id], 4),
                 "drone_coverage": round(seen, 3),
+                "polygon": [list(c) for c in layout.polygon(s.id, live.base.grid)],
             }
         )
     return out

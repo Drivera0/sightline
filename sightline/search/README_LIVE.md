@@ -24,7 +24,8 @@ reported as "photo outside the search area" in `photo.processed`.
 
 - [x] **C-P1** planner (`planner.py`: `candidate_legs`, `expected_clearance`, `propose_legs`, `propose_assignments`; lane A, `tests/search/test_planner.py`). The agent's stand-ins (`sightline/agent/_stubs.py`) are deleted
 - [ ] C-S1 rest: `build_sectors` port of `web/src/map/heat/sectors.ts` for demo caches, `sector_vectors.json`
-- [ ] TS mirror: `applyReweight`, `replayLive`, heat layer on `useMission().mapBase/mapUpdates`, `latticeSectors`
+- [x] **C-H1** (lane A): `web/src/search/live.ts` (`applyReweight`, `replayLive`, `LiveHeat` with a checkpoint every 25) checked against `LiveMap.apply` on `live_cases` in the shared vectors (1e-9); `web/src/map/heat/LiveHeatMap.tsx` on the Command tab: heat tweened per `map.updated`, sector outlines with POA now (from `GET /sectors`, which now carries each `polygon`), LKP, clues, teams. Checked in Chromium: a new photo appears and its sector's POA drops. `HeatLayer` (demo caches) is unchanged
+- [ ] TS `latticeSectors` (not needed by the live map: the server sends the outlines)
 - [x] **C-P2** planner evaluation, simulated (`planner_sim.py`, `scripts/planner_eval.py`, `tests/search/test_planner_sim.py`; lane A): no better than a fixed order with a flat prior; 1.7× the finds within 30 min after a clue
 - [x] **C-D1** debrief (`debrief.py`, `tests/search/test_debrief.py`; lane A): tables from the log (timeline, sightings with second look and review, proposals and decisions, sectors with drone coverage and "searched by Team Two at POD 50 %", conditions over time, clues, unsearched by POA, trace counts) and an optional narrative checked against the tables' numbers. "clear" in free text from the log is masked. `debrief()` takes `sectors=` (rows of `GET /sectors`, now `effects.sector_overview`) because the state has no layout. Served at `GET /missions/{id}/debrief.md` (`?narrative=true` for the model paragraph)
 - [ ] Fleet sim, scenarios

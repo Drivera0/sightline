@@ -173,7 +173,46 @@ def build_test_vectors(seed: int = SEED) -> dict[str, Any]:
         "step_cases": step_cases,
         "radius_cases": radius_cases,
         "review_cases": review_cases,
+        "live_cases": _live_cases(seed + 1),
     }
+
+
+def _live_cases(seed: int) -> list[dict[str, Any]]:
+    """A live mission's map (C-L1): ``map_base`` + a log of step and reweight updates, with the
+    state after each from ``LiveMap.apply`` (the TS ``replayLive`` must agree)."""
+    from sightline.contract import CONTRACT_VERSION, Distribution, MapBase, MapUpdate, Params
+    from sightline.search.live import LiveMap
+
+    rng = np.random.default_rng(seed)
+    grid = make_grid(DEMO_LKP, size_m=100.0, cell_m=20.0)
+    n = grid.rows * grid.cols
+    cases = []
+    for k in range(3):
+        p, outside = _random_prior(rng, n)
+        base = MapBase(
+            contract_version=CONTRACT_VERSION,
+            grid=grid,
+            lkp=DEMO_LKP,
+            params=Params(recall=0.8, recall_source="vectors", pod_cap=0.95, review_pod=0.9),
+            prior=Distribution(p=[float(x) for x in p], outside=float(outside)),
+            canopy=[None] * n,
+        )
+        live = LiveMap.from_base(base)
+        updates, after = [], []
+        for seq in range(1, 31):  # past one checkpoint (every 25)
+            if rng.random() < 0.6:
+                kind, cells = "step", _random_step(rng, n)
+            else:
+                idx = rng.choice(n, size=int(rng.integers(1, 8)), replace=False)
+                kind, cells = "reweight", [(int(i), float(rng.uniform(0.2, 6.0))) for i in idx]
+            u = MapUpdate(seq=seq, kind=kind, source="frame" if kind == "step" else "clue",
+                          ref=None, cells=cells, at="2026-10-24T22:00:00Z")  # fmt: skip
+            live.apply(u)
+            updates.append(u.model_dump(mode="json"))
+            after.append(_state(*live.p()))
+        cases.append({"name": f"5x5 live {k}", "base": base.model_dump(mode="json"),
+                      "updates": updates, "after": after})  # fmt: skip
+    return cases
 
 
 # Write the vectors file the vitest suite reads.
