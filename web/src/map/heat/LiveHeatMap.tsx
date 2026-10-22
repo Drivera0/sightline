@@ -120,6 +120,7 @@ function LiveLayers({
   proposals = [],
   now,
   onBasemap,
+  onReady,
 }: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase; onBasemap?: (kind: BasemapKind) => void }): ReactNode {
   const { map, onPick } = useMap();
   const links = useMission((s) => s.links);
@@ -141,6 +142,22 @@ function LiveLayers({
   const [readyMap, setReadyMap] = useState<Map | null>(null);
   const ready = map !== null && readyMap === map;
   const drawn = useRef(false);
+  // once the layers are in, the next quiet moment (or 1.5 s at most) means the map is on screen
+  const told = useRef(false);
+  useEffect(() => {
+    if (!ready || !map || told.current || !onReady) return undefined;
+    const tell = () => {
+      if (told.current) return;
+      told.current = true;
+      onReady();
+    };
+    const timer = window.setTimeout(tell, 1500);
+    map.once("idle", tell);
+    return () => {
+      window.clearTimeout(timer);
+      map.off("idle", tell);
+    };
+  }, [ready, map, onReady]);
   const droneTargets = useRef<Record<string, MapTarget>>({});
   const teamTargets = useRef<Record<string, MapTarget>>({});
 
@@ -549,6 +566,8 @@ export interface LiveHeatMapProps {
   now?: Date;
   /** Fill the parent's height (the command console), with the legend floating on the map. */
   fill?: boolean;
+  /** Called once the map has its layers and has drawn them (a still stand-in can fade out then). */
+  onReady?: () => void;
 }
 
 const TEAM_WORDS: Record<Team["status"], string> = { standby: "standby", assigned: "assigned", searching: "searching", returning: "returning", off_duty: "off duty" };
