@@ -71,3 +71,5 @@ message.txt
 cache/demo-*/
 web/public/cache/demo-*/
 crop_*.jpg
+deploy/nebius/.job/
+deploy/nebius/.state.env
