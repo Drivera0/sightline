@@ -212,3 +212,23 @@ def test_live_needs_a_map_until_c_lands(store, mission_id) -> None:
         store.live(mission_id)
     store.live_maps[mission_id] = sentinel = object()
     assert store.live(mission_id) is sentinel
+
+
+def test_no_committed_trace_carries_a_secret() -> None:
+    """§6 test 7, on the real thing: every trace committed to the repo (the report's evidence) has no
+    API key, bearer token or key-shaped string."""
+    import re
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    files = subprocess.run(
+        ["git", "ls-files", "*.jsonl"], cwd=root, capture_output=True, text=True, check=True
+    ).stdout.split()
+    assert files, "no committed traces found"
+    secret = re.compile(
+        r"Bearer\s+[A-Za-z0-9._-]{12,}|tvly-[A-Za-z0-9]{8,}|nvapi-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|\"api_key\":\s*\"[^\"\[]"
+    )
+    for f in files:
+        text = (root / f).read_text(encoding="utf-8")
+        assert not secret.search(text), f

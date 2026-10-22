@@ -68,12 +68,23 @@ def _upload(client: TestClient, mid: str, *photos: tuple[str, bytes]):
 
 
 def test_health_names_the_contract_and_backend(api) -> None:
-    client, _, _ = api
+    client, ctx, _ = api
     assert client.get("/health").json() == {
         "status": "ok",
         "contract_version": "1.2",
         "backend": "cv2",
+        "detector": None,  # nothing loaded yet: the first photo loads it
     }
+    _upload(client, _mission(client), ("a.jpg", drone_photo()))
+    ctx.queue.join()
+    assert client.get("/health").json()["detector"] == "fake"  # what actually ran, by class
+
+
+def test_health_shows_a_fallback_by_the_detector_class() -> None:
+    from sightline.api.app import detector_name
+
+    Detector = type("Detector", (), {})  # the torch class name: a missing ONNX falls back to it
+    assert detector_name(Detector()) == "torch"
 
 
 def test_a_new_mission_has_a_map_and_four_teams_on_standby(api) -> None:

@@ -90,9 +90,19 @@ def create_app(
     )
 
     @app.get("/health")
-    def health() -> dict[str, str]:
+    def health() -> dict[str, str | None]:
+        """``backend``: the configured detector. ``detector``: the one this process actually loaded
+        (``cv2``/``torch``/``fake``; a missing ONNX falls back to torch), or null when none is loaded
+        here yet (or the worker runs it, as on AWS)."""
         backend = (os.environ.get("SIGHTLINE_BACKEND") or "cv2").lower()
-        return {"status": "ok", "contract_version": CONTRACT_VERSION, "backend": backend}
+        ctx = getattr(app.state, "missions", None)
+        loaded = getattr(ctx, "_detector", None) if ctx is not None else None
+        return {
+            "status": "ok",
+            "contract_version": CONTRACT_VERSION,
+            "backend": backend,
+            "detector": None if loaded is None else detector_name(loaded),
+        }
 
     @app.post("/survey", status_code=202)
     def post_survey(background_tasks: BackgroundTasks, file: UploadFile) -> dict[str, str]:
@@ -146,6 +156,12 @@ def create_app(
 
     app.mount("/cache", StaticFiles(directory=cache_root), name="cache")
     return app
+
+
+def detector_name(det: object) -> str:
+    """ "cv2", "torch" or "fake" for a detector object (by class, so a fallback shows)."""
+    name = type(det).__name__
+    return {"CvDetector": "cv2", "Detector": "torch", "FakeDetector": "fake"}.get(name, name)
 
 
 def mission_context(mission_root: Path, queue: str = "local") -> MissionContext:
