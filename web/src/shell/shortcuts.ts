@@ -21,8 +21,8 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Everywhere",
     shortcuts: [
-      { keys: ["1", "2", "3", "4", "5"], description: "Jump to a step: Survey, Rank, Review, Search next, Results" },
-      { keys: ["C"], description: "Command view (the demo mission, or this mission's Command tab)" },
+      { keys: ["1", "2", "3", "4", "5", "6"], description: "Jump to a step: Survey, Rank, Review, Search next, Command, Results" },
+      { keys: ["C"], description: "Command view (the demo's Command step, or this mission's Command tab)" },
       { keys: ["T"], description: "Watch the guided tour (any key or click stops it)" },
       { keys: ["?"], description: "Show or hide this list" },
       { keys: ["Esc"], description: "Close" },

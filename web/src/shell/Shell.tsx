@@ -14,9 +14,12 @@ import { ResultsSummary } from "../metrics/ResultsSummary";
 import { reviewItems } from "../review/items";
 import { useReview } from "../review/store";
 import { ReviewView } from "../review/ReviewView";
+import { LiveMission } from "../ingest/LiveMission";
+import { DEMO_MISSION_ID } from "../command/demoMission";
 import { AppMenu, type MenuItem } from "./AppMenu";
 import { Badge, Label } from "./components";
 import { InfoTip } from "./Popover";
+import { Logo } from "./Logo";
 import { STEPS, nextStep, previousStep, stepFromHash, stepFromKey, type StepId } from "./flow";
 import { RankReveal } from "./RankReveal";
 import { ScreenBoundary } from "./ScreenBoundary";
@@ -208,24 +211,13 @@ function StepHeader({ title, subtitle, info }: { title: string; subtitle: string
   );
 }
 
-/** A viewfinder ring with a centre dot: what the product does, in one glyph. */
-function Logo() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-6" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.5" fill="none" stroke="var(--accent)" strokeWidth="1.75" />
-      <path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4" stroke="var(--accent)" strokeWidth="1.75" strokeLinecap="round" />
-      <circle cx="12" cy="12" r="2.25" fill="var(--text)" />
-    </svg>
-  );
-}
-
 /** Reads the guided-demo step encoded in the current URL hash. */
 function readStep(): StepId {
   return typeof window === "undefined" ? "survey" : stepFromHash(window.location.hash);
 }
 
 /**
- * The guided demo: Survey -> Rank -> Review (queue beside the live map) -> Search next -> Results.
+ * The guided demo: Survey -> Rank -> Review (queue beside the live map) -> Search next -> Command -> Results.
  * One screen at a time, a step bar that always shows where you are, and the step in the URL hash
  * (so a presenter can open any step directly, e.g. /#review).
  */
@@ -302,7 +294,7 @@ export function Shell({
         return;
       }
       if (event.key === "c" || event.key === "C") {
-        window.location.hash = "#m/demo/command"; // the command view on the demo mission (no API needed)
+        setStep("operate"); // the command view on the demo mission (no API needed)
         event.preventDefault();
         return;
       }
@@ -334,7 +326,7 @@ export function Shell({
       ? [{ label: "New search", detail: "Start a live mission with your own photos", onSelect: () => (window.location.hash = "#new") }]
       : []),
     { label: "Keyboard shortcuts", hint: "?", onSelect: () => setShowShortcuts(true) },
-    { label: "Take the tour", detail: "The five steps, played for you", hint: "T", onSelect: startTour },
+    { label: "Take the tour", detail: "The six steps, played for you", hint: "T", onSelect: startTour },
     {
       label: modelBg ? "Background animation: on" : "Background animation: off",
       detail: modelBg ? "The detector's layers behind the intro · turn off" : "Turn on the detector's layers behind the intro",
@@ -385,9 +377,11 @@ export function Shell({
       <div className="flex min-h-full flex-col gap-4 px-4 pb-4 lg:h-full">
         <header className="relative flex h-14 shrink-0 items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-4">
-            <h1 className="flex shrink-0 items-center gap-2 text-title font-medium">
-              <Logo />
-              Sightline
+            <h1 className="shrink-0 text-title font-medium">
+              <a href="#" className="flex items-center gap-2" title="Back to the start">
+                <Logo />
+                Sightline
+              </a>
             </h1>
             <SurveyPicker
               name={shortSurveyName(survey.area.name)}
@@ -470,6 +464,21 @@ export function Shell({
                 <div className="flex-1 lg:min-h-0">{map("search")}</div>
               </PanelSlotContext.Provider>
               <div ref={setSearchPanelSlot} className="lg:hidden" data-testid="search-panel-slot" />
+              <StepNav onBack={() => setStep(previousStep(step))} onNext={() => setStep(nextStep(step))} next="Run the search" />
+            </>
+          )}
+
+          {step === "operate" && (
+            <>
+              <StepHeader
+                title="Running the search"
+                subtitle="Demo mission, simulated: teams, drones and clues on one map. The agent proposes; a person approves."
+              />
+              <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                <ScreenBoundary name="Command">
+                  <LiveMission api={NO_API} missionId={DEMO_MISSION_ID} initialTab="command" embedded />
+                </ScreenBoundary>
+              </div>
               <StepNav onBack={() => setStep(previousStep(step))} onNext={() => setStep(nextStep(step))} next="See results" />
             </>
           )}
@@ -511,6 +520,9 @@ export function Shell({
     </CacheContext.Provider>
   );
 }
+
+/** The Command step's demo mission reads fixtures, not the API (one object, so its effects don't rerun). */
+const NO_API = { base: "" };
 
 const MODEL_BG_KEY = "sightline.modelBackground";
 

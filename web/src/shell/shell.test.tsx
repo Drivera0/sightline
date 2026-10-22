@@ -150,6 +150,8 @@ describe("Shell steps (replace the old tabs)", () => {
     // The heat layer is inside the map, not a sibling of it.
     expect(within(screen.getByTestId("map-view")).getByTestId("mount-heat")).toBeInTheDocument();
     await userEvent.keyboard("5");
+    expect(screen.getByRole("heading", { name: "Running the search" })).toBeInTheDocument();
+    await userEvent.keyboard("6");
     expect(screen.getByTestId("mount-metrics")).toBeInTheDocument();
     await userEvent.keyboard("1");
   });

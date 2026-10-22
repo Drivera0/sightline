@@ -1,5 +1,5 @@
 // The guided tour: a judge who opens the link alone gets the story told for them, one caption per
-// stop, while the app moves itself through the five steps. Pure: the stops (captions built from
+// stop, while the app moves itself through the six steps. Pure: the stops (captions built from
 // the cache's own numbers) and the state machine that steps through them. The overlay owns the
 // clock; Shell owns the side effects (changing step, the demo answer, pressing play).
 
@@ -142,6 +142,15 @@ export function tourStops(cache: CacheBundle): TourStop[] {
       ms: 12000,
       action: "playFlight",
       actionAtMs: 1500,
+    },
+    {
+      id: "operate",
+      step: "operate",
+      title: "Running the search",
+      body:
+        "The command view on a demo mission (simulated): teams, drones and clues on the live map, and the agent's " +
+        "proposals waiting for a person to approve them. Nothing is sent to a team without that approval.",
+      ms: 8000,
     },
     {
       id: "results",

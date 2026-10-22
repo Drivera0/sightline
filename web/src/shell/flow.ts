@@ -1,6 +1,6 @@
 /** The guided demo flow: one step at a time, in the order the pitch tells the story. */
 
-export type StepId = "survey" | "rank" | "review" | "search" | "results";
+export type StepId = "survey" | "rank" | "review" | "search" | "operate" | "results";
 
 export interface Step {
   id: StepId;
@@ -14,6 +14,8 @@ export const STEPS: readonly Step[] = [
   { id: "rank", label: "Rank", hint: "The detector scores every photo" },
   { id: "review", label: "Review", hint: "Answer each candidate; people you mark are pinned as sightings" },
   { id: "search", label: "Search next", hint: "Where the person could still be" },
+  // "operate", not "command": "#command" is already the standalone command view's address
+  { id: "operate", label: "Command", hint: "Run the search: teams, drones, clues and the agent's proposals" },
   { id: "results", label: "Results", hint: "How well it works, with sources" },
 ];
 
@@ -46,7 +48,7 @@ export function stepFromHash(hash: string): StepId {
   return (IDS as string[]).includes(id) ? (id as StepId) : "survey";
 }
 
-/** Number keys 1-5 jump to a step. */
+/** Number keys 1-6 jump to a step. */
 export function stepFromKey(key: string): StepId | null {
   const n = Number.parseInt(key, 10);
   return String(n) === key && n >= 1 && n <= IDS.length ? (IDS[n - 1] as StepId) : null;
