@@ -1,6 +1,6 @@
 // A live mission (LANE_D §5.5–5.6: D-I1 progress, D-Q1 review in live mode, D-L1 first pass):
 // photos in, candidates reviewed, everything that happens in the feed, all from useMission. Lane E's
-// command view and lane C's live heat mount here when they land. Built by lane A for lane D (#51).
+// command view and lane C's live heat (above it, on the Command tab) mount here. Built by lane A for lane D (#51).
 
 import { useEffect, useState } from "react";
 import type { Api } from "../lib/api";
@@ -8,6 +8,7 @@ import { fileUrl } from "../lib/api";
 import { photoProgress, useMission } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
+import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { Badge, Label, Panel, Stat } from "../shell/components";
 import { RadioDesk } from "../radio/RadioDesk";
 import { LiveReview } from "../review/LiveReview";
@@ -144,6 +145,9 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         </p>
       )}
 
+      {tab === "command" && (
+        <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} />
+      )}
       {tab === "command" && (
         <CommandView
           mission={s.mission}
