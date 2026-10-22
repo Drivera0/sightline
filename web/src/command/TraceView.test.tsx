@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { TraceEntry } from "../contract";
 import { loadDemoTrace } from "./demoMission";
-import { chains, inputSummary, modelUse, outputSummary, parseTrace, spanName, stageOf } from "./trace";
+import { chains, inputSummary, isPlannerCall, modelUse, outputSummary, parseTrace, plannedProposals, plannerRanked, spanName, stageOf } from "./trace";
 import { TraceView } from "./TraceView";
 
 const entry = (over: Partial<TraceEntry>): TraceEntry => ({
@@ -42,6 +42,26 @@ describe("trace helpers", () => {
     const conditions = runs[2]!.entries;
     expect(spanName(conditions[0]!)).toBe("Tavily search (forecast)");
     expect(outputSummary(conditions[4]!)).toBe("wind_kmh 20 (“NW 20”) · gust_kmh 40 (“gusts 40”) · 0 alerts");
+  });
+
+  it("puts a planner tool_call under decision, with its ranking and the proposal it produced", async () => {
+    const { runs } = await loadDemoTrace();
+    const own = runs[0]!.entries;
+    const planner = own.find((e) => e.id === "t000024")!;
+    expect(isPlannerCall(planner)).toBe(true);
+    expect(stageOf(planner)).toBe("decision");
+    // a tool_call that only looks (an OpenCV zoom) stays perception
+    expect(stageOf(runs[1]!.entries[1]!)).toBe("perception");
+    // no "planner" actor, but a ranking and a choice: still the planner
+    expect(stageOf(entry({ kind: "tool_call", actor: "agent", output: { ranked: [], chosen: [] } }))).toBe("decision");
+    expect(plannerRanked(planner)!.map((r) => r.sector)).toEqual(["C2", "B2", "C3"]);
+    expect(plannerRanked(entry({ kind: "tool_call", actor: "planner", output: { ranked: [{ sector: "B3", score_per_min: 0.02, evidence: "x" }], chosen: [] } }))).toEqual([
+      { sector: "B3", score: 0.02, evidence: "x" },
+    ]);
+    expect(outputSummary(planner)).toBe("ranked C2 0.03, B2 0.028, C3 0.028");
+    const chain = chains(own).find((c) => c.entries.includes(planner))!;
+    expect(plannedProposals(chain.entries, planner).map((e) => e.id)).toEqual(["t000026"]);
+    expect(chain.stages).toEqual(["decision", "action", "approval"]);
   });
 
   it("counts which model did what, and the tools", () => {
@@ -87,6 +107,19 @@ describe("TraceView", () => {
   it("says so when there is nothing yet", () => {
     render(<TraceView runs={[{ label: null, source: null, entries: [] }]} />);
     expect(screen.getByLabelText("Trace")).toHaveTextContent("No trace yet.");
+  });
+
+  it("shows a planner step under Decision with its top three sectors and a link to the proposal it produced", async () => {
+    const { runs } = await loadDemoTrace();
+    render(<TraceView runs={runs} />);
+    const step = screen.getByRole("listitem", { name: "Tool t000024" });
+    expect(step).toHaveTextContent("Decision");
+    const ranked = within(step).getAllByRole("listitem");
+    expect(ranked.map((li) => li.getAttribute("data-sector"))).toEqual(["C2", "B2", "C3"]);
+    expect(ranked[0]).toHaveTextContent("1. C2 score 0.0301: C2 · 5.5 % of remaining probability, up from 3.1 %: c001");
+    const link = within(step).getByRole("link", { name: "p003" });
+    const target = document.getElementById(link.getAttribute("href")!.slice(1));
+    expect(target).toHaveAttribute("aria-label", "Proposal t000026");
   });
 
   it('never says "clear"', async () => {

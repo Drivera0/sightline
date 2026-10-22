@@ -12,10 +12,14 @@ import {
   chains,
   imagesOf,
   inputSummary,
+  isPlannerCall,
   isScripted,
   modelUse,
   msOf,
   outputSummary,
+  plannedProposals,
+  plannerRanked,
+  proposalIdOf,
   SPAN_WORDS,
   spanName,
   STAGE_WORDS,
@@ -62,7 +66,7 @@ export function TraceView({ runs, imageUrl, empty }: { runs: readonly TraceRun[]
     <section aria-label="Trace" className="flex flex-col gap-4">
       <ModelStrip entries={all} chainCount={runs.reduce((n, r) => n + chains(r.entries).length, 0)} />
       {runs.map((run, i) => (
-        <RunView key={run.source ?? i} run={run} imageUrl={imageUrl} />
+        <RunView key={run.source ?? i} run={run} runKey={`r${i}`} imageUrl={imageUrl} />
       ))}
     </section>
   );
@@ -109,7 +113,7 @@ function ModelStrip({ entries, chainCount }: { entries: readonly TraceEntry[]; c
   );
 }
 
-function RunView({ run, imageUrl }: { run: TraceRun; imageUrl?: (rel: string) => string | null }) {
+function RunView({ run, runKey, imageUrl }: { run: TraceRun; runKey: string; imageUrl?: (rel: string) => string | null }) {
   const cs = chains(run.entries).reverse(); // the latest chain on top
   return (
     <div role="group" className="flex flex-col gap-3" aria-label={run.label ?? "This mission's trace"}>
@@ -121,7 +125,7 @@ function RunView({ run, imageUrl }: { run: TraceRun; imageUrl?: (rel: string) =>
         </div>
       )}
       {cs.map((c) => (
-        <ChainView key={c.id} chain={c} imageUrl={imageUrl} />
+        <ChainView key={c.id} chain={c} runKey={runKey} imageUrl={imageUrl} />
       ))}
     </div>
   );
@@ -134,7 +138,10 @@ function outcomeWords(o: Outcome): [Tone, string] {
   return [o.status === "approved" ? "ok" : "muted", `${o.proposal} ${o.kind} → ${o.status}${o.by ? ` by ${o.by}` : ""}`];
 }
 
-function ChainView({ chain, imageUrl }: { chain: Chain; imageUrl?: (rel: string) => string | null }) {
+/** The element id of a step, for a link from the planner step to the proposal it produced. */
+const stepAnchor = (runKey: string, e: TraceEntry) => `trace-${runKey}-${e.id}`;
+
+function ChainView({ chain, runKey, imageUrl }: { chain: Chain; runKey: string; imageUrl?: (rel: string) => string | null }) {
   const title = chain.refs.length ? chain.refs.join(" · ") : `${chain.actors.join(", ")} · ${chain.entries.length} steps`;
   let lastStage: string | null = null;
   const { time } = useClock();
@@ -187,7 +194,8 @@ function ChainView({ chain, imageUrl }: { chain: Chain; imageUrl?: (rel: string)
           const stage = stageOf(e);
           const first = stage !== lastStage;
           lastStage = stage;
-          return <Step key={e.id} e={e} stage={first ? STAGE_WORDS[stage] : null} imageUrl={imageUrl} />;
+          const produced = isPlannerCall(e) ? plannedProposals(chain.entries, e).map((x) => ({ id: proposalIdOf(x), href: `#${stepAnchor(runKey, x)}` })) : [];
+          return <Step key={e.id} e={e} anchor={stepAnchor(runKey, e)} stage={first ? STAGE_WORDS[stage] : null} produced={produced} imageUrl={imageUrl} />;
         })}
       </ol>
     </article>
@@ -269,12 +277,61 @@ function RelookRow({ chain }: { chain: Chain }) {
   );
 }
 
-function Step({ e, stage, imageUrl }: { e: TraceEntry; stage: string | null; imageUrl?: (rel: string) => string | null }) {
+/** A planner step's best three sectors (score and the evidence line) and the proposals it led to. */
+function PlannerRanked({ e, produced }: { e: TraceEntry; produced: readonly { id: string; href: string }[] }) {
+  const ranked = plannerRanked(e) ?? [];
+  if (!ranked.length && !produced.length) return null;
+  return (
+    <div role="group" aria-label="Planner ranking" className="flex flex-col gap-1 px-4 pb-2 text-caption md:pl-[7.25rem]">
+      {ranked.length > 0 && (
+        <ol className="flex flex-col gap-0.5" aria-label="Ranked sectors">
+          {ranked.map((r, i) => (
+            <li key={`${r.sector}-${i}`} data-sector={r.sector} className="text-text-2">
+              <span className="font-mono text-text">
+                {i + 1}. {r.sector}
+              </span>{" "}
+              <span className="font-mono text-text-3">score {r.score === null ? "–" : String(Number(r.score.toPrecision(3)))}</span>
+              {r.evidence && <span>: {r.evidence}</span>}
+            </li>
+          ))}
+        </ol>
+      )}
+      {produced.length > 0 && (
+        <p className="text-text-2">
+          <span className="text-text-3">Led to: </span>
+          {produced.map((p, i) => (
+            <span key={p.id}>
+              {i > 0 && ", "}
+              <a href={p.href} className="font-mono text-accent underline">
+                {p.id}
+              </a>
+            </span>
+          ))}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Step({
+  e,
+  anchor,
+  stage,
+  produced = [],
+  imageUrl,
+}: {
+  e: TraceEntry;
+  anchor?: string;
+  stage: string | null;
+  /** For a planner step: the proposals it produced, with links to their steps. */
+  produced?: readonly { id: string; href: string }[];
+  imageUrl?: (rel: string) => string | null;
+}) {
   const [open, setOpen] = useState(false);
   const ms = msOf(e);
   const images = imageUrl ? imagesOf(e).map((rel) => [rel, imageUrl(rel)] as const).filter((x): x is readonly [string, string] => !!x[1]) : [];
   return (
-    <li aria-label={`${SPAN_WORDS[e.kind]} ${e.id}`} className="text-small">
+    <li id={anchor} aria-label={`${SPAN_WORDS[e.kind]} ${e.id}`} className="scroll-mt-4 text-small">
       <button
         type="button"
         aria-expanded={open}
@@ -300,6 +357,7 @@ function Step({ e, stage, imageUrl }: { e: TraceEntry; stage: string | null; ima
         </span>
         <span className="text-right font-mono text-caption text-text-2">{ms === null ? "–" : seconds(ms)}</span>
       </button>
+      {isPlannerCall(e) && <PlannerRanked e={e} produced={produced} />}
       {open && (
         <div className="flex flex-col gap-2 px-4 pb-3 md:pl-[7.25rem]">
           <p className="text-caption text-text-2">

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Clue, MapBase, MapUpdate, Proposal } from "../contract";
 import type { SectorNow } from "../lib/api";
 import fixture from "./__fixtures__/demo_mission.json";
-import { clueLine, clueShifts } from "./clueShift";
+import { clueLine, clueNoteFor, clueShifts, reasonNamesClues } from "./clueShift";
 import { STORY_PROPOSAL, STORY_SECTOR } from "./missionTime";
 
 const GRID = { origin_nw: { lat: 49.374492, lon: -122.951898 }, cell_m: 5, rows: 200, cols: 200 };
@@ -33,6 +33,17 @@ describe("clue shifts", () => {
     expect(clueLine(shifts.get("C3"))).toContain("c003 (blue water bottle by the creek crossing) raised C3");
     expect(clueLine(shifts.get("A1"))).toBeNull();
     expect(clueLine(undefined)).toBeNull();
+  });
+
+  it("drops the line when the reason already names its clues; keeps it for an older reason", () => {
+    const story = fx.proposals.find((p) => p.id === STORY_PROPOSAL)!;
+    const line = clueLine(shifts.get(STORY_SECTOR));
+    expect(reasonNamesClues(story.reason)).toBe(true); // the planner's evidence format: "c001 (hiker at the lot saw…) … raised it"
+    expect(clueNoteFor(story.reason, line)).toBeNull();
+    const old = "Sector C2 holds 5.5 % of the probability; 48% under tree cover.";
+    expect(reasonNamesClues(old)).toBe(false); // "C2" is a sector, not a clue
+    expect(clueNoteFor(old, line)).toBe(line);
+    expect(clueNoteFor(old, null)).toBeNull();
   });
 
   it("ground searches and frames move the map but are not clues", () => {

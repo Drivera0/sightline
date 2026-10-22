@@ -571,6 +571,12 @@ def test_briefing_prompt_states_the_budget_and_the_examples() -> None:
     assert loop.check_briefing(prompts._BRIEFING_GOOD, example) == []
     assert len(prompts._BRIEFING_GOOD.split()) <= prompts.BRIEFING_TARGET_WORDS
     assert "more than 60 words" in loop.check_briefing(prompts._BRIEFING_BAD, example)
+    # the example's reason is in the planner's evidence format and within its word budget
+    assert len(example["why"].split()) <= loop.REASON_WORDS
+    assert re.match(
+        r"D4 · [\d.]+ % of remaining probability, up from [\d.]+ %: c\d{3} \(", example["why"]
+    )
+    assert "c007" in prompts._BRIEFING_GOOD
 
 
 def test_retry_prompt_quotes_the_reason_and_the_word_count() -> None:

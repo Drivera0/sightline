@@ -46,7 +46,57 @@ export function parseTrace(jsonl: string): TraceEntry[] {
   return out;
 }
 
+/** A planner step (agent.md, "The planner as a tool call"): a tool_call by the planner, or one that returns a ranking and a choice. */
+export function isPlannerCall(e: TraceEntry): boolean {
+  if (e.kind !== "tool_call") return false;
+  const o = e.output;
+  return e.actor === "planner" || (isObj(o) && Array.isArray(o.ranked) && "chosen" in o);
+}
+
+export interface RankedSector {
+  sector: string;
+  /** `score` for teams (POA × (1 − drone POD)), `score_per_min` for drone legs. */
+  score: number | null;
+  evidence: string | null;
+}
+
+/** The planner's best sectors, top `n` (3 by default), or null when the entry is not a planner call. */
+export function plannerRanked(e: TraceEntry, n = 3): RankedSector[] | null {
+  const o = e.output;
+  if (!isPlannerCall(e) || !isObj(o) || !Array.isArray(o.ranked)) return null;
+  return o.ranked
+    .filter(isObj)
+    .slice(0, n)
+    .map((r) => {
+      const score = typeof r.score === "number" ? r.score : typeof r.score_per_min === "number" ? r.score_per_min : null;
+      return { sector: String(r.sector ?? "?"), score, evidence: typeof r.evidence === "string" ? r.evidence : null };
+    });
+}
+
+/**
+ * The proposals a planner step produced: the proposal entries after it in its chain, up to the next
+ * planner step, that share one of its refs (the picked teams or drones, their sectors, the cause).
+ */
+export function plannedProposals(entries: readonly TraceEntry[], planner: TraceEntry): TraceEntry[] {
+  const i = entries.indexOf(planner);
+  if (i < 0 || !isPlannerCall(planner)) return [];
+  const own = new Set(planner.refs);
+  const out: TraceEntry[] = [];
+  for (const e of entries.slice(i + 1)) {
+    if (isPlannerCall(e)) break;
+    if (e.kind === "proposal" && e.refs.some((r) => own.has(r))) out.push(e);
+  }
+  return out;
+}
+
+/** A proposal entry's id ("p003"). */
+export function proposalIdOf(e: TraceEntry): string {
+  const o = e.output;
+  return isObj(o) && typeof o.proposal === "string" ? o.proposal : (e.refs.find((r) => /^p\d/.test(r)) ?? e.id);
+}
+
 export function stageOf(e: TraceEntry): Stage {
+  if (isPlannerCall(e)) return "decision"; // the planner chooses; it does not look
   switch (e.kind) {
     case "proposal":
       return "action";
@@ -137,6 +187,8 @@ export function outputSummary(e: TraceEntry): string {
     return short(`${o.results.length} results${isObj(first) && typeof first.title === "string" ? `: ${first.title}` : ""}`);
   }
   if (typeof o.image === "string") return o.image;
+  const ranked = plannerRanked(e);
+  if (ranked) return short(`ranked ${ranked.map((r) => `${r.sector} ${r.score === null ? "?" : compact(r.score)}`).join(", ")}`);
   return short(compact(o));
 }
 

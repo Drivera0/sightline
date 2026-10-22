@@ -55,3 +55,19 @@ export function clueLine(shifts: readonly ClueShift[] | undefined): string | nul
   if (!up.length) return null;
   return up.map((x) => `${x.clue}${x.text ? ` (${x.text})` : ""} raised ${x.sector} from ${pct(x.before)} to ${pct(x.after)}`).join("; ");
 }
+
+/** A clue id in a reason ("c001"): the planner's reasons name their evidence (agent.md, "Reasons name their evidence"). */
+const CLUE_ID = /\bc\d{2,}\b/;
+
+/** Whether a proposal's reason already names the clues behind it, so the card needs no line of its own. */
+export function reasonNamesClues(reason: string): boolean {
+  return CLUE_ID.test(reason);
+}
+
+/**
+ * The card's clue line, or null when the reason already names its clues (any planner reason since the
+ * evidence format); the line stays for reasons written before it (old fixtures, older missions).
+ */
+export function clueNoteFor(reason: string, line: string | null): string | null {
+  return line && !reasonNamesClues(reason) ? line : null;
+}
