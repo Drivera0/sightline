@@ -4,7 +4,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Drone, Proposal, Team } from "../contract";
-import { ApprovalInbox } from "./ApprovalInbox";
+import { ApprovalInbox, recallSummary } from "./ApprovalInbox";
 
 const AT = "2026-10-24T21:40:00Z";
 const p = (over: Partial<Proposal>): Proposal => ({
@@ -116,11 +116,20 @@ describe("a recall", () => {
     const why = within(card).getByLabelText("Why recall");
     expect(within(why).getByText(QUOTE).tagName).toBe("Q");
     expect(within(why).getByRole("link", { name: /weather\.gc\.ca/ })).toHaveAttribute("href", URL);
-    expect(why).toHaveTextContent("Drone 2: battery 62%, flying at 49.37712, -122.93601");
+    expect(why).toHaveTextContent("Drone 2 now: battery 62%, flying at 49.37712, -122.93601");
     expect(within(card).queryByText("leg L009")).toBeNull(); // the facts block replaces the chips
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
     expect(onDecide).toHaveBeenCalledWith("p007", "approve", "Search manager", undefined, undefined);
     expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+  });
+
+  it("labels the summary's battery 'at proposal' and puts the fleet's live value beside it", () => {
+    const at97 = { ...recall(URL, QUOTE), summary: "Recall Drone 2: fly home now (leaves sector C3, battery 97%)" };
+    render(<ApprovalInbox proposals={[at97]} teams={TEAMS} drones={[{ ...D2, battery_pct: 95.2 }]} onDecide={vi.fn()} imageUrl={(r) => r} />);
+    const card = screen.getByLabelText("Proposal p007");
+    expect(within(card).getByText("Recall Drone 2: fly home now (leaves sector C3, battery 97% at proposal, now 95%)")).toBeInTheDocument();
+    expect(within(card).getByLabelText("Why recall")).toHaveTextContent("Drone 2 now: battery 95%");
+    expect(recallSummary("Recall Drone 2: fly home now (battery 97%)")).toBe("Recall Drone 2: fly home now (battery 97% at proposal)");
   });
 
   it("says a demo override is not from Tavily, with no link", () => {

@@ -320,6 +320,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
         <ApprovalInbox
           proposals={s.proposals}
           teams={s.teams}
+          drones={s.fleet?.drones}
           imageUrl={imageUrl}
           onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
         />

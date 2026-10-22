@@ -32,6 +32,17 @@ const IMAGE_EVIDENCE: readonly EvidenceRef["kind"][] = ["crop", "frame", "relook
 export const isRecall = (p: Proposal) => p.kind === "retask_drone" && p.target.home !== undefined;
 const kindWords = (p: Proposal) => (isRecall(p) ? "Recall drone" : KIND_WORDS[p.kind]);
 
+/**
+ * A recall's summary carries the battery when the agent proposed it ("battery 97%"): say so, and put the
+ * fleet's live value beside it ("battery 97% at proposal, now 95%"), so the card never shows an old number as current.
+ */
+export function recallSummary(summary: string, liveBatteryPct?: number): string {
+  return summary.replace(/battery (\d+(?:\.\d+)?) ?%/, (_, at: string) => {
+    const now = liveBatteryPct === undefined ? "" : `, now ${liveBatteryPct.toFixed(0)}%`;
+    return `battery ${at}% at proposal${now}`;
+  });
+}
+
 /** The fact that grounded the drones, where it came from, and the drone's battery and position. */
 function RecallFacts({ p, drone }: { p: Proposal; drone: Drone | undefined }) {
   const src = p.evidence.find((e) => e.kind === "conditions");
@@ -61,7 +72,7 @@ function RecallFacts({ p, drone }: { p: Proposal; drone: Drone | undefined }) {
       )}
       {drone && (
         <span className="text-text-2">
-          {drone.name}: battery {drone.battery_pct.toFixed(0)}%, {drone.status}
+          {drone.name} now: battery {drone.battery_pct.toFixed(0)}%, {drone.status}
           {drone.position && (
             <span className="font-mono text-text-3">
               {" "}
@@ -205,7 +216,7 @@ function PendingCard({
     <Panel tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} className="flex flex-col gap-2 border-l-2 border-l-accent bg-surface-solid p-3 focus:outline focus:outline-accent">
       <div className="flex flex-wrap items-center gap-2">
         <StatusPill tone="action">{kindWords(p)}</StatusPill>
-        <span className="text-body text-text">{p.summary}</span>
+        <span className="text-body text-text">{isRecall(p) ? recallSummary(p.summary, drone?.battery_pct) : p.summary}</span>
         <span className="ml-auto font-mono text-caption text-text-3">
           {p.id} · {p.created_by}
         </span>
