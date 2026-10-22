@@ -268,7 +268,17 @@ The live pipeline runs on AWS (us-west-2), set up and torn down by scripts in `d
 same checks pass after stopping and starting the instance (same address, missions kept), so the
 instance is stopped between demos. Cost while running: about $0.18 an hour on c7i.xlarge (~$0.71 on
 c7i.4xlarge, used only for the demo recording); a $20 monthly budget alarm covers the account.
-`teardown.sh` deletes everything. **TODO (lane A):** the CloudWatch dashboard screenshot from a longer run.
+`teardown.sh` deletes everything.
+
+**A longer run** (22 Oct, the instance rebuilt from `main`): 20 HERIDAL validation photos uploaded in two
+batches of 10 were all processed in 4 min, 11.9 s each (median; `cv2.dnn` 11.3 s, the slowest 13.1 s); the
+agent's second look ran on all 23 candidates (23 Nemotron calls). From CloudWatch:
+
+![Time per photo on AWS](../architecture/aws/latency.png)
+![Queue and agent on AWS](../architecture/aws/queue-agent.png)
+
+The queue peaked at 15 photos waiting and drained at the worker's pace; the detector is nearly all of
+the time per photo, so a bigger instance or a second worker shortens it directly.
 
 ## 7. Evaluation
 
