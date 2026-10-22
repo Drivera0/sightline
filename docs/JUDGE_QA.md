@@ -2,7 +2,7 @@
 
 Short, honest answers to the live questions a hostile judge is likely to ask, each with its evidence.
 Where the honest answer is "we don't know yet", it says so and names what would settle it. Line numbers
-are as of `main` after the report integration (#143 plus the `a/report-integration` branch).
+are as of `main` at #180 (2026-10-22); the hostile review of that day re-checked them.
 
 ### What breaks first
 

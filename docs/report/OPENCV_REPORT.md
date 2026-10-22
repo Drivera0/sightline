@@ -645,7 +645,7 @@ theory as US and international SAR planning defines them:
 ### 6.2 The map
 
 Sprint 1, `sightline/search/sim.py`; 5 m cells, 1,341 trials with the person in a
-photographed cell: a ground team checks a median of 1,213 cells with Sightline's canopy-aware map
+photographed cell (seed 7, the best of the three seeds): a ground team checks a median of 1,213 cells with Sightline's canopy-aware map
 against 1,743 with a naive map that treats every photographed cell as searched for certain. Across 3 seeds × 5 noise levels it was
 better every time: 28–30 % fewer cells at the default noise, 19–23 % with noise matching the canopy
 estimate's measured error (README; `docs/LANE_C_SEARCH.md`).
@@ -804,11 +804,11 @@ its own reasoning (`docs/feedback/radio.md`, findings 5–11). Each is now check
 
 **Measured** (RTX 4080 SUPER for speech, Token Factory for the model; text turns, so speech
 recognition adds 45–153 ms): over 30 live turns, first sound p50 2.0 s and p90 3.0 s with typed team
-lines, and 2.5 s p50 (p90 3.0 s) with real voices over the 18 turns of the demo script (a spoken
+lines, and 2.5 s p50 (p90 3.0 s) with the replies spoken by Magpie (team lines still text) over the 18 turns of the demo script (a spoken
 "standby" when the model takes over 3 s), 6 / 6 clue reports drafted, read back and committed, 6 / 6
 conditions answers from the tool (`docs/evidence/radio-latency-20261020.json`). The demo script
 (transmit the assignment, ask for the boundary, report a clue, confirm) ran **5 / 5 times as
-scripted** with real voices (`scripts/radio_rehearse.py`). **WER** (`scripts/radio_wer.py`, Parakeet after `protocol.normalize`), one human voice so far, 20 phrases, 162 words:
+scripted** with spoken replies (`scripts/radio_rehearse.py`; team lines go in as text). **WER** (`scripts/radio_wer.py`, Parakeet after `protocol.normalize`), one human voice so far, 20 phrases, 162 words:
 **0.086** with 0 / 2 coordinates exact, **0.025** with 2 / 2 after one fix: Parakeet writes the radio word "niner" as "49er" or "nine or", which `normalize` now reads as 9. Two more voices to come (#49; `docs/evidence/radio_wer/`).
 
 ## 9. Evaluation summary
@@ -839,7 +839,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
 | Re-plan for every idle drone, no opening legs (sim) | 27.1 % vs 13.5 % found within 30 min | `docs/report/PLANNER_V2.md` |
 | Fleet, clue at the start, coordinated vs hand-split (sim) | 22.7 % vs 20.0 % (ideal); 15.9 % vs 11.5 % (realistic); 13.5 % vs 10.0 % (harsh) | `docs/report/FLEET_V2.md`; `scripts/fleet_eval.py` |
 | Fleet, no clue (sim) | coordinated and hand-split level in every preset | `docs/report/FLEET_V2.md` |
-| Radio, first sound | p50 2.0 s typed (30 turns); 2.5 s with real voices (18 turns); p90 3.0 s | §8; `docs/evidence/radio-latency-20261020.json` |
+| Radio, first sound | p50 2.0 s typed (30 turns); 2.5 s with replies spoken by Magpie, team lines typed (18 turns); p90 3.0 s | §8; `docs/evidence/radio-latency-20261020.json` |
 | Radio clue reports read back and confirmed before logging | 6 / 6; demo script 5 / 5 as scripted | §8; `scripts/radio_rehearse.py` |
 | Conditions, Tavily calls | at most 4 per area per hour; the same values on two runs | §7; `docs/report/TAVILY.md` |
 | Nebius Serverless Job, the fleet's photos on `cv2.dnn` | 711 photos in 483 s on 16 vCPUs, about $0.10 | `docs/feedback/nebius.md` §5 |
@@ -876,7 +876,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
 - **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.25 s), and
   INT8 does not help on this CPU (§3.3). On the GPU it needs a custom OpenCV build (0.30 s per photo, §3.4).
 - **The agent evaluation uses fake models and a scripted detector:** it tests routing, the gate and
-  failure handling, not perception; `--live` has not been run for it (`AGENT_EVAL.md`).
+  failure handling, not perception; `--live` has been run once, for the re-look scenario only (`AGENT_EVAL.md`).
 - **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
   so long replies are spoken sentence by sentence and the first sound depends on the model's time;
   if the model fails or times out, the team hears "say again" and nothing changes. Its numbers use
@@ -1083,7 +1083,7 @@ uv run pytest tests/ml tests/agent tests/radio             # no GPU, network or 
 uv run --extra ml python scripts/parity_table.py           # §3.1 val and test (needs the HERIDAL data, scripts/README.md)
 uv run --extra ml python scripts/eval_verifier.py          # §5.4 (needs NEBIUS_API_KEY)
 uv run --extra ml python scripts/av_chain.py               # §5.2 chain, then scripts/trace_excerpt.py
-uv run python scripts/agent_eval.py                        # §5.4–5.5, fake models, about 20 s
+uv run python scripts/agent_eval.py                        # §5.4–5.5, fake models, about 6 min
 uv run python scripts/planner_eval.py                      # §6.3
 uv run python scripts/planner_v2_eval.py                   # §6.4, 353 s
 uv run python scripts/fleet_eval.py                        # §6.5, about 2 min
