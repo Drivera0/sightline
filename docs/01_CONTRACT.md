@@ -538,7 +538,7 @@ class Leg(_Model):
     waypoints: list[LonLat]             # lawnmower path, [lon, lat] like footprints
     altitude_m: float
     est_minutes: float
-    expected_clearance: Probability     # probability mass the leg is expected to rule out
+    expected_clearance: Probability     # probability mass the leg is expected to lower
     score_per_min: float
     reason: str
     status: Literal["proposed", "approved", "flying", "done", "cancelled"]

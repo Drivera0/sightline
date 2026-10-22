@@ -106,7 +106,7 @@ sequenceDiagram
 
 ## One real chain: an OpenCV 5 result changes the decision
 
-A **val** photo (`train_ZRI_2061`, HERIDAL; never used for training). The detector scored a person
+A **val** photo (`train_ZRI_2061`, HERIDAL; never used for training: the `train_` prefix is HERIDAL's own folder name, and our val split is the 10 % of HERIDAL's train folder held out with seed 7, `data/heridal/yolo_full/convert_report.json`). The detector scored a person
 lying on the ground **0.18**, below the 0.29 review threshold, so without the agent no reviewer
 would ever see it. The re-look tool was chosen by heuristic (box 21 px in the 1000×750 frame:
 small), and the zoom from the original photo's native pixels is what the VL model answered from.
@@ -189,7 +189,7 @@ the mission store, and Nemotron on Token Factory. It uploads six HERIDAL **valid
 acts as the search would: a reviewer answers "person", a clue comes in, a scripted search manager approves one
 proposal (labelled in the trace). The fleet is two **simulated** drones until lane C's fleet sim lands.
 
-Run of 2026-10-21 (`runs/agent_live/`): 9 candidates from 6 photos; the second look on all 9 (OpenCV re-look tools:
+Run of 2026-10-21 (`docs/evidence/agent_live/`, one `summary.json` per run): 9 candidates from 6 photos; the second look on all 9 (OpenCV re-look tools:
 `zoom_native` on all 9, `enhance_contrast` on 2, `redetect_region` on 1); a confirmed person led to an `alert` to all
 teams and an `assign_sector` for the nearest team on standby (approved: the task and the team became "assigned"); the
 clue reweighted the map and led to a `drone_leg` from the planner (on 21 Oct still a stand-in, and its reason said so; the information-gain planner, C-P1, replaced it the next day and drives the re-task chain below).
@@ -229,7 +229,7 @@ the trace says). Excerpt (`scripts/trace_excerpt.py --proposal p004`):
 2026-10-22T01:49:34.480Z  human    note       Search manager (scripted for this run): logged the sighting as clue c001 (100 m, the default for a sighting)
 2026-10-22T01:49:34.492Z  agent    proposal   p004 retask_drone: Re-task Drone 1 to sector B3 (3.1% expected)
     target {'drone': 'D1', 'leg': 'L002'}
-    reason: After clue c001 (sighting, high reliability: person in photo f0005, confirmed by the reviewer) in sector B3, which now holds 6.9% of the probability. Sector B3: expected to rule out 3.1% of the probability in 12 min (0.26%/min) — 1.1× the next best for Drone 1 (sector B2). Within battery (95%).
+    reason: After clue c001 (sighting, high reliability: person in photo f0005, confirmed by the reviewer) in sector B3, which now holds 6.9% of the probability. Sector B3: expected to lower the remaining probability by 3.1% in 12 min (0.26%/min) — 1.1× the next best for Drone 1 (sector B2). Within battery (95%).
 2026-10-22T01:50:00.642Z  human    decision   p004 approved by Search manager (scripted approval for this run)
     {'proposal': 'p004'}
 ```
@@ -252,8 +252,8 @@ change an `unclear` ended the chain. Now the agent asks for a better photo of th
   photo there. Then two lines 10 m apart over a 20 m square (one photo's width at 25 m). Its
   `expected_clearance` is Σ p · POD over the cells within 10 m. Its reason is in numbers: *"Second look
   at f0001-d01 was unclear: box 21 px, too small to verify; a pass at 25 m gives about 4× the pixels
-  (50 m → 25 m). Drone 3 is 438 m away: 1.1 min there and over the spot, expected to rule out 0.010 %
-  of the probability."* The factor is (altitude / 25)².
+  (50 m → 25 m). Drone 3 is 438 m away: 1.1 min there and over the spot, expected to lower the remaining
+  probability by 0.010 %."* The factor is (altitude / 25)².
 - **Approval.** The leg goes through the normal approval path. While it waits, re-plans leave that
   drone alone (`_replan` skips it).
 - **The low pass.** The fleet sim flies it. Below 50 m a photo's crop follows the leg's altitude
@@ -314,7 +314,7 @@ fixture (`SIGHTLINE_FAKE_LLM=1 SIGHTLINE_FAKE_VL=relook`: `unclear`, then `yes`)
 
 ```text
 [   1.0 s] proposal p004 retask_drone: Re-look at f0001-d01 from 25 m: re-task Drone 3
-           Second look at f0001-d01 was unclear: box 21 px, too small to verify; a pass at 25 m gives about 4× the pixels (50 m → 25 m). Drone 3 is 438 m away: 1.1 min there and over the spot, expected to rule out 0.010% of the probability.
+           Second look at f0001-d01 was unclear: box 21 px, too small to verify; a pass at 25 m gives about 4× the pixels (50 m → 25 m). Drone 3 is 438 m away: 1.1 min there and over the spot, expected to lower the remaining probability by 0.010%.
 [   2.0 s] L004 flown by D3 at 25 m: 5 photos, 1.08 sim min
 [   2.0 s] proposal p005 promote_detection: Add f0002-d01 to the review queue: second look says likely a person
 
@@ -340,7 +340,14 @@ under 60 px it mostly answers `unclear` rather than guess. Full tables: `docs/LA
 that says why (none were needed in 461 calls: 170 val with v1, 170 val with v2, 121 test). A timeout, HTTP error or missing
 key gives `unclear` naming the error, and no proposal. Without a model client the agent still
 makes planner proposals with template briefings. A briefing that is over 60 words, says
-"clear", or contains a number not in its facts is rewritten once, then replaced by the template.
+"clear", has too little punctuation, tells a team to stop, or contains a number not in its facts is
+rewritten once, then replaced by the template. The prompt (`prompts.py`, `briefing-v2`) asks for
+less than the check allows: at most 45 words in two to four sentences, ending with "Over.", only
+numbers from the facts, no long fact copied word for word, no order the facts do not give, with a
+good and a bad example. The retry quotes the reasons and the word count ("It had 67 words. Reasons:
+more than 60 words") and does not send the rejected text back. With v1 (60 words as prose), 8 of 19
+live briefings fell back to the template; with v2, replayed live on the same 19, none did
+(`docs/report/AGENT_EVAL.md`, "Briefing prompt v2").
 A per-mission token budget stops model calls with one `mission.note`. One failing event is
 logged and traced and never stops the agent or the pipeline (hooks only enqueue, < 5 ms).
 

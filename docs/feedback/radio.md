@@ -98,8 +98,8 @@ only end to end):
 | Speech → text (Parakeet TDT 0.6B v2, RTX 4080 SUPER) | 45–130 ms per phrase (3.9–8.7 s of audio) | 153 ms (max) | the spike, 5 phrases |
 | Reasoning + tools (Nemotron 3 Super, Token Factory, thinking off) | 2.3 s | 3.2 s | 30 text turns |
 | Text → speech (Magpie 357M) | about 0.5× real time per sentence; the "<callsign>, Sightline" opener is cached (0 ms) | — | the spike; the opener cache in `sightline/radio/tts.py` |
-| **First sound, end to end, real voices** | **2.5 s** | **3.0 s** | 18 inbound turns of the demo script, 2 rehearsals (`scripts/radio_rehearse.py`) |
-| Full answer spoken, end to end, real voices | 2.6 s | 7.0 s | the same 18 turns (long replies are spoken sentence by sentence) |
+| **First sound, end to end, replies spoken by Magpie (team lines as text)** | **2.5 s** | **3.0 s** | 18 inbound turns of the demo script, 2 rehearsals (`scripts/radio_rehearse.py`) |
+| Full answer spoken, end to end, replies spoken by Magpie | 2.6 s | 7.0 s | the same 18 turns (long replies are spoken sentence by sentence) |
 
 The ≤ ~5 s target is met for the first sound in every rehearsed turn (max 3.01 s): a spoken "standby"
 covers a slow model call. The full answer passes 5 s when the model takes over 4 s (p90 model time in the
@@ -185,7 +185,7 @@ doesn't need. `ffmpeg` is not installed on the desktop yet; `to_mono16k` (webm f
 - [x] E-14: the radio desk screen, `web/src/radio/` (lane A, issue #36; see its README)
 - [x] E-18 latency over 30 turns (lane A; table above); scripts `radio_latency.py`, `radio_wer.py`
 - [ ] E-18 WER: record 3 voices (instructions above), then run `radio_wer.py`. Voice 1 of 3 done (WER 0.086 → 0.025 after the "niner" fix, coordinates 0 / 2 → 2 / 2); two to go (#49)
-- [x] Demo script rehearsal (lane A): `scripts/radio_rehearse.py`, 5 / 5 runs as scripted with real voices, first sound ≤ 3.0 s; WAVs for the video with `--audio --radio-sound` (`sightline/radio/README.md`)
+- [x] Demo script rehearsal (lane A): `scripts/radio_rehearse.py`, 5 / 5 runs as scripted with spoken replies (team lines as text), first sound ≤ 3.0 s; WAVs for the video with `--audio --radio-sound` (`sightline/radio/README.md`)
 
 ## WER with a human voice (E-18)
 

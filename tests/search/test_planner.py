@@ -111,7 +111,10 @@ def test_two_drones_spread_over_the_two_likely_sectors() -> None:
     assert best.sector_id == "B2" and best.expected_clearance == pytest.approx(
         0.3 * 0.432, abs=1e-4
     )
-    assert "expected to rule out 13.0% of the probability" in best.reason and "%/min" in best.reason
+    assert (
+        "expected to lower the remaining probability by 13.0%" in best.reason
+        and "%/min" in best.reason
+    )
     assert "battery (95%)" in best.reason and "before civil twilight" in best.reason
 
 
@@ -252,7 +255,7 @@ def test_a_teams_sector_still_chosen_says_it_was_discounted() -> None:
     assert (
         leg.sector_id == "B2" and "counted at 50% as a ground team is assigned there" in leg.reason
     )
-    # expected_clearance stays what the photos rule out; the rate is the discounted one
+    # expected_clearance stays what the photos lower; the rate is the discounted one
     assert leg.expected_clearance == pytest.approx(
         2 * leg.score_per_min * leg.est_minutes, rel=1e-3
     )

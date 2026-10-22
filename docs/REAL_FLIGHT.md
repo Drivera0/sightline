@@ -1,7 +1,7 @@
 # Real flight: a friend's footage through the live API
 
 `scripts/real_flight.py` takes real aerial footage, checks what it says about where it was taken, and
-sends it through the live API with one command. Shared parsing and geotag writing live in
+sends it through the live API with one command. **Status:** built and tested on synthetic files; no real footage has been run through it yet. Shared parsing and geotag writing live in
 `sightline/geo/geotag.py`. Tests: `tests/geo/test_geotag.py` and `tests/client/test_real_flight.py`.
 They use synthetic files only: JPEGs with EXIF GPS, a stripped messenger copy, a phone photo, a tiny
 ffmpeg video with a hand-written SRT, and an Airdata CSV. No network or GPU is needed.

@@ -28,7 +28,7 @@ Production: burn in captions; name Nebius and NVIDIA with audio; mark "Not for K
 3. *21:31, confirm: a person answers every candidate. The third scored only 0.18, below the review threshold; Nemotron 3.5 Super VL on Token Factory looked again at an OpenCV zoom and answered "likely a person, lying down", so the agent promoted it. The zoom is open on the card (a recorded second look on another HERIDAL photo, labelled so).* (`docs/submission/figures/second-look-t2-a-018-candidate-opencv5-zoom-nemotron-vl.png`)
 4. *Which NVIDIA model did what: the Trace view's model strip (Nemotron 3.5 Super VL for the second look, Nemotron 3 Nano for the conditions pages) and that chain step by step: the crop and the native zoom Nemotron VL answered from, its verdict, the proposal and its approval (scripted in this recorded run, and the trace says so).* (`docs/submission/figures/trace-which-model-did-what-second-look.png`)
 5. *22:00, the run: two simulated drones fly their legs, two teams are searching, B4 is searched at POD 60 % (lowered, never ruled out). The Conditions panel (W) shows a recorded live lookup: Tavily searched and extracted the pages, Nemotron 3 Nano read them, each value carries its quote and page, and the flyability gate says not flyable after civil twilight.* (`docs/submission/figures/run-t4-fleet-flying-b4-pod-60-conditions.png`)
-6. *The Debrief: the three numbers (people found 90 % vs 68 % by eye; 0.25 s vs 33 s per full photo; ground to search, 3.0 ha vs 4.4 ha for a naive map, simulated) and what breaks first. The fleet simulation and radio latency numbers are in the report's tables.* (`docs/submission/figures/debrief-t5-three-numbers-what-breaks-first.png`)
+6. *The Debrief: the three numbers (people found 90 % vs 68 % by eye; 0.25 s vs 33 s per full photo; ground to search, 3.0 ha vs 4.4 ha for a naive map, simulated, the best of three seeds) and what breaks first. The fleet simulation and radio latency numbers are in the report's tables.* (`docs/submission/figures/debrief-t5-three-numbers-what-breaks-first.png`)
 
 ---
 
@@ -53,7 +53,7 @@ Measured, with the caveat beside each number:
 
 A drone brings back hundreds of photos per flight; a missing person is about 70 px wide in each, and people reviewing by eye found 68 % of them in the published study [1]. The search manager meanwhile decides where drones and teams go next, from radio calls and a paper map.
 
-Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio and Eagle Eyes stop at a flagged pixel; CalTopo tracks clues but has no probability map. Sightline joins the two: every photo, negative sweep and radio report updates one map, and the map directs both drones and people.
+Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio and Eagle Eyes stop at a flagged pixel; CalTopo tracks clues, but none we found keeps a probability map that photos and sweeps update. Sightline joins the two: every photo, negative sweep and radio report updates one map, and the map directs both drones and people.
 
 ## What it does
 
@@ -61,7 +61,7 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio and Eagle Eyes
 - Updates a probability map with every photo, review, searched sector and clue. Searched ground shows how well it was searched; the software never rules an area out.
 - Proposes the next drone leg, re-task, team assignment or alert, with its reason. **A person approves every move.**
 - Talks to ground teams on a secondary radio channel, and logs a clue only after a readback.
-- Takes real footage too: `scripts/real_flight.py` checks each file's GPS, altitude, gimbal and GSD, geotags video frames from a DJI SRT or flight log (a frame with no track point within 1 s is skipped, never guessed), and sends the folder through the live API, labelled "real flight, real detector, fleet simulated" [17].
+- Takes real footage too: `scripts/real_flight.py` checks each file's GPS, altitude, gimbal and GSD, geotags video frames from a DJI SRT or flight log (a frame with no track point within 1 s is skipped, never guessed), and sends the folder through the live API, labelled "real flight, real detector, fleet simulated"; so far tested on synthetic files only, no real footage yet [17].
 
 ## How we built it
 
@@ -75,7 +75,7 @@ Every language and vision model call goes through **Nebius Token Factory** at ru
 | Speech to text | Parakeet TDT 0.6B v2 | RTX 4080 SUPER (NeMo) | `radio/asr.py` |
 | Text to speech | Magpie TTS multilingual 357M | RTX 4080 SUPER (NeMo) | `radio/tts.py` |
 
-- **Measured on Token Factory:** the VL verdict takes 1.35 s p50, costs about 0.00033 per detection, and 461 of 461 replies were valid JSON [5]. A radio turn's first sound comes in 2.5 s p50 with real voices [6].
+- **Measured on Token Factory:** the VL verdict takes 1.35 s p50, costs about $0.00033 per detection at catalog prices, and 461 of 461 replies were valid JSON [5]. A radio turn's first sound comes in 2.5 s p50 with the reply spoken by Magpie (team lines typed) [6].
 - **Nebius Serverless Job:** the simulated fleet's 711 photos detected on CPU with OpenCV 5 `cv2.dnn` in 483 s on 16 vCPUs, about $0.10 [7].
 - **Nebius Serverless Endpoint:** the same detector on demand, one photo over HTTPS on a CPU endpoint (8 vCPU): 5.68 s p50 for a 4000×3000 photo, $0.38 per 1,000 full photos, cold start 291.5 s; it gave the batch job's one candidate, box for box. The worker switches to it with `SIGHTLINE_DETECT_URL` [15].
 - **Tavily** brings the forecast, warnings and park alerts; they decide whether drones may fly.

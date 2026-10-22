@@ -4,7 +4,7 @@ which sector each ground team on standby should take. Pure math over the live ma
 **Drone legs.** For each drone, one lawnmower leg per sector: lines ``line_spacing_m`` apart (one
 photo's width on the ground, so the lines tile the sector), a photo every ``photo_spacing_m``.
 ``est_minutes`` = transit from the drone to the start + the leg, at ``speed_ms``, + 1 s per photo.
-Its value is the probability it is expected to rule out:
+Its value is how much probability it is expected to lower (lowered, never removed):
 
     expected_clearance = Σ_cells p_i · POD_i,  POD_i = min(pod_cap, recall · (1 − canopy_i) · visibility)
 
@@ -156,7 +156,7 @@ def home_leg(drone: Drone, home: LatLon, leg_id: str, reason: str) -> Leg:
 
 
 def is_home_leg(leg: Leg) -> bool:
-    """A recall leg (``home_leg``): no sector and nothing expected to be ruled out."""
+    """A recall leg (``home_leg``): no sector and nothing expected to be lowered."""
     return leg.sector_id is None and leg.expected_clearance == 0.0
 
 
@@ -347,11 +347,11 @@ def propose_legs(
         if best is None:
             break
         value, leg, runner_gain, runner_up = best
-        gain = value / worth[leg.sector_id]  # what the photos are expected to rule out
+        gain = value / worth[leg.sector_id]  # how much the photos are expected to lower
         drone = next(d for d in drones if d.id == leg.drone_id)
         rate = value / leg.est_minutes
         why = [
-            f"Sector {leg.sector_id}: expected to rule out {gain:.1%} of the probability in {leg.est_minutes:.0f} min ({rate:.2%}/min)"
+            f"Sector {leg.sector_id}: expected to lower the remaining probability by {gain:.1%} in {leg.est_minutes:.0f} min ({rate:.2%}/min)"
         ]
         if leg.sector_id in teamed:
             why[0] += f", counted at {worth[leg.sector_id]:.0%} as a ground team is assigned there"

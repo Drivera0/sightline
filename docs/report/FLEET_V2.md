@@ -5,7 +5,7 @@
 cell from the prior (the ground truth, never shown to the planner) and their visibility; the time to
 find is when the photo that finds them **reaches the mission**. 2000 trials per row and seed, seeds 1–5,
 visibility noise 0.15, 2 h horizon. Reproduce with `uv run python scripts/fleet_eval.py` (writes
-`runs/fleet_eval_v2/result.json`; about 2 minutes on a laptop CPU).
+`runs/fleet_eval_v2/result.json`; about 2 minutes on a laptop CPU; this run: `docs/evidence/fleet_eval_v2/20261022-0203/`).
 
 Strategies (`sightline/search/planner_sim.py` `plan_fleet`):
 
@@ -73,6 +73,6 @@ simulator buffers them.
 - Canopy is unknown (0.5) everywhere: the demo cache's measured canopy comes from HERIDAL **test**
   photos, so it is not used here (val only). The prior is the cache's uniform placeholder.
 - No ground teams, no motion blur, no terrain or obstacles; one steady wind per run.
-- `runs/fleet_eval/` (v1) used the demo cache's canopy and found coordinated 20.9 % vs hand-split
+- v1 (`docs/evidence/fleet_eval/v1-20261021/result.json`) used the demo cache's canopy and found coordinated 20.9 % vs hand-split
   20.0 % vs independent 12.1 % within 30 min with no clue; v2's ideal row is the same model without
   that canopy.

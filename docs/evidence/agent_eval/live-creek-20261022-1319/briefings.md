@@ -1,0 +1,25 @@
+# Briefing replay (briefing-v2)
+
+19 briefing situations from `docs/evidence/agent_eval/live-creek-20261022-1319/inputs.json`, each through `loop.write_briefing` live (Nemotron 3 Nano, thinking off).
+
+| # | Mission | Outcome | Attempts (words; rejection) | Briefing sent |
+|---|---|---|---|---|
+| 1 | Agent eval: near_miss_only | first try | 41 | Team One, search sector C2. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Subject: adult, red jacket. 5 h 35 min daylight, wind 5 km/h. Over. |
+| 2 | Agent eval: near_miss_only | first try | 41 | Team Two, search sector B3. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Subject: adult, red jacket. 5 h 35 min daylight, wind 5 km/h. Over. |
+| 3 | Agent eval: near_miss_only | first try | 41 | Team Three, search sector B2. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Subject: adult, red jacket. 5 h 35 min daylight, wind 5 km/h. Over. |
+| 4 | Agent eval: near_miss_only | first try | 41 | Team Four, search sector C3. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Subject: adult, red jacket. 5 h 35 min daylight, wind 5 km/h. Over. |
+| 5 | Agent eval: creek | first try | 20 | All teams, a reviewer confirmed a person in drone photo f0003, sector C3. Adult, red jacket, dark trousers, standing. Over. |
+| 6 | Agent eval: creek | first try | 31 | Team One, search sector C3. A reviewer confirmed a person in drone photo f0003. Adult, red jacket, dark trousers, standing. 5 h 35 min daylight, wind 5 km/h, Gale warning. Over. |
+| 7 | Agent eval: creek | first try | 42 | Team Two, search sector C2. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Adult, red jacket. 5 h 35 min daylight, wind 5 km/h, gale warning. Over. |
+| 8 | Agent eval: creek | first try | 42 | Team Three, search sector B3. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Adult, red jacket. 5 h 35 min daylight, wind 5 km/h, gale warning. Over. |
+| 9 | Agent eval: creek | first try | 43 | Team Four, search sector B2. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Subject: adult, red jacket. 5 h 35 min daylight, wind 5 km/h, gale warning. Over. |
+| 10 | Agent eval: clue_early | first try | 19 | All teams, reviewer confirmed a person in drone photo f0003, sector C3. Adult, red jacket, dark trousers, standing. Over. |
+| 11 | Agent eval: clue_early | first try | 31 | Team One, search sector C3. A reviewer confirmed a person in drone photo f0003. Adult, red jacket, dark trousers, standing. 5 h 35 min daylight, wind 5 km/h, Gale warning. Over. |
+| 12 | Agent eval: clue_early | first try | 43 | Team Two, search sector C2. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Subject: adult, red jacket. 5 h 35 min daylight, wind 5 km/h, Gale warning. Over. |
+| 13 | Agent eval: clue_early | first try | 43 | Team Three, search sector B3. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Subject: adult, red jacket. 5 h 35 min daylight, wind 5 km/h, gale warning. Over. |
+| 14 | Agent eval: clue_early | first try | 46 | Team Four, search sector B2. It holds 3.1% of the probability, 50% of it under trees where drones see poorly. About 4 min on foot from the last known point. Subject: adult, red jacket. 5 h 35 min of daylight, wind 5 km/h, gale warning. Over. |
+| 15 | Agent eval: no_clue | first try | 20 | All teams, a reviewer confirmed a person in drone photo f0003, sector C3. Adult, red jacket, dark trousers, standing. Over. |
+| 16 | Agent eval: no_clue | first try | 31 | Team One, search sector C3. A reviewer confirmed a person in drone photo f0003. Adult, red jacket, dark trousers, standing. 5 h 35 min daylight, wind 5 km/h, fog advisory. Over. |
+| 17 | Agent eval: no_clue | first try | 42 | Team Two, search sector B2. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Adult, red jacket. 5 h 35 min daylight, wind 5 km/h, fog advisory. Over. |
+| 18 | Agent eval: no_clue | first try | 43 | Team Three, search sector C2. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Subject: adult, red jacket. 5 h 35 min daylight, wind 5 km/h, fog advisory. Over. |
+| 19 | Agent eval: no_clue | first try | 43 | Team Four, search sector B3. It holds 3.1% of the probability, 50% under trees where drones see poorly. About 4 min on foot from the last known point. Subject: adult, red jacket. 5 h 35 min daylight, wind 5 km/h, fog advisory. Over. |

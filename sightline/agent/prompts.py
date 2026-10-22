@@ -52,3 +52,80 @@ IMAGE_LABELS = {
         "the detector run again at native resolution and 2x upscaled; its boxes are drawn in yellow"
     ),
 }
+
+# --- radio briefings (loop.write_briefing, MODEL_FAST) -------------------------------------------
+# v2, after the live creek run (docs/report/AGENT_EVAL.md): with v1 ("at most 60 words", rules as
+# prose) Nemotron 3 Nano copied the planner's 48-word reason word for word, and 8 of 19 briefings
+# fell back to the template. v2 gives the limits as a numbered list with a smaller word budget than
+# the 60-word check, one good and one bad example, and a retry that quotes the reason and the count.
+BRIEFING_VERSION = "briefing-v2"
+BRIEFING_TARGET_WORDS = 45  # asked of the model; check_briefing rejects only above 60
+
+# The example's numbers differ from any mission's, so a copied number is caught as invented.
+_BRIEFING_EXAMPLE_FACTS = (
+    '{"team": "Team Five", "sector": "D4", "why": "Sector D4 holds 6.2% of the probability, '
+    "70% of it under tree cover where a drone sees poorly (drone POD 0.38): a ground team adds the "
+    'most here; Team Five has no position yet: about 9 min on foot from the last known point.", '
+    '"subject": "child, green coat", "daylight_left": "2 h 10 min", "weather": "wind 12 km/h"}'
+)
+_BRIEFING_GOOD = (
+    "Team Five, search sector D4. It holds 6.2% of the probability, 70% of it under trees where "
+    "drones see poorly. About 9 min on foot from the last known point. Subject: child, green coat. "
+    "2 h 10 min of daylight, wind 12 km/h. Over."
+)
+_BRIEFING_BAD = (
+    "Team Five, sector D4 holds 6.2% of the probability, 70% of it under tree cover where a drone "
+    "sees poorly (drone POD 0.38): a ground team adds the most here; Team Five has no position "
+    "yet: about 9 min on foot from the last known point. Subject is child, green coat. Daylight "
+    "left is 2 h 10 min. Weather is wind 12 km/h."
+)
+# An alert to every team: live, v2 without this example still wrote "All teams, search sector C3".
+_BRIEFING_ALERT_FACTS = (
+    '{"what": "a reviewer confirmed a person in a drone photo", "photo": "f0042", "sector": "D4", '
+    '"subject": "child, green coat", "posture": "sitting"}'
+)
+_BRIEFING_ALERT = (
+    "All teams, a reviewer confirmed a person in drone photo f0042, sector D4. Child, green coat, "
+    "sitting. Over."
+)
+
+BRIEFING_SYSTEM = (
+    "You write radio briefings for search-and-rescue ground teams. The operator reads them aloud.\n"
+    "Hard limits:\n"
+    f"1. At most {BRIEFING_TARGET_WORDS} words. Two to four short sentences.\n"
+    "2. Plain punctuation: every sentence ends with a full stop; commas between items.\n"
+    "3. Use only the facts given. Every number must be in the facts, written in digits as in the "
+    "facts. Leave out numbers the team does not need. No coordinates.\n"
+    "4. Never copy a long fact word for word. From a long reason keep only the main point in a "
+    "few words.\n"
+    "5. Never tell a team to stop, stand down or wait, and never say that no action is needed. "
+    "Say what to do instead, and only a task the facts give (a team and a sector to search: "
+    '"search sector D4"). With no task in the facts, report the facts and give no order.\n'
+    "6. A person seen in a photo is a sighting, not a find. Add no urgency beyond the facts.\n"
+    '7. Never say "clear", "clears", "cleared" or "clearing".\n'
+    '8. Start with the team\'s name if the facts give one, otherwise "All teams". '
+    'End with "Over."\n\n'
+    f"Example facts: {_BRIEFING_EXAMPLE_FACTS}\n"
+    f"Good briefing ({len(_BRIEFING_GOOD.split())} words): {_BRIEFING_GOOD}\n"
+    f"Bad briefing ({len(_BRIEFING_BAD.split())} words, copies the reason word for word, "
+    f"no Over): {_BRIEFING_BAD}\n\n"
+    f"Example facts with no team and no task: {_BRIEFING_ALERT_FACTS}\n"
+    f"Good briefing (no order: the facts give none): {_BRIEFING_ALERT}"
+)
+
+
+def briefing_user(facts_json: str) -> str:
+    return (
+        f"Facts:\n{facts_json}\n\nWrite the briefing: at most {BRIEFING_TARGET_WORDS} words, "
+        'ending with "Over."'
+    )
+
+
+def briefing_retry(problems: list[str], words: int, facts_json: str) -> str:
+    """The retry turn: quotes why the last briefing was rejected and how long it was."""
+    return (
+        f"That briefing was rejected. It had {words} words. Reasons: {'; '.join(problems)}.\n"
+        f"Write it again from these facts only, at most {BRIEFING_TARGET_WORDS} words, in short "
+        'sentences with full stops, ending with "Over." Do not copy any fact word for word.\n'
+        f"Facts:\n{facts_json}"
+    )

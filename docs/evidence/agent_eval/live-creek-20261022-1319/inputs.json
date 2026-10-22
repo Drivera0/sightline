@@ -1,0 +1,251 @@
+[
+ {
+  "mission": "12ed46f1",
+  "name": "Agent eval: near_miss_only",
+  "facts": {
+   "team": "Team One",
+   "sector": "C2",
+   "why": "Sector C2 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team One has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h"
+  }
+ },
+ {
+  "mission": "12ed46f1",
+  "name": "Agent eval: near_miss_only",
+  "facts": {
+   "team": "Team Two",
+   "sector": "B3",
+   "why": "Sector B3 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Two has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h"
+  }
+ },
+ {
+  "mission": "12ed46f1",
+  "name": "Agent eval: near_miss_only",
+  "facts": {
+   "team": "Team Three",
+   "sector": "B2",
+   "why": "Sector B2 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Three has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h"
+  }
+ },
+ {
+  "mission": "12ed46f1",
+  "name": "Agent eval: near_miss_only",
+  "facts": {
+   "team": "Team Four",
+   "sector": "C3",
+   "why": "Sector C3 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Four has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h"
+  }
+ },
+ {
+  "mission": "938bcc28",
+  "name": "Agent eval: creek",
+  "facts": {
+   "what": "a reviewer confirmed a person in a drone photo",
+   "photo": "f0003",
+   "sector": "C3",
+   "subject": "adult, red jacket",
+   "clothing": "red jacket, dark trousers",
+   "posture": "standing"
+  }
+ },
+ {
+  "mission": "938bcc28",
+  "name": "Agent eval: creek",
+  "facts": {
+   "team": "Team One",
+   "sector": "C3",
+   "what": "a reviewer confirmed a person in a drone photo",
+   "photo": "f0003",
+   "subject": "adult, red jacket",
+   "clothing": "red jacket, dark trousers",
+   "posture": "standing",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Gale warning"
+  }
+ },
+ {
+  "mission": "938bcc28",
+  "name": "Agent eval: creek",
+  "facts": {
+   "team": "Team Two",
+   "sector": "C2",
+   "why": "Sector C2 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Two has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Gale warning"
+  }
+ },
+ {
+  "mission": "938bcc28",
+  "name": "Agent eval: creek",
+  "facts": {
+   "team": "Team Three",
+   "sector": "B3",
+   "why": "Sector B3 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Three has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Gale warning"
+  }
+ },
+ {
+  "mission": "938bcc28",
+  "name": "Agent eval: creek",
+  "facts": {
+   "team": "Team Four",
+   "sector": "B2",
+   "why": "Sector B2 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Four has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Gale warning"
+  }
+ },
+ {
+  "mission": "9fef6d7e",
+  "name": "Agent eval: clue_early",
+  "facts": {
+   "what": "a reviewer confirmed a person in a drone photo",
+   "photo": "f0003",
+   "sector": "C3",
+   "subject": "adult, red jacket",
+   "clothing": "red jacket, dark trousers",
+   "posture": "standing"
+  }
+ },
+ {
+  "mission": "9fef6d7e",
+  "name": "Agent eval: clue_early",
+  "facts": {
+   "team": "Team One",
+   "sector": "C3",
+   "what": "a reviewer confirmed a person in a drone photo",
+   "photo": "f0003",
+   "subject": "adult, red jacket",
+   "clothing": "red jacket, dark trousers",
+   "posture": "standing",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Gale warning"
+  }
+ },
+ {
+  "mission": "9fef6d7e",
+  "name": "Agent eval: clue_early",
+  "facts": {
+   "team": "Team Two",
+   "sector": "C2",
+   "why": "Sector C2 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Two has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Gale warning"
+  }
+ },
+ {
+  "mission": "9fef6d7e",
+  "name": "Agent eval: clue_early",
+  "facts": {
+   "team": "Team Three",
+   "sector": "B3",
+   "why": "Sector B3 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Three has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Gale warning"
+  }
+ },
+ {
+  "mission": "9fef6d7e",
+  "name": "Agent eval: clue_early",
+  "facts": {
+   "team": "Team Four",
+   "sector": "B2",
+   "why": "Sector B2 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Four has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Gale warning"
+  }
+ },
+ {
+  "mission": "dd789ea2",
+  "name": "Agent eval: no_clue",
+  "facts": {
+   "what": "a reviewer confirmed a person in a drone photo",
+   "photo": "f0003",
+   "sector": "C3",
+   "subject": "adult, red jacket",
+   "clothing": "red jacket, dark trousers",
+   "posture": "standing"
+  }
+ },
+ {
+  "mission": "dd789ea2",
+  "name": "Agent eval: no_clue",
+  "facts": {
+   "team": "Team One",
+   "sector": "C3",
+   "what": "a reviewer confirmed a person in a drone photo",
+   "photo": "f0003",
+   "subject": "adult, red jacket",
+   "clothing": "red jacket, dark trousers",
+   "posture": "standing",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Fog Advisory"
+  }
+ },
+ {
+  "mission": "dd789ea2",
+  "name": "Agent eval: no_clue",
+  "facts": {
+   "team": "Team Two",
+   "sector": "B2",
+   "why": "Sector B2 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Two has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Fog Advisory"
+  }
+ },
+ {
+  "mission": "dd789ea2",
+  "name": "Agent eval: no_clue",
+  "facts": {
+   "team": "Team Three",
+   "sector": "C2",
+   "why": "Sector C2 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Three has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Fog Advisory"
+  }
+ },
+ {
+  "mission": "dd789ea2",
+  "name": "Agent eval: no_clue",
+  "facts": {
+   "team": "Team Four",
+   "sector": "B3",
+   "why": "Sector B3 holds 3.1% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Four has no position yet: about 4 min on foot from the last known point.",
+   "subject": "adult, red jacket",
+   "daylight_left": "5 h 35 min",
+   "weather": "wind 5 km/h",
+   "alerts": "Fog Advisory"
+  }
+ }
+]

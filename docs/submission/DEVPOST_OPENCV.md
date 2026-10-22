@@ -32,7 +32,7 @@ Production: burn in captions; 1080p master; YouTube "Not for Kids"; no copyright
 3. *21:31, confirm: a person answers every candidate. The third scored only 0.18, below the 0.29 review threshold; the agent promoted it after a second look: an OpenCV 5 native-resolution zoom, and Nemotron VL's verdict "likely a person, lying down". The zoom is open on the card (a recorded second look on another HERIDAL photo, labelled so).* (`docs/submission/figures/second-look-t2-a-018-candidate-opencv5-zoom-nemotron-vl.png`)
 4. *The Trace view on that chain: the 0.179 detection, the OpenCV 5 `zoom_native` tool, the review crop and the zoom Nemotron VL answered "person: yes, lying" from, then the proposal and its approval (scripted in this recorded run, and the trace says so).* (`docs/submission/figures/trace-which-model-did-what-second-look.png`)
 5. *22:00, the run: two simulated drones fly their legs, two teams are searching, B4 is searched at POD 60 % (lowered, never ruled out) and C4 at POD 40 %. The Conditions panel (W) shows a recorded live lookup: each value with its quote and page, and the flyability gate.* (`docs/submission/figures/run-t4-fleet-flying-b4-pod-60-conditions.png`)
-6. *The Debrief: the three numbers (people found 90 % vs 68 % by eye, SAR-APD scoring; 0.25 s vs 33 s per full photo; ground to search, 3.0 ha vs 4.4 ha for a naive map, simulated) and what breaks first, in the report's words. The `cv2.dnn` vs PyTorch parity and the other numbers are in the report's tables (§3.1, §3.9).* (`docs/submission/figures/debrief-t5-three-numbers-what-breaks-first.png`)
+6. *The Debrief: the three numbers (people found 90 % vs 68 % by eye, SAR-APD scoring; 0.25 s vs 33 s per full photo; ground to search, 3.0 ha vs 4.4 ha for a naive map, simulated, the best of three seeds) and what breaks first, in the report's words. The `cv2.dnn` vs PyTorch parity and the other numbers are in the report's tables (§3.1, §3.9).* (`docs/submission/figures/debrief-t5-three-numbers-what-breaks-first.png`)
 
 ---
 
@@ -61,7 +61,7 @@ Measured, with the caveat beside each number:
 
 A search-and-rescue drone brings back hundreds of photos per flight. A missing person is about 70 px wide in a 4000×3000 photo [1]. Volunteers reviewing by eye take about 33 s a photo and, in the published study, found 68 % of the people [2]. Meanwhile the search manager decides where drones and ground teams go next, from radio reports and a paper map.
 
-Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes and Loc8 flag pixels; SARUAV adds a mobility model; CalTopo tracks assignments and clues. None turns every photo, negative sweep and radio report into one updated probability map, and none puts a logged approval gate between a suggestion and a drone or team.
+Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes and Loc8 flag pixels; SARUAV adds a mobility model; CalTopo tracks assignments and clues. None we found turns every photo, negative sweep and radio report into one updated probability map, and none puts a logged approval gate between a suggestion and a drone or team.
 
 ## What it does
 
@@ -78,7 +78,7 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes an
 - **OpenCV 5 re-look tools,** one per failure mode from our error analysis: `zoom_native` for small people, CLAHE for clothing that matches rock, `redetect_region` for groups and people lying down. Also `cv2.fillPoly` and `cv2.blur` for coverage and canopy on the map [5].
 - **Agent:** proposes; never acts. Every tool call, model call, verdict, proposal and decision is one line of the mission's `trace.jsonl` [6].
 - **AWS:** S3, an SQS FIFO queue, an EC2 worker running `cv2.dnn`, CloudWatch metrics and Secrets Manager. 7.1 s per photo from upload to "processed" on the default c7i.2xlarge [7].
-- **One console:** the map stays in the middle while the views (Map · Photos · Review · Trace · Debrief) change the rail beside it; the demo plays as a 3-minute story through six clock checkpoints, and the Trace view shows each chain step by step, with chips for which model and tool ran and what each observation was worth [25].
+- **One console:** the map stays in the middle while the views (Map · Photos · Review · Trace · Debrief · Radio) change the rail beside it; the demo plays as a 3-minute story through six clock checkpoints, and the Trace view shows each chain step by step, with chips for which model and tool ran and what each observation was worth [25].
 
 ## Challenges
 
@@ -91,7 +91,7 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes an
 - A real chain where OpenCV changes the decision: a person lying down, scored 0.18 (below the 0.29 review threshold), is zoomed from native pixels, called "yes, lying" by Nemotron VL, and proposed for review [13].
 - OpenCV 5 `cv2.dnn` as the production detector, with a parity table against PyTorch rather than a claim [3].
 - The whole loop live on AWS, with a dead-letter queue, per-step latency metrics and keys only in Secrets Manager [7].
-- A radio desk where the first sound comes back in 2.5 s (p50) with real voices, and 6 of 6 clue reports were read back and confirmed before they were logged [16].
+- A radio desk where the first sound comes back in 2.5 s (p50) with the replies spoken by Magpie (team lines typed), and 6 of 6 clue reports were read back and confirmed before they were logged [16].
 
 ## What we learned
 
@@ -132,6 +132,6 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 20. `docs/report/LADD.md:6-8`, `:36-40`; `docs/evidence/ladd/20261022T174430Z/ladd.json`
 21. `docs/report/POD.md:8-15`, `:156-197`; `sightline/search/pod.py:55`, `:72`
 22. `docs/report/OPENCV_REPORT.md:322-353`
-23. `docs/report/AGENT_EVAL.md:137-163`, `:197-206`
+23. `docs/report/AGENT_EVAL.md:203-229`, `:238-247`
 24. `docs/EXPORTS.md`; `tests/geo/test_exports.py`
 25. `web/src/command/README.md:5-22`, `:86-90`; `README.md:58-68`

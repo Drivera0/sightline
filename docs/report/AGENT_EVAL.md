@@ -109,6 +109,72 @@ detection. They do not test perception.
 - No proposal or verdict says "clear" or "cleared".
 - `validate_mission` passes.
 
+## Results (Nemotron, `--live`, 1 run per scenario, 2026-10-22)
+
+The same four creek scenarios, once each, with Nemotron 3.5 Super VL for the second look and
+Nemotron 3 Nano for the briefings and the conditions extraction (Tavily live). The detector and the
+search manager stay scripted. Run: `--live --scenarios creek no_clue clue_early near_miss_only
+--repeats 1 --no-failures`; files in `docs/evidence/agent_eval/live-creek-20261022-1305/`
+(`agent_eval.md`, `agent_eval.json`, and `tokens.json` summed from the traces).
+
+| Scenario | Proposals (fake, per run) | Proposals (live) | Correct target (live) | Gate (live) | Model calls | Tokens in / out | Cost |
+|---|---|---|---|---|---|---|---|
+| creek | 9 | 9: drone_leg 4, alert 1, assign_sector 4 | 3/3 | 11/11 | 10 | 14,816 / 981 | 0.0014 |
+| no_clue | 9 | 9: the same | 2/2 | 11/11 | 9 | 14,196 / 887 | 0.0014 |
+| clue_early | 12 | 12: drone_leg 7, alert 1, assign_sector 4 | 3/3 | 11/11 | 8 | 13,845 / 789 | 0.0013 |
+| near_miss_only | 9 | 9: drone_leg 4, promote_detection 1, assign_sector 4 | 1/1 | 11/11 | 8 | 14,113 / 895 | 0.0014 |
+| **all** | | | **9/9** | **44/44** | **35** | **56,970 / 3,552** | **0.0055** |
+
+Cost is at the catalog prices (`docs/feedback/nebius.md:18-20`: VL 0.30 / 0.90, Nano 0.06 / 0.24 per
+million tokens in / out, no currency on the page); the four Tavily lookups are not counted. The VL
+model said "yes, a person" on the one photo over the person in every run (p50 1.6 s). Two things the
+fakes do not show: the slowest step is now the model (tick → assign_sector p50 2.4 s, review → alert
+p50 0.8 s, against 63 ms and 33 ms with fakes), and, with the first briefing prompt (v1), **8 of the
+19 briefings fell back to the template** after a rejected retry (12 rejections for more than 60
+words, 2 for no punctuation, 2 for telling a team to stop). The guards held, so no bad briefing
+reached a proposal. The prompt is fixed (v2, below): replayed on the same 19 situations, 0 of 19 fall
+back.
+
+### Briefing prompt v2: the same 19 briefings, replayed
+
+**What went wrong with v1.** The 12 long replies were 63-67 words, and each one copied the planner's
+48-word reason ("Sector B3 holds 3.1% of the probability, 50% of it under tree cover where a drone
+sees poorly (drone POD 0.43): a ground team adds the most here; ...") word for word. The retry sent
+the rejected text back with "Problems: more than 60 words", and Nano returned the same text,
+token for token, all 8 times.
+
+**What changed** (`sightline/agent/prompts.py`, `briefing-v2`; the check in `loop.check_briefing` is
+unchanged). The limits are a numbered list: at most 45 words (the check rejects above 60), two to four
+short sentences, a full stop on every sentence, only numbers in the facts, as digits, never copy a
+long fact word for word, never tell a team to stop or wait or say nothing is needed (say the task the
+facts give instead, and give no order when they give none), a sighting is not a find, never "clear",
+start with the team's name and end with "Over." The prompt has one good and one bad example (the bad
+one is the copied reason, 63 words) and a good alert with no team and no order. The retry no longer
+sends the rejected text back: it says "It had 67 words. Reasons: more than 60 words" and asks again
+from the facts. Every attempt's trace entry records `prompt_version` and `attempt`.
+
+**Measured.** `scripts/briefing_replay.py` takes the facts of every briefing from the v1 run's traces
+(`inputs.json`, 19 situations, in order) and sends each through `loop.write_briefing` live, with the
+agent's client (Nemotron 3 Nano, thinking off). Files in
+`docs/evidence/agent_eval/live-creek-20261022-1319/`: `before.json` (the v1 run, recounted from its
+traces), `after.json` and `briefings.md` (every v2 briefing, its word count and outcome), and a second
+replay in `repeat/`.
+
+| Briefing prompt | First try accepted | Retries accepted | Fell back to the template | Rejections | Model calls | p50 latency | p50 tokens in / out | Tokens in / out (all) |
+|---|---|---|---|---|---|---|---|---|
+| v1 (live run, 13:05) | 11/19 | 0/8 | **8/19** | 12 over 60 words, 2 no punctuation, 2 stop | 27 | 727 ms | 275 / 71 | 8,854 / 2,054 |
+| v2 (replay, 13:19) | 19/19 | – (no retries) | **0/19** | none | 19 | 590 ms | 817 / 67 | 15,379 / 1,160 |
+| v2 (second replay) | 19/19 | – (no retries) | **0/19** | none | 19 | 608 ms | 817 / 69 | 15,379 / 1,170 |
+
+v2 briefings are 19-46 words (median 42). The examples triple the prompt (p50 275 → 817 tokens in), so
+the 19 briefings cost about 0.0012 instead of 0.0010 at Nano's catalog prices, with 8 fewer calls.
+Limits of this measurement: the retry path was not exercised live (no reply was rejected; the fake-LLM
+test `test_a_61_word_briefing_is_retried_with_the_reason_and_count` covers it); the 19 situations are
+only 3 kinds of facts (assign_sector with the planner's reason, alert to a team, alert with no team),
+and the prompt was written while looking at them, so a new kind of facts may do worse. Before v2's
+alert example, Nano wrote "All teams, search sector C3" for an alert with no task; the check does not
+catch an invented order, so the alert example stays.
+
 ## Re-look leg: an unclear second look sends a drone lower
 
 **The rule** (`sightline/agent/relook_leg.py`; rule and trace schema in `docs/architecture/agent.md`,
@@ -120,7 +186,7 @@ call never triggers a leg, and neither does a photo already taken at 25 m. The n
 detector → second look → verdict → promote. Every step is in the trace under one `chain_id`.
 
 **In the mission** (the `relook` scenario; fake models and a scripted detector; results from
-`runs/agent_eval/relook-final/`, 2026-10-22):
+`docs/evidence/agent_eval/relook-final/`, 2026-10-22):
 
 | | Fake VL, 3 runs | Nemotron VL (`--live`), 1 run |
 |---|---|---|
@@ -132,7 +198,7 @@ detector → second look → verdict → promote. Every step is in the trace und
 | Outcome | resolved, `promote_detection` approved, 3/3 | still `unclear`, left to the reviewer |
 | Approval gate | 3/3 runs pass every check | passes |
 
-The live run is in `runs/agent_eval/relook-live/`.
+The live run is in `docs/evidence/agent_eval/relook-live/`.
 
 **On val near-misses** (`--live --relook-val`: the real detector on the 95 annotated val photos,
 Nemotron VL, prompt verify-v2; tuned on nothing). Of the 40 near-misses (0.15 ≤ conf < 0.29) under
@@ -273,4 +339,5 @@ the fix and passes after it:
 
 The eval itself was updated for the v2 planner (#135), as described under the clue check above.
 
-`--live` was not run for this page: `NEBIUS_API_KEY` was not set.
+`--live` was not run for this section: `NEBIUS_API_KEY` was not set. It has since been run once on the
+creek scenarios ("Results (Nemotron, `--live`, ...)" above) and once on `relook`.

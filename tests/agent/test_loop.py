@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 import pytest
 
-from sightline.agent import loop
+from sightline.agent import loop, prompts
 from sightline.agent.llm import ChatResult, FakeChatClient
 from sightline.agent.runner import BudgetClient, BudgetExceeded
 from sightline.contract import (
@@ -544,10 +544,52 @@ def test_every_briefing_model_call_is_in_the_trace() -> None:
     calls = [e for e in store.trace_entries(mid) if e.kind == "model_call"]
     assert [e.summary for e in calls] == ['briefing rejected: says "clear"', "briefing"]
     assert (
-        calls[0].input == {"facts": FACTS}
+        calls[0].input == {"facts": FACTS, "prompt_version": prompts.BRIEFING_VERSION, "attempt": 0}
+        and calls[1].input["attempt"] == 1
         and calls[0].refs == ["T2", "B3"]
         and calls[0].tokens_in is not None
     )
+
+
+def test_briefing_prompt_states_the_budget_and_the_examples() -> None:
+    """Live, Nano broke a 60-word limit given as prose in 12 of 35 calls (AGENT_EVAL.md): the
+    prompt now gives a smaller budget, the limits as a list, and a good and a bad example."""
+    client = FakeChatClient({"Facts:": "Team Two, search sector B3. Over."})
+    loop.write_briefing(FACTS, client)
+    system, user = client.calls[0]["messages"]
+    assert system["role"] == "system" and user["role"] == "user"
+    assert f"At most {prompts.BRIEFING_TARGET_WORDS} words" in system["content"]
+    assert prompts.BRIEFING_TARGET_WORDS < loop.BRIEFING_WORDS
+    assert prompts._BRIEFING_GOOD in system["content"]
+    assert prompts._BRIEFING_BAD in system["content"]
+    assert 'End with "Over."' in system["content"]
+    assert "never say that no action is needed" in system["content"]
+    assert f"at most {prompts.BRIEFING_TARGET_WORDS} words" in user["content"]
+    assert json.dumps(FACTS) in user["content"]
+    # the good example passes the check and is in budget; the bad one fails it on length
+    example = json.loads(prompts._BRIEFING_EXAMPLE_FACTS)
+    assert loop.check_briefing(prompts._BRIEFING_GOOD, example) == []
+    assert len(prompts._BRIEFING_GOOD.split()) <= prompts.BRIEFING_TARGET_WORDS
+    assert "more than 60 words" in loop.check_briefing(prompts._BRIEFING_BAD, example)
+
+
+def test_retry_prompt_quotes_the_reason_and_the_word_count() -> None:
+    text = prompts.briefing_retry(["more than 60 words"], 67, '{"team": "Team Two"}')
+    assert "It had 67 words" in text and "Reasons: more than 60 words" in text
+    assert f"at most {prompts.BRIEFING_TARGET_WORDS} words" in text
+    assert text.endswith('Facts:\n{"team": "Team Two"}')
+
+
+def test_a_61_word_briefing_is_retried_with_the_reason_and_count() -> None:
+    long = "Team Two, search sector B3 " + "now " * 55 + "please."
+    assert len(long.split()) == 61
+    client = FakeChatClient({"Facts:": [long, "Team Two, search sector B3. Over."]})
+    assert loop.write_briefing(FACTS, client) == "Team Two, search sector B3. Over."
+    assert len(client.calls) == 2
+    retry = client.calls[1]["messages"]
+    assert [m["role"] for m in retry] == ["system", "user"]  # the 61 words are not sent back
+    assert "It had 61 words" in retry[-1]["content"]
+    assert "more than 60 words" in retry[-1]["content"]
 
 
 def test_briefing_without_a_model_is_the_template() -> None:
