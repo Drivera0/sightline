@@ -26,12 +26,12 @@ from sightline.contract import (
     Frame,
     LatLon,
     MapBase,
-    Params,
     Pose,
     Source,
 )
 from sightline.mission.store import CANDIDATE_THRESHOLD, SAVE_THRESHOLD, MissionStore
 from sightline.pipeline.rank import rank_frames
+from sightline.search.pod import FrameInput
 
 log = logging.getLogger(__name__)
 
@@ -55,31 +55,9 @@ class PhotoJob:
 
 
 def start_map_base(lkp, *, size_m: float = 1000.0, cell_m: float = 5.0) -> MapBase:
-    """A new mission's map: C's ``LiveMap.start(lkp).base`` once C-L1 lands; until then the
-    same grid and the labelled placeholder prior the demo uses (no invented ring numbers)."""
-    try:
-        from sightline.search.live import LiveMap  # type: ignore[import-not-found]
-    except ImportError:
-        from sightline.contract import CONTRACT_VERSION, Distribution
-        from sightline.search.grid import make_grid
-        from sightline.search.prior import placeholder_prior
+    """A new mission's map: lane C's ``LiveMap.start(lkp).base`` (the labelled placeholder prior)."""
+    from sightline.search.live import LiveMap
 
-        grid = make_grid(lkp, size_m=size_m, cell_m=cell_m)
-        p, outside = placeholder_prior(grid)
-        return MapBase(
-            contract_version=CONTRACT_VERSION,
-            grid=grid,
-            lkp=lkp,
-            params=Params(
-                recall=RECALL,
-                recall_source=RECALL_SOURCE,
-                pod_cap=0.95,
-                review_pod=0.9,
-                prior_source="placeholder",
-            ),
-            prior=Distribution(p=[float(x) for x in p], outside=float(outside)),
-            canopy=[None] * (grid.rows * grid.cols),
-        )
     return LiveMap.start(lkp, cell_m=cell_m, size_m=size_m).base
 
 
@@ -233,25 +211,36 @@ def ingest_photo(
     rank_frames_live(store, mid)
     lap("rank")
 
-    # 6. the map: "looked here, nobody found" for this frame (C's math)
+    # 6. the map: "looked here, nobody found" for this frame (C's math; the store applies it)
     map_note = "updated"
     try:
         live = live if live is not None else store.live(mid)
-        held = [
-            (LatLon(lat=d.lat, lon=d.lon), d.conf)
-            for dets_ in store.detections(mid).frames.values()
-            for d in dets_
-            if d.conf >= CANDIDATE_THRESHOLD
+        candidates = [
+            (LatLon(lat=d.lat, lon=d.lon), d.radius_m) for d in dets if d.crop is not None
         ]
+        held = [
+            (LatLon(lat=d.lat, lon=d.lon), d.radius_m)
+            for frame_dets in store.detections(mid).frames.values()
+            for d in frame_dets
+            if d.crop is not None
+        ]
+        frame_input = FrameInput(
+            frame_id=frame.id,
+            pose=frame.pose,
+            width_px=FRAME_W_PX,
+            height_px=FRAME_H_PX,
+            image=store.root / mid / frame.file,
+            candidates=candidates,
+        )
         update = live.frame_update(
-            frame,
-            recall=RECALL,
+            frame_input,
+            recall=live.base.params.recall,
             held=held,
             visibility_factor=conditions.visibility_factor if conditions else 1.0,
         )
         store.append_map_update(mid, update)
-    except NotImplementedError:
-        map_note = "skipped: waits for C-L1 (LiveMap.frame_update)"
+        if not update.canopy:  # the footprint missed the grid: say so (a wrong LKP looks like this)
+            map_note = "photo outside the search area (the grid around the last known position)"
     except ValueError as e:  # no map base yet
         map_note = f"skipped: {e}"
     lap("map")

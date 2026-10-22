@@ -141,7 +141,14 @@ def test_each_photo_becomes_a_frame_with_detections_in_upload_order(api) -> None
     events = ctx.store.events(mid)
     processed = [e for e in events if e.type == "photo.processed"]
     assert [e.ref for e in processed] == ["f0001", "f0002", "f0003"]
-    assert processed[0].data["map"].startswith("skipped: waits for C-L1")  # until C's LiveMap
+    assert [e.data["map"] for e in processed] == ["updated"] * 3  # lane C's LiveMap (C-L1)
+    steps = ctx.store.map_updates(mid)
+    assert [(u.seq, u.kind, u.source, u.ref) for u in steps] == [
+        (1, "step", "frame", "f0001"),
+        (2, "step", "frame", "f0002"),
+        (3, "step", "frame", "f0003"),
+    ]
+    assert steps[0].cells and steps[0].canopy  # it looked somewhere, and recorded the canopy
     assert sum(e.type == "detection.new" for e in events) == 3
     assert [c for c in hooks.calls if c[0] == "on_detection"][:2] == [
         ("on_detection", "f0001-d01"),
@@ -237,7 +244,7 @@ def test_clues(api) -> None:
         and body["lat"] == 49.376
         and body["radius_m"] == 25.0
     )
-    assert body["map"]["note"].startswith("map update skipped")
+    assert body["map"]["kind"] == "reweight" and body["map"]["source"] == "clue"  # C-L1
     assert ("on_clue", "c001") in hooks.calls
 
 
@@ -336,3 +343,16 @@ def test_a_photo_delivered_twice_is_processed_once(api) -> None:
     )
     assert again["skipped"] == "already processed"
     assert len(ctx.store.survey(mid).frames) == 1
+
+
+def test_a_photo_outside_the_search_area_says_so(api) -> None:
+    """A mistyped last known position looks like this: the photo's footprint misses the grid."""
+    client, ctx, _ = api
+    r = client.post(
+        "/missions", json={"name": "Far", "area_name": "x", "lkp": {"lat": 43.5, "lon": 16.4}}
+    )
+    mid = r.json()["mission_id"]
+    _upload(client, mid, ("a.jpg", drone_photo()))  # taken at Mount Seymour
+    ctx.queue.join()
+    done = next(e for e in ctx.store.events(mid) if e.type == "photo.processed")
+    assert done.data["map"].startswith("photo outside the search area")

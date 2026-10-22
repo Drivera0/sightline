@@ -202,7 +202,7 @@ def main() -> int:
                 time.sleep(0.1)
             maps = [e for e in s.events if e["type"] == "map.updated"]
             map_note = done[0]["data"]["map"]
-            assert maps or map_note.startswith("skipped"), map_note
+            assert len(maps) >= 3 and map_note == "updated", map_note  # Gate 1: photo → map.updated
             ms = sorted(e["data"]["total_ms"] for e in done)
             return f"median {ms[1]} ms per photo; map: {'updated' if maps else map_note}"
 
@@ -260,6 +260,10 @@ def main() -> int:
                 "POST", f"/missions/{state['mid']}/tasks/B3", {"state": "searched", "pod": 0.6}
             )
             assert t["task"]["pod"] == 0.6, t
+            assert t["map"]["source"] == "ground" and {c[1] for c in t["map"]["cells"]} == {0.6}, t[
+                "map"
+            ]
+            return "the sector's cells stepped at POD 0.6"
 
         def decision():
             mid = state["mid"]

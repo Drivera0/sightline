@@ -1,4 +1,5 @@
-"""Bayesian "nobody found here" update (contract section 8, LANE_C_SEARCH sections 3.4-3.5).
+"""Bayesian map updates: "nobody found here" (contract section 8, LANE_C_SEARCH sections 3.4-3.5)
+and, for live missions, "evidence points here" (``apply_reweight``, contract §12.2).
 
 The TypeScript mirror (web/src/search/) must stay identical to apply_step.
 """
@@ -38,6 +39,27 @@ def apply_step(
     out[idx] *= 1.0 - pod
     out /= denominator
     return out, float(outside) / denominator
+
+
+MAX_FACTOR = 20.0  # contract §12.3 invariant 2
+
+
+# Evidence points here (a clue, a confirmed person, shelter): the other half of a live map.
+def apply_reweight(
+    p: np.ndarray, outside: float, cells: Sequence[tuple[int, float]]
+) -> tuple[np.ndarray, float]:
+    """Apply [(idx, factor), ...]: p_i *= factor_i, then renormalise p and outside to sum to 1.
+    Never mutates p. Each factor must be in (0, MAX_FACTOR]; each idx should appear once."""
+    out = np.array(p, dtype=np.float64, copy=True)
+    if len(cells) == 0:
+        return out, float(outside)
+    idx = np.fromiter((i for i, _ in cells), dtype=np.int64, count=len(cells))
+    factor = np.fromiter((f for _, f in cells), dtype=np.float64, count=len(cells))
+    if np.any((factor <= 0.0) | (factor > MAX_FACTOR)):
+        raise ValueError(f"every factor must be in (0, {MAX_FACTOR}]")
+    out[idx] *= factor
+    total = float(out.sum()) + float(outside)
+    return out / total, float(outside) / total
 
 
 # A searcher marked a detection "not a person".

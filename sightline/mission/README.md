@@ -11,13 +11,12 @@ Lane D owns all of it: review, change anything, and update the checklist below.
 |---|---|---|
 | `store.py` | `MissionStore`, contract §14 exactly, plus `list_missions()`, `events()`, `trace_entries()`. Files per §12.1 under `root/<mission_id>/`; JSON rewritten atomically (temp + `os.replace`), `.jsonl` appended, both under a per-mission lock (threads: `RLock`; processes: `fcntl`/`msvcrt` on `.lock`); every write validated with the contract models; id counters in `counters.json`; `emit()` → `events.jsonl` + every `subscribe()`r (thread-safe); `subscribe()` replays after `Last-Event-ID`, then streams | `tests/pipeline/test_mission.py` |
 | `validate.py` | `validate_mission(root, mission_id) -> list[str]`: every file parses, and §12.3 invariants 1–8 | test 2 (every invariant broken once) |
-| `pipeline.py` | `ingest_photo` (LANE_D §5.3 steps 1–7): B's `read_pose` (rejects photos with no GPS/pose or not nadir) → 1000×750 display frame → `detect_tiled` on the **original** → candidates (conf ≥ 0.29, crop) and near-miss crops (0.15–0.29, `crops/nearmiss/`, files only) → B's `georef_detection` → `append_frame`/`append_detections` → `rank_frames_live` → C's `frame_update` (skipped until C-L1) → A's `hooks.on_detection` → one `photo.processed` event with per-step ms. Also `start_map_base` (C's `LiveMap.start`, else the same grid and labelled placeholder prior) | `tests/pipeline/test_mission_api.py` (test 4) |
+| `pipeline.py` | `ingest_photo` (LANE_D §5.3 steps 1–7): B's `read_pose` (rejects photos with no GPS/pose or not nadir) → 1000×750 display frame → `detect_tiled` on the **original** → candidates (conf ≥ 0.29, crop) and near-miss crops (0.15–0.29, `crops/nearmiss/`, files only) → B's `georef_detection` → `append_frame`/`append_detections` → `rank_frames_live` → C's `frame_update` ("photo outside the search area" when the footprint misses the grid) → A's `hooks.on_detection` → one `photo.processed` event with per-step ms. Also `start_map_base` (C's `LiveMap.start`) | `tests/pipeline/test_mission_api.py` (test 4) |
 | `scheduler.py` | `Scheduler`: A's `hooks.on_tick` every 5 min or 25 photos per active mission; B's conditions every 30 min once `fetch_conditions` exists | `tests/pipeline/test_scheduler.py` |
 | `queue.py` | `PhotoQueue` protocol, `LocalQueue` (one worker thread, jobs in upload order). `SqsQueue` is still to do (D-W1) | test 4 |
 | `effects.py` | LANE_D §5.4: `on_decision` (approved `assign_sector` → task + team assigned; approved `promote_detection` → `detection.new`), `on_task_update` (POD only when searched; ground step via C), `on_clue`, `on_review`, `on_conditions`, `on_fleet` (`on_leg_done` hooks). C's map steps are skipped with a note until C lands | test 5 rows |
 | `../api/missions.py` | Contract §13 as one `APIRouter` + `MissionContext` (store, queue, detector, hooks). Mounted by `create_app(missions=…)` or `create_app(mission_root=…)`; `serve` turns it on (`--mission-root missions`, `--backend cv2\|torch`). Endpoints that need B (conditions, cards) or C (debrief) answer 503 naming what they wait for | `tests/pipeline/test_mission_api.py` |
 | `../api/sse.py` | SSE: `event:`/`id:`/`data:` frames, heartbeat comment every 15 s, resume from `Last-Event-ID` (or `?after=`, since `EventSource` can't set headers on the first connect) | test 6 |
-| `_live.py` | `ReplayLiveMap`: a stand-in for C's `LiveMap` that can only **replay** updates (`apply`, `p`, `sector_poa`), so `store.live()` works before C-L1. Also `apply_reweight` (C's will replace it) | test 3 (restart rebuilds the same map) |
 
 Contract v1.2 (D-C1) is on `main` too: `sightline/contract.py` (all §12.2 models), `docs/01_CONTRACT.md` §12–§14,
 `web/src/contract.ts` regenerated, extras in `pyproject.toml`, `.env.example` (PR #52).
@@ -37,10 +36,10 @@ assert validate_mission(store.root, m.mission_id) == []
 
 These weren't spelled out in the contract; each is one place in `store.py` to change if you disagree.
 
-1. **LiveMap methods compute an update; `append_map_update` applies it** to the cached map (and
+1. **(Settled with lane C, #54)** **LiveMap methods compute an update; `append_map_update` applies it** to the cached map (and
    assigns `seq`). So C's `frame_update` etc. must **not** apply their own result, or the map is stepped
    twice. Tell lane C (or flip it: drop the `apply` in `append_map_update`).
-2. **`store.live()` needs a constructor from a stored base:** it calls `LiveMap.from_base(base)` when
+2. **(Done in C-L1)** **`store.live()` needs a constructor from a stored base:** it calls `LiveMap.from_base(base)` when
    `sightline.search.live` exists, else the stand-in. §14 only lists `LiveMap.start(lkp)`, so lane C
    needs to add `from_base` (or pass your own `live_factory=` to `MissionStore`).
 3. **`append_detections` emits `detection.new`** for each candidate (`crop` set), so the pipeline
@@ -99,7 +98,7 @@ These weren't spelled out in the contract; each is one place in `store.py` to ch
 - [ ] D-M2 `useSelection` gains `selectedTeamId`, `selectedDroneId`, `selectedClueId`; demo fixtures from E's `__fixtures__/`
 - [ ] D-W1 AWS (`deploy/aws/` already has lane A's worker image, see its README)
 - [ ] Sample cache regenerated as 1.2 (optional: 1.1 caches are still readable)
-- [ ] Delete `_live.py` when C-L1 lands
+- [x] `_live.py` deleted: C-L1 landed (`sightline/search/live.py`, lane A, #64); new missions get sector tasks A1–D4
 
 ## Measured (Tue Oct 21, `serve` on the GPU desktop, cv2 backend, fake LLM)
 

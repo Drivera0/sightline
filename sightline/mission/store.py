@@ -70,13 +70,9 @@ def now_iso() -> str:
 
 
 def _default_live_factory(base: MapBase) -> Any:
-    """C's ``LiveMap`` once C-L1 lands, else the replay-only stand-in."""
-    try:
-        from sightline.search.live import LiveMap  # type: ignore[import-not-found]
-    except ImportError:
-        from sightline.mission._live import ReplayLiveMap
+    """Lane C's ``LiveMap`` (``sightline/search/live.py``), rebuilt from its stored base."""
+    from sightline.search.live import LiveMap
 
-        return ReplayLiveMap.from_base(base)
     return LiveMap.from_base(base)
 
 
