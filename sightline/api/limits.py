@@ -19,8 +19,15 @@ anything in. Client file names are never used as paths, and a name with ``..``, 
 absolute path is refused (``safe_filename``).
 
 Rate limit: write methods, per client IP, ``SIGHTLINE_RATE_LIMIT`` as ``<requests>/<seconds>``,
-default ``300/60`` (5 a second on average: the simulated fleet sends about 1 a second, a replay 1
-every 2 s); ``off`` turns it off (the tests do, unless a test turns it on). Over the limit: 429 with
+default ``600/60``; ``off`` turns it off (the tests do, unless a test turns it on). The default fits
+the simulated fleet, whose drones and ground station all write from one IP
+(``sightline/search/fleet.py``): per tick the ground station sends one ``PUT /fleet`` and each drone
+at most one ``POST /photos`` (a tick's photos go in one request), plus a rare link or relay note. So
+3 drones + 1 ground station = 4 writes per tick: ``fleet run`` (1 tick a second) sends 240 a
+minute, ``scripts/creek_run.py`` (2 ticks a second) 480 a minute. 600 leaves 120 a minute for the
+console, the radio and a photo replay (1 every 2 s) on the same machine. The fleet and
+``creek_run`` honour ``Retry-After``, so a burst (photos synced after a lost link) waits instead of
+failing. Over the limit: 429 with
 ``Retry-After``. Behind Caddy, ``SIGHTLINE_TRUST_PROXY=1`` takes the client IP from the last
 ``X-Forwarded-For`` entry (the one Caddy adds); never set it without a proxy in front.
 """
@@ -45,7 +52,7 @@ MAX_PHOTO_BYTES = 28_000_000
 MAX_BATCH_BYTES = 400_000_000
 MAX_FORM_BYTES = 25_000_000
 MAX_JSON_BYTES = 1_000_000
-DEFAULT_RATE = "300/60"
+DEFAULT_RATE = "600/60"  # see the module docstring
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 PHOTO_TYPES = {"image/jpeg", "image/pjpeg", "image/png", "application/octet-stream", ""}
 _PHOTOS_PATH = re.compile(r"^/missions/[^/]+/photos$")

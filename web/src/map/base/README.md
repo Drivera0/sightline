@@ -27,3 +27,10 @@ one GeoJSON source. Lane B installs its layers in the documented order; a later
 Lane C heat layer should be inserted before `grid-outline` so it remains below
 all Lane B overlays. The initial camera fits this complete grid; selecting a
 review item then flies into its individual detection.
+
+The live mission map (`heat/LiveHeatMap.tsx`) also draws the simulated fleet from these files:
+`fleetMotion.ts` glides each drone to its latest report over ~400 ms (ease-out, no overshoot) and
+moves relay dots; `legLayer.ts` fades a cancelled (re-tasked) leg out and draws a dashed trail from
+the diversion point to the new leg; `droneLayer.ts` puts the link state (ok / degraded / lost, in
+words) on each drone; `relayLayer.ts` draws a drone relaying a cut-off team's position. One
+`requestAnimationFrame` loop runs only while something moves; reduced motion draws still frames.
