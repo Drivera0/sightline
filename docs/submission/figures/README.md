@@ -7,11 +7,11 @@ models on Token Factory).
 
 | File | Devpost caption | Source (`render_gallery.py`) |
 |---|---|---|
-| `console-t0-the-call-pitch-bar.png` | O1, N1: the console at 20:35, the call, with the pitch bar | `#m/demo?t=0` (the landing; t0 has no coach mark) |
-| `photos-land-t1-each-photo-ranked-and-placed.png` | O2, N2: 21:18, the 500 photos land and are placed; 14 candidates | `#m/demo?t=1`, then Esc (the coach mark away; the Photos rail stays) |
-| `second-look-t2-a-018-candidate-opencv5-zoom-nemotron-vl.png` | O3, N3: 21:31, the 0.18 candidate's card with its OpenCV 5 and Nemotron VL chips, the zoom open | `#m/demo?t=2`, Esc, then "Show the second look's images" |
-| `trace-which-model-did-what-second-look.png` | O4, N4: the Trace view on that chain (the recorded av-chain run), the model step open | `#m/demo/trace?t=2`, then the Model step opened |
-| `run-t4-fleet-flying-b4-pod-60-conditions.png` | O5, N5: 22:00, the fleet flying, B4 at POD 60 %, the Conditions panel open | `#m/demo?t=4`, Esc, then `W` |
+| `console-t0-the-call-pitch-bar.png` | O1, N1: the console at 13:35 PDT (20:35 UTC), the call, with the pitch bar | `#m/demo?t=0` (the landing; t0 has no coach mark) |
+| `photos-land-t1-each-photo-ranked-and-placed.png` | O2, N2: 14:18 PDT, the 500 photos land and are placed; 14 candidates | `#m/demo?t=1`, then Esc (the coach mark away; the Photos rail stays) |
+| `second-look-t2-a-018-candidate-opencv5-zoom-nemotron-vl.png` | O3, N3: 14:31 PDT, the 0.18 candidate's card with its OpenCV 5 and Nemotron VL chips, the zoom open | `#m/demo?t=2`, Esc, then "Show the second look's images" |
+| `trace-which-model-did-what-second-look.png` | O4, N4: the Trace view on that chain (the recorded av-chain run, below the demo mission's own trace), the model step open | `#m/demo/trace?t=2`, then the Model step opened |
+| `run-t4-fleet-flying-b4-pod-60-conditions.png` | O5, N5: 15:00 PDT, the fleet flying, B4 at POD 60 %, the Conditions panel open | `#m/demo?t=4`, Esc, then `W` |
 | `debrief-t5-three-numbers-what-breaks-first.png` | O6, N6: the Debrief's three numbers and what breaks first | `#m/demo?t=5`, Esc; "How much looking it saves" (between the two in the app) is left out of this frame so both fit |
 
 Extras, not in either gallery now (taken before the one console, #171):
