@@ -232,3 +232,105 @@ def test_every_tavily_call_and_the_extraction_are_in_the_trace(tmp_path: Path) -
     assert model.output["fields"] == {
         "wind_kmh": {"value": 20.0, "quote": "Wind southeast 20 km/h"}
     }
+
+
+def test_without_local_domains_an_alert_must_name_the_place() -> None:
+    """Found live: for an area near Mostar, a generic search returned a closure 120 km away."""
+    docs = [
+        {
+            "url": "u",
+            "title": "t",
+            "text": "Road closure near Jahorina. Mostar trail closed after rockfall.",
+        }
+    ]
+    client = FakeChatClient(
+        default=json.dumps(
+            {
+                "fields": {},
+                "alerts": [
+                    {
+                        "kind": "closure",
+                        "title": "Road closure near Jahorina",
+                        "text": "x",
+                        "quote": "Road closure near Jahorina",
+                        "doc": 0,
+                    },
+                    {
+                        "kind": "closure",
+                        "title": "Mostar trail closed",
+                        "text": "x",
+                        "quote": "Mostar trail closed after rockfall",
+                        "doc": 0,
+                    },
+                ],
+            }
+        )
+    )
+    assert [a["title"] for a in extract_fields(docs, client, place="Mostar")[2]] == [
+        "Mostar trail closed"
+    ]
+    assert len(extract_fields(docs, client)[2]) == 2  # trusted local domains: no place filter
+
+
+def test_without_local_domains_an_alert_must_be_operational() -> None:
+    """Found live: a national travel advisory naming the place got through as an alert."""
+    docs = [
+        {
+            "url": "u",
+            "title": "t",
+            "text": "Exercise increased caution in Mostar. Mostar trail closed after rockfall.",
+        }
+    ]
+    client = FakeChatClient(
+        default=json.dumps(
+            {
+                "fields": {},
+                "alerts": [
+                    {
+                        "kind": "advisory",
+                        "title": "Travel advisory",
+                        "text": "Exercise increased caution.",
+                        "quote": "Exercise increased caution in Mostar.",
+                        "doc": 0,
+                    },
+                    {
+                        "kind": "closure",
+                        "title": "Mostar trail closed",
+                        "text": "After rockfall.",
+                        "quote": "Mostar trail closed after rockfall.",
+                        "doc": 0,
+                    },
+                ],
+            }
+        )
+    )
+    assert [a["title"] for a in extract_fields(docs, client, place="Mostar")[2]] == [
+        "Mostar trail closed"
+    ]
+
+
+def test_sun_times_use_the_areas_own_local_date() -> None:
+    """Found live: an area near Mostar (UTC+1/+2) got Vancouver's date."""
+    from sightline.geo.conditions import local_tz
+
+    assert local_tz(49.37, -122.945).key == "America/Vancouver"
+    assert local_tz(43.34, 17.79).utcoffset(None).total_seconds() == 3600  # 17.8° E → UTC+1
+    sunset, _ = sun_times(43.34, 17.79, date(2026, 10, 22))
+    assert sunset.startswith("2026-10-22T15:")  # about 16:50 local (CEST), the same calendar day
+
+
+def test_no_flying_before_dawn(tmp_path: Path) -> None:
+    """Found live: at 03:47 near Mostar the card said 13 h of daylight and flyability unknown."""
+    area = Area(name="Mostar", lkp=LatLon(lat=43.34, lon=17.79))
+    c = fetch_conditions(
+        area,
+        fleet_max_wind_kmh=38,
+        last_seen_at=None,
+        cache_dir=tmp_path,
+        now="2026-10-22T02:47:00Z",
+        tavily=FakeTavily(),
+    )
+    assert c.flyable is False and c.flyability_reason.startswith("before dawn")
+    assert (
+        sun_times(43.34, 17.79, date(2026, 10, 22))[0] == c.sunset
+    )  # today's sunset, not yesterday's
