@@ -115,8 +115,10 @@ turn is the time to chunk 0. In `dev.py` (and when D mounts the router), wrap th
 - [x] Time to first audio under 5 s: chunked speech + cached openers (lane A, above)
 - [ ] Optional: stream within a chunk with Magpie's chunked inference (`create_chunk_state` /
       `generate_speech`) to shorten the ~1 s pauses between chunks
-- [ ] Lane D: mount `radio_router` with a `RadioContext` (D-R4) whose `api` is `HttpMissionApi` (or an
-      in-process equivalent) and whose `on_turn` writes `trace_call(actor="radio", kind="radio_turn")` + a `radio.turn` event
+- [x] D-R4 (lane A): the radio on live missions, `mount.py`: `StoreMissionApi` (the store in-process;
+      clues through the same checks as `POST /clues`), every turn into the trace + a `radio.turn` event, audio in
+      `missions/<id>/radio/`. Run: `uv run python -m sightline.pipeline serve --radio text` (or `real` in the NeMo env);
+      the radio's URLs are `/missions/<id>/radio/...` on the mission API. Tests: `tests/radio/test_mount.py`
 - [ ] Real roster callsigns for `parse_callsign` come from the mission's teams (already passed in `turn.py`)
 - [x] E-14: the radio desk UI in `web/src/radio/` (lane A, issue #36; see its README)
 - [ ] E-18: WER with 3 voices on 20 phrases, latency p50/p90 over 30 turns (`scripts/radio_wer.py`, `scripts/radio_latency.py`)

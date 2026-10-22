@@ -314,7 +314,11 @@ def serve(
         Path, typer.Option(help="Where live missions are kept (the mission API, contract §13).")
     ] = Path("missions"),
     backend: Annotated[
-        str | None, typer.Option(help="Detector for live missions: cv2 (default) or torch.")
+        str | None, typer.Option(help="Detector for live missions: cv2 (default), torch or fake.")
+    ] = None,
+    radio: Annotated[
+        str | None,
+        typer.Option(help="Radio desk on the missions: text (typed turns) or real (NeMo voices)."),
     ] = None,
 ) -> None:
     """Run the API: live missions under /missions (photos are processed by a worker thread),
@@ -333,6 +337,7 @@ def serve(
         candidate_threshold=candidate_threshold,
         model_name=model_name,
         mission_root=mission_root,
+        radio=radio,
     )
     uvicorn.run(api, host=host, port=port)
 

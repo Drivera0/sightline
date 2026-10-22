@@ -295,6 +295,10 @@ def handle_inbound(
                 asr_ms,
             )
             draft = {**session.pending.pop(team_id), "confirmed_by_turn": turn.id}
+            # The mission accepts a radio clue only after its committed turn is in the trace
+            # (contract §12.3 invariant 6); the in-process store adapter records it here.
+            if hasattr(api, "record_turn"):
+                api.record_turn(mission_id, turn)
             clue = api.post_clue(mission_id, draft)
             turn, out = _with_audio(turn, tts, turn.reply)
             return TurnResult(turn, out, clue)

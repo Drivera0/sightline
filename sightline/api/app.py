@@ -3,6 +3,7 @@ of a zip of drone photos that returns a cache (LANE_D section 6.6).
 
     GET  /health            -> {"status": "ok", "contract_version": "1.2", "backend": "cv2" | "torch"}
     /missions/...           -> the mission API, when ``create_app`` gets ``missions`` or ``mission_root``
+    /missions/{id}/radio/...-> the radio desk on those missions, with ``radio="text"|"real"``
     GET  /cache/...         -> the cache folder as static files
     POST /survey            -> zip of JPEGs; runs place -> ... -> export in the background
     GET  /survey/<id>       -> {"status": "running" | "done" | "failed", ...}
@@ -55,6 +56,7 @@ def create_app(
     max_images: int = 1000,
     missions: MissionContext | None = None,
     mission_root: Path | None = None,
+    radio: str | None = None,
 ) -> FastAPI:
     cache_root.mkdir(parents=True, exist_ok=True)
     app = FastAPI(title="Sightline upload API")
@@ -69,6 +71,12 @@ def create_app(
     if missions is not None:
         app.state.missions = missions
         app.include_router(missions_router)
+        if radio:  # the radio desk on the same missions (D-R4): "text" or "real" voices
+            from sightline.radio.api import radio_router
+            from sightline.radio.mount import radio_context
+
+            app.state.radio = radio_context(missions.store, hooks=missions.hooks, voices=radio)
+            app.include_router(radio_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:
