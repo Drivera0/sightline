@@ -51,3 +51,19 @@ clock, not the demo's 21:00 timeline.
 - **Roster fly-to** (E-06): a team's callsign selects it (`useSelection().selectTeam`, D-M2), and the live map
   flies to its position; clicking a team, drone or clue on the map selects it.
 
+## Console and Trace (lane A, redesign)
+
+- **Console** (`CommandView` with `map`): one-row mission header (name, LIVE/DEMO chip, clock, flyability,
+  conditions), a status line above the map (`missionStatus`: approvals waiting, drone leg ready, teams out,
+  sectors in progress, clues), one-line task rows (sector · POA · state · team; actions on hover or focus,
+  the row expands to details, the team picker and the POD entry), a first-visit hint (`ConsoleHint`, kept in
+  `localStorage` under `sightline.consoleHint`) and a "Desktop recommended" note under 1024 px.
+- **Status colours** (`shell/theme.css`): one pill, `.sl-pill`, driven by `--c` through `data-tone`: ok
+  (green: searching, done), caution (amber), alert (red), action (orange: needs a person), neutral, muted.
+  `StatusPill`, `ModeChip` (LIVE / DEMO / SIM / Recorded) and `Badge` all use it.
+- **Trace tab** (`TraceView.tsx`, `trace.ts`, `#m/<id>/trace`): `GET /missions/{id}/trace` polled with
+  `?after=`; entries grouped into chains by shared ids (perception → decision → action → approval), one line
+  per step (span type, tool or model, input, output, ms), the proposal each chain led to and who decided, and
+  a "which model did what" strip. The demo mission shows two recorded runs copied from the repo
+  (`__fixtures__/demo_trace*.jsonl`, the av-chain crops), labelled Recorded.
+
