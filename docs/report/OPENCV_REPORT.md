@@ -259,7 +259,12 @@ From `grep -rn "cv2\." sightline/` (all in five files; the scripts add only eval
 Full evidence: `docs/architecture/agent.md`. Summary:
 
 **The loop** (`sightline/agent/loop.py`). Each event produces **proposals a person approves**; the
-agent never acts and never dismisses a detection:
+agent never acts and never dismisses a detection. The gate is a design choice with outside support: in
+a simulated disaster search with an LLM-driven drone swarm, Ji et al. (arXiv
+[2511.04042](https://arxiv.org/abs/2511.04042), 2025) report that human feedback on the plan raised mission
+success from 62.0 % to 94.0 % (their system re-planned in 97 % of the cases a person flagged). Their humans
+corrected plans rather than approving each action, so this supports keeping a person in the loop, not our
+exact gate.
 
 | Event | Proposal |
 |---|---|
@@ -446,14 +451,58 @@ per million tokens in / out); 461 of 461 replies were valid JSON.
 
 All results in this section are **simulated**.
 
+**The search theory behind the map and the planner.** Sightline uses the standard quantities of search
+theory as US and international SAR planning defines them:
+
+- **Probability of success: POS = POC × POD** (the chance the person is in a cell, times the chance the
+  search would have found them there; USCG/Soza, *The Theory of Search: A Simplified Explanation*, 1996,
+  eq. 2-3, [PDF](https://navcen.uscg.gov/sites/default/files/pdf/Theory_of_Search.pdf); the IAMSAR Manual
+  Vol. II covers the same in its search-planning chapter, which we have not read in IAMSAR's own text).
+  The map holds POC per cell (we call it the cell's probability); each photo's POD per cell is
+  `recall × (1 − canopy) × overlap`, times the conditions' visibility factor on a live mission, capped at
+  0.95 (`sightline/search/pod.py`, `live.py`), and the map is updated by Bayes' rule
+  (p ← p·(1 − POD), renormalised; the after-photo probability never reaches zero).
+- The planner's **expected clearance** of a leg (`expected_clearance` in `sightline/search/planner.py`) is
+  **Σ POC × POD over the leg's cells, the POS of that leg**, and legs are ranked by POS per minute.
+- **Koopman's random-search law**, POD = 1 − e^(−C) with coverage C = W·L / A (sweep width W, track length
+  L, area A; Koopman, "The Theory of Search II: Target Detection", *Operations Research* 4(5), 1956;
+  USCG/Soza 1996 eq. 5-5 to 5-7), is the continuous limit of what the map does when a cell is seen many
+  times: repeated independent looks compound to 1 − Π(1 − POD_k). Sightline does not use sweep widths: a
+  photo's POD comes from the detector's measured recall and the canopy measured in that photo, so each
+  photo's footprint is a "definite" look rather than a random-search glimpse.
+- **Team PODs are the weak input.** Ground teams report "searched at POD x"; field-estimated PODs are
+  "very subjective and often times unreliable" (Ferguson, *Search Strategy and Tactics*, ASRC/MARG slides,
+  2012, [PDF](https://www.archive.asrc.net/ASRC-Operations/2012-08-30-Sweep-Width-POD-Effect-Ferguson.pdf)),
+  which is one reason a team's reported POD is capped at 0.9 and a sector is never ruled out.
+- **The prior** is Koester's distance-from-IPP rings when the subject category is set, else uniform
+  within the search area (the planner and fleet evaluations below were run with the uniform prior).
+  Koester's rings are the median and quartile distances from the initial planning point for each subject
+  category (Koester, *Lost Person Behavior*, dbS Productions, 2008); Sava, Twardy, Koester & Sonwalkar
+  ("Evaluating Lost Person Behavior Models", *Transactions in GIS* 20(1), 2016, online 2015) found the
+  Euclidean-distance model scored **0.78 (95 % CI 0.74–0.82) on 376 cases**, on a scale where a random map
+  scores 0 and a perfect one 1.
+- **Planning as Bayesian search** follows Bourgault, Furukawa & Durrant-Whyte ("Optimal Search for a Lost
+  Target in a Bayesian World", Field and Service Robotics 2003; and "Coordinated Decentralized Search for a
+  Lost Target in a Bayesian World", IROS 2003, for several vehicles), and Lin & Goodrich ("UAV Intelligent
+  Path Planning for Wilderness Search and Rescue", IROS 2009). The closest recent work to our fleet
+  planner is Ge, Jiang & Coombes, "Multi-UAV Search and Rescue in Wilderness Using Smart Agent-Based
+  Probability Models" (arXiv [2411.10148](https://arxiv.org/abs/2411.10148), 2024): an agent-based
+  lost-person prior driving a distributed multi-UAV search. Ours is greedier (one leg at a time on a shared
+  expected map) and adds what those papers leave out: the detector's measured recall in the POD, ground
+  teams and clues as sensors, and a person approving each move.
+- **Why drones miss people** in real searches is documented by the Norwegian Police drone unit's white
+  paper on drone search techniques in SAR (Nilsen, NPUAS); **not verified**: the PDF did not open from
+  here, and secondary reports credit it with lower flight altitude, camera angle and speed changes, and a
+  "bike wheel" search pattern.
+
 **The map** (sprint 1, `sightline/search/sim.py`; 5 m cells, 1,341 trials with the person in a
 photographed cell): a ground team checks a median of 1,213 cells with Sightline's canopy-aware map
-against 1,743 with a naive "photographed = cleared" map. Across 3 seeds × 5 noise levels it was
+against 1,743 with a naive map that treats every photographed cell as searched for certain. Across 3 seeds × 5 noise levels it was
 better every time: 28–30 % fewer cells at the default noise, 19–23 % with noise matching the canopy
 estimate's measured error (README; `docs/LANE_C_SEARCH.md`).
 
 **The planner** (`scripts/planner_eval.py`, `sightline/search/planner_sim.py`): on the demo mission's
-map (1 km around the last known position, 5 m cells, the labelled placeholder prior, canopy measured
+map (1 km around the last known position, 5 m cells, the uniform placeholder prior, canopy measured
 by its photos for 10 % of cells, 0.5 assumed elsewhere), one drone from the last known position flies
 lawnmower legs for 2 hours, either in a fixed serpentine sector order or as the planner chooses
 before every leg. The person's cell is drawn from the map; each pass over it finds them with
@@ -505,6 +554,23 @@ Per photo through the live pipeline (upload → detections on screen): **2.1 s**
 step (the live map's update for the photo, canopy from its own pixels) takes 46 ms of that for a full
 HERIDAL photo covering 142 cells.
 
+### 7.6 Where Sightline sits
+
+**Everyone detects; nobody closes the loop.** The tools a search team can buy or download today stop at a
+flagged pixel or a map of assignments; none we found turns photos, negative sweeps and field reports into
+one updated probability map that proposes the next move. Checked on 22 Oct from each product's own page
+unless marked:
+
+| System | What it does | Probability map | Field teams as sensors | Voice | Approval gate |
+|---|---|---|---|---|---|
+| [DJI FlightHub 2 AI Copilot](https://enterprise-insights.dji.com/blog/dji-flighthub-2-latest-update-ai-copilot-2026) (Apr 2026) | an agent that runs drone missions from text or voice; routes from plain language (Aug 2026) | no | no | yes, to control drones | high-risk actions confirmed by the operator (trade press, not DJI's page) |
+| [Skydio X10](https://www.skydio.com/x10) | autonomous flight, NightSense zero-light navigation, FLIR Boson+ thermal | no | no | no | n/a |
+| [Eagle Eyes Search](https://www.eagleeyessearch.com/) (Squamish, BC) | flags colour and motion anomalies live on the controller; a shared operating picture; syncs with CalTopo; North Shore Rescue is testing it ([DroneXL 2025](https://dronexl.co/2025/04/22/drones-ai-thermal-transform-search-and-rescue)) | no | no | no | no |
+| [Loc8](https://www.casara.ca/news/remotely-piloted-aircraft-systems-loc8-software-highlight) (CASARA) | compares pixel colours with a target palette, offline | no | no | no | no |
+| [SARUAV](https://scienceinpoland.pl/en/node/78720) (Univ. of Wrocław) | automatic detection in UAV photos, plus models that narrow the search area; real finds reported in 2021 and 2024 (not verified) | area models | no | no | no |
+| CalTopo / SARTopo | maps, assignments, clues, resources, ICS forms (from CalTopo's blog; training pages not opened) | no | assignments and clues | no | no |
+| **Sightline** | detector on OpenCV 5, second look, planner, radio desk | Bayesian, updated per photo, sweep and clue | POD-weighted searched sectors and clues | Parakeet, Nemotron, Magpie on the radio | every proposal, logged with who and when |
+
 ## 8. Limitations and failure cases
 
 - **Where the detector misses** (`docs/DETECTOR_LIMITS.md`): groups of people, clothing that
@@ -529,12 +595,13 @@ HERIDAL photo covering 142 cells.
 - **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.25 s).
 - **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
   so long replies are spoken sentence by sentence and the first sound depends on the model's time;
-  if the model fails or times out, the team hears "say again" and nothing changes. Its numbers so
-  far use typed team lines (§5.1).
+  if the model fails or times out, the team hears "say again" and nothing changes. Its numbers use
+  typed team lines and team lines spoken by Magpie (§5.1); WER on human voices is pending.
 - **Simulated parts:** the demo flight path over Mount Seymour, the search-map evaluation and the
   fleet are simulated and labelled so on screen; in the live AV chains (§5) the drones are simulated and
-  the human steps scripted, both labelled in the trace. The search prior is a labelled placeholder
-  (uniform, half outside the 1 km grid) until a cited lost-person prior; the clue and shelter factors of
+  the human steps scripted, both labelled in the trace. The search prior is Koester's distance-from-IPP
+  rings when the subject category is set, else uniform within the search area (the evaluations in §7.4
+  used the uniform one); the clue and shelter factors of
   the live map are heuristics, labelled in `sightline/search/live.py`.
 - **Positions assume flat ground** under each photo; on steep terrain a pin can be further off than
   its 10 m radius. The measured error covers the detector box only (§4.4).
