@@ -203,4 +203,13 @@ describe("a recall", () => {
     );
     expect(within(screen.getByLabelText("Proposal p002")).queryByLabelText("Clues behind it")).toBeNull();
   });
+
+  it("no clue line when the reason already names its clues (the planner's evidence format)", () => {
+    const note = vi.fn(() => "c003 (blue water bottle) raised B3 from 3.1 % to 3.9 %");
+    const reason = "B3 · 3.9 % of remaining probability, up from 3.1 %: c003 (blue water bottle by the…) raised it; a ground team adds the most here.";
+    render(<ApprovalInbox proposals={[p({ id: "p001", reason })]} teams={TEAMS} onDecide={vi.fn()} imageUrl={(r) => r} clueNote={note} />);
+    const card = screen.getByLabelText("Proposal p001");
+    expect(within(card).queryByLabelText("Clues behind it")).toBeNull();
+    expect(card).toHaveTextContent("c003 (blue water bottle by the…) raised it");
+  });
 });

@@ -105,7 +105,7 @@ not yet as the deciding signal; we use it as advice that a person approves.
 ## 3. Nemotron 3 Nano (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`)
 
 **What we used it for.** 60-word radio briefings for ground teams from a dict of facts
-(`sightline/agent/loop.py:144`), and reading weather and park pages found by Tavily, returning each value
+(`sightline/agent/loop.py:155`), and reading weather and park pages found by Tavily, returning each value
 with the sentence it came from (`sightline/geo/conditions.py:338`).
 
 **What worked.** All 5 live briefings passed our post-check (no "clear"/"cleared", every number in the

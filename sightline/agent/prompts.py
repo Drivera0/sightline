@@ -61,23 +61,25 @@ IMAGE_LABELS = {
 BRIEFING_VERSION = "briefing-v2"
 BRIEFING_TARGET_WORDS = 45  # asked of the model; check_briefing rejects only above 60
 
-# The example's numbers differ from any mission's, so a copied number is caught as invented.
+# The example's numbers differ from any mission's, so a copied number is caught as invented. Its
+# "why" is a planner reason in the evidence format (at most planner.REASON_WORDS words: what moved
+# the sector since the last plan, then why a ground team; docs/architecture/agent.md).
 _BRIEFING_EXAMPLE_FACTS = (
-    '{"team": "Team Five", "sector": "D4", "why": "Sector D4 holds 6.2% of the probability, '
-    "70% of it under tree cover where a drone sees poorly (drone POD 0.38): a ground team adds the "
-    'most here; Team Five has no position yet: about 9 min on foot from the last known point.", '
+    '{"team": "Team Five", "sector": "D4", "why": "D4 · 6.2 % of remaining probability, up from '
+    "4.0 %: c007 (red cap on the ridge…) raised it; 70% under tree cover (drone POD 0.38): a "
+    'ground team adds the most here; Team Five is nearest (410 m, about 9 min on foot).", '
     '"subject": "child, green coat", "daylight_left": "2 h 10 min", "weather": "wind 12 km/h"}'
 )
 _BRIEFING_GOOD = (
-    "Team Five, search sector D4. It holds 6.2% of the probability, 70% of it under trees where "
-    "drones see poorly. About 9 min on foot from the last known point. Subject: child, green coat. "
-    "2 h 10 min of daylight, wind 12 km/h. Over."
+    "Team Five, search sector D4. Clue c007, a red cap on the ridge, raised it to 6.2% of the "
+    "probability. 70% under trees, hard for drones. About 9 min on foot. Subject: child, "
+    "green coat. 2 h 10 min of daylight, wind 12 km/h. Over."
 )
 _BRIEFING_BAD = (
-    "Team Five, sector D4 holds 6.2% of the probability, 70% of it under tree cover where a drone "
-    "sees poorly (drone POD 0.38): a ground team adds the most here; Team Five has no position "
-    "yet: about 9 min on foot from the last known point. Subject is child, green coat. Daylight "
-    "left is 2 h 10 min. Weather is wind 12 km/h."
+    "Team Five, D4 · 6.2 % of remaining probability, up from 4.0 %: c007 (red cap on the ridge…) "
+    "raised it; 70% under tree cover (drone POD 0.38): a ground team adds the most here; Team Five "
+    "is nearest (410 m, about 9 min on foot). Subject is child, green coat. Daylight left is "
+    "2 h 10 min. Weather is wind 12 km/h."
 )
 # An alert to every team: live, v2 without this example still wrote "All teams, search sector C3".
 _BRIEFING_ALERT_FACTS = (

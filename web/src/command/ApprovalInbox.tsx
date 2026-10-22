@@ -8,6 +8,7 @@ import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Drone, EvidenceRef, Proposal, Team } from "../contract";
 import { Label, Panel, StatusPill } from "../shell/components";
 import { useClock } from "../lib/time";
+import { clueNoteFor } from "./clueShift";
 import { domain, OVERRIDE_SOURCE } from "./conditions";
 
 export type Decide = (
@@ -204,7 +205,7 @@ export function ApprovalInbox({
           by={operator.trim() || "Search manager"}
           onDecide={decide}
           imageUrl={imageUrl}
-          clues={p.kind === "assign_sector" ? (clueNote?.(p) ?? null) : null}
+          clues={p.kind === "assign_sector" ? clueNoteFor(p.reason, clueNote?.(p) ?? null) : null}
           cardRef={(el) => {
             if (el) cards.current.set(p.id, el);
             else cards.current.delete(p.id);

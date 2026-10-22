@@ -34,12 +34,27 @@ def chain(entries: list[dict], proposal: str) -> list[dict]:
     return [e for e in entries if set(e["refs"]) & linked]
 
 
+def planner_lines(inp: dict, out: dict, top: int = 3) -> list[str]:
+    """A planner ``tool_call`` (docs/architecture/agent.md, "The planner as a tool call"): the
+    map versions it planned on and its best ``top`` sectors with score and evidence."""
+    considered = inp.get("sectors_considered") or []
+    since = inp.get("since_map_seq")
+    head = f"    map v{inp.get('map_seq')} (last plan of this kind: v{since})"
+    lines = [f"{head} · {len(considered)} sectors considered  ({out.get('ms')} ms)"]
+    for i, r in enumerate((out.get("ranked") or [])[:top], 1):
+        score = r.get("score", r.get("score_per_min"))
+        lines.append(f"    ranked {i}. {r.get('sector')} score {score}: {r.get('evidence')}")
+    return lines
+
+
 def describe(e: dict) -> list[str]:
     """One entry as a heading line and indented detail lines."""
     head = f"{e['at']}  {e['actor']:<8} {e['kind']:<10} {e['summary']}"
     lines = [head]
     inp, out = e.get("input") or {}, e.get("output") or {}
-    if e["kind"] == "tool_call":
+    if e["kind"] == "tool_call" and (e["actor"] == "planner" or "ranked" in out):
+        lines.extend(planner_lines(inp, out))
+    elif e["kind"] == "tool_call":
         lines.append(f"    image: {out.get('image')}  ({out.get('ms')} ms)")
         if "boxes" in out:
             lines.append(f"    re-detected boxes: {out['boxes']}")
