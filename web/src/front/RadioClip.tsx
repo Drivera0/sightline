@@ -4,6 +4,9 @@
 import { useEffect, useRef, useState } from "react";
 import { RADIO_CLIP } from "./copy";
 
+/** HTMLMediaElement.HAVE_ENOUGH_DATA (4): enough is buffered to play to the end without stopping. */
+const HAVE_ENOUGH_DATA = 4;
+
 export function RadioClip({ className = "" }: { className?: string }) {
   const audio = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -28,8 +31,22 @@ export function RadioClip({ className = "" }: { className?: string }) {
       a.pause();
       return;
     }
-    // play() can reject (autoplay rules, a missing file); the button just stays on Play
-    void Promise.resolve(a.play()).catch(() => setPlaying(false));
+    // from the start each time it has ended (never part-way in), and only once enough is loaded to play
+    // through, so the first word is not cut; play() can reject (autoplay rules, a missing file): the
+    // button just stays on Play
+    if (a.ended) a.currentTime = 0;
+    let started = false;
+    const go = () => {
+      if (started) return;
+      started = true;
+      a.removeEventListener("canplaythrough", go);
+      void Promise.resolve(a.play()).catch(() => setPlaying(false));
+    };
+    if (a.readyState >= HAVE_ENOUGH_DATA) return go();
+    a.addEventListener("canplaythrough", go, { once: true });
+    a.preload = "auto";
+    if (a.networkState === 0 /* NETWORK_EMPTY */) a.load();
+    window.setTimeout(go, 2500); // a slow network: play what has come rather than wait for ever
   };
   return (
     <div aria-label="Sightline on the radio" role="group" className={`flex flex-col gap-1.5 ${className}`}>

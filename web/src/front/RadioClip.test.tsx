@@ -24,9 +24,29 @@ describe("RadioClip", () => {
     const audio = clip.querySelector("audio")!;
     expect(audio).toHaveAttribute("src", "/front/briefing.mp3");
     expect(audio).toHaveAttribute("preload", "none"); // nothing loads until Play
+    vi.spyOn(HTMLMediaElement.prototype, "readyState", "get").mockReturnValue(4);
     await userEvent.click(screen.getByRole("button", { name: "Play the radio briefing" }));
     expect(play).toHaveBeenCalledOnce();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("waits until it can play through before it starts (the first word is not cut), and starts again from 0", async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const load = vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => undefined);
+    render(<RadioClip />);
+    const audio = screen.getByRole("group", { name: "Sightline on the radio" }).querySelector("audio")!;
+    await userEvent.click(screen.getByRole("button", { name: "Play the radio briefing" }));
+    expect(load).toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled(); // nothing buffered yet
+    audio.dispatchEvent(new Event("canplaythrough"));
+    expect(play).toHaveBeenCalledOnce();
+    // played to the end: the next Play starts from the beginning, never part-way in
+    vi.spyOn(audio, "ended", "get").mockReturnValue(true);
+    vi.spyOn(audio, "readyState", "get").mockReturnValue(4);
+    audio.currentTime = 12;
+    await userEvent.click(screen.getByRole("button", { name: "Play the radio briefing" }));
+    expect(audio.currentTime).toBe(0);
+    expect(play).toHaveBeenCalledTimes(2);
   });
 
   it("is in the About sheet, under the pitch", () => {
