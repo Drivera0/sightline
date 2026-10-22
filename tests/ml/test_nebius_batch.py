@@ -35,3 +35,35 @@ def test_writes_run_survey_format_sorted_by_conf(tmp_path: Path) -> None:
 def test_empty_folder_is_an_error(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         batch.detect_folder(_Fake(), tmp_path)
+
+
+def test_results_round_trip_through_the_job_logs(tmp_path: Path, monkeypatch, capsys) -> None:
+    """--print-results puts both files in the logs; deploy/nebius/collect.py reads them back,
+    even with a timestamp before each log line."""
+    import subprocess
+
+    photos = tmp_path / "in"
+    photos.mkdir()
+    (photos / "a.jpg").write_bytes(b"x")
+    monkeypatch.setattr(
+        "sightline.ml.detect_cv.CvDetector", lambda *a, **k: type("D", (_Fake,), {"rect": True})()
+    )
+    assert (
+        batch.main([str(photos), str(tmp_path / "out"), "--onnx", "m.onnx", "--print-results"]) == 0
+    )
+    logs = "".join(
+        f"2026-10-22T03:00:00Z {line}\n" for line in capsys.readouterr().out.splitlines()
+    )
+    collect = Path(__file__).resolve().parents[2] / "deploy" / "nebius" / "collect.py"
+    r = subprocess.run(
+        [sys.executable, str(collect), str(tmp_path / "back")],
+        input=logs,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    assert r.returncode == 0, r.stderr
+    for name in ("detections_raw.json", "job_summary.json"):
+        assert json.loads((tmp_path / "back" / name).read_text()) == json.loads(
+            (tmp_path / "out" / name).read_text()
+        )

@@ -15,8 +15,30 @@ docker build -f deploy/nebius/Dockerfile -t sightline-nebius .                  
 docker run --rm --user $(id -u):$(id -g) -v $PWD/photos:/in:ro -v $PWD/out:/out sightline-nebius /in /out
 ```
 
-## Still to do (lane A, Mon Oct 27)
+## Running it (`run_job.sh`)
 
-- [ ] push the image to a registry Nebius can pull from (Nebius Container Registry)
-- [ ] mount or sync the fleet photos into the job's input, run it as a Serverless Job, read `out/` back
+```bash
+curl -sSL https://artifacts.nebius.cloud/cli/install.sh | bash && exec -l $SHELL   # once: the nebius CLI
+nebius profile create                                   # once: browser login (or --no-browser for a link)
+bash deploy/nebius/run_job.sh                           # the latest creek run's photos (scripts/creek_run.py)
+bash deploy/nebius/run_job.sh --local                   # the same job image under local Docker, no Nebius
+```
+
+The photos go into the job image (`FROM` the batch image + `COPY photos /in`), so no bucket or S3 keys are
+needed. The results come back through the job's logs: `nebius_batch_detect.py --print-results` prints both
+JSON files between markers, and `collect.py` writes them to `deploy/nebius/.job/out/` (tested in
+`tests/ml/test_nebius_batch.py`). The script creates a Container Registry once (`.state.env`, gitignored),
+pushes, runs `nebius ai job create` on `cpu-d3` / `4vcpu-16gb` with a 1 h timeout (the minimum), waits, reads the
+logs and deletes the job. Set `SUBNET_ID` if the project has several subnets, and `PLATFORM`/`PRESET` to
+change the VM. Docs read 2026-10-22: https://docs.nebius.com/serverless/jobs/manage.md. Price: cpu-d3 is
+$0.015 per vCPU-hour + $0.0045 per GiB-hour from Oct 1, 2026, so about $0.13/h for 4vcpu-16gb plus disk.
+
+**Checked locally (2026-10-22, `--local`):** the 711 photos of the creek run (crops of HERIDAL val photos at
+simulated poses), 2.09 GB image; 334 s, 0.47 s per photo on 32 CPUs. **One candidate: f0665 at 0.735**, the
+same photo that gave the live run's candidate, and no other.
+
+## Still to do (lane A)
+
+- [x] job script, results through the logs, local run (above)
+- [ ] `nebius` CLI login (Dan), then `bash deploy/nebius/run_job.sh`
 - [ ] record time and cost in `docs/feedback/nebius.md` ("Serverless Jobs") and the README's NVIDIA + Nebius table

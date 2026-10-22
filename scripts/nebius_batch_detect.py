@@ -27,6 +27,7 @@ MODEL_NAME = "yolo11s-heridal-tiled-run2"
 SAVE_THRESHOLD = 0.05
 CANDIDATE_THRESHOLD = 0.29
 PHOTO_SUFFIXES = {".jpg", ".jpeg"}
+RESULT_MARK = "=== sightline-result"
 
 
 def detect_folder(detector, in_dir: Path, limit: int | None = None) -> dict:
@@ -59,6 +60,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--onnx", type=Path, default=os.environ.get("SIGHTLINE_ONNX"))
     ap.add_argument("--threads", type=int, default=None, help="default: every core")
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument(
+        "--print-results",
+        action="store_true",
+        help="also print both JSON files to stdout between markers (read back from the job's logs)",
+    )
     args = ap.parse_args(argv)
 
     from sightline.ml.detect_cv import CvDetector
@@ -87,6 +93,12 @@ def main(argv: list[str] | None = None) -> int:
     }
     (args.out_dir / "job_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary))
+    if args.print_results:
+        for name, body in (("detections_raw.json", doc), ("job_summary.json", summary)):
+            print(
+                f"{RESULT_MARK} {name}\n{json.dumps(body, separators=(',', ':'))}\n{RESULT_MARK} end",
+                flush=True,
+            )
     return 0
 
 
