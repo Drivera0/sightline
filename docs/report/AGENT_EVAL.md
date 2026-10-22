@@ -232,7 +232,7 @@ The table compares #140, before the fixes, with this run, after #142. **Bold** m
 
 Nothing crashed. No scenario run raised an exception, and the runner traced no failed event. Every
 new failure entry uses the trace's existing `note` kind and its existing actors (`pipeline`,
-`conditions`, `verifier`, `agent`), so the web Trace tab shows them without a change. The
+`conditions`, `verifier`, `agent`), so the web Trace view shows them without a change. The
 `photo.failed` and `photo.rejected` events are `mission.note` events with `data.failure` set. The
 contract's event types are a closed list that the web app shares, so no new type was added.
 

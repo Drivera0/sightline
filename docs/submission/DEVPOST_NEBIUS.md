@@ -4,14 +4,15 @@
 **Subtitle:** One search map for drones, ground teams and the radio, on Nemotron: drone photos and voice reports in, where to search next out
 **Track:** Physical AI
 **Repo:** https://github.com/Drivera0/sightline (AGPL-3.0, tag `nebius-submit`, created at submission)
-**Demo:** https://sightline-iota-sandy.vercel.app (`#m/demo/command` opens the command view on a demo mission, no server needed)
+**Demo:** https://sightline-iota-sandy.vercel.app (opens the console on a demo mission at t0, no server needed; `#m/demo/map` is the console at the end of its timeline)
+**Where to look, in order:** the console at t0 (`#`) → **Follow the search** (3 min, `#m/demo?t=0` to `?t=5`) → the Trace view (`#m/demo/trace`) → Conditions, W in the console (`#m/demo/map/conditions`) → the Debrief: results, what breaks first and the links out (`#m/demo?t=5`; the old `#judges` redirects to its list for judges) → the About sheet for the method (`#about`)
 **Video:** <to add>
 
 <!--
 Video outline for Dan (≤ 3:00, public YouTube; from .documents/WIN_RESEARCH.md §8, Nebius video, a trim of the OpenCV master):
 0:00–0:10 Dan on camera, one line + "runs on Nebius Token Factory" said aloud.
-0:10–0:25 Front door + upload, 2× speed.
-0:25–0:55 Detection → re-look with the Trace tab showing which NVIDIA model did what (Nemotron VL, Nemotron Super, Parakeet, Magpie).
+0:10–0:25 The console at t0 → Follow the search, photos landing, 2× speed.
+0:25–0:55 Detection → re-look with the Trace view showing which NVIDIA model did what (Nemotron VL, Nemotron Super, Parakeet, Magpie).
 0:55–1:25 Fleet re-task moment: clue by radio → map shifts → agent proposes diverting the nearest drone → approve → drone turns (≥ 1 min of key modules in action starts here).
 1:25–1:50 Assignment card → radio exchange, 8 s of audio.
 1:50–2:15 Tavily moment: gusts → no-fly → recall, with the cited source. Architecture with the Nebius box highlighted; Serverless Job line (711 photos, 483 s, ~$0.10).
@@ -22,8 +23,8 @@ Production: burn in captions; name Nebius and NVIDIA with audio; mark "Not for K
 
 **Gallery (in this order):**
 
-1. *The command view on the demo mission (DEMO chip, simulated data): detections on the probability map, the task board, the approval inbox.* (`docs/submission/figures/command-view-detections-task-board-approval-inbox.png`)
-2. *Which NVIDIA model did what: the Trace tab's model strip, and the re-look crop and native zoom Nemotron VL answered from, with its trace line.* (`docs/submission/figures/trace-which-model-did-what-second-look.png`)
+1. *The console on the demo mission (DEMO chip, simulated data): detections on the probability map, the task board, the approval inbox.* (`docs/submission/figures/command-view-detections-task-board-approval-inbox.png`)
+2. *Which NVIDIA model did what: the Trace view's model strip, and the re-look crop and native zoom Nemotron VL answered from, with its trace line.* (`docs/submission/figures/trace-which-model-did-what-second-look.png`)
 3. *The radio desk on a live local mission: Team Two reports a backpack (typed here; in voice mode Parakeet transcribes it and Magpie speaks the replies), Nemotron 3 Super on Token Factory parses it, Sightline reads the clue back, and logs it on the map only after "affirmative".* (`docs/submission/figures/radio-desk-clue-read-back-before-it-is-logged.png`)
 4. *A team's clue re-tasks a simulated drone: after Team Two's radio clue (c003, a water bottle by the creek), Drone 1 is re-tasked to the clue's sector; its old leg over B2 fades out on the map as it turns to its new leg over C3 (DEMO: a recorded run of the fleet sim, with the re-task scripted).* (`docs/submission/figures/clue-retasks-the-nearest-drone.png`)
 5. *The live architecture: photos → `cv2.dnn` on AWS → map → agent with Nemotron on Token Factory → human approval, and Tavily for conditions. Not drawn: the speech models (Parakeet, Magpie) run on the GPU desktop, and batch detection runs as a Nebius Serverless Job.* (`docs/submission/figures/architecture-photos-cv2dnn-map-agent-approval-on-aws.png`)
