@@ -65,7 +65,7 @@ bash deploy/aws/teardown.sh                           # everything gone
 On Vercel, set `VITE_API_URL=https://<ip-with-dashes>.sslip.io` so the site's live missions use it
 (`SIGHTLINE_CORS_ORIGINS` in `setup.sh` already allows the Vercel site).
 
-**Cost:** c7i.xlarge (4 vCPU) is about $0.18 an hour in us-west-2 (≈ $4.30 a day running); S3, SQS, CloudWatch and
+**Cost:** c7i.2xlarge (8 vCPU, the default since Oct 22) is about $0.36 an hour in us-west-2 (≈ $8.60 a day running; c7i.xlarge $0.18 missed the 10 s per photo target); S3, SQS, CloudWatch and
 Secrets Manager stay well under $1 for a demo. Stop the instance between demos; `teardown.sh` after judging.
 
 **Checked locally (2026-10-21):** the image (with the `agent`, `conditions` and `aws` extras) runs the mission API; one
@@ -92,7 +92,7 @@ a stop/start of the instance** (same address, data kept, API back 5 s after the 
 after a boot took 14.5 s, then ~11 s).
 
 **Bigger only while recording:** `bash deploy/aws/resize.sh c7i.4xlarge --start` (stops, resizes, starts, waits for
-the API), then `bash deploy/aws/resize.sh c7i.xlarge` afterwards (back to the small size, left stopped). Tested
+the API), then `bash deploy/aws/resize.sh c7i.2xlarge` afterwards (back to the default size, left stopped). Tested
 2026-10-22: on c7i.4xlarge the remote check passed with a photo in **3.5 s in the worker (cv2.dnn 3.1 s)**, the first
 photo after a boot, against ~12 s on c7i.xlarge. Found while testing it: AWS reports the old size for a few seconds after
 a change, so the script waits until it reports the new one.
@@ -103,6 +103,6 @@ a change, so the script waits until it reports the new one.
 - [x] `docker-compose.yml`, Caddy (HTTPS, SSE unbuffered), `setup.sh`, `teardown.sh`, `iam-policy.json` (lane A)
 - [x] first `docker build` + `container_check.py` (locally, lane A; numbers above)
 - [x] `setup.sh` run on the team account (lane A); per-photo latency above
-- [x] Instance size: c7i.xlarge normally (stopped between demos), c7i.4xlarge while recording (`resize.sh`)
+- [x] Instance size: **c7i.2xlarge** normally (since 2026-10-22: remote check 7.1 s upload → processed, cv2.dnn 4.7 s; c7i.xlarge took 11.5 s, over the 10 s target, and batching slices, the FP16 target and OpenCV's ORT engine gave no speed-up), stopped between demos; c7i.4xlarge while recording (`resize.sh`)
 - [ ] Dashboard screenshot for the OpenCV report §6 (after a longer run)
 - [x] `update.sh` (deploy the latest `main` over SSM: start, fetch, rebuild, recreate, wait for `/health`). Run 2026-10-22 to `3806c20` (#86); `remote_check.py` all 7 passed (val photo 13.5 s upload → processed); debrief and sector outlines answer on AWS; instance stopped after
