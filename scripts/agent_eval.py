@@ -496,12 +496,15 @@ class Mission:
         ]
 
     def opening_legs(self) -> None:
-        """Opening legs (scripted, created_by command) for drones without a leg, approved."""
+        """The agent's opening legs (proposed when the fleet joined, ``on_fleet_join``), approved;
+        a scripted one (created_by command) for any drone still without a leg."""
         from sightline.agent.trace import now_iso
         from sightline.contract import Proposal
         from sightline.search.planner import PlannerConfig, candidate_legs
         from sightline.search.sectors import lattice_sectors
 
+        for p in self.pending("drone_leg"):
+            self.decide(p.id)
         live = self.store.live(self.mid)
         layout = lattice_sectors(live.base.grid)
         idle = [d for d in self.fleet().drones if d.leg_id is None]
@@ -566,7 +569,27 @@ class Mission:
                 kind="note",
             )
             rec["evidence"].append(("clue", c["id"], c["at"]))
+        # where the drones are going once the agent has answered the clue: legs being flown or
+        # approved, and leg proposals waiting for the manager (the planner counts both as taken)
+        st = self.store.state(self.mid)
+        fleet = st["fleet"]
+        rec["over"] = [
+            (x.drone_id, x.sector_id, x.status)
+            for x in (fleet.legs if fleet else [])
+            if x.status in ("approved", "flying")
+        ] + [
+            (p.leg.drone_id, p.leg.sector_id, f"{p.kind} {p.id} pending")
+            for p in st["proposals"]
+            if p.status == "pending" and p.leg is not None
+        ]
         return c["id"]
+
+    def approve_step(self, *kinds: str) -> None:
+        """Approve the proposals of these kinds that the last step produced (and only those)."""
+        ids = set(self.steps[-1]["proposals"])
+        for p in self.pending(*kinds):
+            if p.id in ids:
+                self.decide(p.id)
 
     def photo(self, lat: float, lon: float, positive: bool, k: int = 0) -> list[str]:
         """Upload one photo; the detection ids it gave."""
@@ -707,6 +730,10 @@ def gate_checks(store: Any, mid: str) -> list[dict]:
     props = st["proposals"]
     approved = [p for p in props if p.status == "approved"]
     events = store.events(mid)
+    # Order by the event log, not wall-clock stamps: the clock can step back (seen once under WSL,
+    # a decision stamped 0.8 s before its proposal) while the log's order cannot.
+    new_pos = {e.ref: i for i, e in enumerate(events) if e.type == "proposal.new"}
+    decided_pos = {e.ref: i for i, e in enumerate(events) if e.type == "proposal.decided"}
     checks: list[dict] = []
 
     def check(name: str, bad: list[str]) -> None:
@@ -757,25 +784,24 @@ def gate_checks(store: Any, mid: str) -> list[dict]:
         "every promotion to the review queue follows an approved promote_detection",
         [
             e.ref or "?"
-            for e in events
+            for i, e in enumerate(events)
             if e.type == "detection.new"
             and (e.data or {}).get("promoted_by")
             and (
                 (e.data or {})["promoted_by"] not in promoted
-                or e.at < (promoted[(e.data or {})["promoted_by"]].decided_at or "")
+                or i < decided_pos.get((e.data or {})["promoted_by"], len(events))
             )
         ],
     )
-    by_id = {p.id: p for p in props}
     check(
-        "every leg approval in the event log comes after its decision",
+        "no leg is approved in the event log before its proposal exists",
         [
             e.ref or "?"
-            for e in events
+            for i, e in enumerate(events)
             if e.type == "fleet.updated"
             and e.ref in leg_props
             and " approved for " in e.summary
-            and e.at < (by_id[leg_props[e.ref].id].decided_at or "~")
+            and i < new_pos.get(leg_props[e.ref].id, len(events))
         ],
     )
     check(
@@ -788,7 +814,7 @@ def gate_checks(store: Any, mid: str) -> list[dict]:
                 not p.decided_by
                 or p.decided_by == "agent"
                 or not p.decided_at
-                or p.decided_at < p.created_at
+                or decided_pos.get(p.id, -1) < new_pos.get(p.id, len(events))
             )
         ],
     )
@@ -823,13 +849,11 @@ def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> di
         m.join_fleet()
         if cfg["clue"] == "before_legs":
             m.clue()
-            for p in m.pending("drone_leg", "retask_drone"):
-                m.decide(p.id)
+            m.approve_step("drone_leg", "retask_drone")
         m.opening_legs()
         if cfg["clue"] == "after_legs":
             m.clue()
-            for p in m.pending("drone_leg", "retask_drone"):
-                m.decide(p.id)
+            m.approve_step("drone_leg", "retask_drone")
             m.fly()
         lkp = h.scn.lkp
         for k, (dlat, dlon) in enumerate(((0.0, 0.0), (0.0015, -0.002))):  # nobody here
@@ -865,15 +889,19 @@ def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> di
     for rec in m.steps:
         got = [props[i] for i in rec["proposals"]]
         if rec["step"] == "clue":
+            # A drone already flying (or proposed) over the clue's sector counts: the planner then
+            # rightly sends the others elsewhere and never re-tasks that one away (#135).
             legs = [p for p in got if p.leg is not None]
+            over = [o for o in rec.get("over", []) if o[1] == hidden]
+            proposed = ", ".join(f"{p.kind} {p.target['drone']} → {p.leg.sector_id}" for p in legs)
             truth.append(
                 {
-                    "check": "clue: a drone proposed toward the person's sector",
-                    "ok": any(p.leg.sector_id == hidden for p in legs),
-                    "detail": ", ".join(
-                        f"{p.kind} {p.target['drone']} → {p.leg.sector_id}" for p in legs
+                    "check": "clue: a drone is over or proposed toward the person's sector",
+                    "ok": bool(over),
+                    "detail": (
+                        "; ".join(f"{d} {s} ({how})" for d, s, how in over) or "none over it"
                     )
-                    or "no leg proposal",
+                    + f"; the clue's proposals: {proposed or 'none'}",
                 }
             )
         elif rec["step"] == "detection" and cfg["conf"] < 0.29:
@@ -978,6 +1006,8 @@ def _model_case(
         if e.kind == "model_call" and e.summary.startswith("briefing rejected")
     ]
     vl_calls = [e for e in trace if e.kind == "model_call" and e.actor == "verifier"]
+    retried = [e.summary for e in trace if e.kind == "model_call" and "retries" in (e.output or {})]
+    fast = sum("CircuitOpen" in n for n in notes)
     kinds = Counter(p.kind for p in st["proposals"] if p.created_by != "command")
     briefings = [p.briefing for p in st["proposals"] if p.briefing]
     template = sum("template used" in n for n in notes)
@@ -993,6 +1023,8 @@ def _model_case(
         did.append(f"verdict `{v.person}`{why}")
     if template:
         did.append(f"{template} of {len(briefings)} briefings fell back to the template")
+    if fast:
+        did.append(f"circuit open: {fast} call(s) failed fast without the network")
     did.append("proposals: " + (", ".join(f"{k} {n}" for k, n in kinds.items()) or "none"))
     return {
         "case": case,
@@ -1004,10 +1036,58 @@ def _model_case(
             [f"{len(vl_calls)} VL model_call entries, the verdict entry"]
             + notes
             + rejected_briefings[:2]
-            + ([f"the {len(sleeps)} retries are not in the trace"] if sleeps and not notes else [])
+            + [f"model_call entry: “{x}”" for x in retried[:2]]
+            + (
+                [f"the {len(sleeps)} retries are not in the trace"]
+                if sleeps and not (notes or retried)
+                else []
+            )
         ),
-        "recorded": "partly" if sleeps and not notes else bool(notes or rejected_briefings),
+        "recorded": "partly"
+        if sleeps and not (notes or retried)
+        else bool(notes or rejected_briefings or retried),
         "crash": "; ".join(e.summary for e in trace if re.match(r"agent \w+ .* failed", e.summary)),
+        "mission": m.mid,
+    }
+
+
+def _repeats(h: Harness, m: Mission) -> str:
+    """The agent's trace notes about repeated events, quoted."""
+    return "; ".join(
+        f"note “{e.summary}”"
+        for e in h.store.trace_entries(m.mid)
+        if e.kind == "note" and e.summary.startswith("repeat")
+    )
+
+
+def _slow_down_case(h: Harness, delay_s: float = 0.25) -> dict:
+    """Token Factory hanging ``delay_s`` on every attempt, then timing out (a real one hangs for
+    the whole timeout): how long the agent's queue takes for a near miss, a review and a tick."""
+    from sightline.agent.llm import BREAKER_FAILURES
+
+    def slow(kind: str, n: int, prompt: str) -> str:
+        time.sleep(delay_s)
+        raise timeout_error()
+
+    transport, sleeps = FakeTransport(slow), []
+    t0 = time.monotonic()
+    m, det = _near_miss_mission(h, "a4 slow and down", _tf_factory(transport, sleeps))
+    m.review(det)
+    m.tick()
+    wall = time.monotonic() - t0
+    trace = h.store.trace_entries(m.mid)
+    fast = sum("CircuitOpen" in e.summary for e in trace if e.kind == "note")
+    attempts = sum(transport.attempts.values())
+    return {
+        "case": "a4 slow and down",
+        "injected": f"every attempt hangs {delay_s:g} s, then times out (near miss, review, tick)",
+        "did": f"{attempts} attempts in all (breaker at {BREAKER_FAILURES}), then {fast} call(s) "
+        f"failed fast; the whole sequence took {wall:.1f} s, about {attempts} × {delay_s:g} s "
+        "of waiting plus the pipeline",
+        "attempts": dict(transport.attempts),
+        "recorded": bool(fast),
+        "trace": f"{fast} notes name CircuitOpen",
+        "crash": "",
         "mission": m.mid,
     }
 
@@ -1070,6 +1150,8 @@ def failure_cases(h: Harness) -> list[dict]:
             h, "a3 5xx always", "503 on every attempt", always(lambda: server_error(503))
         ),
     )
+
+    guarded("a4 slow and down", "", lambda: _slow_down_case(h))
 
     # (b) malformed JSON from the VL model; a briefing reply that is broken JSON, not sentences
     def bad_json(kind: str, n: int, prompt: str) -> str:
@@ -1156,13 +1238,15 @@ def failure_cases(h: Harness) -> list[dict]:
             files=[("files", ("no_gps.jpg", NO_GPS.read_bytes(), "image/jpeg"))],
         )
         h.settle()
+        refused = [e for e in h.store.trace_entries(m.mid) if "photo.rejected" in e.summary]
         return {
             "case": "d1 no GPS (API)",
             "injected": "a JPEG without EXIF GPS posted to /photos",
             "did": f"skipped: rejected at upload ({r['rejected'][0]['reason'] if r['rejected'] else 'accepted!'}); "
             f"{len(h.store.survey(m.mid).frames)} frames",
-            "recorded": False,
-            "trace": "none: the upload response names the reason; no trace entry or event",
+            "recorded": bool(refused),
+            "trace": "; ".join(f"{e.actor}/{e.kind}: {e.summary}" for e in refused)
+            or "none: the upload response names the reason; no trace entry or event",
             "crash": "",
             "mission": m.mid,
         }
@@ -1177,6 +1261,7 @@ def failure_cases(h: Harness) -> list[dict]:
         h.ctx.queue.put(PhotoJob(m.mid, fid, rel, now_iso(), "no_gps.jpg"))
         h.settle()
         events = [e for e in h.store.events(m.mid) if e.ref == fid]
+        failed = [e for e in h.store.trace_entries(m.mid) if "photo.failed" in e.summary]
         r = h.call(
             "POST",
             f"/missions/{m.mid}/photos",
@@ -1198,11 +1283,14 @@ def failure_cases(h: Harness) -> list[dict]:
             "case": "d2 no GPS (worker)",
             "injected": "a no-GPS job put on the photo queue directly (bypassing the upload check), "
             "then a good photo",
-            "did": f"skipped {fid} (job logged as failed, not retried); the good photo {later} was "
-            + ("processed" if later in frames else "**not processed**")
+            "did": f"skipped {fid} ("
+            + ("recorded as photo.failed" if failed else "job logged as failed, not retried")
+            + f"); the good photo (upload {later}) was "
+            + ("processed" if frames else "**not processed**")
             + f"; frames now {frames or 'none'}",
-            "recorded": bool(events),
-            "trace": "; ".join(e.summary for e in events)
+            "recorded": bool(failed),
+            "trace": "; ".join(f"{e.actor}/{e.kind}: {e.summary}" for e in failed)
+            + ("; a mission.note event" if events and failed else "")
             or "no trace entry or event for the failed job: server log only",
             "crash": "",
             "mission": m.mid,
@@ -1216,8 +1304,7 @@ def failure_cases(h: Harness) -> list[dict]:
         h.use_client(EvalChat)
         m = Mission(h, "e1 duplicate clue")
         m.create()
-        m.join_fleet()
-        m.opening_legs()
+        m.join_fleet()  # drones idle: the clue re-plans every one of them
         cid = m.clue()
         h.hooks.on_clue(h.store, m.mid, cid)  # the same clue delivered to the agent again
         h.settle()
@@ -1225,7 +1312,12 @@ def failure_cases(h: Harness) -> list[dict]:
         return {
             "case": "e1 duplicate clue hook",
             "injected": f"on_clue({cid}) delivered twice",
-            "did": f"{len(ps)} leg proposals: " + ", ".join(f"{p.id} {p.status}" for p in ps),
+            "did": f"{len(ps)} leg proposals over the opening, the clue and its repeat "
+            f"({dict(Counter(p.status for p in ps))}); pending: "
+            + ", ".join(
+                f"{p.target['drone']} → {p.leg.sector_id}" for p in ps if p.status == "pending"
+            )
+            + " (one per drone)",
             "recorded": True,
             "trace": f"{sum(1 for e in h.store.trace_entries(m.mid) if e.kind == 'proposal' and cid in e.refs)} "
             "proposal entries cite the clue; the superseding is an event, not a trace entry",
@@ -1248,7 +1340,7 @@ def failure_cases(h: Harness) -> list[dict]:
             + ")",
             "recorded": True,
             "trace": f"{sum(1 for e in h.store.trace_entries(m.mid) if e.kind == 'verdict')} verdict "
-            "entries; no note that it was a repeat",
+            "entries; " + (_repeats(h, m) or "no note that it was a repeat"),
             "crash": "",
             "mission": m.mid,
         }
@@ -1268,7 +1360,8 @@ def failure_cases(h: Harness) -> list[dict]:
             "injected": f"POST /reviews {det} person, twice",
             "did": f"proposals: {dict(ps)}",
             "recorded": True,
-            "trace": "each proposal is traced; nothing marks the second as a repeat",
+            "trace": "each proposal is traced; "
+            + (_repeats(h, m) or "nothing marks the second as a repeat"),
             "crash": "",
             "mission": m.mid,
         }
@@ -1299,9 +1392,7 @@ def failure_cases(h: Harness) -> list[dict]:
         h.use_client(EvalChat)
         m = Mission(h, "e5 duplicate decision")
         m.create()
-        m.join_fleet()
-        m.opening_legs()
-        m.clue()
+        m.join_fleet()  # the agent's opening legs, pending
         p = m.pending("drone_leg", "retask_drone")[0]
         m.decide(p.id)
         r = h.http.post(
