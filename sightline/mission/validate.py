@@ -32,7 +32,14 @@ from sightline.contract import (
     TraceEntry,
     Verdict,
 )
-from sightline.mission._live import MAX_FACTOR, apply_update
+from sightline.search.update import MAX_FACTOR, apply_reweight, apply_step
+
+
+def apply_update(p: np.ndarray, outside: float, u: MapUpdate) -> tuple[np.ndarray, float]:
+    return (
+        apply_step(p, outside, u.cells) if u.kind == "step" else apply_reweight(p, outside, u.cells)
+    )
+
 
 GROUND_POD_MAX = 0.9
 SUM_TOLERANCE = 1e-9

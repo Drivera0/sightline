@@ -29,12 +29,12 @@ from sightline.agent.trace import now_iso, trace_call
 from sightline.agent.verify import VERIFY_BAND, verify
 from sightline.contract import Conditions, EvidenceRef, LatLon, Leg, Proposal
 from sightline.search.grid import cell_containing
+from sightline.search.sectors import lattice_sectors  # lane C (C-S1)
 
-try:  # lane C (C-S1, C-P1); the stubs until they land
+try:  # lane C's planner (C-P1); the stub until it lands
     from sightline.search.planner import propose_assignments, propose_legs  # type: ignore
-    from sightline.search.sectors import lattice_sectors  # type: ignore
 except ImportError:
-    from sightline.agent._stubs import lattice_sectors, propose_assignments, propose_legs
+    from sightline.agent._stubs import propose_assignments, propose_legs
 
 log = logging.getLogger(__name__)
 
