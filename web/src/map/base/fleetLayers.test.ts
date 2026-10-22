@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { FleetState, Team } from "../../contract";
 import { applyEvent, applyLinkEvent, EMPTY, fleetLinksFromEvents, NO_LINKS, useMission, type FleetLinks } from "../../lib/mission";
-import { droneFeatures, LINK_WORD } from "./droneLayer";
+import { droneFeatures, droneLinkWords, LINK_WORD } from "./droneLayer";
 import { alongPath, easeOut, FleetGlide, GLIDE_MS, metres, RELAY_DOTS, relayDots, type LonLat } from "./fleetMotion";
 import { CANCEL_FADE_MS, legFeatures, nearestOnLine, noteCancels, replacementLeg, retaskAnimating, retaskFeatures } from "./legLayer";
 import { relayFeatures } from "./relayLayer";
@@ -92,6 +92,17 @@ describe("drone link ring", () => {
     expect(fs[2]!.properties.label).toBe("Drone 3 (simulated) · 60 % · link lost, last heard 2 min ago");
     expect(fs[2]!.properties.popup).toContain("link lost, last heard 2 min ago (simulated link model)");
     expect(Object.values(LINK_WORD)).toEqual(["link ok", "link degraded", "link lost"]);
+  });
+
+  it("draws only the short id and battery on the map, and marks a simulated drone", () => {
+    const fs = droneFeatures(fleet, {}, NOW);
+    expect(fs.map((f) => [f.properties.short, f.properties.battery, f.properties.sim])).toEqual([
+      ["D1", "80%", true],
+      ["D2", "70%", true],
+      ["D3", "60%", true],
+    ]);
+    expect(droneLinkWords(undefined, NOW)).toBe("");
+    expect(droneLinkWords({ link: "lost", since: "2026-10-24T21:55:00Z", last_heard_at: "2026-10-24T21:55:00Z" }, NOW)).toBe("link lost, last heard 5 min ago");
   });
 });
 
