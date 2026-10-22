@@ -162,6 +162,35 @@ inside OpenCV 99 ms; batching 4 slices 84 ms (not adopted). One pitfall worth sh
 5× slower in any process that also loads Torch; `CvDetector` now keeps and restores its own
 thread count.
 
+**The OpenCV 5 engine, stated precisely** (checked on 22 Oct against the
+[OpenCV 5 wiki](https://github.com/opencv/opencv/wiki/OpenCV-5), the
+[4 → 5 migration guide](https://github.com/opencv/opencv/wiki/OpenCV-4-to-5-migration) and
+[`dnn.hpp` at the 5.0.0 tag](https://github.com/opencv/opencv/blob/5.0.0/modules/dnn/include/opencv2/dnn/dnn.hpp)):
+
+- OpenCV 5.0 adds a new graph-based DNN engine beside the classic one. `readNet`, `readNetFromONNX` and
+  the other loaders take `engine=` with `ENGINE_CLASSIC` (1), `ENGINE_NEW` (2), `ENGINE_AUTO` (3, the
+  default: "Try to use the new engine and then fall back to the classic version") or `ENGINE_ORT` (4,
+  ONNX Runtime inside OpenCV). The environment variable **`OPENCV_FORCE_DNN_ENGINE`** (same numbers)
+  overrides it for a process. Sightline calls `cv2.dnn.readNetFromONNX` with the default, and the new
+  engine loads our YOLO11s graph without falling back.
+- **The new engine runs on the CPU only in 5.0.** The wiki: "GPU support will be added in subsequent
+  releases. In the meantime, users who need GPU acceleration can either force the classic engine or
+  build OpenCV with ORT and NVIDIA execution providers." With the pip wheels (no CUDA) that is why our
+  `cv2.dnn` numbers are CPU numbers.
+- **ONNX coverage:** the wiki says the new engine covers "over 64% of the ONNX specification", against
+  under 13 % for 4.x. OpenCV's announcement is reported to say "over 80%" (we could not open opencv.org
+  to quote it; the engine doc on today's `5.x` branch says about 75–80 % of the operator specification).
+- **QDQ** (quantize/dequantize) graphs: the new engine fuses them (`fuseQDQ` in the `5.x` source), and
+  OpenCV's benchmark has a ResNet50 QDQ row. We have not run a quantized Sightline model.
+- The `5.x` branch has since renamed the engines (`ENGINE_AUTO` 0, `ENGINE_OPENCV` 1, `ENGINE_ORT` 2);
+  Sightline pins `opencv-python==5.0.0.93`, where the names above apply.
+
+**Against OpenCV's own benchmark.** The [OpenCV 5 DNN benchmarks](https://github.com/opencv/opencv/wiki/OpenCV-5-DNN-Benchmarks)
+list YOLOv8 on an Intel i9 at **12.42 ms with the new engine against 12.98 ms with ONNX Runtime 1.25.1**
+(4 % faster). Our measurement, YOLO11s on one 1024 px slice on a Ryzen 9 9950X, is **96 ms with the new
+engine against 99 ms with `ENGINE_ORT`** (3 % faster): the same direction and about the same margin, on a
+different model, input size and CPU.
+
 ### 4.2 OpenCV 5 re-look tools
 
 When the detector is unsure, OpenCV gives the next model a better look (`sightline/agent/relook.py`).
@@ -204,6 +233,25 @@ only the box's share: it leaves out GPS, altitude and terrain error, so pins kee
 radius rather than claiming centimetres (`docs/LANE_B_GEO.md`). Clues entered by a team at their own
 position use the team's last report and warn when it is more than 30 minutes old
 (`sightline/geo/clues.py`).
+
+### 4.5 Every OpenCV call Sightline makes
+
+From `grep -rn "cv2\." sightline/` (all in five files; the scripts add only evaluation and figures):
+
+| Call | Where | Why |
+|---|---|---|
+| `cv2.dnn.readNetFromONNX` (default `ENGINE_AUTO` → new engine) | `ml/detect_cv.py` `CvDetector` | load the detector's ONNX export; no PyTorch at run time |
+| `cv2.dnn.blobFromImage`, `net.setInput`, `net.forward` | `ml/detect_cv.py` | one letterboxed 1024 px slice → NCHW blob (1/255, BGR → RGB) → raw boxes |
+| `cv2.dnn.NMSBoxes` | `ml/detect_cv.py` | suppress per slice, then merge the 20 slices at IoU 0.5 |
+| `cv2.imread`, `cv2.resize` (`INTER_LINEAR`) | `ml/detect_cv.py` | read the photo; resize each slice like Ultralytics' letterbox |
+| `cv2.getNumThreads`, `cv2.setNumThreads` | `ml/detect_cv.py` | keep and restore OpenCV's thread count (importing `ultralytics` sets it to 0) |
+| `cv2.createCLAHE`, `cv2.cvtColor` (BGR ↔ LAB), `cv2.split`, `cv2.merge`, `cv2.GaussianBlur`, `cv2.addWeighted` | `agent/relook.py` `enhance_contrast` | CLAHE on the L channel and a light unsharp mask, for clothing that matches the ground |
+| `cv2.resize` (`INTER_CUBIC` up, `INTER_AREA` down) | `agent/relook.py` `zoom_native`, `redetect_region` | native-pixel zoom of the box from the original photo; the 2× centre re-detection window |
+| `cv2.rectangle` | `agent/relook.py` `redetect_region` | draw the re-detected boxes for the model to see |
+| `cv2.imencode` (JPEG q92), `cv2.imdecode` | `agent/relook.py`, `agent/verify.py` | crops and re-look images to and from bytes for the store and the model call |
+| `cv2.cvtColor` (BGR → grey) | `agent/verify.py` `choose_tools` | grey-level spread, one of the heuristics that picks the re-look tool |
+| `cv2.blur` (`BORDER_REFLECT`) | `search/canopy.py` | local standard deviation as two box means: tree cover vs open ground |
+| `cv2.fillPoly` (`LINE_8`, sub-pixel `shift`) | `search/pod.py` | rasterise each photo's footprint onto the map to read its canopy and step its POD |
 
 ## 5. The agent (Agentic Vision)
 
