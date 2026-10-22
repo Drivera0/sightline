@@ -86,7 +86,20 @@ SCENARIOS: dict[str, dict[str, Any]] = {
     "no_clue": {"clue": None, "conf": CANDIDATE_CONF, "review": True},
     "clue_early": {"clue": "before_legs", "conf": CANDIDATE_CONF, "review": True},
     "near_miss_only": {"clue": None, "conf": NEAR_MISS_CONF, "review": False},
+    # a 21 px near-miss the second look calls unclear: the agent proposes a 25 m re-look leg, the
+    # fleet sim flies it (DroneSim, through the API) and the photo goes through the pipeline again
+    "relook": {"clue": None, "conf": NEAR_MISS_CONF, "review": False, "relook": True},
 }
+PERSON_PX_50M = 21  # the relook scenario's person: long side in original pixels from 50 m
+UNCLEAR = json.dumps(
+    {
+        "person": "unclear",
+        "posture": "unknown",
+        "group_size": None,
+        "clothing": None,
+        "reason": "A small shape; no head or limbs can be made out (fake model for this eval).",
+    }
+)
 
 
 def ms_between(a: str, b: str) -> int:
@@ -125,6 +138,24 @@ class EvalChat:
         return ChatResult(text, [], f"fake/{model}", 0, len(prompt.split()), len(text.split()))
 
 
+class RelookChat(EvalChat):
+    """The relook scenario's fake VL: the first second look is ``unclear``, every later one
+    ``yes`` (briefings as ``EvalChat``)."""
+
+    def __init__(self) -> None:
+        self.looks = 0
+
+    def chat(self, messages: list[dict], *, model: str, **kw: Any) -> Any:
+        from sightline.agent.llm import ChatResult, last_user_text
+
+        prompt = last_user_text(messages)
+        if "Is there a person" not in prompt:
+            return super().chat(messages, model=model, **kw)
+        self.looks += 1
+        text = UNCLEAR if self.looks == 1 else YES
+        return ChatResult(text, [], f"fake/{model}", 0, len(prompt.split()), len(text.split()))
+
+
 class ScriptedDetector:
     """One box at the photo's centre when its footprint covers the hidden person, else none.
     ``conf`` is set per scenario. ``detect_array`` (the re-look's ``redetect_region``) finds a box at
@@ -133,21 +164,29 @@ class ScriptedDetector:
     def __init__(self, hidden: Any) -> None:
         self.hidden = hidden
         self.conf = CANDIDATE_CONF
+        # the person's box long side from 50 m, in the photo's pixels, scaled by 50 / altitude
+        # (the relook scenario); None: a box 1/20 of the photo's short side, at any altitude
+        self.person_px: int | None = None
 
     def detect_tiled(self, image: Path, conf: float = 0.05, **_: Any) -> list:
         from PIL import Image
 
         from sightline.geo.pose import read_pose
         from sightline.ml.types import Box, RawDetection
-        from sightline.search.fleet import covers
+        from sightline.search.fleet import NATIVE_ALT_M, covers
 
         with Image.open(image) as im:
             w, h = im.size
         info = read_pose(Path(image))
         if info is None or not covers(info.pose, w, h, self.hidden):
             return []
-        s = max(8, min(w, h) // 40)
-        box = Box(w // 2 - s // 2, h // 2 - s, w // 2 + s // 2, h // 2 + s)
+        long = 2 * max(8, min(w, h) // 40)
+        if self.person_px is not None:
+            long = max(
+                2, round(self.person_px * NATIVE_ALT_M / (info.pose.alt_agl_m or NATIVE_ALT_M))
+            )
+        x1, y1 = w // 2 - long // 4, h // 2 - long // 2
+        box = Box(x1, y1, x1 + max(1, long // 2), y1 + long)
         return [RawDetection(box, self.conf)] if self.conf >= conf else []
 
     def detect_array(self, img_bgr: Any, conf: float = 0.05) -> list:
@@ -652,6 +691,50 @@ class Mission:
             )
             rec["evidence"].append(("leg_done", leg, at))
 
+    def fly_leg(self, leg_id: str, step_s: float = 5.0, max_s: float = 7200.0) -> dict:
+        """The fleet sim's ``DroneSim`` flies the approved leg ``leg_id`` in full through the API
+        (its photos at the leg's altitude, ``fleet.at_altitude``), then telemetry says it is done
+        (the agent's ``leg_done``). Returns what it flew."""
+        from sightline.search.fleet import DroneSim
+
+        fleet = self.fleet()
+        leg = next(x for x in fleet.legs if x.id == leg_id)
+        drone = next(d for d in fleet.drones if d.id == leg.drone_id)
+        self.telemetry({drone.id: "flying"}, {leg_id: "flying"})
+        sim = DroneSim(
+            drone.model_copy(update={"leg_id": None, "status": "idle"}),
+            self.h.http,
+            self.mid,
+            self.h.scn,
+            self.h.photos,
+            out=lambda _: None,
+        )
+        t = 0.0
+        with self.step(f"fly {leg_id}"):
+            while sim.leg_status.get(leg_id) != "done" and t < max_s:
+                sim.step(step_s, {leg_id: leg})
+                t += step_s
+                if sim.photos and sim.photos % 25 == 0:
+                    self.h.settle()
+        with self.step("leg_done") as rec:
+            self.telemetry({drone.id: "idle"}, {leg_id: "done"})
+            at = next(
+                e.at
+                for e in reversed(self.store.events(self.mid))
+                if e.type == "fleet.updated" and e.summary == "telemetry"
+            )
+            rec["evidence"].append(("leg_done", leg_id, at))
+        return {
+            "leg": leg_id,
+            "drone": drone.id,
+            "sector": leg.sector_id,
+            "altitude_m": leg.altitude_m,
+            "est_minutes": leg.est_minutes,
+            "sim_minutes": round(t / 60, 2),
+            "photos": sim.photos,
+            "battery_used_pct": round(drone.battery_pct - sim.drone.battery_pct, 2),
+        }
+
     def tick(self) -> None:
         from sightline.agent.trace import now_iso
 
@@ -682,6 +765,34 @@ def proposal_sector(p: Any) -> str | None:
         return p.target["sector"]
     m = re.search(r"\(sector (\w+)\)", p.summary)
     return m.group(1) if m else None
+
+
+def relook_chains(store: Any, mid: str) -> list[dict]:
+    """Each re-look chain of the mission (``relook_leg.chains``): its steps, outcome, leg and the
+    promotions it led to."""
+    from sightline.agent.relook_leg import chains
+
+    out = []
+    for cid, steps in chains(store, mid).items():
+        first = steps[0]
+        leg = next((s for s in steps if s["step"] == "leg"), None)
+        outcome = next((s for s in reversed(steps) if s["step"] == "outcome"), None)
+        out.append(
+            {
+                "chain_id": cid,
+                "detection": first.get("detection"),
+                "box_long_px": first.get("box_long_px"),
+                "steps": [s["step"] for s in steps],
+                "leg": leg["leg"] if leg else None,
+                "est_minutes": leg["est_minutes"] if leg else None,
+                "pixel_factor": leg["pixel_factor"] if leg else None,
+                "outcome": outcome["outcome"] if outcome else ("skipped" if not leg else "open"),
+                "promoted": [
+                    p for s in steps if s["step"] == "outcome" for p in s.get("proposals", [])
+                ],
+            }
+        )
+    return out
 
 
 def latencies(m: Mission) -> list[dict]:
@@ -838,12 +949,15 @@ def gate_checks(store: Any, mid: str) -> list[dict]:
 def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> dict:
     """One run of one scenario in a new mission; never raises (a crash is recorded)."""
     cfg = SCENARIOS[name]
-    h.use_client(client_factory)
+    relook = bool(cfg.get("relook"))
+    h.use_client(RelookChat if relook and client_factory is EvalChat else client_factory)
     h.detector.conf = cfg["conf"]
+    h.detector.person_px = PERSON_PX_50M if relook else None
     m = Mission(h, name)
     t0 = time.monotonic()
     crash = None
     person_det: str | None = None
+    flights: list[dict] = []
     try:
         m.create()
         m.join_fleet()
@@ -860,13 +974,28 @@ def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> di
             m.photo(lkp.lat + dlat, lkp.lon + dlon, positive=False, k=k)
         dets = m.photo(h.scn.hidden.lat, h.scn.hidden.lon, positive=True, k=9)
         person_det = dets[0] if dets else None
+        if relook:  # the manager approves the re-look leg; the fleet sim flies it at 25 m
+            for p in m.pending("drone_leg", "retask_drone"):
+                if "relook" in p.target and p.id in m.steps[-1]["proposals"]:
+                    m.decide(p.id)
+                    flights.append({**m.fly_leg(p.target["leg"]), "relook": True})
         for p in m.pending("promote_detection"):
             m.decide(p.id)
         if cfg["review"] and person_det:
             m.review(person_det)
             for p in m.pending("alert", "assign_sector"):
                 m.decide(p.id)
-        m.leg_done("D1")
+        if relook:  # one opening leg flown in full, for its ledger record (not the person's sector)
+            hidden = hidden_sector(h.store, m.mid, h.scn.hidden.lat, h.scn.hidden.lon)
+            legs = [
+                x
+                for x in m.fleet().legs
+                if x.status in ("approved", "flying") and x.sector_id not in (None, hidden)
+            ]
+            if legs:
+                flights.append({**m.fly_leg(legs[0].id), "relook": False})
+        else:
+            m.leg_done("D1")
         m.tick()
         tick_assigns = [p for p in m.pending("assign_sector") if p.id in m.steps[-1]["proposals"]]
         if tick_assigns:
@@ -904,7 +1033,7 @@ def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> di
                     + f"; the clue's proposals: {proposed or 'none'}",
                 }
             )
-        elif rec["step"] == "detection" and cfg["conf"] < 0.29:
+        elif rec["step"] == "detection" and cfg["conf"] < 0.29 and not relook:
             pr = [p for p in got if p.kind == "promote_detection"]
             truth.append(
                 {
@@ -924,6 +1053,18 @@ def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> di
                         or f"no {kind}",
                     }
                 )
+        elif rec["step"] == "detection" and relook:
+            rl = [p for p in got if "relook" in p.target]
+            truth.append(
+                {
+                    "check": "re-look: an unclear 21 px near miss gets a 25 m leg",
+                    "ok": any(
+                        p.target["relook"] == person_det and p.leg and p.leg.altitude_m == 25.0
+                        for p in rl
+                    ),
+                    "detail": "; ".join(f"{p.id} {p.kind}: {p.reason[:90]}" for p in rl) or "none",
+                }
+            )
         elif rec["step"] == "leg_done":
             legs = [p for p in got if p.leg is not None]
             truth.append(
@@ -934,7 +1075,31 @@ def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> di
                     or "no leg proposal",
                 }
             )
+    chains = relook_chains(h.store, m.mid) if m.mid else []
+    if relook:
+        mine = [c for c in chains if c["detection"] == person_det]
+        truth.append(
+            {
+                "check": "re-look: the low pass resolves the person (photo → verdict → promote)",
+                "ok": any(c["outcome"] == "resolved" and c["promoted"] for c in mine),
+                "detail": "; ".join(
+                    f"{c['chain_id']}: {' → '.join(c['steps'])} ({c['outcome']}, "
+                    f"promoted {', '.join(c['promoted']) or 'none'})"
+                    for c in mine
+                )
+                or "no chain",
+            }
+        )
+    flown = {f["leg"] for f in flights}
+    ledger_records = [
+        {**e.output, "flown_in_full": e.output["kind"] == "leg" and e.output["ref"] in flown}
+        for e in (h.store.trace_entries(m.mid) if m.mid else [])
+        if (e.output or {}).get("type") == "ledger"
+    ]
     return {
+        "flights": flights,
+        "relook_chains": chains,
+        "ledger": ledger_records,
         "scenario": name,
         "mission": m.mid,
         "hidden_sector": hidden,
@@ -1434,6 +1599,117 @@ def _table(head: list[str], rows: list[list[Any]]) -> str:
     return "\n".join(out)
 
 
+def relook_report(runs: list[dict]) -> list[str]:
+    """The re-look chains of every run: box, leg, minutes flown, outcome."""
+    rows = []
+    for r in runs:
+        flights = {f["leg"]: f for f in r.get("flights", [])}
+        for c in r.get("relook_chains", []):
+            f = flights.get(c["leg"] or "", {})
+            rows.append(
+                [
+                    r["scenario"],
+                    c["chain_id"],
+                    c["box_long_px"],
+                    c["pixel_factor"],
+                    c["leg"],
+                    c["est_minutes"],
+                    f.get("sim_minutes"),
+                    f.get("photos"),
+                    c["outcome"],
+                    ", ".join(c["promoted"]) or "–",
+                ]
+            )
+    if not rows:
+        return []
+    head = ["Scenario", "Chain", "Box px", "Pixel factor", "Leg", "Est min", "Sim min flown",
+            "Photos", "Outcome", "Promoted"]  # fmt: skip
+    return [
+        "## Re-look legs (unclear on a box under 60 px → 25 m pass)",
+        "",
+        _table(head, rows),
+        "",
+        (
+            "Sim minutes: the fleet sim's `DroneSim` at the drone's 8 m/s airspeed, no wind, from "
+            "where the drone was to the end of the pattern. The sim's photo from 25 m is the 50 m "
+            "crop's centre resized 2×: the size a lower pass gives, not its extra detail."
+        ),
+        "",
+    ]
+
+
+def ledger_report(runs: list[dict]) -> list[str]:
+    """Expected vs realised value of each second look and leg (``sightline/agent/ledger.py``)."""
+    from sightline.agent.ledger import summarise
+
+    recs = [x for r in runs for x in r.get("ledger", [])]
+    if not recs:
+        return []
+    groups = [
+        ("second look (P decisive verdict)", [x for x in recs if x["kind"] == "second_look"]),
+        ("leg flown in full by the sim", [x for x in recs if x["kind"] == "leg" and x["flown_in_full"]]),
+        ("leg marked done by the script, not flown", [x for x in recs if x["kind"] == "leg" and not x["flown_in_full"]]),
+    ]  # fmt: skip
+    rows = []
+    for name, rs in groups:
+        s = summarise([{**x, "kind": "leg"} for x in rs])["leg"]
+        if not rs:
+            continue
+        mean_delta = sum(x["delta"] for x in rs) / len(rs)
+        rows.append(
+            [
+                name,
+                s["n"],
+                f"{s['mean_expected']:.4f}",
+                f"{s['mean_realised']:.4f}",
+                f"{mean_delta:+.4f}",
+                "–" if s["corr"] is None else f"{s['corr']:.2f}",
+            ]
+        )
+    legs = [x for x in recs if x["kind"] == "leg" and x["flown_in_full"]]
+    detail = [
+        [
+            x["ref"],
+            x["chain_id"],
+            (x["expected"].get("sector") or {}).get("id"),
+            x["realised"].get("photos"),
+            f"{x['realised'].get('cells_seen')}/{x['realised'].get('cells')}",
+            f"{x['expected']['gain']:.6f}",
+            f"{x['realised']['gain']:.6f}",
+            f"{x['delta']:+.6f}",
+        ]
+        for x in legs
+    ]
+    return [
+        "## Did the observation help (ledger)",
+        "",
+        _table(
+            [
+                "Observation",
+                "n",
+                "Mean expected gain",
+                "Mean realised gain",
+                "Mean delta",
+                "Correlation",
+            ],
+            rows,
+        ),
+        "",
+        (
+            "Gain: for a second look, the val share of decisive verdicts for its box size (expected) "
+            "and 1 or 0 (realised); for a leg, Σ p · POD on the map as proposed, with the planner's "
+            "POD (expected) and with the POD its photos gave (realised). Correlation: Pearson, "
+            "– with fewer than 3 records or no spread."
+        ),
+        "",
+        _table(
+            ["Leg", "Chain", "Sector", "Photos", "Cells seen", "Expected", "Realised", "Delta"],
+            detail,
+        ),
+        "",
+    ]
+
+
 def report(meta: dict, runs: list[dict], failures: list[dict]) -> str:
     lines = [
         "# Agent evaluation",
@@ -1520,6 +1796,8 @@ def report(meta: dict, runs: list[dict], failures: list[dict]) -> str:
     ]
     lines += [_table(["Check (final mission state)", "Runs passing", "Failures"], rows), ""]
 
+    lines += relook_report(runs) + ledger_report(runs)
+
     lines += ["## Failure handling (injected)", ""]
     rows = [
         [
@@ -1555,6 +1833,174 @@ def report(meta: dict, runs: list[dict], failures: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
+# --- the re-look on val near-misses -----------------------------------------------------------
+
+
+def reflown(orig: Any, box: Any, from_alt: float, to_alt: float) -> tuple[Any, tuple, float]:
+    """The photo a pass at ``to_alt`` would give over ``box``, made as the fleet sim makes it
+    (``fleet.at_altitude``): a window ``to_alt / from_alt`` as wide around the box, resized back to
+    the photo's size. Returns (image, the box in it, zoom). Resampled pixels: the size of a lower
+    pass, not its extra detail."""
+    import cv2
+
+    zoom = max(1.0, from_alt / to_alt)
+    H, W = orig.shape[:2]
+    w, h = round(W / zoom), round(H / zoom)
+    cx, cy = (box.x1 + box.x2) / 2, (box.y1 + box.y2) / 2
+    x0 = int(min(max(0, round(cx - w / 2)), W - w))
+    y0 = int(min(max(0, round(cy - h / 2)), H - h))
+    img = cv2.resize(orig[y0 : y0 + h, x0 : x0 + w], (W, H), interpolation=cv2.INTER_CUBIC)
+    nb = tuple(
+        round(v) for v in ((box.x1 - x0) * zoom, (box.y1 - y0) * zoom, (box.x2 - x0) * zoom, (box.y2 - y0) * zoom)
+    )  # fmt: skip
+    return img, nb, zoom
+
+
+def match(dets: list, nb: tuple, min_conf: float) -> Any:
+    """The detection in the re-flown photo over the spot: its centre within the box's long side
+    (at least 20 px) of the box's centre, highest confidence, at least ``min_conf``; else None."""
+    cx, cy = (nb[0] + nb[2]) / 2, (nb[1] + nb[3]) / 2
+    reach = max(20.0, nb[2] - nb[0], nb[3] - nb[1])
+    near = [
+        d
+        for d in dets
+        if d.conf >= min_conf
+        and abs((d.box.x1 + d.box.x2) / 2 - cx) <= reach
+        and abs((d.box.y1 + d.box.y2) / 2 - cy) <= reach
+    ]
+    return max(near, key=lambda d: d.conf, default=None)
+
+
+def legs_for(items: list[dict], side_m: float) -> int:
+    """Re-look legs needed: one per spot, boxes of one photo within ``side_m / 2`` on the ground of
+    a spot already counted share its leg (the pattern covers a ``side_m`` square)."""
+    n = 0
+    by_photo: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    for it in items:
+        spots = by_photo[it["photo"]]
+        x, y = it["centre_m"]
+        if not any(abs(x - a) <= side_m / 2 and abs(y - b) <= side_m / 2 for a, b in spots):
+            spots.append((x, y))
+            n += 1
+    return n
+
+
+def relook_val(args: Any, out: Path) -> dict:
+    """Val near-misses (0.15 ≤ conf < 0.29) under 60 px: the second look; for each ``unclear``, the
+    photo a 25 m pass would give (``reflown``), the detector on it, and the second look again."""
+    import importlib.util
+
+    import cv2
+
+    from sightline.agent.llm import NO_THINKING, token_factory_client
+    from sightline.agent.relook_leg import RELOOK_ALT_M, RELOOK_MAX_PX, RELOOK_SIDE_M
+    from sightline.agent.verify import VERIFY_BAND, verify
+    from sightline.contract import Drone, LatLon
+    from sightline.geo.pose import read_pose
+    from sightline.ml.backend import make_detector
+    from sightline.ml.data import load_split
+    from sightline.ml.detect import Detector
+    from sightline.ml.evaluate import predict_split
+    from sightline.ml.types import Box
+    from sightline.search.fleet import DEFAULT_GSD_M, NATIVE_ALT_M
+    from sightline.search.grid import make_grid
+    from sightline.search.planner import relook_leg
+
+    spec = importlib.util.spec_from_file_location(
+        "eval_verifier", ROOT / "scripts/eval_verifier.py"
+    )
+    assert spec and spec.loader
+    ev = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ev)
+
+    client = token_factory_client(extra_body=NO_THINKING)
+    images = load_split("val", args.val.parent, annotated_only=True)
+    preds, truth, _ = predict_split(Detector(args.pt), images, "tiled")
+    labels = ev.label_preds(preds, truth)
+    cv_det = make_detector(weights=args.pt, backend="cv2")
+    tiled = Detector(args.pt)
+    work = out / "relook_val"
+    work.mkdir(parents=True, exist_ok=True)
+    items: list[dict] = []
+    for im in images:
+        info = read_pose(im.path)
+        alt = (info.pose.alt_agl_m if info else None) or NATIVE_ALT_M
+        gsd = info.pose.gsd_m if info else DEFAULT_GSD_M
+        for i, d in enumerate(preds[im.path.stem]):
+            long_px = max(d.box.width_px, d.box.height_px)
+            if not (VERIFY_BAND[0] <= d.conf < 0.29 and long_px < RELOOK_MAX_PX):
+                continue
+            store, mid = ev.photo_mission(im.path, d.box, d.conf)
+            v = verify(store, mid, "f0001-d01", client, cv_det)
+            it = {"photo": im.path.stem, "index": i, "conf": round(d.conf, 3), "tp": labels[im.path.stem][i],
+                  "long_px": long_px, "alt_m": alt, "first": v.person, "first_reason": v.reason,
+                  "centre_m": ((d.box.x1 + d.box.x2) / 2 * gsd, (d.box.y1 + d.box.y2) / 2 * gsd)}  # fmt: skip
+            items.append(it)
+            if (
+                v.person != "unclear"
+                or v.reason.startswith("No second look")
+                or alt <= RELOOK_ALT_M + 1
+            ):
+                continue
+            img, nb, zoom = reflown(cv2.imread(str(im.path)), d.box, alt, RELOOK_ALT_M)
+            path = work / f"{im.path.stem}-{i}-25m.jpg"
+            cv2.imwrite(str(path), img, [cv2.IMWRITE_JPEG_QUALITY, 92])
+            found = match(tiled.detect_tiled(path, conf=0.05), nb, VERIFY_BAND[0])
+            it.update(zoom=round(zoom, 2), relook_box_px=max(nb[2] - nb[0], nb[3] - nb[1]))
+            if found is None:
+                it.update(second="not re-detected", second_conf=None)
+                continue
+            store2, mid2 = ev.photo_mission(path, Box(*(int(x) for x in (found.box.x1, found.box.y1, found.box.x2, found.box.y2))), found.conf)  # fmt: skip
+            v2 = verify(store2, mid2, "f0001-d01", client, cv_det)
+            it.update(second=v2.person, second_reason=v2.reason, second_conf=round(found.conf, 3))
+            print(f"  {im.path.stem} #{i}: {long_px} px unclear → {it['second']}", flush=True)
+    unclear = [it for it in items if "second" in it]
+    grid = make_grid(LatLon(lat=49.37, lon=-122.94), 1000, 5)
+    spot = LatLon(lat=49.37, lon=-122.94)
+    here = Drone(id="D1", name="Drone 1", simulated=True, position=spot, altitude_m=50, speed_ms=8,
+                 battery_pct=100, max_wind_kmh=43, status="idle", leg_id=None)  # fmt: skip
+    pattern_min = relook_leg(here, spot, grid, "A1", RELOOK_ALT_M, RELOOK_SIDE_M).est_minutes
+    n_legs = legs_for(unclear, RELOOK_SIDE_M)
+    result = {
+        "near_misses_under_60px": len(items),
+        "first_unclear": sum(it["first"] == "unclear" for it in items),
+        "relooked": len(unclear),
+        "after": dict(Counter(it["second"] for it in unclear)),
+        "legs": n_legs,
+        "pattern_minutes_per_leg": pattern_min,
+        "pattern_minutes_total": round(n_legs * pattern_min, 2),
+        "items": items,
+    }
+    (out / "relook_val.json").write_text(json.dumps(result, indent=1, default=str))
+    return result
+
+
+def relook_val_report(res: dict) -> list[str]:
+    un = [it for it in res["items"] if "second" in it]
+
+    def row(name: str, sub: list[dict]) -> list:
+        c = Counter(it["second"] for it in sub)
+        return [name, len(sub), c["yes"], c["no"], c["unclear"], c["not re-detected"]]
+
+    rows = [row("all", un), row("people (VOC TP)", [i for i in un if i["tp"]]),
+            row("false alarms", [i for i in un if not i["tp"]])]  # fmt: skip
+    resolved = [i for i in un if i["second"] in ("yes", "no")]
+    right = sum((i["second"] == "yes") == bool(i["tp"]) for i in resolved)
+    return [
+        "## Re-look on val near-misses (simulated 25 m pass)",
+        "",
+        (f"{res['near_misses_under_60px']} val near-misses (0.15 ≤ conf < 0.29) under 60 px; the "
+        f"second look called {res['first_unclear']} `unclear`, {res['relooked']} of them re-looked."),
+        "",
+        _table(["Unclear near-misses", "n", "→ yes", "→ no", "→ still unclear", "→ not re-detected"], rows),
+        "",
+        (f"Resolved to yes/no: {len(resolved)} of {len(un)}, {right} matching the VOC label. Cost: "
+        f"{res['legs']} legs (one per spot), {res['pattern_minutes_per_leg']} min each over the "
+        f"spot at 8 m/s ({res['pattern_minutes_total']} min in all), plus the transit to it."),
+        "",
+    ]  # fmt: skip
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -1567,7 +2013,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-failures", action="store_true", help="skip the failure injection")
     ap.add_argument("--val", type=Path, default=VAL, help="HERIDAL validation split (photo crops)")
     ap.add_argument("--out", type=Path, default=None, help="default runs/agent_eval/<timestamp>")
+    ap.add_argument(
+        "--relook-val",
+        action="store_true",
+        help="also: the re-look on val near-misses (real detector, needs --live and the ml extra)",
+    )
+    ap.add_argument(
+        "--pt", type=Path, default=ROOT / "data/weights/release_v2/yolo11s_tiles_run1_best.pt"
+    )
     args = ap.parse_args(argv)
+    if args.relook_val and not args.live:
+        print("--relook-val needs --live: a scripted VL would only replay its script.")
+        return 2
 
     logging.basicConfig(level=logging.ERROR, format="%(levelname)s %(name)s: %(message)s")
     if args.live:
@@ -1599,7 +2056,11 @@ def main(argv: list[str] | None = None) -> int:
     h = Harness(out, args.val)
     runs: list[dict] = []
     failures: list[dict] = []
+    val_res: dict | None = None
     try:
+        if args.relook_val:
+            val_res = relook_val(args, out)
+            print(f"  relook val: {val_res['after']} over {val_res['relooked']}", flush=True)
         for name in args.scenarios:
             for k in range(args.repeats):
                 r = run_scenario(h, name, factory)
@@ -1622,7 +2083,7 @@ def main(argv: list[str] | None = None) -> int:
         "started": time.strftime("%Y-%m-%d %H:%M"),
         "models": f"Token Factory ({MODEL_VISION}, {MODEL_FAST})"
         if args.live
-        else "fake (VL says yes; briefing = its facts)",
+        else "fake (VL says yes, in relook: unclear then yes; briefing = its facts)",
         "photos": h.photos.source,
         "repeats": args.repeats,
         "hidden_sector": next((r["hidden_sector"] for r in runs if r["hidden_sector"]), "?"),
@@ -1630,7 +2091,10 @@ def main(argv: list[str] | None = None) -> int:
     (out / "agent_eval.json").write_text(
         json.dumps({"meta": meta, "runs": runs, "failures": failures}, indent=1, default=str)
     )
-    (out / "agent_eval.md").write_text(report(meta, runs, failures))
+    md = report(meta, runs, failures)
+    if val_res is not None:
+        md += "\n" + "\n".join(relook_val_report(val_res)) + "\n"
+    (out / "agent_eval.md").write_text(md)
     print(f"\n{out / 'agent_eval.md'}")
     bad = [r for r in runs if r["crash"] or not all(g["ok"] for g in r["gate"])]
     return 1 if bad else 0

@@ -1,11 +1,11 @@
-""" "Did the observation help": expected vs realised value of every second look and every leg.
+"""The ledger, "did the observation help": expected vs realised value of each second look and leg.
 
 Active perception asks a system to compare the value it predicted for an observation with the
 improvement the observation actually brought (arXiv 2512.03687, §3.3.2). The agent writes one
 ``ledger`` record per observation into the trace (a ``note`` entry whose ``output.type`` is
 ``"ledger"``: the contract's trace kinds are a closed list, so no new kind is added):
 
-    {"type": "ledger", "chain_id", "kind": "second_look" | "leg",
+    {"type": "ledger", "chain_id", "kind": "second_look" | "leg", "ref": detection or leg id,
      "expected": {..., "gain"}, "realised": {..., "gain"}, "delta": realised.gain - expected.gain}
 
 Both sides carry the cell probability under the spot (``cell_p``) and the sector's share and
@@ -127,6 +127,7 @@ def _write(
         "type": "ledger",
         "chain_id": chain_id,
         "kind": kind,
+        "ref": refs[0],  # the detection (second look) or the leg
         "expected": expected,
         "realised": realised,
         "delta": delta,
