@@ -7,7 +7,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import yaml
+import pytest
 
 VIDEO = Path(__file__).resolve().parents[2] / "scripts/demo_video"
 
@@ -35,6 +35,7 @@ def test_the_recall_shot_runs_only_when_the_api_has_the_override() -> None:
 
 
 def test_the_recall_shot_has_a_label_and_is_in_the_nebius_cut() -> None:
+    yaml = pytest.importorskip("yaml")  # the video extra; CI runs without it
     cfg = yaml.safe_load((VIDEO / "captions.yaml").read_text())
     label = cfg["labels"]["recall"]
     assert label["number"] and "clear" not in label["text"].lower()
