@@ -106,7 +106,7 @@ sequenceDiagram
 
 ## One real chain: an OpenCV 5 result changes the decision
 
-A **val** photo (`train_ZRI_2061`, HERIDAL; never used for training). The detector scored a person
+A **val** photo (`train_ZRI_2061`, HERIDAL; never used for training: the `train_` prefix is HERIDAL's own folder name, and our val split is the 10 % of HERIDAL's train folder held out with seed 7, `data/heridal/yolo_full/convert_report.json`). The detector scored a person
 lying on the ground **0.18**, below the 0.29 review threshold, so without the agent no reviewer
 would ever see it. The re-look tool was chosen by heuristic (box 21 px in the 1000×750 frame:
 small), and the zoom from the original photo's native pixels is what the VL model answered from.
