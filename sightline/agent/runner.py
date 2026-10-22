@@ -75,6 +75,12 @@ def _default_client() -> ChatClient | None:
         return None
 
 
+def _default_embedder() -> Any:
+    from sightline.ml.similar import default_embedder
+
+    return default_embedder()  # None without NVIDIA_API_KEY: find_similar is off
+
+
 def _default_detector() -> Any:
     from sightline.ml.backend import make_detector
 
@@ -91,11 +97,14 @@ class Runner:
         *,
         client_factory: Callable[[], ChatClient | None] = _default_client,
         detector_factory: Callable[[], Any] = _default_detector,
+        embedder_factory: Callable[[], Any] = _default_embedder,
         budget_tokens: int = DEFAULT_BUDGET_TOKENS,
         queue_size: int = QUEUE_SIZE,
     ) -> None:
         self._client_factory = client_factory
         self._detector_factory = detector_factory
+        self._embedder_factory = embedder_factory
+        self._embedder: Any = None
         self._budget = budget_tokens
         self._queue: queue.Queue[Job | None] = queue.Queue(maxsize=queue_size)
         self._semaphore = threading.Semaphore(MAX_CONCURRENT_MODEL_CALLS)
@@ -159,6 +168,7 @@ class Runner:
                     return
                 if not self._ready:  # build the heavy parts on the worker, never in a hook
                     self._base, self._detector = self._client_factory(), self._detector_factory()
+                    self._embedder = self._embedder_factory()
                     self._ready = True
                 loop.handle(
                     job.event,
@@ -168,6 +178,7 @@ class Runner:
                     client=self._client_for(job.store, job.mission_id),
                     detector=self._detector,
                     answer=job.answer,
+                    embedder=self._embedder,
                 )
             except Exception as e:  # one bad event must not stop the agent
                 log.exception(

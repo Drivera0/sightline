@@ -1,0 +1,16 @@
+{
+  "measure": {
+    "requests": 10,
+    "items": 160,
+    "tokens": 42560,
+    "retries": 15,
+    "failed_attempts": 15,
+    "ms_total": 49718,
+    "wall_s": 201.1,
+    "median_ms_per_request": 4022,
+    "p90_ms_per_request": 8411,
+    "batch": 16,
+    "min_interval_s": 1.6,
+    "timeout_s": 10.0
+  }
+}

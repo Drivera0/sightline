@@ -185,7 +185,7 @@ def mission():
             id="f0001-d01",
             box_px=(480, 340, 510, 400),
             conf=0.6,
-            crop=None,
+            crop="crops/f0001-d01.jpg",  # a review crop: conf >= 0.29 (contract §7)
             lat=b3.lat,
             lon=b3.lon,
             radius_m=10,
@@ -640,3 +640,70 @@ def test_assignment_briefings_carry_the_conditions() -> None:
     }
     assert loop.conditions_facts(None, "2026-10-24T22:32:00Z") == {}
     assert "daylight_left" not in loop.conditions_facts(c, "2026-10-25T02:00:00Z")  # after dark
+
+
+# --- find_similar after a confirmed sighting (sightline/agent/similar_tool.py) -----------------
+
+
+class _TagEmbedder:
+    model = "fake/embed"
+
+    def embed_images(self, images):
+        return np.array([[1.0, 0.0] if b == b"red" else [0.0, 1.0] for b in images], np.float32)
+
+    def embed_text(self, text):
+        raise AssertionError("no text query from the agent")
+
+
+def _alike(store, mid, conf: float = 0.2) -> str:
+    """A second photo, f0002, whose one detection looks like both of f0001's to the fake embedder
+    (find_similar leaves out the confirmed crop's own photo). Returns its id."""
+    for did in ("f0001-d01", "f0001-d02"):
+        store.put_file(mid, f"crops/nearmiss/{did}.jpg", b"red")
+    f1 = store.survey(mid).frames[0]
+    f2 = f1.model_copy(
+        update={"id": "f0002", "file": "frames/f0002.jpg", "flight_index": 1, "rank": 2}
+    )
+    store.append_frame(mid, f2, store.read_file(mid, f1.file))
+    det = store.get_detection(mid, "f0001-d02")[0]
+    queued = conf >= 0.29
+    rel = "crops/f0002-d01.jpg" if queued else "crops/nearmiss/f0002-d01.jpg"
+    new = det.model_copy(update={"id": "f0002-d01", "conf": conf, "crop": rel if queued else None})
+    store.append_detections(mid, "f0002", [new], {rel: b"red"})
+    return new.id
+
+
+def test_a_confirmed_person_asks_for_similar_photos_and_proposes_them(mission) -> None:
+    store, mid, _ = mission
+    other = _alike(store, mid)
+    out = _handle(store, mid, "review", "f0001-d01", _client(), answer="person",
+                  embedder=_TagEmbedder())  # fmt: skip
+    assert _kinds(out) == ["alert", "assign_sector", "promote_detection"]
+    assert out[-1].target == {"detection": other, "like": "f0001-d01"}  # not f0001-d02: same photo
+    assert out[-1].created_by == "agent" and out[-1].status == "pending"
+    kinds = [(e.actor, e.kind) for e in store.trace_entries(mid)]
+    assert kinds[-2:] == [("agent", "tool_call"), ("agent", "proposal")]
+    call = store.trace_entries(mid)[-2]
+    assert call.input["excluded"]["same_photo"] == ["f0001-d02"]
+
+
+def test_without_an_embedder_a_confirmation_does_what_it_always_did(mission) -> None:
+    store, mid, _ = mission
+    _alike(store, mid)
+    out = _handle(store, mid, "review", "f0001-d01", _client(), answer="person")
+    assert _kinds(out) == ["alert", "assign_sector"]
+    assert not [e for e in store.trace_entries(mid) if e.summary.startswith("find_similar")]
+
+
+def test_a_second_look_yes_asks_too_but_proposes_only_what_the_queue_lacks(mission) -> None:
+    store, mid, _ = mission
+    other = _alike(store, mid, conf=0.5)
+    out = _handle(store, mid, "detection", "f0001-d02", _client(), embedder=_TagEmbedder())
+    # the near-miss itself is promoted by the verifier; its look-alike in f0002 (0.5) is already
+    # in the review queue, so find_similar names it in the feed and proposes nothing more
+    assert _kinds(out) == ["promote_detection"] and out[0].created_by == "verifier"
+    call = next(e for e in store.trace_entries(mid) if e.summary.startswith("find_similar"))
+    assert call.kind == "tool_call"
+    assert [(m["detection"], m["action"]) for m in call.output["matches"]] == [
+        (other, "in the review queue")
+    ]
