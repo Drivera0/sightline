@@ -61,6 +61,8 @@ def test_relook_scenario_flies_the_low_pass_and_resolves_the_person(
             str(out),
             "--val",
             str(tmp_path / "no-val"),
+            "--full-legs",
+            "1",
         ]
     )
     (run,) = json.loads((out / "agent_eval.json").read_text())["runs"]

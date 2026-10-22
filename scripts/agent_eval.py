@@ -946,7 +946,9 @@ def gate_checks(store: Any, mid: str) -> list[dict]:
     return checks
 
 
-def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> dict:
+def run_scenario(
+    h: Harness, name: str, client_factory: Callable[[], Any], full_legs: int = 3
+) -> dict:
     """One run of one scenario in a new mission; never raises (a crash is recorded)."""
     cfg = SCENARIOS[name]
     relook = bool(cfg.get("relook"))
@@ -985,15 +987,15 @@ def run_scenario(h: Harness, name: str, client_factory: Callable[[], Any]) -> di
             m.review(person_det)
             for p in m.pending("alert", "assign_sector"):
                 m.decide(p.id)
-        if relook:  # one opening leg flown in full, for its ledger record (not the person's sector)
+        if relook:  # opening legs flown in full, for their ledger records (not the person's sector)
             hidden = hidden_sector(h.store, m.mid, h.scn.hidden.lat, h.scn.hidden.lon)
             legs = [
                 x
                 for x in m.fleet().legs
                 if x.status in ("approved", "flying") and x.sector_id not in (None, hidden)
             ]
-            if legs:
-                flights.append({**m.fly_leg(legs[0].id), "relook": False})
+            for leg in legs[:full_legs]:
+                flights.append({**m.fly_leg(leg.id), "relook": False})
         else:
             m.leg_done("D1")
         m.tick()
@@ -1652,21 +1654,24 @@ def ledger_report(runs: list[dict]) -> list[str]:
     ]  # fmt: skip
     rows = []
     for name, rs in groups:
-        s = summarise([{**x, "kind": "leg"} for x in rs])["leg"]
         if not rs:
             continue
+        s = summarise([{**x, "kind": "leg"} for x in rs])["leg"]
+        # repeats with fake models give the same records: the correlation is over distinct ones
+        distinct = {(x["ref"], x["expected"]["gain"], x["realised"]["gain"]): x for x in rs}
+        c = summarise([{**x, "kind": "leg"} for x in distinct.values()])["leg"]["corr"]
         mean_delta = sum(x["delta"] for x in rs) / len(rs)
         rows.append(
             [
                 name,
-                s["n"],
+                f"{s['n']} ({len(distinct)} distinct)",
                 f"{s['mean_expected']:.4f}",
                 f"{s['mean_realised']:.4f}",
                 f"{mean_delta:+.4f}",
-                "–" if s["corr"] is None else f"{s['corr']:.2f}",
+                "–" if c is None else f"{c:.2f}",
             ]
         )
-    legs = [x for x in recs if x["kind"] == "leg" and x["flown_in_full"]]
+    legs = list({x["ref"]: x for x in recs if x["kind"] == "leg" and x["flown_in_full"]}.values())
     detail = [
         [
             x["ref"],
@@ -1834,6 +1839,57 @@ def report(meta: dict, runs: list[dict], failures: list[dict]) -> str:
 
 
 # --- the re-look on val near-misses -----------------------------------------------------------
+
+
+def second_look_calibration(paths: list[Path]) -> list[str]:
+    """The second-look ledger's prediction on recorded verifier runs: per run, expected = the val
+    decisive share for each box's size (``ledger.DECISIVE_SHARE``), realised = 1 for yes/no, 0 for
+    unclear; mean of each and their correlation. The shares were taken from the val run, so on
+    val the means agree by construction; another split is the out-of-sample check."""
+    import csv
+
+    from sightline.agent.ledger import decisive_share, summarise
+
+    rows = []
+    for path in paths:
+        recs = [
+            {
+                "kind": "second_look",
+                "expected": {"gain": decisive_share(int(r["long_px"]))},
+                "realised": {"gain": 0.0 if r["person"] == "unclear" else 1.0},
+            }
+            for r in csv.DictReader(path.open())
+        ]
+        s = summarise(recs)["second_look"]
+        small = [x for x in recs if x["expected"]["gain"] < 0.6]
+        rows.append(
+            [
+                path.name,
+                s["n"],
+                f"{s['mean_expected']:.3f}",
+                f"{s['mean_realised']:.3f}",
+                f"{sum(x['realised']['gain'] for x in small) / max(1, len(small)):.3f} ({len(small)})",
+                "–" if s["corr"] is None else f"{s['corr']:.2f}",
+            ]
+        )
+    return [
+        "## Second-look ledger on recorded verifier runs",
+        "",
+        _table(
+            [
+                "Run",
+                "n",
+                "Mean expected",
+                "Mean realised",
+                "Realised under 60 px (n)",
+                "Correlation",
+            ],
+            rows,
+        ),
+        "",
+        "Expected under 60 px: 0.493; at 60 px and over: 0.716 (val, verify-v2).",
+        "",
+    ]
 
 
 def reflown(orig: Any, box: Any, from_alt: float, to_alt: float) -> tuple[Any, tuple, float]:
@@ -2021,6 +2077,20 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--pt", type=Path, default=ROOT / "data/weights/release_v2/yolo11s_tiles_run1_best.pt"
     )
+    ap.add_argument(
+        "--full-legs",
+        type=int,
+        default=3,
+        help="relook scenario: opening legs the fleet sim flies in full (ledger records)",
+    )
+    ap.add_argument(
+        "--ledger-csv",
+        type=Path,
+        nargs="*",
+        default=[],
+        help="recorded verifier runs (scripts/eval_verifier.py CSV): the second-look ledger's "
+        "prediction (val decisive share by box size) against what each run's model answered",
+    )
     args = ap.parse_args(argv)
     if args.relook_val and not args.live:
         print("--relook-val needs --live: a scripted VL would only replay its script.")
@@ -2063,7 +2133,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  relook val: {val_res['after']} over {val_res['relooked']}", flush=True)
         for name in args.scenarios:
             for k in range(args.repeats):
-                r = run_scenario(h, name, factory)
+                r = run_scenario(h, name, factory, args.full_legs)
                 runs.append(r)
                 n = Counter(p["kind"] for p in r["proposals"])
                 gate = "ok" if all(g["ok"] for g in r["gate"]) else "FAILED"
@@ -2092,6 +2162,8 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps({"meta": meta, "runs": runs, "failures": failures}, indent=1, default=str)
     )
     md = report(meta, runs, failures)
+    if args.ledger_csv:
+        md += "\n" + "\n".join(second_look_calibration(args.ledger_csv)) + "\n"
     if val_res is not None:
         md += "\n" + "\n".join(relook_val_report(val_res)) + "\n"
     (out / "agent_eval.md").write_text(md)
