@@ -8,8 +8,8 @@ from the facts it was given (``write_briefing``). There is no ``dismiss_detectio
 
 | event        | ref          | proposals                                                       |
 |--------------|--------------|-----------------------------------------------------------------|
-| detection    | detection id | ``promote_detection`` for a near-miss the verifier calls a person; a re-look ``drone_leg`` at 25 m when it says ``unclear`` on a box under 60 px (``relook_leg``) |
-| review       | detection id | person: ``alert`` to all teams + ``assign_sector`` (nearest standby team); unsure: verdict, and a re-look leg as for a detection |
+| detection    | detection id | ``promote_detection`` for a near-miss the verifier calls a person; a re-look ``drone_leg`` at 25 m when it says ``unclear`` on a box under 60 px (``relook_leg``); on ``yes``, ``find_similar`` (below) |
+| review       | detection id | person: ``alert`` to all teams + ``assign_sector`` (nearest standby team), then ``find_similar``; unsure: verdict, and a re-look leg as for a detection |
 | clue         | clue id      | re-plan: ``retask_drone`` / ``drone_leg`` toward the planner's best sector, plus a ``drone_leg`` for every other idle drone |
 | task_searched | sector id   | re-plan, as for a clue (the team's step is on the map)          |
 | team_position | team id     | ``assign_sector`` if that team is on standby; ``drone_leg`` for idle drones with no pending one |
@@ -18,6 +18,11 @@ from the facts it was given (``write_briefing``). There is no ``dismiss_detectio
 | leg_done     | leg id       | next ``drone_leg`` for that drone (and the leg's ``ledger`` record) |
 | tick         | mission id   | ``assign_sector`` for standby teams                            |
 | subject_search / subject_set | mission id / proposal id | the bulletin tool (``subject_tool``): a ``Set subject profile`` proposal; after its approval, a re-plan |
+
+``find_similar`` (``similar_tool``) runs only after a confirmed sighting (a reviewer's "person", or a
+second look's ``yes``) and only with an embedder (``NVIDIA_API_KEY``): a ``promote_detection`` for
+each of up to 3 crops of the flight most like the confirmed one, below the review threshold. Proposals,
+never promotions.
 
 A repeated event makes no duplicate: a detection is verified once and promoted at most once, and a
 person confirmed again reuses the pending (or approved) alert; the repeat is a trace note.
@@ -42,7 +47,7 @@ import threading
 import time
 from typing import Any
 
-from sightline.agent import ledger, prompts, relook_leg
+from sightline.agent import ledger, prompts, relook_leg, similar_tool
 from sightline.agent.llm import MODEL_FAST, ChatClient, failure_text
 from sightline.agent.trace import now_iso, trace_call
 from sightline.agent.verify import VERIFY_BAND
@@ -521,7 +526,9 @@ def _assign(
 # --- events ------------------------------------------------------------------------------------
 
 
-def _on_detection(store, mission_id, detection_id, client, detector) -> list[Proposal]:
+def _on_detection(
+    store, mission_id, detection_id, client, detector, embedder=None
+) -> list[Proposal]:
     det, _ = store.get_detection(mission_id, detection_id)
     if det.conf < VERIFY_BAND[0] or client is None:
         return []
@@ -535,7 +542,11 @@ def _on_detection(store, mission_id, detection_id, client, detector) -> list[Pro
     near_miss = det.conf < CANDIDATE_THRESHOLD
     out = _promote(store, mission_id, det, v) if near_miss and v.person == "yes" else []
     # queue items get a verdict badge only; nothing is ever dismissed
-    return out + relook_leg.after_verdict(store, mission_id, look, out, allow=near_miss)
+    out += relook_leg.after_verdict(store, mission_id, look, out, allow=near_miss)
+    if v.person == "yes":
+        why = f"the second look says {det.id} is likely a person ({', '.join(v.tools)})"
+        out += similar_tool.find_similar(store, mission_id, det.id, embedder, why=why)
+    return out
 
 
 def _promote(store: Any, mission_id: str, det: Any, v: Any) -> list[Proposal]:
@@ -563,7 +574,9 @@ def _promote(store: Any, mission_id: str, det: Any, v: Any) -> list[Proposal]:
     ]
 
 
-def _on_review(store, mission_id, detection_id, answer, client, detector) -> list[Proposal]:
+def _on_review(
+    store, mission_id, detection_id, answer, client, detector, embedder=None
+) -> list[Proposal]:
     if answer == "unsure":
         if client is None:
             return []
@@ -629,7 +642,8 @@ def _on_review(store, mission_id, detection_id, answer, client, detector) -> lis
             client,
             evidence,
         )
-    return out
+    why = f"a reviewer {_alert_reason(det.id)}"
+    return out + similar_tool.find_similar(store, mission_id, det.id, embedder, why=why)
 
 
 def _on_clue(store, mission_id, clue_id) -> list[Proposal]:
@@ -893,14 +907,15 @@ def handle(
     client: ChatClient | None,
     detector: Any = None,
     answer: str | None = None,
+    embedder: Any = None,
 ) -> list[Proposal]:
     """Proposals for one event (table in the module docstring). ``client=None`` means no model
     is available: the verifier is skipped and briefings use the template; planner proposals
-    still go out."""
+    still go out. ``embedder=None``: no ``find_similar`` after a confirmed sighting."""
     if event == "detection":
-        return _on_detection(store, mission_id, ref, client, detector)
+        return _on_detection(store, mission_id, ref, client, detector, embedder)
     if event == "review":
-        return _on_review(store, mission_id, ref, answer, client, detector)
+        return _on_review(store, mission_id, ref, answer, client, detector, embedder)
     if event == "clue":
         return _on_clue(store, mission_id, ref)
     if event == "conditions":

@@ -1,0 +1,12 @@
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 2 failed: HTTP 0: ReadTimeout
+embedding image attempt 3 failed: HTTP 0: ReadTimeout
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 2 failed: HTTP 0: ReadTimeout
+2026-10-22T23:33:39.850Z  agent  tool_call find_similar: review 0 photos like f0336-d01 (similarity ≥ 0.92)
+    indexed 18, embedded now 18, 59484 ms, calls {'requests': 2, 'items': 18, 'tokens': 4788, 'retries': 5, 'failed_attempts': 5, 'ms_total': 9130}
+
+0 proposal(s); mission 6432b72a under <out>
+f0336-d01 [('f0273-d01', 0.8814, 0.415), ('f0233-d01', 0.8805, 0.51), ('f0002-d01', 0.8694, 0.741), ('f0273-d02', 0.8655, 0.173), ('f0127-d02', 0.8577, 0.62)]
+f0002-d01 [('f0123-d01', 0.9054, 0.72), ('f0127-d01', 0.8855, 0.8), ('f0233-d01', 0.8803, 0.51), ('f0127-d02', 0.8733, 0.62), ('f0336-d01', 0.8694, 0.824)]
+f0127-d01 [('f0002-d01', 0.8855, 0.741), ('f0127-d02', 0.8591, 0.62), ('f0123-d01', 0.8537, 0.72), ('f0233-d01', 0.8445, 0.51), ('f0095-d01', 0.8208, 0.783)]

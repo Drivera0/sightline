@@ -1,0 +1,756 @@
+{
+  "split": "val",
+  "model": "nvidia/llama-nemotron-embed-vl-1b-v2",
+  "photos": 95,
+  "crops": 476,
+  "people": 298,
+  "sites": {
+    "BLA": 5,
+    "BRA": 12,
+    "BRK": 22,
+    "BRS": 6,
+    "CAP": 1,
+    "GOR": 34,
+    "JAS": 9,
+    "MED": 26,
+    "RAK": 8,
+    "SB": 22,
+    "TRS": 10,
+    "VRD": 37,
+    "ZRI": 284
+  },
+  "texts": {
+    "person": "a person seen from above in a drone photo",
+    "lying": "a person lying on the ground, seen from above",
+    "red": "a person in a red jacket"
+  },
+  "retrieval": {
+    "whole val": {
+      "image": {
+        "precision_at_5": 0.778,
+        "recall_at_5": 0.013,
+        "precision_at_3": 0.772,
+        "queries": 298
+      },
+      "text only (person)": {
+        "precision_at_5": 0.8,
+        "recall_at_5": 0.013,
+        "precision_at_3": 0.997,
+        "queries": 298
+      },
+      "text only (lying)": {
+        "precision_at_5": 0.8,
+        "recall_at_5": 0.013,
+        "precision_at_3": 0.667,
+        "queries": 298
+      },
+      "text only (red)": {
+        "precision_at_5": 1.0,
+        "recall_at_5": 0.017,
+        "precision_at_3": 1.0,
+        "queries": 298
+      },
+      "image + text (person)": {
+        "precision_at_5": 0.851,
+        "recall_at_5": 0.014,
+        "precision_at_3": 0.839,
+        "queries": 298
+      },
+      "image + text (lying)": {
+        "precision_at_5": 0.771,
+        "recall_at_5": 0.013,
+        "precision_at_3": 0.746,
+        "queries": 298
+      },
+      "image + text (red)": {
+        "precision_at_5": 0.792,
+        "recall_at_5": 0.013,
+        "precision_at_3": 0.805,
+        "queries": 298
+      },
+      "baseline: detector confidence": {
+        "precision_at_5": 1.0,
+        "recall_at_5": 0.017,
+        "precision_at_3": 1.0,
+        "queries": 298
+      },
+      "baseline: random": {
+        "precision_at_5": 0.625,
+        "recall_at_5": 0.011,
+        "precision_at_3": 0.651,
+        "queries": 298
+      }
+    },
+    "same flight": {
+      "image": {
+        "precision_at_5": 0.753,
+        "recall_at_5": 0.161,
+        "precision_at_3": 0.744,
+        "queries": 297
+      },
+      "text only (person)": {
+        "precision_at_5": 0.827,
+        "recall_at_5": 0.184,
+        "precision_at_3": 0.749,
+        "queries": 297
+      },
+      "text only (lying)": {
+        "precision_at_5": 0.714,
+        "recall_at_5": 0.18,
+        "precision_at_3": 0.76,
+        "queries": 297
+      },
+      "text only (red)": {
+        "precision_at_5": 0.734,
+        "recall_at_5": 0.149,
+        "precision_at_3": 0.856,
+        "queries": 297
+      },
+      "image + text (person)": {
+        "precision_at_5": 0.806,
+        "recall_at_5": 0.172,
+        "precision_at_3": 0.798,
+        "queries": 297
+      },
+      "image + text (lying)": {
+        "precision_at_5": 0.725,
+        "recall_at_5": 0.173,
+        "precision_at_3": 0.713,
+        "queries": 297
+      },
+      "image + text (red)": {
+        "precision_at_5": 0.74,
+        "recall_at_5": 0.158,
+        "precision_at_3": 0.735,
+        "queries": 297
+      },
+      "baseline: detector confidence": {
+        "precision_at_5": 0.981,
+        "recall_at_5": 0.198,
+        "precision_at_3": 0.993,
+        "queries": 297
+      },
+      "baseline: random": {
+        "precision_at_5": 0.621,
+        "recall_at_5": 0.143,
+        "precision_at_3": 0.634,
+        "queries": 297
+      }
+    },
+    "same flight, other photos": {
+      "image": {
+        "precision_at_5": 0.777,
+        "recall_at_5": 0.169,
+        "precision_at_3": 0.79,
+        "queries": 294
+      },
+      "text only (person)": {
+        "precision_at_5": 0.813,
+        "recall_at_5": 0.191,
+        "precision_at_3": 0.762,
+        "queries": 294
+      },
+      "text only (lying)": {
+        "precision_at_5": 0.749,
+        "recall_at_5": 0.186,
+        "precision_at_3": 0.74,
+        "queries": 294
+      },
+      "text only (red)": {
+        "precision_at_5": 0.749,
+        "recall_at_5": 0.157,
+        "precision_at_3": 0.853,
+        "queries": 294
+      },
+      "image + text (person)": {
+        "precision_at_5": 0.831,
+        "recall_at_5": 0.181,
+        "precision_at_3": 0.84,
+        "queries": 294
+      },
+      "image + text (lying)": {
+        "precision_at_5": 0.748,
+        "recall_at_5": 0.181,
+        "precision_at_3": 0.736,
+        "queries": 294
+      },
+      "image + text (red)": {
+        "precision_at_5": 0.766,
+        "recall_at_5": 0.167,
+        "precision_at_3": 0.777,
+        "queries": 294
+      },
+      "baseline: detector confidence": {
+        "precision_at_5": 0.99,
+        "recall_at_5": 0.206,
+        "precision_at_3": 0.999,
+        "queries": 294
+      },
+      "baseline: random": {
+        "precision_at_5": 0.65,
+        "recall_at_5": 0.153,
+        "precision_at_3": 0.654,
+        "queries": 294
+      }
+    },
+    "near-misses, same flight": {
+      "image": {
+        "precision_at_5": 0.308,
+        "recall_at_5": 0.247,
+        "precision_at_3": 0.274,
+        "queries": 195
+      },
+      "text only (person)": {
+        "precision_at_5": 0.033,
+        "recall_at_5": 0.118,
+        "precision_at_3": 0.044,
+        "queries": 195
+      },
+      "text only (lying)": {
+        "precision_at_5": 0.033,
+        "recall_at_5": 0.118,
+        "precision_at_3": 0.044,
+        "queries": 195
+      },
+      "text only (red)": {
+        "precision_at_5": 0.559,
+        "recall_at_5": 0.383,
+        "precision_at_3": 0.629,
+        "queries": 195
+      },
+      "image + text (person)": {
+        "precision_at_5": 0.197,
+        "recall_at_5": 0.201,
+        "precision_at_3": 0.152,
+        "queries": 195
+      },
+      "image + text (lying)": {
+        "precision_at_5": 0.15,
+        "recall_at_5": 0.177,
+        "precision_at_3": 0.106,
+        "queries": 195
+      },
+      "image + text (red)": {
+        "precision_at_5": 0.313,
+        "recall_at_5": 0.259,
+        "precision_at_3": 0.325,
+        "queries": 195
+      },
+      "baseline: detector confidence": {
+        "precision_at_5": 0.015,
+        "recall_at_5": 0.031,
+        "precision_at_3": 0.015,
+        "queries": 195
+      },
+      "baseline: random": {
+        "precision_at_5": 0.182,
+        "recall_at_5": 0.151,
+        "precision_at_3": 0.166,
+        "queries": 195
+      }
+    },
+    "near-misses, same flight, other photos": {
+      "image": {
+        "precision_at_5": 0.302,
+        "recall_at_5": 0.247,
+        "precision_at_3": 0.283,
+        "queries": 194
+      },
+      "text only (person)": {
+        "precision_at_5": 0.072,
+        "recall_at_5": 0.134,
+        "precision_at_3": 0.052,
+        "queries": 194
+      },
+      "text only (lying)": {
+        "precision_at_5": 0.06,
+        "recall_at_5": 0.127,
+        "precision_at_3": 0.046,
+        "queries": 194
+      },
+      "text only (red)": {
+        "precision_at_5": 0.552,
+        "recall_at_5": 0.392,
+        "precision_at_3": 0.625,
+        "queries": 194
+      },
+      "image + text (person)": {
+        "precision_at_5": 0.218,
+        "recall_at_5": 0.212,
+        "precision_at_3": 0.166,
+        "queries": 194
+      },
+      "image + text (lying)": {
+        "precision_at_5": 0.172,
+        "recall_at_5": 0.187,
+        "precision_at_3": 0.118,
+        "queries": 194
+      },
+      "image + text (red)": {
+        "precision_at_5": 0.332,
+        "recall_at_5": 0.273,
+        "precision_at_3": 0.339,
+        "queries": 194
+      },
+      "baseline: detector confidence": {
+        "precision_at_5": 0.081,
+        "recall_at_5": 0.065,
+        "precision_at_3": 0.018,
+        "queries": 194
+      },
+      "baseline: random": {
+        "precision_at_5": 0.204,
+        "recall_at_5": 0.195,
+        "precision_at_3": 0.198,
+        "queries": 194
+      }
+    },
+    "near-misses, same flight (loose label)": {
+      "image": {
+        "precision_at_5": 0.642,
+        "recall_at_5": 0.387,
+        "precision_at_3": 0.666,
+        "queries": 246
+      },
+      "text only (person)": {
+        "precision_at_5": 0.528,
+        "recall_at_5": 0.388,
+        "precision_at_3": 0.373,
+        "queries": 246
+      },
+      "text only (lying)": {
+        "precision_at_5": 0.668,
+        "recall_at_5": 0.418,
+        "precision_at_3": 0.606,
+        "queries": 246
+      },
+      "text only (red)": {
+        "precision_at_5": 0.807,
+        "recall_at_5": 0.447,
+        "precision_at_3": 0.839,
+        "queries": 246
+      },
+      "image + text (person)": {
+        "precision_at_5": 0.593,
+        "recall_at_5": 0.394,
+        "precision_at_3": 0.613,
+        "queries": 246
+      },
+      "image + text (lying)": {
+        "precision_at_5": 0.651,
+        "recall_at_5": 0.404,
+        "precision_at_3": 0.661,
+        "queries": 246
+      },
+      "image + text (red)": {
+        "precision_at_5": 0.704,
+        "recall_at_5": 0.417,
+        "precision_at_3": 0.726,
+        "queries": 246
+      },
+      "baseline: detector confidence": {
+        "precision_at_5": 0.374,
+        "recall_at_5": 0.325,
+        "precision_at_3": 0.06,
+        "queries": 246
+      },
+      "baseline: random": {
+        "precision_at_5": 0.41,
+        "recall_at_5": 0.306,
+        "precision_at_3": 0.39,
+        "queries": 246
+      }
+    },
+    "near-misses, same flight, other photos (loose label)": {
+      "image": {
+        "precision_at_5": 0.649,
+        "recall_at_5": 0.377,
+        "precision_at_3": 0.679,
+        "queries": 238
+      },
+      "text only (person)": {
+        "precision_at_5": 0.543,
+        "recall_at_5": 0.377,
+        "precision_at_3": 0.389,
+        "queries": 238
+      },
+      "text only (lying)": {
+        "precision_at_5": 0.661,
+        "recall_at_5": 0.404,
+        "precision_at_3": 0.648,
+        "queries": 238
+      },
+      "text only (red)": {
+        "precision_at_5": 0.829,
+        "recall_at_5": 0.442,
+        "precision_at_3": 0.86,
+        "queries": 238
+      },
+      "image + text (person)": {
+        "precision_at_5": 0.604,
+        "recall_at_5": 0.383,
+        "precision_at_3": 0.616,
+        "queries": 238
+      },
+      "image + text (lying)": {
+        "precision_at_5": 0.662,
+        "recall_at_5": 0.394,
+        "precision_at_3": 0.682,
+        "queries": 238
+      },
+      "image + text (red)": {
+        "precision_at_5": 0.725,
+        "recall_at_5": 0.41,
+        "precision_at_3": 0.749,
+        "queries": 238
+      },
+      "baseline: detector confidence": {
+        "precision_at_5": 0.398,
+        "recall_at_5": 0.311,
+        "precision_at_3": 0.116,
+        "queries": 238
+      },
+      "baseline: random": {
+        "precision_at_5": 0.407,
+        "recall_at_5": 0.297,
+        "precision_at_3": 0.398,
+        "queries": 238
+      }
+    }
+  },
+  "threshold_sweep": [
+    {
+      "other_photos_only": false,
+      "threshold": 0.0,
+      "proposed": 771,
+      "precision": 0.204,
+      "precision_loose": 0.621,
+      "queries_with_a_proposal": 272
+    },
+    {
+      "other_photos_only": false,
+      "threshold": 0.8,
+      "proposed": 678,
+      "precision": 0.227,
+      "precision_loose": 0.69,
+      "queries_with_a_proposal": 258
+    },
+    {
+      "other_photos_only": false,
+      "threshold": 0.85,
+      "proposed": 557,
+      "precision": 0.255,
+      "precision_loose": 0.754,
+      "queries_with_a_proposal": 229
+    },
+    {
+      "other_photos_only": false,
+      "threshold": 0.88,
+      "proposed": 330,
+      "precision": 0.255,
+      "precision_loose": 0.748,
+      "queries_with_a_proposal": 170
+    },
+    {
+      "other_photos_only": false,
+      "threshold": 0.9,
+      "proposed": 165,
+      "precision": 0.273,
+      "precision_loose": 0.77,
+      "queries_with_a_proposal": 108
+    },
+    {
+      "other_photos_only": false,
+      "threshold": 0.92,
+      "proposed": 66,
+      "precision": 0.348,
+      "precision_loose": 0.818,
+      "queries_with_a_proposal": 48
+    },
+    {
+      "other_photos_only": false,
+      "threshold": 0.94,
+      "proposed": 22,
+      "precision": 0.409,
+      "precision_loose": 0.909,
+      "queries_with_a_proposal": 19
+    },
+    {
+      "other_photos_only": false,
+      "threshold": 0.95,
+      "proposed": 17,
+      "precision": 0.353,
+      "precision_loose": 0.941,
+      "queries_with_a_proposal": 16
+    },
+    {
+      "other_photos_only": false,
+      "threshold": 0.96,
+      "proposed": 13,
+      "precision": 0.308,
+      "precision_loose": 0.923,
+      "queries_with_a_proposal": 13
+    },
+    {
+      "other_photos_only": false,
+      "threshold": 0.97,
+      "proposed": 6,
+      "precision": 0.333,
+      "precision_loose": 1.0,
+      "queries_with_a_proposal": 6
+    },
+    {
+      "other_photos_only": false,
+      "threshold": 0.98,
+      "proposed": 1,
+      "precision": 0.0,
+      "precision_loose": 1.0,
+      "queries_with_a_proposal": 1
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.0,
+      "proposed": 745,
+      "precision": 0.215,
+      "precision_loose": 0.628,
+      "queries_with_a_proposal": 266
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.8,
+      "proposed": 657,
+      "precision": 0.239,
+      "precision_loose": 0.696,
+      "queries_with_a_proposal": 247
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.85,
+      "proposed": 517,
+      "precision": 0.273,
+      "precision_loose": 0.758,
+      "queries_with_a_proposal": 211
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.88,
+      "proposed": 282,
+      "precision": 0.27,
+      "precision_loose": 0.752,
+      "queries_with_a_proposal": 140
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.9,
+      "proposed": 128,
+      "precision": 0.297,
+      "precision_loose": 0.758,
+      "queries_with_a_proposal": 80
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.92,
+      "proposed": 40,
+      "precision": 0.375,
+      "precision_loose": 0.825,
+      "queries_with_a_proposal": 25
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.94,
+      "proposed": 7,
+      "precision": 0.857,
+      "precision_loose": 1.0,
+      "queries_with_a_proposal": 5
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.95,
+      "proposed": 4,
+      "precision": 1.0,
+      "precision_loose": 1.0,
+      "queries_with_a_proposal": 4
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.96,
+      "proposed": 3,
+      "precision": 1.0,
+      "precision_loose": 1.0,
+      "queries_with_a_proposal": 3
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.97,
+      "proposed": 2,
+      "precision": 1.0,
+      "precision_loose": 1.0,
+      "queries_with_a_proposal": 2
+    },
+    {
+      "other_photos_only": true,
+      "threshold": 0.98,
+      "proposed": 0,
+      "precision": null,
+      "precision_loose": null,
+      "queries_with_a_proposal": 0
+    }
+  ],
+  "near_misses": {
+    "crops": 87,
+    "people_share": 0.138,
+    "people_share_loose": 0.345
+  },
+  "similarity": {
+    "person_person_median": 0.8138,
+    "person_other_median": 0.779
+  },
+  "lookalikes_the_rule_would_propose": [
+    {
+      "query": "train_ZRI_2076#2",
+      "lookalike": "train_ZRI_2079#9",
+      "score": 0.9405,
+      "lookalike_conf": 0.2641,
+      "same_photo": false,
+      "loose": true
+    },
+    {
+      "query": "train_ZRI_3027#17",
+      "lookalike": "train_ZRI_2062#33",
+      "score": 0.9378,
+      "lookalike_conf": 0.1819,
+      "same_photo": false,
+      "loose": false
+    },
+    {
+      "query": "train_ZRI_2062#11",
+      "lookalike": "train_ZRI_2061#30",
+      "score": 0.9352,
+      "lookalike_conf": 0.1509,
+      "same_photo": false,
+      "loose": true
+    },
+    {
+      "query": "train_SB_0004#1",
+      "lookalike": "train_SB_0009#5",
+      "score": 0.9281,
+      "lookalike_conf": 0.1663,
+      "same_photo": false,
+      "loose": false
+    },
+    {
+      "query": "train_ZRI_3027#3",
+      "lookalike": "train_ZRI_3008#26",
+      "score": 0.9277,
+      "lookalike_conf": 0.2788,
+      "same_photo": false,
+      "loose": true
+    },
+    {
+      "query": "train_GOR_3012#0",
+      "lookalike": "train_GOR_3015#2",
+      "score": 0.9257,
+      "lookalike_conf": 0.1786,
+      "same_photo": false,
+      "loose": true
+    },
+    {
+      "query": "train_ZRI_2061#2",
+      "lookalike": "train_ZRI_2071#10",
+      "score": 0.925,
+      "lookalike_conf": 0.2717,
+      "same_photo": false,
+      "loose": true
+    },
+    {
+      "query": "train_GOR_3049#1",
+      "lookalike": "train_GOR_3013#2",
+      "score": 0.9246,
+      "lookalike_conf": 0.2039,
+      "same_photo": false,
+      "loose": false
+    }
+  ],
+  "lookalikes_anywhere": [
+    {
+      "query": "train_BRK_2004#0",
+      "lookalike": "train_BRK_2004#2",
+      "score": 0.9885,
+      "lookalike_conf": 0.5197,
+      "same_photo": true,
+      "loose": true
+    },
+    {
+      "query": "train_ZRI_2057#0",
+      "lookalike": "train_ZRI_2057#3",
+      "score": 0.9845,
+      "lookalike_conf": 0.3637,
+      "same_photo": true,
+      "loose": true
+    },
+    {
+      "query": "train_ZRI_3014#9",
+      "lookalike": "train_ZRI_3014#18",
+      "score": 0.9841,
+      "lookalike_conf": 0.2982,
+      "same_photo": true,
+      "loose": true
+    },
+    {
+      "query": "train_ZRI_2061#13",
+      "lookalike": "train_ZRI_2061#24",
+      "score": 0.9838,
+      "lookalike_conf": 0.3746,
+      "same_photo": true,
+      "loose": true
+    },
+    {
+      "query": "train_MED_3030#0",
+      "lookalike": "train_MED_3030#4",
+      "score": 0.9836,
+      "lookalike_conf": 0.5825,
+      "same_photo": true,
+      "loose": true
+    },
+    {
+      "query": "train_TRS_0018#1",
+      "lookalike": "train_TRS_0018#2",
+      "score": 0.9835,
+      "lookalike_conf": 0.7287,
+      "same_photo": true,
+      "loose": true
+    },
+    {
+      "query": "train_ZRI_3014#14",
+      "lookalike": "train_ZRI_3014#17",
+      "score": 0.9817,
+      "lookalike_conf": 0.3138,
+      "same_photo": true,
+      "loose": true
+    },
+    {
+      "query": "train_RAK_0077#0",
+      "lookalike": "train_RAK_0077#1",
+      "score": 0.9816,
+      "lookalike_conf": 0.5943,
+      "same_photo": true,
+      "loose": true
+    }
+  ],
+  "calls": {
+    "text_queries": {
+      "requests": 0,
+      "items": 3,
+      "tokens": 0,
+      "retries": 0,
+      "failed_attempts": 0,
+      "ms_total": 0,
+      "wall_s": null,
+      "median_ms_per_request": null,
+      "p90_ms_per_request": null,
+      "batch": 16,
+      "min_interval_s": 1.6,
+      "timeout_s": 10.0
+    }
+  }
+}

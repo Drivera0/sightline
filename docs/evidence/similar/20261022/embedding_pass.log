@@ -1,0 +1,33 @@
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+  embedded 64/412 (38 s)
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+  embedded 128/412 (63 s)
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 2 failed: HTTP 0: ReadTimeout
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+  embedded 192/412 (113 s)
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 2 failed: HTTP 0: ReadTimeout
+embedding image attempt 3 failed: HTTP 0: ReadTimeout
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 2 failed: HTTP 0: ReadTimeout
+embedding image attempt 3 failed: HTTP 0: ReadTimeout
+  embedded 256/412 (195 s)
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 2 failed: HTTP 0: ReadTimeout
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+  embedded 320/412 (250 s)
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 2 failed: HTTP 0: ReadTimeout
+embedding image attempt 3 failed: HTTP 0: ReadTimeout
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 2 failed: HTTP 0: ReadTimeout
+embedding image attempt 3 failed: HTTP 0: ReadTimeout
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 2 failed: HTTP 0: ReadTimeout
+  embedded 384/412 (344 s)
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+embedding image attempt 1 failed: HTTP 0: ReadTimeout
+  embedded 412/412 (372 s)
