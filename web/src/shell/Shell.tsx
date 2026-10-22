@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CacheBundle } from "../contract";
+import { hasApi } from "../lib/api";
 import { CACHE_DIR, CacheContext, useCache } from "../lib/cache";
 import { isTyping } from "../lib/keys";
 import { HeatLayer } from "../map/heat/HeatLayer";
@@ -323,6 +324,9 @@ export function Shell({
   const menuItems: MenuItem[] = [
     ...(canTryPhoto
       ? [{ label: "Try your own photo", detail: "Runs the detector in your browser", onSelect: () => setTryPhoto(true) }]
+      : []),
+    ...(hasApi()
+      ? [{ label: "New search", detail: "Start a live mission with your own photos", onSelect: () => (window.location.hash = "#new") }]
       : []),
     { label: "Keyboard shortcuts", hint: "?", onSelect: () => setShowShortcuts(true) },
     { label: "Take the tour", detail: "The five steps, played for you", hint: "T", onSelect: startTour },

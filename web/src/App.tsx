@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { LiveMission, tabFromHash } from "./ingest/LiveMission";
+import { NewSearch } from "./ingest/NewSearch";
+import { apiBase } from "./lib/api";
 import {
   CACHE_DIR,
   READABLE_CONTRACT_VERSIONS,
@@ -7,7 +10,34 @@ import {
 } from "./lib/cache";
 import { useSelection } from "./lib/selection";
 import { EmptyState } from "./shell/components";
+import { routeFromHash, type Route } from "./shell/flow";
 import { Shell, SurveySelect, type SurveyOption } from "./shell/Shell";
+
+function useRoute(): Route {
+  const [hash, setHash] = useState(() => (typeof window === "undefined" ? "" : window.location.hash));
+  useEffect(() => {
+    const on = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", on);
+    return () => window.removeEventListener("hashchange", on);
+  }, []);
+  return routeFromHash(hash);
+}
+
+/** Live missions need the mission API (VITE_API_URL); the static demo needs nothing. */
+export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, { kind: "demo" }>; base?: string | null }) {
+  const api = useMemo(() => (base === null ? null : { base }), [base]);
+  if (api === null) {
+    return (
+      <div role="alert" className="flex h-full items-center justify-center p-6">
+        <EmptyState title="Live missions aren't available here">
+          This site runs the demo only. Live missions need the mission API: set VITE_API_URL to its address.
+        </EmptyState>
+      </div>
+    );
+  }
+  if (route.kind === "new") return <NewSearch api={api} onCreated={(id) => (window.location.hash = `#m/${id}/photos`)} />;
+  return <LiveMission key={route.id} api={api} missionId={route.id} initialTab={tabFromHash(window.location.hash)} />;
+}
 
 const PUBLIC_SURVEYS: readonly SurveyOption[] = [
   { dir: "demo", label: "Mount Seymour simulation" },
@@ -45,6 +75,12 @@ export async function discoverAvailableSurveys(
 }
 
 export function App({ dir = CACHE_DIR }: { dir?: string }) {
+  const route = useRoute();
+  if (route.kind !== "demo") return <LiveRoutes route={route} />;
+  return <DemoApp dir={dir} />;
+}
+
+function DemoApp({ dir }: { dir: string }) {
   const { status, data, error, dir: loadedDir, load } = useCache();
   const [availableSurveys, setAvailableSurveys] = useState<SurveyOption[] | null>(null);
 

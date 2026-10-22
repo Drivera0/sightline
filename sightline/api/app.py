@@ -78,6 +78,18 @@ def create_app(
             app.state.radio = radio_context(missions.store, hooks=missions.hooks, voices=radio)
             app.include_router(radio_router)
 
+    # The web app calls the API from another origin: Vite on localhost in development, the Vercel
+    # site in production (SIGHTLINE_CORS_ORIGINS, comma-separated). No cookies, no credentials.
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[o for o in os.environ.get("SIGHTLINE_CORS_ORIGINS", "").split(",") if o],
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+        allow_methods=["GET", "POST", "PATCH", "PUT"],
+        allow_headers=["*"],
+    )
+
     @app.get("/health")
     def health() -> dict[str, str]:
         backend = (os.environ.get("SIGHTLINE_BACKEND") or "cv2").lower()

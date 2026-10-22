@@ -27,6 +27,16 @@ export function previousStep(id: StepId): StepId {
   return IDS[Math.max(IDS.indexOf(id) - 1, 0)] as StepId;
 }
 
+/** Where the hash points: the demo flow, the New search screen, or a live mission (LANE_D §5.5). */
+export type Route = { kind: "demo" } | { kind: "new" } | { kind: "mission"; id: string };
+
+/** "#new" -> New search; "#m/<id>[/<view>]" -> that live mission; anything else -> the demo flow. */
+export function routeFromHash(hash: string): Route {
+  if (hash === "#new") return { kind: "new" };
+  const m = /^#m\/([0-9a-f]{8})(\/|$)/.exec(hash);
+  return m ? { kind: "mission", id: m[1] as string } : { kind: "demo" };
+}
+
 /** "#review" -> "review"; anything unknown -> "survey". */
 export function stepFromHash(hash: string): StepId {
   const id = hash.replace(/^#/, "");
