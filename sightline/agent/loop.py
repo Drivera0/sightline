@@ -268,7 +268,7 @@ def _replan(
     fleet = state["fleet"]
     if drone_id is not None:  # plan for that drone only (the others' legs still count as taken)
         fleet = fleet.model_copy(update={"drones": [d for d in fleet.drones if d.id == drone_id]})
-    legs = propose_legs(live, layout, fleet, state["conditions"], now_iso())
+    legs = propose_legs(live, layout, fleet, state["conditions"], now_iso(), tasks=state["tasks"])
     return [_propose_leg(store, mission_id, state, legs[0], why, cause)] if legs else []
 
 

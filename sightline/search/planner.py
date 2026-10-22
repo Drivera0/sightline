@@ -15,9 +15,17 @@ Several drones: sequential greedy on the *expected* map: take the best (drone, l
 expected step to a copy of the map, re-score the rest, repeat; drones spread out on their own,
 and a re-task after a clue falls out of the same rule.
 
-**Ground teams** (``propose_assignments``): sectors not yet assigned or searched, ranked by
+Ground teams count: a sector a team is assigned to or searching (``tasks``) is worth
+``team_discount`` (0.5) less to a drone, since the team is about to step it; 1.0 would exclude it.
+Once the team reports it searched at POD x, the map has the step and the discount no longer applies.
+
+**Ground teams** (``propose_assignments``): sectors not yet assigned or searched, valued at
 POA × (1 − the POD a drone would get there): teams add the most where tree cover hides people
-from the camera. Each goes to the nearest team on standby (unknown positions last).
+from the camera. Each (team on standby, sector) pair is ranked by that value per minute of the
+team's time, walking there from its last position (straight line at ``walking_kmh``; the last
+known point when it hasn't reported) plus ``team_search_min`` searching; the best pair goes
+first, greedily. Both times are assumptions, not measured (stated in ``PlannerConfig``).
+``walking_kmh=None`` gives the old rule: best sector first, to the nearest team.
 
 Every reason is in numbers. Built by lane A for lane C (issue #64); lane C owns this file.
 """
@@ -36,6 +44,8 @@ from sightline.contract import Conditions, Drone, FleetState, Grid, LatLon, Leg,
 from sightline.search.grid import latlon_to_local_m, local_m_to_latlon
 from sightline.search.sectors import Sector, SectorLayout
 
+TEAM_BUSY = ("assigned", "in_progress")  # task states a drone plans around
+
 
 @dataclass(frozen=True)
 class PlannerConfig:
@@ -48,6 +58,12 @@ class PlannerConfig:
     recall: float = 0.864
     pod_cap: float = 0.95
     seconds_per_photo: float = 1.0
+    # A sector with a ground team assigned or searching is worth this much less to a drone.
+    team_discount: float = 0.5
+    # Assumptions (no SAR source verified): a team's straight-line pace off trail with gear, and
+    # the time it takes to search one lattice sector (250 m square on the 1 km mission grid).
+    walking_kmh: float | None = 3.0
+    team_search_min: float = 60.0
 
 
 def _t(iso: str) -> datetime:
@@ -166,9 +182,11 @@ def propose_legs(
     now: str,
     k: int = 3,
     cfg: PlannerConfig = PlannerConfig(),  # noqa: B008 - frozen dataclass, never mutated
+    tasks: list[SectorTask] | None = None,
 ) -> list[Leg]:
     """Up to ``k`` legs, best first, at most one per drone (idle or flying: a flying drone's leg is
-    a re-task). Nothing when conditions say it isn't flyable."""
+    a re-task). Nothing when conditions say it isn't flyable. ``tasks``: the sector tasks; a sector
+    a ground team is assigned to or searching is worth ``cfg.team_discount`` less."""
     if conditions is not None and conditions.flyable is False:
         return []
     grid = live.base.grid
@@ -177,6 +195,8 @@ def propose_legs(
     visibility = conditions.visibility_factor if conditions is not None else 1.0
     canopy = _canopy(live, cfg)
     taken = {leg.sector_id for leg in fleet.legs if leg.status in ("approved", "flying")}
+    teamed = {t.sector_id for t in tasks or [] if t.state in TEAM_BUSY}
+    worth = {s.id: 1.0 - cfg.team_discount if s.id in teamed else 1.0 for s in layout.sectors}
     p = np.array(live.p()[0], dtype=np.float64)
     outside = float(live.p()[1])
     drones = [d for d in fleet.drones if d.status in ("idle", "flying")]
@@ -200,6 +220,7 @@ def propose_legs(
         for d in drones:
             if any(c.drone_id == d.id for c in chosen):
                 continue
+            # value = the expected step × worth (a team's sector counts less); ranked per minute
             scored = sorted(
                 (
                     (
@@ -208,7 +229,8 @@ def propose_legs(
                                 p[layout.cells_of(leg.sector_id)]
                                 * _pods(layout.cells_of(leg.sector_id), canopy, visibility, cfg)
                             )
-                        ),
+                        )
+                        * worth[leg.sector_id],
                         leg,
                     )
                     for leg in options[d.id]
@@ -218,19 +240,22 @@ def propose_legs(
             )
             if not scored or scored[0][0] <= 0:
                 continue
-            gain, leg = scored[0]
+            value, leg = scored[0]
             runner_up = scored[1][1] if len(scored) > 1 else None
-            runner_gain = scored[1][0] if len(scored) > 1 else 0.0
-            if best is None or gain / leg.est_minutes > best[0] / best[1].est_minutes:
-                best = (gain, leg, runner_gain, runner_up)
+            runner_value = scored[1][0] if len(scored) > 1 else 0.0
+            if best is None or value / leg.est_minutes > best[0] / best[1].est_minutes:
+                best = (value, leg, runner_value, runner_up)
         if best is None:
             break
-        gain, leg, runner_gain, runner_up = best
+        value, leg, runner_gain, runner_up = best
+        gain = value / worth[leg.sector_id]  # what the photos are expected to rule out
         drone = next(d for d in drones if d.id == leg.drone_id)
-        rate = gain / leg.est_minutes
+        rate = value / leg.est_minutes
         why = [
             f"Sector {leg.sector_id}: expected to rule out {gain:.1%} of the probability in {leg.est_minutes:.0f} min ({rate:.2%}/min)"
         ]
+        if leg.sector_id in teamed:
+            why[0] += f", counted at {worth[leg.sector_id]:.0%} as a ground team is assigned there"
         if runner_up is not None and runner_gain > 0:
             ratio = rate / (runner_gain / runner_up.est_minutes)
             why.append(
@@ -273,7 +298,7 @@ def propose_assignments(
     cfg: PlannerConfig = PlannerConfig(),  # noqa: B008 - frozen dataclass, never mutated
 ) -> list[tuple[str, str, str]]:
     """(team id, sector id, reason) for each team on standby: the open sectors where a ground
-    team adds the most, each to the nearest free team."""
+    team adds the most per minute of its time (walk there + search), greedily by pair."""
     grid = live.base.grid
     p = live.p()[0]
     canopy = _canopy(live, cfg)
@@ -289,13 +314,46 @@ def propose_assignments(
         ranked.append((poa * (1 - drone_pod), poa, drone_pod, hidden, s))
     ranked.sort(key=lambda x: -x[0])
     free = [t for t in teams if t.status == "standby"]
+    lkp = getattr(live.base, "lkp", None) or local_m_to_latlon(
+        grid, grid.cols * grid.cell_m / 2, grid.rows * grid.cell_m / 2
+    )
     out = []
-    for _, poa, drone_pod, hidden, s in ranked:
-        if not free:
-            break
-        team, dist = _nearest(free, s, grid)
+    while free and ranked:
+        if cfg.walking_kmh is None:  # the old rule: best sector first, to the nearest team
+            _, poa, drone_pod, hidden, s = ranked[0]
+            team, dist = _nearest(free, s, grid)
+            walk = None
+        else:
+            pace = cfg.walking_kmh * 1000 / 60  # metres a minute
+            pairs = [
+                (
+                    r[0] / (_dist(t.position or lkp, r[4], grid) / pace + cfg.team_search_min),
+                    i,
+                    r,
+                    t,
+                )
+                for i, r in enumerate(ranked)
+                for t in free
+            ]
+            _, _, (_, poa, drone_pod, hidden, s), team = max(pairs, key=lambda x: (x[0], -x[1]))
+            dist = _dist(team.position or lkp, s, grid)
+            walk = dist / pace
+        ranked = [r for r in ranked if r[4] is not s]
+        nearest = _nearest(free, s, grid)[0] is team
         free.remove(team)
-        where = f"; {team.callsign} is nearest ({dist:.0f} m)" if dist is not None else ""
+        if dist is None:
+            where = ""
+        elif walk is None:
+            where = f"; {team.callsign} is nearest ({dist:.0f} m)"
+        elif team.position is None:
+            where = (
+                f"; {team.callsign} has no position yet: about {walk:.0f} min on foot from the "
+                "last known point"
+            )
+        elif nearest:
+            where = f"; {team.callsign} is nearest ({dist:.0f} m, about {walk:.0f} min on foot)"
+        else:
+            where = f"; {team.callsign} is {dist:.0f} m away (about {walk:.0f} min on foot)"
         out.append(
             (
                 team.id,
@@ -309,11 +367,20 @@ def propose_assignments(
     return out
 
 
-def _nearest(teams: list[Team], s: Sector, grid: Grid) -> tuple[Team, float | None]:
-    centre = (
+def _centre(s: Sector) -> tuple[float, float]:
+    return (
         (s.rect["east_min"] + s.rect["east_max"]) / 2,
         (s.rect["south_min"] + s.rect["south_max"]) / 2,
     )
+
+
+def _dist(at: LatLon, s: Sector, grid: Grid) -> float:
+    """Straight-line metres from ``at`` to the sector's centre."""
+    return math.dist(latlon_to_local_m(grid, at), _centre(s))
+
+
+def _nearest(teams: list[Team], s: Sector, grid: Grid) -> tuple[Team, float | None]:
+    centre = _centre(s)
     placed = [
         (math.dist(latlon_to_local_m(grid, t.position), centre), t) for t in teams if t.position
     ]
