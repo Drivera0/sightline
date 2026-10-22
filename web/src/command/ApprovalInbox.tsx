@@ -7,6 +7,7 @@
 import { useState, type KeyboardEvent } from "react";
 import type { Drone, EvidenceRef, Proposal, Team } from "../contract";
 import { Label, Panel, StatusPill } from "../shell/components";
+import { useClock } from "../lib/time";
 import { domain, OVERRIDE_SOURCE } from "./conditions";
 
 export type Decide = (
@@ -82,7 +83,6 @@ function loadOperator(): string {
   }
 }
 
-const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 
 export function ApprovalInbox({
   proposals,
@@ -98,6 +98,7 @@ export function ApprovalInbox({
   onDecide: Decide;
   imageUrl: (rel: string) => string;
 }) {
+  const { time } = useClock();
   const [operator, setOperator] = useState(loadOperator);
   const saveOperator = (name: string) => {
     setOperator(name);
@@ -148,7 +149,7 @@ export function ApprovalInbox({
                 <span className="text-text">{p.summary}</span>
                 {p.decided_by && (
                   <span className="text-text-3">
-                    {p.status === "approved" ? "Approved" : p.status === "rejected" ? "Rejected" : p.status} by {p.decided_by} at {time(p.decided_at)}
+                    {p.status === "approved" ? "Approved" : p.status === "rejected" ? "Rejected" : p.status} by {p.decided_by} at {p.decided_at ? time(p.decided_at) : ""}
                     {p.decision_reason ? `: ${p.decision_reason}` : ""}
                   </span>
                 )}

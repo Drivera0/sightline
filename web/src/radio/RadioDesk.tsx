@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { KeyHint, Label, Panel, StatusPill, type Tone } from "../shell/components";
+import { useClock } from "../lib/time";
 import * as defaultApi from "./api";
 import { isStandby, type OutboundItem, type RadioApi, type RadioTurn, type TurnResponse, type TurnStandby } from "./api";
 import { playChunks as defaultPlay } from "./player";
@@ -60,7 +61,6 @@ const ms = (v: number | null | undefined) => (v == null ? "–" : v >= 1000 ? `$
 const voice = (v: number | null) => (v === 0 ? "cached" : ms(v));
 /** Below this peak level the clip is silence (wrong input device, muted mic). */
 const SILENT = 0.03;
-const time = (iso: string) => iso.slice(11, 19);
 const isTyping = (el: Element | null) => !!el && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
 
 export function RadioDesk({
@@ -78,6 +78,7 @@ export function RadioDesk({
 }) {
   const { stage, turns, outbound, speakingAs, radioSound, error, micDenied } = useRadio();
   const r = useRadio.getState;
+  const { time } = useClock();
   const [text, setText] = useState("");
   const recording = useRef<Recording | null>(null);
   const [level, setLevel] = useState(0);
@@ -367,7 +368,7 @@ export function RadioDesk({
         {[...turns].reverse().map((t: LoggedTurn) => (
           <div key={t.id} className="flex flex-col gap-1 rounded-sm border border-line bg-surface-solid p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-small text-text-3">{time(t.at)}</span>
+              <span className="font-mono text-small text-text-3">{time(t.at, true)}</span>
               <StatusPill tone={STATE_TONE[t.state]} dot={t.state === "awaiting_confirm"}>{STATE_WORDS[t.state]}</StatusPill>
               <span className="font-mono text-caption text-text-3">
                 ASR {ms(t.asr_ms)} · model {ms(t.llm_ms)} · voice {voice(t.tts_ms)}

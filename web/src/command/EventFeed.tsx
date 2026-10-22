@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { MissionEvent } from "../contract";
 import { Panel } from "../shell/components";
+import { useClock } from "../lib/time";
 
 export const FEED_LIMIT = 50;
 
@@ -44,6 +45,7 @@ export function feedEvents(events: readonly MissionEvent[], filter: string): Mis
 
 export function EventFeed({ events, extra }: { events: readonly MissionEvent[]; extra?: ReactNode }) {
   const [filter, setFilter] = useState("All");
+  const { time } = useClock();
   const shown = feedEvents(events, filter);
   return (
     <Panel aria-label="Mission feed" className="flex flex-col gap-2">
@@ -64,7 +66,7 @@ export function EventFeed({ events, extra }: { events: readonly MissionEvent[]; 
       {shown.length === 0 && <p className="text-small text-text-3">Nothing yet.</p>}
       {shown.map((e) => (
         <div key={e.id} className="flex gap-3 text-small">
-          <span className="font-mono text-text-3">{e.at.slice(11, 19)}</span>
+          <span className="font-mono text-text-3">{time(e.at, true)}</span>
           <span className="w-20 shrink-0 text-text-2" title={e.type}>
             {EVENT_WORDS[e.type]}
           </span>

@@ -9,6 +9,7 @@ import type { AssignmentCard, Conditions, FleetState, TraceEntry } from "../cont
 import { AssignmentCardView } from "../command/AssignmentCardView";
 import { isTyping } from "../lib/keys";
 import { photoProgress, useMission, type MissionData } from "../lib/mission";
+import { ClockZone } from "../lib/time";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
@@ -136,7 +137,9 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
   };
   const conditionsData = useConditionsData(api, missionId, demo, s.conditions, s.fleet);
   const progress = photoProgress(s);
-  const waiting = s.proposals.filter((p) => p.status === "pending").length;
+  // one clock on the page: the demo's fixtures in UTC, a live mission in local time (lib/time)
+  const clockZone = useMemo(() => ({ utc: demo }), [demo]);
+  const waiting =s.proposals.filter((p) => p.status === "pending").length;
 
   if (s.status === "error") {
     return (
@@ -190,6 +193,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
     </nav>
   );
   return (
+    <ClockZone.Provider value={clockZone}>
     <Frame aria-label={embedded ? "Demo mission" : undefined} className={frameClass}>
       {!embedded && (
         <AppBar demo={demo} onShortcuts={() => setKeysOpen(true)}>
@@ -364,6 +368,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
         />
       )}
     </Frame>
+    </ClockZone.Provider>
   );
 }
 
