@@ -26,8 +26,10 @@ from sightline.search.sectors import SectorLayout
 
 SWEEP_M = 25.0
 MAX_WAYPOINTS = 40
+RADIO_CHANNEL = "Channel 2"  # the radio desk's channel until the incident's ICS 205 sets one
 RADIO = (
-    "Channel 2. Report clues by radio: say “Sightline, {callsign}”, then what you found and where."
+    RADIO_CHANNEL
+    + ". Report clues by radio: say “Sightline, {callsign}”, then what you found and where."
 )
 PHONETIC = {"A": "Alpha", "B": "Bravo", "C": "Charlie", "D": "Delta"}
 NUMBERS = {"1": "One", "2": "Two", "3": "Three", "4": "Four"}

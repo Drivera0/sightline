@@ -69,7 +69,15 @@ def create_app(
     ``rate_limit``: (writes, seconds) per client IP, None for none, default ``SIGHTLINE_RATE_LIMIT``
     (``sightline/api/limits.py``: 600 per 60 s unless set; the tests set it off)."""
     cache_root.mkdir(parents=True, exist_ok=True)
-    app = FastAPI(title="Sightline upload API")
+    from sightline.api.exports import TAG_DOC, exports_router
+
+    app = FastAPI(
+        title="Sightline upload API",
+        openapi_tags=[
+            {"name": "missions", "description": "Live missions (contract §13)."},
+            TAG_DOC,
+        ],
+    )
     jobs: dict[str, dict] = {}
     pipeline_lock = threading.Lock()  # one detector run at a time: the GPU is shared
 
@@ -79,6 +87,7 @@ def create_app(
     if missions is not None:
         app.state.missions = missions
         app.include_router(missions_router)
+        app.include_router(exports_router)
         if radio:  # the radio desk on the same missions (D-R4): "text" or "real" voices
             from sightline.radio.api import radio_router
             from sightline.radio.mount import radio_context
