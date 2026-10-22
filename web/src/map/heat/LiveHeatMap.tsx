@@ -4,9 +4,14 @@
 // now; the last-known point; clues; teams at their last position. Demo caches keep HeatLayer.
 // Built by lane A for lanes C and B (issues #64, #74).
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import type { GeoJSONSource, Map } from "maplibre-gl";
-import type { Clue, FleetState, MapBase, MapUpdate, Team } from "../../contract";
+import { Popup, type GeoJSONSource, type Map } from "maplibre-gl";
+import type { Clue, FleetState, MapBase, MapUpdate, Proposal, Team } from "../../contract";
 import { usePick } from "../pick";
+import { clueFeatures } from "../base/clueLayer";
+import { droneFeatures } from "../base/droneLayer";
+import { legFeatures } from "../base/legLayer";
+import { point, type MissionFeature } from "../base/missionFeature";
+import { teamFeatures } from "../base/teamLayer";
 import { useSelection } from "../../lib/selection";
 import type { SectorNow } from "../../lib/api";
 import { prefersReducedMotion } from "../../metrics/motion";
@@ -49,31 +54,24 @@ export function sectorFeatures(sectors: readonly SectorNow[]): { lines: Feature[
   return { lines, labels };
 }
 
-/** Legs approved or being flown, as lines (B's leg layer, first pass). */
-export function legFeatures(fleet: FleetState | null): Feature[] {
-  return (fleet?.legs ?? [])
-    .filter((l) => l.status === "approved" || l.status === "flying")
-    .map((l) => ({ type: "Feature", properties: { id: l.id, status: l.status }, geometry: { type: "LineString", coordinates: l.waypoints } }));
-}
-
-/** The last-known point, clues, teams and drones with a known position, as labelled points. */
-export function pointFeatures(base: MapBase, clues: readonly Clue[], teams: readonly Team[], fleet: FleetState | null = null): Feature[] {
-  const pt = (kind: string, label: string, lon: number, lat: number, id = ""): Feature => ({
-    type: "Feature",
-    properties: { kind, label, id },
-    geometry: { type: "Point", coordinates: [lon, lat] },
-  });
+/** The last-known point, then lane B's layers: clues, teams and drones (map/base/*Layer.ts). */
+export function pointFeatures(
+  base: MapBase,
+  clues: readonly Clue[],
+  teams: readonly Team[],
+  fleet: FleetState | null = null,
+  now: Date = new Date(),
+): MissionFeature[] {
+  const callsign = (id: string) => teams.find((t) => t.id === id)?.callsign ?? (id === "command" ? "command" : id);
   return [
-    pt("lkp", "Last known point", base.lkp.lon, base.lkp.lat),
-    ...clues.map((c) => pt("clue", `${c.id} ${c.kind}`, c.lon, c.lat, c.id)),
-    ...teams.filter((t) => t.position).map((t) => pt("team", t.callsign, t.position!.lon, t.position!.lat, t.id)),
-    ...(fleet?.drones ?? [])
-      .filter((d) => d.position)
-      .map((d) => pt("drone", `${d.name}${d.simulated ? " (simulated)" : ""}`, d.position!.lon, d.position!.lat, d.id)),
+    point("lkp", "", "Last known point", "accent", base.lkp.lon, base.lkp.lat),
+    ...clueFeatures(clues, callsign),
+    ...teamFeatures(teams, now),
+    ...droneFeatures(fleet),
   ];
 }
 
-function LiveLayers({ base, updates, sectors, clues, teams, fleet = null }: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase }): ReactNode {
+function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, proposals = [], now }: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase }): ReactNode {
   const { map, onPick } = useMap();
   const pending = usePick((s) => s.pending);
   const heat = useMemo(() => new LiveHeat(base), [base]);
@@ -96,7 +94,13 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null }: Omit
       }
       const color = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
       if (!map.getLayer(LIVE_IDS.sectors)) {
-        map.addLayer({ id: LIVE_IDS.legs, type: "line", source: LIVE_IDS.legs, paint: { "line-color": color("--accent", "#ff7a1a"), "line-opacity": ["match", ["get", "status"], "flying", 0.9, 0.5], "line-width": 1.5, "line-dasharray": [2, 1] } });
+        const tone = (): unknown => ["match", ["get", "tone"], "accent", color("--accent", "#ff7a1a"), "warn", color("--warn", "#ffc48f"), "ok", color("--ok", "#7ee2a0"),
+          "info", color("--accent-soft", "#ffb27a"), "muted", color("--text-3", "#8a8f98"), color("--text", "#f2f2f0")]; // prettier-ignore
+        // legs: proposed faint and dashed, approved solid, flying solid and thicker (B-T1)
+        map.addLayer({ id: LIVE_IDS.legs, type: "line", source: LIVE_IDS.legs, filter: ["!=", ["get", "style"], "proposed"],
+          paint: { "line-color": tone() as never, "line-opacity": 0.85, "line-width": ["match", ["get", "style"], "flying", 2.5, 1.5] } }); // prettier-ignore
+        map.addLayer({ id: `${LIVE_IDS.legs}-proposed`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "proposed"],
+          paint: { "line-color": tone() as never, "line-opacity": 0.45, "line-width": 1.2, "line-dasharray": [2, 2] } }); // prettier-ignore
         map.addLayer({ id: LIVE_IDS.sectors, type: "line", source: LIVE_IDS.sectors, paint: { "line-color": color("--text", "#f2f2f0"), "line-opacity": 0.5, "line-width": 1 } });
         map.addLayer({
           id: LIVE_IDS.sectorLabels,
@@ -111,7 +115,7 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null }: Omit
           source: LIVE_IDS.points,
           paint: {
             "circle-radius": ["match", ["get", "kind"], "lkp", 6, "drone", 6, 5],
-            "circle-color": ["match", ["get", "kind"], "lkp", color("--accent", "#ff7a1a"), "clue", color("--warn", "#ffc48f"), "drone", color("--text", "#f2f2f0"), color("--ok", "#7ee2a0")],
+            "circle-color": tone() as never,
             "circle-stroke-color": color("--bg", "#0a0b0d"),
             "circle-stroke-width": 1.5,
           },
@@ -158,9 +162,9 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null }: Omit
     const { lines, labels } = sectorFeatures(sectors);
     setData(map, LIVE_IDS.sectors, lines);
     setData(map, LIVE_IDS.sectorLabels, labels);
-    setData(map, LIVE_IDS.points, pointFeatures(base, clues, teams, fleet));
-    setData(map, LIVE_IDS.legs, legFeatures(fleet));
-  }, [map, ready, base, sectors, clues, teams, fleet]);
+    setData(map, LIVE_IDS.points, pointFeatures(base, clues, teams, fleet, now ?? new Date()));
+    setData(map, LIVE_IDS.legs, legFeatures(fleet, proposals));
+  }, [map, ready, base, sectors, clues, teams, fleet, proposals, now]);
 
   // Clicking a team, drone or clue selects it (D-M2); selecting a team elsewhere (the roster) flies here.
   useEffect(() => {
@@ -168,6 +172,16 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null }: Omit
     const onClick = (e: { features?: { properties: Record<string, unknown> }[] }) => {
       const f = e.features?.[0]?.properties;
       if (!f?.id) return;
+      if (f.popup && map) {
+        // the clue's details (B-C1): text only, never HTML from the mission
+        const el = document.createElement("div");
+        el.className = "text-small";
+        el.style.whiteSpace = "pre-line";
+        el.style.color = "#111";
+        el.textContent = String(f.popup);
+        const at = (e as unknown as { lngLat: { lng: number; lat: number } }).lngLat;
+        new Popup({ closeButton: true }).setLngLat([at.lng, at.lat]).setDOMContent(el).addTo(map);
+      }
       const sel = useSelection.getState();
       if (f.kind === "team") sel.selectTeam(String(f.id));
       else if (f.kind === "drone") sel.selectDrone(String(f.id));
@@ -205,6 +219,10 @@ export interface LiveHeatMapProps {
   clues: readonly Clue[];
   teams: readonly Team[];
   fleet?: FleetState | null;
+  /** Pending proposals: their drone legs are drawn faint and dashed. */
+  proposals?: readonly Proposal[];
+  /** The clock for position ages (the demo mission passes its own). */
+  now?: Date;
 }
 
 export function LiveHeatMap({ mapBase, ...rest }: LiveHeatMapProps): ReactNode {

@@ -342,5 +342,13 @@ radio would have read sweep points and "north-west corner" as landmarks, and "12
 - **B-M3 `onPick`** on `useMap()` (`web/src/map/MapView.tsx`, `startPick`): crosshair, the next click resolves once, Esc or the returned function cancels (optional `onCancel`), one pick at a time. `web/src/map/pick.ts` lets a form elsewhere on the page ask for one; the clue form's **Pick on map** fills lat/lon. Tests: `web/src/map/pick.test.ts`, `CommandView.test.tsx`.
 - **Layers on the live map** (`web/src/map/heat/LiveHeatMap.tsx`, first pass, in one component): clue pins, team markers, drone markers labelled "(simulated)", and approved/flying legs as dashed lines. Checked in Chromium with the fleet sim flying a leg; a clue placed by clicking the map was posted.
 
-Still lane B's: splitting those into `web/src/map/base/{clue,team,drone,leg}Layer.ts` with clicks → `useSelection` if wanted; importing a card into CalTopo for the report screenshot.
+- **Layers split as planned** (lane A, 2026-10-22): `web/src/map/base/{clue,team,drone,leg}Layer.ts` build the
+  features, `LiveHeatMap` draws them. Clue pins: colour per kind; a click shows what, reliability, radius and "by
+  radio" / "entered at command" (text only). Teams: callsign · status word · position age, colour by status, none
+  without a position. Drones: "(simulated)" and battery %, low battery in the warning colour. Legs: proposed
+  (pending in the inbox) faint and dashed, approved solid, flying thicker (no animated progress). A click on a
+  team, drone or clue selects it (`useSelection`, D-M2); selecting a team in the roster flies the map to it.
+  Tests: `web/src/map/base/missionLayers.test.ts` (incl. never "clear"). Checked in Chromium on `#m/demo/command`.
+
+Still lane B's: importing a card into CalTopo for the report screenshot.
 
