@@ -60,9 +60,28 @@
       "target": "D2",
       "link": "lost",
       "for_s": 180
+    },
+    {
+      "after_s": 420,
+      "target": "T2",
+      "link": "no_signal",
+      "for_s": 900
     }
   ],
-  "links_note": "Simulated link model: Drone 2 loses its link 4 min in, for 3 min (it flies its approved leg on its own, keeps its photos on board, then syncs them). Not a radio measurement.",
+  "links_note": "Simulated link model, not a radio measurement: Drone 2 loses its link 4 min in, for 3 min (it flies its approved leg on its own, keeps its photos on board, then syncs them); Team Two loses its signal 7 min in, for 15 min, and drones within relay_radius_m relay its check-ins.",
+  "relay_radius_m": 300.0,
+  "teams": [
+    {
+      "id": "T2",
+      "callsign": "Team Two",
+      "members": 3,
+      "position": {
+        "lat": 49.3733,
+        "lon": -122.9361
+      },
+      "note": "simulator truth for Team Two near the creek; sent to the mission only when a drone relays it"
+    }
+  ],
   "hidden": {
     "lat": 49.3729,
     "lon": -122.9354

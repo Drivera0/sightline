@@ -538,6 +538,36 @@ def post_fleet_link(mission_id: str, body: FleetLink, request: Request) -> dict:
     return _dump(ev)
 
 
+class FleetRelay(BaseModel):
+    team_id: str
+    callsign: str | None = None
+    via: list[str] = Field(min_length=1, max_length=8)  # the drones that carried it, in order
+    hops: int = Field(ge=1, le=8)
+    heard_at: str
+    age_s: float = Field(ge=0)
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+
+
+@missions_router.post("/missions/{mission_id}/fleet/relay")
+def post_fleet_relay(mission_id: str, body: FleetRelay, request: Request) -> dict:
+    """A cut-off team's position, relayed by drones (simulated): the team moves on the map with the
+    time it was heard, and the feed says who carried it and how old it is."""
+    from sightline.contract import LatLon
+    from sightline.search.fleet import relay_summary
+
+    store = _store(request, mission_id)
+    team = next((t for t in store.state(mission_id)["teams"] if t.id == body.team_id), None)
+    if team is None:
+        raise HTTPException(404, "no such team")
+    store.upsert_team(mission_id, team.model_copy(
+        update={"position": LatLon(lat=body.lat, lon=body.lon), "position_at": body.heard_at}))  # fmt: skip
+    relay = {**body.model_dump(), "callsign": body.callsign or team.callsign}
+    ev = store.emit(mission_id, "mission.note", relay_summary(relay), ref=body.team_id,
+                    data={"relay": relay, "simulated": True})  # fmt: skip
+    return _dump(ev)
+
+
 @missions_router.get("/missions/{mission_id}/fleet/links")
 def get_fleet_links(mission_id: str, request: Request) -> dict:
     from sightline.search.fleet import fleet_links

@@ -158,6 +158,10 @@ class Scenario:
     negatives: tuple[dict, ...] = ()
     # scheduled link changes (simulated link model): [{after_s, target, link, for_s?}]
     links: tuple[dict, ...] = ()
+    # ground teams the drones can relay for: [{id, callsign, members, position: {lat, lon},
+    # no_signal?}]; the position is the simulator's truth for the team, sent only when relayed
+    teams: tuple[dict, ...] = ()
+    relay_radius_m: float = 300.0
 
     @classmethod
     def load(cls, name_or_path: str) -> Scenario:
@@ -175,6 +179,8 @@ class Scenario:
             line_spacing_m=d.get("line_spacing_m", 20.0),
             negatives=tuple(d.get("negatives", ())),
             links=tuple(d.get("links", ())),
+            teams=tuple(d.get("teams", ())),
+            relay_radius_m=d.get("relay_radius_m", 300.0),
         )
 
 
@@ -691,6 +697,70 @@ def fleet_links(events: Iterable[Any]) -> dict:
     return {"simulated": True, "drones": drones, "teams": teams}
 
 
+# --- drones relay for cut-off ground teams (simulated) ---------------------------------------------
+
+# A drone can carry a message for a drone that has lost its own link when they are this close.
+MESH_RADIUS_M = 600.0
+# A team with no signal sends its position this often (a radio or beacon check-in), simulated seconds.
+TEAM_BEACON_S = 60.0
+
+
+def relay_route(
+    team_m: tuple[float, float],
+    drones_m: dict[str, tuple[float, float]],
+    links: dict[str, str],
+    relay_radius_m: float,
+    mesh_radius_m: float = MESH_RADIUS_M,
+) -> tuple[list[str], bool] | None:
+    """Who carries a cut-off team's message (Pulse's relay pattern): the drones within
+    ``relay_radius_m`` hear it; the route is the shortest chain from a drone that heard it to one
+    with a working link to the ground station, hopping between drones within ``mesh_radius_m``.
+    Returns (drones in order, delivered now) or None when no drone heard it; (``[hearer]``, False)
+    when only drones with no link heard it and none can pass it on: the message rides with that
+    drone until its link is back."""
+    near = lambda a, b, r: math.dist(a, b) <= r
+    hearers = sorted(
+        (d for d, p in drones_m.items() if near(p, team_m, relay_radius_m)),
+        key=lambda d: (math.dist(drones_m[d], team_m), d),
+    )
+    if not hearers:
+        return None
+    up = {d for d in drones_m if links.get(d, "connected") != "lost"}
+    best: list[str] | None = None
+    for h in hearers:  # breadth-first over the drones, from the hearer to any drone with a link
+        prev: dict[str, str | None] = {h: None}
+        frontier = [h]
+        found = None
+        while frontier and found is None:
+            nxt = []
+            for a in frontier:
+                if a in up:
+                    found = a
+                    break
+                for b in sorted(drones_m):
+                    if b not in prev and near(drones_m[a], drones_m[b], mesh_radius_m):
+                        prev[b] = a
+                        nxt.append(b)
+            frontier = nxt
+        if found is not None:
+            path = [found]
+            while prev[path[-1]] is not None:
+                path.append(prev[path[-1]])  # type: ignore[arg-type]
+            path.reverse()
+            if best is None or len(path) < len(best):
+                best = path
+    if best is not None:
+        return best, True
+    return [hearers[0]], False
+
+
+def relay_summary(r: dict) -> str:
+    """The feed line for a relayed team position: who it came through and how old it is."""
+    who = r.get("callsign") or r["team_id"]
+    via = " then ".join(r["via"])
+    return f"{who} heard via {via}, {_age(r['age_s'])} old (simulated relay)"
+
+
 # --- the ground station: hears the drones, sends the fleet ----------------------------------------
 
 
@@ -704,7 +774,15 @@ class GroundStation:
     approved leg and keeps its photos on board). Changes come from the scenario (``links``), the
     ``--degrade`` switch, or the console (``POST /fleet/link``, read from the event stream); each one
     is reported back with ``POST /fleet/link`` so the mission's feed and map show it. While a drone is
-    lost the fleet keeps its last-heard state."""
+    lost the fleet keeps its last-heard state.
+
+    **Relay for cut-off teams** (simulated, Pulse's pattern): a team marked ``no_signal`` sends its
+    position every ``TEAM_BEACON_S``; a drone within ``relay_radius_m`` of the team hears it and
+    passes it on (``relay_route``): at once when it has a link, through a neighbouring drone when it
+    has none, else when its link is back. ``POST /fleet/relay`` moves the team on the map and the feed
+    says "Team Two heard via D3, 40 s old (simulated relay)". The simulator knows where the drones
+    really are (``truth``) even when the mission doesn't hear them; only relayed positions reach the
+    mission."""
 
     def __init__(
         self,
@@ -714,6 +792,9 @@ class GroundStation:
         now: Callable[[], str] | None = None,
         out: Callable[[str], None] = say,
         schedule: Iterable[dict] = (),
+        teams: Iterable[dict] = (),
+        lkp: LatLon | None = None,
+        relay_radius_m: float = 300.0,
     ) -> None:
         self.http, self.mid = http, mission_id
         self.now = now or _utc_now
@@ -727,6 +808,19 @@ class GroundStation:
         self.started_at = self.now()
         self._n: dict[str, int] = {}
         self._changes: list[LinkChange] = []
+        self.truth: dict[str, LatLon] = {}  # where each drone really is (the simulator's view)
+        self.teams = {t["id"]: t for t in teams}
+        self.lkp = lkp
+        self.relay_radius_m = relay_radius_m
+        self._beacon: dict[str, float] = {}  # the last check-in each team sent
+        self._delivered: dict[str, float] = {}  # the last check-in that reached the mission
+        self._carried: dict[
+            str, tuple[str, float]
+        ] = {}  # team -> (drone, heard at), not yet delivered
+        self.relays: list[dict] = []
+        for t in self.teams.values():
+            if t.get("no_signal"):
+                self.set_link(LinkChange(t["id"], "no_signal", by="scenario"), 0.0)
 
     def link(self, target: str) -> str:
         return self.links.get(target, "connected")
@@ -735,6 +829,8 @@ class GroundStation:
         """One telemetry report from a drone, through the link model; True when it is the drone's
         first (it joins). A lost link hears nothing; a degraded one every other report."""
         d = Drone.model_validate(report["drone"])
+        if d.position is not None:
+            self.truth[d.id] = d.position
         n = self._n[d.id] = self._n.get(d.id, 0) + 1
         link = self.link(d.id)
         if d.id in self.heard and (link == "lost" or (link == "degraded" and n % 2)):
@@ -787,6 +883,66 @@ class GroundStation:
         out, self._changes = self._changes, []
         return out
 
+    def join_teams(self) -> None:
+        """The scenario's teams that the mission doesn't have yet join its roster (labelled
+        simulated); teams it already has keep their own record."""
+        if not self.teams:
+            return
+        have = {
+            t["id"] for t in _call(self.http, "GET", f"/missions/{self.mid}/state").json()["teams"]
+        }
+        for t in self.teams.values():
+            if t["id"] in have:
+                continue
+            body = {"id": t["id"], "callsign": t["callsign"], "members": t.get("members", 3),
+                    "status": "searching", "position": t.get("position"), "position_at": self.now(),
+                    "note": "simulated team (fleet scenario)"}  # fmt: skip
+            _call(self.http, "POST", f"/missions/{self.mid}/teams", json=body)
+
+    def relay(self, sim_s: float) -> list[dict]:
+        """Each cut-off team's latest check-in, carried by the drones near it (``relay_route``);
+        returns what reached the mission this tick."""
+        sent: list[dict] = []
+        if self.lkp is None:
+            return sent
+        drones_m = {d: _to_m(self.lkp, p.lon, p.lat) for d, p in self.truth.items()}
+        for tid, team in self.teams.items():
+            if self.link(tid) != "no_signal" or not team.get("position"):
+                self._carried.pop(tid, None)
+                continue
+            pos = LatLon(**team["position"])
+            beacon = math.floor(sim_s / TEAM_BEACON_S) * TEAM_BEACON_S
+            if beacon > self._beacon.get(tid, -1.0):
+                self._beacon[tid] = beacon
+                route = relay_route(_to_m(self.lkp, pos.lon, pos.lat), drones_m, self.links,
+                                    self.relay_radius_m)  # fmt: skip
+                if route is not None and route[1]:
+                    self._carried.pop(tid, None)
+                    sent += self._deliver(tid, team, pos, route[0], beacon, sim_s)
+                elif route is not None:
+                    self._carried[tid] = (route[0][0], beacon)
+            if tid in self._carried:
+                drone, heard = self._carried[tid]
+                if self.link(drone) != "lost":
+                    del self._carried[tid]
+                    sent += self._deliver(tid, team, pos, [drone], heard, sim_s)
+        return sent
+
+    def _deliver(self, tid: str, team: dict, pos: LatLon, via: list[str], heard_s: float, sim_s: float) -> list[dict]:  # fmt: skip
+        if heard_s <= self._delivered.get(tid, -1.0):
+            return []
+        self._delivered[tid] = heard_s
+        from datetime import datetime, timedelta
+
+        age = max(0.0, sim_s - heard_s)
+        heard_at = (datetime.fromisoformat(self.now()) - timedelta(seconds=age)).strftime("%Y-%m-%dT%H:%M:%SZ")  # fmt: skip
+        body = {"team_id": tid, "callsign": team.get("callsign"), "via": via, "hops": len(via),
+                "heard_at": heard_at, "age_s": round(age), "lat": pos.lat, "lon": pos.lon}  # fmt: skip
+        self.out(relay_summary(body))
+        _call(self.http, "POST", f"/missions/{self.mid}/fleet/relay", json=body)
+        self.relays.append(body)
+        return [body]
+
     def announce(self, change: LinkChange, synced: int | None = None) -> None:
         """Tell the mission (``POST /fleet/link``): the feed line and the map's link ring."""
         body = {"target": change.target, "link": change.link, "for_s": change.for_s,
@@ -838,7 +994,9 @@ class FleetSim:
             for d in scenario.drones
         ]
         self.gcs = GroundStation(http, mission_id, now=self.now, out=out,
-                                 schedule=scenario.links if links is None else links)  # fmt: skip
+                                 schedule=scenario.links if links is None else links,
+                                 teams=scenario.teams, lkp=scenario.lkp,
+                                 relay_radius_m=scenario.relay_radius_m)  # fmt: skip
         self.clue_sent = False
         self.feed: FleetFeed | None = None
 
@@ -851,6 +1009,7 @@ class FleetSim:
         for d in self.drones:
             self.gcs.hear(d.report())
         self.gcs.put()
+        self.gcs.join_teams()
         self.out(f"fleet: {', '.join(d.drone.name for d in self.drones)} (simulated)")
 
     def _approved(self) -> dict[str, Leg]:
@@ -878,6 +1037,7 @@ class FleetSim:
         for d in self.drones:
             self.gcs.hear(d.report())
         self.gcs.put()
+        self.gcs.relay(self.sim_s)
 
     def run(
         self,
@@ -1034,7 +1194,9 @@ class FleetProcesses:
         self.follow = follow
         self.sim_s = 0.0
         self.gcs = GroundStation(http, mission_id, out=out,
-                                 schedule=self.scn.links if links is None else links)  # fmt: skip
+                                 schedule=self.scn.links if links is None else links,
+                                 teams=self.scn.teams, lkp=self.scn.lkp,
+                                 relay_radius_m=self.scn.relay_radius_m)  # fmt: skip
         self.feed: FleetFeed | None = None
         self.reports = self.ctx.Queue()
         self.stop = self.ctx.Event()
@@ -1046,6 +1208,8 @@ class FleetProcesses:
         self.procs: list[Any] = []
 
     def start(self) -> None:
+        if self.http is not None:
+            self.gcs.join_teams()
         if self.follow and self.feed is None and self.http is not None:
             self.feed = FleetFeed(httpx.Client(base_url=self.http.base_url, timeout=None), self.mid)
             self.feed.start()
@@ -1076,6 +1240,7 @@ class FleetProcesses:
                 self.out(f"{r['drone']['name']} joined the mission (simulated)")
         if self.gcs.heard:
             self.gcs.put()
+        self.gcs.relay(self.sim_s)
         self.clue_sent = post_scripted_clue(self, self.sim_s)
 
     def run(self, ticks: int | None = None, sleep: Callable[[float], None] = time.sleep) -> None:
@@ -1134,8 +1299,14 @@ def main() -> None:
         ),
         degrade_at_s: float = typer.Option(120.0, help="when --degrade starts (simulated seconds)"),
         degrade_link: str = typer.Option("lost", help="lost or degraded"),
+        no_signal: str = typer.Option("", help="teams with no signal from the start: T2 or T1,T2"),
     ) -> None:
         extra = parse_degrade(degrade if degrade[0] else None, degrade_at_s, degrade_link)
+        extra += [
+            {"after_s": 0.0, "target": t.strip(), "link": "no_signal"}
+            for t in no_signal.split(",")
+            if t.strip()
+        ]
         links = [*Scenario.load(scenario).links, *extra]
         with httpx.Client(base_url=api, timeout=httpx.Timeout(60.0, connect=10.0)) as http:
             if single:
