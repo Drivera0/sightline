@@ -36,9 +36,9 @@ For search managers, Sightline turns drone photos and radio reports into one map
 
 **What breaks first,** before you ask [13]:
 
-1. The detector misses 46 of the 337 test people (strict VOC recall 0.864), and 28 of the 46 are at two sites, MED and CAB: groups, clothing that matches rock, people sitting or lying down.
-2. The second look is a small gain: 4 more of the 337 people for 15 more false alarms (95 % CI of the gain [+0.003, +0.023]), and it is advice a person approves.
-3. The fleet and the approvals in the demo are simulated: the drones, their flights and photos are simulated, and the human approvals in the recorded traces are scripted, labelled so on screen and in the trace.
+1. The detector misses 46 of the 337 people in the HERIDAL test set (recall 0.864, strict VOC), and 28 of those 46 are at two sites, MED and CAB: groups, clothing that matches pale or dark rock, people sitting or lying down.
+2. The second look is a small gain: on test it finds 4 more of the 337 people for 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023]), it is advice a person approves, and on people under 60 px it mostly answers "unclear".
+3. The fleet and the approvals in the demo are simulated: the drones, their flights and their photos are simulated, and the human approvals in the recorded traces are scripted; both are labelled so on screen and in the trace.
 
 Measured, with the caveat beside each number:
 
@@ -61,22 +61,25 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio and Eagle Eyes
 - Updates a probability map with every photo, review, searched sector and clue. Searched ground shows how well it was searched; the software never rules an area out.
 - Proposes the next drone leg, re-task, team assignment or alert, with its reason. **A person approves every move.**
 - Talks to ground teams on a secondary radio channel, and logs a clue only after a readback.
+- Takes real footage too: `scripts/real_flight.py` checks each file's GPS, altitude, gimbal and GSD, geotags video frames from a DJI SRT or flight log (a frame with no track point within 1 s is skipped, never guessed), and sends the folder through the live API, labelled "real flight, real detector, fleet simulated" [17].
 
 ## How we built it
 
-Every language and vision model call goes through **Nebius Token Factory** at run time, through one OpenAI-compatible client (`sightline/agent/llm.py:203`). Every model is an NVIDIA open model:
+Every language and vision model call goes through **Nebius Token Factory** at run time, through one OpenAI-compatible client (`sightline/agent/llm.py:224`). Every model is an NVIDIA open model:
 
 | Job | NVIDIA model | Runs on | Code |
 |---|---|---|---|
 | Second look at uncertain detections (crop + OpenCV re-look images → JSON verdict) | `nvidia/Nemotron-3.5-Super-VL` | Token Factory | `sightline/agent/verify.py` |
-| Briefings for teams; reading conditions pages with quotes | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Token Factory | `agent/loop.py:160`, `geo/conditions.py:317` |
-| Radio turns with tool calls | `nvidia/nemotron-3-super-120b-a12b` | Token Factory | `radio/turn.py:232` |
+| Briefings for teams; reading conditions pages with quotes | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Token Factory | `agent/loop.py:144`, `geo/conditions.py:338` |
+| Radio turns with tool calls | `nvidia/nemotron-3-super-120b-a12b` | Token Factory | `radio/turn.py:219` |
 | Speech to text | Parakeet TDT 0.6B v2 | RTX 4080 SUPER (NeMo) | `radio/asr.py` |
 | Text to speech | Magpie TTS multilingual 357M | RTX 4080 SUPER (NeMo) | `radio/tts.py` |
 
 - **Measured on Token Factory:** the VL verdict takes 1.35 s p50, costs about 0.00033 per detection, and 461 of 461 replies were valid JSON [5]. A radio turn's first sound comes in 2.5 s p50 with real voices [6].
 - **Nebius Serverless Job:** the simulated fleet's 711 photos detected on CPU with OpenCV 5 `cv2.dnn` in 483 s on 16 vCPUs, about $0.10 [7].
+- **Nebius Serverless Endpoint:** the same detector on demand, one photo over HTTPS on a CPU endpoint (8 vCPU): 5.68 s p50 for a 4000×3000 photo, $0.38 per 1,000 full photos, cold start 291.5 s; it gave the batch job's one candidate, box for box. The worker switches to it with `SIGHTLINE_DETECT_URL` [15].
 - **Tavily** brings the forecast, warnings and park alerts; they decide whether drones may fly.
+- **Tavily as the model's own tool:** for a mission with no subject, Nemotron Nano decides whether to call `search_public_bulletin`, writes the query, and Tavily searches trusted domains then extracts; a profile field is kept only with a verbatim quote, names are redacted, and approval sets the lost-person prior. Three live runs: two abstained (no quote named a category), one proposed "hiker, 20" [16].
 - **AWS** runs the live API and the photo worker.
 
 **What is simulated.** The drones, their flight and battery, and their photos (crops of HERIDAL validation photos at simulated poses) are simulated, as are the ground teams' positions and the search-map evaluations. In the recorded traces the human steps are scripted, and the trace says so. Real: detection, the map math, every Nemotron call on Token Factory, Tavily, the radio's speech models, the AWS deployment and the Serverless Job [8].
@@ -97,7 +100,7 @@ Every language and vision model call goes through **Nebius Token Factory** at ru
 
 ## What we learned
 
-Tool calling with thinking off needs code-side guards for anything safety-relevant. Thinking tokens count against `max_tokens`, silently. Details, per tool: `docs/feedback/nebius.md`, `docs/feedback/radio.md`.
+Tool calling with thinking off needs code-side guards for anything safety-relevant. Thinking tokens count against `max_tokens`, silently. A Serverless Endpoint needs no TLS or auth code of ours, but its CLI prints the token in plain text and it has no scale to zero, so a stopped endpoint takes 272.9 s to answer again [18]. Details, per tool: `docs/feedback/nebius.md`, `docs/feedback/radio.md`.
 
 ## What's next
 
@@ -123,3 +126,7 @@ A Jetson field kit without internet; thermal for night searches; real drone phot
 12. `docs/report/AGENT_EVAL.md` (failure handling, correct target, approval gate); `docs/report/OPENCV_REPORT.md:547-562`, `:577`, `:583-587`
 13. `docs/submission/WHAT_BREAKS_FIRST.md`; `docs/report/OPENCV_REPORT.md:853-855`, `:537-538`, `:884-886`; `docs/DETECTOR_LIMITS.md:39`, `:54`
 14. `docs/report/OPENCV_REPORT.md` §4.1 (inputs: `:374`, `:377`, `:381`; `docs/feedback/nebius.md:75`, `:175-178`; `docs/report/TAVILY.md:15`; `docs/report/CV2_CUDA.md:143`)
+15. `deploy/nebius/ENDPOINT.md:59-70`; `docs/feedback/nebius.md:224-230`; `docs/evidence/nebius_endpoint/20261022-1747/`
+16. `docs/report/TAVILY.md:134-147`, `:230-232`; `docs/evidence/subject/`
+17. `docs/REAL_FLIGHT.md:1-11`, `:73`; `scripts/real_flight.py:52`
+18. `docs/feedback/nebius.md:232-248`

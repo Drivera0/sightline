@@ -10,7 +10,7 @@ them in sync; the numbers come from the report.
 Sources:
 
 1. `docs/report/OPENCV_REPORT.md:853-855`; `docs/DETECTOR_LIMITS.md:39`, `:54`
-2. `docs/report/OPENCV_REPORT.md:537-538`; `docs/LANE_A_ML.md:314`
+2. `docs/report/OPENCV_REPORT.md:537-540`; `docs/LANE_A_ML.md:314`
 3. `docs/report/OPENCV_REPORT.md:884-886`
 
 Why lead with them: judges reward naming the weakness. A judge in the Nebius hackathon's "Will your project
