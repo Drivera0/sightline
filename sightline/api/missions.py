@@ -26,7 +26,6 @@ from pydantic import BaseModel
 
 from sightline.api.sse import event_stream
 from sightline.contract import (
-    Clue,
     ClueDraft,
     FleetTelemetry,
     LatLon,
@@ -42,6 +41,7 @@ from sightline.mission.pipeline import (
     start_map_base,
 )
 from sightline.mission.queue import LocalQueue
+from sightline.mission.scheduler import Scheduler
 from sightline.mission.store import MissionStore, now_iso
 
 MAX_FILES = 50
@@ -49,14 +49,20 @@ MAX_PHOTO_BYTES = 60_000_000
 MAX_PIXELS = 100_000_000
 DEFAULT_TEAMS = [("T1", "Team One"), ("T2", "Team Two"), ("T3", "Team Three"), ("T4", "Team Four")]
 TEAM_MEMBERS = 3  # placeholder until the search manager edits the roster
-# Radius for a clue reported by kind, until lane B's resolve_position gives its own defaults.
-CLUE_RADIUS_M = {"object": 25.0, "track": 50.0, "sighting": 100.0, "sound": 200.0, "other": 50.0}
 
 
 def _default_hooks() -> Any:
     from sightline.agent import hooks
 
     return hooks
+
+
+def _fetch_conditions() -> Callable | None:
+    try:
+        from sightline.geo.conditions import fetch_conditions  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+    return fetch_conditions
 
 
 def _default_detector() -> Any:
@@ -71,7 +77,30 @@ class MissionContext:
     queue: Any = field(default_factory=LocalQueue)
     detector_factory: Callable[[], Any] = _default_detector
     hooks: Any = field(default_factory=_default_hooks)  # None: no agent
+    scheduler: Scheduler | None = None  # default: on_tick + conditions for active missions
     _detector: Any = None
+
+    def __post_init__(self) -> None:
+        if self.scheduler is None:
+            refresh = self.refresh_conditions if _fetch_conditions() is not None else None
+            self.scheduler = Scheduler(self.hooks, refresh_conditions=refresh)
+
+    def refresh_conditions(self, mission_id: str) -> Any:
+        """Lane B's conditions for the mission, stored and passed on (map, agent)."""
+        fetch = _fetch_conditions()
+        if fetch is None:
+            raise LookupError("conditions wait for lane B (B-W1 fetch_conditions)")
+        m = self.store.get(mission_id)
+        fleet = self.store.state(mission_id)["fleet"]
+        max_wind = min((d.max_wind_kmh for d in fleet.drones), default=None) if fleet else None
+        c = fetch(
+            m.area,
+            fleet_max_wind_kmh=max_wind,
+            last_seen_at=m.last_seen_at,
+            cache_dir=self.store.root / mission_id / "conditions_cache",
+        )
+        effects.on_conditions(self.store, mission_id, c, self.hooks)
+        return c
 
     def detector(self) -> Any:
         if self._detector is None:
@@ -83,10 +112,12 @@ class MissionContext:
         ingest_photo(
             self.store, job, detector=self.detector(), conditions=conditions, hooks=self.hooks
         )
+        self.scheduler.photo_processed(job.mission_id)
 
     def start(self) -> None:
-        """Start the photo worker (local queue: a thread in this process)."""
+        """Start the photo worker (local queue: a thread in this process) and the scheduler."""
         self.queue.run_worker(self.handle)
+        self.scheduler.start(self.store)
 
 
 missions_router = APIRouter(tags=["missions"])
@@ -175,6 +206,7 @@ def create_mission(body: NewMission, request: Request) -> dict:
                 ),
             )
     store.emit(m.mission_id, "mission.note", f"mission created: {m.name}", data=_dump(m))
+    _ctx(request).scheduler.mission_active(m.mission_id)
     return _dump(m)
 
 
@@ -386,31 +418,10 @@ def post_clue(mission_id: str, draft: ClueDraft, request: Request) -> dict:
     """A clue from the form or the radio. A radio draft needs ``confirmed_by_turn`` (the team's
     "affirmative" after the readback). "At the team's position" uses the team's last position."""
     store = _store(request, mission_id)
-    if draft.source == "radio" and not draft.confirmed_by_turn:
-        raise HTTPException(
-            422, "a radio clue needs confirmed_by_turn (readback, then affirmative)"
-        )
-    lat, lon = draft.lat, draft.lon
-    if draft.at_team_position:
-        team = next(
-            (t for t in store.state(mission_id)["teams"] if t.id == draft.reported_by), None
-        )
-        if team is None or team.position is None:
-            raise HTTPException(422, f"no known position for {draft.reported_by}")
-        lat, lon = team.position.lat, team.position.lon
-    if lat is None or lon is None:
-        raise HTTPException(422, "a clue needs lat/lon or at_team_position")
-    clue = Clue.model_validate(
-        {
-            **draft.model_dump(),
-            "lat": lat,
-            "lon": lon,
-            "id": "",
-            "radius_m": draft.radius_m or CLUE_RADIUS_M[draft.kind],
-            "at": now_iso(),
-            "confirmed": False,
-        }
-    )
+    try:
+        clue = effects.clue_from_draft(store, mission_id, draft)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
     clue, r = effects.on_clue(store, mission_id, clue, _ctx(request).hooks)
     return {**_dump(clue), "map": _map_result(r)}
 
@@ -429,22 +440,11 @@ def put_fleet(mission_id: str, t: FleetTelemetry, request: Request) -> dict:
 
 @missions_router.post("/missions/{mission_id}/conditions/refresh")
 def refresh_conditions(mission_id: str, request: Request) -> dict:
-    store = _store(request, mission_id)
+    _store(request, mission_id)
     try:
-        from sightline.geo.conditions import fetch_conditions  # type: ignore[import-not-found]
-    except ImportError:
-        raise HTTPException(503, "conditions wait for lane B (B-W1 fetch_conditions)") from None
-    m = store.get(mission_id)
-    fleet = store.state(mission_id)["fleet"]
-    max_wind = min((d.max_wind_kmh for d in fleet.drones), default=None) if fleet else None
-    c = fetch_conditions(
-        m.area,
-        fleet_max_wind_kmh=max_wind,
-        last_seen_at=m.last_seen_at,
-        cache_dir=store.root / mission_id / "conditions_cache",
-    )
-    effects.on_conditions(store, mission_id, c, _ctx(request).hooks)
-    return _dump(c)
+        return _dump(_ctx(request).refresh_conditions(mission_id))
+    except LookupError as e:
+        raise HTTPException(503, str(e)) from None
 
 
 @missions_router.get("/missions/{mission_id}/cards/{sector_id}")

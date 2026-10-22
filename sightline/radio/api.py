@@ -64,7 +64,7 @@ class RadioContext:
     api: MissionApi
     tts: Tts
     llm: ChatClient | None
-    audio_dir: Path
+    audio_dir: Path  # audio lives in <audio_dir>/<mission_id>/<audio_sub>/
     asr: Asr | None = None  # None: text turns only
     # Called with every turn, e.g. lane A's trace_call(actor="radio", kind="radio_turn") + an event.
     on_turn: Callable[[str, RadioTurn], None] | None = None
@@ -80,6 +80,15 @@ class RadioContext:
     _slow: dict[str, list[Any]] = field(default_factory=dict)
     _standby_count: int = 0
     run: str = field(default_factory=lambda: uuid.uuid4().hex[:6])
+    # "radio" when audio_dir is the mission store's root: contract §12.1 puts audio in radio/.
+    audio_sub: str = ""
+
+    def audio_path(self, mission_id: str) -> Path:
+        return (
+            self.audio_dir / mission_id / self.audio_sub
+            if self.audio_sub
+            else self.audio_dir / mission_id
+        )
 
     def session(self, mission_id: str) -> RadioSession:
         return self.sessions.setdefault(mission_id, RadioSession())
@@ -94,7 +103,7 @@ class RadioContext:
         ``tts_ms`` (time to sentence 0) and ``audio`` set, and the chunk URLs in order."""
         if not turn.reply:
             return turn, []
-        d = self.audio_dir / mission_id
+        d = self.audio_path(mission_id)
         d.mkdir(parents=True, exist_ok=True)
         sentences = split_sentences(turn.reply)
         name = f"{self.run}-{turn.id}"
@@ -128,7 +137,7 @@ def _standby(
     """Speak "<Callsign>, Sightline. Standby." now and hand back where to collect the answer."""
     ctx._standby_count += 1
     name = f"{ctx.run}-s{ctx._standby_count:04d}"
-    d = ctx.audio_dir / mission_id
+    d = ctx.audio_path(mission_id)
     d.mkdir(parents=True, exist_ok=True)
     text = f"{opening(callsign)} Standby." if callsign else "Sightline. Standby."
     (d / f"{name}.wav").write_bytes(ctx.tts.speak(text).wav)
@@ -172,7 +181,7 @@ async def post_turn(
         tts=None,  # spoken sentence by sentence in _finish
         llm=ctx.llm,
         api=ctx.api,
-        work_dir=ctx.audio_dir / mission_id / "in",
+        work_dir=ctx.audio_path(mission_id) / "in",
         audio=audio_bytes,
         mime=audio.content_type or mime if audio is not None else mime,
         text=text,
@@ -212,7 +221,7 @@ def get_pending(mission_id: str, key: str, request: Request) -> Any:
 def get_audio(mission_id: str, turn_id: str, request: Request) -> FileResponse:
     if not _AUDIO_ID.match(turn_id):
         raise HTTPException(404, "no such turn")
-    path = _ctx(request).audio_dir / mission_id / f"{turn_id}.wav"
+    path = _ctx(request).audio_path(mission_id) / f"{turn_id}.wav"
     if not path.is_file():
         raise HTTPException(404, "no audio for that turn")
     # Never from the browser cache: the same turn id can mean a different reply after a restart.

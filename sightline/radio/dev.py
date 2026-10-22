@@ -18,27 +18,13 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from sightline.agent.llm import NO_THINKING, FakeChatClient, LLMError, token_factory_client
 from sightline.contract import RadioTurn
 from sightline.radio.api import RadioContext, radio_router
 from sightline.radio.mission_api import InMemoryMissionApi, demo_mission
-from sightline.radio.tts import CachedTts, FakeTts
+from sightline.radio.mount import chat_client, load_voices
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data" / "radio"  # gitignored (data/)
-
-
-def _llm():
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(ROOT / ".env")
-    except ImportError:
-        pass
-    try:
-        return token_factory_client(extra_body=NO_THINKING)
-    except LLMError:
-        return FakeChatClient(default="Sightline, say again, over.")
 
 
 def _local_trace(mission_id: str, turn: RadioTurn) -> None:
@@ -59,24 +45,13 @@ def _local_trace(mission_id: str, turn: RadioTurn) -> None:
 
 def create_app() -> FastAPI:
     state, cards = demo_mission()
-    if os.environ.get("SIGHTLINE_RADIO_MODELS") == "real":
-        from sightline.radio.asr import ParakeetAsr
-        from sightline.radio.tts import MagpieTts
-
-        asr, tts = ParakeetAsr(), CachedTts(MagpieTts())
-        # Every reply opens with "<Callsign>, Sightline.": say each once now, so it plays at once.
-        tts.warm(
-            [f"{t['callsign']}, Sightline." for t in state["teams"]]
-            + [f"{t['callsign']}, Sightline. Standby." for t in state["teams"]]
-            + ["All teams, Sightline.", "Sightline. Standby."]
-        )
-    else:
-        asr, tts = None, CachedTts(FakeTts())
+    real = os.environ.get("SIGHTLINE_RADIO_MODELS") == "real"
+    asr, tts = load_voices(real, [t["callsign"] for t in state["teams"]])
     app = FastAPI(title="Sightline radio desk (dev)")
     app.state.radio = RadioContext(
         api=InMemoryMissionApi(state, cards),
         tts=tts,
-        llm=_llm(),
+        llm=chat_client(),
         audio_dir=DATA / "audio",
         asr=asr,
         on_turn=_local_trace,

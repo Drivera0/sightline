@@ -524,6 +524,9 @@ class MissionStore:
             return p
 
     def upsert_task(self, mission_id: str, task: SectorTask) -> None:
+        """Saves the task; POD is set exactly when the sector is searched (invariant 3)."""
+        if (task.pod is not None) != (task.state == "searched"):
+            raise ValueError("a task's pod is set exactly when its state is searched")
         with self._lock(mission_id) as d:
             tasks = {t.sector_id: t for t in self._load_list(d, "tasks.json", SectorTask)}
             tasks[task.sector_id] = task

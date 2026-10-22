@@ -12,11 +12,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sightline.contract import Clue, FleetTelemetry, MapUpdate, Proposal, SectorTask
+from sightline.contract import Clue, ClueDraft, FleetTelemetry, MapUpdate, Proposal, SectorTask
 from sightline.mission.store import MissionStore, now_iso
 
 log = logging.getLogger(__name__)
 WAITS_FOR_C = "map update skipped: waits for C-L1 (LiveMap)"
+# Radius for a clue reported by kind, until lane B's resolve_position gives its own defaults.
+CLUE_RADIUS_M = {"object": 25.0, "track": 50.0, "sighting": 100.0, "sound": 200.0, "other": 50.0}
 
 
 def _hook(hooks: Any, name: str, *args: Any) -> None:
@@ -65,7 +67,12 @@ def on_decision(store: MissionStore, mission_id: str, p: Proposal) -> None:
             store.upsert_task(
                 mission_id,
                 task.model_copy(
-                    update={"state": "assigned", "team_id": team_id, "updated_at": now_iso()}
+                    update={
+                        "state": "assigned",
+                        "team_id": team_id,
+                        "pod": None,
+                        "updated_at": now_iso(),
+                    }
                 ),
             )
         team = next((t for t in state["teams"] if t.id == team_id), None)
@@ -100,6 +107,45 @@ def on_task_update(
         return "map update skipped: waits for C-S1 (lattice sectors)"
     cells = [int(i) for i in layout.cells_of(task.sector_id)]
     return _map(store, mission_id, lambda live: live.ground_update(cells, task.pod, task.sector_id))
+
+
+def clue_from_draft(store: MissionStore, mission_id: str, draft: ClueDraft) -> Clue:
+    """A clue from the form or the radio, ready for ``on_clue``; ValueError says what's wrong.
+
+    A radio draft needs ``confirmed_by_turn``: a committed radio turn in the trace (the team's
+    "affirmative" to the readback, contract §12.3 invariant 6). "At the team's position" uses the
+    team's last reported position. The radius defaults by kind (``CLUE_RADIUS_M``)."""
+    if draft.source == "radio":
+        committed = {
+            (e.output or {}).get("id")
+            for e in store.trace_entries(mission_id)
+            if e.kind == "radio_turn" and (e.output or {}).get("state") == "committed"
+        }
+        if not draft.confirmed_by_turn or draft.confirmed_by_turn not in committed:
+            raise ValueError(
+                "a radio clue needs confirmed_by_turn: the committed turn of its readback"
+            )
+    lat, lon = draft.lat, draft.lon
+    if draft.at_team_position:
+        team = next(
+            (t for t in store.state(mission_id)["teams"] if t.id == draft.reported_by), None
+        )
+        if team is None or team.position is None:
+            raise ValueError(f"no known position for {draft.reported_by}")
+        lat, lon = team.position.lat, team.position.lon
+    if lat is None or lon is None:
+        raise ValueError("a clue needs lat/lon or at_team_position")
+    return Clue.model_validate(
+        {
+            **draft.model_dump(),
+            "lat": lat,
+            "lon": lon,
+            "id": "",
+            "radius_m": draft.radius_m or CLUE_RADIUS_M[draft.kind],
+            "at": now_iso(),
+            "confirmed": False,
+        }
+    )
 
 
 def on_clue(
