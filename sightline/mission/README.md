@@ -87,7 +87,7 @@ These weren't spelled out in the contract; each is one place in `store.py` to ch
 - [x] **D-R3** Radio tab `#m/<id>/radio`: `<RadioDesk>` on the mission's teams (needs `serve --radio`); **D-R5** debrief at `GET /debrief.md`, linked from the Feed tab (lane A). Checked in Chromium against a real server
 - [x] Scheduler (`scheduler.py`): `on_tick` every 5 min or 25 photos; conditions every 30 min once B-W1 exists (lane A)
 - [x] **D-S1** `scripts/smoke.sh`: 11 checks, 11 s, no network (`SIGHTLINE_BACKEND=fake`, fake LLM), lane A
-- [ ] `SqsQueue` + `worker` command (D-W1)
+- [x] `SqsQueue` + `worker` command (D-W1; `sightline/mission/aws.py`, lane A)
 - [x] **D-M1** `web/src/lib/api.ts` (typed §13 calls; `VITE_API_URL`, unset = demo only) and `web/src/lib/mission.ts`
       (`useMission`: live via SSE with resume, optimistic actions rolled back on error, `useDemo` in memory), test 7 (lane A)
 - [x] **D-I1** New search (`web/src/ingest/`): details → mission → `#m/<id>`; drag-in upload in batches of 10 with rejected
@@ -95,9 +95,9 @@ These weren't spelled out in the contract; each is one place in `store.py` to ch
 - [x] **D-Q1, D-L1 (first pass)** `#m/<id>/photos|review|feed`: live review (candidates + approved promotions, verdict badge
       in words, answers → `POST /reviews`), event feed; "New search" in the app menu when an API is set; CORS on the API
       (localhost + `SIGHTLINE_CORS_ORIGINS`), test 8 (lane A). Checked in Chromium against a real server
-- [ ] D-L1 rest: Search next on C's live heat, E's `<CommandView/>` (approval inbox) and `<FrontDoor/>` mounted, `C` shortcut
+- [x] D-L1 rest (lane A): the live heat map (#83), E's `<CommandView/>` and approval inbox (#78), `<FrontDoor/>` at the default route (#77), the Radio tab (#81), assignment cards (#93) and the no-API demo mission `#m/demo/command` (#94). Not done: a `C` keyboard shortcut
 - [ ] D-M2 `useSelection` gains `selectedTeamId`, `selectedDroneId`, `selectedClueId`; demo fixtures from E's `__fixtures__/`
-- [ ] D-W1 AWS (`deploy/aws/` already has lane A's worker image, see its README)
+- [x] D-W1 AWS (lane A): live at https://44-227-39-234.sslip.io (stopped between demos); `deploy/aws/update.sh` redeploys `main`; `scripts/remote_check.py` passes 7/7
 - [ ] Sample cache regenerated as 1.2 (optional: 1.1 caches are still readable)
 - [x] `_live.py` deleted: C-L1 landed (`sightline/search/live.py`, lane A, #64); new missions get sector tasks A1–D4
 
