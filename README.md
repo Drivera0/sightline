@@ -20,7 +20,7 @@ The HERIDAL test set: 101 photos, 337 people, never used for training or thresho
 | Sightline, loose SAR-APD scoring | 0.896 | 0.898 | — | same |
 | Human reference, SAR-APD (quoted by Pyrrö et al. 2021; not a matched study) | 0.68 | 0.59 | — | 33 s |
 
-Reproduce the two Sightline rows, CPU only (both backends, identical scores; about 13 minutes on a 16-core desktop, [setup below](#reproduce-the-results-cpu-only-about-14-minutes)):
+Reproduce the two Sightline rows, CPU only (both backends, identical scores; 12 min 48 s for this command on a 16-core desktop, about 14 minutes with the [setup below](#reproduce-the-results-cpu-only-about-14-minutes)):
 
 ```bash
 uv run --extra ml python scripts/parity_table.py --splits test --device cpu \
@@ -117,7 +117,7 @@ What it changes during a search:
 - **The map:** fog or haze in a warning lowers the visibility factor, which lowers what each photo is worth (its POD) on the map.
 - **People:** the exposure band shifts probability toward shelter; briefings to teams carry daylight left, wind and alerts.
 
-Live, Mount Seymour on the evening of Oct 22: wind NW 20 km/h gusting 40 (quoted "NW 20", "gusts 40"), a fog advisory (visibility factor 0.6), not flyable ("after civil twilight"); the same values on two runs. Every Tavily call and every extracted value with its quote and source URL is in the mission trace (`actor="conditions"`). The full write-up, with a live run's trace: [docs/report/TAVILY.md](docs/report/TAVILY.md). The key lives on the server only (AWS Secrets Manager); `SIGHTLINE_FAKE_TAVILY=1` runs without it.
+Live, Mount Seymour on the evening of Oct 21 (PDT): wind NW 20 km/h gusting 40 (quoted "NW 20", "gusts 40"), a fog advisory (visibility factor 0.6), not flyable ("after civil twilight"); the same values on two runs (`sightline/geo/README.md`). A later run that evening, whose trace is committed, found the same wind and no fog (visibility factor 1.0). Every Tavily call and every extracted value with its quote and source URL is in the mission trace (`actor="conditions"`). The full write-up, with a live run's trace: [docs/report/TAVILY.md](docs/report/TAVILY.md). The key lives on the server only (AWS Secrets Manager); `SIGHTLINE_FAKE_TAVILY=1` runs without it.
 
 ## Team and lanes
 
