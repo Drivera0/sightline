@@ -295,6 +295,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           map={isConsole ? heatMap : undefined}
           aboveMap={isConsole && demo && demoSeed ? <DemoSeedNote words={demoSeed} /> : undefined}
           conditionsData={isConsole ? conditionsData : null}
+          conditionsOpen={window.location.hash.split("/")[3] === "conditions"}
           onPickOnMap={() => {
             document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
             return usePick.getState().request();
@@ -359,6 +360,9 @@ function AppBar({ demo, children, onShortcuts }: { demo: boolean; children?: Rea
             Guided demo
           </a>
         )}
+        <a href="#judges" className={link}>
+          For judges
+        </a>
         <a href="#new" className={link}>
           New search
         </a>

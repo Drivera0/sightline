@@ -156,6 +156,9 @@ export function FrontDoor({ onStartNew, onWatchDemo }: { onStartNew: () => void;
       <footer className="flex flex-col gap-2 border-t border-border pt-6 text-small text-text-3 sm:flex-row sm:justify-between">
         <span>{FOOTER.data}</span>
         <span className="flex gap-4">
+          <a className="underline" href="#judges">
+            For judges
+          </a>
           <a className="underline" href="#results">
             {FOOTER.results}
           </a>

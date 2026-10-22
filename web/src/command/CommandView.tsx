@@ -7,6 +7,7 @@ import { useSelection } from "../lib/selection";
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { isTyping } from "../lib/keys";
 import { ConditionsPanel, type ConditionsData } from "./ConditionsPanel";
+import { dayNote } from "./conditions";
 import type { Clue, ClueDraft, Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { KeyHint, ModeChip, modeOf, Panel, StatusPill, type Tone } from "../shell/components";
@@ -40,6 +41,8 @@ export interface CommandProps {
   aboveMap?: ReactNode;
   /** The conditions with their quotes and sources (the console's Conditions panel, W); none: no panel. */
   conditionsData?: ConditionsData | null;
+  /** Open the Conditions panel at first (the #judges link: `#m/<id>/command/conditions`). */
+  conditionsOpen?: boolean;
   now?: () => Date;
 }
 
@@ -56,9 +59,11 @@ export function CommandView(p: CommandProps) {
     return () => clearInterval(id);
   }, []);
   // W: the Conditions panel (the console only), unless typing
-  const [condOpen, setCondOpen] = useState(false);
+  const [condOpen, setCondOpen] = useState(p.conditionsOpen ?? false);
   const condId = useId();
   const hasConditions = !!p.map && !!p.conditionsData;
+  // a recorded run (the demo) is read on its own clock
+  const panelNow = p.conditionsData?.recorded ? new Date(p.conditionsData.conditions.fetched_at) : now();
   useEffect(() => {
     if (!hasConditions) return undefined;
     const onKey = (e: KeyboardEvent) => {
@@ -92,7 +97,7 @@ export function CommandView(p: CommandProps) {
           {hasConditions && condOpen && (
             // over the console, under the header (the map keeps its place); W or Esc closes it
             <div className="absolute inset-x-0 top-full mt-1 max-h-[75vh] overflow-y-auto rounded-lg shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]">
-              <ConditionsPanel id={condId} data={p.conditionsData!} now={p.conditionsData!.recorded ? new Date(p.conditionsData!.conditions.fetched_at) : now()} time={(iso) => `${hhmm(new Date(iso), true)} UTC`} />
+              <ConditionsPanel id={condId} data={p.conditionsData!} now={panelNow} time={(iso) => `${hhmm(new Date(iso), true)} UTC${dayNote(iso, panelNow)}`} />
             </div>
           )}
         </div>
@@ -161,7 +166,7 @@ export function MissionHeader({
       const left = (new Date(c.civil_twilight_end).getTime() - now.getTime()) / 60000;
       bits.push(left > 0 ? `daylight ${Math.floor(left / 60)} h ${Math.round(left % 60)} m` : "after dark");
     }
-    bits.push(c.flyable === true ? `flyable until ~${c.flyable_until ? hhmm(new Date(c.flyable_until), utc) : "dusk"}` : c.flyable === false ? `not flyable: ${c.flyability_reason}` : "flyability unknown");  // prettier-ignore
+    bits.push(c.flyable === true ? `flyable until ~${c.flyable_until ? `${hhmm(new Date(c.flyable_until), utc)}${dayNote(c.flyable_until, now, utc)}` : "dusk"}` : c.flyable === false ? `not flyable: ${c.flyability_reason}` : "flyability unknown");  // prettier-ignore
     // lane B's planning heuristics, labelled as such (B-W2): they move the map, they don't measure anything
     if (c.visibility_factor < 1) bits.push(`visibility ×${c.visibility_factor.toFixed(1)} (heuristic)`);
     if (c.exposure_band) bits.push(`exposure ${c.exposure_band} (planning heuristic)`);

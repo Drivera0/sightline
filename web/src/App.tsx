@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FrontDoor } from "./front/FrontDoor";
+import { JudgesPage } from "./front/JudgesPage";
 import { DEMO_MISSION_ID } from "./command/demoMission";
 import { LiveMission, tabFromHash } from "./ingest/LiveMission";
 import { NewSearch } from "./ingest/NewSearch";
@@ -27,7 +28,7 @@ function useRoute(): Route {
 }
 
 /** Live missions need the mission API (VITE_API_URL); the static demo needs nothing. */
-export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, { kind: "demo" | "front" }>; base?: string | null }) {
+export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, { kind: "demo" | "front" | "judges" }>; base?: string | null }) {
   const api = useMemo(() => (base === null ? null : { base }), [base]);
   if (route.kind === "mission" && route.id === DEMO_MISSION_ID) {
     // the command view's demo mission needs no API (E-04): it works on the demo-only site too
@@ -113,6 +114,7 @@ export function App({ dir = CACHE_DIR }: { dir?: string }) {
   if (route.kind === "front") {
     return <FrontDoor onStartNew={() => (window.location.hash = "#new")} onWatchDemo={() => (window.location.hash = "#survey")} />;
   }
+  if (route.kind === "judges") return <JudgesPage />;
   if (route.kind !== "demo") return <LiveRoutes route={route} />;
   return <DemoApp dir={dir} />;
 }
