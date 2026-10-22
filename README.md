@@ -2,7 +2,7 @@
 
 ![Sightline demo console: a person approves the agent's proposal, then the mission clock runs on, teams go out, the simulated drones fly and B4 is searched at POD 60 %](docs/report/figures/demo.gif)
 
-*The console on the demo mission (`#m/demo/map`), 18 s, recorded before the one-console bar of #171: a clue added on the map, then the fleet with Drone 1 re-tasked to the water-bottle clue (recorded from the local build by `scripts/demo_video/run.sh`; the mission, the drones and their links are simulated).*
+*The console on the demo mission, 16 s, on the one console (#177): the agent's proposal approved at Where next (`#m/demo?t=3`), then the mission clock runs on, teams go out, the simulated drones fly and B4 is searched at POD 60 % (recorded from the local build by `scripts/demo_video/run.sh`; the mission, the drones and their links are simulated).*
 
 Sightline is the brain of a drone search for a missing person: it finds the likeliest people in hundreds of drone photos with OpenCV 5, and turns every photo, searched sector and radio report into one probability map of where the person could still be. From that map an agent proposes where drones and ground teams go next, and a search manager approves every move before anything happens. It assists searchers and never rules an area out; it began at BCS Hackathon 2026 and became a live system for the OpenCV and Nebius hackathons.
 
@@ -33,7 +33,7 @@ Beyond the detector (simulated or with fake models where marked; every headline 
 
 | Result | Headline | Reproduce |
 |---|---|---|
-| Agent evaluation: the real mission API, worker, map, planner and agent driven over HTTP through the creek scenario and three variants, 3 runs each (fake models, scripted detector) | the drone, alert, team and promotion go to the person's sector or detection in every run (6/6, 9/9, 9/9, 3/3); approval-gate checks pass in 12 of 12 runs; Token Factory fully down costs about 82 s in all, not minutes per call ([AGENT_EVAL.md](docs/report/AGENT_EVAL.md)) | `uv run python scripts/agent_eval.py` (about 20 s) |
+| Agent evaluation: the real mission API, worker, map, planner and agent driven over HTTP through the creek scenario and three variants, 3 runs each (fake models, scripted detector) | the drone, alert, team and promotion go to the person's sector or detection in every run (6/6, 9/9, 9/9, 3/3); approval-gate checks pass in 12 of 12 runs; Token Factory fully down costs about 82 s in all, not minutes per call ([AGENT_EVAL.md](docs/report/AGENT_EVAL.md)) | `uv run python scripts/agent_eval.py` (about 6 min, most of it the re-look scenario's flown legs) |
 | Fleet v2 (simulated): three drones, coordinated on one shared map vs a hand split of the area, with a clue at the start | found within 30 min in 22.7 % vs 20.0 % of trials (ideal), 15.9 % vs 11.5 % (realistic wind, battery, GPS and link loss), 13.5 % vs 10.0 % (harsh); level with no clue ([FLEET_V2.md](docs/report/FLEET_V2.md)) | `uv run python scripts/fleet_eval.py` (about 2 min) |
 
 - **The human row is a reference point, not a head-to-head.** Pyrrö, Naseri & Jung (2021, arXiv:2111.09406) quote it from Pyrrö's master's thesis: "the average human achieves roughly ... 59% PRC, 68% RCL and 33 s ATI, with less than around 200 images to inspect". They don't say who the people were or whether they saw these 101 photos. SAR-APD is loose on purpose (one box may cover a group; an IoU of 0.0025 counts), so every other number in this repo uses the strict VOC scoring. Report §3.9.
@@ -65,7 +65,7 @@ The site is one console on a demo mission. The landing (`#`, which opens `#m/dem
 4. **Run** (`?t=4`): eighteen minutes on, the teams are out and B4 is searched at POD 60 %, lowered but never ruled out.
 5. **Results** (`?t=5`, the Debrief): the measured numbers with their sources, what breaks first, and where to look, in order, for judges.
 
-The view switch (Map · Photos · Review · Trace · Debrief, keys 1 to 5) works at any moment; **Skip to now** (or `#m/demo/map`) opens the console at the end of the timeline, the wordmark opens the About sheet (`#about`: who it is for, how it works), and `#new` is the empty console for a new search. The old guided-demo addresses (`#survey`, `#rank`, `#review`, `#search`, `#results`, `#judges`, `#try`) redirect to these moments. The Mount Seymour flight path, the fleet and the mission's timeline are simulated, and the site labels them that way.
+The view switch (Map · Photos · Review · Trace · Debrief · Radio, keys 1 to 6) works at any moment; **Skip to now** (or `#m/demo/map`) opens the console at the end of the timeline, the wordmark opens the About sheet (`#about`: who it is for, how it works), and `#new` is the empty console for a new search. The old guided-demo addresses (`#survey`, `#rank`, `#review`, `#search`, `#results`, `#judges`, `#try`) redirect to these moments. The Mount Seymour flight path, the fleet and the mission's timeline are simulated, and the site labels them that way.
 
 ## Live missions
 
@@ -111,7 +111,7 @@ How the models fit together, and a real trace of one decision: [docs/architectur
 | Speech to text (Parakeet, RTX 4080 SUPER) | 45–130 ms per phrase | 153 ms (max) |
 | Reasoning and tool calls (Nemotron 3 Super, Token Factory) | 2.3 s | 3.2 s |
 | First sound heard, typed team lines (30 turns) | 2.0 s | 3.0 s |
-| First sound heard, end to end with real voices (18 turns) | 2.5 s | 3.0 s |
+| First sound heard, end to end, Sightline's replies spoken by Magpie, team lines typed (18 turns) | 2.5 s | 3.0 s |
 
 6 / 6 clue reports were read back and confirmed before they were logged. Safety frame (on the desk's screen): it runs on a secondary channel under the comms operator, never initiates orders, and transmits only what the search manager approved, when the operator presses Transmit. Measured on 461 live verifier calls: p50 1.35 s and p90 1.65 s per call, about 890 tokens in and 67 out, every reply valid JSON. What worked and what didn't: [docs/feedback/nebius.md](docs/feedback/nebius.md).
 

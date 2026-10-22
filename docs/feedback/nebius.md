@@ -305,7 +305,7 @@ and downloads about 3 GB once (`docs/feedback/radio.md:172`). Start of the spike
 in later runs; loads in 57 s (`docs/feedback/radio.md:15`, `:59`). Full voice turns: TTS 4.6–10.4 s
 depending on reply length, the bottleneck for a 5 s target (`docs/feedback/radio.md:58`). Speaking
 sentence by sentence with a cached "<Callsign>, Sightline." opener brought time to first audio to
-3.6–3.7 s (`docs/feedback/radio.md:60-61`), and first sound with real voices to 2.5 s p50, 3.0 s p90
+3.6–3.7 s (`docs/feedback/radio.md:60-61`), and first sound with spoken replies (team lines typed) to 2.5 s p50, 3.0 s p90
 (`docs/feedback/radio.md:101`).
 
 **What worked.** Natural enough for a radio channel; chunked inference (`create_chunk_state` /
