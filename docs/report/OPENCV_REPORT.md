@@ -90,21 +90,16 @@ Diff: `git diff bcs-final-submission..opencv-submit`.
 
 ![System](../architecture/system.png)
 
-The figure shows the original batch pipeline. Live missions (contract v1.2, `sightline/mission/`,
-`sightline/api/`) run the same stages per photo:
+The figure shows the original batch pipeline (BCS). Live missions (contract v1.2, `sightline/mission/`,
+`sightline/api/`) run the same stages per photo, while the search happens:
 
-```
-browser ─ POST /missions/{id}/photos ─► API ─ original → S3, job → SQS (FIFO, one group per mission)
-                                                                   │
-            SSE /missions/{id}/events ◄─ MissionStore ◄─ worker: pose (EXIF/XMP) → display frame →
-                                          (only writer)    cv2.dnn on the original, tiled → georef →
-                                                           ranking → map step → agent hooks
-```
+![A live mission on AWS](../architecture/live.png)
 
 The `MissionStore` is the only writer of mission files and checks every write against the contract;
 `validate_mission()` checks the invariants (no "clear", POD caps, decisions recorded, radio clues
-confirmed). Locally the queue is a thread in the API process; on AWS (§6) it is SQS and a separate
-worker container.
+confirmed). The search manager approves every move in the command view and sees each change over
+server-sent events. Locally the queue is a thread in the API process; on AWS (§6) it is SQS and a
+separate worker container, with the API keys in Secrets Manager.
 
 ![Agent workflow](../architecture/agent.png)
 
