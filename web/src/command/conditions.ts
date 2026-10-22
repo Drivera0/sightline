@@ -4,6 +4,7 @@
 // then the model call whose output has, per field, the value and the verbatim quote). This file joins the
 // two. Built by lane A.
 import type { Conditions, TraceEntry } from "../contract";
+import type { Tz } from "../lib/time";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -102,9 +103,10 @@ export interface Fact {
 
 const hhmmUtc = (iso: string) => `${iso.slice(11, 16)} UTC`;
 
-/** ", 23 Oct" when `iso` falls on another day than `now` (in UTC, or the browser's zone with utc=false); else "". */
-export function dayNote(iso: string, now: Date, utc = true): string {
-  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", ...(utc ? { timeZone: "UTC" } : {}) };
+/** ", 23 Oct" when `iso` falls on another day than `now` in the zone `tz` (lib/time: true UTC, false the browser's, or an IANA zone); else "". */
+export function dayNote(iso: string, now: Date, tz: Tz = true): string {
+  const zone = tz === true ? "UTC" : typeof tz === "string" ? tz : undefined;
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", ...(zone ? { timeZone: zone } : {}) };
   const day = (d: Date) => d.toLocaleDateString("en-GB", { ...opts, year: "numeric" });
   const t = new Date(iso);
   return day(t) === day(now) ? "" : `, ${t.toLocaleDateString("en-GB", opts)}`;
@@ -144,7 +146,7 @@ export function conditionsFacts(c: Conditions, lookup: Lookup | null, now: Date 
     id: "visibility_factor",
     label: "Visibility factor",
     value: `×${c.visibility_factor.toFixed(1)}`,
-    source: { kind: "heuristic", how: "planning heuristic: fog or haze in the forecast or a warning lowers it, and each photo then rules out less" },
+    source: { kind: "heuristic", how: "planning heuristic: fog or haze in the forecast or a warning lowers it, and each photo then lowers the remaining probability less" },
   });
   facts.push({
     id: "exposure",

@@ -186,4 +186,21 @@ describe("a recall", () => {
     expect(screen.getByText("Re-task drone")).toBeInTheDocument();
     expect(screen.queryByLabelText("Why recall")).toBeNull();
   });
+
+  it("an assignment's card says which clues moved its sector, from the map log; other kinds don't", () => {
+    const note = vi.fn((x: Proposal) => (x.target.sector === "B3" ? "c003 (blue water bottle) raised B3 from 3.1 % to 3.9 %" : null));
+    render(
+      <ApprovalInbox
+        proposals={[p({ id: "p001" }), p({ id: "p002", kind: "promote_detection", target: { detection: "f0001-d01" }, created_at: "2026-10-24T21:41:00Z" })]}
+        teams={TEAMS}
+        onDecide={vi.fn()}
+        imageUrl={(r) => r}
+        clueNote={note}
+      />,
+    );
+    expect(within(screen.getByLabelText("Proposal p001")).getByLabelText("Clues behind it")).toHaveTextContent(
+      "Clues behind it, from the map log: c003 (blue water bottle) raised B3 from 3.1 % to 3.9 %.",
+    );
+    expect(within(screen.getByLabelText("Proposal p002")).queryByLabelText("Clues behind it")).toBeNull();
+  });
 });

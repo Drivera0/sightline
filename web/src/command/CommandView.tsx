@@ -6,7 +6,7 @@
 import { useSelection } from "../lib/selection";
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { isTyping } from "../lib/keys";
-import { clock, zone } from "../lib/time";
+import { clock, DEMO_TZ, utcLabel, zone, type Tz } from "../lib/time";
 import { ConditionsPanel, type ConditionsData } from "./ConditionsPanel";
 import { dayNote, isOverride } from "./conditions";
 import { FleetControls } from "./FleetControls";
@@ -19,6 +19,8 @@ import { ApprovalInbox, type Decide } from "./ApprovalInbox";
 type TaskBody = { state: SectorTask["state"]; team_id?: string | null; pod?: number | null; note?: string | null };
 
 export interface CommandProps {
+  /** The clues behind an assignment's sector, from the map log (clueShift.ts). */
+  clueNote?: (p: Proposal) => string | null;
   mission: Mission | null;
   status: string;
   conditions: Conditions | null;
@@ -60,8 +62,10 @@ export interface CommandProps {
 }
 
 const pct = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
-/** HH:MM, the mission pages' one clock (lib/time): the demo mission tells its scripted timeline in UTC. */
-const hhmm = (d: Date, utc = false) => clock(d, utc);
+/** HH:MM, the mission pages' one clock (lib/time): the demo mission reads Mount Seymour's local time. */
+const hhmm = (d: Date, tz: Tz = false) => clock(d, tz);
+/** The demo mission is dated at Mount Seymour; a live mission reads the browser's zone. */
+export const missionTz = (status: string): Tz => (status === "demo" ? DEMO_TZ : false);
 const minutesSince = (iso: string, now: Date) => Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 60000));
 
 export function CommandView(p: CommandProps) {
@@ -75,7 +79,7 @@ export function CommandView(p: CommandProps) {
   const [condOpen, setCondOpen] = useState(p.conditionsOpen ?? false);
   const condId = useId();
   const hasConditions = !!p.map && !!p.conditionsData;
-  const utc = p.status === "demo"; // the demo's fixtures are dated in UTC; a live mission reads local time
+  const tz = missionTz(p.status); // the incident's local time: Vancouver on the demo, the browser's zone live
   // a recorded run (the demo) is read on its own clock
   const panelNow = p.conditionsData?.recorded ? new Date(p.conditionsData.conditions.fetched_at) : now();
   // the simulated fleet's demo controls and the drones' battery and position (live missions only)
@@ -116,7 +120,7 @@ export function CommandView(p: CommandProps) {
           {hasConditions && condOpen && (
             // over the console, under the header (the map keeps its place); W or Esc closes it
             <div className="absolute inset-x-0 top-full mt-1 max-h-[75vh] overflow-y-auto rounded-lg shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]">
-              <ConditionsPanel id={condId} data={p.conditionsData!} now={panelNow} time={(iso) => `${hhmm(new Date(iso), utc)} ${zone(new Date(iso), utc)}${dayNote(iso, panelNow, utc)}`} />
+              <ConditionsPanel id={condId} data={p.conditionsData!} now={panelNow} time={(iso) => `${hhmm(new Date(iso), tz)} ${zone(new Date(iso), tz)}${dayNote(iso, panelNow, tz)}`} />
             </div>
           )}
         </div>
@@ -136,13 +140,13 @@ export function CommandView(p: CommandProps) {
         <aside aria-label={p.rightRail ? "View" : "Approvals"} className="order-2 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 lg:order-none">
           {p.rightRail ?? (
             <>
-              <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} />
+              <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} clueNote={p.clueNote} />
               {p.sideRail}
             </>
           )}
         </aside>
         <div className={`order-4 max-h-40 overflow-y-auto rounded-lg lg:h-40 border border-line bg-surface-solid px-4 py-2.5 lg:order-none ${span}`}>
-          <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} utc={p.status === "demo"} />
+          <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} tz={tz} />
         </div>
         {p.cover && <div className="absolute inset-0 z-30 overflow-y-auto rounded-lg bg-bg">{p.cover}</div>}
       </div>
@@ -158,11 +162,11 @@ export function CommandView(p: CommandProps) {
           {controls}
         </div>
         <div className="flex flex-col gap-4">
-          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} />
+          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} clueNote={p.clueNote} />
           {p.sideRail}
         </div>
       </div>
-      <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} utc={p.status === "demo"} />
+      <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} tz={tz} />
     </div>
   );
 }
@@ -187,7 +191,7 @@ export function MissionHeader({
   toggle?: { open: boolean; controls: string; onToggle: () => void };
 }) {
   const Line = toggle ? "button" : "p";
-  const utc = status === "demo"; // the demo's scripted timeline, as its fixtures are dated
+  const tz = missionTz(status);
   const bits: string[] = [];
   if (c) {
     if (c.wind_kmh !== null) bits.push(`wind ${c.wind_kmh.toFixed(0)} km/h${c.gust_kmh !== null ? `, gusts ${c.gust_kmh.toFixed(0)}` : ""}`);
@@ -198,14 +202,14 @@ export function MissionHeader({
       const left = (new Date(c.civil_twilight_end).getTime() - now.getTime()) / 60000;
       bits.push(left > 0 ? `daylight ${Math.floor(left / 60)} h ${Math.round(left % 60)} m` : "after dark");
     }
-    bits.push(c.flyable === true ? `flyable until ~${c.flyable_until ? `${hhmm(new Date(c.flyable_until), utc)}${dayNote(c.flyable_until, now, utc)}` : "dusk"}` : c.flyable === false ? `not flyable: ${c.flyability_reason}` : "flyability unknown");  // prettier-ignore
+    bits.push(c.flyable === true ? `flyable until ~${c.flyable_until ? `${hhmm(new Date(c.flyable_until), tz)}${dayNote(c.flyable_until, now, tz)}` : "dusk"}` : c.flyable === false ? `not flyable: ${c.flyability_reason}` : "flyability unknown");  // prettier-ignore
     // lane B's planning heuristics, labelled as such (B-W2): they move the map, they don't measure anything
     if (c.visibility_factor < 1) bits.push(`visibility ×${c.visibility_factor.toFixed(1)} (heuristic)`);
     if (c.exposure_band) bits.push(`exposure ${c.exposure_band} (planning heuristic)`);
   }
   const old = c ? minutesSince(c.fetched_at, now) > 60 : false;
   const fly: [Tone, string] = !c || c.flyable === null ? ["muted", "Flyability unknown"] : c.flyable ? ["ok", "Flyable"] : ["alert", "Not flyable"];
-  const words = `${c ? bits.join(" · ") : "not yet fetched"}${c && c.alerts.length ? ` · ${c.alerts.map((a) => a.title).join("; ")}` : ""}${old ? ` · as of ${hhmm(new Date(c!.fetched_at), utc)}` : ""}`;
+  const words = `${c ? bits.join(" · ") : "not yet fetched"}${c && c.alerts.length ? ` · ${c.alerts.map((a) => a.title).join("; ")}` : ""}${old ? ` · as of ${hhmm(new Date(c!.fetched_at), tz)}` : ""}`;
   const Name = heading ? "h1" : "span";
   // One row (LANE_E §7.1, compressed): name, where the data comes from, the clock, flyability, then the
   // conditions in words (cut with an ellipsis; the whole line is the tooltip).
@@ -215,8 +219,8 @@ export function MissionHeader({
         <>
           <Name className="truncate text-body font-medium text-text">{mission?.name ?? "…"}</Name>
           <ModeChip mode={modeOf(status)} />
-          <span className="font-mono text-small text-text-2" title="Mission clock">
-            {hhmm(now, utc)} {zone(now, utc)}
+          <span className="font-mono text-small text-text-2" title={`Mission clock · ${utcLabel(now)}`}>
+            {hhmm(now, tz)} {zone(now, tz)}
           </span>
         </>
       )}
@@ -235,7 +239,7 @@ export function MissionHeader({
         <span className="text-text-3">Conditions: </span>
         {c ? bits.join(" · ") : "not yet fetched"}
         {c && c.alerts.length > 0 && <span className="text-caution"> · {c.alerts.map((a) => a.title).join("; ")}</span>}
-        {old && <span className="text-caution"> · as of {hhmm(new Date(c!.fetched_at), utc)}</span>}
+        {old && <span className="text-caution"> · as of {hhmm(new Date(c!.fetched_at), tz)}</span>}
       </Line>
       {toggle && (
         <button type="button" onClick={toggle.onToggle} aria-expanded={toggle.open} aria-controls={toggle.controls} className="sl-tap flex shrink-0 items-center gap-1.5 text-caption text-text-2 hover:text-text">
@@ -588,14 +592,14 @@ export function ClueLog({
   teams,
   onAddClue,
   onPickOnMap,
-  utc = false,
+  tz = false,
 }: {
   clues: readonly Clue[];
   teams: readonly Team[];
   onAddClue: CommandProps["onAddClue"];
   onPickOnMap?: CommandProps["onPickOnMap"];
-  /** Times in UTC (the demo mission's scripted timeline). */
-  utc?: boolean;
+  /** The clock's zone (lib/time): Vancouver on the demo mission. */
+  tz?: Tz;
 }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<ClueDraft["kind"]>("object");
@@ -719,7 +723,7 @@ export function ClueLog({
         <ul className="flex flex-col divide-y divide-line" aria-label="Clues">
           {newest.map((c) => (
             <li key={c.id} className="flex items-center gap-3 py-1 text-small">
-              <span className="w-10 shrink-0 font-mono text-text-2">{hhmm(new Date(c.at), utc)}</span>
+              <span className="w-10 shrink-0 font-mono text-text-2">{hhmm(new Date(c.at), tz)}</span>
               <span className="w-9 shrink-0 font-mono text-caption text-text-3">{c.id}</span>
               <span className="min-w-0 flex-1 truncate text-text" title={c.text}>
                 {c.text}

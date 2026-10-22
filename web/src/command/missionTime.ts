@@ -1,5 +1,5 @@
 // Mission time on the demo mission: the one timeline the story and the console share. The demo mission
-// is one set of fixtures (demoMission.ts) dated on a scripted evening; this module says what of it is
+// is one set of fixtures (demoMission.ts) dated on a scripted afternoon; this module says what of it is
 // visible at a given mission clock, so the story's six checkpoints are six clock readings of the same
 // mission, not six screens. `demoAt(full, clock, user)` is pure: the console's store (`useMission`) is
 // loaded with it whenever the scrubber moves.
@@ -21,7 +21,7 @@ export interface CheckpointDef {
   id: "call" | "photos" | "confirm" | "next" | "run" | "results";
   /** The scrubber's tick label. */
   label: string;
-  /** The mission clock at this checkpoint (the fixtures' scripted evening, UTC). */
+  /** The mission clock at this checkpoint (ISO, UTC as the fixtures are dated; shown in Vancouver time). */
   at: string;
   /** The view the story shows here. */
   view: StoryView;
@@ -43,19 +43,15 @@ export const FLIGHT = { start: `${DAY}20:42:00Z`, end: `${DAY}21:18:00Z` } as co
 export const BOARD_AT = `${DAY}21:42:00Z`;
 /** The drones leave the trailhead for their legs once the run is approved. */
 export const FLEET_OUT = `${DAY}21:44:00Z`;
-/** Where everyone waits before the run: the trailhead lot (clue c001, the subject's car). */
+/** Where everyone waits before the run: the trailhead lot, where the subject's car is (the call). */
 export const TRAILHEAD = { lat: 49.373, lon: -122.949 } as const;
-/** The proposal the story asks the visitor to approve at t3. */
-export const STORY_PROPOSAL = "p001";
-
 /**
- * Story pacing: the two ground searches happen during the run (t3 → t4) rather than before the board
- * exists. Every other item keeps the fixtures' own time.
+ * The proposal the story asks the visitor to approve at t3: the planner's assignment for Team One on the
+ * map with the clues (scripts/make_command_fixtures.py; p001 and p002 are the second look's promotions).
  */
-export const RETIME: Readonly<Record<string, string>> = {
-  B4: `${DAY}21:56:00Z`,
-  C4: `${DAY}21:50:00Z`,
-};
+export const STORY_PROPOSAL = "p003";
+/** The sector it proposes (the fixture's; missionTime.test checks the two agree). */
+export const STORY_SECTOR = "C2";
 
 export const CHECKPOINTS: readonly CheckpointDef[] = [
   { t: 0, id: "call", label: "The call", at: `${DAY}20:35:00Z`, view: "map", mark: null },
@@ -81,7 +77,7 @@ export const CHECKPOINTS: readonly CheckpointDef[] = [
     label: "Where next",
     at: BOARD_AT,
     view: "map",
-    mark: { text: "The agent proposes Team One for A1, says why, and waits for your approval.", target: `[data-proposal="${STORY_PROPOSAL}"]` },
+    mark: { text: "The clues moved the map: the agent proposes Team One for C2, says why, and waits for your approval.", target: `[data-proposal="${STORY_PROPOSAL}"]` },
     gate: "approve",
     pre: { text: "Clues move the map too: each confirmed clue changes where the person could be.", target: '[aria-label="Clue log"]' },
   },
@@ -146,20 +142,18 @@ export function frameTime(index: number, count: number): number {
   return count <= 1 ? b : a + ((b - a) * index) / (count - 1);
 }
 
-/** When an update becomes visible: frames by flight order, ground searches at their (retimed) task time. */
-function updateTimes(updates: readonly MapUpdate[], tasks: readonly SectorTask[]): number[] {
+/** When an update becomes visible: frames by flight order, the clues and ground searches at their own time. */
+function updateTimes(updates: readonly MapUpdate[]): number[] {
   const frames = updates.filter((u) => u.source === "frame").length;
   let k = 0;
   return updates.map((u) => {
     if (u.source === "frame") return frameTime(k++, frames);
-    const task = tasks.find((t) => t.sector_id === u.ref);
-    const at = (u.ref && RETIME[u.ref]) ?? task?.updated_at ?? u.at;
-    return ms(at);
+    return ms(u.at);
   });
 }
 
-const taskTime = (t: SectorTask) => ms(RETIME[t.sector_id] ?? t.updated_at);
-const eventTime = (e: MissionEvent) => ms((e.type === "task.updated" || e.type === "map.updated") && e.ref && RETIME[e.ref] ? RETIME[e.ref]! : e.at);
+const taskTime = (t: SectorTask) => ms(t.updated_at);
+const eventTime = (e: MissionEvent) => ms(e.at);
 
 /** A proposal as it stood at `c`: decided later → still pending. */
 function proposalAt(p: Proposal, c: number): Proposal {
@@ -243,7 +237,7 @@ function fleetAt(fleet: FleetState | null | undefined, c: number, end: number): 
 
 /** Each sector's cells (its outline's bounding box on the grid), worked out once per map. */
 const sectorCellCache = new WeakMap<MapBase, Map<string, number[]>>();
-function sectorCells(base: MapBase, sectors: readonly SectorNow[]): Map<string, number[]> {
+export function sectorCells(base: MapBase, sectors: readonly SectorNow[]): Map<string, number[]> {
   let byId = sectorCellCache.get(base);
   if (byId && sectors.every((s) => byId!.has(s.sector_id))) return byId;
   byId = new Map();
@@ -301,7 +295,7 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
   const now = c >= ms(full.now);
   const allTasks = d.tasks ?? [];
   const allUpdates = d.mapUpdates ?? [];
-  const times = updateTimes(allUpdates, allTasks);
+  const times = updateTimes(allUpdates);
   const mapUpdates = now ? allUpdates : allUpdates.filter((_, i) => (times[i] as number) <= c);
   const tasks = now
     ? allTasks
@@ -312,7 +306,6 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
   const proposals = (d.proposals ?? []).filter((p) => ms(p.created_at) <= c).map((p) => proposalAt(p, c));
   const events = (d.events ?? [])
     .filter((e) => eventTime(e) <= c)
-    .map((e) => (eventTime(e) === ms(e.at) ? e : { ...e, at: iso(eventTime(e)) }))
     .sort((a, b) => a.at.localeCompare(b.at));
   const sectors = now || !d.mapBase ? (d.sectors ?? []) : sectorsAt(d.mapBase, d.sectors ?? [], mapUpdates);
   const base: MissionData = {

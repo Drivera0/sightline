@@ -30,8 +30,10 @@ export function lastMission(): string | null {
 export interface BarMission {
   name: string;
   mode: Mode;
-  /** "21:18 UTC"; null before the mission has loaded. */
+  /** "14:18 PDT", the incident's local time; null before the mission has loaded. */
   clock: string | null;
+  /** The clock's tooltip: the same moment in UTC. */
+  clockTitle?: string;
 }
 
 export interface BarAction {
@@ -108,7 +110,7 @@ export function AppBar({ mission, views, action, extra }: { mission?: BarMission
               </span>
               <ModeChip mode={mission.mode} />
               {mission.clock && (
-                <span className="hidden whitespace-nowrap font-mono text-small text-text-2 sm:inline" title="Mission clock">
+                <span className="hidden whitespace-nowrap font-mono text-small text-text-2 sm:inline" title={mission.clockTitle ?? "Mission clock"}>
                   {mission.clock}
                 </span>
               )}

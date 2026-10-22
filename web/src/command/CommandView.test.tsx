@@ -173,9 +173,10 @@ describe("CommandView", () => {
     expect(view).not.toHaveTextContent("Desktop recommended"); // the bottom bar replaces the note
   });
 
-  it("demo: the header clock tells the fixtures' scripted time, in UTC", () => {
+  it("demo: the header clock tells Mount Seymour's local time with its zone, UTC on hover", () => {
     setup({ status: "demo" });
-    expect(screen.getByLabelText("Mission header")).toHaveTextContent("22:00 UTC");
+    expect(screen.getByLabelText("Mission header")).toHaveTextContent("15:00 PDT");
+    expect(screen.getByTitle("Mission clock · 22:00 UTC")).toHaveTextContent("15:00 PDT");
   });
 
   it("live: the header clock names the browser's zone too, so a bare 03:37 never shows", () => {

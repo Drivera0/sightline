@@ -1,6 +1,6 @@
 // The command view's demo mission (LANE_E §7, E-04): no API needed, so the Vercel site can show it at
 // the landing (`#m/demo`). Fixtures from `scripts/make_command_fixtures.py` (validated against the contract
-// there) plus the demo cache's map: its frame steps become the map log, then the two ground searches.
+// there) plus the demo cache's map: its frame steps become the map log, then the clues and the ground searches.
 // Everything is a demo and says so on screen. Built by lane A for lane E (#70).
 import type { Conditions, MapBase, MapFile, MapUpdate } from "../contract";
 import type { MissionData } from "../lib/mission";
@@ -18,7 +18,8 @@ type Fixture = Pick<MissionData, "mission" | "teams" | "tasks" | "clues" | "prop
   /** The simulated fleet (scripts/make_fleet_fixture.py); null in an older fixture. */
   fleet?: MissionData["fleet"];
   now: string;
-  ground_updates: MapUpdate[];
+  /** The map log after the cache's frame steps: the clues' reweights and the ground searches, as the API logged them. */
+  map_updates: MapUpdate[];
 };
 
 /** The map log for a cache's map file: one frame step per photo, in flight order. */
@@ -45,29 +46,55 @@ export async function loadDemoMission(
     }),
   ]);
   const frames = cacheUpdates(map, fx.mission?.created_at ?? fx.now);
-  const { now, ground_updates, ...rest } = fx;
+  const { now, map_updates, ...rest } = fx;
   return {
-    data: { ...rest, verdicts: [], fleet: fx.fleet ?? null, mapBase: cacheBase(map), mapUpdates: [...frames, ...ground_updates] },
+    data: { ...rest, verdicts: [], fleet: fx.fleet ?? null, mapBase: cacheBase(map), mapUpdates: [...frames, ...map_updates] },
     now,
   };
 }
 
+/** The second look's images: the demo mission's own (`__fixtures__/relook/`, from the generator's run) and the recorded av-chain's two. */
+const RELOOK_IMAGES: Record<string, string> = {
+  ...Object.fromEntries(
+    Object.entries(import.meta.glob<string>("./__fixtures__/relook/*.jpg", { query: "?url", import: "default", eager: true })).map(([path, url]) => [
+      `relook/${path.split("/").pop()}`,
+      url,
+    ]),
+  ),
+  "relook/f0001-d01-crop.jpg": cropUrl,
+  "relook/f0001-d01-zoom_native.jpg": zoomUrl,
+};
+
+/** An evidence image on the demo: a second look's image from the fixtures, else a file of the demo cache. */
+export function demoImageUrl(rel: string): string {
+  return RELOOK_IMAGES[rel] ?? `${DEMO_CACHE}/${rel}`;
+}
+
+/** The label the demo mission's own trace carries: run through the product, with fake models, scripted people. */
+export const DEMO_TRACE_LABEL =
+  "This demo mission's own trace: the mission API and the agent's code, run offline by scripts/make_command_fixtures.py with fake models (scripted VL answers and briefings) and a scripted search manager and image reviewer";
+
 /**
- * The demo's Trace tab: two recorded runs, not this demo mission's own (its proposals are fixtures with
- * no trace). The showcase chain (`docs/architecture/av-chain`: a 0.18 detection on a val photo, a second
- * look with zoom_native, Nemotron VL's verdict, the promotion, the approval) and a live conditions lookup
- * (`docs/evidence/conditions-live-20261021`: Tavily searches and the extraction). Copied as they were.
+ * The demo's Trace tab: the demo mission's own trace first (`__fixtures__/demo_trace.jsonl`, written by
+ * `scripts/make_command_fixtures.py` with the fixture: every proposal in it has its chain, from the tool
+ * and model calls to the scripted decision), then two recorded runs copied as they were: the showcase
+ * chain (`docs/architecture/av-chain`: a 0.18 detection on a val photo, a second look with zoom_native,
+ * Nemotron VL's verdict, the promotion, the approval) and a live conditions lookup
+ * (`docs/evidence/conditions-live-20261021`: Tavily searches and the extraction).
  */
 export async function loadDemoTrace(): Promise<{ runs: TraceRun[]; imageUrl: (rel: string) => string | null }> {
-  const [chain, conditions] = await Promise.all([import("./__fixtures__/demo_trace.jsonl?raw"), import("./__fixtures__/demo_trace_conditions.jsonl?raw")]);
-  // the two images are addresses only (the Review rail shows them too)
-  const images: Record<string, string> = { "relook/f0001-d01-crop.jpg": cropUrl, "relook/f0001-d01-zoom_native.jpg": zoomUrl };
+  const [own, chain, conditions] = await Promise.all([
+    import("./__fixtures__/demo_trace.jsonl?raw"),
+    import("./__fixtures__/demo_trace_avchain.jsonl?raw"),
+    import("./__fixtures__/demo_trace_conditions.jsonl?raw"),
+  ]);
   return {
     runs: [
+      { label: DEMO_TRACE_LABEL, source: "web/src/command/__fixtures__/demo_trace.jsonl", mode: "demo", entries: parseTrace(own.default) },
       { label: "Recorded 21 Oct 2026: a second look on a val photo", source: "docs/architecture/av-chain/trace.jsonl", entries: parseTrace(chain.default) },
       { label: "Recorded 22 Oct 2026: a live conditions lookup", source: "docs/evidence/conditions-live-20261021/trace.jsonl", entries: parseTrace(conditions.default) },
     ],
-    imageUrl: (rel) => images[rel] ?? null,
+    imageUrl: (rel) => RELOOK_IMAGES[rel] ?? null,
   };
 }
 

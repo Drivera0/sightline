@@ -8,6 +8,7 @@ import {
   FLIGHT,
   MARK_COUNT,
   STORY_PROPOSAL,
+  STORY_SECTOR,
   TRAILHEAD,
   checkpointAtOrBefore,
   clockAt,
@@ -37,9 +38,9 @@ const frames: MapUpdate[] = Array.from({ length: 10 }, (_, k) => ({
   canopy: null,
   at: "2026-10-24T20:30:00Z",
 }));
-const fx = fixture as unknown as Partial<MissionData> & { now: string; ground_updates: MapUpdate[] };
+const fx = fixture as unknown as Partial<MissionData> & { now: string; map_updates: MapUpdate[] };
 const full: DemoFull = {
-  data: { ...fx, mapBase: base, mapUpdates: [...frames, ...fx.ground_updates], verdicts: [] },
+  data: { ...fx, mapBase: base, mapUpdates: [...frames, ...fx.map_updates], verdicts: [] },
   now: fx.now,
 };
 const at = (t: 0 | 1 | 2 | 3 | 4 | 5) => demoAt(full, clockAt(t));
@@ -54,9 +55,9 @@ describe("mission time: the demo mission's checkpoints", () => {
     expect(CHECKPOINTS.at(-1)!.at).toBe(fx.now); // the story ends at the fixtures' "now"
   });
 
-  it("t0, the call: the first clue, everyone at the trailhead, an empty board, no photo on the map", () => {
+  it("t0, the call: no clue yet, everyone at the trailhead, an empty board, no photo on the map", () => {
     const s = at(0);
-    expect(s.clues!.map((c) => c.id)).toEqual(["c001"]);
+    expect(s.clues).toEqual([]);
     expect(s.tasks).toEqual([]);
     expect(s.proposals).toEqual([]);
     expect(s.mapUpdates).toEqual([]);
@@ -90,9 +91,24 @@ describe("mission time: the demo mission's checkpoints", () => {
 
   it("t2, confirm: the promotion is decided, the assignment not proposed yet", () => {
     const s = at(2);
-    expect(s.proposals!.find((p) => p.id === "p006")?.status).toBe("approved");
+    expect(s.proposals!.find((p) => p.id === "p001")?.status).toBe("approved"); // the second look's promotion
     expect(s.proposals!.some((p) => p.id === STORY_PROPOSAL)).toBe(false);
     expect(s.tasks).toEqual([]);
+  });
+
+  it("t3, where next: the four clues moved the map toward them, and the corners fell (review item 2)", () => {
+    const s = at(3);
+    expect(s.clues!.map((c) => c.id)).toEqual(["c001", "c002", "c003", "c004"]);
+    const poa = Object.fromEntries(s.sectors!.map((x) => [x.sector_id, x.poa]));
+    const flat = 0.5 / 16;
+    for (const corner of ["A1", "D1", "A4", "D4"]) expect(poa[corner]).toBeLessThan(flat);
+    for (const near of ["B2", "C2", "C3"]) expect(poa[near]).toBeGreaterThan(flat * 1.3);
+    const top3 = Object.entries(poa).sort((a, b) => b[1]! - a[1]!).slice(0, 3).map(([k]) => k);
+    expect(top3).toContain(STORY_SECTOR);
+    // and the story's proposal is the planner's on the fixture's map: Team One to that sector
+    const p = fx.proposals!.find((x) => x.id === STORY_PROPOSAL)!;
+    expect(p).toMatchObject({ kind: "assign_sector", target: { team: "T1", sector: STORY_SECTOR } });
+    expect(CHECKPOINTS[3]!.mark!.text).toContain(`Team One for ${STORY_SECTOR}`);
   });
 
   it("t3, where next: the board is seeded from the map and the story's proposal waits for a person", () => {
@@ -112,10 +128,10 @@ describe("mission time: the demo mission's checkpoints", () => {
     expect(b4.pod).toBe(0.6);
     expect(s.teams!.filter((t) => t.status === "searching")).toHaveLength(2);
     expect(s.fleet!.drones.some((d) => d.status === "flying")).toBe(true);
-    expect(s.mapUpdates).toHaveLength(12);
+    expect(s.mapUpdates).toHaveLength(16); // 10 frames, 4 clues, 2 ground searches
   });
 
-  it("on the way into t4, B4's search lands late in the run (story pacing), C4's earlier", () => {
+  it("on the way into t4, C4's search lands first, B4's late in the run", () => {
     const mid = demoAt(full, clockAt(4, 0.5)); // 21:51
     expect(mid.tasks!.find((t) => t.sector_id === "C4")!.state).toBe("searched");
     expect(mid.tasks!.find((t) => t.sector_id === "B4")!.state).toBe("proposed");
@@ -127,7 +143,7 @@ describe("mission time: the demo mission's checkpoints", () => {
       id: "e00099",
       type: "proposal.decided",
       at: BOARD_AT,
-      summary: "p001 rejected",
+      summary: `${STORY_PROPOSAL} rejected`,
       ref: STORY_PROPOSAL,
       data: { ...fx.proposals!.find((p) => p.id === STORY_PROPOSAL)!, status: "rejected", decided_by: "You" } as never,
     };
@@ -216,7 +232,7 @@ describe("the run: drones fly their legs and teams walk out as the clock moves",
   it("a team out on a task walks from the trailhead to its last reported position", () => {
     const t1 = (clock: string) => demoAt(full, clock).teams!.find((t) => t.id === "T1")!;
     expect(near(t1("2026-10-24T21:44:00Z").position, TRAILHEAD)).toBe(true);
-    const walking = t1("2026-10-24T21:48:00Z");
+    const walking = t1("2026-10-24T21:52:00Z"); // out at 21:48 (C2 in progress), there by 21:55
     expect(near(walking.position, TRAILHEAD)).toBe(false);
     expect(near(walking.position, fx.teams!.find((t) => t.id === "T1")!.position!)).toBe(false);
     expect(t1(fx.now).position).toEqual(fx.teams!.find((t) => t.id === "T1")!.position);

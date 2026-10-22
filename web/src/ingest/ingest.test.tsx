@@ -2,7 +2,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Detections, Verdict } from "../contract";
+import type { Detections, MapFile, Verdict } from "../contract";
 import { App } from "../App";
 import { useStory } from "../command/story";
 import { diskFetch } from "../lib/diskFetch";
@@ -223,8 +223,19 @@ describe("a live mission's console", () => {
 /** The demo cache in tests: the repository's sample cache stands in for it (the demo cache isn't in git). */
 const demoFetch = () => {
   const disk = diskFetch();
-  return (input: RequestInfo | URL) => disk(String(input).replace("/cache/demo/", "/cache/sample/"));
+  return async (input: RequestInfo | URL) => {
+    const url = String(input);
+    const r = await disk(url.replace("/cache/demo/", "/cache/sample/"));
+    if (!url.endsWith("/cache/demo/map.json") || !r.ok) return r;
+    // the demo fixture's clue and ground updates index the demo map's 200 × 200 grid: the sample's frame
+    // steps on that grid, with a flat prior (half outside), as the demo cache has
+    const map = (await r.json()) as MapFile;
+    const n = DEMO_GRID.rows * DEMO_GRID.cols;
+    const demo = { ...map, grid: DEMO_GRID, prior: { p: new Array(n).fill(0.5 / n), outside: 0.5 }, canopy: new Array(n).fill(null) };
+    return new Response(JSON.stringify(demo), { headers: { "content-type": "application/json" } });
+  };
 };
+const DEMO_GRID = { origin_nw: { lat: 49.374492, lon: -122.951898 }, cell_m: 5, rows: 200, cols: 200 };
 const settle = () => new Promise((r) => setTimeout(r, 30));
 
 describe("the demo mission: the story on the one console", () => {
@@ -240,14 +251,14 @@ describe("the demo mission: the story on the one console", () => {
     const pitch = screen.getByRole("region", { name: "Sightline" });
     expect(within(pitch).getByRole("heading", { level: 1 })).toHaveTextContent("The brain of a drone search.");
     expect(within(pitch).getByRole("button", { name: "Follow the search (3 min)" }).className).toMatch(/bg-accent/);
-    await waitFor(() => expect(within(screen.getAllByRole("banner")[0]!).getByText("20:35 UTC")).toBeInTheDocument());
+    await waitFor(() => expect(within(screen.getAllByRole("banner")[0]!).getByText("13:35 PDT")).toBeInTheDocument());
     expect(await screen.findByRole("group", { name: "Mission time" })).toBeInTheDocument();
-    expect(await screen.findByText("car at the Mount Seymour trailhead, last seen 18:00")).toBeInTheDocument();
-    expect(screen.queryByText("blue water bottle by the creek crossing")).toBeNull(); // not found yet at 20:35
+    expect(await screen.findByText("No clues yet.")).toBeInTheDocument(); // the call: the car in the lot is where the search starts
+    expect(screen.queryByText("blue water bottle by the creek crossing")).toBeNull(); // not found yet at 13:35 PDT (20:35 UTC)
     await userEvent.click(within(pitch).getByRole("button", { name: "Skip to now" }));
     expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull();
     expect(await screen.findByText("blue water bottle by the creek crossing")).toBeInTheDocument();
-    expect(within(screen.getAllByRole("banner")[0]!).getByText("22:00 UTC")).toBeInTheDocument();
+    expect(within(screen.getAllByRole("banner")[0]!).getByText("15:00 PDT")).toBeInTheDocument();
     expect(window.location.hash).toBe("#m/demo/map");
   });
 
@@ -278,7 +289,7 @@ describe("the demo mission: the story on the one console", () => {
     await waitFor(() => expect(screen.getByRole("dialog", { name: "The story, 3 of 5" })).not.toHaveTextContent("Clues move the map too"));
     const gate = screen.getByRole("dialog", { name: "The story, 3 of 5" });
     expect(gate).toHaveTextContent("Approve it on the card");
-    const card = await screen.findByLabelText("Proposal p001");
+    const card = await screen.findByLabelText("Proposal p003");
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
     expect(await screen.findByRole("dialog", { name: "The story, 4 of 5" })).toHaveTextContent("searched at POD 60 %");
     expect(await screen.findByText("POD 60%")).toBeInTheDocument();
@@ -320,13 +331,13 @@ describe("the demo mission: the story on the one console", () => {
     useStory.getState().reset();
     window.history.replaceState(null, "", "#m/demo/map");
     render(<App base={null} />);
-    const card = (await screen.findByText("Promote f0127-d01 to the review queue")).closest("[aria-label^='Proposal']") as HTMLElement;
+    const card = (await screen.findByText("Add f0396-d01 to the review queue: second look says likely a person")).closest("[aria-label^='Proposal']") as HTMLElement;
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
-    const status = () => useMission.getState().proposals.find((p) => p.id === "p004")?.status;
+    const status = () => useMission.getState().proposals.find((p) => p.id === "p002")?.status;
     expect(status()).toBe("approved");
     useStory.getState().seek(2);
     await settle();
-    expect(status()).toBeUndefined(); // not proposed yet at 21:31
+    expect(status()).toBe("pending"); // proposed at 14:10 PDT; the visitor approved it at 15:00, not yet at 14:31
     useStory.getState().seek(4);
     await settle();
     expect(status()).toBe("approved");

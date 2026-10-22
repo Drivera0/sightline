@@ -3,7 +3,7 @@
 // checkpoint of the story and a moment of the mission at once.
 
 import type { ReactNode } from "react";
-import { clock } from "../lib/time";
+import { clock, DEMO_TZ, utcLabel, zone } from "../lib/time";
 import { CHECKPOINTS, type Checkpoint } from "./missionTime";
 
 export function Scrubber({
@@ -36,7 +36,10 @@ export function Scrubber({
   // the thumb: between the previous tick and t while the clock runs into t
   const pos = Math.max(0, t - 1 + progress) / (CHECKPOINTS.length - 1);
   const end = CHECKPOINTS[4]!.at;
-  const note = through ? `${playing ? "Playing" : "Paused"} · ${clock(through, true)} → ${clock(end, true)}` : null;
+  // the demo mission's clock: Mount Seymour's local time, UTC in the tooltips
+  const local = (iso: string) => clock(iso, DEMO_TZ);
+  const zoned = (iso: string) => `${local(iso)} ${zone(new Date(iso), DEMO_TZ)}`;
+  const note = through ? `${playing ? "Playing" : "Paused"} · ${local(through)} → ${local(end)}` : null;
   return (
     <div className="pointer-events-none flex w-full flex-col items-stretch gap-1">
     <div
@@ -63,8 +66,8 @@ export function Scrubber({
           </svg>
         )}
       </button>
-      <span className="w-12 shrink-0 font-mono text-small text-text" title="Mission clock (UTC)" aria-live="off">
-        {clock(at, true)}
+      <span className="w-12 shrink-0 font-mono text-small text-text" title={`Mission clock, ${zoned(at)} (${utcLabel(at)})`} aria-live="off">
+        {local(at)}
       </span>
       <div className="relative min-w-0 flex-1">
         <span aria-hidden className="absolute inset-x-2 top-[11px] h-0.5 rounded-full bg-surface-strong" />
@@ -83,7 +86,7 @@ export function Scrubber({
                   type="button"
                   onClick={() => onSeek(c.t)}
                   aria-current={here ? "step" : undefined}
-                  title={`${c.label}, ${clock(c.at, true)} UTC`}
+                  title={`${c.label}, ${zoned(c.at)} (${utcLabel(c.at)})`}
                   className="group flex min-h-6 min-w-6 flex-col items-center gap-0.5 rounded-sm px-1 outline-offset-0"
                 >
                   <span

@@ -7,7 +7,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
-import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent, TraceEntry } from "../contract";
+import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent, Proposal, TraceEntry } from "../contract";
+import { clueLine, clueShifts } from "../command/clueShift";
 import { CoachMark } from "../command/CoachMark";
 import { candidatePosition, demoCards, landedFrames, RECORDED_ID } from "../command/demoReview";
 import { CHECKPOINTS, checkpoint, demoAt, MARK_COUNT, STORY_PROPOSAL, type Checkpoint, type DemoFull } from "../command/missionTime";
@@ -18,10 +19,10 @@ import { landing, RUN_MS, storyClock, useStory } from "../command/story";
 import { isTyping } from "../lib/keys";
 import { cacheUrl, loadCache } from "../lib/cache";
 import { photoProgress, useMission } from "../lib/mission";
-import { clock, ClockZone, zone } from "../lib/time";
+import { clockWithZone, ClockZone, DEMO_TZ, utcLabel } from "../lib/time";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
-import { DEMO_CACHE, DEMO_MISSION_ID, demoConditionsData, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
+import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
 import type { ConditionsData } from "../command/ConditionsPanel";
 import type { TraceRun } from "../command/TraceView";
@@ -341,8 +342,11 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     return afterPaint(() => setMapOn(true));
   }, [mapOn, loaded, ready, covered]);
 
-  const imageUrl = (rel: string) => (demo ? `${DEMO_CACHE}/${rel}` : fileUrl(api, missionId, rel));
-  const clockZone = useMemo(() => ({ utc: demo }), [demo]);
+  const imageUrl = (rel: string) => (demo ? demoImageUrl(rel) : fileUrl(api, missionId, rel));
+  // which clues moved each sector, from the map log: a line on an assignment's card (clueShift.ts)
+  const shifts = useMemo(() => (s.mapBase && s.sectors.length ? clueShifts(s.mapBase, s.mapUpdates, s.sectors, s.clues) : null), [s.mapBase, s.mapUpdates, s.sectors, s.clues]);
+  const clueNote = (p: Proposal) => clueLine(shifts?.get(String(p.target.sector ?? "")));
+  const clockZone = useMemo(() => ({ tz: demo ? DEMO_TZ : false }), [demo]);
   const demoNow = useMemo(() => (demo ? new Date(clockIso) : undefined), [demo, clockIso]);
   const waiting = s.proposals.filter((p) => p.status === "pending").length;
   const liveDebrief = demo ? undefined : `${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`;
@@ -536,7 +540,10 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           },
         }
     : { label: "New search", href: "#new" };
-  const barClock = demo ? `${clock(clockIso, true)} UTC` : s.mission ? `${clock(new Date(), false)} ${zone(new Date(), false)}` : null;
+  // the incident's local time ("13:35 PDT" on the demo, Mount Seymour), the same moment in UTC on hover
+  const barAt = demo ? new Date(clockIso) : new Date();
+  const barClock = demo || s.mission ? clockWithZone(barAt, clockZone.tz) : null;
+  const barTitle = `Mission clock · ${utcLabel(barAt)}`;
   // a checkpoint's pre-mark (t3: the clue log) comes once, before its own mark
   const pre = demo && story.tour && !preSeen.includes(t) ? (CHECKPOINTS[t]?.pre ?? null) : null;
   const mark = demo && story.tour ? (pre ?? CHECKPOINTS[t]?.mark) : null;
@@ -546,7 +553,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     <ClockZone.Provider value={clockZone}>
       <div className="flex min-h-dvh flex-col lg:h-dvh">
         <AppBar
-          mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: demo ? "demo" : modeOf(s.status), clock: barClock }}
+          mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: demo ? "demo" : modeOf(s.status), clock: barClock, clockTitle: barTitle }}
           views={{
             current: view,
             onSelect: go,
@@ -593,6 +600,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               clues={s.clues}
               proposals={s.proposals}
               imageUrl={imageUrl}
+              clueNote={clueNote}
               onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
               onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
               onAddClue={(draft) => useMission.getState().addClue(draft)}
@@ -782,7 +790,7 @@ function TraceTab({ api, missionId, demo }: { api: Api; missionId: string; demo:
     <div className="flex flex-col gap-3">
       <p className="text-small text-text-2">
         Every step the agent took, grouped from what it saw to what a person decided: perception → decision → action → approval. Open a step for its full input and output.
-        {demo && " The demo mission's proposals are fixtures with no trace, so this shows two recorded runs from the repository instead."}
+        {demo && " On the demo: this mission's own trace (generated offline with fake models and scripted people, as labelled), then two runs recorded live, copied from the repository."}
       </p>
       {error && (
         <p role="alert" className="text-small text-caution">

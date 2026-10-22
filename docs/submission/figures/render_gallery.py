@@ -37,7 +37,10 @@ def t2_card(page: Page) -> None:
 
 
 def trace_chain(page: Page) -> None:
-    page.locator("li[aria-label^=Model] button").first.click()
+    # the recorded av-chain run (Nemotron VL on a val photo), below the demo mission's own trace
+    chain = page.get_by_role("article", name="Chain f0001-d01 · v0001 · p001")
+    chain.locator("li[aria-label^=Model] button").first.click()
+    chain.evaluate("(e) => e.scrollIntoView({ block: 'start' })")
 
 
 def t4_conditions(page: Page) -> None:

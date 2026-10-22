@@ -10,7 +10,7 @@ import zoomUrl from "./__fixtures__/trace_zoom_native.jpg?url";
 
 export const RECORDED_ID = "recorded-f0001-d01";
 
-/** The verdict as the trace recorded it (demo_trace.jsonl, t000004). */
+/** The verdict as the trace recorded it (demo_trace_avchain.jsonl, t000004). */
 export const RECORDED_VERDICT: Verdict = {
   id: "v0001",
   detection_id: "f0001-d01",
