@@ -658,22 +658,52 @@ def demo_shots(d: Director) -> None:
         d.pause(3.0)
         d.move(SIZE["width"] * 0.5, SIZE["height"] * 0.45, 1.2)
 
-    def fleet_guard() -> str | None:
-        retask = p.locator(
+    def retask_cards():
+        return p.locator(
             '[aria-label^="Proposal "]', has_text=re.compile(r"re-?task", re.IGNORECASE)
         )
-        if retask.count() == 0:
-            return "no drone re-task proposal on the demo console yet (fleet on the demo mission not merged)"
+
+    def fleet_on_map() -> bool:
+        legend = p.locator('[aria-label="Map legend"]', has_text=re.compile(r"Re-tasked"))
+        return (
+            legend.count() > 0
+            and p.get_by_text(re.compile(r"Drones? .{0,3}\(simulated\)")).count() > 0
+        )
+
+    def fleet_guard() -> str | None:
+        # a pending re-task card: approve it on camera; else the demo fixture's re-task, already
+        # approved in its timeline (Drone 1 sent to the water-bottle clue's sector): show it on the map
+        if retask_cards().count() == 0 and not fleet_on_map():
+            return "no drone re-task on the demo console (no pending card, no simulated fleet on the map)"
         return None
 
     def fleet():
-        card = p.locator(
-            '[aria-label^="Proposal "]', has_text=re.compile(r"re-?task", re.IGNORECASE)
-        ).first
-        d.to(card, 1.0)
-        d.pause(2.5)
-        d.click(card.get_by_role("button", name=re.compile(r"^Approve")))
-        d.pause(4.0)  # the drone turns on the map
+        card = d.first(retask_cards(), timeout=1)
+        if card is not None:
+            d.to(card, 1.0)
+            d.pause(2.5)
+            d.click(card.get_by_role("button", name=re.compile(r"^Approve")))
+            d.pause(4.0)  # the drone turns on the map
+            return
+        mapfig = p.locator("figure[aria-label='Live map']").first
+        # the drones fly south of the console's first view, under the map legend: out a step, then
+        # drag the map up so the three drones and the re-tasked route are in the open
+        d.to(mapfig, 1.2, 0.6, 0.6)
+        d.pause(0.6)
+        p.mouse.wheel(0, 480)
+        d.pause(1.5)
+        d.page.mouse.down()
+        d.move(d.x, d.y - 260, 1.4)
+        d.page.mouse.up()
+        d.pause(2.0)
+        key = d.first(
+            p.locator('[aria-label="Map legend"] li', has_text=re.compile(r"Re-tasked")), timeout=2
+        )
+        if key is not None:
+            d.to(key, 1.2)
+            d.pause(2.0)
+        d.to(mapfig, 1.2, 0.55, 0.5)
+        d.pause(2.0)
 
     def trace_guard() -> str | None:
         d.hash("#m/demo/command", 0.8)
