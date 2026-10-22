@@ -987,14 +987,24 @@ def run_scenario(
             m.review(person_det)
             for p in m.pending("alert", "assign_sector"):
                 m.decide(p.id)
-        if relook:  # opening legs flown in full, for their ledger records (not the person's sector)
-            hidden = hidden_sector(h.store, m.mid, h.scn.hidden.lat, h.scn.hidden.lon)
-            legs = [
-                x
-                for x in m.fleet().legs
-                if x.status in ("approved", "flying") and x.sector_id not in (None, hidden)
-            ]
-            for leg in legs[:full_legs]:
+        if relook:  # legs flown in full, for their ledger records: the approved ones, then the
+            # agent's next proposals (approved by the scripted manager), up to ``full_legs``
+            while sum(not f["relook"] for f in flights) < full_legs:
+                done = {f["leg"] for f in flights}
+                leg = next(
+                    (
+                        x
+                        for x in m.fleet().legs
+                        if x.status in ("approved", "flying") and x.sector_id and x.id not in done
+                    ),
+                    None,
+                )
+                if leg is None:
+                    nxt = [p for p in m.pending("drone_leg") if "relook" not in p.target]
+                    if not nxt:
+                        break
+                    m.decide(nxt[0].id)
+                    continue
                 flights.append({**m.fly_leg(leg.id), "relook": False})
         else:
             m.leg_done("D1")
