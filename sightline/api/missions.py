@@ -322,7 +322,18 @@ async def post_photos(
         rel = store.put_file(mission_id, f"frames/orig/{frame_id}.jpg", data)
         ctx.queue.put(PhotoJob(mission_id, frame_id, rel, now_iso(), name))
         accepted.append(frame_id)
+    for r in rejected:  # the uploader sees the reason; the mission's feed and trace keep it too
+        _photo_rejected(store, mission_id, r["name"], r["reason"])
     return {"accepted": accepted, "rejected": rejected}
+
+
+def _photo_rejected(store: MissionStore, mission_id: str, name: str, reason: str) -> None:
+    from sightline.agent.trace import trace_call
+
+    data = {"failure": "photo.rejected", "name": name, "reason": reason}
+    summary = f"photo.rejected {name}: {reason}"
+    store.emit(mission_id, "mission.note", summary, data=data)
+    trace_call(store, mission_id, actor="pipeline", kind="note", summary=summary, output=data)
 
 
 @missions_router.get("/missions/{mission_id}/survey")

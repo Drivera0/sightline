@@ -101,6 +101,9 @@ def trace_call(
     """
     if result is not None and output is None:
         output = {"text": result.text, "tool_calls": result.tool_calls}
+    if result is not None and result.retries:  # the client retried: say so on the entry
+        summary += f" (after {len(result.retries)} retries ({', '.join(result.retries)}))"
+        output = {**(output or {}), "retries": list(result.retries)}
     entry = TraceEntry(
         id="",
         at=now_iso(),
