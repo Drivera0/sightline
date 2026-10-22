@@ -206,3 +206,11 @@ def test_the_feed_reads_fleet_updates_from_the_event_stream(world) -> None:
     sim.tick(1.0)
     assert f"GET /missions/{mid}/state" not in calls  # the feed's legs were used
     assert sim.drones[0].leg is not None and sim.drones[0].leg.id == "L1"
+
+
+def test_the_creek_scenario_lists_its_frames() -> None:
+    """Every image a photo can get is named in the scenario file (no truth beyond which crop)."""
+    scn = Scenario.load("creek")
+    assert len(scn.drones) == 3 and all(d.simulated for d in scn.drones)
+    assert scn.positive["image"].endswith(".jpg") and len(scn.negatives) == 12
+    assert all(len(n["box"]) == 4 and n["image"] != scn.positive["image"] for n in scn.negatives)

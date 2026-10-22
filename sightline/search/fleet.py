@@ -54,6 +54,9 @@ class Scenario:
     positive: dict  # {"image": name, "box": index}
     clue: dict | None  # a scripted clue for rehearsals: {"after_s": sim seconds, ...ClueDraft}
     line_spacing_m: float = 20.0
+    # the crops a photo gets when it does not cover the person: [{"image": name, "box": [x0, y0, x1, y1]}];
+    # empty: derived from the labelled val photos (FramePool)
+    negatives: tuple[dict, ...] = ()
 
     @classmethod
     def load(cls, name_or_path: str) -> Scenario:
@@ -69,6 +72,7 @@ class Scenario:
             positive=d["positive"],
             clue=d.get("clue"),
             line_spacing_m=d.get("line_spacing_m", 20.0),
+            negatives=tuple(d.get("negatives", ())),
         )
 
 
@@ -129,7 +133,13 @@ class FramePool:
             src.path, window(src, (b.x1 + b.x2) / 2, (b.y1 + b.y2) / 2), gsd(src.path)
         )
         self.negatives: list[Crop] = []
-        for img in imgs:
+        if scn.negatives:  # listed in the scenario file: exactly those
+            by_name = {i.path.name: i for i in imgs}
+            self.negatives = [
+                Crop(by_name[n["image"]].path, tuple(n["box"]), gsd(by_name[n["image"]].path))
+                for n in scn.negatives
+            ]
+        for img in [] if scn.negatives else imgs:
             if img.path == src.path:
                 continue
             for fx, fy in ((0.25, 0.25), (0.75, 0.75), (0.75, 0.25), (0.25, 0.75), (0.5, 0.5)):
@@ -140,7 +150,7 @@ class FramePool:
             if len(self.negatives) >= negatives:
                 break
         if not self.negatives:
-            raise ValueError("no clear crops in the validation photos")
+            raise ValueError("no crops free of labelled people in the validation photos")
 
 
 def stamp(crop: Crop, lat: float, lon: float, alt_m: float, yaw_deg: float) -> bytes:
