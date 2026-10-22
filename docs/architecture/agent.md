@@ -279,11 +279,11 @@ secrets in the trace (test 7).
   diamond in the workflow diagram, enforced by the API (`sightline/api/missions.py:441`).
 - **Task effectiveness and evaluation (20 %).** On test the second look finds 4 more of 337 people
   (recall 0.864 → 0.875, 95 % CI of the gain [+0.003, +0.023]) for 15 more false alarms; F2 does not
-  change clearly (`docs/report/OPENCV_REPORT.md:477-479`). On the whole system, the agent evaluation
+  change clearly (`docs/report/OPENCV_REPORT.md:537-539`). On the whole system, the agent evaluation
   (`scripts/agent_eval.py`, `docs/report/AGENT_EVAL.md`) sends the drone, the alert, the team and the
   promotion to the person's sector or detection in every run (6/6, 9/9, 9/9, 3/3), with fake models and
   a scripted detector, so it tests routing rather than perception. Planner and fleet are evaluated in
-  simulation, with the flat-prior result stated as no gain (`docs/report/OPENCV_REPORT.md:602-669`).
+  simulation, with the flat-prior result stated as no gain (`docs/report/OPENCV_REPORT.md:662-729`).
   Rules are chosen on val and test is read once.
 - **Failure handling, observability, security, human control (15 %).** The four paragraphs under
   Evaluation above, with their tests in `tests/agent/` (for example

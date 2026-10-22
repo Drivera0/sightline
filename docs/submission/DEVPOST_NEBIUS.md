@@ -33,6 +33,12 @@ Production: burn in captions; name Nebius and NVIDIA with audio; mark "Not for K
 
 For search managers, Sightline turns drone photos and radio reports into one map that says where to look next, so teams are tasked in minutes.
 
+**What breaks first,** before you ask [13]:
+
+1. The detector misses 46 of the 337 test people (strict VOC recall 0.864), and 28 of the 46 are at two sites, MED and CAB: groups, clothing that matches rock, people sitting or lying down.
+2. The second look is a small gain: 4 more of the 337 people for 15 more false alarms (95 % CI of the gain [+0.003, +0.023]), and it is advice a person approves.
+3. The fleet and the approvals in the demo are simulated: the drones, their flights and photos are simulated, and the human approvals in the recorded traces are scripted, labelled so on screen and in the trace.
+
 Measured, with the caveat beside each number:
 
 - **The detector finds 89.6 % of people on the HERIDAL test set against 68 % for people reviewing by eye, scored the study's loose SAR-APD way; under strict VOC scoring it is 86.4 %** [1].
@@ -40,6 +46,7 @@ Measured, with the caveat beside each number:
 - **With Token Factory fully down, a mission now pays about 82 s in all (a circuit breaker after 4 failed attempts), and on the whole live system the agent sent the drone, alert, team and promotion to the person's sector or detection in every run of its evaluation, with the approval-gate checks passing in 12 of 12 runs (fake models)** [12].
 - **Nemotron VL's second look finds 4 more of 337 people on test at the cost of 15 more false alarms (95 % CI of the gain [+0.003, +0.023], p < 0.05), and is advisory** [3].
 - **The planner adds nothing on a flat prior; with a clue it finds the person within 30 minutes in 10.7 % of trials against 6.3 % for a fixed order** [4].
+- **A 500-photo mission's compute costs under a dollar:** about $0.67 with detection on AWS, the Nemotron VL second look and Tavily, or $0.49 with detection as a Nebius Serverless Job; the detector uses about 17 Wh (an estimate from CPU-seconds) [14].
 
 ## Inspiration
 
@@ -101,15 +108,17 @@ A Jetson field kit without internet; thermal for night searches; real drone phot
 
 ### Sources for every number
 
-1. `docs/report/OPENCV_REPORT.md:34-35`, `:294-296`; `README.md:39`, `:78`
-2. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:652-663`
-3. `docs/report/OPENCV_REPORT.md:477-484`; `docs/LANE_A_ML.md:314`
-4. `docs/report/OPENCV_REPORT.md:602-612`
+1. `docs/report/OPENCV_REPORT.md:34-35`, `:294-296`; `README.md:39`, `:89`
+2. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:712-723`
+3. `docs/report/OPENCV_REPORT.md:537-544`; `docs/LANE_A_ML.md:314`
+4. `docs/report/OPENCV_REPORT.md:662-672`
 5. `docs/feedback/nebius.md:71-74`
 6. `docs/feedback/radio.md:84`, `:101`
-7. `docs/feedback/nebius.md:173-176`; `README.md:92`
-8. `docs/report/OPENCV_REPORT.md:823-825`, `:938-941`
-9. `README.md:67`; `docs/architecture/agent.md` ("A second chain"); `scripts/creek_run.py`, `scripts/retask_chain.py`
+7. `docs/feedback/nebius.md:173-176`; `README.md:103`
+8. `docs/report/OPENCV_REPORT.md:884-886`, `:999-1002`
+9. `README.md:78`; `docs/architecture/agent.md` ("A second chain"); `scripts/creek_run.py`, `scripts/retask_chain.py`
 10. Ultralytics, "NVIDIA Jetson" guide, Orin Nano Super benchmark table, YOLO26n, TensorRT FP16 (https://docs.ultralytics.com/guides/nvidia-jetson/, read 2026-10-22)
 11. `docs/feedback/radio.md:76-79`, `:115-120`
-12. `docs/report/AGENT_EVAL.md` (failure handling, correct target, approval gate); `docs/report/OPENCV_REPORT.md:487-502`, `:517`, `:523-527`
+12. `docs/report/AGENT_EVAL.md` (failure handling, correct target, approval gate); `docs/report/OPENCV_REPORT.md:547-562`, `:577`, `:583-587`
+13. `docs/submission/WHAT_BREAKS_FIRST.md`; `docs/report/OPENCV_REPORT.md:853-855`, `:537-538`, `:884-886`; `docs/DETECTOR_LIMITS.md:39`, `:54`
+14. `docs/report/OPENCV_REPORT.md` §4.1 (inputs: `:374`, `:377`, `:381`; `docs/feedback/nebius.md:74`, `:174-177`; `docs/report/TAVILY.md:15`; `docs/report/CV2_CUDA.md:143`)

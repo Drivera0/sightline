@@ -37,6 +37,12 @@ Production: burn in captions; 1080p master; YouTube "Not for Kids"; no copyright
 
 For search managers, Sightline turns drone photos and radio reports into one map that says where to look next, so teams are tasked in minutes.
 
+**What breaks first,** before you ask [18]:
+
+1. The detector misses 46 of the 337 test people (strict VOC recall 0.864), and 28 of the 46 are at two sites, MED and CAB: groups, clothing that matches rock, people sitting or lying down.
+2. The second look is a small gain: 4 more of the 337 people for 15 more false alarms (95 % CI of the gain [+0.003, +0.023]), and it is advice a person approves.
+3. The fleet and the approvals in the demo are simulated: the drones, their flights and photos are simulated, and the human approvals in the recorded traces are scripted, labelled so on screen and in the trace.
+
 Measured, with the caveat beside each number:
 
 - **The detector finds 89.6 % of people on the HERIDAL test set against 68 % for people reviewing by eye, scored the study's loose SAR-APD way; under strict VOC scoring it is 86.4 %** [8]. Two early model choices saw test scores, so test is slightly optimistic, and we say so [9].
@@ -44,6 +50,7 @@ Measured, with the caveat beside each number:
 - **In simulation, with a clue at the start, three drones planning on one shared map find the person within 30 minutes in 22.7 % of trials against 20.0 % for a hand split; with realistic wind, battery swaps, GPS error and link loss the lead holds (15.9 % vs 11.5 %, seed ranges apart). With no clue they are level, and we say so** [11].
 - **On the whole live system, the agent sent the drone, the alert, the team and the promotion to the person's sector or detection in every run of its evaluation (fake models, scripted detector), the approval-gate checks passed in 12 of 12 runs, and with Token Factory fully down a mission pays about 82 s in all, not minutes per call** [17].
 - **The planner's honest result:** on a flat prior it is no better than a fixed serpentine. With a clue it flies there first, and finds the person within 30 minutes in 10.7 % of trials against 6.3 % [12].
+- **A 500-photo mission's compute costs under a dollar:** about $0.67 with detection on AWS, the Nemotron VL second look and Tavily, or $0.49 with detection as a Nebius Serverless Job; the detector uses about 17 Wh (an estimate from CPU-seconds) [19].
 
 ## Inspiration
 
@@ -96,20 +103,22 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 
 ### Sources for every number
 
-1. `README.md:78` (70 px, tiling, shrinking to 1024 px gives recall 0.234)
+1. `README.md:89` (70 px, tiling, shrinking to 1024 px gives recall 0.234)
 2. `docs/report/OPENCV_REPORT.md:34-35`, `:295`
 3. `docs/report/OPENCV_REPORT.md:139-148`
 4. `docs/report/OPENCV_REPORT.md:153-160`, `:187-191`
 5. `docs/report/OPENCV_REPORT.md:228-256`, `:271-288`
 6. `docs/architecture/agent.md` (Evaluation, Observability)
-7. `docs/report/OPENCV_REPORT.md:341`
+7. `docs/report/OPENCV_REPORT.md:374`
 8. `docs/report/OPENCV_REPORT.md:294-296`; scoring explained at `README.md:39`
 9. `README.md:40`; `docs/report/OPENCV_REPORT.md:308-315`
-10. `docs/report/OPENCV_REPORT.md:477-484`; `docs/LANE_A_ML.md:314`
-11. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:652-663`
-12. `docs/report/OPENCV_REPORT.md:602-612`
+10. `docs/report/OPENCV_REPORT.md:537-544`; `docs/LANE_A_ML.md:314`
+11. `docs/report/FLEET_V2.md` (results table); `docs/report/OPENCV_REPORT.md:712-723`
+12. `docs/report/OPENCV_REPORT.md:662-672`
 13. `docs/architecture/agent.md` ("One real chain"); `docs/architecture/av-chain/trace.jsonl`
-14. `docs/report/OPENCV_REPORT.md:792-794`
-15. `docs/report/OPENCV_REPORT.md:823-825`, `:938-941`
+14. `docs/report/OPENCV_REPORT.md:853-855`
+15. `docs/report/OPENCV_REPORT.md:884-886`, `:999-1002`
 16. `docs/feedback/radio.md:84`, `:101`
-17. `docs/report/AGENT_EVAL.md` (correct target, approval gate, failure handling); `docs/report/OPENCV_REPORT.md:487-502`, `:517`, `:523-527`
+17. `docs/report/AGENT_EVAL.md` (correct target, approval gate, failure handling); `docs/report/OPENCV_REPORT.md:547-562`, `:577`, `:583-587`
+18. `docs/submission/WHAT_BREAKS_FIRST.md`; `docs/report/OPENCV_REPORT.md:853-855`, `:537-538`, `:884-886`; `docs/DETECTOR_LIMITS.md:39`, `:54`
+19. `docs/report/OPENCV_REPORT.md` §4.1 (inputs: `:374`, `:377`, `:381`; `docs/feedback/nebius.md:74`, `:174-177`; `docs/report/TAVILY.md:15`; `docs/report/CV2_CUDA.md:143`)
