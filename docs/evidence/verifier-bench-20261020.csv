@@ -1,0 +1,301 @@
+crop,source,label,pred,conf,secs,tokens,answer,error,prompt
+runs/bench_verifier/crops/pos_000_train_ZRI_3027.jpg,data/heridal/yolo_full/val/images/train_ZRI_3027.jpg,person,person,,1.25,296,person,,basic
+runs/bench_verifier/crops/pos_001_train_GOR_3049.jpg,data/heridal/yolo_full/val/images/train_GOR_3049.jpg,person,not_person,,1.49,297,not_person,,basic
+runs/bench_verifier/crops/pos_002_train_ZRI_2013.jpg,data/heridal/yolo_full/val/images/train_ZRI_2013.jpg,person,person,,1.26,296,person,,basic
+runs/bench_verifier/crops/pos_003_train_GOR_3013.jpg,data/heridal/yolo_full/val/images/train_GOR_3013.jpg,person,person,,1.41,296,person,,basic
+runs/bench_verifier/crops/pos_004_train_BRK_1006.jpg,data/heridal/yolo_full/val/images/train_BRK_1006.jpg,person,person,,1.12,296,person,,basic
+runs/bench_verifier/crops/pos_005_train_BRK_2004.jpg,data/heridal/yolo_full/val/images/train_BRK_2004.jpg,person,person,,1.12,296,person,,basic
+runs/bench_verifier/crops/pos_006_train_VRD_3004.jpg,data/heridal/yolo_full/val/images/train_VRD_3004.jpg,person,person,,1.14,296,person,,basic
+runs/bench_verifier/crops/pos_007_train_VRD_0027.jpg,data/heridal/yolo_full/val/images/train_VRD_0027.jpg,person,person,,1.18,296,person,,basic
+runs/bench_verifier/crops/pos_008_train_ZRI_2038.jpg,data/heridal/yolo_full/val/images/train_ZRI_2038.jpg,person,person,,0.96,296,person,,basic
+runs/bench_verifier/crops/pos_009_train_SB_0038.jpg,data/heridal/yolo_full/val/images/train_SB_0038.jpg,person,person,,0.98,296,person,,basic
+runs/bench_verifier/crops/pos_010_train_BRS_0040.jpg,data/heridal/yolo_full/val/images/train_BRS_0040.jpg,person,person,,1.24,296,person,,basic
+runs/bench_verifier/crops/pos_011_train_GOR_3015.jpg,data/heridal/yolo_full/val/images/train_GOR_3015.jpg,person,person,,0.87,296,person,,basic
+runs/bench_verifier/crops/pos_012_train_VRD_0143.jpg,data/heridal/yolo_full/val/images/train_VRD_0143.jpg,person,person,,1.24,296,person,,basic
+runs/bench_verifier/crops/pos_013_train_ZRI_2079.jpg,data/heridal/yolo_full/val/images/train_ZRI_2079.jpg,person,person,,0.81,296,person,,basic
+runs/bench_verifier/crops/pos_014_train_MED_4062.jpg,data/heridal/yolo_full/val/images/train_MED_4062.jpg,person,person,,0.83,296,person,,basic
+runs/bench_verifier/crops/pos_015_train_GOR_3017.jpg,data/heridal/yolo_full/val/images/train_GOR_3017.jpg,person,person,,1.25,296,person,,basic
+runs/bench_verifier/crops/pos_016_train_RAK_0073.jpg,data/heridal/yolo_full/val/images/train_RAK_0073.jpg,person,person,,1.25,296,person,,basic
+runs/bench_verifier/crops/pos_017_train_RAK_0077.jpg,data/heridal/yolo_full/val/images/train_RAK_0077.jpg,person,person,,1.24,296,person,,basic
+runs/bench_verifier/crops/pos_018_train_BRA_1016.jpg,data/heridal/yolo_full/val/images/train_BRA_1016.jpg,person,person,,1.21,296,person,,basic
+runs/bench_verifier/crops/pos_019_train_BRK_2066.jpg,data/heridal/yolo_full/val/images/train_BRK_2066.jpg,person,person,,1.22,296,person,,basic
+runs/bench_verifier/crops/pos_020_train_BRK_2094.jpg,data/heridal/yolo_full/val/images/train_BRK_2094.jpg,person,person,,1.22,296,person,,basic
+runs/bench_verifier/crops/pos_021_train_SB_0009.jpg,data/heridal/yolo_full/val/images/train_SB_0009.jpg,person,person,,1.2,296,person,,basic
+runs/bench_verifier/crops/pos_022_train_VRD_3028.jpg,data/heridal/yolo_full/val/images/train_VRD_3028.jpg,person,person,,0.86,296,person,,basic
+runs/bench_verifier/crops/pos_023_train_VRD_2031.jpg,data/heridal/yolo_full/val/images/train_VRD_2031.jpg,person,person,,1.23,296,person,,basic
+runs/bench_verifier/crops/pos_024_train_VRD_2008.jpg,data/heridal/yolo_full/val/images/train_VRD_2008.jpg,person,person,,1.0,296,person,,basic
+runs/bench_verifier/crops/pos_025_train_MED_3060.jpg,data/heridal/yolo_full/val/images/train_MED_3060.jpg,person,person,,1.19,296,person,,basic
+runs/bench_verifier/crops/pos_026_train_SB_0040.jpg,data/heridal/yolo_full/val/images/train_SB_0040.jpg,person,person,,0.95,296,person,,basic
+runs/bench_verifier/crops/pos_027_train_JAS_0150.jpg,data/heridal/yolo_full/val/images/train_JAS_0150.jpg,person,not_person,,1.19,297,not_person,,basic
+runs/bench_verifier/crops/pos_028_train_BRK_2051.jpg,data/heridal/yolo_full/val/images/train_BRK_2051.jpg,person,person,,1.12,296,person,,basic
+runs/bench_verifier/crops/pos_029_train_GOR_2008.jpg,data/heridal/yolo_full/val/images/train_GOR_2008.jpg,person,person,,1.01,296,person,,basic
+runs/bench_verifier/crops/pos_030_train_ZRI_2084.jpg,data/heridal/yolo_full/val/images/train_ZRI_2084.jpg,person,person,,0.69,296,person,,basic
+runs/bench_verifier/crops/pos_031_train_ZRI_2062.jpg,data/heridal/yolo_full/val/images/train_ZRI_2062.jpg,person,person,,0.86,296,person,,basic
+runs/bench_verifier/crops/pos_032_train_GOR_1066.jpg,data/heridal/yolo_full/val/images/train_GOR_1066.jpg,person,person,,0.9,296,person,,basic
+runs/bench_verifier/crops/pos_033_train_JAS_0086.jpg,data/heridal/yolo_full/val/images/train_JAS_0086.jpg,person,person,,0.93,296,person,,basic
+runs/bench_verifier/crops/pos_034_train_MED_3067.jpg,data/heridal/yolo_full/val/images/train_MED_3067.jpg,person,person,,1.0,296,person,,basic
+runs/bench_verifier/crops/pos_035_train_RAK_0071.jpg,data/heridal/yolo_full/val/images/train_RAK_0071.jpg,person,person,,1.1,296,person,,basic
+runs/bench_verifier/crops/pos_036_train_GOR_2056.jpg,data/heridal/yolo_full/val/images/train_GOR_2056.jpg,person,person,,0.75,296,person,,basic
+runs/bench_verifier/crops/pos_037_train_GOR_1052.jpg,data/heridal/yolo_full/val/images/train_GOR_1052.jpg,person,person,,0.79,296,person,,basic
+runs/bench_verifier/crops/pos_038_train_BRK_2048.jpg,data/heridal/yolo_full/val/images/train_BRK_2048.jpg,person,person,,1.19,296,person,,basic
+runs/bench_verifier/crops/pos_039_train_VRD_3089.jpg,data/heridal/yolo_full/val/images/train_VRD_3089.jpg,person,person,,1.21,296,person,,basic
+runs/bench_verifier/crops/pos_040_train_VRD_3108.jpg,data/heridal/yolo_full/val/images/train_VRD_3108.jpg,person,person,,0.8,296,person,,basic
+runs/bench_verifier/crops/pos_041_train_ZRI_2071.jpg,data/heridal/yolo_full/val/images/train_ZRI_2071.jpg,person,person,,0.97,296,person,,basic
+runs/bench_verifier/crops/pos_042_train_VRD_2021.jpg,data/heridal/yolo_full/val/images/train_VRD_2021.jpg,person,person,,1.21,296,person,,basic
+runs/bench_verifier/crops/pos_043_train_GOR_2058.jpg,data/heridal/yolo_full/val/images/train_GOR_2058.jpg,person,person,,0.96,296,person,,basic
+runs/bench_verifier/crops/pos_044_train_ZRI_2076.jpg,data/heridal/yolo_full/val/images/train_ZRI_2076.jpg,person,person,,0.94,296,person,,basic
+runs/bench_verifier/crops/pos_045_train_RAK_0011.jpg,data/heridal/yolo_full/val/images/train_RAK_0011.jpg,person,person,,1.06,296,person,,basic
+runs/bench_verifier/crops/pos_046_train_TRS_0031.jpg,data/heridal/yolo_full/val/images/train_TRS_0031.jpg,person,person,,0.95,296,person,,basic
+runs/bench_verifier/crops/pos_047_train_TRS_0018.jpg,data/heridal/yolo_full/val/images/train_TRS_0018.jpg,person,person,,0.97,296,person,,basic
+runs/bench_verifier/crops/pos_048_train_BRK_2008.jpg,data/heridal/yolo_full/val/images/train_BRK_2008.jpg,person,person,,0.97,296,person,,basic
+runs/bench_verifier/crops/pos_049_train_GOR_1009.jpg,data/heridal/yolo_full/val/images/train_GOR_1009.jpg,person,person,,0.88,296,person,,basic
+runs/bench_verifier/crops/neg_000_train_VRD_0021_3380_1392.jpg,data/heridal/yolo_full/val/images/train_VRD_0021.jpg,not_person,not_person,,1.21,297,not_person,,basic
+runs/bench_verifier/crops/neg_001_train_ZRI_3008_2111_220.jpg,data/heridal/yolo_full/val/images/train_ZRI_3008.jpg,not_person,not_person,,1.22,297,not_person,,basic
+runs/bench_verifier/crops/neg_002_train_BRA_1046_467_2307.jpg,data/heridal/yolo_full/val/images/train_BRA_1046.jpg,not_person,not_person,,1.12,297,not_person,,basic
+runs/bench_verifier/crops/neg_003_train_MED_3009_2067_1774.jpg,data/heridal/yolo_full/val/images/train_MED_3009.jpg,not_person,not_person,,1.2,297,not_person,,basic
+runs/bench_verifier/crops/neg_004_train_BRK_2051_413_1297.jpg,data/heridal/yolo_full/val/images/train_BRK_2051.jpg,not_person,not_person,,1.08,297,not_person,,basic
+runs/bench_verifier/crops/neg_005_train_RAK_0037_2953_922.jpg,data/heridal/yolo_full/val/images/train_RAK_0037.jpg,not_person,not_person,,1.2,297,not_person,,basic
+runs/bench_verifier/crops/neg_006_train_GOR_3040_3501_1274.jpg,data/heridal/yolo_full/val/images/train_GOR_3040.jpg,not_person,not_person,,1.09,297,not_person,,basic
+runs/bench_verifier/crops/neg_007_train_SB_0009_3769_2448.jpg,data/heridal/yolo_full/val/images/train_SB_0009.jpg,not_person,not_person,,1.08,297,not_person,,basic
+runs/bench_verifier/crops/neg_008_train_GOR_3013_3768_1794.jpg,data/heridal/yolo_full/val/images/train_GOR_3013.jpg,not_person,not_person,,0.99,297,not_person,,basic
+runs/bench_verifier/crops/neg_009_train_ZRI_2079_1002_2500.jpg,data/heridal/yolo_full/val/images/train_ZRI_2079.jpg,not_person,not_person,,0.66,297,not_person,,basic
+runs/bench_verifier/crops/neg_010_train_JAS_0060_204_2557.jpg,data/heridal/yolo_full/val/images/train_JAS_0060.jpg,not_person,not_person,,0.8,297,not_person,,basic
+runs/bench_verifier/crops/neg_011_train_CAP_0023_2901_957.jpg,data/heridal/yolo_full/val/images/train_CAP_0023.jpg,not_person,not_person,,1.12,297,not_person,,basic
+runs/bench_verifier/crops/neg_012_train_CAP_0033_2263_1040.jpg,data/heridal/yolo_full/val/images/train_CAP_0033.jpg,not_person,not_person,,0.8,297,not_person,,basic
+runs/bench_verifier/crops/neg_013_train_GOR_3049_1975_846.jpg,data/heridal/yolo_full/val/images/train_GOR_3049.jpg,not_person,not_person,,1.13,297,not_person,,basic
+runs/bench_verifier/crops/neg_014_train_VRD_3093_3216_2247.jpg,data/heridal/yolo_full/val/images/train_VRD_3093.jpg,not_person,not_person,,0.77,297,not_person,,basic
+runs/bench_verifier/crops/neg_015_train_GOR_3076_1566_1180.jpg,data/heridal/yolo_full/val/images/train_GOR_3076.jpg,not_person,not_person,,0.91,297,not_person,,basic
+runs/bench_verifier/crops/neg_016_train_JAS_0027_741_2695.jpg,data/heridal/yolo_full/val/images/train_JAS_0027.jpg,not_person,not_person,,1.0,297,not_person,,basic
+runs/bench_verifier/crops/neg_017_train_GOR_1066_1022_2129.jpg,data/heridal/yolo_full/val/images/train_GOR_1066.jpg,not_person,not_person,,0.98,297,not_person,,basic
+runs/bench_verifier/crops/neg_018_train_ZRI_2071_1378_2712.jpg,data/heridal/yolo_full/val/images/train_ZRI_2071.jpg,not_person,not_person,,0.59,297,not_person,,basic
+runs/bench_verifier/crops/neg_019_train_CAP_0013_1930_514.jpg,data/heridal/yolo_full/val/images/train_CAP_0013.jpg,not_person,not_person,,0.77,297,not_person,,basic
+runs/bench_verifier/crops/neg_020_train_TRS_0029_3460_1779.jpg,data/heridal/yolo_full/val/images/train_TRS_0029.jpg,not_person,not_person,,0.89,297,not_person,,basic
+runs/bench_verifier/crops/neg_021_train_JAS_0084_433_2045.jpg,data/heridal/yolo_full/val/images/train_JAS_0084.jpg,not_person,not_person,,0.84,297,not_person,,basic
+runs/bench_verifier/crops/neg_022_train_VRD_0044_3161_1096.jpg,data/heridal/yolo_full/val/images/train_VRD_0044.jpg,not_person,not_person,,1.0,297,not_person,,basic
+runs/bench_verifier/crops/neg_023_train_VRD_3075_259_1407.jpg,data/heridal/yolo_full/val/images/train_VRD_3075.jpg,not_person,not_person,,1.04,297,not_person,,basic
+runs/bench_verifier/crops/neg_024_train_RAK_0023_1846_406.jpg,data/heridal/yolo_full/val/images/train_RAK_0023.jpg,not_person,not_person,,1.18,297,not_person,,basic
+runs/bench_verifier/crops/neg_025_train_ZRI_2021_3041_183.jpg,data/heridal/yolo_full/val/images/train_ZRI_2021.jpg,not_person,not_person,,0.98,297,not_person,,basic
+runs/bench_verifier/crops/neg_026_train_BRK_2131_2368_492.jpg,data/heridal/yolo_full/val/images/train_BRK_2131.jpg,not_person,not_person,,0.72,297,not_person,,basic
+runs/bench_verifier/crops/neg_027_train_VRD_2008_1340_2049.jpg,data/heridal/yolo_full/val/images/train_VRD_2008.jpg,not_person,not_person,,0.95,297,not_person,,basic
+runs/bench_verifier/crops/neg_028_train_VRD_3125_2557_663.jpg,data/heridal/yolo_full/val/images/train_VRD_3125.jpg,not_person,not_person,,1.05,297,not_person,,basic
+runs/bench_verifier/crops/neg_029_train_JAS_0021_3061_2261.jpg,data/heridal/yolo_full/val/images/train_JAS_0021.jpg,not_person,not_person,,1.21,297,not_person,,basic
+runs/bench_verifier/crops/neg_030_train_BRK_2094_543_293.jpg,data/heridal/yolo_full/val/images/train_BRK_2094.jpg,not_person,not_person,,0.98,297,not_person,,basic
+runs/bench_verifier/crops/neg_031_train_ZRI_2043_2751_1813.jpg,data/heridal/yolo_full/val/images/train_ZRI_2043.jpg,not_person,not_person,,0.75,297,not_person,,basic
+runs/bench_verifier/crops/neg_032_train_BLA_0008_3624_1912.jpg,data/heridal/yolo_full/val/images/train_BLA_0008.jpg,not_person,not_person,,0.94,297,not_person,,basic
+runs/bench_verifier/crops/neg_033_train_RAK_0006_3757_2086.jpg,data/heridal/yolo_full/val/images/train_RAK_0006.jpg,not_person,not_person,,1.2,297,not_person,,basic
+runs/bench_verifier/crops/neg_034_train_GOR_3015_1237_2458.jpg,data/heridal/yolo_full/val/images/train_GOR_3015.jpg,not_person,not_person,,1.27,297,not_person,,basic
+runs/bench_verifier/crops/neg_035_train_VRD_2006_3716_1191.jpg,data/heridal/yolo_full/val/images/train_VRD_2006.jpg,not_person,not_person,,1.11,297,not_person,,basic
+runs/bench_verifier/crops/neg_036_train_GOR_2031_1228_2174.jpg,data/heridal/yolo_full/val/images/train_GOR_2031.jpg,not_person,not_person,,0.73,297,not_person,,basic
+runs/bench_verifier/crops/neg_037_train_BRK_2078_3713_2826.jpg,data/heridal/yolo_full/val/images/train_BRK_2078.jpg,not_person,not_person,,0.71,297,not_person,,basic
+runs/bench_verifier/crops/neg_038_train_VRD_2021_583_2489.jpg,data/heridal/yolo_full/val/images/train_VRD_2021.jpg,not_person,not_person,,0.84,297,not_person,,basic
+runs/bench_verifier/crops/neg_039_train_VRD_3089_3856_232.jpg,data/heridal/yolo_full/val/images/train_VRD_3089.jpg,not_person,not_person,,1.07,297,not_person,,basic
+runs/bench_verifier/crops/neg_040_train_MED_3060_1595_1147.jpg,data/heridal/yolo_full/val/images/train_MED_3060.jpg,not_person,not_person,,1.06,297,not_person,,basic
+runs/bench_verifier/crops/neg_041_train_GOR_1016_841_1106.jpg,data/heridal/yolo_full/val/images/train_GOR_1016.jpg,not_person,not_person,,0.95,297,not_person,,basic
+runs/bench_verifier/crops/neg_042_train_VRD_3028_2494_2752.jpg,data/heridal/yolo_full/val/images/train_VRD_3028.jpg,not_person,not_person,,0.86,297,not_person,,basic
+runs/bench_verifier/crops/neg_043_train_CAP_0052_3504_237.jpg,data/heridal/yolo_full/val/images/train_CAP_0052.jpg,not_person,not_person,,0.72,297,not_person,,basic
+runs/bench_verifier/crops/neg_044_train_ZRI_2062_2075_1690.jpg,data/heridal/yolo_full/val/images/train_ZRI_2062.jpg,not_person,not_person,,0.95,297,not_person,,basic
+runs/bench_verifier/crops/neg_045_train_CAP_0017_3407_758.jpg,data/heridal/yolo_full/val/images/train_CAP_0017.jpg,not_person,not_person,,1.2,297,not_person,,basic
+runs/bench_verifier/crops/neg_046_train_VRD_0027_3034_2555.jpg,data/heridal/yolo_full/val/images/train_VRD_0027.jpg,not_person,not_person,,1.11,297,not_person,,basic
+runs/bench_verifier/crops/neg_047_train_SB_0028_3667_527.jpg,data/heridal/yolo_full/val/images/train_SB_0028.jpg,not_person,not_person,,1.06,297,not_person,,basic
+runs/bench_verifier/crops/neg_048_train_VRD_3065_3467_1286.jpg,data/heridal/yolo_full/val/images/train_VRD_3065.jpg,not_person,not_person,,1.19,297,not_person,,basic
+runs/bench_verifier/crops/neg_049_train_CAP_0030_442_415.jpg,data/heridal/yolo_full/val/images/train_CAP_0030.jpg,not_person,not_person,,0.9,297,not_person,,basic
+runs/bench_verifier/crops/hneg_000_train_GOR_2009_hn_1299_1976.jpg,data/heridal/hard_negatives_v2/images/train_GOR_2009_hn_1299_1976.jpg,not_person,not_person,,1.04,297,not_person,,basic
+runs/bench_verifier/crops/hneg_001_train_ZRI_2012_hn_946_1382.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2012_hn_946_1382.jpg,not_person,person,,0.92,296,person,,basic
+runs/bench_verifier/crops/hneg_002_train_ZRI_2032_hn_1733_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2032_hn_1733_1976.jpg,not_person,not_person,,0.86,297,not_person,,basic
+runs/bench_verifier/crops/hneg_003_train_ZRI_2048_hn_2012_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2048_hn_2012_1976.jpg,not_person,not_person,,0.71,297,not_person,,basic
+runs/bench_verifier/crops/hneg_004_train_ZRI_2050_hn_474_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2050_hn_474_1976.jpg,not_person,not_person,,0.66,297,not_person,,basic
+runs/bench_verifier/crops/hneg_005_train_ZRI_2024_hn_2976_1595.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2024_hn_2976_1595.jpg,not_person,not_person,,0.79,297,not_person,,basic
+runs/bench_verifier/crops/hneg_006_train_GOR_3019_hn_2976_1976.jpg,data/heridal/hard_negatives_v2/images/train_GOR_3019_hn_2976_1976.jpg,not_person,not_person,,0.91,297,not_person,,basic
+runs/bench_verifier/crops/hneg_007_train_BRS_0024_hn_0_327.jpg,data/heridal/hard_negatives_v2/images/train_BRS_0024_hn_0_327.jpg,not_person,not_person,,0.66,297,not_person,,basic
+runs/bench_verifier/crops/hneg_008_train_TRS_0025_hn_0_1976.jpg,data/heridal/hard_negatives_v2/images/train_TRS_0025_hn_0_1976.jpg,not_person,not_person,,0.88,297,not_person,,basic
+runs/bench_verifier/crops/hneg_009_train_BRS_0048_hn_1622_316.jpg,data/heridal/hard_negatives_v2/images/train_BRS_0048_hn_1622_316.jpg,not_person,not_person,,0.96,297,not_person,,basic
+runs/bench_verifier/crops/hneg_010_train_ZRI_2066_hn_2976_0.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2066_hn_2976_0.jpg,not_person,not_person,,0.74,297,not_person,,basic
+runs/bench_verifier/crops/hneg_011_train_BRA_1001_hn_2502_0.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1001_hn_2502_0.jpg,not_person,not_person,,0.97,297,not_person,,basic
+runs/bench_verifier/crops/hneg_012_train_ZRI_2032_hn_1811_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2032_hn_1811_1976.jpg,not_person,not_person,,0.93,297,not_person,,basic
+runs/bench_verifier/crops/hneg_013_train_ZRI_2053_hn_2198_0.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2053_hn_2198_0.jpg,not_person,not_person,,0.8,297,not_person,,basic
+runs/bench_verifier/crops/hneg_014_train_ZRI_2027_hn_0_489.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2027_hn_0_489.jpg,not_person,not_person,,0.95,297,not_person,,basic
+runs/bench_verifier/crops/hneg_015_train_BRS_0051_hn_2060_0.jpg,data/heridal/hard_negatives_v2/images/train_BRS_0051_hn_2060_0.jpg,not_person,not_person,,1.05,297,not_person,,basic
+runs/bench_verifier/crops/hneg_016_train_ZRI_2046_hn_2918_1928.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2046_hn_2918_1928.jpg,not_person,person,,1.05,296,person,,basic
+runs/bench_verifier/crops/hneg_017_train_RAK_0069_hn_352_1846.jpg,data/heridal/hard_negatives_v2/images/train_RAK_0069_hn_352_1846.jpg,not_person,not_person,,0.86,297,not_person,,basic
+runs/bench_verifier/crops/hneg_018_train_GOR_2053_hn_1982_1976.jpg,data/heridal/hard_negatives_v2/images/train_GOR_2053_hn_1982_1976.jpg,not_person,not_person,,0.82,297,not_person,,basic
+runs/bench_verifier/crops/hneg_019_train_ZRI_2050_hn_0_768.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2050_hn_0_768.jpg,not_person,not_person,,0.93,297,not_person,,basic
+runs/bench_verifier/crops/hneg_020_train_ZRI_3013_hn_2738_491.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_3013_hn_2738_491.jpg,not_person,not_person,,0.79,297,not_person,,basic
+runs/bench_verifier/crops/hneg_021_train_MED_4054_hn_324_1517.jpg,data/heridal/hard_negatives_v2/images/train_MED_4054_hn_324_1517.jpg,not_person,not_person,,1.23,297,not_person,,basic
+runs/bench_verifier/crops/hneg_022_train_ZRI_2023_hn_258_1252.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2023_hn_258_1252.jpg,not_person,person,,0.93,296,person,,basic
+runs/bench_verifier/crops/hneg_023_train_ZRI_2048_hn_1888_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2048_hn_1888_1976.jpg,not_person,not_person,,0.95,297,not_person,,basic
+runs/bench_verifier/crops/hneg_024_train_ZRI_2048_hn_429_1342.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2048_hn_429_1342.jpg,not_person,person,,0.7,296,person,,basic
+runs/bench_verifier/crops/hneg_025_train_ZRI_2045_hn_0_0.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2045_hn_0_0.jpg,not_person,not_person,,0.91,297,not_person,,basic
+runs/bench_verifier/crops/hneg_026_train_VRD_3121_hn_2976_1804.jpg,data/heridal/hard_negatives_v2/images/train_VRD_3121_hn_2976_1804.jpg,not_person,not_person,,1.19,297,not_person,,basic
+runs/bench_verifier/crops/hneg_027_train_MED_4060_hn_517_0.jpg,data/heridal/hard_negatives_v2/images/train_MED_4060_hn_517_0.jpg,not_person,not_person,,1.08,297,not_person,,basic
+runs/bench_verifier/crops/hneg_028_train_VRD_0059_hn_0_1532.jpg,data/heridal/hard_negatives_v2/images/train_VRD_0059_hn_0_1532.jpg,not_person,not_person,,1.2,297,not_person,,basic
+runs/bench_verifier/crops/hneg_029_train_ZRI_2027_hn_2492_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2027_hn_2492_1976.jpg,not_person,not_person,,0.7,297,not_person,,basic
+runs/bench_verifier/crops/hneg_030_train_ZRI_2074_hn_242_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2074_hn_242_1976.jpg,not_person,not_person,,0.71,297,not_person,,basic
+runs/bench_verifier/crops/hneg_031_train_BRA_1070_hn_1998_684.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1070_hn_1998_684.jpg,not_person,person,,0.71,296,person,,basic
+runs/bench_verifier/crops/hneg_032_train_ZRI_2014_hn_2101_1055.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2014_hn_2101_1055.jpg,not_person,person,,0.7,296,person,,basic
+runs/bench_verifier/crops/hneg_033_train_BRA_1031_hn_1728_1976.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1031_hn_1728_1976.jpg,not_person,not_person,,1.09,297,not_person,,basic
+runs/bench_verifier/crops/hneg_034_train_ZRI_2051_hn_1754_0.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2051_hn_1754_0.jpg,not_person,not_person,,0.8,297,not_person,,basic
+runs/bench_verifier/crops/hneg_035_train_ZRI_2012_hn_0_642.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2012_hn_0_642.jpg,not_person,person,,0.88,296,person,,basic
+runs/bench_verifier/crops/hneg_036_train_ZRI_3004_hn_1354_0.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_3004_hn_1354_0.jpg,not_person,not_person,,0.93,297,not_person,,basic
+runs/bench_verifier/crops/hneg_037_train_SB_0027_hn_2976_1976.jpg,data/heridal/hard_negatives_v2/images/train_SB_0027_hn_2976_1976.jpg,not_person,not_person,,0.92,297,not_person,,basic
+runs/bench_verifier/crops/hneg_038_train_ZRI_2016_hn_0_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2016_hn_0_1976.jpg,not_person,not_person,,0.93,297,not_person,,basic
+runs/bench_verifier/crops/hneg_039_train_BRA_1001_hn_36_1976.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1001_hn_36_1976.jpg,not_person,not_person,,0.91,297,not_person,,basic
+runs/bench_verifier/crops/hneg_040_train_ZRI_2016_hn_2926_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2016_hn_2926_1976.jpg,not_person,person,,0.85,296,person,,basic
+runs/bench_verifier/crops/hneg_041_train_BRA_1071_hn_2128_1185.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1071_hn_2128_1185.jpg,not_person,not_person,,0.87,297,not_person,,basic
+runs/bench_verifier/crops/hneg_042_train_ZRI_2015_hn_2976_1310.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2015_hn_2976_1310.jpg,not_person,person,,0.67,296,person,,basic
+runs/bench_verifier/crops/hneg_043_train_SB_0013_hn_496_1654.jpg,data/heridal/hard_negatives_v2/images/train_SB_0013_hn_496_1654.jpg,not_person,not_person,,0.76,297,not_person,,basic
+runs/bench_verifier/crops/hneg_044_train_BRS_0034_hn_1630_318.jpg,data/heridal/hard_negatives_v2/images/train_BRS_0034_hn_1630_318.jpg,not_person,not_person,,0.89,297,not_person,,basic
+runs/bench_verifier/crops/hneg_045_train_BRK_2056_hn_2110_1490.jpg,data/heridal/hard_negatives_v2/images/train_BRK_2056_hn_2110_1490.jpg,not_person,not_person,,0.98,297,not_person,,basic
+runs/bench_verifier/crops/hneg_046_train_MED_4066_hn_771_1976.jpg,data/heridal/hard_negatives_v2/images/train_MED_4066_hn_771_1976.jpg,not_person,not_person,,1.08,297,not_person,,basic
+runs/bench_verifier/crops/hneg_047_train_SB_0027_hn_2962_1362.jpg,data/heridal/hard_negatives_v2/images/train_SB_0027_hn_2962_1362.jpg,not_person,not_person,,0.52,297,not_person,,basic
+runs/bench_verifier/crops/hneg_048_train_BRA_1066_hn_1986_332.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1066_hn_1986_332.jpg,not_person,not_person,,0.99,297,not_person,,basic
+runs/bench_verifier/crops/hneg_049_train_ZRI_2078_hn_0_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2078_hn_0_1976.jpg,not_person,not_person,,0.78,297,not_person,,basic
+runs/bench_verifier/crops/pos_000_train_ZRI_3027.jpg,data/heridal/yolo_full/val/images/train_ZRI_3027.jpg,person,person,85,0.97,362,person 85,,strict
+runs/bench_verifier/crops/pos_001_train_GOR_3049.jpg,data/heridal/yolo_full/val/images/train_GOR_3049.jpg,person,not_person,100,1.25,364,not_person 100,,strict
+runs/bench_verifier/crops/pos_002_train_ZRI_2013.jpg,data/heridal/yolo_full/val/images/train_ZRI_2013.jpg,person,person,90,0.73,362,person 90,,strict
+runs/bench_verifier/crops/pos_003_train_GOR_3013.jpg,data/heridal/yolo_full/val/images/train_GOR_3013.jpg,person,person,95,1.25,362,person 95,,strict
+runs/bench_verifier/crops/pos_004_train_BRK_1006.jpg,data/heridal/yolo_full/val/images/train_BRK_1006.jpg,person,person,95,1.02,362,person 95,,strict
+runs/bench_verifier/crops/pos_005_train_BRK_2004.jpg,data/heridal/yolo_full/val/images/train_BRK_2004.jpg,person,person,95,1.21,362,person 95,,strict
+runs/bench_verifier/crops/pos_006_train_VRD_3004.jpg,data/heridal/yolo_full/val/images/train_VRD_3004.jpg,person,not_person,60,1.15,363,not_person 60,,strict
+runs/bench_verifier/crops/pos_007_train_VRD_0027.jpg,data/heridal/yolo_full/val/images/train_VRD_0027.jpg,person,person,90,1.13,362,person 90,,strict
+runs/bench_verifier/crops/pos_008_train_ZRI_2038.jpg,data/heridal/yolo_full/val/images/train_ZRI_2038.jpg,person,person,90,0.98,362,person 90,,strict
+runs/bench_verifier/crops/pos_009_train_SB_0038.jpg,data/heridal/yolo_full/val/images/train_SB_0038.jpg,person,person,95,1.07,362,person 95,,strict
+runs/bench_verifier/crops/pos_010_train_BRS_0040.jpg,data/heridal/yolo_full/val/images/train_BRS_0040.jpg,person,person,95,0.85,362,person 95,,strict
+runs/bench_verifier/crops/pos_011_train_GOR_3015.jpg,data/heridal/yolo_full/val/images/train_GOR_3015.jpg,person,person,95,1.03,362,person 95,,strict
+runs/bench_verifier/crops/pos_012_train_VRD_0143.jpg,data/heridal/yolo_full/val/images/train_VRD_0143.jpg,person,person,90,1.17,362,person 90,,strict
+runs/bench_verifier/crops/pos_013_train_ZRI_2079.jpg,data/heridal/yolo_full/val/images/train_ZRI_2079.jpg,person,not_person,60,0.75,363,not_person 60,,strict
+runs/bench_verifier/crops/pos_014_train_MED_4062.jpg,data/heridal/yolo_full/val/images/train_MED_4062.jpg,person,person,95,0.93,362,person 95,,strict
+runs/bench_verifier/crops/pos_015_train_GOR_3017.jpg,data/heridal/yolo_full/val/images/train_GOR_3017.jpg,person,person,95,1.18,364,<person> 95,,strict
+runs/bench_verifier/crops/pos_016_train_RAK_0073.jpg,data/heridal/yolo_full/val/images/train_RAK_0073.jpg,person,person,70,0.91,362,person 70,,strict
+runs/bench_verifier/crops/pos_017_train_RAK_0077.jpg,data/heridal/yolo_full/val/images/train_RAK_0077.jpg,person,person,90,0.96,362,person 90,,strict
+runs/bench_verifier/crops/pos_018_train_BRA_1016.jpg,data/heridal/yolo_full/val/images/train_BRA_1016.jpg,person,person,85,1.15,362,person 85,,strict
+runs/bench_verifier/crops/pos_019_train_BRK_2066.jpg,data/heridal/yolo_full/val/images/train_BRK_2066.jpg,person,person,90,1.18,362,person 90,,strict
+runs/bench_verifier/crops/pos_020_train_BRK_2094.jpg,data/heridal/yolo_full/val/images/train_BRK_2094.jpg,person,person,95,0.97,362,person 95,,strict
+runs/bench_verifier/crops/pos_021_train_SB_0009.jpg,data/heridal/yolo_full/val/images/train_SB_0009.jpg,person,person,90,0.82,362,person 90,,strict
+runs/bench_verifier/crops/pos_022_train_VRD_3028.jpg,data/heridal/yolo_full/val/images/train_VRD_3028.jpg,person,not_person,60,1.01,363,not_person 60,,strict
+runs/bench_verifier/crops/pos_023_train_VRD_2031.jpg,data/heridal/yolo_full/val/images/train_VRD_2031.jpg,person,person,95,0.74,362,person 95,,strict
+runs/bench_verifier/crops/pos_024_train_VRD_2008.jpg,data/heridal/yolo_full/val/images/train_VRD_2008.jpg,person,person,95,0.89,362,person 95,,strict
+runs/bench_verifier/crops/pos_025_train_MED_3060.jpg,data/heridal/yolo_full/val/images/train_MED_3060.jpg,person,person,85,0.88,362,person 85,,strict
+runs/bench_verifier/crops/pos_026_train_SB_0040.jpg,data/heridal/yolo_full/val/images/train_SB_0040.jpg,person,person,85,0.84,362,person 85,,strict
+runs/bench_verifier/crops/pos_027_train_JAS_0150.jpg,data/heridal/yolo_full/val/images/train_JAS_0150.jpg,person,not_person,60,0.81,363,not_person 60,,strict
+runs/bench_verifier/crops/pos_028_train_BRK_2051.jpg,data/heridal/yolo_full/val/images/train_BRK_2051.jpg,person,person,95,0.98,362,person 95,,strict
+runs/bench_verifier/crops/pos_029_train_GOR_2008.jpg,data/heridal/yolo_full/val/images/train_GOR_2008.jpg,person,not_person,60,0.98,363,not_person 60,,strict
+runs/bench_verifier/crops/pos_030_train_ZRI_2084.jpg,data/heridal/yolo_full/val/images/train_ZRI_2084.jpg,person,person,95,0.95,362,person 95,,strict
+runs/bench_verifier/crops/pos_031_train_ZRI_2062.jpg,data/heridal/yolo_full/val/images/train_ZRI_2062.jpg,person,person,90,0.73,362,person 90,,strict
+runs/bench_verifier/crops/pos_032_train_GOR_1066.jpg,data/heridal/yolo_full/val/images/train_GOR_1066.jpg,person,person,95,1.17,362,person 95,,strict
+runs/bench_verifier/crops/pos_033_train_JAS_0086.jpg,data/heridal/yolo_full/val/images/train_JAS_0086.jpg,person,person,95,0.83,362,person 95,,strict
+runs/bench_verifier/crops/pos_034_train_MED_3067.jpg,data/heridal/yolo_full/val/images/train_MED_3067.jpg,person,person,90,1.16,362,person 90,,strict
+runs/bench_verifier/crops/pos_035_train_RAK_0071.jpg,data/heridal/yolo_full/val/images/train_RAK_0071.jpg,person,person,85,1.02,362,person 85,,strict
+runs/bench_verifier/crops/pos_036_train_GOR_2056.jpg,data/heridal/yolo_full/val/images/train_GOR_2056.jpg,person,person,90,0.55,362,person 90,,strict
+runs/bench_verifier/crops/pos_037_train_GOR_1052.jpg,data/heridal/yolo_full/val/images/train_GOR_1052.jpg,person,person,95,1.2,364,<person> 95,,strict
+runs/bench_verifier/crops/pos_038_train_BRK_2048.jpg,data/heridal/yolo_full/val/images/train_BRK_2048.jpg,person,person,95,1.03,362,person 95,,strict
+runs/bench_verifier/crops/pos_039_train_VRD_3089.jpg,data/heridal/yolo_full/val/images/train_VRD_3089.jpg,person,person,90,1.19,362,person 90,,strict
+runs/bench_verifier/crops/pos_040_train_VRD_3108.jpg,data/heridal/yolo_full/val/images/train_VRD_3108.jpg,person,person,90,0.7,362,person 90,,strict
+runs/bench_verifier/crops/pos_041_train_ZRI_2071.jpg,data/heridal/yolo_full/val/images/train_ZRI_2071.jpg,person,person,95,0.72,362,person 95,,strict
+runs/bench_verifier/crops/pos_042_train_VRD_2021.jpg,data/heridal/yolo_full/val/images/train_VRD_2021.jpg,person,person,85,1.16,362,person 85,,strict
+runs/bench_verifier/crops/pos_043_train_GOR_2058.jpg,data/heridal/yolo_full/val/images/train_GOR_2058.jpg,person,not_person,95,0.94,363,not_person 95,,strict
+runs/bench_verifier/crops/pos_044_train_ZRI_2076.jpg,data/heridal/yolo_full/val/images/train_ZRI_2076.jpg,person,person,90,1.01,362,person 90,,strict
+runs/bench_verifier/crops/pos_045_train_RAK_0011.jpg,data/heridal/yolo_full/val/images/train_RAK_0011.jpg,person,person,95,1.01,362,person 95,,strict
+runs/bench_verifier/crops/pos_046_train_TRS_0031.jpg,data/heridal/yolo_full/val/images/train_TRS_0031.jpg,person,person,90,0.96,362,person 90,,strict
+runs/bench_verifier/crops/pos_047_train_TRS_0018.jpg,data/heridal/yolo_full/val/images/train_TRS_0018.jpg,person,person,95,0.94,362,person 95,,strict
+runs/bench_verifier/crops/pos_048_train_BRK_2008.jpg,data/heridal/yolo_full/val/images/train_BRK_2008.jpg,person,person,95,0.96,362,person 95,,strict
+runs/bench_verifier/crops/pos_049_train_GOR_1009.jpg,data/heridal/yolo_full/val/images/train_GOR_1009.jpg,person,person,90,1.07,362,person 90,,strict
+runs/bench_verifier/crops/neg_000_train_VRD_0021_3380_1392.jpg,data/heridal/yolo_full/val/images/train_VRD_0021.jpg,not_person,not_person,100,1.23,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_001_train_ZRI_3008_2111_220.jpg,data/heridal/yolo_full/val/images/train_ZRI_3008.jpg,not_person,not_person,95,1.13,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_002_train_BRA_1046_467_2307.jpg,data/heridal/yolo_full/val/images/train_BRA_1046.jpg,not_person,not_person,100,0.76,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_003_train_MED_3009_2067_1774.jpg,data/heridal/yolo_full/val/images/train_MED_3009.jpg,not_person,not_person,100,1.09,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_004_train_BRK_2051_413_1297.jpg,data/heridal/yolo_full/val/images/train_BRK_2051.jpg,not_person,not_person,100,0.81,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_005_train_RAK_0037_2953_922.jpg,data/heridal/yolo_full/val/images/train_RAK_0037.jpg,not_person,not_person,100,1.09,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_006_train_GOR_3040_3501_1274.jpg,data/heridal/yolo_full/val/images/train_GOR_3040.jpg,not_person,not_person,100,1.11,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_007_train_SB_0009_3769_2448.jpg,data/heridal/yolo_full/val/images/train_SB_0009.jpg,not_person,not_person,100,0.74,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_008_train_GOR_3013_3768_1794.jpg,data/heridal/yolo_full/val/images/train_GOR_3013.jpg,not_person,not_person,100,0.8,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_009_train_ZRI_2079_1002_2500.jpg,data/heridal/yolo_full/val/images/train_ZRI_2079.jpg,not_person,not_person,100,0.85,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_010_train_JAS_0060_204_2557.jpg,data/heridal/yolo_full/val/images/train_JAS_0060.jpg,not_person,not_person,100,0.9,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_011_train_CAP_0023_2901_957.jpg,data/heridal/yolo_full/val/images/train_CAP_0023.jpg,not_person,not_person,100,0.74,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_012_train_CAP_0033_2263_1040.jpg,data/heridal/yolo_full/val/images/train_CAP_0033.jpg,not_person,not_person,100,0.99,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_013_train_GOR_3049_1975_846.jpg,data/heridal/yolo_full/val/images/train_GOR_3049.jpg,not_person,not_person,100,1.32,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_014_train_VRD_3093_3216_2247.jpg,data/heridal/yolo_full/val/images/train_VRD_3093.jpg,not_person,not_person,100,1.04,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_015_train_GOR_3076_1566_1180.jpg,data/heridal/yolo_full/val/images/train_GOR_3076.jpg,not_person,not_person,95,1.18,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_016_train_JAS_0027_741_2695.jpg,data/heridal/yolo_full/val/images/train_JAS_0027.jpg,not_person,not_person,100,0.84,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_017_train_GOR_1066_1022_2129.jpg,data/heridal/yolo_full/val/images/train_GOR_1066.jpg,not_person,not_person,100,1.01,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_018_train_ZRI_2071_1378_2712.jpg,data/heridal/yolo_full/val/images/train_ZRI_2071.jpg,not_person,not_person,100,0.84,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_019_train_CAP_0013_1930_514.jpg,data/heridal/yolo_full/val/images/train_CAP_0013.jpg,not_person,not_person,100,1.22,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_020_train_TRS_0029_3460_1779.jpg,data/heridal/yolo_full/val/images/train_TRS_0029.jpg,not_person,not_person,95,0.61,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_021_train_JAS_0084_433_2045.jpg,data/heridal/yolo_full/val/images/train_JAS_0084.jpg,not_person,not_person,100,1.08,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_022_train_VRD_0044_3161_1096.jpg,data/heridal/yolo_full/val/images/train_VRD_0044.jpg,not_person,not_person,100,1.19,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_023_train_VRD_3075_259_1407.jpg,data/heridal/yolo_full/val/images/train_VRD_3075.jpg,not_person,not_person,95,1.23,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_024_train_RAK_0023_1846_406.jpg,data/heridal/yolo_full/val/images/train_RAK_0023.jpg,not_person,not_person,95,1.28,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_025_train_ZRI_2021_3041_183.jpg,data/heridal/yolo_full/val/images/train_ZRI_2021.jpg,not_person,not_person,100,0.84,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_026_train_BRK_2131_2368_492.jpg,data/heridal/yolo_full/val/images/train_BRK_2131.jpg,not_person,not_person,100,0.75,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_027_train_VRD_2008_1340_2049.jpg,data/heridal/yolo_full/val/images/train_VRD_2008.jpg,not_person,not_person,100,0.93,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_028_train_VRD_3125_2557_663.jpg,data/heridal/yolo_full/val/images/train_VRD_3125.jpg,not_person,not_person,100,1.02,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_029_train_JAS_0021_3061_2261.jpg,data/heridal/yolo_full/val/images/train_JAS_0021.jpg,not_person,not_person,100,1.19,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_030_train_BRK_2094_543_293.jpg,data/heridal/yolo_full/val/images/train_BRK_2094.jpg,not_person,not_person,100,0.73,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_031_train_ZRI_2043_2751_1813.jpg,data/heridal/yolo_full/val/images/train_ZRI_2043.jpg,not_person,not_person,100,0.96,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_032_train_BLA_0008_3624_1912.jpg,data/heridal/yolo_full/val/images/train_BLA_0008.jpg,not_person,not_person,95,0.94,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_033_train_RAK_0006_3757_2086.jpg,data/heridal/yolo_full/val/images/train_RAK_0006.jpg,not_person,not_person,95,0.79,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_034_train_GOR_3015_1237_2458.jpg,data/heridal/yolo_full/val/images/train_GOR_3015.jpg,not_person,not_person,100,1.12,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_035_train_VRD_2006_3716_1191.jpg,data/heridal/yolo_full/val/images/train_VRD_2006.jpg,not_person,not_person,95,1.23,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_036_train_GOR_2031_1228_2174.jpg,data/heridal/yolo_full/val/images/train_GOR_2031.jpg,not_person,not_person,100,0.76,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_037_train_BRK_2078_3713_2826.jpg,data/heridal/yolo_full/val/images/train_BRK_2078.jpg,not_person,not_person,95,0.77,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_038_train_VRD_2021_583_2489.jpg,data/heridal/yolo_full/val/images/train_VRD_2021.jpg,not_person,not_person,100,1.09,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_039_train_VRD_3089_3856_232.jpg,data/heridal/yolo_full/val/images/train_VRD_3089.jpg,not_person,not_person,100,1.02,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_040_train_MED_3060_1595_1147.jpg,data/heridal/yolo_full/val/images/train_MED_3060.jpg,not_person,not_person,100,1.0,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_041_train_GOR_1016_841_1106.jpg,data/heridal/yolo_full/val/images/train_GOR_1016.jpg,not_person,not_person,95,0.64,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_042_train_VRD_3028_2494_2752.jpg,data/heridal/yolo_full/val/images/train_VRD_3028.jpg,not_person,not_person,100,0.77,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_043_train_CAP_0052_3504_237.jpg,data/heridal/yolo_full/val/images/train_CAP_0052.jpg,not_person,not_person,95,0.85,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_044_train_ZRI_2062_2075_1690.jpg,data/heridal/yolo_full/val/images/train_ZRI_2062.jpg,not_person,not_person,95,0.92,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_045_train_CAP_0017_3407_758.jpg,data/heridal/yolo_full/val/images/train_CAP_0017.jpg,not_person,not_person,100,0.94,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_046_train_VRD_0027_3034_2555.jpg,data/heridal/yolo_full/val/images/train_VRD_0027.jpg,not_person,not_person,100,1.03,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_047_train_SB_0028_3667_527.jpg,data/heridal/yolo_full/val/images/train_SB_0028.jpg,not_person,not_person,100,1.14,364,not_person 100,,strict
+runs/bench_verifier/crops/neg_048_train_VRD_3065_3467_1286.jpg,data/heridal/yolo_full/val/images/train_VRD_3065.jpg,not_person,not_person,95,1.13,363,not_person 95,,strict
+runs/bench_verifier/crops/neg_049_train_CAP_0030_442_415.jpg,data/heridal/yolo_full/val/images/train_CAP_0030.jpg,not_person,not_person,95,0.67,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_000_train_GOR_2009_hn_1299_1976.jpg,data/heridal/hard_negatives_v2/images/train_GOR_2009_hn_1299_1976.jpg,not_person,not_person,60,1.07,363,not_person 60,,strict
+runs/bench_verifier/crops/hneg_001_train_ZRI_2012_hn_946_1382.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2012_hn_946_1382.jpg,not_person,person,90,0.99,362,person 90,,strict
+runs/bench_verifier/crops/hneg_002_train_ZRI_2032_hn_1733_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2032_hn_1733_1976.jpg,not_person,not_person,100,1.0,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_003_train_ZRI_2048_hn_2012_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2048_hn_2012_1976.jpg,not_person,not_person,100,0.84,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_004_train_ZRI_2050_hn_474_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2050_hn_474_1976.jpg,not_person,not_person,95,0.92,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_005_train_ZRI_2024_hn_2976_1595.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2024_hn_2976_1595.jpg,not_person,not_person,100,0.96,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_006_train_GOR_3019_hn_2976_1976.jpg,data/heridal/hard_negatives_v2/images/train_GOR_3019_hn_2976_1976.jpg,not_person,not_person,100,0.84,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_007_train_BRS_0024_hn_0_327.jpg,data/heridal/hard_negatives_v2/images/train_BRS_0024_hn_0_327.jpg,not_person,not_person,100,1.05,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_008_train_TRS_0025_hn_0_1976.jpg,data/heridal/hard_negatives_v2/images/train_TRS_0025_hn_0_1976.jpg,not_person,not_person,100,0.89,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_009_train_BRS_0048_hn_1622_316.jpg,data/heridal/hard_negatives_v2/images/train_BRS_0048_hn_1622_316.jpg,not_person,not_person,95,0.93,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_010_train_ZRI_2066_hn_2976_0.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2066_hn_2976_0.jpg,not_person,not_person,100,0.81,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_011_train_BRA_1001_hn_2502_0.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1001_hn_2502_0.jpg,not_person,not_person,100,1.18,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_012_train_ZRI_2032_hn_1811_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2032_hn_1811_1976.jpg,not_person,not_person,100,0.92,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_013_train_ZRI_2053_hn_2198_0.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2053_hn_2198_0.jpg,not_person,not_person,100,1.23,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_014_train_ZRI_2027_hn_0_489.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2027_hn_0_489.jpg,not_person,not_person,95,1.0,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_015_train_BRS_0051_hn_2060_0.jpg,data/heridal/hard_negatives_v2/images/train_BRS_0051_hn_2060_0.jpg,not_person,not_person,100,1.16,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_016_train_ZRI_2046_hn_2918_1928.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2046_hn_2918_1928.jpg,not_person,not_person,60,0.69,363,not_person 60,,strict
+runs/bench_verifier/crops/hneg_017_train_RAK_0069_hn_352_1846.jpg,data/heridal/hard_negatives_v2/images/train_RAK_0069_hn_352_1846.jpg,not_person,not_person,100,1.03,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_018_train_GOR_2053_hn_1982_1976.jpg,data/heridal/hard_negatives_v2/images/train_GOR_2053_hn_1982_1976.jpg,not_person,not_person,100,1.05,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_019_train_ZRI_2050_hn_0_768.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2050_hn_0_768.jpg,not_person,not_person,100,0.88,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_020_train_ZRI_3013_hn_2738_491.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_3013_hn_2738_491.jpg,not_person,not_person,95,0.91,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_021_train_MED_4054_hn_324_1517.jpg,data/heridal/hard_negatives_v2/images/train_MED_4054_hn_324_1517.jpg,not_person,not_person,95,1.15,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_022_train_ZRI_2023_hn_258_1252.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2023_hn_258_1252.jpg,not_person,person,85,0.9,362,person 85,,strict
+runs/bench_verifier/crops/hneg_023_train_ZRI_2048_hn_1888_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2048_hn_1888_1976.jpg,not_person,not_person,95,0.64,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_024_train_ZRI_2048_hn_429_1342.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2048_hn_429_1342.jpg,not_person,not_person,60,0.88,363,not_person 60,,strict
+runs/bench_verifier/crops/hneg_025_train_ZRI_2045_hn_0_0.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2045_hn_0_0.jpg,not_person,not_person,100,0.66,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_026_train_VRD_3121_hn_2976_1804.jpg,data/heridal/hard_negatives_v2/images/train_VRD_3121_hn_2976_1804.jpg,not_person,not_person,100,1.12,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_027_train_MED_4060_hn_517_0.jpg,data/heridal/hard_negatives_v2/images/train_MED_4060_hn_517_0.jpg,not_person,not_person,100,0.93,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_028_train_VRD_0059_hn_0_1532.jpg,data/heridal/hard_negatives_v2/images/train_VRD_0059_hn_0_1532.jpg,not_person,not_person,100,1.1,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_029_train_ZRI_2027_hn_2492_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2027_hn_2492_1976.jpg,not_person,not_person,100,0.75,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_030_train_ZRI_2074_hn_242_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2074_hn_242_1976.jpg,not_person,not_person,95,0.83,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_031_train_BRA_1070_hn_1998_684.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1070_hn_1998_684.jpg,not_person,person,90,0.9,362,person 90,,strict
+runs/bench_verifier/crops/hneg_032_train_ZRI_2014_hn_2101_1055.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2014_hn_2101_1055.jpg,not_person,not_person,60,0.88,363,not_person 60,,strict
+runs/bench_verifier/crops/hneg_033_train_BRA_1031_hn_1728_1976.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1031_hn_1728_1976.jpg,not_person,not_person,95,0.78,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_034_train_ZRI_2051_hn_1754_0.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2051_hn_1754_0.jpg,not_person,not_person,100,1.04,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_035_train_ZRI_2012_hn_0_642.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2012_hn_0_642.jpg,not_person,person,90,0.95,362,person 90,,strict
+runs/bench_verifier/crops/hneg_036_train_ZRI_3004_hn_1354_0.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_3004_hn_1354_0.jpg,not_person,not_person,100,0.75,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_037_train_SB_0027_hn_2976_1976.jpg,data/heridal/hard_negatives_v2/images/train_SB_0027_hn_2976_1976.jpg,not_person,not_person,100,0.71,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_038_train_ZRI_2016_hn_0_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2016_hn_0_1976.jpg,not_person,not_person,100,0.68,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_039_train_BRA_1001_hn_36_1976.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1001_hn_36_1976.jpg,not_person,not_person,100,0.99,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_040_train_ZRI_2016_hn_2926_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2016_hn_2926_1976.jpg,not_person,not_person,60,0.79,363,not_person 60,,strict
+runs/bench_verifier/crops/hneg_041_train_BRA_1071_hn_2128_1185.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1071_hn_2128_1185.jpg,not_person,not_person,100,0.93,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_042_train_ZRI_2015_hn_2976_1310.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2015_hn_2976_1310.jpg,not_person,person,70,0.7,362,person 70,,strict
+runs/bench_verifier/crops/hneg_043_train_SB_0013_hn_496_1654.jpg,data/heridal/hard_negatives_v2/images/train_SB_0013_hn_496_1654.jpg,not_person,not_person,60,1.23,363,not_person 60,,strict
+runs/bench_verifier/crops/hneg_044_train_BRS_0034_hn_1630_318.jpg,data/heridal/hard_negatives_v2/images/train_BRS_0034_hn_1630_318.jpg,not_person,not_person,95,1.02,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_045_train_BRK_2056_hn_2110_1490.jpg,data/heridal/hard_negatives_v2/images/train_BRK_2056_hn_2110_1490.jpg,not_person,not_person,95,1.18,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_046_train_MED_4066_hn_771_1976.jpg,data/heridal/hard_negatives_v2/images/train_MED_4066_hn_771_1976.jpg,not_person,not_person,100,1.03,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_047_train_SB_0027_hn_2962_1362.jpg,data/heridal/hard_negatives_v2/images/train_SB_0027_hn_2962_1362.jpg,not_person,not_person,95,0.95,363,not_person 95,,strict
+runs/bench_verifier/crops/hneg_048_train_BRA_1066_hn_1986_332.jpg,data/heridal/hard_negatives_v2/images/train_BRA_1066_hn_1986_332.jpg,not_person,not_person,100,1.04,364,not_person 100,,strict
+runs/bench_verifier/crops/hneg_049_train_ZRI_2078_hn_0_1976.jpg,data/heridal/hard_negatives_v2/images/train_ZRI_2078_hn_0_1976.jpg,not_person,not_person,100,0.71,364,not_person 100,,strict
