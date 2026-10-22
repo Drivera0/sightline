@@ -69,7 +69,7 @@ proposal (labelled in the trace). The fleet is two **simulated** drones until la
 Run of 2026-10-21 (`runs/agent_live/`): 9 candidates from 6 photos; the second look on all 9 (OpenCV re-look tools:
 `zoom_native` on all 9, `enhance_contrast` on 2, `redetect_region` on 1); a confirmed person led to an `alert` to all
 teams and an `assign_sector` for the nearest team on standby (approved: the task and the team became "assigned"); the
-clue reweighted the map and led to a `drone_leg` from the planner (still the stub, and its reason says so).
+clue reweighted the map and led to a `drone_leg` from the planner (on 21 Oct still a stand-in, and its reason said so; the information-gain planner, C-P1, replaced it the next day and drives the re-task chain below).
 12 model calls, about 8.5k tokens in. `validate_mission` passed after every step.
 
 Two problems this run found, both fixed:

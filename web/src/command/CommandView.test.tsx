@@ -58,6 +58,13 @@ describe("CommandView", () => {
     expect(p.onSetTask).toHaveBeenCalledWith("D4", { state: "proposed", team_id: null });
   });
 
+  it("header: the planning heuristics say they are heuristics (B-W2)", () => {
+    setup({ conditions: { ...conditions, visibility_factor: 0.6, exposure_band: "moderate" } as Conditions });
+    const h = screen.getByLabelText("Mission header");
+    expect(h).toHaveTextContent("visibility ×0.6 (heuristic)");
+    expect(h).toHaveTextContent("exposure moderate (planning heuristic)");
+  });
+
   it("header: conditions in words, with the alert", () => {
     setup();
     const h = screen.getByLabelText("Mission header");

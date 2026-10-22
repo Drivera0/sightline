@@ -70,6 +70,9 @@ export function MissionHeader({ mission, status, conditions: c, now }: { mission
       bits.push(left > 0 ? `daylight ${Math.floor(left / 60)} h ${Math.round(left % 60)} m` : "after dark");
     }
     bits.push(c.flyable === true ? `flyable until ~${c.flyable_until ? hhmm(new Date(c.flyable_until)) : "dusk"}` : c.flyable === false ? `not flyable: ${c.flyability_reason}` : "flyability unknown");  // prettier-ignore
+    // lane B's planning heuristics, labelled as such (B-W2): they move the map, they don't measure anything
+    if (c.visibility_factor < 1) bits.push(`visibility ×${c.visibility_factor.toFixed(1)} (heuristic)`);
+    if (c.exposure_band) bits.push(`exposure ${c.exposure_band} (planning heuristic)`);
   }
   const old = c ? minutesSince(c.fetched_at, now) > 60 : false;
   return (
