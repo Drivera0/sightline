@@ -7,7 +7,7 @@ from ``map_base.json`` + the log (``from_base`` + ``apply`` in order) is the sam
 
 | Method | Update | Math |
 |---|---|---|
-| ``frame_update`` | step / frame | ``pod.frame_step`` with recall × ``visibility_factor`` (before the cap), 4 decimals, < 0.001 dropped; every candidate held (pod 0); ``canopy`` = (idx, canopy, overlap) per covered cell |
+| ``frame_update`` | step / frame | ``pod.frame_step`` with ``pod.frame_recall`` (the measured POD size curve at the photo's GSD, else ``recall``) × ``visibility_factor`` (before the cap), 4 decimals, < 0.001 dropped; every candidate held (pod 0); ``canopy`` = (idx, canopy, overlap) per covered cell |
 | ``review_update`` not_person | step / review | cells within the radius: pod = min(review_pod, pod_cap) |
 | ``review_update`` person | reweight / review | undo that frame's look on the cells within the radius: factor 1 / (1 − pod) |
 | ``ground_update`` | step / ground | every cell of the sector: pod = min(team POD, 0.9): searched never means cleared |
@@ -41,7 +41,7 @@ from sightline.contract import (
     Params,
 )
 from sightline.search.grid import cell_center, cells_within_radius, make_grid
-from sightline.search.pod import FrameInput, frame_step
+from sightline.search.pod import FrameInput, frame_recall, frame_step
 from sightline.search.prior import koester_prior, prior_source, subject_category
 from sightline.search.sectors import SectorLayout
 from sightline.search.update import MAX_FACTOR, apply_reweight, apply_step
@@ -152,11 +152,13 @@ class LiveMap:
         rgb: np.ndarray | None = None,
     ) -> MapUpdate:
         """One photo looked at its footprint and the detector found nobody there. ``held`` is
-        (position, radius_m) of every candidate so far: those cells wait for the reviewer."""
+        (position, radius_m) of every candidate so far: those cells wait for the reviewer.
+        ``recall`` is the fallback: with ``frame.detector_gsd_m`` set, the recall is read off the
+        measured POD size curve (``pod.frame_recall``, docs/report/POD.md)."""
         pods, cells = frame_step(
             self.base.grid,
             frame,
-            recall * visibility_factor,
+            frame_recall(frame, recall) * visibility_factor,
             self.base.params.pod_cap,
             held=held,
             rgb=rgb,

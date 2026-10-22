@@ -11,13 +11,24 @@ Held for review ("fix A", a deliberate change from section 3.3 step 5): a cell w
 detection of the whole survey, because the simulated frames that overlap are unrelated
 photos, and one must not say "nobody here" where another detected someone. With
 ``held=None`` only the frame's own candidates are used, as the doc first said.
+
+The recall a photo's look is worth (``frame_recall``) comes from the measured POD curve,
+``pod_curve.json`` next to this file: detector recall at the frozen threshold 0.29 against the
+person's size in the photo (shorter side of the box, px), measured on val by
+``scripts/analysis/stress_test.py`` (source: docs/evidence/pod/20261022-104502/pod.json, also its
+``source`` key; method and table in docs/report/POD.md). The size is
+``PERSON_WIDTH_M`` / the GSD of the pixels the detector saw (``FrameInput.detector_gsd_m``).
+Without that GSD, or without the curve file, the caller's constant recall is used.
 """
 
 from __future__ import annotations
 
+import itertools
+import json
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 import cv2
@@ -31,6 +42,8 @@ from sightline.search.canopy import canopy_features, mask_from_features
 from sightline.search.grid import cell_polygon, cells_within_radius, latlon_to_local_m
 
 MIN_STEP_POD = 0.001
+POD_CURVE_PATH = Path(__file__).with_name("pod_curve.json")
+PERSON_WIDTH_M = 0.5  # assumed width of a person seen from above (shoulders), metres
 # Overlaps below this are float noise on a shared edge, not real coverage.
 MIN_OVERLAP = 1e-9
 # Sub-pixel bits for cv2.fillPoly (vertices are rounded to 1/16 pixel).
@@ -47,6 +60,65 @@ class FrameInput:
     height_px: int
     image: Path
     candidates: list[tuple[LatLon, float]]  # (position, radius_m) of detections ≥ threshold
+    # Metres per pixel of the image the detector ran on (the original photo, not the display
+    # frame that ``pose`` describes). None: unknown, and the constant recall is used.
+    detector_gsd_m: float | None = None
+
+
+@dataclass(frozen=True)
+class PodCurve:
+    """Measured recall against person size: (px, recall) points, px increasing, recall
+    non-decreasing. Linear between points, held at the end values outside them."""
+
+    points: tuple[tuple[float, float], ...]
+    source: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.points:
+            raise ValueError("a POD curve needs at least one point")
+        px = [p for p, _ in self.points]
+        rec = [r for _, r in self.points]
+        if any(b <= a for a, b in itertools.pairwise(px)):
+            raise ValueError("POD curve px must increase")
+        if any(b < a for a, b in itertools.pairwise(rec)):
+            raise ValueError("POD curve recall must not decrease with size")
+        if not all(0.0 <= r <= 1.0 for r in rec):
+            raise ValueError("POD curve recall must be in [0, 1]")
+
+    def recall_at(self, px: float) -> float:
+        xs, ys = zip(*self.points, strict=True)
+        return float(np.interp(px, xs, ys))
+
+
+@lru_cache(maxsize=4)
+def load_pod_curve(path: Path = POD_CURVE_PATH) -> PodCurve | None:
+    """The curve in ``path`` (written by scripts/analysis/stress_test.py --write-curve), or None
+    when the file is missing or unreadable."""
+    try:
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        return PodCurve(
+            tuple((float(p), float(r)) for p, r in doc["points"]), str(doc.get("source", ""))
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def person_px(gsd_m: float, width_m: float = PERSON_WIDTH_M) -> float:
+    """How many pixels a person ``width_m`` wide spans at ``gsd_m`` metres per pixel."""
+    if gsd_m <= 0:
+        raise ValueError("gsd_m must be positive")
+    return width_m / gsd_m
+
+
+def frame_recall(f: FrameInput, fallback: float, curve: PodCurve | None | bool = True) -> float:
+    """Detector recall for this photo: the POD curve at the person's size in the detector's
+    pixels, else ``fallback`` (the constant). ``curve=True`` loads ``pod_curve.json``;
+    ``None``/``False`` always gives ``fallback``."""
+    if curve is True:
+        curve = load_pod_curve()
+    if not curve or f.detector_gsd_m is None:
+        return fallback
+    return curve.recall_at(person_px(f.detector_gsd_m))
 
 
 # Overlap, canopy and POD for every grid cell one frame covers.

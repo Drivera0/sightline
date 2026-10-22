@@ -249,10 +249,10 @@ def ingest_photo(
                         radius_m=radius,
                     )
                 )
-        return frame, frame_bytes, dets, crops, near, detect_note
+        return frame, frame_bytes, dets, crops, near, detect_note, source_pose.gsd_m
 
     try:
-        frame, frame_bytes, dets, crops, near, detect_note = prepare()
+        frame, frame_bytes, dets, crops, near, detect_note, orig_gsd_m = prepare()
         if fid != job.frame_id:  # the native zoom reads frames/orig/<frame id>.jpg
             store.put_file(mid, f"frames/orig/{fid}.jpg", orig.read_bytes())
     except Exception as e:  # noqa: BLE001 - one bad photo must not stop the mission's photos
@@ -286,6 +286,7 @@ def ingest_photo(
             height_px=FRAME_H_PX,
             image=store.root / mid / frame.file,
             candidates=candidates,
+            detector_gsd_m=orig_gsd_m,  # the detector saw the original: POD curve (POD.md)
         )
         update = live.frame_update(
             frame_input,

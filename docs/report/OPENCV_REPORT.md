@@ -834,6 +834,14 @@ Every headline number in one place, with the file it comes from. Simulated resul
   than guessed; offline, the last values are shown as stale with their time, or nothing. The visibility
   factor and the exposure band (and the shelter shift it triggers) are planning heuristics, labelled so
   in the command view.
+- **Detection falls with person size and image quality** (`docs/report/POD.md`, val, frozen threshold
+  0.29, `cv2.dnn`): recall is 0.64 for a person about 18 px across, 0.74 at 22 px, 0.81 at 27 px and
+  0.87–0.89 from 37 px up; under 20 px it found 38 of 61 people. One degradation at a time, recall goes
+  from 0.859 to 0.823 at half the pixels per person, 0.616 in 60 % fog, 0.559 with 15 px motion blur,
+  0.694 at dusk (gamma 2.5, −40 %, where precision also falls to 0.419) and 0.721 at JPEG q30. The live
+  map now takes each photo's recall from this size curve at the original photo's GSD (a 0.5 m person:
+  0.78 at 2 cm per pixel), not the constant 0.864, so a high pass counts for less. The curve is measured
+  on val with downscaling standing in for altitude, and held flat below 16 px, where it likely overstates.
 
 ## 11. Responsible use
 
