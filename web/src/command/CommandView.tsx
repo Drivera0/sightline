@@ -40,6 +40,8 @@ export interface CommandProps {
   sideRail?: ReactNode;
   /** The live map: with it, the view is the full-screen console of LANE_E §7.1 (map in the middle). */
   map?: ReactNode;
+  /** Right above the map, phones only (the Photos view's strip: the map stays on screen while photos land). */
+  aboveMap?: ReactNode;
   /** Over the map, along its bottom edge (the demo mission's time scrubber). */
   overMap?: ReactNode;
   /** The console's right-hand rail in place of the approvals (the Photos, Review or Debrief view). */
@@ -125,6 +127,7 @@ export function CommandView(p: CommandProps) {
         </aside>
         <div className="order-1 flex min-h-0 flex-col gap-2 lg:order-none">
           <StatusLine proposals={p.proposals} teams={p.teams} tasks={p.tasks} clues={p.clues} />
+          {p.aboveMap}
           <div className="relative h-[52vh] min-h-0 lg:h-auto lg:flex-1">
             {p.map}
             {p.overMap && <div className="pointer-events-none absolute inset-x-2 bottom-12 z-10 flex justify-center sm:inset-x-3">{p.overMap}</div>}

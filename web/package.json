@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "check:offline": "tsc --noEmit && vite build && node scripts/check-offline.mjs dist",
     "gen:contract": "uv run python -m sightline.contract schema src/contract.schema.json && json2ts src/contract.schema.json src/contract.ts"
   },

@@ -35,6 +35,7 @@ export function Debrief({
   judgesOpen = false,
   traceHref,
   liveDebriefUrl,
+  exports,
 }: {
   missionName: string;
   so: Pick<MissionData, "mapUpdates" | "tasks" | "clues" | "proposals">;
@@ -46,6 +47,8 @@ export function Debrief({
   traceHref: string;
   /** A live mission's own debrief (GET /missions/{id}/debrief.md). */
   liveDebriefUrl?: string;
+  /** The files a command post can file (docs/EXPORTS.md); `missionUrl` null on the demo (no API). */
+  exports?: { missionUrl: string | null; teams: readonly { id: string; callsign: string }[] };
 }) {
   return (
     <section aria-label="Debrief" data-tour="debrief" className="sl-sheet flex flex-col gap-6 rounded-lg border border-line bg-surface-solid p-4 lg:p-5">
@@ -54,6 +57,7 @@ export function Debrief({
         <h1 className="text-title font-medium text-text">{missionName}</h1>
         <p className="text-small text-text-2">{missionSoFar(so)}</p>
         {liveDebriefUrl && <LiveDebrief url={liveDebriefUrl} />}
+        {exports && <Exports missionUrl={exports.missionUrl} teams={exports.teams} />}
       </header>
 
       {metrics ? <ResultsSummary metrics={metrics} cellM={cellM} surveyId={surveyId} /> : <p className="text-small text-text-3">Loading the measured results…</p>}
@@ -131,6 +135,57 @@ export function Debrief({
         <p>{FOOTER.data}</p>
       </footer>
     </section>
+  );
+}
+
+const EXPORT_LINK = "sl-tap inline-flex items-center gap-1 rounded-full border border-border px-3 py-0.5 text-small text-text-2";
+
+/**
+ * The exports row (docs/EXPORTS.md): an ICS 204 for a team, the ICS 214 activity log, the CalTopo
+ * GeoJSON. Each is made by the server from the mission as it stands, so a live mission opens it in a new
+ * tab; the demo has no server, so they are shown off, with a line saying where they work.
+ */
+export function Exports({ missionUrl, teams }: { missionUrl: string | null; teams: readonly { id: string; callsign: string }[] }) {
+  const [team, setTeam] = useState(teams[0]?.id ?? "");
+  const live = missionUrl !== null;
+  const picked = teams.some((t) => t.id === team) ? team : (teams[0]?.id ?? "");
+  const links: { label: string; title: string; href: string | null }[] = [
+    { label: "ICS-204", title: "ICS 204 Assignment List for the team picked, Markdown", href: live && picked ? `${missionUrl}/ics204/${encodeURIComponent(picked)}.md` : null },
+    { label: "ICS-214", title: "ICS 214 Activity Log for the mission, Markdown", href: live ? `${missionUrl}/ics214.md` : null },
+    { label: "CalTopo GeoJSON", title: "Sectors, searched areas, drone legs, teams and clues, for CalTopo or SARTopo's Import", href: live ? `${missionUrl}/caltopo.geojson` : null },
+  ];
+  return (
+    <div role="group" aria-label="Exports" className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Label>Exports</Label>
+        <select
+          aria-label="Team for the ICS-204"
+          value={picked}
+          disabled={!live || teams.length === 0}
+          onChange={(e) => setTeam(e.target.value)}
+          className="sl-tap rounded-full border border-line bg-surface-strong px-2 py-0.5 text-small text-text disabled:text-text-3"
+        >
+          {teams.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.callsign}
+            </option>
+          ))}
+        </select>
+        {links.map((l) =>
+          l.href ? (
+            <a key={l.label} href={l.href} target="_blank" rel="noreferrer" title={l.title} className={`${EXPORT_LINK} hover:border-text-3 hover:text-text`}>
+              {l.label}
+              <span aria-hidden>↗</span>
+            </a>
+          ) : (
+            <button key={l.label} type="button" disabled title={l.title} className={`${EXPORT_LINK} cursor-not-allowed opacity-50`}>
+              {l.label}
+            </button>
+          ),
+        )}
+      </div>
+      {!live && <p className="text-caption text-text-3">Available on a live mission: the server writes each file from the mission as it stands.</p>}
+    </div>
   );
 }
 

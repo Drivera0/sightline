@@ -13,7 +13,7 @@ import { CoachMark } from "../command/CoachMark";
 import { Debrief } from "../command/Debrief";
 import { candidatePosition, demoCards, landedFrames, RECORDED_ID } from "../command/demoReview";
 import { CHECKPOINTS, checkpoint, demoAt, MARK_COUNT, STORY_PROPOSAL, type Checkpoint, type DemoFull } from "../command/missionTime";
-import { PhotosRail } from "../command/PhotosRail";
+import { PhotoStrip, PhotosRail } from "../command/PhotosRail";
 import { PitchBar } from "../command/PitchBar";
 import { Scrubber } from "../command/Scrubber";
 import { landing, RUN_MS, storyClock, useStory } from "../command/story";
@@ -312,6 +312,17 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
     <p className="text-small text-text-3">Loading the detector's settings…</p>
   );
   const progress = photoProgress(s);
+  // phones: the photos land in a strip right above the map, so the map stays in view while they do
+  const photoStrip =
+    view === "photos" && landed ? (
+      <PhotoStrip
+        landed={landed}
+        total={cache?.survey.frames.length ?? 0}
+        candidates={landed.reduce((n, f) => n + f.n_candidates, 0)}
+        playing={story.playing}
+        imageUrl={imageUrl}
+      />
+    ) : undefined;
   const photosRail = (
     <PhotosRail
       landed={landed}
@@ -383,6 +394,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       judgesOpen={!!route.open.judges}
       traceHref={viewHash(missionId, "trace")}
       liveDebriefUrl={liveDebrief}
+      exports={{ missionUrl: demo ? null : `${api.base}/missions/${encodeURIComponent(missionId)}`, teams: s.teams }}
     />
   );
   const rightRail: ReactNode =
@@ -444,7 +456,8 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
             }}
           />
         )}
-        <main className="flex min-h-0 flex-1 flex-col gap-3 p-3 pb-20 lg:px-4 lg:pb-3">
+        {/* a phone's coach mark sits along the bottom: room under the last panel so any target can scroll to the top */}
+        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-3 pb-20 lg:px-4 lg:pb-3 ${mark ? "max-sm:pb-[55vh]" : ""}`}>
           {s.error && (
             <p role="alert" className="text-small text-warn">
               {s.error}
@@ -469,6 +482,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
             sideRail={radioToggle}
             rightRail={rightRail}
             rightWide={view === "debrief"}
+            aboveMap={photoStrip}
             cover={cover}
             map={
               <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demoNow} fill />
