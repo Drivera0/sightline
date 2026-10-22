@@ -16,6 +16,7 @@ import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoMission } from "../command/demoMis
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { usePick } from "../map/pick";
 import { Badge, Label, Panel, Stat } from "../shell/components";
+import { Logo } from "../shell/Logo";
 import { RadioDesk } from "../radio/RadioDesk";
 import { LiveReview } from "../review/LiveReview";
 import { uploadCommand } from "./upload";
@@ -45,20 +46,22 @@ export function cardFromHash(hash: string): string | null {
   return step === "card" && sector ? decodeURIComponent(sector) : null;
 }
 
-export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Api; missionId: string; initialTab?: Tab }) {
+/** `embedded`: inside the guided demo's frame (its Command step), which owns the header and the address. */
+export function LiveMission({ api, missionId, initialTab = "photos", embedded = false }: { api: Api; missionId: string; initialTab?: Tab; embedded?: boolean }) {
   const s = useMission();
   const demo = missionId === DEMO_MISSION_ID;
   const [tab, setTab] = useState<Tab>(demo && !DEMO_TABS.includes(initialTab) ? "command" : initialTab);
   const [demoNow, setDemoNow] = useState<Date | null>(null);
   const [card, setCard] = useState<string | null>(() => cardFromHash(window.location.hash));
   useEffect(() => {
+    if (embedded) return undefined;
     const onHash = () => {
       setCard(cardFromHash(window.location.hash));
       if (!cardFromHash(window.location.hash)) setTab(tabFromHash(window.location.hash));
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+  }, [embedded]);
 
   useEffect(() => {
     if (demo) {
@@ -75,7 +78,8 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
     return () => useMission.getState().disconnect();
   }, [api, missionId, demo]);
   useEffect(() => {
-    // C: the Command tab (D-R1's shortcut), unless typing
+    // C: the Command tab (D-R1's shortcut), unless typing; in the guided demo its own C key opens this step
+    if (embedded) return undefined;
     const onKey = (e: KeyboardEvent) => {
       if ((e.key === "c" || e.key === "C") && !isTyping(e.target) && !e.ctrlKey && !e.metaKey && !e.altKey) go("command");
     };
@@ -95,7 +99,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
   const go = (t: Tab) => {
     setTab(t);
     setCard(null);
-    window.history.replaceState(null, "", `#m/${missionId}/${t}`);
+    if (!embedded) window.history.replaceState(null, "", `#m/${missionId}/${t}`);
   };
   const progress = photoProgress(s);
   const waiting = s.proposals.filter((p) => p.status === "pending").length;
@@ -120,8 +124,11 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
     );
   }
 
+  const Frame = embedded ? "section" : "main";
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-4 p-4 lg:p-8">
+    <Frame aria-label={embedded ? "Demo mission" : undefined} className={embedded ? "flex flex-col gap-4" : "mx-auto flex max-w-5xl flex-col gap-4 p-4 lg:p-8"}>
+      {!embedded && <AppBar demo={demo} />}
+      {!embedded && (
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-col">
           <Label>{demo ? "Demo mission · simulated data, no server" : `Live mission · ${missionId}`}</Label>
@@ -132,6 +139,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
           <Badge kind="info">{STATUS_WORDS[s.status]}</Badge>
         </span>
       </header>
+      )}
 
       {!demo && (
       <section aria-label="Progress" className="grid grid-cols-3 gap-4">
@@ -279,7 +287,29 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
           }
         />
       )}
-    </main>
+    </Frame>
+  );
+}
+
+/** The app's top line on mission pages: the logo back to the start, and the way back to the guided demo. */
+function AppBar({ demo }: { demo: boolean }) {
+  return (
+    <nav aria-label="Sightline" className="flex items-center justify-between gap-4 border-b border-border pb-3">
+      <a href="#" className="flex items-center gap-2 text-title font-medium text-text" title="Back to the start">
+        <Logo />
+        Sightline
+      </a>
+      <span className="flex items-center gap-4 text-small">
+        {demo && (
+          <a href="#survey" className="text-accent-soft underline">
+            Guided demo
+          </a>
+        )}
+        <a href="#new" className="text-text-2 underline">
+          New search
+        </a>
+      </span>
+    </nav>
   );
 }
 

@@ -26,4 +26,11 @@ describe("event feed", () => {
     expect(within(feed).queryByText(/^photo\.processed/)).toBeNull();
     expect(screen.getByRole("button", { name: "Clues & tasks" })).toHaveAttribute("aria-pressed", "true");
   });
+
+  it("labels each event in words, keeping the raw type as its tooltip", () => {
+    render(<EventFeed events={[ev(1, "clue.added"), ev(2, "fleet.updated")]} />);
+    const feed = screen.getByLabelText("Mission feed");
+    expect(within(feed).getByText("Clue")).toHaveAttribute("title", "clue.added");
+    expect(within(feed).getByText("Drones")).toHaveAttribute("title", "fleet.updated");
+  });
 });

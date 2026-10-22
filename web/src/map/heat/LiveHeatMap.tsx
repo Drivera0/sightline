@@ -245,11 +245,42 @@ export function LiveHeatMap({ mapBase, ...rest }: LiveHeatMapProps): ReactNode {
           Click the map to place the clue (Esc cancels).
         </p>
       )}
-      <figcaption className="text-small text-text-3">
-        Where the person could be now, on the cells a photo has looked at (darker: more likely); grey: not photographed yet.
-        {" "}
-        {rest.updates.length} map updates · sectors show their POA now.
+      <figcaption className="flex flex-col gap-1.5 text-small text-text-3">
+        <MapLegend />
+        <span>
+          Red shading: where the person could be now, on ground a photo has looked at (darker: more likely); grey: not photographed yet.
+          {" "}
+          {rest.updates.length} map updates · each sector shows its share of the probability (POA).
+        </span>
       </figcaption>
     </figure>
+  );
+}
+
+const LEGEND: readonly { label: string; swatch: ReactNode }[] = [
+  { label: "Last known point", swatch: <Dot color="var(--accent)" /> },
+  { label: "Team searching", swatch: <Dot color="var(--ok)" /> },
+  { label: "Team assigned or returning", swatch: <Dot color="var(--accent-soft)" /> },
+  { label: "Clue", swatch: <Dot color="var(--warn)" /> },
+  { label: "Drone", swatch: <Dot color="var(--text)" /> },
+  { label: "Drone route", swatch: <span className="inline-block h-0.5 w-4 bg-accent" /> },
+  { label: "Proposed route, awaiting approval", swatch: <span className="inline-block w-4 border-t border-dashed border-text-3" /> },
+];
+
+function Dot({ color }: { color: string }) {
+  return <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: color }} />;
+}
+
+/** What the map's marks mean: the colours LiveLayers gives each kind and tone. */
+export function MapLegend() {
+  return (
+    <ul aria-label="Map legend" className="flex flex-wrap gap-x-4 gap-y-1 text-caption text-text-2">
+      {LEGEND.map((l) => (
+        <li key={l.label} className="flex items-center gap-1.5">
+          {l.swatch}
+          {l.label}
+        </li>
+      ))}
+    </ul>
   );
 }

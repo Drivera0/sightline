@@ -54,7 +54,7 @@ export function TryPhoto({ cache, dir, onClose }: { cache: CacheBundle; dir: str
   }, []);
 
   useEffect(() => {
-    // While the dialog is open, the page's own shortcuts (1-5, review keys) stay out of the way.
+    // While the dialog is open, the page's own shortcuts (1-6, review keys) stay out of the way.
     const onKey = (e: KeyboardEvent) => {
       e.stopImmediatePropagation();
       if (e.key === "Escape") onClose();

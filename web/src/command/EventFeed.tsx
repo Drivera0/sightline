@@ -18,6 +18,23 @@ export const FEED_FILTERS: Record<string, readonly MissionEvent["type"][] | null
   Notes: ["mission.note"],
 };
 
+/** Each event type in words, for the feed's label column (the raw type stays in the tooltip). */
+export const EVENT_WORDS: Record<MissionEvent["type"], string> = {
+  "photo.processed": "Photo",
+  "detection.new": "Candidate",
+  verdict: "Review",
+  "map.updated": "Map",
+  "proposal.new": "Proposal",
+  "proposal.decided": "Decision",
+  "clue.added": "Clue",
+  "task.updated": "Task",
+  "team.updated": "Team",
+  "fleet.updated": "Drones",
+  "conditions.updated": "Conditions",
+  "radio.turn": "Radio",
+  "mission.note": "Note",
+};
+
 /** The events a chip shows, newest first, at most FEED_LIMIT. */
 export function feedEvents(events: readonly MissionEvent[], filter: string): MissionEvent[] {
   const types = FEED_FILTERS[filter] ?? null;
@@ -48,7 +65,9 @@ export function EventFeed({ events, extra }: { events: readonly MissionEvent[]; 
       {shown.map((e) => (
         <div key={e.id} className="flex gap-3 text-small">
           <span className="font-mono text-text-3">{e.at.slice(11, 19)}</span>
-          <span className="font-mono text-text-2">{e.type}</span>
+          <span className="w-20 shrink-0 text-text-2" title={e.type}>
+            {EVENT_WORDS[e.type]}
+          </span>
           <span className="text-text">{e.summary}</span>
         </div>
       ))}
