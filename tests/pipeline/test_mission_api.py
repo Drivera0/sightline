@@ -321,3 +321,18 @@ def test_reassigning_a_searched_sector_clears_its_pod(api) -> None:
     )
     assert (task["state"], task["team_id"], task["pod"]) == ("assigned", "T2", None)
     assert validate_mission(ctx.store.root, mid) == []
+
+
+def test_a_photo_delivered_twice_is_processed_once(api) -> None:
+    """SQS delivers at least once."""
+    from sightline.mission.pipeline import PhotoJob, ingest_photo
+
+    client, ctx, _ = api
+    mid = _mission(client)
+    _upload(client, mid, ("a.jpg", drone_photo()))
+    ctx.queue.join()
+    again = ingest_photo(
+        ctx.store, PhotoJob(mid, "f0001", "frames/orig/f0001.jpg", "now"), detector=FakeDetector()
+    )
+    assert again["skipped"] == "already processed"
+    assert len(ctx.store.survey(mid).frames) == 1

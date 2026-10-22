@@ -57,7 +57,8 @@ from sightline.contract import (
 
 ID_WIDTH = {"p": 3, "c": 3, "v": 4, "L": 3, "e": 5, "t": 6, "f": 4}  # "p014", "v0021", "f0007"
 MISSION_ID = re.compile(r"^[0-9a-f]{8}$")
-RECENT_EVENTS = 200  # GET /state returns the last 200 (contract §13)
+RECENT_EVENTS = 200
+SUBSCRIBE_POLL_S = 1.0  # how often an idle SSE stream checks for events written by another process  # GET /state returns the last 200 (contract §13)
 CANDIDATE_THRESHOLD = 0.29  # frozen detector threshold (contract §7, LANE_D §5.3)
 SAVE_THRESHOLD = 0.05
 
@@ -116,11 +117,13 @@ class MissionStore:
         *,
         live_factory: Callable[[MapBase], Any] | None = None,
         detector_model: str = "unknown",
+        on_trace: Callable[[TraceEntry], None] | None = None,
     ) -> None:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.live_factory = live_factory or _default_live_factory
         self.detector_model = detector_model
+        self.on_trace = on_trace  # e.g. CloudWatch AgentModelCalls
         self._locks: dict[str, _MissionLock] = {}
         self._locks_guard = threading.Lock()
         self._live: dict[str, Any] = {}
@@ -616,7 +619,9 @@ class MissionStore:
                 {**entry.model_dump(), "id": self.next_id(mission_id, "t")}
             )
             self._append_jsonl(d / "trace.jsonl", entry)
-            return entry
+        if self.on_trace is not None:
+            self.on_trace(entry)
+        return entry
 
     def emit(
         self,
@@ -644,22 +649,30 @@ class MissionStore:
         return ev
 
     async def subscribe(
-        self, mission_id: str, after_event_id: str | None = None
+        self, mission_id: str, after_event_id: str | None = None, poll_s: float = SUBSCRIBE_POLL_S
     ) -> AsyncIterator[MissionEvent]:
         """Every event after ``after_event_id`` (SSE ``Last-Event-ID``), then new ones as they are
-        emitted, forever (the caller stops iterating when the client goes away)."""
-        self._dir(mission_id)
+        emitted, forever (the caller stops iterating when the client goes away). Events another
+        process appends (the AWS worker container) are read from ``events.jsonl`` when nothing has
+        arrived in-process for ``poll_s``."""
+        d = self._dir(mission_id)
         q: asyncio.Queue[MissionEvent] = asyncio.Queue()
         sub = (asyncio.get_running_loop(), q)
         self._subscribers.setdefault(mission_id, []).append(sub)
+        path = d / "events.jsonl"
         try:
             last = _event_no(after_event_id) if after_event_id else 0
-            for ev in self.events(mission_id):  # registered first, so nothing falls in between
-                if _event_no(ev.id) > last:
-                    last = _event_no(ev.id)
-                    yield ev
+            offset = 0
             while True:
-                ev = await q.get()
+                fresh, offset = _read_new_events(path, offset)  # registered first: nothing is lost
+                for ev in fresh:
+                    if _event_no(ev.id) > last:
+                        last = _event_no(ev.id)
+                        yield ev
+                try:
+                    ev = await asyncio.wait_for(q.get(), poll_s)
+                except TimeoutError:
+                    continue
                 if _event_no(ev.id) > last:
                     last = _event_no(ev.id)
                     yield ev
@@ -686,6 +699,20 @@ class MissionStore:
 
     def trace_entries(self, mission_id: str) -> list[TraceEntry]:
         return self._read_jsonl(self._dir(mission_id) / "trace.jsonl", TraceEntry)
+
+
+def _read_new_events(path: Path, offset: int) -> tuple[list[MissionEvent], int]:
+    """Whole lines appended to ``path`` since byte ``offset``, and the new offset."""
+    if not path.is_file():
+        return [], offset
+    with open(path, "rb") as f:
+        f.seek(offset)
+        data = f.read()
+    end = data.rfind(b"\n") + 1  # a line still being written waits for the next read
+    events = [
+        MissionEvent.model_validate_json(line) for line in data[:end].splitlines() if line.strip()
+    ]
+    return events, offset + end
 
 
 def _event_no(event_id: str) -> int:

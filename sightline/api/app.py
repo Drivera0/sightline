@@ -57,6 +57,7 @@ def create_app(
     missions: MissionContext | None = None,
     mission_root: Path | None = None,
     radio: str | None = None,
+    queue: str = "local",
 ) -> FastAPI:
     cache_root.mkdir(parents=True, exist_ok=True)
     app = FastAPI(title="Sightline upload API")
@@ -64,9 +65,7 @@ def create_app(
     pipeline_lock = threading.Lock()  # one detector run at a time: the GPU is shared
 
     if missions is None and mission_root is not None:
-        from sightline.mission import MissionStore
-
-        missions = MissionContext(MissionStore(mission_root))
+        missions = mission_context(mission_root, queue)
         missions.start()
     if missions is not None:
         app.state.missions = missions
@@ -147,6 +146,26 @@ def create_app(
 
     app.mount("/cache", StaticFiles(directory=cache_root), name="cache")
     return app
+
+
+def mission_context(mission_root: Path, queue: str = "local") -> MissionContext:
+    """The mission API's context. ``queue="sqs"`` (AWS): photos go to SQS (``SIGHTLINE_SQS_URL``,
+    originals to ``SIGHTLINE_S3_BUCKET``) for the worker container; this process doesn't consume
+    them. ``SIGHTLINE_METRICS=cloudwatch`` sends metrics; ``SIGHTLINE_SECRET_ID`` loads API keys."""
+    from sightline.mission import MissionStore
+    from sightline.mission.aws import SqsQueue, load_secrets, metrics_from_env
+    from sightline.mission.queue import LocalQueue
+
+    if queue not in ("local", "sqs"):
+        raise ValueError("queue must be local or sqs")
+    load_secrets()
+    metrics = metrics_from_env()
+    store = MissionStore(mission_root, on_trace=metrics.trace if metrics else None)
+    if queue == "sqs":
+        return MissionContext(
+            store, queue=SqsQueue.from_env(mission_root), metrics=metrics, run_worker=False
+        )
+    return MissionContext(store, queue=LocalQueue(), metrics=metrics)
 
 
 def _store_photos(

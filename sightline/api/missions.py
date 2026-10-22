@@ -78,6 +78,8 @@ class MissionContext:
     detector_factory: Callable[[], Any] = _default_detector
     hooks: Any = field(default_factory=_default_hooks)  # None: no agent
     scheduler: Scheduler | None = None  # default: on_tick + conditions for active missions
+    metrics: Any = None  # CloudWatchMetrics on AWS
+    run_worker: bool = True  # False: this process only enqueues (the API on AWS; the worker runs)
     _detector: Any = None
 
     def __post_init__(self) -> None:
@@ -109,14 +111,17 @@ class MissionContext:
 
     def handle(self, job: PhotoJob) -> None:
         conditions = self.store.state(job.mission_id)["conditions"]
-        ingest_photo(
+        summary = ingest_photo(
             self.store, job, detector=self.detector(), conditions=conditions, hooks=self.hooks
         )
+        if self.metrics is not None:
+            self.metrics.photo(summary)
         self.scheduler.photo_processed(job.mission_id)
 
     def start(self) -> None:
         """Start the photo worker (local queue: a thread in this process) and the scheduler."""
-        self.queue.run_worker(self.handle)
+        if self.run_worker:
+            self.queue.run_worker(self.handle)
         self.scheduler.start(self.store)
 
 
