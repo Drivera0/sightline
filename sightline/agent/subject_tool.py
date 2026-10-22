@@ -352,5 +352,5 @@ def handle(event: str, store: Any, mission_id: str, ref: str, *, client: Any) ->
         return [Proposal.model_validate(out["proposal"])] if out["proposal"] else []
     p = next((x for x in store.state(mission_id)["proposals"] if x.id == ref), None)
     profile = p.target.get("profile") if p is not None else "set"
-    why = f"Subject profile {ref} approved ({profile}): the prior now uses its category's rings."
+    why = f"Subject profile {ref} approved ({profile}): new prior."
     return loop._replan(store, mission_id, why, cause=(ref,))

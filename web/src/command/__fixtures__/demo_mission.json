@@ -350,7 +350,7 @@
    "id": "p003",
    "kind": "assign_sector",
    "summary": "Assign sector C2 to Team One",
-   "reason": "Sector C2 holds 5.5% of the probability, 48% of it under tree cover where a drone sees poorly (drone POD 0.45): a ground team adds the most here; Team One is nearest (465 m, about 9 min on foot).",
+   "reason": "C2 · 5.5 % of remaining probability, up from 3.1 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.",
    "briefing": "Team One, Sightline. New assignment: sector C2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 54 min. Over.",
    "target": {
     "team": "T1",
@@ -370,7 +370,7 @@
    "id": "p004",
    "kind": "assign_sector",
    "summary": "Assign sector B2 to Team Two",
-   "reason": "Sector B2 holds 5.2% of the probability, 47% of it under tree cover where a drone sees poorly (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
+   "reason": "B2 · 5.2 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 47% under tree cover (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
    "briefing": "Team Two, Sightline. New assignment: sector B2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 53 min. Over.",
    "target": {
     "team": "T2",
@@ -390,7 +390,7 @@
    "id": "p005",
    "kind": "assign_sector",
    "summary": "Assign sector C3 to Team Three",
-   "reason": "Sector C3 holds 4.9% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
+   "reason": "C3 · 4.9 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
    "briefing": "Team Three, Sightline. New assignment: sector C3. Look for: adult, red jacket, day hiker. Daylight left: 3 h 51 min. Over.",
    "target": {
     "team": "T3",
@@ -696,7 +696,7 @@
    "ref": null,
    "data": {
     "contract_version": "1.2",
-    "mission_id": "0508acff",
+    "mission_id": "216e66a4",
     "name": "Mount Seymour (demo)",
     "area": {
      "name": "Mount Seymour",
@@ -855,7 +855,7 @@
     "clothing": null,
     "reason": "A pale shape among rocks; no head or limbs can be made out (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 10,
+    "ms": 9,
     "at": "2026-10-24T20:45:37Z"
    }
   },
@@ -977,7 +977,7 @@
     "clothing": "red",
     "reason": "A red shape the size of a person lying under the trees, at the photo's edge (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 45,
+    "ms": 36,
     "at": "2026-10-24T21:10:39Z"
    }
   },
@@ -1108,7 +1108,7 @@
     "clothing": null,
     "reason": "Bare ground at the photo's edge; nothing shaped like a person (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 9,
+    "ms": 8,
     "at": "2026-10-24T21:12:36Z"
    }
   },
@@ -1375,7 +1375,7 @@
     "id": "p003",
     "kind": "assign_sector",
     "summary": "Assign sector C2 to Team One",
-    "reason": "Sector C2 holds 5.5% of the probability, 48% of it under tree cover where a drone sees poorly (drone POD 0.45): a ground team adds the most here; Team One is nearest (465 m, about 9 min on foot).",
+    "reason": "C2 · 5.5 % of remaining probability, up from 3.1 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.",
     "briefing": "Team One, Sightline. New assignment: sector C2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 54 min. Over.",
     "target": {
      "team": "T1",
@@ -1402,7 +1402,7 @@
     "id": "p003",
     "kind": "assign_sector",
     "summary": "Assign sector C2 to Team One",
-    "reason": "Sector C2 holds 5.5% of the probability, 48% of it under tree cover where a drone sees poorly (drone POD 0.45): a ground team adds the most here; Team One is nearest (465 m, about 9 min on foot).",
+    "reason": "C2 · 5.5 % of remaining probability, up from 3.1 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.",
     "briefing": "Team One, Sightline. New assignment: sector C2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 54 min. Over.",
     "target": {
      "team": "T1",
@@ -1483,7 +1483,7 @@
     "id": "p004",
     "kind": "assign_sector",
     "summary": "Assign sector B2 to Team Two",
-    "reason": "Sector B2 holds 5.2% of the probability, 47% of it under tree cover where a drone sees poorly (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
+    "reason": "B2 · 5.2 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 47% under tree cover (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
     "briefing": "Team Two, Sightline. New assignment: sector B2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 53 min. Over.",
     "target": {
      "team": "T2",
@@ -1510,7 +1510,7 @@
     "id": "p004",
     "kind": "assign_sector",
     "summary": "Assign sector B2 to Team Two",
-    "reason": "Sector B2 holds 5.2% of the probability, 47% of it under tree cover where a drone sees poorly (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
+    "reason": "B2 · 5.2 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 47% under tree cover (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
     "briefing": "Team Two, Sightline. New assignment: sector B2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 53 min. Over.",
     "target": {
      "team": "T2",
@@ -1591,7 +1591,7 @@
     "id": "p005",
     "kind": "assign_sector",
     "summary": "Assign sector C3 to Team Three",
-    "reason": "Sector C3 holds 4.9% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
+    "reason": "C3 · 4.9 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
     "briefing": "Team Three, Sightline. New assignment: sector C3. Look for: adult, red jacket, day hiker. Daylight left: 3 h 51 min. Over.",
     "target": {
      "team": "T3",
@@ -1618,7 +1618,7 @@
     "id": "p005",
     "kind": "assign_sector",
     "summary": "Assign sector C3 to Team Three",
-    "reason": "Sector C3 holds 4.9% of the probability, 50% of it under tree cover where a drone sees poorly (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
+    "reason": "C3 · 4.9 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
     "briefing": "Team Three, Sightline. New assignment: sector C3. Look for: adult, red jacket, day hiker. Daylight left: 3 h 51 min. Over.",
     "target": {
      "team": "T3",

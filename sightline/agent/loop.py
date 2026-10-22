@@ -23,7 +23,10 @@ A repeated event makes no duplicate: a detection is verified once and promoted a
 person confirmed again reuses the pending (or approved) alert; the repeat is a trace note.
 
 A re-plan is one proposal per drone at most, each approved on its own; the planner discounts
-sectors a ground team is assigned to or searching.
+sectors a ground team is assigned to or searching. The planner is traced as a ``tool_call``
+(``_trace_plan``) before the proposals it leads to, and each reason names what moved its sector
+since the last plan of that kind, from the map log (docs/architecture/agent.md, "The planner as a
+tool call").
 
 A recall is a ``retask_drone`` whose leg flies home (``planner.home_leg``) and whose target has
 ``home``, not a new proposal kind: a new kind would change the frozen contract (§10), and approving
@@ -36,6 +39,7 @@ import json
 import logging
 import re
 import threading
+import time
 from typing import Any
 
 from sightline.agent import ledger, prompts, relook_leg
@@ -44,7 +48,12 @@ from sightline.agent.trace import now_iso, trace_call
 from sightline.agent.verify import VERIFY_BAND
 from sightline.contract import Conditions, EvidenceRef, LatLon, Leg, Proposal
 from sightline.search.grid import cell_containing
-from sightline.search.planner import propose_assignments, propose_legs  # lane C (C-P1)
+from sightline.search.planner import (  # lane C (C-P1)
+    REASON_WORDS,
+    plan_assignments,
+    plan_legs,
+    sector_moves,
+)
 from sightline.search.sectors import lattice_sectors  # lane C (C-S1)
 
 log = logging.getLogger(__name__)
@@ -67,6 +76,8 @@ _last_conditions: dict[str, tuple[bool | None, float]] = {}
 # The drones recalled in the current unflyable spell, per mission: one recall each.
 _recalled: dict[str, set[str]] = {}
 _lock = threading.Lock()
+# Rows of the planner's ranking kept in its trace entry (every sector it considered is listed).
+RANKED_ROWS = 8
 # A conditions record put in by hand for a demo (POST /conditions/override), never from Tavily.
 OVERRIDE_SOURCE = "override (demo)"
 
@@ -213,6 +224,60 @@ def _sector_at(live: Any, layout: Any, lat: float, lon: float) -> str | None:
     return layout.sectors[int(layout.cell_sector[idx])].id
 
 
+def _since_last_plan(store: Any, mission_id: str, plan: str) -> int:
+    """The map version (seq of the last map update) the last ``plan`` ("legs" or "assignments")
+    was made on: its planner ``tool_call`` in the trace says. 0 before the first plan."""
+    for e in reversed(store.trace_entries(mission_id)):
+        out = e.output or {}
+        if e.actor == "planner" and e.kind == "tool_call" and out.get("plan") == plan:
+            return int(out.get("map_seq") or 0)
+    return 0
+
+
+def _moves(store: Any, mission_id: str, live: Any, layout: Any, plan: str, clues: list):
+    """What moved each sector since the last ``plan``, read off the map log
+    (``planner.sector_moves``), the map version now and the one of that plan."""
+    updates = store.map_updates(mission_id)
+    seq = updates[-1].seq if updates else 0
+    since = min(_since_last_plan(store, mission_id, plan), seq)
+    return sector_moves(live, updates, layout, since, clues), seq, since
+
+
+def _trace_plan(
+    store: Any,
+    mission_id: str,
+    plan: str,
+    started: float,
+    inputs: dict,
+    ranked: list[dict],
+    chosen: list[dict],
+    refs: list[str],
+) -> None:
+    """The planner as a tool call: what it was given (the map version and the one of the last plan,
+    the drones or teams, the sectors it considered) and what it returned (the sectors ranked, with
+    their scores and evidence lines, and its picks with their reasons). The proposals that follow
+    share its refs (drone, team, sector, cause), so the Trace view puts them in one chain."""
+    name = "propose_legs" if plan == "legs" else "propose_assignments"
+    picks = ", ".join(f"{c.get('drone') or c.get('team')} → {c['sector']}" for c in chosen)
+    inputs = {**inputs, "sectors_considered": [r["sector"] for r in ranked]}
+    trace_call(
+        store,
+        mission_id,
+        actor="planner",
+        kind="tool_call",
+        summary=f"{name}: {picks} (map v{inputs['map_seq']}, {len(ranked)} sectors ranked)",
+        input=inputs,
+        output={
+            "plan": plan,
+            "map_seq": inputs["map_seq"],
+            "ranked": ranked[:RANKED_ROWS],
+            "chosen": chosen,
+            "ms": max(1, round((time.perf_counter() - started) * 1000)),
+        },
+        refs=refs,
+    )
+
+
 def _add(
     store: Any,
     mission_id: str,
@@ -355,8 +420,10 @@ def _replan(
     held = relook_leg.held_drones(state)  # a re-look leg waits for approval: leave them alone
     if drone_id in held:
         return []
+    started = time.perf_counter()
+    moves, seq, since = _moves(store, mission_id, live, layout, "legs", state["clues"])
 
-    def plan(ids: set[str], k: int) -> list[Leg]:
+    def plan(ids: set[str], k: int) -> tuple[list[Leg], list[dict]]:
         pending = [
             p.leg.model_copy(update={"status": "approved"})
             for p in state["proposals"]
@@ -371,23 +438,38 @@ def _replan(
                 "legs": [*fleet.legs, *pending],
             }
         )
-        return propose_legs(
-            live, layout, f, state["conditions"], now_iso(), k=k, tasks=state["tasks"]
-        )
+        return plan_legs(
+            live, layout, f, state["conditions"], now_iso(), k=k, tasks=state["tasks"],
+            moves=moves, reason_words=REASON_WORDS - len(why.split()),
+        )  # fmt: skip
 
+    planned: set[str] = {drone_id} if drone_id is not None else set()
     if drone_id is not None:  # plan for that drone only (the others' legs still count as taken)
-        legs = plan({drone_id}, 1)
+        legs, ranked = plan(planned, 1)
     else:
         idle = {d.id for d in fleet.drones if d.status == "idle"} - held
         keep = idle
         if idle_only:
             keep -= {d for d in idle if _pending(state, ("drone_leg", "retask_drone"), "drone", d)}
         else:
-            best = plan({d.id for d in fleet.drones} - held, 1)
+            best, _ = plan({d.id for d in fleet.drones} - held, 1)
             if best and not _abandons_more(best[0], fleet, live, layout):
                 keep = idle | {best[0].drone_id}
         # the best leg's drone first: greedy picks it again, then the idle drones around it
-        legs = plan(keep, len(keep)) if keep else []
+        legs, ranked = plan(keep, len(keep)) if keep else ([], [])
+        planned = keep
+    if legs:
+        drones = {d.id: d for d in fleet.drones}
+        _trace_plan(
+            store, mission_id, "legs", started,
+            {"map_seq": seq, "since_map_seq": since, "why": why,
+             "drones": [{"id": d.id, "status": d.status, "battery_pct": d.battery_pct,
+                         "position": d.position} for i in sorted(planned) if (d := drones.get(i))]},
+            ranked,
+            [{"drone": x.drone_id, "sector": x.sector_id, "expected_clearance": x.expected_clearance,
+              "score_per_min": x.score_per_min, "reason": x.reason} for x in legs],
+            [*(x.drone_id for x in legs), *(x.sector_id for x in legs), *cause],
+        )  # fmt: skip
     out = []
     for leg in legs:
         out.append(_propose_leg(store, mission_id, state, leg, why, cause))
@@ -555,9 +637,8 @@ def _on_clue(store, mission_id, clue_id) -> list[Proposal]:
     clue = next(c for c in state["clues"] if c.id == clue_id)
     live, layout = _layout(store, mission_id)
     sector = _sector_at(live, layout, clue.lat, clue.lon)
-    poa = live.sector_poa(layout).get(sector) if sector else None
-    where = f" in sector {sector}, which now holds {poa:.1%} of the probability" if poa else ""
-    why = f"After clue {clue.id} ({clue.kind}, {clue.reliability} reliability: {clue.text}){where}."
+    # what the clue did to each sector is in each leg's reason (the planner reads the map log)
+    why = f"After clue {clue.id}" + (f" in sector {sector}." if sector else ".")
     return _replan(store, mission_id, why, cause=(clue.id,))
 
 
@@ -716,7 +797,7 @@ def _on_conditions(store, mission_id) -> list[Proposal]:
     if c.flyable is False:
         return _recall(store, mission_id, c)
     if c.visibility_factor < LOW_VISIBILITY <= prev_vis:
-        why = f"Visibility factor fell to {c.visibility_factor:.2f}; re-planned with it."
+        why = f"Visibility factor fell to {c.visibility_factor:.2f}."
         return _replan(store, mission_id, why)
     return []
 
@@ -739,7 +820,7 @@ def _on_task_searched(store, mission_id, sector_id) -> list[Proposal]:
         return []
     team = next((t for t in state["teams"] if t.id == task.team_id), None)
     who = team.callsign if team else "A ground team"
-    why = f"{who} searched sector {sector_id} at POD {task.pod:.0%}; re-planned on the new map."
+    why = f"{who} searched sector {sector_id} at POD {task.pod:.0%}."
     return _replan(store, mission_id, why, cause=(sector_id,))
 
 
@@ -752,30 +833,55 @@ def _on_team_position(store, mission_id, team_id, client) -> list[Proposal]:
         return []
     out = []
     if team.status == "standby":
-        live, layout = _layout(store, mission_id)
-        for tid, sector, reason in propose_assignments(live, layout, state["tasks"], [team]):
-            facts = {"why": reason, "subject": state["mission"].subject}
-            out += _assign(store, mission_id, state, tid, sector, reason, facts, client, [])
+        out += _assign_teams(store, mission_id, state, [team], client, (team_id,))
     why = f"{team.callsign} reported a new position."
     return out + _replan(store, mission_id, why, cause=(team_id,), idle_only=True)
 
 
 def _on_fleet_join(store, mission_id) -> list[Proposal]:
-    why = "The fleet joined the mission: opening legs from the planner."
+    why = "The fleet joined: opening legs."
     return _replan(store, mission_id, why, idle_only=True)
 
 
-def _on_tick(store, mission_id, client) -> list[Proposal]:
-    state = store.state(mission_id)
+def _assign_teams(
+    store: Any,
+    mission_id: str,
+    state: dict,
+    teams: list,
+    client: ChatClient | None,
+    cause: tuple[str, ...] = (),
+) -> list[Proposal]:
+    """``assign_sector`` for the standby ``teams`` from the planner (``plan_assignments``), each
+    reason naming what moved its sector since the last assignment plan. The plan is traced as a
+    ``tool_call`` when it gives a team without a pending assignment a sector (a tick that changes
+    nothing leaves no entry), so the chain reads tool_call → model_call (briefing) → proposal."""
+    started = time.perf_counter()
     live, layout = _layout(store, mission_id)
+    moves, seq, since = _moves(store, mission_id, live, layout, "assignments", state["clues"])
+    picks, ranked = plan_assignments(live, layout, state["tasks"], teams, moves=moves)
+    picks = [x for x in picks if not _pending(state, ("assign_sector",), "team", x[0])]
+    if not picks:
+        return []
+    _trace_plan(
+        store, mission_id, "assignments", started,
+        {"map_seq": seq, "since_map_seq": since,
+         "teams": [{"id": t.id, "callsign": t.callsign, "status": t.status,
+                    "position": t.position} for t in teams if t.status == "standby"]},
+        ranked,
+        [{"team": tid, "sector": sector, "reason": reason} for tid, sector, reason in picks],
+        [*(x[0] for x in picks), *(x[1] for x in picks), *cause],
+    )  # fmt: skip
     out = []
-    for team_id, sector, reason in propose_assignments(
-        live, layout, state["tasks"], state["teams"]
-    ):
+    for team_id, sector, reason in picks:
         facts = {"why": reason, "subject": state["mission"].subject}
         out += _assign(store, mission_id, state, team_id, sector, reason, facts, client, [])
         state = store.state(mission_id)
     return out
+
+
+def _on_tick(store, mission_id, client) -> list[Proposal]:
+    state = store.state(mission_id)
+    return _assign_teams(store, mission_id, state, state["teams"], client)
 
 
 def handle(
