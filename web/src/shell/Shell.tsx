@@ -425,7 +425,7 @@ export function Shell({
                 <StepHeader
                   step="search"
                   title="Where the person could still be"
-                  subtitle="Darker red = more likely. Dimmed = not yet searched; grey = awaiting review."
+                  subtitle="Filled ground holds the likeliest 90 % of the estimate, in three bands; unfilled ground is outside it. Dimmed = not yet searched; grey = awaiting review."
                   info={
                     <>
                       The colours show probability per cell on ground the drone photographed, on one fixed scale
