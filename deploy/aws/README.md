@@ -79,6 +79,18 @@ Manager (5 verdicts). cv2.dnn needs ~30 CPU-seconds per full photo, so a bigger 
 16 vCPU ≈ 2.5 s (`INSTANCE_TYPE=c7i.4xlarge`). Found on the first run, fixed in `setup.sh`: boto3 needs
 `AWS_DEFAULT_REGION` (not `AWS_REGION`), and the secret's ARN must come from the create call.
 
+**Before a demo or submitting, run the remote check** (start the instance first if it's stopped):
+
+```bash
+aws ec2 start-instances --instance-ids <id>           # ~1 min; the containers come back on their own
+uv run python scripts/remote_check.py --api https://<ip-with-dashes>.sslip.io --mission <an earlier mission id>
+```
+
+It checks HTTPS + `/health`, CORS for the Vercel site, that an earlier mission survived, one real val photo through
+upload → SQS → worker → `photo.processed`, the event stream, and a 404. **Tested 2026-10-22: all 7 pass before and after
+a stop/start of the instance** (same address, data kept, API back 5 s after the instance is running; the first photo
+after a boot took 14.5 s, then ~11 s).
+
 ## Still to do
 
 - [x] `worker` command, SQS FIFO queue, S3 originals, CloudWatch metrics, Secrets Manager (lane A)
