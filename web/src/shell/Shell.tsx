@@ -474,7 +474,9 @@ export function Shell({
                 title="Running the search"
                 subtitle="Demo mission, simulated: teams, drones and clues on one map. The agent proposes; a person approves."
               />
-              <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+              {/* From 1280 px the demo mission's console fills this frame (map in the middle, rails either
+                  side, each scrolling on its own); narrower, its panels stack and the frame scrolls. */}
+              <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto xl:flex xl:flex-col">
                 <ScreenBoundary name="Command">
                   <LiveMission api={NO_API} missionId={DEMO_MISSION_ID} initialTab="command" embedded />
                 </ScreenBoundary>

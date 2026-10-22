@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Detections, Verdict } from "../contract";
 import { LiveRoutes } from "../App";
 import { LiveReview, liveReviewItems, relookName, verdictWords } from "../review/LiveReview";
+import { EMPTY, useMission } from "../lib/mission";
 import { routeFromHash } from "../shell/flow";
 import { SAFETY_FRAME } from "../radio/RadioDesk";
 import { cardFromHash, LiveMission, tabFromHash } from "./LiveMission";
@@ -213,6 +214,27 @@ describe("the demo mission (E-04)", () => {
     expect(screen.queryByRole("link", { name: "Debrief" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Approvals/ }));
     expect(await screen.findByText("Promote f0127-d01 to the review queue")).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("the guided demo's Command step (embedded)", () => {
+  it("is the console: map in the middle, rails either side from 1280 px, under the demo's own header", async () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {})); // the demo's map never arrives: the layout alone (jsdom has no WebGL)
+    window.history.replaceState(null, "", "#operate");
+    useMission.setState({ ...EMPTY, status: "idle" }); // not the previous test's mission
+    render(<LiveMission api={{ base: "" }} missionId="demo" initialTab="command" embedded />);
+    const frame = screen.getByRole("region", { name: "Demo mission" });
+    const view = within(frame).getByLabelText("Command view");
+    expect(view.className).toMatch(/xl:grid-cols-\[/); // three columns inside the demo frame from 1280 px
+    expect(view.className).not.toMatch(/\blg:grid-cols/); // stacked below that
+    expect(within(view).getByRole("complementary", { name: "Sectors and teams" })).toBeInTheDocument();
+    expect(within(view).getByRole("complementary", { name: "Approvals" })).toBeInTheDocument();
+    expect(view).toHaveTextContent("laid out for a screen 1280 px or wider");
+    // the guided demo owns the header and the address
+    expect(screen.queryByText("Demo mission · simulated data, no server")).toBeNull();
+    await userEvent.click(within(frame).getByRole("button", { name: /Approvals/ }));
+    expect(window.location.hash).toBe("#operate");
     vi.unstubAllGlobals();
   });
 });
