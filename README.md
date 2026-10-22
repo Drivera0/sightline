@@ -8,6 +8,8 @@ Sightline is the brain of a drone search for a missing person: it finds the like
 
 **[Live demo](https://sightline-iota-sandy.vercel.app) · [Demo mission](https://sightline-iota-sandy.vercel.app/#m/demo/command) · [Report](docs/report/OPENCV_REPORT.md) · [Architecture](docs/architecture/sightline-architecture.html) · [Run it](#reproduce-the-results-cpu-only-about-14-minutes)**
 
+**For judges:** a two-minute tour on the live site, [#judges](https://sightline-iota-sandy.vercel.app/#judges), and answers to the questions we expect, with their evidence, in [docs/JUDGE_QA.md](docs/JUDGE_QA.md).
+
 ![Sightline system architecture](docs/architecture/system.png)
 
 ## Results
@@ -20,16 +22,23 @@ The HERIDAL test set: 101 photos, 337 people, never used for training or thresho
 | Sightline, loose SAR-APD scoring | 0.896 | 0.898 | — | same |
 | Human reference, SAR-APD (quoted by Pyrrö et al. 2021; not a matched study) | 0.68 | 0.59 | — | 33 s |
 
-Reproduce the two Sightline rows, CPU only (both backends, identical scores; about 13 minutes on a 16-core desktop, [setup below](#reproduce-the-results-cpu-only-about-14-minutes)):
+Reproduce the two Sightline rows, CPU only (both backends, identical scores; 12 min 48 s for this command on a 16-core desktop, about 14 minutes with the [setup below](#reproduce-the-results-cpu-only-about-14-minutes)):
 
 ```bash
 uv run --extra ml python scripts/parity_table.py --splits test --device cpu \
   --pt data/weights/release_v2/yolo11s_tiles_run1_best.pt --onnx data/weights/release_v2/sightline-detector-v2.onnx
 ```
 
-- **The human row is a reference point, not a head-to-head.** Pyrrö, Naseri & Jung (2021, arXiv:2111.09406) quote it from Pyrrö's master's thesis: "the average human achieves roughly ... 59% PRC, 68% RCL and 33 s ATI, with less than around 200 images to inspect". They don't say who the people were or whether they saw these 101 photos. SAR-APD is loose on purpose (one box may cover a group; an IoU of 0.0025 counts), so every other number in this repo uses the strict VOC scoring. Report §7.1.
+Beyond the detector (simulated or with fake models where marked; every headline number with its source: report §9):
+
+| Result | Headline | Reproduce |
+|---|---|---|
+| Agent evaluation: the real mission API, worker, map, planner and agent driven over HTTP through the creek scenario and three variants, 3 runs each (fake models, scripted detector) | the drone, alert, team and promotion go to the person's sector or detection in every run (6/6, 9/9, 9/9, 3/3); approval-gate checks pass in 12 of 12 runs; Token Factory fully down costs about 82 s in all, not minutes per call ([AGENT_EVAL.md](docs/report/AGENT_EVAL.md)) | `uv run python scripts/agent_eval.py` (about 20 s) |
+| Fleet v2 (simulated): three drones, coordinated on one shared map vs a hand split of the area, with a clue at the start | found within 30 min in 22.7 % vs 20.0 % of trials (ideal), 15.9 % vs 11.5 % (realistic wind, battery, GPS and link loss), 13.5 % vs 10.0 % (harsh); level with no clue ([FLEET_V2.md](docs/report/FLEET_V2.md)) | `uv run python scripts/fleet_eval.py` (about 2 min) |
+
+- **The human row is a reference point, not a head-to-head.** Pyrrö, Naseri & Jung (2021, arXiv:2111.09406) quote it from Pyrrö's master's thesis: "the average human achieves roughly ... 59% PRC, 68% RCL and 33 s ATI, with less than around 200 images to inspect". They don't say who the people were or whether they saw these 101 photos. SAR-APD is loose on purpose (one box may cover a group; an IoU of 0.0025 counts), so every other number in this repo uses the strict VOC scoring. Report §3.9.
 - **Disclosure:** the threshold and every inference setting were chosen on the validation split, but two earlier model choices were made with test scores in view: keeping training run 2 over run 1, and dropping the hard-negative fine-tune (test F2 0.840 vs 0.850). The test numbers above are therefore slightly optimistic; **our best estimate of true test recall is about 0.86, the reported 0.864 or slightly below**, and 0.825 at the four test sites the model never saw. Since then every choice is made on validation only ([scripts/README.md](scripts/README.md)).
-- **GPU time** is from the evaluation run on an RTX 4080 SUPER (`detector_metrics.json`: 0.251 s); the separate OpenCV parity run on the same GPU measured 0.30 s for the same Torch path (report §4.1).
+- **GPU time** is from the evaluation run on an RTX 4080 SUPER (`detector_metrics.json`: 0.251 s); the separate OpenCV parity run on the same GPU measured 0.30 s for the same Torch path (report §3.1).
 - **Mirror-image experiment (not in the demo).** Running each photo and its mirror image and fusing the boxes passed our validation rule (val F2 0.857 vs 0.831, 95% CI of the gain [+0.004, +0.048]). Scored once on test it gave recall 0.858, precision 0.835, AP50 0.872 at 0.50 s per photo: within noise of the single view, with 2 fewer people found and twice the time. The demo's photos were detected single-view and there was no time to rebuild the demo and every number around it, so the single-view model stays the reported one. That last decision was made after the mirror test score was seen, so both are reported here. Details: [docs/LANE_A_ML.md](docs/LANE_A_ML.md) §6.3a.
 - **Ranking (demo survey):** all 6 photos with a person were in the first 7 photos of the review queue; the first one is photo 1.
 - **Search map (simulated, 1,341 trials with the person in a photographed cell, 5 m cells):** a ground team checks a median of 1,213 cells with Sightline's map, against 1,743 for a naive map that treats every photographed cell as searched for certain (seed 7, the best of the three seeds tried). In the robustness check on the same 5 m map it was better in all 15 runs (3 seeds × 5 noise levels): 28–30% fewer cells at the default noise, 19–23% with noise matching the canopy estimate's measured error (docs/LANE_C_SEARCH.md).
@@ -117,7 +126,7 @@ What it changes during a search:
 - **The map:** fog or haze in a warning lowers the visibility factor, which lowers what each photo is worth (its POD) on the map.
 - **People:** the exposure band shifts probability toward shelter; briefings to teams carry daylight left, wind and alerts.
 
-Live, Mount Seymour on the evening of Oct 22: wind NW 20 km/h gusting 40 (quoted "NW 20", "gusts 40"), a fog advisory (visibility factor 0.6), not flyable ("after civil twilight"); the same values on two runs. Every Tavily call and every extracted value with its quote and source URL is in the mission trace (`actor="conditions"`). The full write-up, with a live run's trace: [docs/report/TAVILY.md](docs/report/TAVILY.md). The key lives on the server only (AWS Secrets Manager); `SIGHTLINE_FAKE_TAVILY=1` runs without it.
+Live, Mount Seymour on the evening of Oct 21 (PDT): wind NW 20 km/h gusting 40 (quoted "NW 20", "gusts 40"), a fog advisory (visibility factor 0.6), not flyable ("after civil twilight"); the same values on two runs (`sightline/geo/README.md`). A later run that evening, whose trace is committed, found the same wind and no fog (visibility factor 1.0). Every Tavily call and every extracted value with its quote and source URL is in the mission trace (`actor="conditions"`). The full write-up, with a live run's trace: [docs/report/TAVILY.md](docs/report/TAVILY.md). The key lives on the server only (AWS Secrets Manager); `SIGHTLINE_FAKE_TAVILY=1` runs without it.
 
 ## Team and lanes
 
@@ -179,6 +188,14 @@ uv run python scripts/evaluate_model.py --weights data/weights/release_v2/yolo11
 uv run python scripts/analysis/detector_errors.py                                # the error analysis
 ```
 
+### Docker dress run (from nothing, about 13 minutes)
+
+```bash
+bash deploy/dressrun/run.sh          # needs Docker and git; writes runs/dressrun/<timestamp>/times.md
+```
+
+A clean image built from what a fresh clone has (no GPU, keys or HERIDAL download): it installs from the lock files, runs the tests (1108 passed, 4 skipped), the smoke test of the live loop, the demo cache's contract check, the mission API with the `cv2.dnn` detector and `remote_check.py` against it, and the web build. 805 s end to end on the machine above; the stage times and the judge's 10-minute path without Docker are in [deploy/dressrun/README.md](deploy/dressrun/README.md).
+
 `demo-cache` and `real-gps-cache` hold the two surveys the site shows; the Vercel build downloads both (`web/scripts/fetch-caches.sh`). `scripts/README.md` has the training runs and every ablation.
 
 ## Build the demo cache
@@ -227,14 +244,14 @@ path, the search-map evaluation, the 10 m position uncertainty, the drone fleet,
 
 ## Responsible use
 
-- **Never rules an area out.** Searched sectors say how well they were searched ("searched at POD 60 %"); a sector's POD is capped below 1, and tests scan every proposal, briefing, radio reply and screen string for the word clear (report §9).
+- **Never rules an area out.** Searched sectors say how well they were searched ("searched at POD 60 %"); a sector's POD is capped below 1, and tests scan every proposal, briefing, radio reply and screen string for the word clear (report §11).
 - **A person approves every action**, and every decision is logged with who and when; the radio transmits only approved briefings, when the operator presses Transmit.
-- **Privacy:** the mission API has no login (anyone who can reach it can list missions and see their photos), so keep it on `127.0.0.1` or your own network; the public AWS demo holds only HERIDAL and synthetic photos and is stopped between demos. On AWS, original photos sit in a private S3 bucket and are deleted after 30 days. Crops of detections at confidence ≥ 0.15 (no full photos, GPS or EXIF) go to Nebius Token Factory (`nvidia/Nemotron-3.5-Super-VL`) for the second look; radio speech stays on our GPU and only text goes to Token Factory. No face detection or recognition, no identity data. CORS allows only the deployed site and localhost, with no credentials. Details: report §9.1.
-- **Licences:** AGPL-3.0 code and model weights (from Ultralytics; what a team deploying it must do is in report §9.2); HERIDAL imagery from a CC BY 3.0 copy, original terms not verified (below).
+- **Privacy:** the mission API has no login (anyone who can reach it can list missions and see their photos), so keep it on `127.0.0.1` or your own network; the public AWS demo holds only HERIDAL and synthetic photos and is stopped between demos. On AWS, original photos sit in a private S3 bucket and are deleted after 30 days. Crops of detections at confidence ≥ 0.15 (no full photos, GPS or EXIF) go to Nebius Token Factory (`nvidia/Nemotron-3.5-Super-VL`) for the second look; radio speech stays on our GPU and only text goes to Token Factory. No face detection or recognition, no identity data. CORS allows only the deployed site and localhost, with no credentials. Details: report §11.1.
+- **Licences:** AGPL-3.0 code and model weights (from Ultralytics; what a team deploying it must do is in report §11.2); HERIDAL imagery from a CC BY 3.0 copy, original terms not verified (below).
 
 ## Attribution
 
-Imagery from the HERIDAL dataset (Božić-Štulić, Marušić & Gotovac, IJCV 2019), from the VOC-format copy by Pyrrö (2021, [Zenodo 5662351](https://zenodo.org/records/5662351)), which is licensed CC BY 3.0. The original dataset's own terms could not be checked (its site did not answer on 22 Oct 2026); see report §9.2.
+Imagery from the HERIDAL dataset (Božić-Štulić, Marušić & Gotovac, IJCV 2019), from the VOC-format copy by Pyrrö (2021, [Zenodo 5662351](https://zenodo.org/records/5662351)), which is licensed CC BY 3.0. The original dataset's own terms could not be checked (its site did not answer on 22 Oct 2026); see report §11.2.
 
 ## License
 

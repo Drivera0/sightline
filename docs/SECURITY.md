@@ -56,7 +56,7 @@ store refuses any relative path containing `..`, a backslash or an absolute path
 The demo stores nothing about real people. Photo originals in S3 expire after 30 days (bucket
 lifecycle rule), container logs after 14 days (CloudWatch), and mission files live on the instance's
 volume until `deploy/aws/teardown.sh` deletes everything after judging. Responsible use, imagery and
-the "never clear" rule: `docs/report/OPENCV_REPORT.md` §9.
+the "never clear" rule: `docs/report/OPENCV_REPORT.md` §11.
 
 ## Secrets in the repository
 

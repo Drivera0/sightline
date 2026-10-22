@@ -93,6 +93,7 @@ No real search data has been used; all imagery is HERIDAL (CC BY 3.0).
 ## 7. Where to read next
 
 - `docs/report/OPENCV_REPORT.md`: the technical report, with every measured number and its source.
+- `docs/report/EVIDENCE_INDEX.md`: every claim a judge might check, where it is backed, and how to regenerate it.
 - `docs/report/TAVILY.md`: conditions from the web, with a live run's trace.
 - `docs/architecture/agent.md`: the agent, with real traces of one decision.
 - `docs/DETECTOR_LIMITS.md`: where the detector fails, with figures.
@@ -129,4 +130,4 @@ BCS-era plan for this file (timeline, checkpoints, the 60-second pitch) is in gi
 
 - Pyrrö, Naseri & Jung (2021), *Rethinking Drone-Based Search and Rescue with Aerial Person Detection*: https://arxiv.org/abs/2111.09406
 - HERIDAL in VOC format (CC BY 3.0), Zenodo: https://zenodo.org/records/5662351
-- Search theory, lost-person behaviour and related systems: `docs/report/OPENCV_REPORT.md` §7.4 and §7.6.
+- Search theory, lost-person behaviour and related systems: `docs/report/OPENCV_REPORT.md` §6.1 and §1.1.
