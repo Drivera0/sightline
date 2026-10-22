@@ -309,3 +309,80 @@ def test_engine_is_passed_only_when_asked(monkeypatch, tmp_path: Path) -> None:
     CvDetector(onnx)
     CvDetector(onnx, engine=cv2.dnn.ENGINE_CLASSIC)
     assert calls == [(str(onnx),), (str(onnx), cv2.dnn.ENGINE_CLASSIC)]
+
+
+# --- SIGHTLINE_CV_BACKEND: CPU by default, CUDA only on a cv2 built with it ----------------------
+
+
+class _RecordingNet(_FakeNet):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls: list[tuple[str, int]] = []
+
+    def setPreferableBackend(self, b: int) -> None:
+        self.calls.append(("backend", b))
+
+    def setPreferableTarget(self, t: int) -> None:
+        self.calls.append(("target", t))
+
+
+def _recording_load(monkeypatch, tmp_path: Path) -> tuple[Path, _RecordingNet, list[tuple]]:
+    net, loads = _RecordingNet(), []
+
+    def read(*args):
+        loads.append(args[1:])
+        return net
+
+    monkeypatch.setattr(cv2.dnn, "readNetFromONNX", read)
+    monkeypatch.setattr(cv2, "setNumThreads", lambda n: None)
+    onnx = tmp_path / "m.onnx"
+    onnx.write_bytes(b"")
+    return onnx, net, loads
+
+
+def test_default_backend_is_the_cpu_default_engine_untouched(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("SIGHTLINE_CV_BACKEND", raising=False)
+    onnx, net, loads = _recording_load(monkeypatch, tmp_path)
+    det = CvDetector(onnx)
+    assert det.backend == "cpu"
+    assert loads[0] == ()  # readNetFromONNX(path): default engine, no engine argument
+    assert net.calls == []  # no preferable backend or target set
+
+
+def test_cuda_backend_needs_a_cuda_build(monkeypatch, tmp_path: Path) -> None:
+    onnx, _, _ = _recording_load(monkeypatch, tmp_path)
+    monkeypatch.setattr(detect_cv, "cuda_devices", lambda: 0)
+    monkeypatch.setenv("SIGHTLINE_CV_BACKEND", "cuda")
+    with pytest.raises(RuntimeError, match="CUDA"):
+        CvDetector(onnx)
+    monkeypatch.setenv("SIGHTLINE_CV_BACKEND", "gpu")
+    with pytest.raises(ValueError):
+        CvDetector(onnx)
+
+
+@pytest.mark.parametrize(
+    ("name", "target"), [("cuda", "DNN_TARGET_CUDA"), ("cuda-fp16", "DNN_TARGET_CUDA_FP16")]
+)
+def test_cuda_backend_uses_the_classic_engine(monkeypatch, tmp_path: Path, name, target) -> None:
+    onnx, net, loads = _recording_load(monkeypatch, tmp_path)
+    monkeypatch.setattr(detect_cv, "cuda_devices", lambda: 1)
+    det = CvDetector(onnx, backend=name)
+    assert det.backend == name
+    assert loads[0] == (cv2.dnn.ENGINE_CLASSIC,)  # OpenCV 5.0's new engine is CPU-only
+    assert net.calls == [
+        ("backend", cv2.dnn.DNN_BACKEND_CUDA),
+        ("target", getattr(cv2.dnn, target)),
+    ]
+
+
+def test_cuda_backend_composes_with_engine(monkeypatch, tmp_path: Path) -> None:
+    """``engine`` and ``backend`` compose: CUDA implies the classic engine, and refuses another."""
+    onnx, _, loads = _recording_load(monkeypatch, tmp_path)
+    monkeypatch.setattr(detect_cv, "cuda_devices", lambda: 1)
+    det = CvDetector(onnx, backend="cuda", engine=cv2.dnn.ENGINE_CLASSIC)
+    assert det.engine == cv2.dnn.ENGINE_CLASSIC and loads[-1] == (cv2.dnn.ENGINE_CLASSIC,)
+    assert CvDetector(onnx, backend="cuda").engine == cv2.dnn.ENGINE_CLASSIC
+    with pytest.raises(ValueError, match="ENGINE_CLASSIC"):
+        CvDetector(onnx, backend="cuda", engine=cv2.dnn.ENGINE_NEW)
+    monkeypatch.delenv("SIGHTLINE_CV_BACKEND", raising=False)
+    assert CvDetector(onnx, engine=cv2.dnn.ENGINE_NEW).engine == cv2.dnn.ENGINE_NEW  # cpu: as given

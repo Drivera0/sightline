@@ -28,6 +28,10 @@ sees every photo's boxes at once, as in ``evaluate_model.py``. Measured there on
 GPU hidden, another job using about 11 cores: 4 min 58 s for the 101 photos, all three scores
 equal to the published ones.
 
+``--backend cuda`` / ``cuda-fp16`` (or ``SIGHTLINE_CV_BACKEND``) runs the same check on the GPU
+through the classic engine; it needs OpenCV built with CUDA, not the pip wheel
+(docs/report/CV2_CUDA.md). The default stays the CPU.
+
 ``--subset N`` scores a fixed seeded sample of N test photos: a smoke check of the setup, not
 the headline number, so it is not compared with the published values.
 """
@@ -59,11 +63,11 @@ Row = tuple[int, int, int, int, float]
 _detector = None  # one CvDetector per pool process
 
 
-def _init_worker(onnx: str, threads: int) -> None:
+def _init_worker(onnx: str, threads: int, backend: str | None = None) -> None:
     global _detector
     from sightline.ml.detect_cv import CvDetector
 
-    _detector = CvDetector(Path(onnx), threads=threads)
+    _detector = CvDetector(Path(onnx), threads=threads, backend=backend)
 
 
 def _detect(path: str) -> list[Row]:
@@ -77,17 +81,19 @@ def default_workers(cpus: int) -> int:
     return max(1, min(DEFAULT_WORKERS, cpus // 2))
 
 
-def predict(paths: list[Path], onnx: Path, workers: int, threads: int) -> list[list[Row]]:
+def predict(
+    paths: list[Path], onnx: Path, workers: int, threads: int, backend: str | None = None
+) -> list[list[Row]]:
     """Boxes per photo, in the order of ``paths``. ``workers=1`` runs in this process."""
     if workers <= 1:
-        _init_worker(str(onnx), threads)
+        _init_worker(str(onnx), threads, backend)
         return [_detect(str(p)) for p in paths]
     # spawn, not fork: a forked OpenCV thread pool can hang, and macOS has no fork default.
     with ProcessPoolExecutor(
         max_workers=workers,
         mp_context=get_context("spawn"),
         initializer=_init_worker,
-        initargs=(str(onnx), threads),
+        initargs=(str(onnx), threads, backend),
     ) as pool:
         return list(pool.map(_detect, [str(p) for p in paths]))
 
@@ -141,6 +147,13 @@ def main(argv: list[str] | None = None) -> int:
         "--expected", type=Path, default=ROOT / "data/weights/release_v2/detector_metrics.json"
     )
     ap.add_argument("--tolerance", type=float, default=TOLERANCE)
+    ap.add_argument(
+        "--backend",
+        choices=("cpu", "cuda", "cuda-fp16"),
+        default=None,
+        help="cv2.dnn backend (default: SIGHTLINE_CV_BACKEND, else cpu); cuda needs a CUDA build "
+        "of OpenCV (docs/report/CV2_CUDA.md) and runs in one process",
+    )
     ap.add_argument("--workers", type=int, default=None, help="processes (default: 4)")
     ap.add_argument(
         "--threads", type=int, default=None, help="cv2 threads per process (default: cores/workers)"
@@ -179,8 +192,11 @@ def main(argv: list[str] | None = None) -> int:
         picked = random.Random(SUBSET_SEED).sample(images, min(args.subset, len(images)))
         images = sorted(picked, key=lambda im: im.path.name)
 
+    from sightline.ml.detect_cv import resolve_cv_backend
+
+    backend = resolve_cv_backend(args.backend)
     cpus = os.cpu_count() or 1
-    workers = args.workers or default_workers(cpus)
+    workers = args.workers or (1 if backend != "cpu" else default_workers(cpus))
     threads = args.threads or max(1, cpus // workers)
     spec = machine_spec()
     print(
@@ -188,14 +204,15 @@ def main(argv: list[str] | None = None) -> int:
         f"{spec['os']}, Python {spec['python']}, OpenCV {spec['opencv']}, "
         f"CUDA_VISIBLE_DEVICES={spec['cuda_visible_devices']!r}"
     )
+    where = "the CPU" if backend == "cpu" else f"CUDA ({backend}, ENGINE_CLASSIC)"
     print(
-        f"cv2.dnn on the CPU: {args.onnx.name}, {len(images)} test photos, "
+        f"cv2.dnn on {where}: {args.onnx.name}, {len(images)} test photos, "
         f"{workers} workers x {threads} threads, threshold {THRESHOLD}, merge NMS {MERGE_NMS_IOU}",
         flush=True,
     )
 
     t_detect = time.perf_counter()
-    rows = predict([im.path for im in images], args.onnx, workers, threads)
+    rows = predict([im.path for im in images], args.onnx, workers, threads, backend)
     detect_s = time.perf_counter() - t_detect
     preds = {
         im.path.stem: [RawDetection(Box(*r[:4]), r[4]) for r in rs]

@@ -35,6 +35,12 @@ SLICE_NMS_IOU = 0.7  # Ultralytics' default NMS IoU inside one slice
 MAX_DET = 300  # Ultralytics' default max detections per slice
 PAD_VALUE = 114  # Ultralytics' letterbox grey
 STRIDE = 32  # the model's largest stride: a variable-size input must be a multiple of it
+# Where cv2.dnn runs (``SIGHTLINE_CV_BACKEND``). "cpu" is OpenCV 5's default engine on the CPU, the
+# only one the pip wheels have. "cuda" / "cuda-fp16" need a cv2 built with CUDA and cuDNN
+# (docs/report/CV2_CUDA.md): OpenCV 5.0's new engine is CPU-only, so they load the network with
+# ENGINE_CLASSIC and the CUDA backend, FP32 or FP16.
+CV_BACKENDS = ("cpu", "cuda", "cuda-fp16")
+DEFAULT_CV_BACKEND = "cpu"
 
 Xyxy = tuple[float, float, float, float]
 
@@ -192,6 +198,49 @@ def _read(image: Path | str) -> np.ndarray:
     return bgr
 
 
+def resolve_cv_backend(backend: str | None = None) -> str:
+    """``backend``, else ``SIGHTLINE_CV_BACKEND``, else "cpu"; one of ``CV_BACKENDS``."""
+    name = (backend or os.environ.get("SIGHTLINE_CV_BACKEND") or DEFAULT_CV_BACKEND).lower()
+    if name not in CV_BACKENDS:
+        raise ValueError(f"SIGHTLINE_CV_BACKEND must be one of {CV_BACKENDS}, got {name!r}")
+    return name
+
+
+def cuda_devices() -> int:
+    """CUDA devices this cv2 can use: 0 for the pip wheels, which are built without CUDA."""
+    try:
+        return int(cv2.cuda.getCudaEnabledDeviceCount())
+    except (AttributeError, cv2.error):
+        return 0
+
+
+def _cuda_engine(engine: int | None) -> int:
+    """The engine a CUDA backend runs on: classic, the only one with GPU back-ends in 5.0."""
+    if engine not in (None, cv2.dnn.ENGINE_CLASSIC):
+        raise ValueError(
+            f"a CUDA backend needs cv2.dnn.ENGINE_CLASSIC ({cv2.dnn.ENGINE_CLASSIC}), got engine "
+            f"{engine}: OpenCV 5.0's new engine runs on the CPU only"
+        )
+    return cv2.dnn.ENGINE_CLASSIC
+
+
+def _load_net(onnx_path: Path, backend: str, engine: int | None = None) -> cv2.dnn.Net:
+    if backend == "cpu":
+        if engine is None:  # OpenCV's own default (5.0: the new engine), no engine argument
+            return cv2.dnn.readNetFromONNX(str(onnx_path))
+        return cv2.dnn.readNetFromONNX(str(onnx_path), engine)
+    if cuda_devices() == 0:
+        raise RuntimeError(
+            f"cv2 backend {backend!r} needs OpenCV built with CUDA and cuDNN "
+            f"(cv2 {cv2.__version__} here sees no CUDA device); see docs/report/CV2_CUDA.md"
+        )
+    net = cv2.dnn.readNetFromONNX(str(onnx_path), _cuda_engine(engine))
+    net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+    target = cv2.dnn.DNN_TARGET_CUDA_FP16 if backend == "cuda-fp16" else cv2.dnn.DNN_TARGET_CUDA
+    net.setPreferableTarget(target)
+    return net
+
+
 class CvDetector:
     """The weights-v2 detector run through ``cv2.dnn`` on its ONNX export."""
 
@@ -202,6 +251,7 @@ class CvDetector:
         threads: int | None = None,
         rect: bool | None = None,
         engine: int | None = None,
+        backend: str | None = None,
     ) -> None:
         """``engine``: a ``cv2.dnn.ENGINE_*`` value for ``readNetFromONNX``; ``None`` (the default)
         calls it without one, OpenCV's own default. Only the INT8 experiment sets it
@@ -210,21 +260,24 @@ class CvDetector:
         ``rect``: pad like ``YOLO.predict`` (to a multiple of 32) instead of to the square.
         Needs an ONNX exported with ``dynamic=True`` (``scripts/export_onnx.py``); ``None`` checks
         once whether this one accepts a non-square input. Full 1024 px slices are the same either
-        way; smaller or non-square slices (1000×750 demo frames) match Torch only with ``rect``."""
+        way; smaller or non-square slices (1000×750 demo frames) match Torch only with ``rect``.
+
+        ``backend``: one of ``CV_BACKENDS`` (default: env ``SIGHTLINE_CV_BACKEND``, else "cpu").
+        A CUDA backend implies ``ENGINE_CLASSIC``; ``engine`` may be left out or set to it."""
         self.onnx_path = Path(onnx_path)
         if not self.onnx_path.exists():
             raise FileNotFoundError(self.onnx_path)
+        self.backend = resolve_cv_backend(backend)
         self.input_px = input_px
         # OpenCV's thread count is process-wide, and importing ultralytics sets it to 0
         # (single-threaded, for PyTorch's DataLoader): 5x slower here. Keep our own and restore it
         # before every forward pass.
         self.threads = threads if threads is not None else os.cpu_count() or 1
         cv2.setNumThreads(self.threads)
+        if self.backend != "cpu":
+            engine = _cuda_engine(engine)  # CUDA implies the classic engine
         self.engine = engine
-        if engine is None:
-            self.net = cv2.dnn.readNetFromONNX(str(self.onnx_path))
-        else:
-            self.net = cv2.dnn.readNetFromONNX(str(self.onnx_path), engine)
+        self.net = _load_net(self.onnx_path, self.backend, engine)
         self.rect = self._accepts_rect() if rect is None else rect
 
     def _accepts_rect(self) -> bool:
