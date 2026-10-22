@@ -135,6 +135,7 @@ cd /opt/sightline
 docker build -f deploy/aws/Dockerfile -t sightline .
 cat > deploy/aws/.env <<ENV
 AWS_REGION=$REGION
+AWS_DEFAULT_REGION=$REGION
 SITE_ADDRESS=$SITE
 SIGHTLINE_SQS_URL=$QUEUE_URL
 SIGHTLINE_S3_BUCKET=$BUCKET
