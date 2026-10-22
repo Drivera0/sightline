@@ -101,6 +101,7 @@ No real search data has been used; all imagery is HERIDAL (CC BY 3.0).
   Serverless Jobs, Parakeet and Magpie.
 - `deploy/aws/README.md`: the AWS deployment and the remote check.
 - Lane files: `LANE_A_ML.md`, `LANE_B_GEO.md`, `LANE_C_SEARCH.md`, `LANE_D_PIPELINE.md`.
+- `docs/sprint/README.md`: how the Oct 20–30 sprint was planned, and what each planned task became.
 
 ## 8. History
 

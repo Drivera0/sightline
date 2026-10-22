@@ -49,14 +49,29 @@ _NEGATIVE = {"negative", "incorrect", "wrong", "that is wrong"}
 _SAY_AGAIN = {"say again", "repeat", "say again all"}
 
 
+_NINER_AS_ER = re.compile(r"\b(\d*9)er(?![a-z])")
+
+
+def _niner_as_or(prev: str, num: str, nxt: str) -> bool:
+    """Parakeet's other rendering of "niner": "nine or" ("point nine or three six" for "point niner
+    three six"). Only inside a number with digits on both sides: after the word "nine", or after a
+    digit run ending in 9 that already has its decimal point ("122.9 or 36")."""
+    if not num.endswith("9") or not (nxt in DIGIT_WORDS or nxt.isdigit()):
+        return False
+    return prev == "nine" or ("." in num and bool(re.fullmatch(r"-?\d+(?:\.\d+)?", prev)))
+
+
 def normalize(text: str) -> str:
     """Lower-case words, number words joined into numbers ("four niner point three" → "49.3",
-    "minus one two two" → "-122", "Team Two" → "team 2"), "sight line" → "sightline", punctuation
+    "minus one two two" → "-122", "Team Two" → "team 2", Parakeet's "49er.381" → "49.381"), "sight line" → "sightline", punctuation
     other than inside numbers removed."""
     t = text.lower().replace("sight line", "sightline").replace("sight-line", "sightline")
     for pattern, fixed in _TEAM_SOUNDALIKES:
         t = pattern.sub(fixed, t)
     t = re.sub(r"(?<=\d),(?=\d{3}\b)", "", t)  # 1,200 -> 1200
+    # Parakeet does not know "niner": "four niner" comes out as "49er" and "point niner four zero" as
+    # ".9er40". Only a digit run ending in 9 loses its "er", so words ("either", "never") are kept.
+    t = _NINER_AS_ER.sub(r"\1", t)
     # A comma is the pause between two numbers ("..., minus one two two"): keep it as a boundary.
     tokens = re.findall(r"-?\d+(?:\.\d+)?|[a-z]+|,", t)
     out: list[str] = []
@@ -73,8 +88,11 @@ def normalize(text: str) -> str:
 
     for i, tok in enumerate(tokens):
         nxt = tokens[i + 1] if i + 1 < len(tokens) else ""
+        prev = tokens[i - 1] if i else ""
         if tok == ",":
             flush()
+        elif tok == "or" and _niner_as_or(prev, num, nxt):
+            continue  # "nine or three" = "niner three"
         elif tok in DIGIT_WORDS or re.fullmatch(r"-?\d+(?:\.\d+)?", tok):
             digits = DIGIT_WORDS.get(tok, tok)
             if digits.startswith("-") and not num:
@@ -82,7 +100,7 @@ def normalize(text: str) -> str:
             num += digits
         elif tok == "point" and num and "." not in num and (nxt in DIGIT_WORDS or nxt.isdigit()):
             num += "."
-        elif tok == "minus" and (nxt in DIGIT_WORDS or nxt.isdigit()):
+        elif tok == "minus" and (nxt in DIGIT_WORDS or re.fullmatch(r"\d+(?:\.\d+)?", nxt)):
             flush()  # a minus ends the number before it: "...three eight one, minus one two two"
             sign = "-"
         else:

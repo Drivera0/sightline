@@ -748,8 +748,8 @@ lines, and 2.5 s p50 (p90 3.0 s) with real voices over the 18 turns of the demo 
 "standby" when the model takes over 3 s), 6 / 6 clue reports drafted, read back and committed, 6 / 6
 conditions answers from the tool (`docs/evidence/radio-latency-20261020.json`). The demo script
 (transmit the assignment, ask for the boundary, report a clue, confirm) ran **5 / 5 times as
-scripted** with real voices (`scripts/radio_rehearse.py`). WER on three human voices: pending
-recordings (#49) (`scripts/radio_wer.py`).
+scripted** with real voices (`scripts/radio_rehearse.py`). **WER** (`scripts/radio_wer.py`, Parakeet after `protocol.normalize`), one human voice so far, 20 phrases, 162 words:
+**0.086** with 0 / 2 coordinates exact, **0.025** with 2 / 2 after one fix: Parakeet writes the radio word "niner" as "49er" or "nine or", which `normalize` now reads as 9. Two more voices to come (#49; `docs/evidence/radio_wer/`).
 
 ## 9. Evaluation summary
 
@@ -819,7 +819,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
 - **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
   so long replies are spoken sentence by sentence and the first sound depends on the model's time;
   if the model fails or times out, the team hears "say again" and nothing changes. Its numbers use
-  typed team lines and team lines spoken by Magpie (§8); WER on human voices is pending.
+  typed team lines and team lines spoken by Magpie (§8); WER is measured on one human voice so far (0.025, §8), two more to come.
 - **Simulated parts:** the demo flight path over Mount Seymour, the search-map, planner and fleet
   evaluations and the fleet are simulated and labelled so on screen; in the live AV chains (§5) the drones are simulated and
   the human steps scripted, both labelled in the trace. The search prior is Koester's distance-from-IPP

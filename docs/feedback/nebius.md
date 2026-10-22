@@ -5,14 +5,14 @@ for, what worked, what needs work, how onboarding felt (zero to hello world), an
 with it again. Token Factory numbers are from 2026-10-20; the Serverless Job numbers from 2026-10-22.
 The radio desk's own measurements are in `docs/feedback/radio.md`.
 
-**Pending from Dan** (onboarding timings that only he has; everything else below is from the repo):
+**Onboarding timings** (items 2–5 read from our session logs and `git log`; items 1 and 6 from memory):
 
-1. Token Factory: sign-up → first API key, `<Dan: minutes>`
-2. Token Factory: first successful chat call, `<Dan: minutes>`
-3. Token Factory: first tool call that parsed, `<Dan: minutes>`
-4. Serverless Jobs: `nebius` CLI install → logged in, `<Dan: minutes>`
-5. Parakeet and Magpie: NeMo install → first transcript and first spoken reply, `<Dan: minutes>`
-6. Builders credits: applied → credited, `<Dan: days>`, and how the process felt
+1. Token Factory: sign-up → first API key, 10 hours
+2. Token Factory: key in the shell → first successful chat call, about 3 minutes (2026-10-20 13:29 → 13:32 PDT, session log)
+3. Token Factory: key → first tool call that parsed, about 2.5 hours (13:29 → 15:58 PDT, `git log`), almost all of it writing the client; the one model-side snag was replies that came back empty after the model spent the token budget thinking, fixed by turning thinking off (`extra_body`)
+4. Serverless Jobs: `nebius` CLI install → logged in, about 2 minutes (2026-10-21 21:14 → 21:16 PDT), after one failed try because `profile create` only works interactively
+5. Parakeet and Magpie: start of the spike → first transcript and first spoken reply, about 75 minutes (2026-10-20 18:30 → 19:45 PDT), including the NeMo environment build and the 3 GB download
+6. Builders credits: applied → credited, under a day; the process was straightforward
 
 **Prices** (Token Factory model catalog, https://tokenfactory.nebius.com/model-catalog.md, read
 2026-10-20 and again 2026-10-22, unchanged; per million tokens, no currency stated on the page):
@@ -50,8 +50,9 @@ turns with tool calls.
 - **Models live in different regions** (us-north1, eu-north1, us-central1, per the catalog). One base
   URL served all three for us; the catalog does not say whether region affects latency.
 
-**Onboarding.** Zero to the first chat reply: `<Dan: minutes>` (sign-up → key), `<Dan: minutes>`
-(first call). The one-line check we now give others is in `README.md:113`.
+**Onboarding.** Zero to the first chat reply: about 10 hours (sign-up → key, waiting on the
+account) then about 3 minutes (key → first call, 2026-10-20 13:29 → 13:32 PDT by our session log). The
+first tool call that parsed came 2.5 hours after the key, nearly all of it our own client code. The one-line check we now give others is in `README.md:113`.
 
 **Would we build with it again?** Yes. One OpenAI-compatible client for vision, text and tools, with
 reliable structured output, is what let a small team wire five jobs to NVIDIA models in a week.
@@ -199,7 +200,8 @@ billing makes short batch jobs cheap even with the 1 h minimum timeout setting.
   `PLATFORM` default picked it up and the API answered `Platform "WSL" was not found`; our bug, but an
   error listing the valid platforms would have shortened it.
 
-**Onboarding.** CLI install → logged in: `<Dan: minutes>`. From the first `ai job create` (failed: the
+**Onboarding.** CLI install → logged in: about 2 minutes (2026-10-21 21:14 → 21:16 PDT), after one
+failed try because `profile create` only works interactively. From the first `ai job create` (failed: the
 `PLATFORM` clash, then the quota) to the first completed job took about 15 minutes by our logs, and the
 successful job itself 11 minutes.
 
@@ -213,20 +215,28 @@ SUPER through NeMo (`sightline/radio/asr.py`). Not on Token Factory.
 
 **Measured.** 45–130 ms per phrase for 3.9–8.7 s of audio; loads in 32 s; 6.1 GB GPU peak with Magpie
 also loaded (`docs/feedback/radio.md:13`, `:17`). WER on the three spike phrases was 0.29 / 0.11 / 0.00
-before normalisation, almost all of it number and word-split style (`docs/feedback/radio.md:36-40`). WER
-on human volunteers' voices is not measured yet (issue #49, `docs/feedback/radio.md:137-145`).
+before normalisation, almost all of it number and word-split style (`docs/feedback/radio.md:36-40`). On
+the 20 radio test phrases read by one human voice (162 words, direct microphone), WER after our
+normaliser was **0.086**, with both spoken coordinates wrong; with the "niner" fix below it is **0.025**
+and 2 / 2 coordinates are exact (`docs/feedback/radio.md:190-207`; `docs/evidence/radio_wer/`).
+Two more voices are still to record (issue #49).
 
 **What worked.** Fast enough that speech to text is never the bottleneck. Word timestamps came free.
 No Hugging Face token needed.
 
 **What needs work.** It writes numbers as digits and sometimes splits words ("Team Two" → "Team 2",
 "Sightline" → "Sight line"), so every voice agent needs its own normaliser. A documented
-inverse-text-normalisation switch would help. NeMo pins its own Lightning and torch versions, so it needs
-its own environment (`docs/feedback/radio.md:168-169`).
+inverse-text-normalisation switch would help. **It does not know the ICAO / radio word "niner"**: "four
+niner point three eight one" came out as "49er.381", "one two two point niner four zero" as
+"122.9er40", and "point niner three six" as "point nine or three six". Every coordinate error in our
+WER set was this one word. We normalise it in code (`sightline/radio/protocol.py`, `normalize`), but a
+radio-vocabulary hint or custom vocabulary (word boosting for "niner", "affirmative", "say again") at
+inference time should fix it upstream for every SAR, aviation or marine voice agent. NeMo pins its own
+Lightning and torch versions, so it needs its own environment (`docs/feedback/radio.md:168-169`).
 
 **Onboarding.** `uv pip install "nemo_toolkit[asr,tts]"`, then our spike script runs in about 2 minutes
-and downloads about 3 GB once (`docs/feedback/radio.md:165`). Install → first transcript:
-`<Dan: minutes>`.
+and downloads about 3 GB once (`docs/feedback/radio.md:165`). Start of the spike → first transcript and first spoken reply: about 75 minutes (2026-10-20
+18:30 → 19:45 PDT), including the environment build and the one-time download.
 
 **Would we build with it again?** Yes. Fast and accurate for short radio phrases on one consumer GPU.
 
@@ -258,6 +268,8 @@ streaming API with first audio under 300 ms would matter more than raw throughpu
 **What we used it for.** Token Factory credits for development and evaluation (the 461 vision calls cost
 about 0.15 at catalog prices, §2), alongside the hackathon promo code.
 
-**How it went.** Applied → credited: `<Dan: days>`. What worked and what needs work: `<Dan: notes>`.
+**How it went.** Applied → credited: under a day. The form was short and the credit appeared without a
+follow-up; nothing to change. One ask: a note on the credits page saying which services and regions the
+credit covers, so a first job is not planned in a region with no quota (§3).
 
 **Would we use it again?** `<Dan>`
