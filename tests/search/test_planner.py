@@ -111,10 +111,8 @@ def test_two_drones_spread_over_the_two_likely_sectors() -> None:
     assert best.sector_id == "B2" and best.expected_clearance == pytest.approx(
         0.3 * 0.432, abs=1e-4
     )
-    assert (
-        "expected to lower the remaining probability by 13.0%" in best.reason
-        and "%/min" in best.reason
-    )
+    assert best.reason.startswith("B2 · 30.0 % of remaining probability; expected to lower the")
+    assert "remaining probability by 13.0 % in 2 min" in best.reason
     assert "battery (95%)" in best.reason and "before civil twilight" in best.reason
 
 
@@ -192,7 +190,7 @@ def test_ground_teams_go_where_tree_cover_hides_people() -> None:
     out = propose_assignments(m, layout, [], teams)
     assert (
         out[0][:2] == ("T2", "C3")
-        and "90% of it under tree cover" in out[0][2]
+        and "90% under tree cover (drone POD 0.09)" in out[0][2]
         and "Team Two is nearest" in out[0][2]
     )
     assert out[1][:2] == ("T1", "B2") and len(out) == 2  # Team Three is busy

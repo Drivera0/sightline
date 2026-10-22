@@ -27,7 +27,9 @@ known point when it hasn't reported) plus ``team_search_min`` searching; the bes
 first, greedily. Both times are assumptions, not measured (stated in ``PlannerConfig``).
 ``walking_kmh=None`` gives the old rule: best sector first, to the nearest team.
 
-Every reason is in numbers. Built by lane A for lane C (issue #64); lane C owns this file.
+Every reason is in numbers, and, given ``moves`` (``sector_moves``: the map log since the last
+plan), starts with what moved its sector: "C2 · 5.5 % of remaining probability, up from 2.6 %: c001
+(red jacket near the lake) raised it; …", at most ``REASON_WORDS`` (45) words. Built by lane A for lane C (issue #64); lane C owns this file.
 """
 
 from __future__ import annotations
@@ -43,6 +45,7 @@ import numpy as np
 from sightline.contract import Conditions, Drone, FleetState, Grid, LatLon, Leg, SectorTask, Team
 from sightline.search.grid import latlon_to_local_m, local_m_to_latlon
 from sightline.search.sectors import Sector, SectorLayout
+from sightline.search.update import apply_reweight, apply_step
 
 TEAM_BUSY = ("assigned", "in_progress")  # task states a drone plans around
 
@@ -273,6 +276,172 @@ def _limits(
     return None
 
 
+# --- what moved a sector since the last plan (the map log) -------------------------------------
+
+REASON_WORDS = 45  # a reason a 60-word radio briefing can quote whole
+MIN_SHIFT = 0.001  # a change in a sector's share worth naming (as the console's clueShift.ts)
+CLUE_WORDS = 5  # a clue's text, cut to its first words
+
+
+@dataclass(frozen=True)
+class SectorMove:
+    """One sector's share of the probability at the last plan (``before``) and now, what in the map
+    log since then moved it, as (words, change in its share), biggest change first, and how many
+    map updates came in since then."""
+
+    before: float
+    now: float
+    moves: tuple[tuple[str, float], ...]
+    updates: int
+
+
+def _shares(p: np.ndarray, idx: np.ndarray, n: int) -> np.ndarray:
+    ok = idx >= 0
+    return np.bincount(idx[ok], weights=p[ok], minlength=n)
+
+
+def _short(text: str) -> str:
+    words = text.split()
+    cut = " ".join(words[:CLUE_WORDS]).rstrip(".,;:")
+    return cut + ("…" if len(words) > CLUE_WORDS else "")
+
+
+def _listed(xs: list[str]) -> str:
+    return xs[0] if len(xs) == 1 else f"{', '.join(xs[:-1])} and {xs[-1]}"
+
+
+def _cause(key: str, sector_id: str, clues: dict[str, str]) -> str:
+    source, _, ref = key.partition(":")
+    if source == "clue":
+        return f"{ref} ({_short(clues[ref])})" if clues.get(ref) else ref
+    if source == "ground":
+        return "the ground search here" if ref == sector_id else f"the ground search of {ref}"
+    if source == "conditions":
+        return f"{ref} exposure (shelter)"
+    if source == "review":
+        return "photo reviews"
+    return source
+
+
+def sector_moves(
+    live: Any,
+    updates: list[Any],
+    layout: SectorLayout,
+    since_seq: int = 0,
+    clues: list[Any] = (),  # type: ignore[assignment]
+) -> dict[str, SectorMove]:
+    """For each sector, what the map log (``updates``, ``MapUpdate`` in seq order) did to its share
+    of the probability after map update ``since_seq`` (the map version of the last plan). The log
+    is replayed from ``live.base``'s prior (``apply_step`` / ``apply_reweight``, as ``LiveMap.apply``),
+    each update's change to every sector's share read off, and the changes grouped by cause: each
+    clue, the photos over the sector ("here"), the photos over the other sectors, each ground
+    search, the reviews, the shelter reweight. A cause that moved the share by less than
+    ``MIN_SHIFT`` is not named. ``now`` is the live map's share; with nothing in the log after
+    ``since_seq``, ``before`` is ``now``."""
+    ids = [s.id for s in layout.sectors]
+    n = len(ids)
+    idx = np.asarray(layout.cell_sector, dtype=np.int64)
+    now = _shares(np.asarray(live.p()[0], dtype=np.float64), idx, n)
+    later = [u for u in updates if u.seq > since_seq]
+    if not later:
+        return {s: SectorMove(float(now[i]), float(now[i]), (), 0) for i, s in enumerate(ids)}
+    p = np.asarray(live.base.prior.p, dtype=np.float64)
+    outside = float(live.base.prior.outside)
+    for u in updates:
+        if u.seq <= since_seq:
+            p, outside = (apply_step if u.kind == "step" else apply_reweight)(p, outside, u.cells)
+    start = cur = _shares(p, idx, n)
+    groups: dict[str, np.ndarray] = {}  # cause → change in each sector's share
+    here, elsewhere, photos = np.zeros(n), np.zeros(n), np.zeros(n, dtype=np.int64)
+    for u in later:
+        p, outside = (apply_step if u.kind == "step" else apply_reweight)(p, outside, u.cells)
+        nxt = _shares(p, idx, n)
+        d, cur = nxt - cur, nxt
+        if u.source != "frame":
+            key = (
+                f"{u.source}:{u.ref}" if u.source in ("clue", "ground", "conditions") else u.source
+            )
+            groups[key] = groups.get(key, np.zeros(n)) + d
+            continue
+        own = idx[[i for i, _ in u.cells]] if u.cells else np.zeros(0, dtype=np.int64)
+        own = own[own >= 0]
+        if own.size == 0:
+            elsewhere += d
+            continue
+        s = int(np.bincount(own).argmax())  # the sector holding most of the photo's cells
+        photos[s] += 1
+        here[s] += d[s]
+        d = d.copy()
+        d[s] = 0.0
+        elsewhere += d
+    text = {c.id: c.text for c in clues}
+    out = {}
+    for i, sid in enumerate(ids):
+        found = [(_cause(k, sid, text), float(v[i])) for k, v in groups.items()]
+        if photos[i]:
+            found.append((f"{photos[i]} photo{'s' if photos[i] > 1 else ''} here", float(here[i])))
+        others = [ids[j] for j in np.argsort(-photos, kind="stable") if j != i and photos[j]]
+        if others:
+            n_other = int(photos.sum() - photos[i])
+            named = (
+                _listed(others[:2]) if len(others) <= 2 else f"{', '.join(others[:2])} and others"
+            )
+            found.append(
+                (f"{n_other} photo{'s' if n_other > 1 else ''} of {named}", float(elsewhere[i]))
+            )
+        elif abs(elsewhere[i]) >= MIN_SHIFT:
+            found.append(("photos elsewhere", float(elsewhere[i])))
+        found = sorted((f for f in found if abs(f[1]) >= MIN_SHIFT), key=lambda f: -abs(f[1]))
+        out[sid] = SectorMove(float(start[i]), float(now[i]), tuple(found), len(later))
+    return out
+
+
+def _pct(v: float) -> str:
+    return f"{v * 100:.1f} %"
+
+
+def evidence_line(
+    sector_id: str, poa: float, move: SectorMove | None, top: bool = False, k: int = 3
+) -> str:
+    """The sector, its share now and at the last plan, and what moved it, in the words of the map
+    log: "C2 · 5.5 % of remaining probability, up from 2.6 %: c001 (red jacket near the lake)
+    raised it". With nothing named: "no new evidence", and "highest remaining probability of the
+    open sectors" when ``top``. ``k``: at most this many causes named. ``move`` None (no log read): the share only."""
+    head = f"{sector_id} · {_pct(poa)} of remaining probability"
+    if move is None:
+        return head
+    if abs(poa - move.before) >= 0.0005:
+        head += f", {'up' if poa > move.before else 'down'} from {_pct(move.before)}"
+    named = move.moves[:k]
+    up = [w for w, d in named if d > 0]
+    down = [w for w, d in named if d < 0]
+    said = [f"{_listed(up)} raised it"] if up else []
+    said += [f"{_listed(down)} lowered it"] if down else []
+    if not said and move.updates and abs(poa - move.before) >= 0.0005:
+        said = [f"{move.updates} small map updates moved it"]
+    if not said:
+        said = [
+            "no new evidence"
+            + ("; highest remaining probability of the open sectors" if top else "")
+        ]
+    return f"{head}: {'; '.join(said)}"
+
+
+def _words(s: str) -> int:
+    return len(s.split())
+
+
+def _fit(cores: list[str], extras: list[str], limit: int) -> str:
+    """The first of ``cores`` within ``limit`` words (else the last), then each of ``extras`` in
+    order while the whole stays within it, then a full stop."""
+    out = next((c for c in cores if _words(c) <= limit), cores[-1])
+    for x in extras:
+        if _words(out + x) > limit:
+            break
+        out += x
+    return out + "."
+
+
 def propose_legs(
     live: Any,
     layout: SectorLayout,
@@ -282,12 +451,33 @@ def propose_legs(
     k: int = 3,
     cfg: PlannerConfig = PlannerConfig(),  # noqa: B008 - frozen dataclass, never mutated
     tasks: list[SectorTask] | None = None,
+    moves: dict[str, SectorMove] | None = None,
+    reason_words: int = REASON_WORDS,
 ) -> list[Leg]:
+    """``plan_legs`` without its ranking."""
+    return plan_legs(live, layout, fleet, conditions, now, k, cfg, tasks, moves, reason_words)[0]
+
+
+def plan_legs(
+    live: Any,
+    layout: SectorLayout,
+    fleet: FleetState,
+    conditions: Conditions | None,
+    now: str,
+    k: int = 3,
+    cfg: PlannerConfig = PlannerConfig(),  # noqa: B008 - frozen dataclass, never mutated
+    tasks: list[SectorTask] | None = None,
+    moves: dict[str, SectorMove] | None = None,
+    reason_words: int = REASON_WORDS,
+) -> tuple[list[Leg], list[dict]]:
     """Up to ``k`` legs, best first, at most one per drone (idle or flying: a flying drone's leg is
-    a re-task). Nothing when conditions say it isn't flyable. ``tasks``: the sector tasks; a sector
-    a ground team is assigned to or searching is worth ``cfg.team_discount`` less."""
+    a re-task), and the sectors ranked for the first pick (best drone per sector, by value per
+    minute). Nothing when conditions say it isn't flyable. ``tasks``: the
+    sector tasks; a sector a ground team is assigned to or searching is worth ``cfg.team_discount``
+    less. ``moves`` (``sector_moves``): what moved each sector since the last plan, named in each
+    reason (``evidence_line``); each reason fits in ``reason_words`` words."""
     if conditions is not None and conditions.flyable is False:
-        return []
+        return [], []
     grid = live.base.grid
     centre = local_m_to_latlon(grid, grid.cols * grid.cell_m / 2, grid.rows * grid.cell_m / 2)
     lkp = getattr(live.base, "lkp", None) or centre  # where drones start before they report
@@ -298,6 +488,7 @@ def propose_legs(
     worth = {s.id: 1.0 - cfg.team_discount if s.id in teamed else 1.0 for s in layout.sectors}
     p = np.array(live.p()[0], dtype=np.float64)
     outside = float(live.p()[1])
+    poa = {s.id: float(p[layout.cells_of(s.id)].sum()) for s in layout.sectors}
     drones = [d for d in fleet.drones if d.status in ("idle", "flying")]
     options: dict[str, list[Leg]] = {}
     for d in drones:
@@ -312,8 +503,15 @@ def propose_legs(
             if _limits(d, leg, conditions, now, cfg, math.dist(end, home)) is None:
                 ok.append(leg)
         options[d.id] = ok
+    considered = {leg.sector_id for legs in options.values() for leg in legs}
+    top = max(considered, key=lambda s: poa[s]) if considered else None
+
+    def line(sid: str, n: int = 3) -> str:
+        move = None if moves is None else moves.get(sid)
+        return evidence_line(sid, poa[sid], move, sid == top, n)
 
     chosen: list[Leg] = []
+    first: list[tuple[float, Leg]] = []  # the first pick's options, for the ranking
     while len(chosen) < k:
         best: tuple[float, Leg, float, Leg | None] | None = None
         for d in drones:
@@ -337,6 +535,8 @@ def propose_legs(
                 ),
                 key=lambda x: -x[0] / x[1].est_minutes,
             )
+            if not chosen:
+                first += scored
             if not scored or scored[0][0] <= 0:
                 continue
             value, leg = scored[0]
@@ -350,32 +550,32 @@ def propose_legs(
         gain = value / worth[leg.sector_id]  # how much the photos are expected to lower
         drone = next(d for d in drones if d.id == leg.drone_id)
         rate = value / leg.est_minutes
-        why = [
-            f"Sector {leg.sector_id}: expected to lower the remaining probability by {gain:.1%} in {leg.est_minutes:.0f} min ({rate:.2%}/min)"
+        cores = [
+            f"{line(leg.sector_id, n)}; expected to lower the remaining probability by "
+            f"{_pct(gain)} in {leg.est_minutes:.0f} min"
+            for n in (3, 2, 1)
         ]
+        extras = []
         if leg.sector_id in teamed:
-            why[0] += f", counted at {worth[leg.sector_id]:.0%} as a ground team is assigned there"
+            extras.append(
+                f", counted at {worth[leg.sector_id]:.0%} as a ground team is assigned there"
+            )
         if runner_up is not None and runner_gain > 0:
             ratio = rate / (runner_gain / runner_up.est_minutes)
-            why.append(
-                f"{ratio:.1f}× the next best for {drone.name} (sector {runner_up.sector_id})"
-            )
-        limits = [f"within battery ({drone.battery_pct:.0f}%)"]
-        if conditions is not None:
-            if conditions.flyable:
-                limits.append("wind limit")
-            if conditions.civil_twilight_end:
-                spare = (
-                    _t(conditions.civil_twilight_end).timestamp() - _t(now).timestamp()
-                ) / 60 - leg.est_minutes
-                limits.append(f"finishes {spare:.0f} min before civil twilight")
-        reason = " — ".join(why) + ". " + "; ".join(limits).capitalize() + "."
+            extras.append(f"; {ratio:.1f}× the next best for {drone.name} ({runner_up.sector_id})")
+        wind = " and the wind limit" if conditions is not None and conditions.flyable else ""
+        extras.append(f". Within battery ({drone.battery_pct:.0f}%){wind}")
+        if conditions is not None and conditions.civil_twilight_end:
+            spare = (
+                _t(conditions.civil_twilight_end).timestamp() - _t(now).timestamp()
+            ) / 60 - leg.est_minutes
+            extras.append(f"; finishes {spare:.0f} min before civil twilight")
         chosen.append(
             leg.model_copy(
                 update={
                     "expected_clearance": round(gain, 4),
                     "score_per_min": round(rate, 6),
-                    "reason": reason,
+                    "reason": _fit(cores, extras, reason_words),
                 }
             )
         )
@@ -386,7 +586,20 @@ def propose_legs(
         p[cells] *= 1.0 - pod
         p /= denom
         outside /= denom
-    return chosen
+    ranked: dict[str, dict] = {}
+    for value, leg in sorted(first, key=lambda x: -x[0] / x[1].est_minutes):
+        if leg.sector_id in ranked:
+            continue
+        ranked[leg.sector_id] = {
+            "sector": leg.sector_id,
+            "drone": leg.drone_id,
+            "score_per_min": round(value / leg.est_minutes, 6),
+            "worth": worth[leg.sector_id],
+            "minutes": leg.est_minutes,
+            "poa": round(poa[leg.sector_id], 4),
+            "evidence": line(leg.sector_id),
+        }
+    return chosen, list(ranked.values())
 
 
 def propose_assignments(
@@ -395,9 +608,26 @@ def propose_assignments(
     tasks: list[SectorTask],
     teams: list[Team],
     cfg: PlannerConfig = PlannerConfig(),  # noqa: B008 - frozen dataclass, never mutated
+    moves: dict[str, SectorMove] | None = None,
+    reason_words: int = REASON_WORDS,
 ) -> list[tuple[str, str, str]]:
+    """``plan_assignments`` without its ranking."""
+    return plan_assignments(live, layout, tasks, teams, cfg, moves, reason_words)[0]
+
+
+def plan_assignments(
+    live: Any,
+    layout: SectorLayout,
+    tasks: list[SectorTask],
+    teams: list[Team],
+    cfg: PlannerConfig = PlannerConfig(),  # noqa: B008 - frozen dataclass, never mutated
+    moves: dict[str, SectorMove] | None = None,
+    reason_words: int = REASON_WORDS,
+) -> tuple[list[tuple[str, str, str]], list[dict]]:
     """(team id, sector id, reason) for each team on standby: the open sectors where a ground
-    team adds the most per minute of its time (walk there + search), greedily by pair."""
+    team adds the most per minute of its time (walk there + search), greedily by pair; and the
+    open sectors ranked by POA × (1 − drone POD). ``moves`` and
+    ``reason_words`` as for ``plan_legs``."""
     grid = live.base.grid
     p = live.p()[0]
     canopy = _canopy(live, cfg)
@@ -412,6 +642,23 @@ def propose_assignments(
         hidden = float(np.mean(canopy[cells]))
         ranked.append((poa * (1 - drone_pod), poa, drone_pod, hidden, s))
     ranked.sort(key=lambda x: -x[0])
+    top = max(ranked, key=lambda r: r[1])[4].id if ranked else None
+
+    def line(sid: str, poa: float, n: int = 3) -> str:
+        move = None if moves is None else moves.get(sid)
+        return evidence_line(sid, poa, move, sid == top, n)
+
+    table = [
+        {
+            "sector": s.id,
+            "score": round(value, 6),
+            "poa": round(poa, 4),
+            "drone_pod": round(drone_pod, 3),
+            "tree_cover": round(hidden, 3),
+            "evidence": line(s.id, poa),
+        }
+        for value, poa, drone_pod, hidden, s in ranked
+    ]
     free = [t for t in teams if t.status == "standby"]
     lkp = getattr(live.base, "lkp", None) or local_m_to_latlon(
         grid, grid.cols * grid.cell_m / 2, grid.rows * grid.cell_m / 2
@@ -453,17 +700,11 @@ def propose_assignments(
             where = f"; {team.callsign} is nearest ({dist:.0f} m, about {walk:.0f} min on foot)"
         else:
             where = f"; {team.callsign} is {dist:.0f} m away (about {walk:.0f} min on foot)"
-        out.append(
-            (
-                team.id,
-                s.id,
-                (
-                    f"Sector {s.id} holds {poa:.1%} of the probability, {hidden:.0%} of it under tree cover where a drone "
-                    f"sees poorly (drone POD {drone_pod:.2f}): a ground team adds the most here{where}."
-                ),
-            )
-        )
-    return out
+        cores = [line(s.id, poa, n) for n in (3, 2, 1)]
+        cover = f"; {hidden:.0%} under tree cover (drone POD {drone_pod:.2f}): "
+        extras = [cover + "a ground team adds the most here", *([where] if where else [])]
+        out.append((team.id, s.id, _fit(cores, extras, reason_words)))
+    return out, table
 
 
 def _centre(s: Sector) -> tuple[float, float]:
