@@ -8,3 +8,13 @@ export function Logo() {
     </svg>
   );
 }
+
+/** The brand: the logo and the name, one size everywhere, always a link back to the overview. */
+export function Brand() {
+  return (
+    <a href="#" className="sl-tap flex shrink-0 items-center gap-2 text-title font-medium text-text" title="Back to the overview">
+      <Logo />
+      Sightline
+    </a>
+  );
+}
