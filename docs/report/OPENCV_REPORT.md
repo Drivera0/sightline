@@ -333,9 +333,36 @@ per million tokens in / out); 461 of 461 replies were valid JSON.
 
 ### 7.4 Search map and planner
 
-**TODO (lane C):** the planner simulation (median and P90 flight minutes to find, share found
-within 30 min, planner vs static order, 3 seeds × noise levels, labelled simulated), and the
-existing map result (28–30 % fewer cells to search than a naive map; README).
+All results in this section are **simulated**.
+
+**The map** (sprint 1, `sightline/search/sim.py`; 5 m cells, 1,341 trials with the person in a
+photographed cell): a ground team checks a median of 1,213 cells with Sightline's canopy-aware map
+against 1,743 with a naive "photographed = cleared" map. Across 3 seeds × 5 noise levels it was
+better every time: 28–30 % fewer cells at the default noise, 19–23 % with noise matching the canopy
+estimate's measured error (README; `docs/LANE_C_SEARCH.md`).
+
+**The planner** (`scripts/planner_eval.py`, `sightline/search/planner_sim.py`): on the demo mission's
+map (1 km around the last known position, 5 m cells, the labelled placeholder prior, canopy measured
+by its photos for 10 % of cells, 0.5 assumed elsewhere), one drone from the last known position flies
+lawnmower legs for 2 hours, either in a fixed serpentine sector order or as the planner chooses
+before every leg. The person's cell is drawn from the map; each pass over it finds them with
+probability recall × visibility. 3 seeds × 3,200 trials per row:
+
+| Scenario | Strategy | Found within 30 min | Found within 2 h |
+|---|---|---|---|
+| No clue (flat prior) | fixed order | 6.8 % | 28.3 % |
+| | planner | 6.9 % | 27.8 % |
+| A clue at the start (100 m, medium reliability), each of the 16 sectors in turn | fixed order | 6.3 % | 27.7 % |
+| | **planner** | **10.7 %** | **29.9 %** |
+
+(Visibility noise 0.15; 0 and 0.30 move each number by at most 0.6 points.) **With a flat prior the
+planner is no better than a sensible fixed order**, as expected: every sector is worth the same, so
+there is nothing to choose. **With a clue it flies there first** and finds the person within 30 min
+about 1.7× as often. The medians are beyond 2 hours for both, because one drone covers about 10 of
+the 16 sectors in that time and each pass finds a person under typical cover only about 4 times in
+10; more drones and real canopy maps are what move those numbers. An earlier version of this
+evaluation counted finds on a leg that started before the 2-hour mark but ended after it, which
+flattered the fixed order; it was fixed before these numbers.
 
 ### 7.5 End to end
 
