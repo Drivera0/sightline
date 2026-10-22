@@ -1,6 +1,6 @@
 # Sightline
 
-![Sightline command console: a clue lands on the map, then the simulated fleet with a drone re-tasked to it](docs/report/figures/demo.gif)
+![Sightline demo console: a person approves the agent's proposal, then the mission clock runs on, teams go out, the simulated drones fly and B4 is searched at POD 60 %](docs/report/figures/demo.gif)
 
 *The console on the demo mission (`#m/demo/map`), 18 s, recorded before the one-console bar of #171: a clue added on the map, then the fleet with Drone 1 re-tasked to the water-bottle clue (recorded from the local build by `scripts/demo_video/run.sh`; the mission, the drones and their links are simulated).*
 
