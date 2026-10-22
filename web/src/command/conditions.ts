@@ -72,6 +72,10 @@ export function latestLookup(trace: readonly TraceEntry[]): Lookup | null {
   };
 }
 
+/** A conditions record put in by hand for a demo (POST /conditions/override), never from a Tavily lookup. */
+export const OVERRIDE_SOURCE = "override (demo)";
+export const isOverride = (c: Conditions | null | undefined): boolean => !!c && Array.isArray(c.sources) && c.sources.includes(OVERRIDE_SOURCE);
+
 export function domain(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -109,8 +113,14 @@ export function dayNote(iso: string, now: Date, utc = true): string {
 /** Each fact the agent uses, with its value and where it came from. Empty fields say so: nothing is guessed. */
 /** `now`: the mission clock, so a time on another day says its date ("01:40 UTC, 23 Oct"). */
 export function conditionsFacts(c: Conditions, lookup: Lookup | null, now: Date = new Date()): Fact[] {
+  const override = isOverride(c);
   const quoted = (field: string, label: string, value: number | null, show: (v: number) => string): Fact => {
     const f = lookup?.fields[field];
+    if (override) {
+      // never shown with an earlier lookup's quotes: the override replaced it whole
+      if (value === null) return { id: field, label, value: "not set", source: { kind: "computed", how: "left empty by the demo override" } };
+      return { id: field, label, value: show(value), source: { kind: "computed", how: `${OVERRIDE_SOURCE}: set by hand, not from Tavily` } };
+    }
     if (value === null) return { id: field, label, value: "not on the pages read", source: { kind: "missing" } };
     return { id: field, label, value: show(value), source: f?.quote ? { kind: "quote", quote: f.quote, url: f.url } : { kind: "missing" } };
   };

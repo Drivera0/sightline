@@ -3,7 +3,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Proposal, Team } from "../contract";
+import type { Drone, Proposal, Team } from "../contract";
 import { ApprovalInbox } from "./ApprovalInbox";
 
 const AT = "2026-10-24T21:40:00Z";
@@ -92,5 +92,48 @@ describe("ApprovalInbox", () => {
   it('never says "clear"', () => {
     setup([p({})]);
     expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+  });
+});
+
+describe("a recall", () => {
+  const URL = "https://weather.gc.ca/forecast/hourly/bc-74_metric_e.html";
+  const QUOTE = "Wind southeast 30 km/h gusting to 50";
+  const recall = (ref: string, caption: string) =>
+    p({
+      id: "p007", kind: "retask_drone", summary: "Recall Drone 2: fly home now (leaves sector C3, battery 62%)", briefing: null,
+      reason: `Gusts 50 km/h ("${QUOTE}", weather.gc.ca, as of 20:05 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 2 to its launch point, 2 min away.`,
+      target: { drone: "D2", leg: "L009", home: "recall" },
+      evidence: [{ kind: "conditions", ref, caption }, { kind: "leg", ref: "L009", caption: "home to the launch point" }],
+    });
+  const D2: Drone = { id: "D2", name: "Drone 2", simulated: true, position: { lat: 49.37712, lon: -122.93601 }, altitude_m: 50, speed_ms: 8,
+    battery_pct: 62.4, max_wind_kmh: 43.2, status: "flying", leg_id: "L003" };
+
+  it("shows the quoted fact, its page, and the drone's battery and position", async () => {
+    const onDecide = vi.fn();
+    render(<ApprovalInbox proposals={[recall(URL, QUOTE)]} teams={TEAMS} drones={[D2]} onDecide={onDecide} imageUrl={(r) => r} />);
+    const card = screen.getByLabelText("Proposal p007");
+    expect(within(card).getByText("Recall drone")).toBeInTheDocument();
+    const why = within(card).getByLabelText("Why recall");
+    expect(within(why).getByText(QUOTE).tagName).toBe("Q");
+    expect(within(why).getByRole("link", { name: /weather\.gc\.ca/ })).toHaveAttribute("href", URL);
+    expect(why).toHaveTextContent("Drone 2: battery 62%, flying at 49.37712, -122.93601");
+    expect(within(card).queryByText("leg L009")).toBeNull(); // the facts block replaces the chips
+    await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
+    expect(onDecide).toHaveBeenCalledWith("p007", "approve", "Search manager", undefined, undefined);
+    expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+  });
+
+  it("says a demo override is not from Tavily, with no link", () => {
+    render(<ApprovalInbox proposals={[recall("override (demo)", "gusts 50 km/h (override (demo), not from Tavily)")]} teams={TEAMS} onDecide={vi.fn()} imageUrl={(r) => r} />);
+    const why = screen.getByLabelText("Why recall");
+    expect(within(why).getByText("Demo override: not from Tavily")).toBeInTheDocument();
+    expect(within(why).queryByRole("link")).toBeNull();
+    expect(within(why).getByText("gusts 50 km/h")).toBeInTheDocument();
+  });
+
+  it("an ordinary re-task is still a re-task", () => {
+    setup([p({ id: "p008", kind: "retask_drone", target: { drone: "D1", leg: "L002" }, briefing: null })]);
+    expect(screen.getByText("Re-task drone")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Why recall")).toBeNull();
   });
 });
