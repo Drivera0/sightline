@@ -56,13 +56,13 @@ decision is a `human` trace entry that says it was scripted.
 
 | Evidence → proposal | n | p50 ms | p90 ms |
 |---|---|---|---|
-| clue → drone_leg | 9 | 117 | 130 |
-| detection → promote_detection (incl. second look) | 3 | 9 | 10 |
-| verdict → promote_detection | 3 | 1 | 2 |
-| review → alert | 9 | 42 | 48 |
-| review → assign_sector | 9 | 46 | 51 |
-| leg done → drone_leg | 12 | 49 | 54 |
-| tick → assign_sector | 39 | 50 | 60 |
+| clue → drone_leg | 9 | 135 | 152 |
+| detection → promote_detection (incl. second look) | 3 | 23 | 27 |
+| verdict → promote_detection | 3 | 2 | 4 |
+| review → alert | 9 | 33 | 65 |
+| review → assign_sector | 9 | 35 | 73 |
+| leg done → drone_leg | 12 | 59 | 82 |
+| tick → assign_sector | 39 | 63 | 89 |
 
 **Correct target.** Every check that has a ground truth passed in every run:
 
@@ -90,7 +90,9 @@ detection. They do not test perception.
 - No pending, rejected or superseded leg is in the fleet.
 - Every team off standby, and every assigned sector task, has an approved `assign_sector`.
 - Every promotion to the review queue follows an approved `promote_detection`.
-- Leg approvals in the event log come after their decisions.
+- No leg is approved in the event log before its proposal exists. These ordering checks use the
+  event log's order, not wall-clock stamps: in one run the clock stepped back 0.8 s, which made a
+  decision look older than its proposal.
 - Every approval and rejection records who made it and when, and is made by a person. The agent
   only ever supersedes its own proposals.
 - Every rejection has a reason.
@@ -101,46 +103,68 @@ detection. They do not test perception.
 
 The Token Factory cases run the real `TokenFactoryClient` over a stand-in for the `openai` SDK
 object, so the client's own retry and parsing code is what gets tested. Tavily is replaced through
-`sightline.geo.conditions._tavily`. No agent file was changed.
+`sightline.geo.conditions._tavily`.
 
-| Case | What the loop did | In the trace |
-|---|---|---|
-| Token Factory timeout, every attempt | Made 3 retries per call (backoff 1, 2, 4 s), then fell back. The verdict is `unclear`, naming `APITimeoutError`, and no promotion is made. Both briefings use the template. | yes: a note per failure |
-| 503 on the first two attempts, then OK | Retried and recovered: verdict `yes`, the promotion is made, and the briefings come from the model. | partly: the 4 retries are not traced |
-| 503 on every attempt | The same as the timeout case, naming `InternalServerError`. | yes |
-| Malformed JSON (verdict and briefing) | One retry, then fell back. The verdict is `unclear` ("not valid JSON after one retry"), and the briefings use the template. | yes: both model calls, the rejection reason, the fallback |
-| Malformed once, then valid | Recovered on the retry: verdict `yes`, the promotion is made. | yes |
-| Tavily down | Fell back. `POST /conditions/refresh` returned 200 with stale conditions: "no conditions data (offline: ConnectionError)", `flyable` unknown. The agent made no proposal. | **no**: only an event and a log warning |
-| Photo with no GPS, via the API | Rejected at upload with the reason, and nothing was queued. | no (the upload response names the reason) |
-| Photo with no GPS that reaches the worker | The job failed and was logged. **The next good photo was not processed either** ("f0002 arrived as frame 1: jobs out of order"). | no |
-| The same clue delivered twice | The second re-plan superseded the first proposal, leaving one pending. | yes (the superseding is an event, not a trace entry) |
-| The same near-miss detection delivered twice | **2 verdicts and 2 pending `promote_detection` proposals for one detection** | yes; nothing marks it as a repeat |
-| The same review posted twice | **2 `alert` proposals.** The `assign_sector` was deduplicated. | yes |
-| The same photo job delivered twice (SQS) | Skipped as already processed. | no |
-| The same proposal approved twice | The second approval was refused with 409, and the leg is in the fleet once. | yes, the first decision |
+The table compares #140, before the fixes, with this run, after #142. **Bold** marks what changed.
 
-Nothing crashed. No scenario run raised an exception, and the runner traced no failed event.
+| Case | Before (#140) | After (#142) | In the trace, after |
+|---|---|---|---|
+| Token Factory timeout, every attempt | 3 retries per call (backoff 1, 2, 4 s), then `unclear` and template briefings. In the trace, but the retries were not. | **A timeout is retried once.** The 4th failed attempt in a row opens the circuit breaker, and the next call **fails fast without the network** (`CircuitOpen`). The fallbacks are unchanged. | yes: "APITimeoutError after 2 attempts (timeout ×2)", and "CircuitOpen …" |
+| 503 on the first two attempts, then OK | Retried and recovered. **The retries were not traced.** | Retried and recovered. | **yes**: the model call's entry says "after 2 retries (HTTP 503, HTTP 503)" |
+| 503 on every attempt | 3 retries per call, then fell back. | 4 attempts on the first call (opens the breaker), then **the next 2 calls fail fast**. | yes: "InternalServerError after 4 attempts (HTTP 503 ×4)" |
+| Slow and down: every attempt hangs, then times out (new case) | Not measured. A calculation gave about 4 min per call with the 60 s timeout. | **4 attempts in all**, then 4 calls fail fast. The sequence (near miss, review, tick) took 1.6 s with 0.25 s per attempt. Live, with the agent's 20 s timeout, the same sequence would take about 82 s. | yes: 4 notes name `CircuitOpen` |
+| Malformed JSON (verdict and briefing) | One retry, then `unclear` and template briefings. | Unchanged. | yes |
+| Malformed once, then valid | Recovered on the retry. | Unchanged. | yes |
+| Tavily down | Stale conditions, HTTP 200, no proposal. **Not in the trace.** | Unchanged behaviour. | **yes**: conditions note "Tavily failed (ConnectionError): conditions fell back to none, marked stale" |
+| Photo with no GPS, via the API | Rejected at upload. **Not in the trace.** | Rejected at upload. | **yes**: pipeline note `photo.rejected no_gps.jpg: …`, plus a `mission.note` event |
+| Photo with no GPS that reaches the worker | The job failed, and **the next good photo was not processed** ("jobs out of order"). | **Recorded as `photo.failed`, and the next photo is processed.** It becomes frame f0001, because frame ids stay contiguous. | **yes**: pipeline note `photo.failed f0001 (no_gps.jpg): …`, plus a `mission.note` event |
+| The same clue delivered twice | Superseded, one pending per drone. | Unchanged. | yes |
+| The same near-miss detection delivered twice | **2 verdicts and 2 `promote_detection`** | **1 verdict and 1 `promote_detection`.** The repeat makes no model call. | **yes**: note "repeat detection f0001-d01: no new proposal; p004 (pending)" |
+| The same review posted twice | **2 `alert` proposals** | **1 `alert`**: the pending one is reused. | **yes**: note "repeat review of f0001-d01: …" |
+| The same photo job delivered twice (SQS) | Skipped. | Skipped. A failed job that is delivered again is also skipped. | no (it is a no-op) |
+| The same proposal approved twice | 409, and the leg is in the fleet once. | Unchanged. | yes, the first decision |
 
-## Findings for the code owners
+Nothing crashed. No scenario run raised an exception, and the runner traced no failed event. Every
+new failure entry uses the trace's existing `note` kind and its existing actors (`pipeline`,
+`conditions`, `verifier`, `agent`), so the web Trace tab shows them without a change. The
+`photo.failed` and `photo.rejected` events are `mission.note` events with `data.failure` set. The
+contract's event types are a closed list that the web app shares, so no new type was added.
 
-These were reported, not patched here:
+## What changed (#142)
 
-1. **A failed photo job stalls the mission's photos** (`sightline/mission/pipeline.py`, lane D).
-   Frame ids are given out at upload. If a queued job fails anywhere except the detector, every
-   later job fails the order check. The upload's GPS check keeps a no-GPS photo out, but any other
-   failure in `ingest_photo` would stall the mission the same way.
-2. **Duplicate events give duplicate proposals** (`sightline/agent/loop.py`):
-   - A repeated `detection` event makes a second verdict and a second `promote_detection`.
-   - A repeated `person` review makes a second `alert`.
+Each of the four findings in #140 is fixed in its own commit, each with a test that failed before
+the fix and passes after it:
 
-   A pending proposal of the same kind for the same target could be reused, as `_assign` already
-   does for teams.
-3. **Some failures are not in the trace.**
-   - The client's retries (`sightline/agent/llm.py`).
-   - Tavily being down: the conditions fall back silently (`sightline/geo/conditions.py`, lane B).
-   - A failed photo job, and a photo rejected at upload.
-4. **Live: a fully down Token Factory costs about 4 minutes per model call.** This is a calculation,
-   not a measurement: 4 attempts × the 60 s timeout, plus 7 s of backoff. The agent has a single
-   worker thread, so the queue backs up behind those calls. The fallbacks still hold.
+1. **A failed photo job no longer stalls the mission** (`sightline/mission/pipeline.py`).
+   - A job that can't become a frame is recorded as `photo.failed`, with the reason, as an event and
+     a trace note. Its original is kept under `frames/failed/`.
+   - A ledger (`frames/jobs.json`) counts the jobs already handled. The next job is therefore in
+     order, and it takes the next frame id, so frame ids stay contiguous as the contract requires.
+     A frame's id can then be lower than its upload id.
+   - Test: `tests/pipeline/test_photo_failures.py`.
+2. **Repeated events reuse the proposal** (`sightline/agent/loop.py`).
+   - A detection is verified once and promoted at most once.
+   - A person confirmed again reuses the pending or approved alert.
+   - The repeat is a trace note. After a rejection, a new confirmation proposes again.
+   - Test: `tests/agent/test_loop_repeats.py`.
+3. **The silent failures are traced.**
+   - The client's retries: on the model call's entry, or in the failure note as "after N attempts".
+   - Tavily being down: a conditions note.
+   - A photo refused at upload, and a failed photo job.
+   - Test: `tests/agent/test_failure_tracing.py`.
+4. **What a down Token Factory costs is capped** (`sightline/agent/llm.py`, `runner.py`).
+   - Circuit breaker: after 4 failed attempts in a row, across calls, every call fails fast with
+     `CircuitOpen` for 60 s. One trial call then decides whether it closes. The breaker is logged,
+     and the callers' fallback notes name it.
+   - A timeout is retried once instead of three times.
+   - The agent's calls use a 20 s per-attempt timeout. That is over 4× the slowest measured call:
+     VL p90 1.65 s and max 2.19 s over 461 calls, and the radio's first call took up to 4.5 s
+     (`docs/feedback/nebius.md`). Other callers keep 60 s; the conditions reader has no measured
+     latency yet.
+   - Fully down, the agent now pays 4 attempts in all, about 82 s, instead of 4 × 60 s on every call.
+   - Test: `tests/agent/test_circuit_breaker.py`, including a check that the queue drains within
+     that bound.
+
+The eval itself was updated for the v2 planner (#135), as described under the clue check above.
 
 `--live` was not run for this page: `NEBIUS_API_KEY` was not set.
