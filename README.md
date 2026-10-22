@@ -44,6 +44,17 @@ Beyond the detector (simulated or with fake models where marked; every headline 
 - **Search map (simulated, 1,341 trials with the person in a photographed cell, 5 m cells):** a ground team checks a median of 1,213 cells with Sightline's map, against 1,743 for a naive map that treats every photographed cell as searched for certain (seed 7, the best of the three seeds tried). In the robustness check on the same 5 m map it was better in all 15 runs (3 seeds × 5 noise levels): 28–30% fewer cells at the default noise, 19–23% with noise matching the canopy estimate's measured error (docs/LANE_C_SEARCH.md).
 - **Where it fails:** groups of people, clothing that matches pale or dark rock, people sitting or lying down. While analysing the misses we found 42 test labels squashed by a size bug in four photos; fixing it moved recall from 0.769 to 0.864. Details: [docs/DETECTOR_LIMITS.md](docs/DETECTOR_LIMITS.md).
 
+Published results on the HERIDAL test set, in per cent (the full table, sources and caveats: report §3.10):
+
+| Method | Precision | Recall | AP |
+|---|---|---|---|
+| AIR with NMS (Accenture, self-reported; scoring protocol not stated) | 90.1 | 86.1 | 84.6 |
+| Faster R-CNN (Marušić et al. 2018, as quoted by AIR) | 67.3 | 88.3 | 86.1 |
+| Two-stage multimodel CNN (Kundid Vasić & Papić 2020, as quoted by AIR) | 68.9 | 94.7 | — |
+| **Sightline, strict VOC (IoU ≥ 0.5)** | **80.2** | **86.4** | **86.8** |
+
+The rows are not strictly comparable: the published ones do not state their matching rule on the page, each is one operating point, and we have not checked that they scored the same 101 photos and labels. Ours is the row you can check in about 5 minutes on a CPU (`scripts/reproduce_cv2.py`, below).
+
 ## What the demo shows
 
 The site walks through one survey in five steps (keys 1 to 5):

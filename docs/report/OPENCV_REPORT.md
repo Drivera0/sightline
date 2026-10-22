@@ -319,6 +319,39 @@ alarm). On the demo survey, all 6 photos with a person are in the first 7 of the
 Ablations (tiling vs shrinking vs native-resolution single pass, whole-photo training, mirror
 TTA): `scripts/README.md`.
 
+### 3.10 Published results on HERIDAL, side by side
+
+Precision, recall and AP in per cent, on the HERIDAL test set as each source states it.
+
+| Method | Precision | Recall | AP | Source |
+|---|---|---|---|---|
+| Saliency-guided VGG16 (Božić-Štulić, Marušić & Gotovac, IJCV 2019) | 34.8 | 88.9 | — | the paper's authors, as quoted by AIR [a] |
+| Faster R-CNN (Marušić et al., SpliTech 2018) | 67.3 | 88.3 | 86.1 | the paper's authors, as quoted by AIR [a] |
+| SSD (as reported by Kundid Vasić & Papić, Electronics 2020) | 4.3 | 94.4 | — | the paper's authors, as quoted by AIR [a] |
+| Two-stage multimodel CNN (Kundid Vasić & Papić, Electronics 2020) | 68.9 | 94.7 | — | the paper's authors, as quoted by AIR [a] [b] |
+| AIR with NMS (Accenture) | 90.1 | 86.1 | 84.6 | self-reported [a]; scoring protocol not stated on the page |
+| **Sightline, strict VOC (one box per person, IoU ≥ 0.5)** | **80.2** | **86.4** | **86.8** | §3.9; `scripts/reproduce_cv2.py` |
+| Sightline, SAR-APD (scored like the human study) | 89.8 | 89.6 | — | §3.9; `scripts/parity_table.py` |
+
+[a] The "Results on HERIDAL test set" table in the AIR README, https://github.com/Accenture/AIR (read
+2026-10-22), which adds: "We did not test any of the other methods ourselves." [b] The paper's abstract gives
+precision 68.89 % and recall 94.65 % (https://www.mdpi.com/2079-9292/9/9/1459); mdpi.com refused our
+fetch of the full text (HTTP 403), so its split, matching rule and the SSD row are taken from AIR's table
+unchecked.
+
+**Why the rows are not strictly comparable.** None of the published rows states its matching rule on
+the page we read, so an IoU of 0.5, a looser overlap or SAR-APD's one-box-per-group rule could each be
+behind a row; our own two rows differ by up to 9.6 points between strict VOC and SAR-APD on the same
+boxes (§3.9). Each row is also one operating point: precision and recall trade off with the threshold
+(ours is 0.29, chosen on validation), and only three rows report a threshold-free AP. Every row says
+"HERIDAL test set", but we have not checked that the earlier papers scored the same 101 photos with the
+same labels; our own converter squashed 42 test labels in four photos until we fixed it
+(`docs/DETECTOR_LIMITS.md` §1). Read the table as context, not a ranking: our strict row has AIR's
+recall at lower precision and the highest AP printed here. It is also the only row we can check from a
+clean checkout in about 5 minutes on a CPU: `scripts/reproduce_cv2.py` re-scores the test set on
+`cv2.dnn` and exits 1 if any number differs (§12.1). AIR ships an evaluation script (`evaluate.sh`) for
+its SAR-APD setting; for the paper rows we quote the published numbers only.
+
 ## 4. AWS deployment
 
 The live pipeline runs on AWS (us-west-2), set up and torn down by scripts in `deploy/aws/`:
@@ -378,6 +411,33 @@ the time per photo, so a bigger instance or a second worker shortens it directly
   hours (health, CORS, an earlier mission and its event stream, a 404) and opens an issue when a check fails;
   the full `remote_check.py` (one photo through upload → SQS → worker → `photo.processed`) is run by hand
   before a demo, and passed all 7 checks before and after a stop/start on 22 Oct.
+
+### 4.1 Cost and energy of one mission
+
+**A 500-photo mission's compute costs under a dollar: about $0.67 on the AWS path, about $0.49 with
+detection as a Nebius Serverless Job.** Every input is a measured number from this repo, except the Tavily
+credit price and the per-vCPU wattage, which are cited. Prices in US dollars, list or catalog prices.
+
+| Item | Inputs (source) | 500 photos |
+|---|---|---|
+| Detector, `cv2.dnn` on AWS c7i.2xlarge | 5.1 s per photo in the worker (`docs/report/OPENCV_REPORT.md:374`) × 500 = 2,550 s = 0.71 h, at about $0.36 an hour (`:381`) | $0.26 |
+| Second look, Nemotron VL on Token Factory | 170 calls on 95 HERIDAL val photos (`docs/LANE_A_ML.md:273`, `:183`), so about 895 calls for 500 photos, × about $0.00033 per call (`docs/feedback/nebius.md:74`) | $0.30 |
+| Conditions, Tavily | one lookup per area per clock hour, at most 4 calls (`docs/report/TAVILY.md:15`): 3 advanced searches at 2 credits and 1 basic extract at 1 credit (`:17`, `:20`; `sightline/geo/conditions.py:540`, `:575`), so 7 credits an hour at $0.008 per credit ([Tavily API credits](https://docs.tavily.com/documentation/api-credits)); for a 2-hour mission (our assumption) | $0.11 |
+| **Total, AWS path** | | **$0.67** |
+| Instead of the AWS detector row: a Nebius Serverless Job | 0.68 s per photo inside the job plus about 3 min of VM start (677 s − 483 s), at $0.53 an hour (`docs/feedback/nebius.md:174-177`): (500 × 0.68 s + 194 s) = 534 s | $0.08 |
+| Instead of the CPU detector: `cv2.dnn` on a GPU | 0.303 s per photo on an RTX 4080 SUPER (`docs/report/CV2_CUDA.md:143`) × 500 = 152 s, about 2.5 min | time only; no GPU price is recorded in the repo |
+
+The second-look row is an upper bound for a real survey: HERIDAL photos were chosen because they contain
+people, so most of a search's photos would give no near-miss to check (100 calls would be $0.03). The
+Tavily row falls inside Tavily's 1,000 free credits a month for about 140 mission-hours (70 two-hour missions). Not counted: the
+instance's idle hours between missions (it is stopped, §4), S3 storage, and the mission-length Token Factory
+calls for briefings and radio turns, which are not metered per mission in the repo.
+
+**Energy, an estimate.** `cv2.dnn` needs about 30 CPU-seconds per photo (`docs/report/OPENCV_REPORT.md:377`),
+so 500 photos take about 15,000 vCPU-seconds (4.2 vCPU-hours). At Cloud Carbon Footprint's AWS average
+of 3.5 W per vCPU at full load and a PUE of 1.135 ([methodology, Appendix I](https://www.cloudcarbonfootprint.org/docs/methodology)),
+that is about 4.2 × 3.5 × 1.135 ≈ **17 Wh for the detector on a 500-photo mission**. It is a coefficient-based
+estimate, not a meter reading, and leaves out memory, storage, network and the model calls.
 
 ## 5. Agent (Agentic Vision)
 
@@ -783,6 +843,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
 | Radio clue reports read back and confirmed before logging | 6 / 6; demo script 5 / 5 as scripted | §8; `scripts/radio_rehearse.py` |
 | Conditions, Tavily calls | at most 4 per area per hour; the same values on two runs | §7; `docs/report/TAVILY.md` |
 | Nebius Serverless Job, the fleet's photos on `cv2.dnn` | 711 photos in 483 s on 16 vCPUs, about $0.10 | `docs/feedback/nebius.md` §5 |
+| Compute cost of a 500-photo mission | about $0.67 (AWS detector, second look, Tavily); about $0.49 with detection on a Nebius Serverless Job; detector energy about 17 Wh (estimate) | §4.1 |
 | Reproduce the test table, `cv2.dnn` only, CPU | 4 min 58 s (about 5 min 10 s end to end) | §12.1; `scripts/reproduce_cv2.py` |
 | Reproduce with both backends, CPU | 12 min 48 s (about 14 min end to end) | §12.2; `README.md` |
 | Docker dress run from nothing | 805 s (13.4 min); pytest 1108 passed, 4 skipped | §12.3; `deploy/dressrun/README.md` |
