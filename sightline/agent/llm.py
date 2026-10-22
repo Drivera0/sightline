@@ -12,13 +12,17 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 import re
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
+
+log = logging.getLogger(__name__)
 
 MODEL_REASON = os.environ.get("SIGHTLINE_MODEL_REASON", "nvidia/nemotron-3-super-120b-a12b")
 MODEL_FAST = os.environ.get("SIGHTLINE_MODEL_FAST", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
@@ -30,9 +34,20 @@ DEFAULT_MAX_TOKENS = 2048
 FAKE_LLM_REPLY = "{}"  # valid JSON, so JSON-schema callers parse it and find no fields
 NO_THINKING: dict[str, Any] = {"chat_template_kwargs": {"enable_thinking": False}}
 
-TIMEOUT_S = 60.0
+TIMEOUT_S = 60.0  # per attempt; conditions read long pages and have no measured latency yet
+# The agent's model calls (second look, briefings), per attempt. Measured (docs/feedback/nebius.md):
+# VL verdict p50 1.35 s, p90 1.65 s, max 2.19 s over 461 calls; briefings p90 under 1 s; the radio's
+# first Super call 3.1-4.5 s. 20 s is over 4x the slowest call seen.
+AGENT_TIMEOUT_S = 20.0
 RETRIES = 3  # after the first attempt, on 429 / 5xx / timeouts / connection errors
+TIMEOUT_RETRIES = 1  # a timeout already cost a whole timeout: retried once, not three times
 BACKOFF_S = 1.0  # 1 s, 2 s, 4 s
+# Circuit breaker: after this many failed attempts in a row (across calls), every call fails fast
+# with CircuitOpen for BREAKER_OPEN_S, then one trial call decides. 4 keeps one call's 3 retries on
+# 5xx. Token Factory fully down then costs the agent 4 timed-out attempts in all (2 calls x 2
+# attempts: about 4 x 20 s + 2 s of backoff), not 4 attempts of 60 s on every call.
+BREAKER_FAILURES = 4
+BREAKER_OPEN_S = 60.0
 
 _MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 
@@ -55,6 +70,10 @@ class LLMError(RuntimeError):
     """A model call that cannot succeed as asked (not retried)."""
 
 
+class CircuitOpen(LLMError):
+    """Token Factory has failed too often in a row: the call fails fast, without the network."""
+
+
 @dataclass(frozen=True)
 class ChatResult:
     text: str
@@ -63,6 +82,7 @@ class ChatResult:
     ms: int
     tokens_in: int
     tokens_out: int
+    retries: tuple[str, ...] = ()  # why each earlier attempt failed ("HTTP 503", "timeout"), traced
 
 
 class ChatClient(Protocol):
@@ -149,6 +169,28 @@ def tool_message(call_id: str, content: object) -> dict:
     return {"role": "tool", "tool_call_id": call_id, "content": text}
 
 
+def _why(e: Exception) -> str:
+    """One failed attempt in a word or two, for the trace: "HTTP 503", "timeout", "connection"."""
+    status = getattr(e, "status_code", None)
+    if isinstance(status, int):
+        return f"HTTP {status}"
+    name = type(e).__name__
+    return "timeout" if "Timeout" in name else "connection" if "Connection" in name else name
+
+
+def failure_text(e: Exception) -> str:
+    """A failed model call for a trace note: the error, and how often it was tried when the client
+    retried it ("InternalServerError after 4 attempts (HTTP 503 ×4)")."""
+    if isinstance(e, CircuitOpen):
+        return f"CircuitOpen: {e}"
+    attempts = getattr(e, "sightline_attempts", None)
+    if not attempts or len(attempts) < 2:
+        return type(e).__name__
+    kinds = list(dict.fromkeys(attempts))
+    said = ", ".join(f"{k} ×{attempts.count(k)}" if attempts.count(k) > 1 else k for k in kinds)
+    return f"{type(e).__name__} after {len(attempts)} attempts ({said})"
+
+
 def _retryable(e: Exception) -> bool:
     status = getattr(e, "status_code", None)
     if isinstance(status, int):
@@ -159,7 +201,9 @@ def _retryable(e: Exception) -> bool:
 
 
 class TokenFactoryClient:
-    """``ChatClient`` over Token Factory: retries on 429/5xx (3, exponential), 60 s timeout.
+    """``ChatClient`` over Token Factory: retries on 429/5xx (3, exponential) and timeouts (1),
+    ``timeout_s`` per attempt, and a circuit breaker (``BREAKER_FAILURES`` failed attempts in a row
+    → ``CircuitOpen`` for ``BREAKER_OPEN_S``, logged; callers trace it as any failed call).
 
     ``extra_body`` is sent with every call (merged with a per-call ``extra_body``), e.g.
     ``TokenFactoryClient(..., extra_body=NO_THINKING)``.
@@ -174,6 +218,9 @@ class TokenFactoryClient:
         timeout_s: float = TIMEOUT_S,
         client: Any = None,
         sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.monotonic,
+        breaker_failures: int = BREAKER_FAILURES,
+        breaker_open_s: float = BREAKER_OPEN_S,
     ) -> None:
         if client is None:
             from openai import OpenAI
@@ -182,6 +229,44 @@ class TokenFactoryClient:
         self._client = client
         self.extra_body = extra_body
         self._sleep = sleep
+        self._clock = clock
+        self._breaker_failures, self._breaker_open_s = breaker_failures, breaker_open_s
+        self._failures = 0  # failed attempts in a row
+        self._open_until: float | None = None
+        self._trial = False  # half-open: one call is finding out whether it is back
+        self._lock = threading.Lock()
+
+    def _admit(self) -> None:
+        """Let an attempt through, or raise ``CircuitOpen`` without touching the network."""
+        with self._lock:
+            if self._open_until is None:
+                return
+            left = self._open_until - self._clock()
+            if left <= 0 and not self._trial:
+                self._trial = True  # half-open: this attempt decides
+                return
+            raise CircuitOpen(
+                f"Token Factory failed {self._failures} attempts in a row; calls fail fast "
+                f"for {self._breaker_open_s:g} s (next try in {max(0.0, left):.0f} s)"
+            )
+
+    def _result(self, ok: bool) -> bool:
+        """Count an attempt; True when this failure opened (or reopened) the breaker."""
+        with self._lock:
+            self._trial = False
+            if ok:
+                self._failures, self._open_until = 0, None
+                return False
+            self._failures += 1
+            if self._failures < self._breaker_failures:
+                return False
+            self._open_until = self._clock() + self._breaker_open_s
+        log.warning(
+            "Token Factory: %d failed attempts in a row, circuit open for %g s",
+            self._failures,
+            self._breaker_open_s,
+        )
+        return True
 
     def chat(
         self,
@@ -210,12 +295,27 @@ class TokenFactoryClient:
             kwargs["extra_body"] = body
 
         start = time.perf_counter()
+        failed: list[str] = []
         for attempt in range(RETRIES + 1):
+            self._admit()  # raises CircuitOpen while the breaker is open
             try:
                 resp = self._client.chat.completions.create(**kwargs)
+                self._result(ok=True)
                 break
             except Exception as e:
-                if attempt == RETRIES or not _retryable(e):
+                failed.append(_why(e))
+                retryable = _retryable(e)
+                opened = self._result(ok=not retryable)  # a 4xx is our request, not an outage
+                if (
+                    attempt == RETRIES
+                    or not retryable
+                    or opened
+                    or failed.count("timeout") > TIMEOUT_RETRIES
+                ):
+                    try:  # the caller's failure note says how often it was tried
+                        e.sightline_attempts = failed  # type: ignore[attr-defined]
+                    except AttributeError:
+                        pass
                     raise
                 self._sleep(BACKOFF_S * 2**attempt)
         ms = round((time.perf_counter() - start) * 1000)
@@ -236,10 +336,13 @@ class TokenFactoryClient:
             ms=ms,
             tokens_in=getattr(usage, "prompt_tokens", 0) or 0,
             tokens_out=getattr(usage, "completion_tokens", 0) or 0,
+            retries=tuple(failed),
         )
 
 
-def token_factory_client(*, extra_body: dict | None = None) -> TokenFactoryClient | FakeChatClient:
+def token_factory_client(
+    *, extra_body: dict | None = None, timeout_s: float = TIMEOUT_S
+) -> TokenFactoryClient | FakeChatClient:
     """The client from env: ``NEBIUS_API_KEY`` (required), ``NEBIUS_BASE_URL`` (optional).
 
     With ``SIGHTLINE_FAKE_LLM=1`` (D's smoke test, demos without a key) it returns a
@@ -250,7 +353,7 @@ def token_factory_client(*, extra_body: dict | None = None) -> TokenFactoryClien
     if not api_key:
         raise LLMError("NEBIUS_API_KEY is not set (put it in your environment or .env)")
     base_url = os.environ.get("NEBIUS_BASE_URL") or DEFAULT_BASE_URL
-    return TokenFactoryClient(api_key, base_url, extra_body=extra_body)
+    return TokenFactoryClient(api_key, base_url, extra_body=extra_body, timeout_s=timeout_s)
 
 
 Reply = str | ChatResult | Exception

@@ -63,6 +63,9 @@ def test_hooks_return_fast_and_enqueue(store, mission_id, runner) -> None:
         ("on_clue", ("c001",)),
         ("on_conditions", ()),
         ("on_leg_done", ("L001",)),
+        ("on_task_searched", ("B2",)),
+        ("on_team_position", ("T1",)),
+        ("on_fleet_join", ()),
         ("on_tick", ()),
     ]:
         start = time.perf_counter()
@@ -222,9 +225,17 @@ def test_no_committed_trace_carries_a_secret() -> None:
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[2]
-    files = subprocess.run(
-        ["git", "ls-files", "*.jsonl"], cwd=root, capture_output=True, text=True, check=True
-    ).stdout.split()
+    if (root / ".git").exists():
+        files = subprocess.run(
+            ["git", "ls-files", "*.jsonl"], cwd=root, capture_output=True, text=True, check=True
+        ).stdout.split()
+    else:  # an export without .git (the dress-run image): every trace that was shipped
+        skip = {".venv", "node_modules", "data", "runs", "missions"}
+        files = [
+            str(p.relative_to(root))
+            for p in root.rglob("*.jsonl")
+            if not skip.intersection(p.relative_to(root).parts)
+        ]
     assert files, "no committed traces found"
     secret = re.compile(
         r"Bearer\s+[A-Za-z0-9._-]{12,}|tvly-[A-Za-z0-9]{8,}|nvapi-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|\"api_key\":\s*\"[^\"\[]"

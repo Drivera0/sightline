@@ -171,6 +171,24 @@ def test_worse_exposure_shelters_once_per_level() -> None:
     assert dict(m.conditions_update(_conditions("severe")).cells) == {0: 2.0}
 
 
+def test_a_subject_category_gives_the_koester_prior_and_shelter_still_works() -> None:
+    m = LiveMap.start(LKP, size_m=400.0, subject="82-year-old with dementia")
+    assert m.base.params.prior_source.startswith("Koester lost-person rings, dementia/")
+    p, _ = m.p()
+    assert abs(_total(m) - 1) < 1e-12 and p.max() > p.min() > 0  # rings, blended: no zero cell
+    centre, corner = _idx(m, LKP), 0
+    assert p[centre] > p[corner]  # 0.1 mi holds a quarter of dementia subjects
+    m.base.canopy[corner] = 0.8
+    m = LiveMap.from_base(m.base)
+    before = m.p()[0][corner] / m.p()[0][centre]
+    _apply(m, m.conditions_update(_conditions("high")))
+    assert m.p()[0][corner] / m.p()[0][centre] == pytest.approx(1.5 * before)
+    assert (
+        LiveMap.start(LKP, size_m=400.0, subject="adult, red jacket").base.params.prior_source
+        == "placeholder"
+    )
+
+
 def test_a_map_rebuilt_from_its_log_is_the_same_map() -> None:
     m = _map()
     log = [

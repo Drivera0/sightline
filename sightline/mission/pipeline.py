@@ -4,6 +4,9 @@ crops, map update, events, agent hooks.
 ``POST /missions/{id}/photos`` (``sightline/api/missions.py``) checks each photo, keeps the
 original at ``frames/orig/<frame_id>.jpg`` and enqueues a ``PhotoJob``; a worker
 (``queue.LocalQueue``, or SQS on AWS) runs ``ingest_photo`` for each job, in order per mission.
+A job that can't become a frame (no pose, an unreadable file) is recorded as ``photo.failed``
+(event and trace) and the mission's later photos go on; frame ids stay contiguous, so a frame's id
+can then be lower than its upload id (``frames/jobs.json`` maps one to the other).
 
 Done by lane A for lane D (issue #51); lane D owns this file.
 """
@@ -11,6 +14,7 @@ Done by lane A for lane D (issue #51); lane D owns this file.
 from __future__ import annotations
 
 import io
+import json
 import logging
 import tempfile
 import time
@@ -37,6 +41,7 @@ log = logging.getLogger(__name__)
 
 FRAME_W_PX, FRAME_H_PX = 1000, 750  # display frame, as the upload API makes it
 NEAR_MISS = 0.15  # 0.15 ≤ conf < 0.29: crops for A's verifier (contract §12.1)
+JOBS_REL = "frames/jobs.json"  # upload id → frame id, or null for a job that failed
 RECALL = 0.864  # detector recall on HERIDAL test (VOC), what a frame's look is worth
 RECALL_SOURCE = "HERIDAL test, VOC recall at the frozen threshold 0.29 (OpenCV report §7.1)"
 
@@ -54,11 +59,46 @@ class PhotoJob:
     name: str = ""  # the uploaded file's name, for messages
 
 
-def start_map_base(lkp, *, size_m: float = 1000.0, cell_m: float = 5.0) -> MapBase:
-    """A new mission's map: lane C's ``LiveMap.start(lkp).base`` (the labelled placeholder prior)."""
+def processed_jobs(store: MissionStore, mission_id: str, frames: list[Frame]) -> dict:
+    """Every photo job handled so far: upload id → frame id, or None when it failed. Missions from
+    before the ledger have one job per frame, with the same id."""
+    try:
+        return json.loads(store.read_file(mission_id, JOBS_REL))
+    except KeyError:
+        return {f.id: f.id for f in frames}
+
+
+def photo_failed(store: MissionStore, job: PhotoJob, error: Exception, jobs: dict) -> dict:
+    """Record a photo job that can't become a frame: the original is kept under
+    ``frames/failed/``, the job counts as handled (later photos go on), and the failure is a
+    ``mission.note`` event and a ``pipeline`` trace note, both starting ``photo.failed``."""
+    from sightline.agent.trace import trace_call
+
+    mid = job.mission_id
+    reason = str(error) if isinstance(error, PhotoRejected) else f"{type(error).__name__}: {error}"
+    log.warning("%s %s (%s) failed: %s", mid, job.frame_id, job.name, reason)
+    try:
+        store.put_file(mid, f"frames/failed/{job.frame_id}.jpg", store.read_file(mid, job.orig_rel))
+    except KeyError:
+        pass
+    store.put_file(mid, JOBS_REL, json.dumps({**jobs, job.frame_id: None}).encode())
+    data = {"failure": "photo.failed", "job": job.frame_id, "name": job.name, "reason": reason}
+    summary = f"photo.failed {job.frame_id} ({job.name or 'photo'}): {reason}"
+    store.emit(mid, "mission.note", summary, ref=job.frame_id, data=data)
+    trace_call(
+        store, mid, actor="pipeline", kind="note", summary=summary, output=data, refs=[job.frame_id]
+    )
+    return {"frame": None, "job": job.frame_id, "failed": reason}
+
+
+def start_map_base(
+    lkp, *, size_m: float = 1000.0, cell_m: float = 5.0, subject: str | None = None
+) -> MapBase:
+    """A new mission's map: lane C's ``LiveMap.start(lkp).base`` (Koester's rings when the
+    subject names a lost-person category, else the labelled placeholder prior)."""
     from sightline.search.live import LiveMap
 
-    return LiveMap.start(lkp, cell_m=cell_m, size_m=size_m).base
+    return LiveMap.start(lkp, cell_m=cell_m, size_m=size_m, subject=subject).base
 
 
 def read_photo_pose(path: Path) -> Pose:
@@ -136,75 +176,90 @@ def ingest_photo(
     mid = job.mission_id
     orig = store.root / mid / job.orig_rel
 
-    n_frames = len(store.survey(mid).frames)
-    if int(job.frame_id[1:]) <= n_frames:  # SQS delivers at least once: already done
-        return {"frame": job.frame_id, "skipped": "already processed"}
-    if job.frame_id != f"f{n_frames + 1:04d}":  # ids are given out at upload, in order
-        raise ValueError(f"{job.frame_id} arrived as frame {n_frames + 1}: jobs out of order")
+    frames = store.survey(mid).frames
+    n_frames = len(frames)
+    jobs = processed_jobs(store, mid, frames)
+    if job.frame_id in jobs:  # SQS delivers at least once: already done (or already failed)
+        return {"frame": jobs[job.frame_id], "job": job.frame_id, "skipped": "already processed"}
+    if int(job.frame_id[1:]) != len(jobs) + 1:  # ids are given out at upload, in order
+        raise ValueError(f"{job.frame_id} arrived as job {len(jobs) + 1}: jobs out of order")
+    # The frame takes the next free id: the job's own unless an earlier job failed (frame ids
+    # stay contiguous, contract: flight_index 0..N-1).
+    fid = f"f{n_frames + 1:04d}"
 
-    # 1. pose and footprint (lane B), on the display frame's pixels
-    source_pose = read_photo_pose(orig)
-    frame_bytes, sx, sy = display_frame(orig)
-    pose = source_pose.model_copy(update={"gsd_m": source_pose.gsd_m / sx})
-    lap("pose")
+    def prepare() -> tuple:
+        # 1. pose and footprint (lane B), on the display frame's pixels
+        source_pose = read_photo_pose(orig)
+        frame_bytes, sx, sy = display_frame(orig)
+        pose = source_pose.model_copy(update={"gsd_m": source_pose.gsd_m / sx})
+        lap("pose")
 
-    # 3. detect on the original, tiled (never detect_frame on a full photo)
-    # A detector failure still adds the frame (no detections), so frame ids never leave a gap.
-    detect_note = None
-    try:
-        found = detector.detect_tiled(orig, conf=SAVE_THRESHOLD)
-    except Exception as e:
-        log.exception("%s %s: detector failed", mid, job.frame_id)
-        found, detect_note = [], f"detector failed: {type(e).__name__}"
-    raw = sorted((d for d in found if d.conf >= SAVE_THRESHOLD), key=lambda d: -d.conf)
-    lap("detect")
+        # 3. detect on the original, tiled (never detect_frame on a full photo)
+        # A detector failure still adds the frame (no detections), so frame ids never leave a gap.
+        detect_note = None
+        try:
+            found = detector.detect_tiled(orig, conf=SAVE_THRESHOLD)
+        except Exception as e:
+            log.exception("%s %s: detector failed", mid, fid)
+            found, detect_note = [], f"detector failed: {type(e).__name__}"
+        raw = sorted((d for d in found if d.conf >= SAVE_THRESHOLD), key=lambda d: -d.conf)
+        lap("detect")
 
-    # 2, 4. frame, detections, crops (candidates in detections.json; near misses as files only)
-    frame = Frame(
-        id=job.frame_id,
-        file=f"frames/{job.frame_id}.jpg",
-        width_px=FRAME_W_PX,
-        height_px=FRAME_H_PX,
-        flight_index=n_frames,
-        source=Source(image=job.name or Path(job.orig_rel).name, x0=0, y0=0),
-        pose=pose,
-        footprint=tuple(footprint(pose, FRAME_W_PX, FRAME_H_PX)),
-        score=max((d.conf for d in raw), default=0.0),
-        rank=n_frames + 1,
-        n_candidates=sum(d.conf >= CANDIDATE_THRESHOLD for d in raw),
-    )
-    dets, crops, near = [], {}, []
-    with tempfile.TemporaryDirectory() as tmp:
-        for k, d in enumerate(raw, start=1):
-            det_id = f"{job.frame_id}-d{k:02d}"
-            box = (
-                round(d.box.x1 * sx),
-                round(d.box.y1 * sy),
-                max(round(d.box.x1 * sx) + 1, round(d.box.x2 * sx)),
-                max(round(d.box.y1 * sy) + 1, round(d.box.y2 * sy)),
-            )
-            lat, lon, radius = georef_detection(pose, box, FRAME_W_PX, FRAME_H_PX)
-            crop = None
-            if d.conf >= CANDIDATE_THRESHOLD:
-                crop = f"crops/{det_id}.jpg"
-                crops[crop] = _crop_bytes(orig, d.box, Path(tmp), f"{det_id}.jpg")
-            elif d.conf >= NEAR_MISS:
-                rel = f"crops/nearmiss/{det_id}.jpg"
-                store.put_file(mid, rel, _crop_bytes(orig, d.box, Path(tmp), f"{det_id}.jpg"))
-                near.append(det_id)
-            dets.append(
-                Detection(
-                    id=det_id,
-                    box_px=box,
-                    conf=round(d.conf, 3),
-                    crop=crop,
-                    lat=lat,
-                    lon=lon,
-                    radius_m=radius,
+        # 2, 4. frame, detections, crops (candidates in detections.json; near misses as files only)
+        frame = Frame(
+            id=fid,
+            file=f"frames/{fid}.jpg",
+            width_px=FRAME_W_PX,
+            height_px=FRAME_H_PX,
+            flight_index=n_frames,
+            source=Source(image=job.name or Path(job.orig_rel).name, x0=0, y0=0),
+            pose=pose,
+            footprint=tuple(footprint(pose, FRAME_W_PX, FRAME_H_PX)),
+            score=max((d.conf for d in raw), default=0.0),
+            rank=n_frames + 1,
+            n_candidates=sum(d.conf >= CANDIDATE_THRESHOLD for d in raw),
+        )
+        dets, crops, near = [], {}, []
+        with tempfile.TemporaryDirectory() as tmp:
+            for k, d in enumerate(raw, start=1):
+                det_id = f"{fid}-d{k:02d}"
+                box = (
+                    round(d.box.x1 * sx),
+                    round(d.box.y1 * sy),
+                    max(round(d.box.x1 * sx) + 1, round(d.box.x2 * sx)),
+                    max(round(d.box.y1 * sy) + 1, round(d.box.y2 * sy)),
                 )
-            )
+                lat, lon, radius = georef_detection(pose, box, FRAME_W_PX, FRAME_H_PX)
+                crop = None
+                if d.conf >= CANDIDATE_THRESHOLD:
+                    crop = f"crops/{det_id}.jpg"
+                    crops[crop] = _crop_bytes(orig, d.box, Path(tmp), f"{det_id}.jpg")
+                elif d.conf >= NEAR_MISS:
+                    rel = f"crops/nearmiss/{det_id}.jpg"
+                    store.put_file(mid, rel, _crop_bytes(orig, d.box, Path(tmp), f"{det_id}.jpg"))
+                    near.append(det_id)
+                dets.append(
+                    Detection(
+                        id=det_id,
+                        box_px=box,
+                        conf=round(d.conf, 3),
+                        crop=crop,
+                        lat=lat,
+                        lon=lon,
+                        radius_m=radius,
+                    )
+                )
+        return frame, frame_bytes, dets, crops, near, detect_note
+
+    try:
+        frame, frame_bytes, dets, crops, near, detect_note = prepare()
+        if fid != job.frame_id:  # the native zoom reads frames/orig/<frame id>.jpg
+            store.put_file(mid, f"frames/orig/{fid}.jpg", orig.read_bytes())
+    except Exception as e:  # noqa: BLE001 - one bad photo must not stop the mission's photos
+        return photo_failed(store, job, e, jobs)
     store.append_frame(mid, frame, frame_bytes)
-    store.append_detections(mid, job.frame_id, dets, crops)  # emits detection.new per candidate
+    store.append_detections(mid, fid, dets, crops)  # emits detection.new per candidate
+    store.put_file(mid, JOBS_REL, json.dumps({**jobs, job.frame_id: fid}).encode())
     lap("store")
 
     # 5. ranking over every frame so far
@@ -255,7 +310,8 @@ def ingest_photo(
     lap("hooks")
 
     summary = {
-        "frame": job.frame_id,
+        "frame": fid,
+        "job": job.frame_id,
         "candidates": frame.n_candidates,
         "near_misses": len(near),
         "map": map_note,
@@ -266,8 +322,8 @@ def ingest_photo(
     store.emit(
         mid,
         "photo.processed",
-        f"{job.frame_id}: {frame.n_candidates} candidate(s)",
-        ref=job.frame_id,
+        f"{fid}: {frame.n_candidates} candidate(s)",
+        ref=fid,
         data=summary,
     )
     return summary

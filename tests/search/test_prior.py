@@ -169,3 +169,86 @@ def test_inputs_not_mutated(grid: Grid) -> None:
 def test_bad_rings_raise(grid: Grid, rings: list) -> None:
     with pytest.raises(ValueError):
         ring_prior(grid, DEMO_LKP, rings)
+
+
+# --- Koester lost-person rings --------------------------------------------------------------
+
+from sightline.search.prior import (
+    CATEGORIES,
+    KOESTER_WEIGHT,
+    QUARTILES,
+    koester_prior,
+    prior_source,
+    subject_category,
+)
+
+
+def _big_grid(cell_m: float = 100.0) -> Grid:
+    """A 30 km square: every ring of every category fits (Sava et al. used a 50 km region)."""
+    return make_grid(DEMO_LKP, size_m=30_000.0, cell_m=cell_m)
+
+
+@pytest.mark.parametrize("category", sorted(CATEGORIES))
+def test_koester_mass_sums_to_one(grid: Grid, category: str) -> None:
+    for g in (grid, _big_grid()):
+        p, outside = koester_prior(g, DEMO_LKP, category)
+        assert p.sum() + outside == pytest.approx(1.0, abs=1e-12)
+        assert (p > 0).all() and 0 <= outside <= 1  # the uniform blend leaves no cell at zero
+
+
+@pytest.mark.parametrize("category", sorted(CATEGORIES))
+def test_koester_ring_shares_match_the_table(category: str) -> None:
+    g = _big_grid(25.0)
+    p, outside = koester_prior(g, DEMO_LKP, category, weight=1.0)
+    d = _distances_m(g)
+    radii = CATEGORIES[category].rings_m
+    inner = 0.0
+    for r_m, share in zip(radii, np.diff((0.0, *QUARTILES)), strict=True):
+        in_ring = (d > inner) & (d <= r_m)
+        # cells by centre only approximate a disc (the 161 m dementia disc on 25 m cells is the
+        # coarsest): within 6 % of the ring's share, never above it
+        assert share * 0.94 <= p[in_ring].sum() <= share + 1e-12
+        inner = r_m
+    assert p[d > radii[-1]].sum() == 0.0 and outside == pytest.approx(0.05, abs=0.015)
+
+
+def test_hiker_quartiles_are_sava_table_1() -> None:
+    c = CATEGORIES["hiker/temperate_mountainous"]
+    assert c.rings_m == (700.0, 1900.0, 3600.0, 11300.0) and c.n == 568
+    assert CATEGORIES["dementia/temperate_mountainous"].rings_m[1] == pytest.approx(965.6, abs=0.1)
+
+
+def test_no_category_is_the_uniform_placeholder(grid: Grid) -> None:
+    p, outside = koester_prior(grid, DEMO_LKP, None)
+    up, uout = placeholder_prior(grid)
+    assert np.array_equal(p, up) and outside == uout
+    assert prior_source(None) == "placeholder"
+
+
+def test_blend_weight(grid: Grid) -> None:
+    pk, ok = koester_prior(grid, DEMO_LKP, "dementia/temperate_mountainous", weight=1.0)
+    pu, ou = placeholder_prior(grid)
+    p, outside = koester_prior(grid, DEMO_LKP, "dementia/temperate_mountainous")
+    assert np.allclose(p, KOESTER_WEIGHT * pk + (1 - KOESTER_WEIGHT) * pu)
+    assert outside == pytest.approx(KOESTER_WEIGHT * ok + (1 - KOESTER_WEIGHT) * ou)
+    d = _distances_m(grid)
+    assert p[d < 100].mean() > p[d > 400].mean()  # dementia rings are tight: mass near the LKP
+    with pytest.raises(ValueError):
+        koester_prior(grid, DEMO_LKP, "hunter/temperate_mountainous")
+
+
+@pytest.mark.parametrize(
+    ("subject", "category"),
+    [
+        ("adult, red jacket, day hiker", "hiker/temperate_mountainous"),
+        ("Hiking alone, flat farmland", "hiker/temperate_flat"),
+        ("backpacker in the desert", "hiker/dry_mountainous"),
+        ("82-year-old with Alzheimer's", "dementia/temperate_mountainous"),
+        ("dementia, dry flat", "dementia/temperate_mountainous"),  # no such row: default terrain
+        ("hiker/dry_flat", "hiker/dry_flat"),
+        ("adult, red jacket", None),
+        (None, None),
+    ],
+)
+def test_subject_category(subject: str | None, category: str | None) -> None:
+    assert subject_category(subject) == category

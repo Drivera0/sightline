@@ -37,6 +37,8 @@ agent = ["openai>=3.35.1"]
 conditions = ["tavily-python>=0.8.5", "astral"]
 aws = ["boto3"]
 sim = ["piexif"]
+# The demo-video recorder (scripts/demo_video): Playwright drives Chromium, PyYAML reads the captions.
+video = ["playwright==1.64.0", "pyyaml>=6"]
 
 [dependency-groups]
 dev = ["pytest", "ruff", "matplotlib", "httpx"]

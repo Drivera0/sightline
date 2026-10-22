@@ -66,10 +66,10 @@ class Job:
 
 
 def _default_client() -> ChatClient | None:
-    from sightline.agent.llm import token_factory_client
+    from sightline.agent.llm import AGENT_TIMEOUT_S, token_factory_client
 
-    try:
-        return token_factory_client(extra_body=NO_THINKING)
+    try:  # the agent's calls are short: a tighter timeout, and the client's circuit breaker
+        return token_factory_client(extra_body=NO_THINKING, timeout_s=AGENT_TIMEOUT_S)
     except LLMError as e:  # no key: run without models (planner proposals still go out)
         log.warning("agent runs without a model client: %s", e)
         return None

@@ -1,0 +1,89 @@
+# Burned-in step labels and the cuts, for scripts/demo_video/captions.py. Labels are short on-screen step
+# names, not narration (WIN_RESEARCH §8). A label with `number: true` gets "N · " in front, counted over
+# the shots that actually ran, so a skipped shot leaves no gap. A label never calls an area done: a
+# searched sector is "searched at POD x".
+
+style:
+  # libass force_style for the subtitles filter: a small label in a dark box, bottom centre
+  force_style: "FontName=Inter,FontSize=10,PrimaryColour=&H00FFFFFF,BackColour=&H99000000,BorderStyle=3,Outline=4,Shadow=0,Alignment=2,MarginV=6"
+  lead_in_s: 0.3   # label appears this long after the shot starts
+  lead_out_s: 0.3  # and goes this long before it ends
+
+labels:
+  front:        {text: "Sightline · drone photos to a ranked search plan"}
+  survey:       {text: "Photos arrive", number: true}
+  rank:         {text: "The detector ranks every photo", number: true}
+  review:       {text: "A person answers each candidate", number: true}
+  search:       {text: "The map: where to look next", number: true}
+  operate:      {text: "Run the search", number: true}
+  console:      {text: "The command console", number: true}
+  approvals:    {text: "A person approves the agent's proposal", number: true}
+  clue:         {text: "A clue lands on the map", number: true}
+  fleet:        {text: "Re-task the nearest drone", number: true}
+  trace:        {text: "Re-look trace: tool → model → result → proposal", number: true}
+  feed:         {text: "Every action in the mission feed", number: true}
+  live_upload:  {text: "Live · photos upload from the command post", number: true}
+  live_photos:  {text: "Live · each photo is scored as it lands", number: true}
+  live_review:  {text: "Live · verdicts on each candidate", number: true}
+  live_console: {text: "Live · the console on a real mission", number: true}
+  live_radio:   {text: "Live · the radio desk", number: true}
+
+# Silent cuts from the captioned master, in story order. A shot that didn't run is left out. `slot` is a
+# black gap for a slide Dan adds in the editor (architecture, numbers, limits, Tavily). When the screen
+# shots don't fit, each is trimmed from its tail by the same factor. `speed` plays a shot faster.
+cuts:
+  opencv:
+    max_s: 300
+    lead_black_s: 12   # Dan on camera
+    tail_black_s: 10   # Dan on camera, close
+    segments:
+      - front
+      - survey
+      - live_upload
+      - live_photos
+      - rank
+      - review
+      - live_review
+      - search
+      - trace
+      - approvals
+      - fleet
+      - console
+      - clue
+      - live_console
+      - live_radio
+      - feed
+      - {slot: architecture, s: 35}
+      - {slot: numbers, s: 35}
+      - {slot: limits, s: 20}
+  nebius:
+    max_s: 180
+    lead_black_s: 12
+    tail_black_s: 10
+    segments:
+      - {shot: front, speed: 2}
+      - {shot: live_upload, speed: 2}
+      - rank          # detection
+      - review
+      - live_photos
+      - live_review
+      - trace         # re-look: which NVIDIA model did what
+      - clue          # re-task: clue -> map shifts
+      - fleet         # -> the agent diverts the nearest drone, approved
+      - approvals
+      - console       # card / radio
+      - live_radio
+      - {slot: tavily, s: 15}
+      - {slot: architecture, s: 15}
+      - {slot: limits, s: 10}
+
+# The README GIF: 20 s from the first candidate (in this order of preference) with enough moving in it
+# (mean frame-to-frame change >= min_motion, on 0-255 grey); the window's end is the frame within ±2 s
+# closest to its first, and the last half second fades back to the first frame, so it loops cleanly.
+gif:
+  duration_s: 20
+  fps: 10
+  width: 800
+  max_mb: 10
+  min_motion: 0.5
+  candidates: [review, search, rank, clue, console, trace, fleet]

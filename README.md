@@ -136,7 +136,7 @@ The lanes meet at one contract (`docs/01_CONTRACT.md`): only the pipeline writes
 ## Quick start
 
 ```bash
-uv sync                                      # Python dependencies (add --extra ml --extra conditions on a GPU machine)
+uv sync --extra conditions                   # Python dependencies (add --extra ml on a GPU machine)
 uv run pytest                                # all tests
 uv run python -m sightline.pipeline sample   # regenerate the fake sample cache
 cd web && pnpm install && pnpm dev           # the website (reads web/public/cache/sample)
@@ -146,12 +146,27 @@ cd web && pnpm install && pnpm dev           # the website (reads web/public/cac
 
 The data and weights are GitHub releases, not repository files. No GPU, API keys or NeMo needed. Wall times measured on 2026-10-22 on a Ryzen 9 9950X (16 cores, 32 threads) with the GPU hidden (`CUDA_VISIBLE_DEVICES=`), from an empty uv cache:
 
+### Reproduce in under 10 minutes (cv2.dnn only, CPU)
+
+```bash
+uv sync                                                                              # 2 s (no torch)
+gh release download data-v1       -R Drivera0/sightline -p heridal_test_split.zip
+gh release download weights-v2    -R Drivera0/sightline -D data/weights/release_v2 -p detector_metrics.json
+gh release download model-onnx-v2 -R Drivera0/sightline -D data/weights/release_v2 -p sightline-detector-v2.onnx   # 9 s for the three (~513 MB)
+mkdir -p data/heridal/yolo_full && unzip -q heridal_test_split.zip -d data/heridal/yolo_full                     # 1 s
+CUDA_VISIBLE_DEVICES= uv run python scripts/reproduce_cv2.py                         # 4 min 58 s
+```
+
+About 5 minutes 10 seconds end to end. `reproduce_cv2.py` runs the 101 test photos through OpenCV 5 `cv2.dnn` only (same 1024 px tiling, merge NMS 0.5, threshold 0.29 frozen on val), in 4 processes of 8 threads, scores them with the VOC code of `evaluate_model.py`, and compares with `detector_metrics.json`: VOC precision / recall / AP50 0.802 / 0.864 / 0.868, equal to the published numbers (tolerance 0.005; the script exits 1 on a mismatch). It prints the wall time and the machine. The 4 min 58 s was measured while another job used about 11 of the 32 threads, so an idle machine of this size should be faster. `--subset N` scores a fixed seeded sample as a quick check of the setup; it is not the headline number and is not compared.
+
+### Both backends (about 14 minutes)
+
 ```bash
 uv sync --extra ml --extra conditions          # 31 s with an empty uv cache (0.8 s warm)
 gh release download data-v1       -R Drivera0/sightline -p heridal_test_split.zip
 gh release download weights-v2    -R Drivera0/sightline -D data/weights/release_v2
 gh release download model-onnx-v2 -R Drivera0/sightline -D data/weights/release_v2   # 21 s for all three (~595 MB)
-unzip -q heridal_test_split.zip -d data/heridal/yolo_full                            # 3 s
+mkdir -p data/heridal/yolo_full && unzip -q heridal_test_split.zip -d data/heridal/yolo_full   # 3 s
 CUDA_VISIBLE_DEVICES= uv run --extra ml python scripts/parity_table.py --splits test --device cpu \
   --pt data/weights/release_v2/yolo11s_tiles_run1_best.pt \
   --onnx data/weights/release_v2/sightline-detector-v2.onnx                         # 12 min 48 s

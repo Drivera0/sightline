@@ -198,7 +198,7 @@ def create_mission(body: NewMission, request: Request) -> dict:
     m = store.create(
         body.name, body.area_name, body.lkp, body.mode, body.last_seen_at, body.subject
     )
-    store.put_map_base(m.mission_id, start_map_base(body.lkp))
+    store.put_map_base(m.mission_id, start_map_base(body.lkp, subject=body.subject))
     for tid, callsign in DEFAULT_TEAMS:
         store.upsert_team(
             m.mission_id,
@@ -322,7 +322,18 @@ async def post_photos(
         rel = store.put_file(mission_id, f"frames/orig/{frame_id}.jpg", data)
         ctx.queue.put(PhotoJob(mission_id, frame_id, rel, now_iso(), name))
         accepted.append(frame_id)
+    for r in rejected:  # the uploader sees the reason; the mission's feed and trace keep it too
+        _photo_rejected(store, mission_id, r["name"], r["reason"])
     return {"accepted": accepted, "rejected": rejected}
+
+
+def _photo_rejected(store: MissionStore, mission_id: str, name: str, reason: str) -> None:
+    from sightline.agent.trace import trace_call
+
+    data = {"failure": "photo.rejected", "name": name, "reason": reason}
+    summary = f"photo.rejected {name}: {reason}"
+    store.emit(mission_id, "mission.note", summary, data=data)
+    trace_call(store, mission_id, actor="pipeline", kind="note", summary=summary, output=data)
 
 
 @missions_router.get("/missions/{mission_id}/survey")
@@ -485,7 +496,7 @@ def patch_team(mission_id: str, tid: str, patch: dict, request: Request) -> dict
         new = Team.model_validate({**team.model_dump(), **patch, "id": tid})
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
-    store.upsert_team(mission_id, new)
+    effects.on_team_update(store, mission_id, new, _ctx(request).hooks)  # a new position re-plans
     return _dump(new)
 
 

@@ -6,7 +6,7 @@ end and the report's re-task chain, so **lane A built C-L1 and the lattice part 
 
 | File | What | Tests |
 |---|---|---|
-| `live.py` | `LiveMap` (contract §14 + LANE_C §5.2): `start(lkp)` (placeholder prior, labelled), `from_base(base)`, `frame_update` (`pod.frame_step`, recall × visibility before the cap, candidates held), `review_update` (not_person step, person undo of that frame's look, unsure none), `ground_update` (POD ≤ 0.9), `clue_update` (`CLUE_FACTOR`, square root out to 2 × radius), `conditions_update` (shelter once per exposure level), `apply`, `p`, `sector_poa`, `canopy`, `top_cells` | `tests/search/test_live.py` |
+| `live.py` | `LiveMap` (contract §14 + LANE_C §5.2): `start(lkp, subject=)` (Koester rings for the subject's category, else the labelled placeholder), `from_base(base)`, `frame_update` (`pod.frame_step`, recall × visibility before the cap, candidates held), `review_update` (not_person step, person undo of that frame's look, unsure none), `ground_update` (POD ≤ 0.9), `clue_update` (`CLUE_FACTOR`, square root out to 2 × radius), `conditions_update` (shelter once per exposure level), `apply`, `p`, `sector_poa`, `canopy`, `top_cells` | `tests/search/test_live.py` |
 | `sectors.py` | `Sector`, `SectorLayout` (`cells_of`, `polygon`), `lattice_sectors(grid)`: 4 × 4, A1 north-west … D4 | same |
 | `update.py` | `apply_reweight` added beside `apply_step` (`MAX_FACTOR` 20) | |
 
@@ -14,7 +14,7 @@ end and the report's re-task chain, so **lane A built C-L1 and the lattice part 
 numbers it, saves it and calls `apply`. A restart rebuilds the same map with `from_base` + `apply` in order (tested).
 
 **Heuristics, labelled:** `CLUE_FACTOR` low 1.5, medium 3, high 6; `SHELTER_FACTOR` high 1.5, severe 2 on cells with
-canopy ≥ 0.5. The prior is the placeholder (uniform, half outside the 1 km grid) until a cited lost-person prior.
+canopy ≥ 0.5. The prior is Koester's lost-person distance rings (`prior.koester_prior`, cited quartiles, blended 0.8 with uniform) when the subject names a category (hiker, dementia), else the placeholder (uniform, half outside the 1 km grid).
 
 **Measured:** one real HERIDAL val photo through the live pipeline stepped 105 of 142 covered cells (POD 0.001–0.858,
 canopy from the photo's own pixels: 0.29 mean), 46 ms. A photo whose footprint misses the grid (a wrong LKP) is

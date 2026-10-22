@@ -12,7 +12,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sightline.contract import Clue, ClueDraft, FleetTelemetry, MapUpdate, Proposal, SectorTask
+from sightline.contract import (
+    Clue,
+    ClueDraft,
+    FleetTelemetry,
+    MapUpdate,
+    Proposal,
+    SectorTask,
+    Team,
+)
 from sightline.mission.store import MissionStore, now_iso
 
 log = logging.getLogger(__name__)
@@ -130,8 +138,9 @@ TASK_MOVES: dict[str, set[str]] = {
 def on_task_update(
     store: MissionStore, mission_id: str, task: SectorTask, hooks: Any = None
 ) -> MapUpdate | None | str:
-    """Save the task; a sector ``searched`` with a POD steps the map over its cells (C). Only the
-    command view's moves are allowed (LANE_E §7.2, ``TASK_MOVES``)."""
+    """Save the task; a sector ``searched`` with a POD steps the map over its cells (C), then the
+    agent re-plans (``on_task_searched``). Only the command view's moves are allowed (LANE_E §7.2,
+    ``TASK_MOVES``)."""
     old = next((t for t in store.state(mission_id)["tasks"] if t.sector_id == task.sector_id), None)
     before = old.state if old else "proposed"
     if task.state != before and task.state not in TASK_MOVES[before]:
@@ -149,7 +158,21 @@ def on_task_update(
     if layout is None:
         return "map update skipped: waits for C-S1 (lattice sectors)"
     cells = [int(i) for i in layout.cells_of(task.sector_id)]
-    return _map(store, mission_id, lambda live: live.ground_update(cells, task.pod, task.sector_id))
+    update = _map(
+        store, mission_id, lambda live: live.ground_update(cells, task.pod, task.sector_id)
+    )
+    _hook(hooks, "on_task_searched", store, mission_id, task.sector_id)
+    return update
+
+
+def on_team_update(store: MissionStore, mission_id: str, team: Team, hooks: Any = None) -> Team:
+    """Save the team; a new position goes to the agent (``on_team_position``): a team on standby
+    gets its next sector from where it is, and idle drones are planned around it."""
+    old = next((t for t in store.state(mission_id)["teams"] if t.id == team.id), None)
+    store.upsert_team(mission_id, team)
+    if team.position is not None and (old is None or old.position != team.position):
+        _hook(hooks, "on_team_position", store, mission_id, team.id)
+    return team
 
 
 def clue_from_draft(store: MissionStore, mission_id: str, draft: ClueDraft) -> Clue:
@@ -240,7 +263,8 @@ def on_conditions(
 def on_fleet(store: MissionStore, mission_id: str, t: FleetTelemetry, hooks: Any = None):
     """Merge telemetry; each leg newly ``done`` goes to the agent (``on_leg_done``). The first
     telemetry with drones creates the mission's fleet (how the fleet sim joins over HTTP); it is
-    ``simulated`` when every drone is."""
+    ``simulated`` when every drone is. Then the agent proposes the opening legs
+    (``on_fleet_join``)."""
     if store.state(mission_id)["fleet"] is None:
         if not t.drones:
             raise ValueError("no fleet yet: send the drones first")
@@ -251,6 +275,7 @@ def on_fleet(store: MissionStore, mission_id: str, t: FleetTelemetry, hooks: Any
             simulated=all(d.simulated for d in drones), drones=drones, legs=[], updated_at=t.at
         )
         store.put_fleet(mission_id, fleet)
+        _hook(hooks, "on_fleet_join", store, mission_id)
         return fleet
     fleet, done = store.merge_telemetry(mission_id, t)
     for leg_id in done:

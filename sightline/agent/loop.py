@@ -10,10 +10,19 @@ from the facts it was given (``write_briefing``). There is no ``dismiss_detectio
 |--------------|--------------|-----------------------------------------------------------------|
 | detection    | detection id | ``promote_detection`` for a near-miss the verifier calls a person |
 | review       | detection id | person: ``alert`` to all teams + ``assign_sector`` (nearest standby team); unsure: verdict only |
-| clue         | clue id      | ``retask_drone`` / ``drone_leg`` toward the planner's best sector |
+| clue         | clue id      | re-plan: ``retask_drone`` / ``drone_leg`` toward the planner's best sector, plus a ``drone_leg`` for every other idle drone |
+| task_searched | sector id   | re-plan, as for a clue (the team's step is on the map)          |
+| team_position | team id     | ``assign_sector`` if that team is on standby; ``drone_leg`` for idle drones with no pending one |
+| fleet_join   | mission id   | opening ``drone_leg`` for every idle drone                      |
 | conditions   | mission id   | ``alert`` to recall drones when flying turns unsafe; re-plan when visibility drops below 0.6 |
 | leg_done     | leg id       | next ``drone_leg`` for that drone                               |
 | tick         | mission id   | ``assign_sector`` for standby teams                            |
+
+A repeated event makes no duplicate: a detection is verified once and promoted at most once, and a
+person confirmed again reuses the pending (or approved) alert; the repeat is a trace note.
+
+A re-plan is one proposal per drone at most, each approved on its own; the planner discounts
+sectors a ground team is assigned to or searching.
 """
 
 from __future__ import annotations
@@ -24,7 +33,7 @@ import re
 import threading
 from typing import Any
 
-from sightline.agent.llm import MODEL_FAST, ChatClient
+from sightline.agent.llm import MODEL_FAST, ChatClient, failure_text
 from sightline.agent.trace import now_iso, trace_call
 from sightline.agent.verify import VERIFY_BAND, verify
 from sightline.contract import Conditions, EvidenceRef, LatLon, Leg, Proposal
@@ -153,7 +162,7 @@ def write_briefing(
             log.exception("briefing model call failed")
             trace(
                 kind="note",
-                summary=f"briefing model call failed ({type(e).__name__}): template used",
+                summary=f"briefing model call failed ({failure_text(e)}): template used",
             )
             return template_briefing(facts)
         text = r.text.strip()
@@ -225,6 +234,33 @@ def _add(store: Any, mission_id: str, cause: tuple[str, ...] = (), **fields: Any
     return p
 
 
+def _alert_reason(detection_id: str) -> str:
+    return f"confirmed detection {detection_id} as a person"
+
+
+def _repeat(
+    store: Any,
+    mission_id: str,
+    what: str,
+    ref: str,
+    reused: list[Proposal],
+    earlier: list[Proposal] | None = None,
+) -> list[Proposal]:
+    """A repeated event: no new proposal. The pending ones (``reused``) are returned, and a trace
+    note names them, or the decided ones in ``earlier``, so the repeat is visible."""
+    named = reused or earlier or []
+    said = ", ".join(f"{p.id} ({p.status})" for p in named) or "nothing was proposed then"
+    trace_call(
+        store,
+        mission_id,
+        actor="agent",
+        kind="note",
+        summary=f"repeat {what}: no new proposal; {said}",
+        refs=[ref, *(p.id for p in named)],
+    )
+    return reused
+
+
 def _pending(state: dict, kind: tuple[str, ...], key: str, value: str) -> list[Proposal]:
     return [
         p
@@ -258,18 +294,76 @@ def _propose_leg(
     )
 
 
+def _abandons_more(leg: Leg, fleet: Any, live: Any, layout: Any) -> bool:
+    """True when ``leg`` re-tasks a flying drone off a sector with at least its new sector's POA."""
+    drone = next(d for d in fleet.drones if d.id == leg.drone_id)
+    current = next((x for x in fleet.legs if x.id == drone.leg_id), None)
+    if drone.status != "flying" or current is None:
+        return False
+    poa = live.sector_poa(layout)
+    return poa.get(current.sector_id, 0.0) >= poa.get(leg.sector_id, 0.0)
+
+
 def _replan(
-    store: Any, mission_id: str, why: str, drone_id: str | None = None, cause: tuple[str, ...] = ()
+    store: Any,
+    mission_id: str,
+    why: str,
+    drone_id: str | None = None,
+    cause: tuple[str, ...] = (),
+    idle_only: bool = False,
 ) -> list[Proposal]:
+    """Leg proposals on the live map, one per drone, each for a person to approve: with
+    ``drone_id``, that drone's next leg; else the best leg of the whole fleet (a re-task when its
+    drone is flying) and one for every other idle drone, planned around it (sequential greedy, so
+    no two share a sector). ``idle_only``: idle drones with no pending leg proposal, nothing else.
+
+    Other drones' pending leg proposals count as taken, as approved and flying legs do (live, three
+    drones finishing their legs one after the other were all proposed the same sector). No
+    re-task takes a drone off a sector holding at least as much probability as the new one (live,
+    after a clue, the drone already over the clue's sector was re-tasked away from it)."""
     state = store.state(mission_id)
     if state["fleet"] is None:
         return []
     live, layout = _layout(store, mission_id)
     fleet = state["fleet"]
+
+    def plan(ids: set[str], k: int) -> list[Leg]:
+        pending = [
+            p.leg.model_copy(update={"status": "approved"})
+            for p in state["proposals"]
+            if p.status == "pending"
+            and p.kind in ("drone_leg", "retask_drone")
+            and p.leg is not None
+            and p.leg.drone_id not in ids  # those being planned now are superseded
+        ]
+        f = fleet.model_copy(
+            update={
+                "drones": [d for d in fleet.drones if d.id in ids],
+                "legs": [*fleet.legs, *pending],
+            }
+        )
+        return propose_legs(
+            live, layout, f, state["conditions"], now_iso(), k=k, tasks=state["tasks"]
+        )
+
     if drone_id is not None:  # plan for that drone only (the others' legs still count as taken)
-        fleet = fleet.model_copy(update={"drones": [d for d in fleet.drones if d.id == drone_id]})
-    legs = propose_legs(live, layout, fleet, state["conditions"], now_iso())
-    return [_propose_leg(store, mission_id, state, legs[0], why, cause)] if legs else []
+        legs = plan({drone_id}, 1)
+    else:
+        idle = {d.id for d in fleet.drones if d.status == "idle"}
+        keep = idle
+        if idle_only:
+            keep -= {d for d in idle if _pending(state, ("drone_leg", "retask_drone"), "drone", d)}
+        else:
+            best = plan({d.id for d in fleet.drones}, 1)
+            if best and not _abandons_more(best[0], fleet, live, layout):
+                keep = idle | {best[0].drone_id}
+        # the best leg's drone first: greedy picks it again, then the idle drones around it
+        legs = plan(keep, len(keep)) if keep else []
+    out = []
+    for leg in legs:
+        out.append(_propose_leg(store, mission_id, state, leg, why, cause))
+        state = store.state(mission_id)
+    return out
 
 
 def _assign(
@@ -320,6 +414,11 @@ def _on_detection(store, mission_id, detection_id, client, detector) -> list[Pro
     det, _ = store.get_detection(mission_id, detection_id)
     if det.conf < VERIFY_BAND[0] or client is None:
         return []
+    state = store.state(mission_id)
+    if any(v.detection_id == det.id for v in state["verdicts"]):
+        # a repeated event (a re-delivered hook): verified once, promoted at most once
+        return _repeat(store, mission_id, f"detection {det.id}", det.id,
+                       _pending(state, ("promote_detection",), "detection", det.id))  # fmt: skip
     v = verify(store, mission_id, detection_id, client, detector)
     if det.conf >= CANDIDATE_THRESHOLD or v.person != "yes":
         return []  # queue items get a verdict badge only; nothing is ever dismissed
@@ -356,6 +455,16 @@ def _on_review(store, mission_id, detection_id, answer, client, detector) -> lis
         return []
     det, frame = store.get_detection(mission_id, detection_id)
     state = store.state(mission_id)
+    earlier = [
+        p
+        for p in state["proposals"]
+        if p.kind == "alert"
+        and p.status in ("pending", "approved")
+        and _alert_reason(det.id) in p.reason
+    ]
+    if earlier:  # the same confirmation again (a second click, two reviewers): one alert
+        return _repeat(store, mission_id, f"review of {det.id}", det.id,
+                       [p for p in earlier if p.status == "pending"], earlier)  # fmt: skip
     live, layout = _layout(store, mission_id)
     sector = _sector_at(live, layout, det.lat, det.lon)
     verdict = next((v for v in state["verdicts"] if v.detection_id == det.id), None)
@@ -374,7 +483,7 @@ def _on_review(store, mission_id, detection_id, answer, client, detector) -> lis
             mission_id,
             kind="alert",
             summary=f"Alert all teams: person confirmed in photo {frame.id} (sector {sector})",
-            reason=f"Reviewer confirmed detection {det.id} as a person.",
+            reason=f"Reviewer {_alert_reason(det.id)}.",
             briefing=write_briefing(facts, client, store, mission_id, (det.id,)),
             target={"team": "all"},
             evidence=evidence,
@@ -457,6 +566,39 @@ def _on_leg_done(store, mission_id, leg_id) -> list[Proposal]:
     )
 
 
+def _on_task_searched(store, mission_id, sector_id) -> list[Proposal]:
+    state = store.state(mission_id)
+    task = next((t for t in state["tasks"] if t.sector_id == sector_id), None)
+    if task is None or task.state != "searched" or task.pod is None:
+        return []
+    team = next((t for t in state["teams"] if t.id == task.team_id), None)
+    who = team.callsign if team else "A ground team"
+    why = f"{who} searched sector {sector_id} at POD {task.pod:.0%}; re-planned on the new map."
+    return _replan(store, mission_id, why, cause=(sector_id,))
+
+
+def _on_team_position(store, mission_id, team_id, client) -> list[Proposal]:
+    """A standby team gets its next sector from where it now is; idle drones without a proposal
+    get one. A flying drone is not re-tasked for a position report: it changes no probability."""
+    state = store.state(mission_id)
+    team = next((t for t in state["teams"] if t.id == team_id), None)
+    if team is None:
+        return []
+    out = []
+    if team.status == "standby":
+        live, layout = _layout(store, mission_id)
+        for tid, sector, reason in propose_assignments(live, layout, state["tasks"], [team]):
+            facts = {"why": reason, "subject": state["mission"].subject}
+            out += _assign(store, mission_id, state, tid, sector, reason, facts, client, [])
+    why = f"{team.callsign} reported a new position."
+    return out + _replan(store, mission_id, why, cause=(team_id,), idle_only=True)
+
+
+def _on_fleet_join(store, mission_id) -> list[Proposal]:
+    why = "The fleet joined the mission: opening legs from the planner."
+    return _replan(store, mission_id, why, idle_only=True)
+
+
 def _on_tick(store, mission_id, client) -> list[Proposal]:
     state = store.state(mission_id)
     live, layout = _layout(store, mission_id)
@@ -493,6 +635,12 @@ def handle(
         return _on_conditions(store, mission_id)
     if event == "leg_done":
         return _on_leg_done(store, mission_id, ref)
+    if event == "task_searched":
+        return _on_task_searched(store, mission_id, ref)
+    if event == "team_position":
+        return _on_team_position(store, mission_id, ref, client)
+    if event == "fleet_join":
+        return _on_fleet_join(store, mission_id)
     if event == "tick":
         return _on_tick(store, mission_id, client)
     raise ValueError(f"unknown agent event {event!r}")
