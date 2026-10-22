@@ -37,7 +37,7 @@ Old addresses, kept so links in the docs, the Devposts and the video still land 
 | `#search`, `#searchnext` | `#m/demo?t=3` (where next) |
 | `#results` | `#m/demo?t=5` (the debrief) |
 | `#operate`, `#command` | `#m/demo/map` |
-| `#judges` | `#m/demo/debrief?judges` |
+| `#judges` | `#m/demo?t=5&judges` (the debrief, For judges open) |
 | `#try` | `#m/demo/photos?try` |
 | `#m/<id>/command[/conditions]`, `#m/<id>/approvals` | `#m/<id>/map[/conditions]` |
 | `#m/<id>/feed` | `#m/<id>/trace?log` |

@@ -143,7 +143,7 @@ export function CoachMark({
         aria-label={`The story, ${index} of ${count}`}
         tabIndex={-1}
         key={text}
-        className={`sl-mark fixed z-50 flex flex-col gap-3 rounded-lg border border-accent/60 bg-surface-solid p-4 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] ${at ? "" : "inset-x-3 bottom-[4.5rem] lg:bottom-6"}`}
+        className={`sl-mark fixed z-50 flex flex-col gap-3 rounded-lg border border-accent/60 bg-surface-solid p-4 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] ${at ? "" : "inset-x-3 bottom-[4.5rem] sm:right-auto sm:left-1/2 sm:w-80 sm:-translate-x-1/2 lg:bottom-6"}`}
         style={at ? { top: at.top, left: at.left, width: CARD_W } : undefined}
       >
         <span className="flex items-center gap-1.5" aria-hidden>

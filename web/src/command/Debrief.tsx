@@ -20,7 +20,7 @@ export function missionSoFar(s: Pick<MissionData, "mapUpdates" | "tasks" | "clue
   const pods = searched.map((t) => `${t.sector_id} at POD ${Math.round((t.pod ?? 0) * 100)} %`).join(", ");
   return [
     n(photos, "photo") + " on the map",
-    n(decided, "proposal") + " decided by a person",
+    n(decided, "proposal") + " decided",
     searched.length ? `${n(searched.length, "sector")} searched (${pods})` : "no sector searched yet",
     n(s.clues.length, "clue"),
   ].join(" · ");

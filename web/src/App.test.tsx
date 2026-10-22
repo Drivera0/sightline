@@ -33,7 +33,7 @@ describe("App: one console behind every address", () => {
     ["#searchnext", "#m/demo?t=3", "demo null 3"],
     ["#results", "#m/demo?t=5", "demo null 5"],
     ["#command", "#m/demo/map", "demo map null"],
-    ["#judges", "#m/demo/debrief?judges", "demo debrief null judges"],
+    ["#judges", "#m/demo?t=5&judges", "demo null 5 judges"],
     ["#try", "#m/demo/photos?try", "demo photos null try"],
     ["#m/demo/command/conditions", "#m/demo/map/conditions", "demo map null conditions"],
   ])("sends the old address %s to %s", (from, to, shown) => {

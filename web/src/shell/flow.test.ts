@@ -40,7 +40,7 @@ describe("routes: one console", () => {
       "#results": "#m/demo?t=5",
       "#operate": DEMO_CONSOLE_HASH,
       "#command": DEMO_CONSOLE_HASH,
-      "#judges": "#m/demo/debrief?judges",
+      "#judges": "#m/demo?t=5&judges",
       "#try": "#m/demo/photos?try",
     });
     expect(redirectFromHash("#m/demo/command")).toBe("#m/demo/map");

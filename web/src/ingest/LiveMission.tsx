@@ -193,8 +193,10 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
 
   // The story moves the view with it, and keeps the address on the moment it shows.
   useEffect(() => {
-    if (!demo || !story.tour) return;
-    setView(checkpoint(story.t).view);
+    // read now, not from this render: the address may have just ended the story (a view link)
+    const st = useStory.getState();
+    if (!demo || !st.tour) return;
+    setView(checkpoint(st.t).view);
   }, [demo, story.tour, story.t]);
   useEffect(() => {
     // only while the address is this mission's (the About sheet keeps #about over it)
@@ -474,7 +476,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
             overMap={
               demo ? (
                 <Scrubber
-                  t={t}
+                  t={view === "debrief" && t === 4 && story.progress >= 1 ? 5 : t}
                   progress={story.progress}
                   playing={story.playing}
                   at={clockIso}

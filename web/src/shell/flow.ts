@@ -7,7 +7,7 @@
 //                              radio for phones; on the demo, ?t= sets the mission clock, none is "now"
 //   #m/<id>/map/conditions     the console with the Conditions panel open
 //   #m/<id>/trace?log          the trace view on its event log
-//   #m/<id>/debrief?judges     the debrief with "Where to look, in order" open
+//   #m/<id>/debrief?judges     the debrief with "Where to look, in order" open (#judges: #m/demo?t=5&judges)
 //   #m/<id>/photos?try         the photos view with Try a photo open
 //   #m/<id>/card/<sector>      a sector's printable assignment card (live missions)
 //   #new                       the empty console: start a search, or load the demo mission
@@ -65,7 +65,7 @@ export const REDIRECTS: Readonly<Record<string, string>> = {
   "#operate": DEMO_CONSOLE_HASH,
   "#command": DEMO_CONSOLE_HASH,
   // For judges is a fold of the debrief; Try a photo an action in the Photos rail
-  "#judges": `${DEMO}/debrief?judges`,
+  "#judges": `${DEMO}?t=5&judges`,
   "#try": `${DEMO}/photos?try`,
 };
 
