@@ -100,3 +100,11 @@ cache (`/cache/demo`). Screenshots: `docs/report/figures/one-console/`.
   from the generator: labelled Demo, fake models and scripted people named), then two recorded runs copied from
   the repo (`demo_trace_avchain.jsonl`, `demo_trace_conditions.jsonl`, the av-chain crops), labelled Recorded.
 
+## Load order (web audit, 2026-10-22)
+
+The first bundle holds the shell and the console; MapLibre, the Trace view, the radio desk, the Debrief (and its
+charts), About, Try a photo and the assignment card are their own chunks (`React.lazy`). The demo console appears
+whole once its fixtures and recorded conditions are in (nothing moves as they arrive), and the map mounts after
+that frame has painted (`afterPaint` in `ingest/LiveMission.tsx`), or when the About sheet over it closes.
+Before/after scores: `docs/report/figures/audit/`.
+

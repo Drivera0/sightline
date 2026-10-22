@@ -42,6 +42,10 @@ import { basemapKind, basemapLabelLayer, type BasemapKind, HEAT_PALETTES, type H
 import { gridCorners, HeatRaster, kindColors, kindPixels, surfaceTheme } from "./raster";
 import { ensureSurfaceLayers, pushSurface, setSurfaceMode, setSurfacePalette, surfaceIds } from "./surface";
 
+// The one glyph set the site serves (public/basemap/fonts). A symbol layer without "text-font" asks for
+// MapLibre's default stack, which is not there: a 404 and no labels.
+const GLYPH_FONT = ["Noto Sans Regular"];
+
 export const LIVE_IDS = {
   heat: "live-heat-cells",
   sectors: "live-heat-sectors",
@@ -188,6 +192,7 @@ function LiveLayers({
           // POA labels stay: placed after the clue and drone labels, they move inside their sector to a free spot.
           layout: {
             "text-field": ["get", "text"],
+            "text-font": GLYPH_FONT,
             "text-size": 11,
             "text-variable-anchor": ["center", "top", "bottom", "left", "right"],
             "text-radial-offset": 1.4,
@@ -217,6 +222,7 @@ function LiveLayers({
             "icon-image": FLEET_IMAGES.hit,
             "icon-allow-overlap": true,
             "text-field": ["get", "short"],
+            "text-font": GLYPH_FONT,
             "text-size": 11,
             "text-variable-anchor": ["right", "left", "top", "bottom", "top-right", "bottom-right", "top-left", "bottom-left"],
             "text-radial-offset": 0.9,
@@ -235,6 +241,7 @@ function LiveLayers({
             "icon-image": FLEET_IMAGES.hit,
             "icon-allow-overlap": true,
             "text-field": ["get", "label"],
+            "text-font": GLYPH_FONT,
             "text-size": 11,
             "text-variable-anchor": ["top", "bottom", "right", "left"],
             "text-radial-offset": 1.1,
@@ -265,6 +272,7 @@ function LiveLayers({
             "icon-image": FLEET_IMAGES.hit,
             "icon-allow-overlap": true,
             "text-field": ["format", ["get", "short"], {}, " ", {}, ["get", "battery"], { "font-scale": 0.85 }] as never,
+            "text-font": GLYPH_FONT,
             "text-size": 11.5,
             // bunched at home after a recall: each label tries eight spots around its dot before it is dropped
             "text-variable-anchor": ["left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"],

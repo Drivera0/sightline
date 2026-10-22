@@ -55,7 +55,7 @@ export function LkpPicker({ point, onPick, className = "h-64 rounded-sm border b
   // the map is centred once (where the point was when it opened); later picks don't move it
   const center = useMemo<[number, number]>(() => (point ? [point.lon, point.lat] : DEFAULT_CENTER), []);
   return (
-    <div className={`overflow-hidden ${className}`} aria-label="Pick the last known position on the map">
+    <div role="group" className={`overflow-hidden ${className}`} aria-label="Pick the last known position on the map">
       <MapProvider className="h-full w-full" initialCenter={center} initialZoom={zoom} mapStyle={style}>
         <PickLayer point={point} onPick={onPick} />
       </MapProvider>

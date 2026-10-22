@@ -332,7 +332,7 @@ export function RadioDesk({
       )}
 
       {awaiting && (
-        <div className="rounded-sm border border-caution/40 bg-surface-solid p-3" aria-label="Awaiting confirmation">
+        <div role="group" className="rounded-sm border border-caution/40 bg-surface-solid p-3" aria-label="Awaiting confirmation">
           <Label className="text-caution!">Awaiting confirmation from {callsign(awaiting.callsign)}</Label>
           <p className="text-body text-text">{awaiting.reply}</p>
           <p className="text-small text-text-3">Nothing is logged until the team says "affirmative".</p>

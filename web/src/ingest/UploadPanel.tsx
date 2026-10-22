@@ -140,7 +140,7 @@ export function UploadPanel({
         </p>
       )}
       {rejected.length > 0 && (
-        <div aria-label="Rejected files" className="flex flex-col gap-1">
+        <div role="group" aria-label="Rejected files" className="flex flex-col gap-1">
           <Label className="text-warn">Not used ({rejected.length})</Label>
           <ul className="max-h-40 overflow-auto text-small text-text-2">
             {rejected.map((r, i) => (

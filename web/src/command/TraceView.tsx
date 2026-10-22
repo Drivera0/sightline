@@ -74,7 +74,7 @@ function ModelStrip({ entries, chainCount }: { entries: readonly TraceEntry[]; c
   const decided = entries.filter((e) => e.kind === "decision" && !isScripted(e)).length;
   const scripted = entries.filter(isScripted).length;
   return (
-    <div aria-label="Which model did what" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-4">
+    <div role="group" aria-label="Which model did what" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-small font-medium text-text">Which model did what</span>
         <span className="text-caption text-text-3">
@@ -112,7 +112,7 @@ function ModelStrip({ entries, chainCount }: { entries: readonly TraceEntry[]; c
 function RunView({ run, imageUrl }: { run: TraceRun; imageUrl?: (rel: string) => string | null }) {
   const cs = chains(run.entries).reverse(); // the latest chain on top
   return (
-    <div className="flex flex-col gap-3" aria-label={run.label ?? "This mission's trace"}>
+    <div role="group" className="flex flex-col gap-3" aria-label={run.label ?? "This mission's trace"}>
       {run.label && (
         <div className="flex flex-wrap items-center gap-2">
           <ModeChip mode={run.mode ?? "replay"} />
@@ -172,7 +172,7 @@ function ChainView({ chain, imageUrl }: { chain: Chain; imageUrl?: (rel: string)
         </div>
         {chain.relook.length > 0 && <RelookRow chain={chain} />}
         {chain.ledger.length > 0 && (
-          <div aria-label="Ledger" className="flex min-w-0 flex-wrap items-center gap-2 text-caption text-text-2">
+          <div role="group" aria-label="Ledger" className="flex min-w-0 flex-wrap items-center gap-2 text-caption text-text-2">
             <span className="text-text-3" title="The ledger: the value the agent expected from each observation against the value it realised (agent.md, The ledger)">
               Did it help:
             </span>
@@ -236,7 +236,7 @@ function RelookRow({ chain }: { chain: Chain }) {
   const models = chainModels(chain.entries);
   const id = chain.relook[0]!.chainId;
   return (
-    <div aria-label={`Re-look ${id}`} className="flex min-w-0 flex-col gap-1.5 text-caption text-text-2">
+    <div role="group" aria-label={`Re-look ${id}`} className="flex min-w-0 flex-col gap-1.5 text-caption text-text-2">
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         <span className="pr-1 text-text-3">Re-look:</span>
         <ol className="contents" aria-label="Re-look steps">
@@ -309,7 +309,7 @@ function Step({ e, stage, imageUrl }: { e: TraceEntry; stage: string | null; ima
             <div className="flex gap-2">
               {images.map(([rel, src]) => (
                 <figure key={rel} className="flex w-28 flex-col gap-1">
-                  <img src={src} alt={rel} className="aspect-square w-28 rounded-sm object-cover" />
+                  <img loading="lazy" decoding="async" src={src} alt={rel} className="aspect-square w-28 rounded-sm object-cover" />
                   <figcaption className="truncate font-mono text-caption text-text-3">{rel.split("/").pop()}</figcaption>
                 </figure>
               ))}

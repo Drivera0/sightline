@@ -127,7 +127,7 @@ export function ConditionsPanel({
 
       <dl className="grid gap-x-6 gap-y-3 md:grid-cols-2 xl:grid-cols-3">
         {facts.map((f) => (
-          <div key={f.id} className="flex flex-col gap-0.5 border-t border-line pt-2 text-caption" aria-label={f.label}>
+          <div role="group" key={f.id} className="flex flex-col gap-0.5 border-t border-line pt-2 text-caption" aria-label={f.label}>
             <dt className="text-text-3">{f.label}</dt>
             <dd className="font-mono text-small text-text">{f.value}</dd>
             <dd>
@@ -137,7 +137,7 @@ export function ConditionsPanel({
         ))}
       </dl>
 
-      <div className="flex flex-col gap-1.5 text-caption" aria-label="Alerts and closures">
+      <div role="group" className="flex flex-col gap-1.5 text-caption" aria-label="Alerts and closures">
         <span className="text-text-3">Alerts and closures</span>
         {c.alerts.length === 0 ? (
           <span className="text-text-2">

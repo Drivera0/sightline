@@ -4,14 +4,12 @@
 // the mission clock (missionTime.ts, story.ts) moves through six checkpoints, coach marks point at the real
 // panels, and leaving the story leaves you in the console at that mission time. Built by lane A.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
 import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent, Proposal, TraceEntry } from "../contract";
 import { clueLine, clueShifts } from "../command/clueShift";
-import { AssignmentCardView } from "../command/AssignmentCardView";
 import { CoachMark } from "../command/CoachMark";
-import { Debrief } from "../command/Debrief";
 import { candidatePosition, demoCards, landedFrames, RECORDED_ID } from "../command/demoReview";
 import { CHECKPOINTS, checkpoint, demoAt, MARK_COUNT, STORY_PROPOSAL, type Checkpoint, type DemoFull } from "../command/missionTime";
 import { PhotoStrip, PhotosRail } from "../command/PhotosRail";
@@ -27,10 +25,9 @@ import { EventFeed } from "../command/EventFeed";
 import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
 import type { ConditionsData } from "../command/ConditionsPanel";
-import { TraceView, type TraceRun } from "../command/TraceView";
-import { BoxLayer, TryPhoto, type TriedPhoto } from "../detect/TryPhoto";
+import type { TraceRun } from "../command/TraceView";
+import type { TriedPhoto } from "../detect/TryPhoto";
 import { RadioClip } from "../front/RadioClip";
-import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { prefersReducedMotion } from "../metrics/motion";
 import { usePick } from "../map/pick";
 import { AppBar, rememberMission, type BarAction } from "../shell/AppBar";
@@ -38,9 +35,22 @@ import { Button, KeyHint, modeOf, Page, Panel, Stat } from "../shell/components"
 import { DEMO_CONSOLE_HASH, VIEWS, viewHash, type Route, type View } from "../shell/flow";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS } from "../shell/shortcuts";
-import { RadioDesk } from "../radio/RadioDesk";
 import { LiveReview, ReviewRail, type LiveAnswer } from "../review/LiveReview";
 import { UploadPanel, WatchPanel } from "./UploadPanel";
+
+// Split from the first bundle (the landing paints without them): the map with MapLibre, the views a
+// visitor opens later, and Try a photo (whose detector, onnxruntime-web and the model, loads only when used).
+const LiveHeatMap = lazy(() => import("../map/heat/LiveHeatMap").then((m) => ({ default: m.LiveHeatMap })));
+const Debrief = lazy(() => import("../command/Debrief").then((m) => ({ default: m.Debrief })));
+const TraceView = lazy(() => import("../command/TraceView").then((m) => ({ default: m.TraceView })));
+const RadioDesk = lazy(() => import("../radio/RadioDesk").then((m) => ({ default: m.RadioDesk })));
+const TryPhoto = lazy(() => import("../detect/TryPhoto").then((m) => ({ default: m.TryPhoto })));
+const BoxLayer = lazy(() => import("../detect/TryPhoto").then((m) => ({ default: m.BoxLayer })));
+const AssignmentCardView = lazy(() => import("../command/AssignmentCardView").then((m) => ({ default: m.AssignmentCardView })));
+
+/** Where the map goes while MapLibre loads: the same frame, empty, so nothing moves when it arrives. */
+const MAP_FRAME = <div aria-hidden="true" className="relative h-full min-h-[360px] rounded-lg border border-border" />;
+const loading = (what: string) => <p className="text-small text-text-3">Loading {what}…</p>;
 
 export type MissionRoute = Extract<Route, { kind: "mission" }>;
 
@@ -50,10 +60,11 @@ export const DEMO_DIR = "demo";
 /** The demo mission, loaded once per page: the fixtures to "now" and the demo cache. */
 let demoLoad: Promise<{ full: DemoFull; bundle: CacheBundle }> | null = null;
 function loadDemo(): Promise<{ full: DemoFull; bundle: CacheBundle }> {
-  demoLoad ??= loadCache(DEMO_DIR).then(async (bundle) => {
-    const { data, now } = await loadDemoMission(fetch, undefined, Promise.resolve(bundle.map));
-    return { full: { data, now }, bundle };
-  });
+  if (!demoLoad) {
+    // the cache and the mission's fixtures at once, not one after the other
+    const cache = loadCache(DEMO_DIR);
+    demoLoad = Promise.all([cache, loadDemoMission(fetch, undefined, cache.then((b) => b.map))]).then(([bundle, { data, now }]) => ({ full: { data, now }, bundle }));
+  }
   demoLoad.catch(() => {
     demoLoad = null; // a reload of the page or the view tries again
   });
@@ -70,6 +81,67 @@ function loadBundle(): Promise<CacheBundle> {
   return bundleLoad;
 }
 
+/**
+ * Run `cb` once the page has painted what is on screen now: after the browser reports the paint (a
+ * largest-contentful-paint entry from now on, where it reports them; under a second either way), then after
+ * two more frames, at the first idle moment (a second at most). Returns a cancel.
+ */
+function afterPaint(cb: () => void): () => void {
+  const since = performance.now();
+  let done = false;
+  let raf = 0;
+  let timer = 0;
+  let idle = 0;
+  let observer: PerformanceObserver | null = null;
+  const fire = () => {
+    if (!done) cb();
+    done = true;
+  };
+  const next = () => {
+    if (raf || done) return;
+    observer?.disconnect();
+    // two frames: the second begins only once the first has gone out
+    raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        timer = window.setTimeout(() => {
+          if (typeof window.requestIdleCallback === "function") idle = window.requestIdleCallback(fire, { timeout: 1000 });
+          else fire();
+        }, 0);
+      });
+    });
+  };
+  const canWatch = typeof PerformanceObserver !== "undefined" && (PerformanceObserver.supportedEntryTypes ?? []).includes("largest-contentful-paint");
+  // nothing larger than what is already on screen: no entry comes, so do not wait long for one
+  const fallback = window.setTimeout(next, canWatch ? 800 : 0);
+  if (canWatch) {
+    observer = new PerformanceObserver((list) => {
+      if (list.getEntries().some((e) => e.startTime >= since)) next();
+    });
+    observer.observe({ type: "largest-contentful-paint", buffered: true });
+  }
+  return () => {
+    done = true;
+    observer?.disconnect();
+    window.clearTimeout(fallback);
+    if (raf) cancelAnimationFrame(raf);
+    window.clearTimeout(timer);
+    if (idle) window.cancelIdleCallback(idle);
+  };
+}
+
+/** The demo mission's story as the address sets it: the landing, a checkpoint of the story, or a view's clock. */
+function storyFromRoute(route: MissionRoute): void {
+  const st = useStory.getState();
+  if (route.view === null && route.t === null) landing();
+  else if (route.view === null && route.t !== null) {
+    if (route.t === 0) landing();
+    else st.seek(route.t, { tour: true });
+  } else if (route.view !== null) {
+    if (route.t !== null) st.seek(route.t, { tour: false });
+    else if (!st.started || st.tour || st.pitch) st.skipToNow();
+  }
+}
+
 /** The demo mission's clock, the story's checkpoint and the view, as an address. */
 function demoHash(view: View, t: Checkpoint, tour: boolean, pitch: boolean): string {
   if (pitch) return "#m/demo";
@@ -81,9 +153,13 @@ function demoHash(view: View, t: Checkpoint, tour: boolean, pitch: boolean): str
 let userSeq = 0;
 const asUserEvent = (e: MissionEvent): MissionEvent => ({ ...e, id: `u${String(++userSeq).padStart(4, "0")}` });
 
-export function LiveMission({ api, missionId, route }: { api: Api; missionId: string; route: MissionRoute }) {
+/** `covered`: a sheet (About) is over the console; its map waits until the sheet goes. */
+export function LiveMission({ api, missionId, route, covered = false }: { api: Api; missionId: string; route: MissionRoute; covered?: boolean }) {
   const s = useMission();
   const demo = missionId === DEMO_MISSION_ID;
+  // the story's clock as the address has it, before the first render (the landing's pitch bar is there from
+  // the first frame, so the console under it never moves)
+  useState(() => demo && storyFromRoute(route));
   const story = useStory();
   const [view, setView] = useState<View>(() => route.view ?? (demo && route.t !== null ? checkpoint(route.t).view : "map"));
   const [keysOpen, setKeysOpen] = useState(false);
@@ -102,19 +178,10 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       setView(route.view ?? "map");
       return;
     }
-    const st = useStory.getState();
-    if (route.view === null && route.t === null) {
-      landing();
-      setView("map");
-    } else if (route.view === null && route.t !== null) {
-      if (route.t === 0) landing();
-      else st.seek(route.t, { tour: true });
-      setView(checkpoint(route.t).view);
-    } else if (route.view !== null) {
-      if (route.t !== null) st.seek(route.t, { tour: false });
-      else if (!st.started || st.tour || st.pitch) st.skipToNow();
-      setView(route.view);
-    }
+    storyFromRoute(route);
+    if (route.view === null && route.t === null) setView("map");
+    else if (route.view === null && route.t !== null) setView(checkpoint(route.t).view);
+    else if (route.view !== null) setView(route.view);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeKey]);
 
@@ -261,8 +328,21 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
     getHealth(api).then((h) => setRadioOn(!!h.radio), () => setRadioOn(false));
   }, [api, demo]);
 
+  const [conditionsData, conditionsWaiting] = useConditionsData(api, missionId, demo, s.conditions, s.fleet);
+  // the demo console appears whole: its fixtures and its recorded conditions lookup (which adds a line to the
+  // conditions row, above the map on a phone) in the same frame
+  const ready = !demo || (s.status === "demo" && !conditionsWaiting);
+
+  // The map comes in once the console has painted with the mission's data: MapLibre's download, start-up
+  // and first frame are the heaviest work on the page, and the panels (and their text) should not wait for them.
+  const [mapOn, setMapOn] = useState(false);
+  const loaded = s.status === "demo" || s.status === "live" || s.status === "reconnecting";
+  useEffect(() => {
+    if (mapOn || !loaded || !ready || covered) return undefined;
+    return afterPaint(() => setMapOn(true));
+  }, [mapOn, loaded, ready, covered]);
+
   const imageUrl = (rel: string) => (demo ? demoImageUrl(rel) : fileUrl(api, missionId, rel));
-  const conditionsData = useConditionsData(api, missionId, demo, s.conditions, s.fleet);
   // which clues moved each sector, from the map log: a line on an assignment's card (clueShift.ts)
   const shifts = useMemo(() => (s.mapBase && s.sectors.length ? clueShifts(s.mapBase, s.mapUpdates, s.sectors, s.clues) : null), [s.mapBase, s.mapUpdates, s.sectors, s.clues]);
   const clueNote = (p: Proposal) => clueLine(shifts?.get(String(p.target.sector ?? "")));
@@ -316,14 +396,16 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
   };
   const tried = story.tried ? <TriedCard tried={story.tried} onClose={() => useStory.getState().setTried(null)} /> : undefined;
   const tryPanel = cache ? (
-    <TryPhoto
-      cache={cache}
-      dir={DEMO_DIR}
-      onResult={(r) => {
-        useStory.getState().setTried(r);
-        go("review");
-      }}
-    />
+    <Suspense fallback={loading("the detector")}>
+      <TryPhoto
+        cache={cache}
+        dir={DEMO_DIR}
+        onResult={(r) => {
+          useStory.getState().setTried(r);
+          go("review");
+        }}
+      />
+    </Suspense>
   ) : (
     <p className="text-small text-text-3">Loading the detector's settings…</p>
   );
@@ -383,7 +465,9 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       <RadioClip />
     </div>
   ) : radioOn ? (
-    <RadioDesk api={{ base: api.base, missionId }} teams={s.teams.map((t) => ({ id: t.id, callsign: t.callsign }))} />
+    <Suspense fallback={loading("the radio desk")}>
+      <RadioDesk api={{ base: api.base, missionId }} teams={s.teams.map((t) => ({ id: t.id, callsign: t.callsign }))} />
+    </Suspense>
   ) : (
     <p role="status" className="text-small text-text-2">
       The radio desk isn't running on this server. Start the API with <code>serve --radio text</code> (or <code>real</code> for voices).
@@ -410,17 +494,19 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
     </section>
   );
   const debrief = (
-    <Debrief
-      missionName={s.mission?.name ?? "…"}
-      so={s}
-      metrics={cache?.metrics ?? null}
-      cellM={cache?.map.grid.cell_m}
-      surveyId={cache?.survey.survey_id}
-      judgesOpen={!!route.open.judges}
-      traceHref={viewHash(missionId, "trace")}
-      liveDebriefUrl={liveDebrief}
-      exports={{ missionUrl: demo ? null : `${api.base}/missions/${encodeURIComponent(missionId)}`, teams: s.teams }}
-    />
+    <Suspense fallback={loading("the debrief")}>
+      <Debrief
+        missionName={s.mission?.name ?? "…"}
+        so={s}
+        metrics={cache?.metrics ?? null}
+        cellM={cache?.map.grid.cell_m}
+        surveyId={cache?.survey.survey_id}
+        judgesOpen={!!route.open.judges}
+        traceHref={viewHash(missionId, "trace")}
+        liveDebriefUrl={liveDebrief}
+        exports={{ missionUrl: demo ? null : `${api.base}/missions/${encodeURIComponent(missionId)}`, teams: s.teams }}
+      />
+    </Suspense>
   );
   const rightRail: ReactNode =
     view === "photos" ? photosRail : view === "review" ? reviewRail : view === "debrief" ? debrief : view === "radio" ? radioRail : undefined;
@@ -467,7 +553,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
     <ClockZone.Provider value={clockZone}>
       <div className="flex min-h-dvh flex-col lg:h-dvh">
         <AppBar
-          mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: modeOf(s.status), clock: barClock, clockTitle: barTitle }}
+          mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: demo ? "demo" : modeOf(s.status), clock: barClock, clockTitle: barTitle }}
           views={{
             current: view,
             onSelect: go,
@@ -498,74 +584,87 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
               {s.error}
             </p>
           )}
-          <CommandView
-            mission={s.mission}
-            status={s.status}
-            conditions={s.conditions}
-            tasks={s.tasks}
-            sectors={s.sectors}
-            teams={s.teams}
-            clues={s.clues}
-            proposals={s.proposals}
-            imageUrl={imageUrl}
-            clueNote={clueNote}
-            onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
-            onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
-            onAddClue={(draft) => useMission.getState().addClue(draft)}
-            cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
-            now={demoNow ? () => demoNow : undefined}
-            feedHref={`${viewHash(missionId, "trace")}?log`}
-            sideRail={radioToggle}
-            rightRail={rightRail}
-            rightWide={view === "debrief"}
-            aboveMap={photoStrip}
-            cover={cover}
-            map={
-              <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demoNow} fill />
-            }
-            overMap={
-              demo ? (
-                <Scrubber
-                  t={view === "debrief" && t === 4 && story.progress >= 1 ? 5 : t}
-                  progress={story.progress}
-                  playing={story.playing}
-                  at={clockIso}
-                  canPlay={!story.tour}
-                  through={story.through}
-                  hint={
-                    story.tour ? null : (
-                      <>
-                        Press Follow the search for the 3-minute story, or play the clock and use the views <span className="lg:hidden">below</span>
-                        <span className="max-lg:hidden">above</span>.
-                      </>
-                    )
-                  }
-                  onToggle={() => {
-                    const st = useStory.getState();
-                    if (st.tour) st.toggle();
-                    else {
-                      if (st.progress >= 1 && view === "debrief") setView("map");
-                      st.play();
+          {/* the demo console appears whole once its fixtures are in (nothing on screen moves as they arrive) */}
+          {!ready ? (
+            <p role="status" className="text-small text-text-3">
+              Loading the demo mission…
+            </p>
+          ) : (
+            <CommandView
+              mission={s.mission}
+              status={s.status}
+              conditions={s.conditions}
+              tasks={s.tasks}
+              sectors={s.sectors}
+              teams={s.teams}
+              clues={s.clues}
+              proposals={s.proposals}
+              imageUrl={imageUrl}
+              clueNote={clueNote}
+              onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
+              onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
+              onAddClue={(draft) => useMission.getState().addClue(draft)}
+              cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
+              now={demoNow ? () => demoNow : undefined}
+              feedHref={`${viewHash(missionId, "trace")}?log`}
+              sideRail={radioToggle}
+              rightRail={rightRail}
+              rightWide={view === "debrief"}
+              aboveMap={photoStrip}
+              cover={cover}
+              map={
+                mapOn ? (
+                  <Suspense fallback={MAP_FRAME}>
+                    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demoNow} fill />
+                  </Suspense>
+                ) : (
+                  MAP_FRAME
+                )
+              }
+              overMap={
+                demo ? (
+                  <Scrubber
+                    t={view === "debrief" && t === 4 && story.progress >= 1 ? 5 : t}
+                    progress={story.progress}
+                    playing={story.playing}
+                    at={clockIso}
+                    canPlay={!story.tour}
+                    through={story.through}
+                    hint={
+                      story.tour ? null : (
+                        <>
+                          Press Follow the search for the 3-minute story, or play the clock and use the views <span className="lg:hidden">below</span>
+                          <span className="max-lg:hidden">above</span>.
+                        </>
+                      )
                     }
-                  }}
-                  onSeek={(to) => {
-                    const st = useStory.getState();
-                    st.seek(to, { animate: to === st.t + 1 });
-                    if (!st.tour) setView(to === 5 ? "debrief" : view === "debrief" ? "map" : view);
-                  }}
-                />
-              ) : undefined
-            }
-            conditionsData={conditionsData}
-            conditionsOpen={!!route.open.conditions}
-            onPickOnMap={() => {
-              document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
-              return usePick.getState().request();
-            }}
-            onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
-          />
+                    onToggle={() => {
+                      const st = useStory.getState();
+                      if (st.tour) st.toggle();
+                      else {
+                        if (st.progress >= 1 && view === "debrief") setView("map");
+                        st.play();
+                      }
+                    }}
+                    onSeek={(to) => {
+                      const st = useStory.getState();
+                      st.seek(to, { animate: to === st.t + 1 });
+                      if (!st.tour) setView(to === 5 ? "debrief" : view === "debrief" ? "map" : view);
+                    }}
+                  />
+                ) : undefined
+              }
+              conditionsData={conditionsData}
+              conditionsOpen={!!route.open.conditions}
+              onPickOnMap={() => {
+                document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+                return usePick.getState().request();
+              }}
+              onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
+            />
+          )}
         </main>
-        {mark && (
+        {mark && ready && (
           <CoachMark
             text={mark.text}
             target={mark.target}
@@ -590,10 +689,12 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
 function TriedCard({ tried, onClose }: { tried: TriedPhoto; onClose: () => void }) {
   const n = tried.boxes.length;
   return (
-    <div aria-label="Your photo" className="flex flex-col gap-2 rounded-lg border border-accent/40 bg-surface-solid p-2.5">
+    <div role="group" aria-label="Your photo" className="flex flex-col gap-2 rounded-lg border border-accent/40 bg-surface-solid p-2.5">
       <div className="relative overflow-hidden rounded-sm bg-surface-strong">
         <img src={tried.url} alt={tried.name} className="block max-h-56 w-full object-contain" />
-        <BoxLayer shown={{ url: tried.url, name: tried.name, width: tried.width, height: tried.height }} boxes={tried.boxes} />
+        <Suspense fallback={null}>
+          <BoxLayer shown={{ url: tried.url, name: tried.name, width: tried.width, height: tried.height }} boxes={tried.boxes} />
+        </Suspense>
       </div>
       <p className="text-small text-text-2">
         <span className="text-text">Your photo:</span> {n} {n === 1 ? "person" : "people"} flagged in {(tried.ms / 1000).toFixed(1)} s on this device. It has
@@ -611,25 +712,36 @@ function TriedCard({ tried, onClose }: { tried: TriedPhoto; onClose: () => void 
  * Conditions object carries the values, the pages read and the alerts' URLs; the quotes and the searches
  * are only in the trace), re-read whenever new conditions arrive. Demo: a recorded lookup.
  */
-function useConditionsData(api: Api, missionId: string, demo: boolean, conditions: Conditions | null, fleet: FleetState | null): ConditionsData | null {
+function useConditionsData(
+  api: Api,
+  missionId: string,
+  demo: boolean,
+  conditions: Conditions | null,
+  fleet: FleetState | null,
+): [ConditionsData | null, boolean] {
   const [recorded, setRecorded] = useState<ConditionsData | null>(null);
+  const [recordedTried, setRecordedTried] = useState(false);
   const [trace, setTrace] = useState<TraceEntry[]>([]);
   useEffect(() => {
     let live = true;
-    if (demo) void loadDemoConditions().then((d) => live && setRecorded(d), () => undefined);
+    if (demo)
+      void loadDemoConditions()
+        .then((d) => live && setRecorded(d), () => undefined)
+        .finally(() => live && setRecordedTried(true));
     else if (conditions) getTrace(api, missionId).then((t) => live && setTrace(t), () => undefined);
     return () => {
       live = false;
     };
   }, [api, missionId, demo, conditions?.fetched_at]); // re-read the trace when new conditions arrive
   const lookup = useMemo(() => latestLookup(trace), [trace]);
-  if (!conditions) return null;
+  const waiting = demo && !recordedTried;
+  if (!conditions) return [null, waiting];
   const drones = fleet?.drones ?? [];
   const weakest = drones.length ? drones.reduce((a, b) => (b.max_wind_kmh < a.max_wind_kmh ? b : a)) : null;
   const limit = { kmh: weakest?.max_wind_kmh ?? null, drone: weakest?.name ?? null };
   // the demo: its own conditions on top (the same verdict as the row), the recorded lookup folded under them
-  if (demo) return recorded ? demoConditionsData(conditions, recorded, limit) : null;
-  return { conditions, lookup, recorded: null, limitKmh: limit.kmh, drone: limit.drone };
+  if (demo) return [recorded ? demoConditionsData(conditions, recorded, limit) : null, waiting];
+  return [{ conditions, lookup, recorded: null, limitKmh: limit.kmh, drone: limit.drone }, false];
 }
 
 const TRACE_POLL_MS = 4000;
@@ -685,7 +797,7 @@ function TraceTab({ api, missionId, demo }: { api: Api; missionId: string; demo:
           Could not read the trace: {error}
         </p>
       )}
-      {runs === null ? <p className="text-small text-text-3">Loading the trace…</p> : <TraceView runs={runs} imageUrl={imageUrl} />}
+      {runs === null ? <p className="text-small text-text-3">Loading the trace…</p> : <Suspense fallback={loading("the trace")}><TraceView runs={runs} imageUrl={imageUrl} /></Suspense>}
     </div>
   );
 }
@@ -716,13 +828,15 @@ export function LiveCard({ api, missionId, sector }: { api: Api; missionId: stri
       ) : !card ? (
         <p className="text-small text-text-3">Loading the card for sector {sector}…</p>
       ) : (
-        <AssignmentCardView
-          card={card}
-          gpxUrl={cardFileUrl(api, missionId, sector, "gpx")}
-          kmlUrl={cardFileUrl(api, missionId, sector, "kml")}
-          imageUrl={(rel) => fileUrl(api, missionId, rel)}
-          backHref={viewHash(missionId, "map")}
-        />
+        <Suspense fallback={loading("the card")}>
+          <AssignmentCardView
+            card={card}
+            gpxUrl={cardFileUrl(api, missionId, sector, "gpx")}
+            kmlUrl={cardFileUrl(api, missionId, sector, "kml")}
+            imageUrl={(rel) => fileUrl(api, missionId, rel)}
+            backHref={viewHash(missionId, "map")}
+          />
+        </Suspense>
       )}
     </main>
   );
