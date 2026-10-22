@@ -10,6 +10,7 @@ import { AssignmentCardView } from "../command/AssignmentCardView";
 import { photoProgress, useMission } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
+import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoMission } from "../command/demoMission";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { usePick } from "../map/pick";
 import { Badge, Label, Panel, Stat } from "../shell/components";
@@ -27,6 +28,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "radio", label: "Radio" },
   { id: "feed", label: "Feed" },
 ];
+/** The demo mission has no API: no photos, review, radio, cards or debrief. */
+const DEMO_TABS: readonly Tab[] = ["command", "approvals", "feed"];
 const STATUS_WORDS = { idle: "", connecting: "Connecting…", live: "Live", reconnecting: "Reconnecting…", demo: "Demo", error: "Offline" };
 
 export function tabFromHash(hash: string): Tab {
@@ -42,7 +45,9 @@ export function cardFromHash(hash: string): string | null {
 
 export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Api; missionId: string; initialTab?: Tab }) {
   const s = useMission();
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const demo = missionId === DEMO_MISSION_ID;
+  const [tab, setTab] = useState<Tab>(demo && !DEMO_TABS.includes(initialTab) ? "command" : initialTab);
+  const [demoNow, setDemoNow] = useState<Date | null>(null);
   const [card, setCard] = useState<string | null>(() => cardFromHash(window.location.hash));
   useEffect(() => {
     const onHash = () => {
@@ -54,9 +59,21 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
   }, []);
 
   useEffect(() => {
+    if (demo) {
+      loadDemoMission().then(
+        ({ data, now }) => {
+          useMission.getState().useDemo(data);
+          setDemoNow(new Date(now));
+        },
+        (e: unknown) => useMission.setState({ status: "error", error: e instanceof Error ? e.message : String(e) }),
+      );
+      return undefined;
+    }
     void useMission.getState().connect(missionId, api);
     return () => useMission.getState().disconnect();
-  }, [api, missionId]);
+  }, [api, missionId, demo]);
+  const imageUrl = (rel: string) => (demo ? `${DEMO_CACHE}/${rel}` : fileUrl(api, missionId, rel));
+  const tabs = demo ? TABS.filter((t) => DEMO_TABS.includes(t.id)) : TABS;
 
   const go = (t: Tab) => {
     setTab(t);
@@ -78,7 +95,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
     );
   }
 
-  if (card) {
+  if (card && !demo) {
     return (
       <main className="mx-auto max-w-5xl p-4 lg:p-8 print:p-0">
         <LiveCard api={api} missionId={missionId} sector={card} />
@@ -90,7 +107,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
     <main className="mx-auto flex max-w-5xl flex-col gap-4 p-4 lg:p-8">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-col">
-          <Label>Live mission · {missionId}</Label>
+          <Label>{demo ? "Demo mission · simulated data, no server" : `Live mission · ${missionId}`}</Label>
           <h1 className="text-title text-text">{s.mission?.name ?? "…"}</h1>
           {s.mission?.subject && <span className="text-small text-text-2">Looking for: {s.mission.subject}</span>}
         </div>
@@ -99,6 +116,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         </span>
       </header>
 
+      {!demo && (
       <section aria-label="Progress" className="grid grid-cols-3 gap-4">
         <Stat value={progress.processed} label="Photos processed" />
         <Stat
@@ -107,9 +125,10 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         />
         <Stat value={progress.candidates + s.promoted.length} label="Candidates" />
       </section>
+      )}
 
       <nav className="flex gap-2" aria-label="Mission views">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -121,6 +140,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
             {t.id === "approvals" && waiting > 0 && <span className="ml-1 font-mono text-accent-soft">{waiting}</span>}
           </button>
         ))}
+        {!demo && (
         <button
           type="button"
           disabled={progress.candidates + s.promoted.length === 0}
@@ -129,6 +149,8 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         >
           Go to review
         </button>
+        )}
+        {!demo && (
         <a
           href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`}
           target="_blank"
@@ -137,6 +159,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         >
           Debrief
         </a>
+        )}
       </nav>
 
       {tab === "photos" && (
@@ -193,11 +216,12 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
           teams={s.teams}
           clues={s.clues}
           proposals={s.proposals}
-          imageUrl={(rel) => fileUrl(api, missionId, rel)}
+          imageUrl={imageUrl}
           onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
           onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
           onAddClue={(draft) => useMission.getState().addClue(draft)}
-          cardHref={(sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
+          cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
+          now={demo && demoNow ? () => demoNow : undefined}
           onPickOnMap={() => {
             document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
             return usePick.getState().request();
@@ -210,7 +234,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         <ApprovalInbox
           proposals={s.proposals}
           teams={s.teams}
-          imageUrl={(rel) => fileUrl(api, missionId, rel)}
+          imageUrl={imageUrl}
           onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
         />
       )}
@@ -222,9 +246,11 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
 
       {tab === "feed" && (
         <Panel aria-label="Mission feed" className="flex flex-col gap-1">
-          <a className="self-end text-small text-accent-soft underline" href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`} target="_blank" rel="noreferrer">
-            Debrief (markdown)
-          </a>
+          {!demo && (
+            <a className="self-end text-small text-accent-soft underline" href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`} target="_blank" rel="noreferrer">
+              Debrief (markdown)
+            </a>
+          )}
           {s.events.length === 0 && <p className="text-small text-text-3">Nothing yet.</p>}
           {[...s.events].reverse().map((e) => (
             <div key={e.id} className="flex gap-3 text-small">

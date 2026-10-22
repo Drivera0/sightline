@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FrontDoor } from "./front/FrontDoor";
+import { DEMO_MISSION_ID } from "./command/demoMission";
 import { LiveMission, tabFromHash } from "./ingest/LiveMission";
 import { NewSearch } from "./ingest/NewSearch";
 import { apiBase } from "./lib/api";
@@ -27,6 +28,10 @@ function useRoute(): Route {
 /** Live missions need the mission API (VITE_API_URL); the static demo needs nothing. */
 export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, { kind: "demo" | "front" }>; base?: string | null }) {
   const api = useMemo(() => (base === null ? null : { base }), [base]);
+  if (route.kind === "mission" && route.id === DEMO_MISSION_ID) {
+    // the command view's demo mission needs no API (E-04): it works on the demo-only site too
+    return <LiveMission key="demo" api={api ?? { base: "" }} missionId={DEMO_MISSION_ID} initialTab={tabFromHash(window.location.hash)} />;
+  }
   if (api === null) {
     return (
       <div role="alert" className="flex h-full flex-col items-center justify-center p-6">
@@ -35,6 +40,9 @@ export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, 
         </EmptyState>
         <a href="#survey" className="mt-4 block text-center text-accent-soft underline">
           Watch a demo search
+        </a>
+        <a href="#m/demo/command" className="mt-2 block text-center text-accent-soft underline">
+          Try the command view on a demo mission
         </a>
       </div>
     );
