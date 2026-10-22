@@ -222,7 +222,20 @@ def on_conditions(
 
 
 def on_fleet(store: MissionStore, mission_id: str, t: FleetTelemetry, hooks: Any = None):
-    """Merge telemetry; each leg newly ``done`` goes to the agent (``on_leg_done``)."""
+    """Merge telemetry; each leg newly ``done`` goes to the agent (``on_leg_done``). The first
+    telemetry with drones creates the mission's fleet (how the fleet sim joins over HTTP); it is
+    ``simulated`` when every drone is."""
+    if store.state(mission_id)["fleet"] is None:
+        if not t.drones:
+            raise ValueError("no fleet yet: send the drones first")
+        from sightline.contract import FleetState
+
+        drones = [d.model_copy(update={"leg_id": None}) for d in t.drones]
+        fleet = FleetState(
+            simulated=all(d.simulated for d in drones), drones=drones, legs=[], updated_at=t.at
+        )
+        store.put_fleet(mission_id, fleet)
+        return fleet
     fleet, done = store.merge_telemetry(mission_id, t)
     for leg_id in done:
         _hook(hooks, "on_leg_done", store, mission_id, leg_id)

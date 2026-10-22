@@ -1,0 +1,14 @@
+{
+  "name": "creek (simulated fleet)",
+  "note": "Rehearsal scenario for the Nebius video (LANE_C §5.6): three simulated drones over the demo area at Mount Seymour. 'hidden' is the truth: the sim uses it only to choose which photo crop a drone gets; it is never sent to the API.",
+  "lkp": {"lat": 49.375, "lon": -122.9375},
+  "line_spacing_m": 20.0,
+  "drones": [
+    {"id": "D1", "name": "Drone 1", "simulated": true, "position": {"lat": 49.3762, "lon": -122.9391}, "altitude_m": 50.0, "speed_ms": 8.0, "battery_pct": 100.0, "max_wind_kmh": 38.0, "status": "idle", "leg_id": null},
+    {"id": "D2", "name": "Drone 2", "simulated": true, "position": {"lat": 49.3762, "lon": -122.9389}, "altitude_m": 50.0, "speed_ms": 8.0, "battery_pct": 100.0, "max_wind_kmh": 38.0, "status": "idle", "leg_id": null},
+    {"id": "D3", "name": "Drone 3", "simulated": true, "position": {"lat": 49.3762, "lon": -122.9387}, "altitude_m": 50.0, "speed_ms": 8.0, "battery_pct": 100.0, "max_wind_kmh": 38.0, "status": "idle", "leg_id": null}
+  ],
+  "hidden": {"lat": 49.3729, "lon": -122.9354},
+  "positive": {"image": "train_BRK_1021.jpg", "box": 0},
+  "clue": {"after_s": 300, "kind": "object", "text": "blue backpack by the creek", "lat": 49.3732, "lon": -122.9358, "reported_by": "T2", "source": "form", "reliability": "high"}
+}
