@@ -149,17 +149,17 @@ def test_layout_is_a_pipeline_setting_defaulting_to_the_shuffled_survey():
 
 
 def test_cli_offers_the_layout_option_and_rejects_unknown_layouts():
+    import re
+
     from typer.testing import CliRunner
 
     from sightline.pipeline.__main__ import app
-
-    import re
 
     runner = CliRunner()
     # CI terminals force colour: Rich's escape codes can split "--layout", so compare plain text
     plain = lambda args: re.sub(
         r"\x1b\[[0-9;]*m", "", runner.invoke(app, args, env={"COLUMNS": "200"}).output
-    )  # noqa: E731
+    )
     assert "--layout" in plain(["run", "--help"])
     assert "--layout" in plain(["frames", "--help"])
     assert runner.invoke(app, ["frames", "--layout", "spiral"]).exit_code != 0
