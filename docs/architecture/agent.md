@@ -9,6 +9,88 @@ OpenCV 5 result changes a later decision, and how the agent is evaluated. Code: 
 
 Drawn by `docs/architecture/build_architecture.py` (figure 3 of `sightline-architecture.html`).
 
+## The workflow: perception → decision → action → human → effect
+
+```mermaid
+flowchart LR
+  subgraph PER["Perception (OpenCV 5)"]
+    photo["Drone photo<br/>4000×3000"]
+    det["cv2.dnn detector<br/>YOLO11s ONNX, 20 tiles"]
+    relook["OpenCV re-look tools<br/>zoom_native · CLAHE · redetect_region"]
+  end
+  subgraph DEC["Decision"]
+    pick["Tool choice<br/>box size, contrast, shape"]
+    vl["Nemotron VL verdict<br/>JSON: person, posture, reason"]
+    map["Probability map<br/>every photo, review, clue"]
+    planner["Information-gain planner"]
+    cond["Conditions<br/>Tavily + Nemotron Nano"]
+  end
+  subgraph ACT["Action"]
+    prop["Proposal with reason<br/>promote · drone_leg · retask · assign · alert"]
+  end
+  gate{"Search manager<br/>approves?"}
+  subgraph EFF["Effect"]
+    queue["Review queue"]
+    leg["Drone leg / re-task"]
+    radio["Radio briefing<br/>sent by the operator"]
+  end
+  logged["Rejected or edited:<br/>logged, nothing happens"]
+
+  photo --> det
+  det -- "near-miss 0.15–0.29<br/>or uncertain" --> pick
+  pick -- "re-look: ask OpenCV<br/>for a better view" --> relook
+  relook -- "re-look images" --> vl
+  relook -. "redetect_region re-runs" .-> det
+  det --> map
+  cond --> planner
+  map --> planner
+  vl --> prop
+  planner --> prop
+  prop --> gate
+  gate -- "approve" --> queue
+  gate -- "approve" --> leg
+  gate -- "approve" --> radio
+  gate -- "reject / edit" --> logged
+  leg -. "new photos" .-> photo
+```
+
+The re-look is the back-edge from decision to perception: when the detector is unsure, the verifier
+chooses an OpenCV tool for that failure mode (`sightline/agent/verify.py:86-100`), the tool goes back
+to the photo's native pixels (`sightline/agent/relook.py:81-143`), and the model decides from what
+OpenCV produced. Every arrow out of the diamond needs a person: the agent never acts on its own
+(`sightline/api/missions.py:409-410`, `POST /missions/{id}/proposals/{pid}/decide`).
+
+## The showcase chain as a sequence
+
+The first chain below (`av-chain/trace.jsonl`), and what an approval leads to on a live mission
+(the second chain, `scripts/retask_chain.py`):
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Operator as Search manager
+  participant Agent as Agent (sightline/agent)
+  participant Detector as Detector (OpenCV 5 cv2.dnn)
+  participant Tools as OpenCV re-look tools
+  participant VL as Nemotron VL (Token Factory)
+  participant Map as Map + planner
+  participant Radio as Radio desk
+
+  Detector->>Agent: f0001-d01 scored 0.179, below the 0.29 review threshold (near-miss)
+  Agent->>Tools: zoom_native (box 21 px, aspect 1.00, grey spread 32.2)
+  Tools-->>Agent: relook/f0001-d01-zoom_native.jpg (native 4000×3000 pixels)
+  Agent->>VL: crop + zoom, prompt verify-v2
+  VL-->>Agent: {"person": "yes", "posture": "lying", ...} in 1414 ms
+  Agent->>Operator: proposal p001 promote_detection, with the reason
+  Operator->>Agent: approve (scripted in this recording)
+  Agent->>Map: f0001-d01 joins the review queue
+  Note over Operator,Radio: On a live mission (second chain): a reviewer confirms a person, the sighting is logged as a clue
+  Map->>Agent: the clue reweights the map, and the planner picks sector B3 for Drone 1
+  Agent->>Operator: proposal p004 retask_drone, "3.1% expected in 12 min"
+  Operator->>Agent: approve (scripted in this recording)
+  Agent->>Radio: briefing written from facts only, transmitted only when the operator presses Transmit
+```
+
 ## The loop
 
 | Step | What runs | Code |
@@ -51,6 +133,21 @@ small), and the zoom from the original photo's native pixels is what the VL mode
 2026-10-21T00:33:25.928Z  human    decision   p001 approved by Search manager (scripted approval for this demo run)
     {'proposal': 'p001', 'status': 'approved', 'by': 'Search manager (scripted approval for this demo run)'}
 ```
+
+The same six trace lines as a table (every value from `av-chain/trace.jsonl`, line n = span n):
+
+| Span | Tool / model | Input (summary) | Output (summary) | ms | What it changed next |
+|---|---|---|---|---|---|
+| 1 `pipeline` note | the detector, OpenCV 5 `cv2.dnn` | photo `train_ZRI_2061`, box (1900, 2633)–(1982, 2717) in the original | confidence 0.179, below the 0.29 threshold: not in the review queue (near-miss) | — | the near-miss triggers the second look; without it no reviewer would see this person |
+| 2 `verifier` tool_call | `zoom_native` (OpenCV 5, `relook.py:91`) | the box; heuristics: 21 px long side, aspect 1.00, grey spread 32.2 | `relook/f0001-d01-zoom_native.jpg`, cut from native pixels | 0 | the small box chose the zoom; the zoom is the image the model answers from |
+| 3 `verifier` model_call | `nvidia/Nemotron-3.5-Super-VL`, prompt `verify-v2` | the review crop + the native zoom; 809 tokens in | `person: yes, posture: lying, group 1, white top, dark pants`; 61 tokens out | 1414 | a `yes` on a near-miss is the condition for a promotion |
+| 4 `verifier` verdict | — | — | verdict `v0001`: person yes, tool `zoom_native` | 1488 (tool + model) | the verdict is stored on the detection and handed to the agent loop |
+| 5 `agent` proposal | `loop.py:319` (`_on_detection`) | verdict `v0001` | `p001 promote_detection`, reason: "confidence 0.18 is below the review threshold 0.29; the second look (zoom_native) says…" | — | a pending proposal in the approval inbox; nothing changes until a person decides |
+| 6 `human` decision | — | `p001` | approved, by "Search manager (scripted approval for this demo run)" | — | the detection joins the review queue |
+
+**The approval in this showcase run was scripted**, and the trace says so in its own words (span 6).
+When the video is recorded, the chain is run again with a real person approving in the inbox, and that
+trace replaces this one (Dan's item). The second chain's human steps are scripted too, also labelled.
 
 Reproduce: `uv run --extra ml python scripts/av_chain.py`, then the `trace_excerpt.py` command it
 prints. Disclosures: the photo is from val and was picked from the verifier's val results as a
@@ -142,3 +239,31 @@ checked by lane D's `validate_mission`).
 **Tests** (no network, no keys): `tests/agent/` — verifier (LANE_A test 4), loop per trigger,
 no dismissals, superseding, briefing checks, budget (test 5), hooks under 5 ms (test 6), no
 secrets in the trace (test 7).
+
+## The Agentic Vision rubric, line by line
+
+- **Substantive OpenCV 5 and agent integration (30 %).** The detector the agent reacts to is OpenCV 5
+  `cv2.dnn`, with identical scores to PyTorch on test and 363 of 363 boxes matched
+  (`docs/report/OPENCV_REPORT.md:146-151`). The re-look tools are OpenCV 5 (`sightline/agent/relook.py`,
+  report §4.2), and the model answers from OpenCV's images, so the visual evidence changes what the
+  system does next: a 0.18 near-miss becomes a review-queue proposal (span 1 → span 5 above).
+- **Orchestration and appropriate autonomy (25 %).** Events go through hooks that only enqueue
+  (`sightline/agent/hooks.py:36-56`) to one loop (`sightline/agent/loop.py:473`, `handle`) that turns
+  each into proposals. Models are used where they add information (vision verdicts, briefings,
+  conditions, radio); the planner and code decide the rest. Autonomy stops at the proposal: the
+  diamond in the workflow diagram, enforced by the API (`sightline/api/missions.py:409`).
+- **Task effectiveness and evaluation (20 %).** On test the second look finds 4 more of 337 people
+  (recall 0.864 → 0.875, 95 % CI of the gain [+0.003, +0.023]) for 15 more false alarms; F2 does not
+  change clearly (`docs/report/OPENCV_REPORT.md:350-353`). Planner and fleet are evaluated in
+  simulation, with the flat-prior result stated as no gain (`docs/report/OPENCV_REPORT.md:395-429`).
+  Rules are chosen on val and test is read once.
+- **Failure handling, observability, security, human control (15 %).** The four paragraphs under
+  Evaluation above, with their tests in `tests/agent/` (for example
+  `test_loop.py::test_never_dismisses_and_never_says_clear`,
+  `test_loop.py::test_budget_stops_model_calls_and_notes_it_once`, `test_trace.py`). Every span is in
+  `trace.jsonl` with model, ms and tokens; keys are redacted.
+- **UX, documentation, demonstration (10 %).** The approval inbox and command view
+  (`docs/architecture/screens/approval-inbox.png`), this page, report §5 and two reproducible chains
+  (`scripts/av_chain.py`, `scripts/retask_chain.py`). Gaps we know about: the trace is not yet shown in
+  the web app (the `TraceEntry` type exists in `web/src/contract.ts`, but there is no trace route or
+  tab), and the recorded approvals are scripted until the video run.
