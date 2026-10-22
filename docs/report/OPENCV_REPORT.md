@@ -50,6 +50,12 @@ Tavily; Nemotron): sectors move from proposed to searched with a POD (never "cle
 probability on the live map and its drone coverage; the teams with their positions' age; the agent's
 proposal waiting for approval; the clue log.*
 
+![Live map](../architecture/screens/live-map.png)
+
+*The live map above the command view (Mount Seymour test mission with synthetic drone photos): the heat is
+rebuilt from the mission's map log and changes with each photo; grey cells have not been photographed; the
+sectors show their probability now, with the last-known point, a clue and a team's position.*
+
 ## 2. What is new since BCS Hackathon 2026 (disclosure)
 
 Sightline was first built in 36 hours at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`):
@@ -437,9 +443,9 @@ HERIDAL photo covering 142 cells.
    choice was fixed on val.
 5. **The human steps in both AV chains are scripted** for the recording (the review, logging the sighting as
    a clue, the approvals), and the trace says so; the fleet in the re-task chain is simulated (lane C's fleet
-   simulator was not in yet), and labelled.
+   simulator, `sightline/search/fleet.py`, came later and was not used for this recording), and labelled.
 6. **Radio measurements** use typed team lines (and, for full voice turns, team lines spoken by
-   Magpie); the radio demo's mission is a fixture until the live mission API is mounted.
+   Magpie); they were taken on a fixture mission. The desk now also runs on live missions (the Radio tab).
 7. **AI assistance:** parts of the code and docs were written with an AI coding assistant; the
    agent described in §5 is Sightline's own runtime agent.
 
