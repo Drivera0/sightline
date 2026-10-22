@@ -142,6 +142,10 @@ def test_limits() -> None:
     assert propose_legs(m, layout, _fleet(_drone(battery=3)), None, NOW) == []  # not enough battery
     dusk = _conditions(civil_twilight_end="2026-10-24T21:42:00Z")  # 2 min of light left
     assert propose_legs(m, layout, _fleet(_drone()), dusk, NOW) == []
+    windy_soon = _conditions(flyable_until="2026-10-24T21:42:00Z")  # gusts over the limit in 2 min
+    assert propose_legs(m, layout, _fleet(_drone()), windy_soon, NOW) == []
+    calm_for_hours = _conditions(flyable_until="2026-10-25T03:00:00Z")
+    assert propose_legs(m, layout, _fleet(_drone()), calm_for_hours, NOW)  # the same leg fits
     taken = _fleet(_drone("D1"), _drone("D2", status="charging"))
     assert [leg.drone_id for leg in propose_legs(m, layout, taken, None, NOW)] == ["D1"]
 

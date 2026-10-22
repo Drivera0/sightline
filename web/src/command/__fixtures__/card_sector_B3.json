@@ -1,0 +1,200 @@
+{
+ "mission_id": "72540e33",
+ "sector_id": "B3",
+ "sector_label": "Bravo Three",
+ "team_id": "T2",
+ "team_callsign": "Team Two",
+ "polygon": [
+  [
+   -122.9409494922221,
+   49.375
+  ],
+  [
+   -122.9375,
+   49.375
+  ],
+  [
+   -122.9375,
+   49.372754222062525
+  ],
+  [
+   -122.9409494922221,
+   49.372754222062525
+  ],
+  [
+   -122.9409494922221,
+   49.375
+  ]
+ ],
+ "area_m2": 62500.0,
+ "entry": {
+  "name": "north edge",
+  "lat": 49.375,
+  "lon": -122.9398,
+  "note": "entry"
+ },
+ "bearing_deg_from_team": 180.0,
+ "distance_m_from_team": 133.0,
+ "waypoints": [
+  {
+   "name": "north edge",
+   "lat": 49.375,
+   "lon": -122.9398,
+   "note": "entry"
+  },
+  {
+   "name": "north-west corner",
+   "lat": 49.375,
+   "lon": -122.940949,
+   "note": null
+  },
+  {
+   "name": "north-east corner",
+   "lat": 49.375,
+   "lon": -122.9375,
+   "note": null
+  },
+  {
+   "name": "south-east corner",
+   "lat": 49.372754,
+   "lon": -122.9375,
+   "note": null
+  },
+  {
+   "name": "south-west corner",
+   "lat": 49.372754,
+   "lon": -122.940949,
+   "note": null
+  },
+  {
+   "name": "Sweep 1 start",
+   "lat": 49.374888,
+   "lon": -122.940949,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 1 end",
+   "lat": 49.374888,
+   "lon": -122.9375,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 2 start",
+   "lat": 49.374663,
+   "lon": -122.9375,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 2 end",
+   "lat": 49.374663,
+   "lon": -122.940949,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 3 start",
+   "lat": 49.374439,
+   "lon": -122.940949,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 3 end",
+   "lat": 49.374439,
+   "lon": -122.9375,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 4 start",
+   "lat": 49.374214,
+   "lon": -122.9375,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 4 end",
+   "lat": 49.374214,
+   "lon": -122.940949,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 5 start",
+   "lat": 49.373989,
+   "lon": -122.940949,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 5 end",
+   "lat": 49.373989,
+   "lon": -122.9375,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 6 start",
+   "lat": 49.373765,
+   "lon": -122.9375,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 6 end",
+   "lat": 49.373765,
+   "lon": -122.940949,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 7 start",
+   "lat": 49.37354,
+   "lon": -122.940949,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 7 end",
+   "lat": 49.37354,
+   "lon": -122.9375,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 8 start",
+   "lat": 49.373316,
+   "lon": -122.9375,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 8 end",
+   "lat": 49.373316,
+   "lon": -122.940949,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 9 start",
+   "lat": 49.373091,
+   "lon": -122.940949,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 9 end",
+   "lat": 49.373091,
+   "lon": -122.9375,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 10 start",
+   "lat": 49.372867,
+   "lon": -122.9375,
+   "note": "sweep"
+  },
+  {
+   "name": "Sweep 10 end",
+   "lat": 49.372867,
+   "lon": -122.940949,
+   "note": "sweep"
+  }
+ ],
+ "poa": 0.0313,
+ "drone_coverage": 0.0,
+ "look_for": [
+  "adult, red jacket"
+ ],
+ "evidence_crops": [],
+ "conditions_line": null,
+ "daylight_remaining_min": null,
+ "radio": "Channel 2. Report clues by radio: say \u201cSightline, Team Two\u201d, then what you found and where.",
+ "generated_at": "2026-10-24T22:00:00Z"
+}

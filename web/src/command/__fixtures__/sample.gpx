@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Sightline" xmlns="http://www.topografix.com/GPX/1/1">
+<metadata><name>Sector Bravo Three (B3)</name><desc>Channel 2. Report clues by radio: say “Sightline, Team Two”, then what you found and where.</desc></metadata>
+<wpt lat="49.375" lon="-122.9398"><name>north edge</name><desc>entry</desc></wpt>
+<wpt lat="49.375" lon="-122.940949"><name>north-west corner</name></wpt>
+<wpt lat="49.375" lon="-122.9375"><name>north-east corner</name></wpt>
+<wpt lat="49.372754" lon="-122.9375"><name>south-east corner</name></wpt>
+<wpt lat="49.372754" lon="-122.940949"><name>south-west corner</name></wpt>
+<wpt lat="49.374888" lon="-122.940949"><name>Sweep 1 start</name><desc>sweep</desc></wpt>
+<wpt lat="49.374888" lon="-122.9375"><name>Sweep 1 end</name><desc>sweep</desc></wpt>
+<wpt lat="49.374663" lon="-122.9375"><name>Sweep 2 start</name><desc>sweep</desc></wpt>
+<wpt lat="49.374663" lon="-122.940949"><name>Sweep 2 end</name><desc>sweep</desc></wpt>
+<wpt lat="49.374439" lon="-122.940949"><name>Sweep 3 start</name><desc>sweep</desc></wpt>
+<wpt lat="49.374439" lon="-122.9375"><name>Sweep 3 end</name><desc>sweep</desc></wpt>
+<wpt lat="49.374214" lon="-122.9375"><name>Sweep 4 start</name><desc>sweep</desc></wpt>
+<wpt lat="49.374214" lon="-122.940949"><name>Sweep 4 end</name><desc>sweep</desc></wpt>
+<wpt lat="49.373989" lon="-122.940949"><name>Sweep 5 start</name><desc>sweep</desc></wpt>
+<wpt lat="49.373989" lon="-122.9375"><name>Sweep 5 end</name><desc>sweep</desc></wpt>
+<wpt lat="49.373765" lon="-122.9375"><name>Sweep 6 start</name><desc>sweep</desc></wpt>
+<wpt lat="49.373765" lon="-122.940949"><name>Sweep 6 end</name><desc>sweep</desc></wpt>
+<wpt lat="49.37354" lon="-122.940949"><name>Sweep 7 start</name><desc>sweep</desc></wpt>
+<wpt lat="49.37354" lon="-122.9375"><name>Sweep 7 end</name><desc>sweep</desc></wpt>
+<wpt lat="49.373316" lon="-122.9375"><name>Sweep 8 start</name><desc>sweep</desc></wpt>
+<wpt lat="49.373316" lon="-122.940949"><name>Sweep 8 end</name><desc>sweep</desc></wpt>
+<wpt lat="49.373091" lon="-122.940949"><name>Sweep 9 start</name><desc>sweep</desc></wpt>
+<wpt lat="49.373091" lon="-122.9375"><name>Sweep 9 end</name><desc>sweep</desc></wpt>
+<wpt lat="49.372867" lon="-122.9375"><name>Sweep 10 start</name><desc>sweep</desc></wpt>
+<wpt lat="49.372867" lon="-122.940949"><name>Sweep 10 end</name><desc>sweep</desc></wpt>
+<trk><name>Sector Bravo Three (B3) boundary</name><trkseg><trkpt lat="49.375" lon="-122.9409494922221"/><trkpt lat="49.375" lon="-122.9375"/><trkpt lat="49.372754222062525" lon="-122.9375"/><trkpt lat="49.372754222062525" lon="-122.9409494922221"/><trkpt lat="49.375" lon="-122.9409494922221"/></trkseg></trk>
+<rte><name>Sector Bravo Three (B3) sweep lines</name><rtept lat="49.374888" lon="-122.940949"><name>Sweep 1 start</name><desc>sweep</desc></rtept><rtept lat="49.374888" lon="-122.9375"><name>Sweep 1 end</name><desc>sweep</desc></rtept><rtept lat="49.374663" lon="-122.9375"><name>Sweep 2 start</name><desc>sweep</desc></rtept><rtept lat="49.374663" lon="-122.940949"><name>Sweep 2 end</name><desc>sweep</desc></rtept><rtept lat="49.374439" lon="-122.940949"><name>Sweep 3 start</name><desc>sweep</desc></rtept><rtept lat="49.374439" lon="-122.9375"><name>Sweep 3 end</name><desc>sweep</desc></rtept><rtept lat="49.374214" lon="-122.9375"><name>Sweep 4 start</name><desc>sweep</desc></rtept><rtept lat="49.374214" lon="-122.940949"><name>Sweep 4 end</name><desc>sweep</desc></rtept><rtept lat="49.373989" lon="-122.940949"><name>Sweep 5 start</name><desc>sweep</desc></rtept><rtept lat="49.373989" lon="-122.9375"><name>Sweep 5 end</name><desc>sweep</desc></rtept><rtept lat="49.373765" lon="-122.9375"><name>Sweep 6 start</name><desc>sweep</desc></rtept><rtept lat="49.373765" lon="-122.940949"><name>Sweep 6 end</name><desc>sweep</desc></rtept><rtept lat="49.37354" lon="-122.940949"><name>Sweep 7 start</name><desc>sweep</desc></rtept><rtept lat="49.37354" lon="-122.9375"><name>Sweep 7 end</name><desc>sweep</desc></rtept><rtept lat="49.373316" lon="-122.9375"><name>Sweep 8 start</name><desc>sweep</desc></rtept><rtept lat="49.373316" lon="-122.940949"><name>Sweep 8 end</name><desc>sweep</desc></rtept><rtept lat="49.373091" lon="-122.940949"><name>Sweep 9 start</name><desc>sweep</desc></rtept><rtept lat="49.373091" lon="-122.9375"><name>Sweep 9 end</name><desc>sweep</desc></rtept><rtept lat="49.372867" lon="-122.9375"><name>Sweep 10 start</name><desc>sweep</desc></rtept><rtept lat="49.372867" lon="-122.940949"><name>Sweep 10 end</name><desc>sweep</desc></rtept></rte>
+</gpx>

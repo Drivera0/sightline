@@ -146,6 +146,13 @@ inference is lane A's call. Its test score has been seen, so if it is adopted, s
 
 ## OpenCV 5 parity (A-X3, 2026-10-20)
 
+**Raw tensors (A-X1, 2026-10-22):** `raw_parity.py` feeds the same input blobs to `cv2.dnn` and onnxruntime 1.31
+(12 tiles of 1024 px from 6 val photos; onnxruntime in its own environment, not a project dependency). The output
+`[1, 5, 21504]` agrees to **1e-6 on confidence** and **0.0056 px on box coordinates** (values up to 1024 px:
+float32 rounding, a relative 5e-6). Over the whole tensor that is 0.0056, above the plan's 1e-3, only because the
+box channels are in pixels. Result: `docs/evidence/raw-parity-20261022.json`. (The plan's `--backend` flag on
+`evaluate_model.py` became `parity_table.py`, below, which runs both backends on the same photos.)
+
 `parity_table.py` runs the same weights-v2 detector two ways on the same photos, tiled as in the pipeline: Torch
 (Ultralytics + SAHI, `detect.py`) and OpenCV 5 `cv2.dnn` on the ONNX export (`detect_cv.py`, opencv-python 5.0.0.93).
 Threshold **0.29, frozen** (chosen on val in sprint 1; nothing re-chosen). Annotated val photos and the full test set;

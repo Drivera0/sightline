@@ -345,7 +345,7 @@ paired bootstrap over photos) for 15 more false alarms to dismiss; F2 does not c
 The gain is smaller than on val (+0.027): on test the model answered `unclear` for most
 near-misses and for 65 % of crops where the person is under 60 px. Test also contains four sites
 that are in neither training nor validation (114 of the 337 people, `docs/DETECTOR_LIMITS.md` §5),
-which may explain part of the gap. Cost: about 890 tokens in and 67 out, p50 1.35 s and p90
+which may explain part of the gap. Cost: about 890 tokens in and 67 out (mean of all 461 calls; the val and test runs alone differ by a few per cent, `docs/LANE_A_ML.md` §6.8), p50 1.35 s and p90
 1.65 s per detection, about 0.00033 per detection at Token Factory's catalog prices (0.30 / 0.90
 per million tokens in / out); 461 of 461 replies were valid JSON.
 

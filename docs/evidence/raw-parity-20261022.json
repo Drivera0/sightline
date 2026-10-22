@@ -1,0 +1,228 @@
+{
+ "onnx": "sightline-detector-v2.onnx",
+ "opencv": "5.0.0",
+ "onnxruntime": "1.31.0",
+ "tiles": 12,
+ "max_abs_diff": 0.0055999755859375,
+ "box_px_max_diff": 0.0055999755859375,
+ "conf_max_diff": 9.834766387939453e-07,
+ "conf_max_diff_above_0.05": 9.834766387939453e-07,
+ "rows": [
+  {
+   "photo": "train_BLA_0008.jpg",
+   "tile": [
+    0,
+    0
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.0055999755859375,
+   "box_px_diff": 0.0055999755859375,
+   "conf_diff": 1.3302762624789466e-07,
+   "conf_diff_above_0.05": 0.0,
+   "max_conf_cv2": 0.005665089935064316,
+   "max_conf_ort": 0.005665123462677002
+  },
+  {
+   "photo": "train_BLA_0008.jpg",
+   "tile": [
+    1488,
+    988
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.00156402587890625,
+   "box_px_diff": 0.00156402587890625,
+   "conf_diff": 1.3486254601957626e-07,
+   "conf_diff_above_0.05": 0.0,
+   "max_conf_cv2": 0.002315262798219919,
+   "max_conf_ort": 0.0023152828216552734
+  },
+  {
+   "photo": "train_BRA_1002.jpg",
+   "tile": [
+    0,
+    0
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.00091552734375,
+   "box_px_diff": 0.00091552734375,
+   "conf_diff": 1.1792364063012428e-07,
+   "conf_diff_above_0.05": 0.0,
+   "max_conf_cv2": 0.000436251430073753,
+   "max_conf_ort": 0.000436246395111084
+  },
+  {
+   "photo": "train_BRA_1002.jpg",
+   "tile": [
+    1488,
+    988
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.00250244140625,
+   "box_px_diff": 0.00250244140625,
+   "conf_diff": 2.384185791015625e-07,
+   "conf_diff_above_0.05": 2.384185791015625e-07,
+   "max_conf_cv2": 0.25643080472946167,
+   "max_conf_ort": 0.25643104314804077
+  },
+  {
+   "photo": "train_BRA_1009.jpg",
+   "tile": [
+    0,
+    0
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.0011138916015625,
+   "box_px_diff": 0.0011138916015625,
+   "conf_diff": 1.3439851898056077e-07,
+   "conf_diff_above_0.05": 0.0,
+   "max_conf_cv2": 0.0031706218142062426,
+   "max_conf_ort": 0.003170609474182129
+  },
+  {
+   "photo": "train_BRA_1009.jpg",
+   "tile": [
+    1488,
+    988
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.0008544921875,
+   "box_px_diff": 0.0008544921875,
+   "conf_diff": 1.2927876014146022e-07,
+   "conf_diff_above_0.05": 0.0,
+   "max_conf_cv2": 0.0009778711246326566,
+   "max_conf_ort": 0.0009778738021850586
+  },
+  {
+   "photo": "train_BRA_1016.jpg",
+   "tile": [
+    0,
+    0
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.0013885498046875,
+   "box_px_diff": 0.0013885498046875,
+   "conf_diff": 1.1709455804975732e-07,
+   "conf_diff_above_0.05": 0.0,
+   "max_conf_cv2": 0.0014076030347496271,
+   "max_conf_ort": 0.0014075934886932373
+  },
+  {
+   "photo": "train_BRA_1016.jpg",
+   "tile": [
+    1488,
+    988
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.0008544921875,
+   "box_px_diff": 0.0008544921875,
+   "conf_diff": 1.2291933160213375e-07,
+   "conf_diff_above_0.05": 0.0,
+   "max_conf_cv2": 0.005115279462188482,
+   "max_conf_ort": 0.005115300416946411
+  },
+  {
+   "photo": "train_BRA_1036.jpg",
+   "tile": [
+    0,
+    0
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.001068115234375,
+   "box_px_diff": 0.001068115234375,
+   "conf_diff": 1.334305750333442e-07,
+   "conf_diff_above_0.05": 0.0,
+   "max_conf_cv2": 0.0006903611938469112,
+   "max_conf_ort": 0.0006903707981109619
+  },
+  {
+   "photo": "train_BRA_1036.jpg",
+   "tile": [
+    1488,
+    988
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.00067138671875,
+   "box_px_diff": 0.00067138671875,
+   "conf_diff": 9.834766387939453e-07,
+   "conf_diff_above_0.05": 9.834766387939453e-07,
+   "max_conf_cv2": 0.5519223213195801,
+   "max_conf_ort": 0.5519226789474487
+  },
+  {
+   "photo": "train_BRA_1046.jpg",
+   "tile": [
+    0,
+    0
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.00146484375,
+   "box_px_diff": 0.00146484375,
+   "conf_diff": 1.1017345968866721e-07,
+   "conf_diff_above_0.05": 0.0,
+   "max_conf_cv2": 0.0001543334947200492,
+   "max_conf_ort": 0.00015437602996826172
+  },
+  {
+   "photo": "train_BRA_1046.jpg",
+   "tile": [
+    1488,
+    988
+   ],
+   "shape": [
+    1,
+    5,
+    21504
+   ],
+   "max_abs_diff": 0.00067138671875,
+   "box_px_diff": 0.00067138671875,
+   "conf_diff": 1.2686598438449437e-07,
+   "conf_diff_above_0.05": 0.0,
+   "max_conf_cv2": 0.0035719037987291813,
+   "max_conf_ort": 0.0035718977451324463
+  }
+ ]
+}
