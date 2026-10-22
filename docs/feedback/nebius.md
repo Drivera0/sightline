@@ -12,7 +12,7 @@ The radio desk's own measurements are in `docs/feedback/radio.md`.
 3. Token Factory: key → first tool call that parsed, about 2.5 hours (13:29 → 15:58 PDT, `git log`), almost all of it writing the client; the one model-side snag was replies that came back empty after the model spent the token budget thinking, fixed by turning thinking off (`extra_body`)
 4. Serverless Jobs: `nebius` CLI install → logged in, about 2 minutes (2026-10-21 21:14 → 21:16 PDT), after one failed try because `profile create` only works interactively
 5. Parakeet and Magpie: start of the spike → first transcript and first spoken reply, about 75 minutes (2026-10-20 18:30 → 19:45 PDT), including the NeMo environment build and the 3 GB download
-6. Builders credits: applied → credited, `<Dan: days>`, and how the process felt
+6. Builders credits: applied → credited, 1, and how the process felt
 
 **Prices** (Token Factory model catalog, https://tokenfactory.nebius.com/model-catalog.md, read
 2026-10-20 and again 2026-10-22, unchanged; per million tokens, no currency stated on the page):
