@@ -25,3 +25,16 @@ paper and black text, and hides the buttons. Checked in Chromium: a real card pr
 (25 waypoints) and the GPX downloads as `application/gpx+xml`. Screenshot: `docs/architecture/screens/assignment-card.png`.
 Still to do (manual): import a GPX into CalTopo and screenshot it for the report.
 
+
+## Demo mission (E-04, lane A)
+
+`#m/demo/command` runs the command view with **no API** (the Vercel site): `demoMission.ts` loads
+`__fixtures__/demo_mission.json` and the demo cache's `map.json` (its 500 frame steps become the map log, then
+two ground searches) into `useMission().useDemo`. The fixtures are generated, not hand-written:
+`uv run python scripts/make_command_fixtures.py` (4 teams, 8 tasks in every state, 5 clues with 2 by radio,
+6 proposals with 2 pending carrying real crops, 30 events, fair-weather conditions, and the 16 sectors' POA and
+drone coverage from `LiveMap` over the cache). The script validates them against the contract and refuses the
+word "clear". Only the Command, Approvals and Feed tabs show, labelled "Demo mission · simulated data, no
+server"; actions change the fixtures in memory. Linked from "Live missions aren't available here". Screenshot:
+`docs/architecture/screens/demo-command.png`. Known: an action taken in the demo is stamped with the real
+clock, not the demo's 21:00 timeline.

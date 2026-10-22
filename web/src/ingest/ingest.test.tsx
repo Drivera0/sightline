@@ -20,6 +20,7 @@ describe("routes", () => {
     expect(routeFromHash("#new")).toEqual({ kind: "new" });
     expect(routeFromHash("#m/a1b2c3d4/review")).toEqual({ kind: "mission", id: "a1b2c3d4" });
     expect(routeFromHash("#review")).toEqual({ kind: "demo" });
+    expect(routeFromHash("#m/demo/command")).toEqual({ kind: "mission", id: "demo" });
     expect(routeFromHash("#m/../../x")).toEqual({ kind: "demo" });
   });
 
@@ -140,3 +141,17 @@ describe("live mission tabs", () => {
     );
   });
 });
+
+describe("the demo mission (E-04)", () => {
+  it("opens with no API: command, approvals and feed only, labelled a demo", async () => {
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ steps: [], prior: { p: [], outside: 0 } })));
+    render(<LiveRoutes route={{ kind: "mission", id: "demo" }} base={null} />);
+    expect(await screen.findByText("Demo mission · simulated data, no server")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Photos" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Debrief" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Approvals/ }));
+    expect(await screen.findByText("Promote f0127-d01 to the review queue")).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+});
+
