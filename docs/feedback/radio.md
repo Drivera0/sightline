@@ -2,7 +2,7 @@
 
 Lane E's file (LANE_E §8.6). The **E-R0 spike** below was run by lane A on 2026-10-20 (issue #24)
 because lane E had no owner yet; whoever builds the radio desk starts from here. The latency tables
-are below (E-18); the word error rate with three human voices still needs recordings (issue #49).
+are below (E-18); the word error rate is measured on one human voice of three so far (0.025, "WER with a human voice" at the end; issue #49).
 
 ## Go / no-go: **GO**, with Nemotron 3 Super for the reasoning step
 
@@ -37,7 +37,7 @@ clip recorded once.
    "Team Two" → "Team 2", "Bravo Three" → "Bravo. 3", "Sightline" → "Sight line". Measured WER on
    the three phrases was 0.29 / 0.11 / 0.00 *before* normalisation; almost all of it is this.
    `protocol.normalize` (LANE_E §8.3) should map number words and digits to one form, and
-   `parse_callsign` must accept "Sight line".
+   `parse_callsign` must accept "Sight line". With a human voice, "niner" came out as "49er" or "nine or" (see "WER with a human voice").
 4. **Super's replies didn't always start with "<callsign>, Sightline"**: enforce the opening in
    code (prefix it) rather than trusting the prompt, as §8.4 already does for outbound.
 
@@ -136,7 +136,7 @@ degrees, distance six hundred metres, over." (8 / 8 live). Replies holding a tem
 
 ## Measuring WER
 
-E-18, issue #49: still to record. `tests/radio/phrases.txt` has the 20 phrases; three voices read them as
+E-18, issue #49: one voice of three recorded so far (results in "WER with a human voice" at the end). `tests/radio/phrases.txt` has the 20 phrases; three voices read them as
 written (coordinates digit by digit). Put each voice in its own folder, either one file per phrase
 (`data/radio_wer/<voice>/01.m4a` … `20.m4a`) or one file per voice with about a second's pause between
 phrases (`data/radio_wer/<voice>/<any name>.m4a`). Any format ffmpeg reads works (phone voice memos are
@@ -184,5 +184,24 @@ doesn't need. `ffmpeg` is not installed on the desktop yet; `to_mono16k` (webm f
       `dev.py`, tests 3–7; the demo script runs end to end (see `sightline/radio/README.md`, "Measured live")
 - [x] E-14: the radio desk screen, `web/src/radio/` (lane A, issue #36; see its README)
 - [x] E-18 latency over 30 turns (lane A; table above); scripts `radio_latency.py`, `radio_wer.py`
-- [ ] E-18 WER: record 3 voices (instructions above), then run `radio_wer.py`
+- [ ] E-18 WER: record 3 voices (instructions above), then run `radio_wer.py`. Voice 1 of 3 done (WER 0.086 → 0.025 after the "niner" fix, coordinates 0 / 2 → 2 / 2); two to go (#49)
 - [x] Demo script rehearsal (lane A): `scripts/radio_rehearse.py`, 5 / 5 runs as scripted with real voices, first sound ≤ 3.0 s; WAVs for the video with `--audio --radio-sound` (`sightline/radio/README.md`)
+
+## WER with a human voice (E-18)
+
+Voice "dan", direct microphone, the 20 phrases of `tests/radio/phrases.txt` (162 reference words),
+Parakeet TDT 0.6B v2 on the RTX 4080 SUPER, scored by `scripts/radio_wer.py` after `protocol.normalize`
+on both sides. Two more voices are still to record (issue #49).
+
+| Run | WER | Phrases with no error | Coordinates exactly right | Evidence |
+|---|---|---|---|---|
+| Before the "niner" fix (2026-10-22 10:08) | 0.086 (14 / 162) | 15 / 20 | 0 / 2 | `docs/evidence/radio_wer/20261022-100806/` |
+| After (10:10, same recordings) | **0.025** (4 / 162) | 16 / 20 | **2 / 2** | `docs/evidence/radio_wer/20261022-101034/` |
+
+Every coordinate miss was the radio word "niner", which Parakeet does not know: "four niner point three
+eight one, minus one two two point niner four zero" came out as "49er.381 minus 122.9er40", and "point
+niner three six" as "point nine or three six". `protocol.normalize` now reads a digit run ending in "9er"
+as that digit run and drops "or" between "nine" (or a decimal ending in 9) and the next digit, so both
+transcripts give the right coordinates; "either", "never" and a real "or" are untouched
+(`tests/radio/test_protocol_asr_tts.py`). The four words still wrong are ordinary mishearings ("sectory",
+"frown" for "found", "are" for "our") and "we're" for "we are".

@@ -215,16 +215,24 @@ SUPER through NeMo (`sightline/radio/asr.py`). Not on Token Factory.
 
 **Measured.** 45–130 ms per phrase for 3.9–8.7 s of audio; loads in 32 s; 6.1 GB GPU peak with Magpie
 also loaded (`docs/feedback/radio.md:13`, `:17`). WER on the three spike phrases was 0.29 / 0.11 / 0.00
-before normalisation, almost all of it number and word-split style (`docs/feedback/radio.md:36-40`). WER
-on human volunteers' voices is not measured yet (issue #49, `docs/feedback/radio.md:137-145`).
+before normalisation, almost all of it number and word-split style (`docs/feedback/radio.md:36-40`). On
+the 20 radio test phrases read by one human voice (162 words, direct microphone), WER after our
+normaliser was **0.086**, with both spoken coordinates wrong; with the "niner" fix below it is **0.025**
+and 2 / 2 coordinates are exact (`docs/feedback/radio.md:190-207`; `docs/evidence/radio_wer/`).
+Two more voices are still to record (issue #49).
 
 **What worked.** Fast enough that speech to text is never the bottleneck. Word timestamps came free.
 No Hugging Face token needed.
 
 **What needs work.** It writes numbers as digits and sometimes splits words ("Team Two" → "Team 2",
 "Sightline" → "Sight line"), so every voice agent needs its own normaliser. A documented
-inverse-text-normalisation switch would help. NeMo pins its own Lightning and torch versions, so it needs
-its own environment (`docs/feedback/radio.md:168-169`).
+inverse-text-normalisation switch would help. **It does not know the ICAO / radio word "niner"**: "four
+niner point three eight one" came out as "49er.381", "one two two point niner four zero" as
+"122.9er40", and "point niner three six" as "point nine or three six". Every coordinate error in our
+WER set was this one word. We normalise it in code (`sightline/radio/protocol.py`, `normalize`), but a
+radio-vocabulary hint or custom vocabulary (word boosting for "niner", "affirmative", "say again") at
+inference time should fix it upstream for every SAR, aviation or marine voice agent. NeMo pins its own
+Lightning and torch versions, so it needs its own environment (`docs/feedback/radio.md:168-169`).
 
 **Onboarding.** `uv pip install "nemo_toolkit[asr,tts]"`, then our spike script runs in about 2 minutes
 and downloads about 3 GB once (`docs/feedback/radio.md:165`). Start of the spike → first transcript and first spoken reply: about 75 minutes (2026-10-20
