@@ -1,5 +1,5 @@
 // The command view's demo mission (LANE_E §7, E-04): no API needed, so the Vercel site can show it at
-// `#m/demo/command`. Fixtures from `scripts/make_command_fixtures.py` (validated against the contract
+// the landing (`#m/demo`). Fixtures from `scripts/make_command_fixtures.py` (validated against the contract
 // there) plus the demo cache's map: its frame steps become the map log, then the two ground searches.
 // Everything is a demo and says so on screen. Built by lane A for lane E (#70).
 import type { Conditions, MapBase, MapFile, MapUpdate } from "../contract";
@@ -8,6 +8,8 @@ import { parseTrace } from "./trace";
 import { latestLookup } from "./conditions";
 import type { ConditionsData } from "./ConditionsPanel";
 import type { TraceRun } from "./TraceView";
+import cropUrl from "./__fixtures__/trace_crop.jpg?url";
+import zoomUrl from "./__fixtures__/trace_zoom_native.jpg?url";
 
 export const DEMO_MISSION_ID = "demo";
 export const DEMO_CACHE = "/cache/demo";
@@ -57,13 +59,9 @@ export async function loadDemoMission(
  * (`docs/evidence/conditions-live-20261021`: Tavily searches and the extraction). Copied as they were.
  */
 export async function loadDemoTrace(): Promise<{ runs: TraceRun[]; imageUrl: (rel: string) => string | null }> {
-  const [chain, conditions, crop, zoom] = await Promise.all([
-    import("./__fixtures__/demo_trace.jsonl?raw"),
-    import("./__fixtures__/demo_trace_conditions.jsonl?raw"),
-    import("./__fixtures__/trace_crop.jpg?url"),
-    import("./__fixtures__/trace_zoom_native.jpg?url"),
-  ]);
-  const images: Record<string, string> = { "relook/f0001-d01-crop.jpg": crop.default, "relook/f0001-d01-zoom_native.jpg": zoom.default };
+  const [chain, conditions] = await Promise.all([import("./__fixtures__/demo_trace.jsonl?raw"), import("./__fixtures__/demo_trace_conditions.jsonl?raw")]);
+  // the two images are addresses only (the Review rail shows them too)
+  const images: Record<string, string> = { "relook/f0001-d01-crop.jpg": cropUrl, "relook/f0001-d01-zoom_native.jpg": zoomUrl };
   return {
     runs: [
       { label: "Recorded 21 Oct 2026: a second look on a val photo", source: "docs/architecture/av-chain/trace.jsonl", entries: parseTrace(chain.default) },

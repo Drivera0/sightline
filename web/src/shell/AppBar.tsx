@@ -108,7 +108,7 @@ export function AppBar({ mission, views, action, extra }: { mission?: BarMission
           <div className={`flex shrink-0 items-center gap-3 ${views ? "" : "ml-auto"}`}>
             {extra}
             {action && (
-              <Button href={action.href} onClick={action.onClick} variant={action.primary ? "primary" : "secondary"}>
+              <Button href={action.href} onClick={action.onClick} variant={action.primary ? "primary" : "secondary"} className="max-sm:hidden">
                 {action.label}
               </Button>
             )}

@@ -42,6 +42,17 @@ export function App({ base = apiBase() }: { base?: string | null }) {
       setBehindHash(window.location.hash || DEMO);
     }
   }, [route]);
+  // the console keeps its address up to date without a hashchange (the story's clock): take the address
+  // it had when About opened, so closing About returns to that exact moment
+  useEffect(() => {
+    const on = (e: HashChangeEvent) => {
+      if (window.location.hash !== "#about" || !e.oldURL) return;
+      const was = new URL(e.oldURL).hash;
+      if (was && was !== "#about") setBehindHash(was);
+    };
+    window.addEventListener("hashchange", on);
+    return () => window.removeEventListener("hashchange", on);
+  }, []);
   const shown: Behind = route.kind === "about" ? behind : route;
   const closeAbout = useCallback(() => {
     window.location.hash = behindHash === "#about" ? DEMO : behindHash;
