@@ -1,8 +1,8 @@
 // C-H1: the live map's features from the mission (the MapLibre drawing itself is checked in a browser).
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Clue, FleetState, MapBase, Team } from "../../contract";
-import { LiveHeatMap, mapTextAlternative, pointFeatures, sectorFeatures } from "./LiveHeatMap";
+import { FloatingLegend, legendOpenAtStart, LiveHeatMap, mapTextAlternative, pointFeatures, sectorFeatures } from "./LiveHeatMap";
 
 const base = { lkp: { lat: 49.37, lon: -122.945 } } as MapBase;
 const ring: [number, number][] = [[0, 1], [1, 1], [1, 0], [0, 0], [0, 1]];
@@ -52,6 +52,39 @@ describe("live map features", () => {
       "Drones (simulated): Drone 1 flying, battery 72%.",
     ]);
     expect(mapTextAlternative({ sectors: [], teams: [], clues: [] })).toEqual(["No sectors yet.", "No teams.", "No clues yet.", "No drones on the map."]);
+  });
+
+  it("says a drone's link in words in the summary, now that the map only shows its short id", () => {
+    const fleet = { simulated: true, drones: [{ id: "D2", name: "Drone 2", status: "flying", battery_pct: 87.5 }] } as FleetState;
+    const links = { D2: { link: "lost" as const, since: "2026-10-24T21:55:00Z", last_heard_at: "2026-10-24T21:55:00Z" } };
+    const lines = mapTextAlternative({ sectors: [], teams: [], clues: [], fleet, links, now: new Date("2026-10-24T22:00:00Z") });
+    expect(lines[3]).toBe("Drones (simulated): Drone 2 flying, battery 88%, link lost, last heard 5 min ago.");
+  });
+
+  it("folds the floating legend away and remembers it in this browser", () => {
+    localStorage.removeItem("sightline.mapLegend");
+    const { unmount } = render(<FloatingLegend updates={3} />);
+    expect(screen.getByRole("list", { name: "Map legend" })).toBeVisible();
+    expect(screen.getAllByText(/SIM: simulated drone/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Legend" }));
+    expect(screen.getByRole("button", { name: "Show legend" })).toHaveAttribute("aria-expanded", "false");
+    expect(localStorage.getItem("sightline.mapLegend")).toBe("closed");
+    unmount();
+    expect(legendOpenAtStart()).toBe(false);
+    render(<FloatingLegend updates={3} />);
+    expect(screen.getByRole("button", { name: "Show legend" })).toBeInTheDocument();
+    localStorage.removeItem("sightline.mapLegend");
+  });
+
+  it("starts the legend closed on a screen narrower than 1280 px", () => {
+    localStorage.removeItem("sightline.mapLegend");
+    const was = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: q.includes("1280") && window.innerWidth >= 1280 })) as unknown as typeof window.matchMedia;
+    Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true });
+    expect(legendOpenAtStart()).toBe(false);
+    Object.defineProperty(window, "innerWidth", { value: 1440, configurable: true });
+    expect(legendOpenAtStart()).toBe(true);
+    window.matchMedia = was;
   });
 
 });

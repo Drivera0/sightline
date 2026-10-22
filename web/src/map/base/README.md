@@ -31,6 +31,10 @@ review item then flies into its individual detection.
 The live mission map (`heat/LiveHeatMap.tsx`) also draws the simulated fleet from these files:
 `fleetMotion.ts` glides each drone to its latest report over ~400 ms (ease-out, no overshoot) and
 moves relay dots; `legLayer.ts` fades a cancelled (re-tasked) leg out and draws a dashed trail from
-the diversion point to the new leg; `droneLayer.ts` puts the link state (ok / degraded / lost, in
-words) on each drone; `relayLayer.ts` draws a drone relaying a cut-off team's position. One
+the diversion point to the new leg; `droneLayer.ts` gives each drone its short map label ("D2 88%"),
+its link ring (ok / degraded / lost) and its full line in words for the hover/focus tooltip and the
+text summary; `fleetImages.ts` draws the "SIM" chip on simulated drones and the invisible square that
+keeps labels off the dots; `relayLayer.ts` draws a drone relaying a cut-off team's position. One
 `requestAnimationFrame` loop runs only while something moves; reduced motion draws still frames.
+Labels use MapLibre's symbol collision (no hand placement): drones are placed first, then clue and
+team labels, then sector POA labels.

@@ -4,21 +4,28 @@
 // now; the last-known point; clues; teams at their last position. Demo caches keep HeatLayer.
 // The fleet moves: drones glide between telemetry ticks (map/base/fleetMotion.ts), a re-tasked leg
 // fades out with a dashed trail to the new one (legLayer.ts), each drone's ring says its simulated
-// link (ok, degraded, lost; in words on its label), and dots travel along a drone's relay for a
-// cut-off team (relayLayer.ts). One requestAnimationFrame loop, only while something moves.
+// link (ok, degraded, lost), and dots travel along a drone's relay for a cut-off team (relayLayer.ts).
+// One requestAnimationFrame loop, only while something moves.
+// Labels: a drone shows only "D2 88%" and a SIM chip; its full line (name, battery, the link in words,
+// last heard) is a hover/focus tooltip and in the hidden text summary. Labels never overlap: MapLibre's
+// symbol collision drops or moves them. Layers higher up are placed first (drones, then clue/team
+// labels, then sector POA labels, which move inside their sector rather than vanish); inside a layer
+// `symbol-sort-key` decides (lost link first; last known point, then clues, then teams; likeliest
+// sector first).
 // Built by lane A for lanes C and B (issues #64, #74).
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Popup, type GeoJSONSource, type Map } from "maplibre-gl";
+import { Marker, Popup, type GeoJSONSource, type Map } from "maplibre-gl";
 import type { Clue, FleetState, MapBase, MapUpdate, Proposal, Team } from "../../contract";
 import { usePick } from "../pick";
 import { clueFeatures } from "../base/clueLayer";
-import { droneFeatures } from "../base/droneLayer";
+import { droneFeatures, droneLinkWords } from "../base/droneLayer";
+import { ensureFleetImages, FLEET_IMAGES } from "../base/fleetImages";
 import { FleetGlide, type LonLat } from "../base/fleetMotion";
 import { legFeatures, noteCancels, retaskAnimating, retaskFeatures, type SeenCancel } from "../base/legLayer";
 import { point, type MissionFeature } from "../base/missionFeature";
 import { relayFeatures } from "../base/relayLayer";
 import { teamFeatures } from "../base/teamLayer";
-import { useMission } from "../../lib/mission";
+import { useMission, type DroneLink } from "../../lib/mission";
 import { useSelection } from "../../lib/selection";
 import type { SectorNow } from "../../lib/api";
 import { prefersReducedMotion } from "../../metrics/motion";
@@ -37,6 +44,7 @@ export const LIVE_IDS = {
   pointLabels: "live-heat-point-labels",
   drones: "live-heat-drones",
   droneLabels: "live-heat-drone-labels",
+  droneSim: "live-heat-drone-sim",
   relay: "live-heat-relay",
 } as const;
 const TWEEN_MS = 600;
@@ -57,7 +65,7 @@ export function sectorFeatures(sectors: readonly SectorNow[]): { lines: Feature[
     const lat = ring.reduce((a, c) => a + c[1], 0) / ring.length;
     labels.push({
       type: "Feature",
-      properties: { text: `${s.sector_id} · ${pct(s.poa)}` },
+      properties: { text: `${s.sector_id} · ${pct(s.poa)}`, poa: s.poa },
       geometry: { type: "Point", coordinates: [lon, lat] },
     });
   }
@@ -95,6 +103,7 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
   const [readyMap, setReadyMap] = useState<Map | null>(null);
   const ready = map !== null && readyMap === map;
   const drawn = useRef(false);
+  const droneTargets = useRef<Record<string, DroneTarget>>({});
 
   useEffect(() => {
     if (!map) return undefined;
@@ -107,6 +116,7 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
         if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: fc([]) });
       }
       const color = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+      ensureFleetImages(map, { background: color("--bg", "#0a0b0d"), border: color("--text-3", "#8a8a93"), text: color("--text", "#f2f2f0") });
       if (!map.getLayer(LIVE_IDS.sectors)) {
         const tone = (): unknown => ["match", ["get", "tone"], "accent", color("--accent", "#ff7a1a"), "warn", color("--warn", "#ffc48f"), "ok", color("--ok", "#7ee2a0"),
           "info", color("--accent-soft", "#ffb27a"), "muted", color("--text-3", "#8a8f98"), color("--text", "#f2f2f0")]; // prettier-ignore
@@ -130,7 +140,15 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
           id: LIVE_IDS.sectorLabels,
           type: "symbol",
           source: LIVE_IDS.sectorLabels,
-          layout: { "text-field": ["get", "text"], "text-size": 11 },
+          // POA labels stay: placed after the clue and drone labels, they move inside their sector to a free spot.
+          layout: {
+            "text-field": ["get", "text"],
+            "text-size": 11,
+            "text-variable-anchor": ["center", "top", "bottom", "left", "right"],
+            "text-radial-offset": 1.4,
+            "text-allow-overlap": false,
+            "symbol-sort-key": ["-", 0, ["get", "poa"]],
+          },
           paint: { "text-color": color("--text", "#f2f2f0"), "text-halo-color": color("--bg", "#0a0b0d"), "text-halo-width": 1.5 },
         });
         map.addLayer({
@@ -148,10 +166,21 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
           id: LIVE_IDS.pointLabels,
           type: "symbol",
           source: LIVE_IDS.points,
-          layout: { "text-field": ["get", "label"], "text-size": 11, "text-offset": [0, 1.2], "text-anchor": "top" },
+          // the invisible square keeps other labels off the dot; a label that has no room is dropped, the dot stays
+          layout: {
+            "icon-image": FLEET_IMAGES.hit,
+            "icon-allow-overlap": true,
+            "text-field": ["get", "label"],
+            "text-size": 11,
+            "text-variable-anchor": ["top", "bottom", "right", "left"],
+            "text-radial-offset": 1.1,
+            "text-allow-overlap": false,
+            "text-optional": true,
+            "symbol-sort-key": ["match", ["get", "kind"], "lkp", 0, "clue", 1, 2],
+          },
           paint: { "text-color": color("--text", "#f2f2f0"), "text-halo-color": color("--bg", "#0a0b0d"), "text-halo-width": 1.5 },
         });
-        // drones: the ring is the link (ok green, degraded amber, lost in the accent and thicker); the label says it in words
+        // drones: the ring is the link (ok green, degraded amber, lost in the accent and thicker); the tooltip says it in words
         map.addLayer({
           id: LIVE_IDS.drones,
           type: "circle",
@@ -167,8 +196,31 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
           id: LIVE_IDS.droneLabels,
           type: "symbol",
           source: LIVE_IDS.drones,
-          layout: { "text-field": ["get", "label"], "text-size": 11, "text-offset": [0, 1.2], "text-anchor": "top" },
-          paint: { "text-color": color("--text", "#f2f2f0"), "text-halo-color": color("--bg", "#0a0b0d"), "text-halo-width": 1.5 },
+          // "D2 88%": the id, then the battery a little smaller (the label amber when the battery is low)
+          layout: {
+            "icon-image": FLEET_IMAGES.hit,
+            "icon-allow-overlap": true,
+            "text-field": ["format", ["get", "short"], {}, " ", {}, ["get", "battery"], { "font-scale": 0.85 }] as never,
+            "text-size": 11.5,
+            "text-variable-anchor": ["left", "right", "top"],
+            "text-radial-offset": 0.9,
+            "text-allow-overlap": false,
+            "text-optional": true,
+            "symbol-sort-key": ["match", ["get", "link"], "lost", 0, "degraded", 1, 2],
+          },
+          paint: {
+            "text-color": ["match", ["get", "tone"], "warn", color("--warn", "#ffc48f"), color("--text", "#f2f2f0")] as never,
+            "text-halo-color": color("--bg", "#0a0b0d"),
+            "text-halo-width": 1.5,
+          },
+        });
+        // a SIM chip on every simulated drone, always drawn (it never hides another label)
+        map.addLayer({
+          id: LIVE_IDS.droneSim,
+          type: "symbol",
+          source: LIVE_IDS.drones,
+          filter: ["==", ["get", "sim"], true],
+          layout: { "icon-image": FLEET_IMAGES.sim, "icon-anchor": "bottom", "icon-offset": [0, -7], "icon-allow-overlap": true, "icon-ignore-placement": true },
         });
       }
       setReadyMap(map);
@@ -181,7 +233,8 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
     if (map.isStyleLoaded()) install();
     else map.once("load", install);
     map.on("styledata", install);
-    map.fitBounds([gridCorners(base.grid)[3], gridCorners(base.grid)[1]], { padding: 24, duration: 0 });
+    // more room at the bottom: drones near the grid's south edge stay off the attribution row
+    map.fitBounds([gridCorners(base.grid)[3], gridCorners(base.grid)[1]], { padding: { top: 24, left: 24, right: 24, bottom: 56 }, duration: 0 });
     return () => {
       map.off("load", install);
       map.off("styledata", install);
@@ -221,6 +274,7 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
     firstLook.current = false;
     const clock = now ?? new Date();
     const drones = droneFeatures(fleet, links.drones, clock);
+    syncDroneTargets(map, droneTargets.current, drones);
     let raf = 0;
     let settled = false;
     const frame = () => {
@@ -229,6 +283,7 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
       const moving = glide.animating(t) || retaskAnimating(seen.current, t);
       if (moving || !settled) {
         setData(map, LIVE_IDS.drones, drones.map((f) => (drawn[f.properties.id] ? { ...f, geometry: { type: "Point", coordinates: drawn[f.properties.id] } } : f)));
+        for (const [id, t] of Object.entries(droneTargets.current)) if (drawn[id]) t.marker.setLngLat(drawn[id]);
         setData(map, LIVE_IDS.legs, [...legFeatures(fleet, proposals), ...retaskFeatures(fleet, seen.current, t, reduced)]);
         settled = !moving;
       }
@@ -239,6 +294,16 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
     frame();
     return () => cancelAnimationFrame(raf);
   }, [map, ready, glide, fleet, proposals, links, teams, now]);
+  // the drones' hover/focus targets go with the map instance
+  useEffect(() => {
+    const all = droneTargets.current;
+    return () => {
+      for (const [id, t] of Object.entries(all)) {
+        t.marker.remove();
+        delete all[id];
+      }
+    };
+  }, [map]);
 
   // Clicking a team, drone or clue selects it (D-M2); selecting a team elsewhere (the roster) flies here.
   useEffect(() => {
@@ -286,6 +351,50 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
   return null;
 }
 
+/** A drone's hover and keyboard target: a transparent button over its dot, with its full line as a tooltip. */
+interface DroneTarget {
+  marker: Marker;
+  el: HTMLButtonElement;
+  tip: HTMLSpanElement;
+}
+
+const TARGET_CLASS =
+  "group h-5 w-5 cursor-pointer rounded-full bg-transparent hover:z-10 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+const TIP_CLASS =
+  "pointer-events-none absolute bottom-full left-1/2 mb-3 hidden w-max max-w-[280px] -translate-x-1/2 whitespace-pre-line rounded-md border border-border bg-bg/90 px-2.5 py-1.5 text-left text-caption text-text shadow-lg group-hover:block group-focus-visible:block";
+
+/** One button per drone on the map: created, given the drone's latest line, or removed. */
+function syncDroneTargets(map: Map, targets: Record<string, DroneTarget>, drones: readonly MissionFeature[]): void {
+  const ids = new Set(drones.map((f) => f.properties.id));
+  for (const [id, t] of Object.entries(targets)) {
+    if (ids.has(id)) continue;
+    t.marker.remove();
+    delete targets[id];
+  }
+  for (const f of drones) {
+    const id = f.properties.id;
+    let t = targets[id];
+    if (!t) {
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = TARGET_CLASS;
+      el.dataset.droneTarget = id;
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        useSelection.getState().selectDrone(id);
+      });
+      const tip = document.createElement("span");
+      tip.className = TIP_CLASS;
+      tip.setAttribute("aria-hidden", "true"); // the button's label says the same
+      el.appendChild(tip);
+      t = { marker: new Marker({ element: el }).setLngLat(f.geometry.coordinates as [number, number]).addTo(map), el, tip };
+      targets[id] = t;
+    }
+    t.el.setAttribute("aria-label", f.properties.label);
+    t.tip.textContent = f.properties.popup ?? f.properties.label;
+  }
+}
+
 function setData(map: Map, id: string, features: Feature[]) {
   (map.getSource(id) as GeoJSONSource | undefined)?.setData?.(fc(features) as unknown as Parameters<GeoJSONSource["setData"]>[0]);
 }
@@ -312,7 +421,14 @@ const pctWords = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
  * The map in words, for screen readers (the figure's description): every sector with its POA (likeliest
  * first), every team with its status, every clue, every drone. Rebuilt whenever the data changes.
  */
-export function mapTextAlternative({ sectors, teams, clues, fleet = null }: Pick<LiveHeatMapProps, "sectors" | "teams" | "clues" | "fleet">): string[] {
+export function mapTextAlternative({
+  sectors,
+  teams,
+  clues,
+  fleet = null,
+  links = {},
+  now = new Date(),
+}: Pick<LiveHeatMapProps, "sectors" | "teams" | "clues" | "fleet" | "now"> & { links?: Readonly<Record<string, DroneLink>> }): string[] {
   const callsign = (id: string) => teams.find((t) => t.id === id)?.callsign ?? id;
   const bySector = [...sectors].sort((a, b) => b.poa - a.poa);
   const drones = fleet?.drones ?? [];
@@ -327,15 +443,22 @@ export function mapTextAlternative({ sectors, teams, clues, fleet = null }: Pick
       ? `Clues: ${clues.map((c) => `${c.id} ${c.kind}: ${c.text} (${callsign(c.reported_by)}, ${c.confirmed ? "confirmed" : "unconfirmed"})`).join("; ")}.`
       : "No clues yet.",
     drones.length
-      ? `Drones${fleet?.simulated ? " (simulated)" : ""}: ${drones.map((d) => `${d.name} ${d.status}, battery ${Math.round(d.battery_pct)}%`).join("; ")}.`
+      ? `Drones${fleet?.simulated ? " (simulated)" : ""}: ${drones.map((d) => droneWords(d, links[d.id], now)).join("; ")}.`
       : "No drones on the map.",
   ];
 }
 
-function MapDescription({ id, ...data }: { id: string } & Pick<LiveHeatMapProps, "sectors" | "teams" | "clues" | "fleet">) {
+/** "Drone 2 flying, battery 88%, link lost, last heard 5 min ago" (nothing about the link while it is ok). */
+function droneWords(d: FleetState["drones"][number], link: DroneLink | undefined, now: Date): string {
+  const words = droneLinkWords(link, now);
+  return `${d.name} ${d.status}, battery ${Math.round(d.battery_pct)}%${words ? `, ${words}` : ""}`;
+}
+
+function MapDescription({ id, ...data }: { id: string } & Pick<LiveHeatMapProps, "sectors" | "teams" | "clues" | "fleet" | "now">) {
+  const links = useMission((s) => s.links.drones);
   return (
     <div id={id} className="sr-only">
-      {mapTextAlternative(data).map((line) => (
+      {mapTextAlternative({ ...data, links }).map((line) => (
         <p key={line.slice(0, 40)}>{line}</p>
       ))}
     </div>
@@ -344,7 +467,7 @@ function MapDescription({ id, ...data }: { id: string } & Pick<LiveHeatMapProps,
 
 export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps): ReactNode {
   const describedBy = useId();
-  const description = <MapDescription id={describedBy} sectors={rest.sectors} teams={rest.teams} clues={rest.clues} fleet={rest.fleet} />;
+  const description = <MapDescription id={describedBy} sectors={rest.sectors} teams={rest.teams} clues={rest.clues} fleet={rest.fleet} now={rest.now} />;
   const style = useMemo(() => {
     const key = import.meta.env.VITE_MAPTILER_KEY?.trim() || undefined;
     return basemapStyle(chooseBasemapMode(key, navigator.onLine), key, readBasemapColors());
@@ -354,7 +477,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
   if (!mapBase) return <p className="text-small text-text-3">The map appears once the mission has its search area.</p>;
   if (fill) {
     return (
-      <figure aria-label="Live map" aria-describedby={describedBy} className="relative h-full min-h-[360px] overflow-hidden rounded-lg border border-border">
+      <figure aria-label="Live map" aria-describedby={describedBy} className={`relative h-full min-h-[360px] overflow-hidden rounded-lg border border-border ${ATTRIBUTION_CLASS}`}>
         {description}
         <MapProvider className="h-full w-full" initialCenter={center} initialZoom={15} mapStyle={style}>
           <LiveLayers base={mapBase} {...rest} />
@@ -364,20 +487,14 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
             Click the map to place the clue (Esc cancels).
           </p>
         )}
-        <figcaption
-          className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-bg/85 px-3 py-2 backdrop-blur-[16px]"
-          title="Red shading: where the person could be now, on ground a photo has looked at (darker: more likely); grey: not photographed yet. Each sector shows its share of the probability (POA)."
-        >
-          <MapLegend />
-          <span className="mt-1 block font-mono text-caption text-text-3">{rest.updates.length} map updates · sector labels show POA</span>
-        </figcaption>
+        <FloatingLegend updates={rest.updates.length} />
       </figure>
     );
   }
   return (
     <figure aria-label="Live map" aria-describedby={describedBy} className="flex flex-col gap-2">
       {description}
-      <div className="h-[420px] overflow-hidden rounded-lg border border-border">
+      <div className={`h-[420px] overflow-hidden rounded-lg border border-border ${ATTRIBUTION_CLASS}`}>
         <MapProvider className="h-full w-full" initialCenter={center} initialZoom={15} mapStyle={style}>
           <LiveLayers base={mapBase} {...rest} />
         </MapProvider>
@@ -400,11 +517,66 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
   );
 }
 
+/** The map's attribution on the app background, so a mark drawn under it stays readable and so does it. */
+const ATTRIBUTION_CLASS =
+  "[&_.maplibregl-ctrl-attrib]:bg-bg/85! [&_.maplibregl-ctrl-attrib]:text-text-3! [&_.maplibregl-ctrl-attrib_a]:text-text-2! [&_.maplibregl-ctrl-attrib]:rounded-tl-md";
+
+const LEGEND_KEY = "sightline.mapLegend";
+
+/** Open or closed as this browser last left it; otherwise open on a wide screen (≥ 1280 px). */
+export function legendOpenAtStart(): boolean {
+  try {
+    const v = globalThis.localStorage?.getItem(LEGEND_KEY);
+    if (v === "open" || v === "closed") return v === "open";
+  } catch {
+    /* private mode: the default below */
+  }
+  return globalThis.matchMedia?.("(min-width: 1280px)").matches ?? true;
+}
+
+/** The legend floating on the console's map: collapsible, so it can get off the lower-left corner. */
+export function FloatingLegend({ updates }: { updates: number }) {
+  const [open, setOpen] = useState(legendOpenAtStart);
+  const bodyId = useId();
+  const toggle = () => {
+    setOpen(!open);
+    try {
+      globalThis.localStorage?.setItem(LEGEND_KEY, open ? "closed" : "open");
+    } catch {
+      /* private mode: remembered for this page only */
+    }
+  };
+  return (
+    <figcaption
+      className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-bg/85 px-3 py-2 backdrop-blur-[16px]"
+      title="Red shading: where the person could be now, on ground a photo has looked at (darker: more likely); grey: not photographed yet. Each sector shows its share of the probability (POA)."
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={bodyId}
+        onClick={toggle}
+        className="flex items-center gap-1.5 rounded-sm text-caption text-text-2 hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        <svg aria-hidden="true" viewBox="0 0 10 10" className={`h-2.5 w-2.5 transition-transform ${open ? "rotate-90" : ""}`}>
+          <path d="M3 1.5 6.5 5 3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+        {open ? "Legend" : "Show legend"}
+      </button>
+      <div id={bodyId} hidden={!open} className="mt-1.5">
+        <MapLegend />
+        <span className="mt-1 block font-mono text-caption text-text-3">{updates} map updates · sector labels show POA</span>
+      </div>
+    </figcaption>
+  );
+}
+
 const LEGEND: readonly { label: string; swatch: ReactNode }[] = [
   { label: "Last known point", swatch: <Dot color="var(--accent)" /> },
   { label: "Team searching", swatch: <Dot color="var(--ok)" /> },
   { label: "Team assigned or returning", swatch: <Dot color="var(--accent-soft)" /> },
   { label: "Clue", swatch: <Dot color="var(--warn)" /> },
+  { label: "Drone id and battery; SIM: simulated drone (hover or focus a drone for its details)", swatch: <SimChip /> },
   { label: "Drone, link ok", swatch: <Ring color="var(--ok)" /> },
   { label: "Drone, link degraded", swatch: <Ring color="var(--warn)" /> },
   { label: "Drone, link lost (flies its leg on its own)", swatch: <Ring color="var(--accent)" thick /> },
@@ -413,6 +585,10 @@ const LEGEND: readonly { label: string; swatch: ReactNode }[] = [
   { label: "Re-tasked: where the drone turned to its new route", swatch: <span className="inline-block w-4 border-t border-dashed border-text-2" /> },
   { label: "Relay: a drone carries a cut-off team's position", swatch: <span className="inline-block w-4 border-t-2 border-dotted border-accent-soft" /> },
 ];
+
+function SimChip() {
+  return <span className="inline-block rounded-[3px] border border-text-3 bg-bg px-0.5 font-mono text-[8px] leading-[10px] font-semibold text-text">SIM</span>;
+}
 
 function Ring({ color, thick = false }: { color: string; thick?: boolean }) {
   return <span className="inline-block h-2.5 w-2.5 rounded-full bg-text" style={{ boxShadow: `0 0 0 ${thick ? 2.5 : 1.5}px ${color}` }} />;
