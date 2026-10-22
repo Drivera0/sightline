@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 
 from sightline.agent import prompts
-from sightline.agent.llm import MODEL_VISION, ChatClient, ChatResult
+from sightline.agent.llm import MODEL_VISION, ChatClient, ChatResult, failure_text
 from sightline.agent.relook import (
     ArrayDetector,
     draw_boxes,
@@ -248,7 +248,7 @@ def verify(
         )
 
     answer: dict | None = None
-    used_model, failure = model, None
+    used_model, failure, failure_detail = model, None, ""
     with tempfile.TemporaryDirectory() as tmp:
         files = []
         for i, rel in enumerate(paths):
@@ -259,7 +259,7 @@ def verify(
             results, answer = _ask(client, model, labels, files, prompt)
         except Exception as e:  # timeouts, HTTP errors, LLMError: logged, never raised
             log.exception("verifier model call failed for %s", detection_id)
-            results, failure = [], type(e).__name__
+            results, failure, failure_detail = [], type(e).__name__, failure_text(e)
     for r in results:
         used_model = r.model
         trace_call(
@@ -288,7 +288,13 @@ def verify(
         }
         if failure:
             trace_call(
-                store, mission_id, actor="verifier", kind="note", summary=why, refs=[detection_id]
+                store,
+                mission_id,
+                actor="verifier",
+                kind="note",
+                summary=f"No second look: the model call failed ({failure_detail}).",
+                output={"failure": failure_detail},
+                refs=[detection_id],
             )
 
     verdict = Verdict(

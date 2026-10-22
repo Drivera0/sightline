@@ -548,7 +548,16 @@ def fetch_conditions(
                 )
     except Exception as e:  # noqa: BLE001 - no network, no key, Tavily down: never block the search
         log.warning("conditions offline: %s", e)
-        return _offline(area, cache, now, type(e).__name__)
+        c = _offline(area, cache, now, type(e).__name__)
+        _trace(
+            store,
+            mission_id,
+            kind="note",
+            summary=f"Tavily failed ({type(e).__name__}): conditions fell back to "
+            + ("the last cached ones, marked stale" if c.sources else "none, marked stale"),
+            output={"failure": "tavily", "error": type(e).__name__, "stale": c.stale},
+        )
+        return c
 
     if client is None:
         from sightline.agent.llm import LLMError, token_factory_client

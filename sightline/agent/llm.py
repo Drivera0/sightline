@@ -63,6 +63,7 @@ class ChatResult:
     ms: int
     tokens_in: int
     tokens_out: int
+    retries: tuple[str, ...] = ()  # why each earlier attempt failed ("HTTP 503", "timeout"), traced
 
 
 class ChatClient(Protocol):
@@ -149,6 +150,26 @@ def tool_message(call_id: str, content: object) -> dict:
     return {"role": "tool", "tool_call_id": call_id, "content": text}
 
 
+def _why(e: Exception) -> str:
+    """One failed attempt in a word or two, for the trace: "HTTP 503", "timeout", "connection"."""
+    status = getattr(e, "status_code", None)
+    if isinstance(status, int):
+        return f"HTTP {status}"
+    name = type(e).__name__
+    return "timeout" if "Timeout" in name else "connection" if "Connection" in name else name
+
+
+def failure_text(e: Exception) -> str:
+    """A failed model call for a trace note: the error, and how often it was tried when the client
+    retried it ("InternalServerError after 4 attempts (HTTP 503 ×4)")."""
+    attempts = getattr(e, "sightline_attempts", None)
+    if not attempts or len(attempts) < 2:
+        return type(e).__name__
+    kinds = list(dict.fromkeys(attempts))
+    said = ", ".join(f"{k} ×{attempts.count(k)}" if attempts.count(k) > 1 else k for k in kinds)
+    return f"{type(e).__name__} after {len(attempts)} attempts ({said})"
+
+
 def _retryable(e: Exception) -> bool:
     status = getattr(e, "status_code", None)
     if isinstance(status, int):
@@ -210,12 +231,18 @@ class TokenFactoryClient:
             kwargs["extra_body"] = body
 
         start = time.perf_counter()
+        failed: list[str] = []
         for attempt in range(RETRIES + 1):
             try:
                 resp = self._client.chat.completions.create(**kwargs)
                 break
             except Exception as e:
+                failed.append(_why(e))
                 if attempt == RETRIES or not _retryable(e):
+                    try:  # the caller's failure note says how often it was tried
+                        e.sightline_attempts = failed  # type: ignore[attr-defined]
+                    except AttributeError:
+                        pass
                     raise
                 self._sleep(BACKOFF_S * 2**attempt)
         ms = round((time.perf_counter() - start) * 1000)
@@ -236,6 +263,7 @@ class TokenFactoryClient:
             ms=ms,
             tokens_in=getattr(usage, "prompt_tokens", 0) or 0,
             tokens_out=getattr(usage, "completion_tokens", 0) or 0,
+            retries=tuple(failed),
         )
 
 

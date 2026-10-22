@@ -33,7 +33,7 @@ import re
 import threading
 from typing import Any
 
-from sightline.agent.llm import MODEL_FAST, ChatClient
+from sightline.agent.llm import MODEL_FAST, ChatClient, failure_text
 from sightline.agent.trace import now_iso, trace_call
 from sightline.agent.verify import VERIFY_BAND, verify
 from sightline.contract import Conditions, EvidenceRef, LatLon, Leg, Proposal
@@ -162,7 +162,7 @@ def write_briefing(
             log.exception("briefing model call failed")
             trace(
                 kind="note",
-                summary=f"briefing model call failed ({type(e).__name__}): template used",
+                summary=f"briefing model call failed ({failure_text(e)}): template used",
             )
             return template_briefing(facts)
         text = r.text.strip()
