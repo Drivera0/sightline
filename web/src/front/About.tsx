@@ -3,7 +3,8 @@
 
 import { Label } from "../shell/components";
 import { Sheet } from "../shell/Sheet";
-import { FOOTER, HERO, HOW_IT_WORKS, PRINCIPLES, ROADMAP, ROADMAP_LABEL, WHO_ITS_FOR } from "./copy";
+import { FOOTER, HERO, PRINCIPLES, ROADMAP, ROADMAP_LABEL, WHO_ITS_FOR } from "./copy";
+import { Steps } from "./Steps";
 import { REPORT_URL } from "./judges";
 import { RadioClip } from "./RadioClip";
 
@@ -14,26 +15,19 @@ export function AboutSheet({ onClose }: { onClose: () => void }) {
         <header className="flex flex-col gap-3">
           <Label>{HERO.eyebrow}</Label>
           <h1 className="text-headline font-medium tracking-[-0.01em] text-text">{HERO.tagline}</h1>
-          <p className="text-body text-text-2">{HERO.body}</p>
-          <p className="text-small text-text-3">{HERO.honesty}</p>
-          <RadioClip />
         </header>
 
         <section aria-labelledby="about-how" className="flex flex-col gap-3">
           <h2 id="about-how" className="text-title font-medium text-text">
             How it works
           </h2>
-          <ol className="flex flex-col gap-3">
-            {HOW_IT_WORKS.map((s, i) => (
-              <li key={s.title} className="flex gap-3">
-                <span className="mt-0.5 font-mono text-small text-accent">{i + 1}</span>
-                <span className="flex flex-col gap-0.5">
-                  <span className="text-body text-text">{s.title}</span>
-                  <span className="text-small text-text-2">{s.body}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
+          <Steps />
+        </section>
+
+        <section aria-label="In short" className="flex flex-col gap-3">
+          <p className="text-body text-text-2">{HERO.body}</p>
+          <p className="text-small text-text-3">{HERO.honesty}</p>
+          <RadioClip />
         </section>
 
         <section aria-labelledby="about-who" className="flex flex-col gap-3">

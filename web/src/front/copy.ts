@@ -30,6 +30,14 @@ export const HOW_IT_WORKS = [
   },
 ] as const;
 
+/** The four steps in one short line each: the About sheet's picture row (the owner asked for plainer, shorter words). */
+export const HOW_IT_WORKS_SHORT = [
+  "Still photos, not video: a hiker is easier to see.",
+  "Straight off the card after each landing. No signal needed.",
+  "The detector ranks every photo. A person confirms each one.",
+  "It shows where to look next. The search manager approves.",
+] as const;
+
 export const WHO_ITS_FOR = [
   {
     title: "Search manager",
