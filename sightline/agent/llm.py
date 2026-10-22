@@ -32,6 +32,27 @@ DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1/"
 # Contract §14 says 800; the reasoning models can spend most of that thinking.
 DEFAULT_MAX_TOKENS = 2048
 FAKE_LLM_REPLY = "{}"  # valid JSON, so JSON-schema callers parse it and find no fields
+# SIGHTLINE_FAKE_VL=relook: the scripted second looks of the re-look demo (labelled fake in the reason)
+FAKE_VL_PROMPT = "Is there a person"  # in the verifier's user prompt (prompts.VERIFY_PROMPTS)
+FAKE_VL_RELOOK = tuple(
+    json.dumps(v)
+    for v in (
+        {
+            "person": "unclear",
+            "posture": "unknown",
+            "group_size": None,
+            "clothing": None,
+            "reason": "A small shape; no head or limbs can be made out (fake model, re-look demo).",
+        },
+        {
+            "person": "yes",
+            "posture": "lying",
+            "group_size": 1,
+            "clothing": "red jacket",
+            "reason": "A person lying in the grass, larger in the low pass (fake model, re-look demo).",
+        },
+    )
+)
 NO_THINKING: dict[str, Any] = {"chat_template_kwargs": {"enable_thinking": False}}
 
 TIMEOUT_S = 60.0  # per attempt; conditions read long pages and have no measured latency yet
@@ -346,9 +367,14 @@ def token_factory_client(
     """The client from env: ``NEBIUS_API_KEY`` (required), ``NEBIUS_BASE_URL`` (optional).
 
     With ``SIGHTLINE_FAKE_LLM=1`` (D's smoke test, demos without a key) it returns a
-    ``FakeChatClient`` that answers every prompt with ``FAKE_LLM_REPLY`` and needs no key."""
+    ``FakeChatClient`` that answers every prompt with ``FAKE_LLM_REPLY`` and needs no key. Adding
+    ``SIGHTLINE_FAKE_VL=relook`` (the re-look demo fixture, ``scripts/relook_demo.py``) scripts the
+    second look instead: the first verdict is ``unclear``, every later one ``yes``."""
     if os.environ.get("SIGHTLINE_FAKE_LLM") == "1":
-        return FakeChatClient(default=FAKE_LLM_REPLY)
+        replies: dict[str, Reply | list[Reply]] = {}
+        if os.environ.get("SIGHTLINE_FAKE_VL") == "relook":
+            replies[FAKE_VL_PROMPT] = list(FAKE_VL_RELOOK)
+        return FakeChatClient(replies=replies, default=FAKE_LLM_REPLY)
     api_key = os.environ.get("NEBIUS_API_KEY")
     if not api_key:
         raise LLMError("NEBIUS_API_KEY is not set (put it in your environment or .env)")

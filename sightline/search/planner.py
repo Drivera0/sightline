@@ -175,9 +175,66 @@ def expected_clearance(
     p: np.ndarray | None = None,
 ) -> float:
     """Σ p_i · POD_i over the leg's sector (``p``: an expected map instead of the live one)."""
-    cells = layout.cells_of(leg.sector_id)
+    return expected_on_cells(layout.cells_of(leg.sector_id), live, visibility, cfg, p)
+
+
+def expected_on_cells(
+    cells: Any,
+    live: Any,
+    visibility: float,
+    cfg: PlannerConfig = PlannerConfig(),  # noqa: B008 - frozen dataclass, never mutated
+    p: np.ndarray | None = None,
+) -> float:
+    """Σ p_i · POD_i over ``cells`` (cell indices): ``expected_clearance`` for any set of cells,
+    e.g. the few under a re-look leg."""
+    cells = np.asarray(cells, dtype=np.int64)
+    if cells.size == 0:
+        return 0.0
     p = live.p()[0] if p is None else p
     return float(np.sum(p[cells] * _pods(cells, _canopy(live, cfg), visibility, cfg)))
+
+
+def relook_leg(
+    drone: Drone,
+    target: LatLon,
+    grid: Grid,
+    sector_id: str,
+    altitude_m: float,
+    side_m: float,
+    cfg: PlannerConfig = PlannerConfig(),  # noqa: B008 - frozen dataclass, never mutated
+) -> Leg:
+    """A short low pass over one spot: the first waypoint is ``target`` itself (the survey starts
+    with a photo there), then a lawnmower over a ``side_m`` square centred on it, its lines one
+    photo's width apart at ``altitude_m`` (``line_spacing_m`` scaled by altitude / ``cfg.altitude_m``).
+    ``est_minutes`` as for any leg: transit from the drone, the pattern, 1 s per photo. Its value
+    (``expected_clearance``) and reason are the caller's: it knows why the spot is worth it."""
+    tx, ty = latlon_to_local_m(grid, target)
+    spacing = cfg.line_spacing_m * altitude_m / cfg.altitude_m
+    half = side_m / 2
+    rect = {
+        "east_min": tx - half,
+        "east_max": tx + half,
+        "south_min": ty - half,
+        "south_max": ty + half,
+    }
+    pts = [(tx, ty), *_lawnmower(rect, spacing)]
+    home = _home(drone, grid, target)
+    survey_m = _length(pts)
+    photos = 1 + survey_m / cfg.photo_spacing_m
+    minutes = (math.dist(home, pts[0]) + survey_m) / drone.speed_ms / 60
+    minutes += photos * cfg.seconds_per_photo / 60
+    return Leg(
+        id="",
+        drone_id=drone.id,
+        sector_id=sector_id,
+        waypoints=[(ll.lon, ll.lat) for ll in (local_m_to_latlon(grid, e, s) for e, s in pts)],
+        altitude_m=altitude_m,
+        est_minutes=round(minutes, 2),
+        expected_clearance=0.0,
+        score_per_min=0.0,
+        reason="",
+        status="proposed",
+    )
 
 
 def endurance_min(drone: Drone, cfg: PlannerConfig) -> float:

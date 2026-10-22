@@ -8,15 +8,16 @@ from the facts it was given (``write_briefing``). There is no ``dismiss_detectio
 
 | event        | ref          | proposals                                                       |
 |--------------|--------------|-----------------------------------------------------------------|
-| detection    | detection id | ``promote_detection`` for a near-miss the verifier calls a person |
-| review       | detection id | person: ``alert`` to all teams + ``assign_sector`` (nearest standby team); unsure: verdict only |
+| detection    | detection id | ``promote_detection`` for a near-miss the verifier calls a person; a re-look ``drone_leg`` at 25 m when it says ``unclear`` on a box under 60 px (``relook_leg``) |
+| review       | detection id | person: ``alert`` to all teams + ``assign_sector`` (nearest standby team); unsure: verdict, and a re-look leg as for a detection |
 | clue         | clue id      | re-plan: ``retask_drone`` / ``drone_leg`` toward the planner's best sector, plus a ``drone_leg`` for every other idle drone |
 | task_searched | sector id   | re-plan, as for a clue (the team's step is on the map)          |
 | team_position | team id     | ``assign_sector`` if that team is on standby; ``drone_leg`` for idle drones with no pending one |
 | fleet_join   | mission id   | opening ``drone_leg`` for every idle drone                      |
 | conditions   | mission id   | not flyable: ``retask_drone`` home for each flying drone (target ``home``), the reason quoting the Tavily fact and its page; re-plan when visibility drops below 0.6 |
-| leg_done     | leg id       | next ``drone_leg`` for that drone                               |
+| leg_done     | leg id       | next ``drone_leg`` for that drone (and the leg's ``ledger`` record) |
 | tick         | mission id   | ``assign_sector`` for standby teams                            |
+| subject_search / subject_set | mission id / proposal id | the bulletin tool (``subject_tool``): a ``Set subject profile`` proposal; after its approval, a re-plan |
 
 A repeated event makes no duplicate: a detection is verified once and promoted at most once, and a
 person confirmed again reuses the pending (or approved) alert; the repeat is a trace note.
@@ -37,9 +38,10 @@ import re
 import threading
 from typing import Any
 
+from sightline.agent import ledger, relook_leg
 from sightline.agent.llm import MODEL_FAST, ChatClient, failure_text
 from sightline.agent.trace import now_iso, trace_call
-from sightline.agent.verify import VERIFY_BAND, verify
+from sightline.agent.verify import VERIFY_BAND
 from sightline.contract import Conditions, EvidenceRef, LatLon, Leg, Proposal
 from sightline.search.grid import cell_containing
 from sightline.search.planner import propose_assignments, propose_legs  # lane C (C-P1)
@@ -224,9 +226,16 @@ def _sector_at(live: Any, layout: Any, lat: float, lon: float) -> str | None:
     return layout.sectors[int(layout.cell_sector[idx])].id
 
 
-def _add(store: Any, mission_id: str, cause: tuple[str, ...] = (), **fields: Any) -> Proposal:
+def _add(
+    store: Any,
+    mission_id: str,
+    cause: tuple[str, ...] = (),
+    expected: dict | None = None,
+    **fields: Any,
+) -> Proposal:
     """A pending proposal, traced with its target and ``cause`` (the clue or leg that led to it),
-    so the trace links the evidence to the proposal."""
+    so the trace links the evidence to the proposal. ``expected``: a leg's ledger snapshot
+    (``ledger.leg_expected``), kept on the entry for its ledger record when the leg is done."""
     p = store.add_proposal(
         mission_id,
         Proposal(
@@ -246,7 +255,13 @@ def _add(store: Any, mission_id: str, cause: tuple[str, ...] = (), **fields: Any
         actor="agent",
         kind="proposal",
         summary=f"{p.id} {p.kind}: {p.summary}",
-        output={"proposal": p.id, "kind": p.kind, "target": p.target, "reason": p.reason},
+        output={
+            "proposal": p.id,
+            "kind": p.kind,
+            "target": p.target,
+            "reason": p.reason,
+            **({"ledger_expected": expected} if expected is not None else {}),
+        },
         refs=[p.id, *p.target.values(), *cause],
     )
     return p
@@ -302,6 +317,7 @@ def _propose_leg(
         store,
         mission_id,
         cause,
+        ledger.leg_expected(store, mission_id, leg),
         kind="retask_drone" if retask else "drone_leg",
         summary=f"{verb} sector {leg.sector_id} ({leg.expected_clearance:.1%} expected)",
         reason=f"{why} {leg.reason}".strip(),
@@ -349,6 +365,9 @@ def _replan(
         return []
     live, layout = _layout(store, mission_id)
     fleet = state["fleet"]
+    held = relook_leg.held_drones(state)  # a re-look leg waits for approval: leave them alone
+    if drone_id in held:
+        return []
 
     def plan(ids: set[str], k: int) -> list[Leg]:
         pending = [
@@ -372,12 +391,12 @@ def _replan(
     if drone_id is not None:  # plan for that drone only (the others' legs still count as taken)
         legs = plan({drone_id}, 1)
     else:
-        idle = {d.id for d in fleet.drones if d.status == "idle"}
+        idle = {d.id for d in fleet.drones if d.status == "idle"} - held
         keep = idle
         if idle_only:
             keep -= {d for d in idle if _pending(state, ("drone_leg", "retask_drone"), "drone", d)}
         else:
-            best = plan({d.id for d in fleet.drones}, 1)
+            best = plan({d.id for d in fleet.drones} - held, 1)
             if best and not _abandons_more(best[0], fleet, live, layout):
                 keep = idle | {best[0].drone_id}
         # the best leg's drone first: greedy picks it again, then the idle drones around it
@@ -442,9 +461,15 @@ def _on_detection(store, mission_id, detection_id, client, detector) -> list[Pro
         # a repeated event (a re-delivered hook): verified once, promoted at most once
         return _repeat(store, mission_id, f"detection {det.id}", det.id,
                        _pending(state, ("promote_detection",), "detection", det.id))  # fmt: skip
-    v = verify(store, mission_id, detection_id, client, detector)
-    if det.conf >= CANDIDATE_THRESHOLD or v.person != "yes":
-        return []  # queue items get a verdict badge only; nothing is ever dismissed
+    look = relook_leg.second_look(store, mission_id, detection_id, client, detector)
+    v = look.verdict
+    near_miss = det.conf < CANDIDATE_THRESHOLD
+    out = _promote(store, mission_id, det, v) if near_miss and v.person == "yes" else []
+    # queue items get a verdict badge only; nothing is ever dismissed
+    return out + relook_leg.after_verdict(store, mission_id, look, out, allow=near_miss)
+
+
+def _promote(store: Any, mission_id: str, det: Any, v: Any) -> list[Proposal]:
     crop = det.crop or f"relook/{det.id}-crop.jpg"
     evidence = [EvidenceRef(kind="crop", ref=crop, caption=f"detector confidence {det.conf:.2f}")]
     evidence += [
@@ -471,9 +496,10 @@ def _on_detection(store, mission_id, detection_id, client, detector) -> list[Pro
 
 def _on_review(store, mission_id, detection_id, answer, client, detector) -> list[Proposal]:
     if answer == "unsure":
-        if client is not None:
-            verify(store, mission_id, detection_id, client, detector)
-        return []
+        if client is None:
+            return []
+        look = relook_leg.second_look(store, mission_id, detection_id, client, detector)
+        return relook_leg.after_verdict(store, mission_id, look, [], allow=True)
     if answer != "person":
         return []
     det, frame = store.get_detection(mission_id, detection_id)
@@ -713,6 +739,7 @@ def _on_leg_done(store, mission_id, leg_id) -> list[Proposal]:
     leg = next((leg for leg in fleet.legs if leg.id == leg_id), None) if fleet else None
     if leg is None:
         return []
+    relook_leg.on_leg_done(store, mission_id, leg)
     return _replan(
         store, mission_id, f"Leg {leg_id} is done.", drone_id=leg.drone_id, cause=(leg_id,)
     )
@@ -795,4 +822,8 @@ def handle(
         return _on_fleet_join(store, mission_id)
     if event == "tick":
         return _on_tick(store, mission_id, client)
+    if event in ("subject_search", "subject_set"):  # the bulletin tool (agent/subject_tool.py)
+        from sightline.agent import subject_tool
+
+        return subject_tool.handle(event, store, mission_id, ref, client=client)
     raise ValueError(f"unknown agent event {event!r}")

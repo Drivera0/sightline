@@ -45,6 +45,7 @@ flowchart LR
   cond --> planner
   map --> planner
   vl --> prop
+  vl -. "unclear, box under 60 px:<br/>a 25 m re-look leg" .-> prop
   planner --> prop
   prop --> gate
   gate -- "approve" --> queue
@@ -101,6 +102,7 @@ sequenceDiagram
 | Action | A **proposal** with a reason, evidence and, for people in the field, a briefing written only from given facts: `promote_detection`, `drone_leg` / `retask_drone`, `assign_sector`, `alert` | `loop.py` |
 | Human | The search manager approves, edits or rejects; nothing happens before that | lane E inbox, lane D API |
 | Effect | Approved detections join the review queue; approved legs go to the fleet; approved briefings go to the radio | lane D |
+| Tool choice (bulletin) | No lost-person category: Nemotron Nano decides whether to call `search_public_bulletin` and writes its query; Tavily search (trusted domains) → extract → profile with verbatim quotes, names redacted → one `Set subject profile` proposal; approval sets the category and the prior, then re-plans | `subject_tool.py`, `geo/subject.py` |
 
 ## One real chain: an OpenCV 5 result changes the decision
 
@@ -156,6 +158,30 @@ as lane D's pipeline (the `pipeline` line is written by the script); and the app
 **scripted** for this run and says so in the trace. Everything else is the production code path
 (`loop.handle`, `verify`, the OpenCV tools, Token Factory).
 
+## The bulletin tool: the model decides to search
+
+Rule: when a mission has a last known point but no lost-person category, and no profile proposal is waiting,
+`POST /missions/{id}/subject/search` asks the model, not code, whether to search. Nemotron Nano gets the
+mission's facts and one tool, `search_public_bulletin(query)`. It calls the tool with a query it wrote, or
+it declines and says why (a `replay` mission has no missing person). The tool runs Tavily search on police,
+search-and-rescue and news domains, then extract, and a second Nano call returns each field with a verbatim
+quote and its URL. The result is a proposal. Approving it (`decide`) sets the subject and the Koester prior,
+and the agent re-plans the drones (`subject_set` event). Names are never stored (`docs/report/TAVILY.md`,
+"The subject from a public bulletin"). The trace from the offline demo (synthetic bulletin, scripted model):
+
+```text
+agent  model_call  subject: the model chose to search: missing hiker Mount Seymour police bulletin
+agent  tool_call   Tavily search (subject): missing hiker Mount Seymour police bulletin
+agent  tool_call   Tavily extract: 1 page(s)
+agent  model_call  subject profile extracted with quotes (names redacted)
+agent  proposal    p001 alert: Set subject profile: hiker, 34, red jacket, black hiking pants and a grey backpack, last seen 3:30 p.m. at the Mount Seymour trailhead parking lot
+human  decision    p001 approved by Search manager
+agent  proposal    p002 drone_leg: Send Drone 1 to sector … (reason: "Subject profile p001 approved …")
+```
+
+Tests: `tests/agent/test_subject.py`, including the model declining (no Tavily call), the hour's cache, a
+rejection, and no name in any file of the mission.
+
 ## End to end on a live mission
 
 `scripts/agent_live.py` runs the agent on the real system: the mission API, OpenCV 5 `cv2.dnn`, lane C's live map,
@@ -210,6 +236,98 @@ the trace says). Excerpt (`scripts/trace_excerpt.py --proposal p004`):
 
 After the approval: Drone 1's leg L001 (sector A1) `cancelled`, L002 (sector B3) `approved`; `validate_mission` → `[]`.
 
+## A third chain: an unclear verdict sends a drone lower
+
+Under 60 px the VL model mostly answers `unclear` (on val, a decisive yes or no for 37 of 75 boxes under
+60 px against 68 of 95 at 60 px and over; on test, `unclear` for 65 % of the small ones). Before this
+change an `unclear` ended the chain. Now the agent asks for a better photo of the spot
+(`sightline/agent/relook_leg.py`, called from `loop.py`):
+
+- **Rule.** A second look that answers `unclear` (from the model, not a failed call), on a near-miss
+  or on a reviewer's "unsure", with the box's long side under 60 px in original-photo pixels, from a
+  photo taken above 26 m. The agent then proposes a `drone_leg` over the spot at 25 m. It is a
+  `retask_drone` when the drone it picks is flying. The drone is the nearest idle one, else the
+  nearest flying one.
+- **The leg** (`planner.relook_leg`). The first waypoint is the spot, so the survey starts with a
+  photo there. Then two lines 10 m apart over a 20 m square (one photo's width at 25 m). Its
+  `expected_clearance` is Σ p · POD over the cells within 10 m. Its reason is in numbers: *"Second look
+  at f0001-d01 was unclear: box 21 px, too small to verify; a pass at 25 m gives about 4× the pixels
+  (50 m → 25 m). Drone 3 is 438 m away: 1.1 min there and over the spot, expected to rule out 0.010 %
+  of the probability."* The factor is (altitude / 25)².
+- **Approval.** The leg goes through the normal approval path. While it waits, re-plans leave that
+  drone alone (`_replan` skips it).
+- **The low pass.** The fleet sim flies it. Below 50 m a photo's crop follows the leg's altitude
+  (`fleet.at_altitude`): half as wide on the ground at 25 m, resized to the same pixels, so the person
+  is twice as large. Those pixels are resampled from the 50 m photo, so the sim reproduces the size of
+  a lower pass, not its extra detail. The drone goes back to its survey altitude after the leg.
+- **The pipeline again.** The new photo goes through detector → second look → verdict →
+  `promote_detection`. A detection from a photo taken at 25 m within 10 m of the spot belongs to the
+  chain. It is never re-looked again, even if still `unclear`.
+
+Every step is a trace `note` with `output.type = "relook"`, and the chain id is in its output and
+refs. `chain_id` is `relook-<detection id>`, and the Trace tab groups by shared refs:
+
+| `output.step` | Fields (besides `type`, `chain_id`, `step`) |
+|---|---|
+| `unclear` | `detection`, `verdict`, `frame`, `box_long_px`, `altitude_m` (seen from), `target` {lat, lon}, `images` (crop and re-look images), `reason` |
+| `leg` | `proposal`, `kind`, `leg`, `drone`, `altitude_m` (25), `pixel_factor`, `est_minutes`, `expected_clearance`, `target`, `from_altitude_m` |
+| `photo` | `frame`, `file`, `altitude_m`, `detection` (or null: no detection near the spot), `conf`, `box_long_px` |
+| `verdict` | `detection`, `verdict`, `person`, `reason`, `images` |
+| `outcome` | `outcome`: `resolved` (yes or no), `unclear` (left to the reviewer), `not_redetected` (the leg was done, no detection within 10 m); `person`, `detection`, `proposals` (the promotion), `photos` |
+| `skipped` | `why`: not flyable, no drone idle or flying, off the map |
+
+The leg's proposal entry has the chain id in its refs. The detections, verdicts, frames, proposal and
+leg are all named by id.
+
+### The ledger: did the observation help
+
+Active perception asks a system to compare the value it predicted for an observation with the
+improvement it actually obtained (arXiv 2512.03687, §3.3.2). The agent writes one record per second
+look and per flown leg (`sightline/agent/ledger.py`). Each record is a trace `note` with
+`output.type = "ledger"`:
+
+```text
+{"type": "ledger", "chain_id": "relook-f0001-d01" | "leg-L002", "kind": "second_look" | "leg",
+ "ref": "<detection or leg id>",
+ "expected": {"cell_p", "sector": {"id", "poa", "expected_clearance"}, "map_seq", "gain", "gain_is", ...},
+ "realised": {"cell_p", "sector": {...}, "gain", "gain_is", ...},
+ "delta": realised.gain - expected.gain}
+```
+
+- **Second look.** It is written when the verdict is stored. `expected.gain` is the share of decisive
+  verdicts on val for a box of that size: 0.493 under 60 px, 0.716 at 60 px and over (prompt
+  verify-v2). `realised.gain` is 1 for yes or no and 0 for `unclear`. `cell_p` and the sector's share
+  and `expected_clearance` are read before and after the verdict. A verdict moves no probability by
+  itself (the map changes on photos and reviews), so they are normally equal: a second look's value is
+  in the decision it allows.
+- **Leg.** It is written when the leg is done. The expected side is taken when the leg is proposed and
+  kept on the proposal's trace entry (`ledger_expected`). `expected.gain` is the leg's
+  `expected_clearance` (the planner's POD, unknown canopy at 0.5). `realised.gain` is Σ p · POD on
+  the map as it was when proposed, with the POD the leg's photos actually gave each cell: their frame
+  steps in the map log, which cover coverage gaps, measured canopy, visibility and cells held for a
+  candidate. Same prior, same units, so the delta is the prediction's error and not other drones'
+  evidence. A recall (no sector) and a scripted leg (no expected side) have no record.
+
+`uv run python scripts/relook_demo.py` runs the chain offline: the real API, store, worker, map, planner
+and runner, with the fleet sim flying the leg. The detector is scripted, and the model is the fake-LLM
+fixture (`SIGHTLINE_FAKE_LLM=1 SIGHTLINE_FAKE_VL=relook`: `unclear`, then `yes`). It prints:
+
+```text
+[   1.0 s] proposal p004 retask_drone: Re-look at f0001-d01 from 25 m: re-task Drone 3
+           Second look at f0001-d01 was unclear: box 21 px, too small to verify; a pass at 25 m gives about 4× the pixels (50 m → 25 m). Drone 3 is 438 m away: 1.1 min there and over the spot, expected to rule out 0.010% of the probability.
+[   2.0 s] L004 flown by D3 at 25 m: 5 photos, 1.08 sim min
+[   2.0 s] proposal p005 promote_detection: Add f0002-d01 to the review queue: second look says likely a person
+
+  relook-f0001-d01 unclear  detection=f0001-d01, verdict=v0001, frame=f0001, altitude_m=50.0, box_long_px=21
+  relook-f0001-d01 leg      proposal=p004, leg=L004, altitude_m=25.0, pixel_factor=4.0
+  relook-f0001-d01 photo    detection=f0002-d01, frame=f0002, altitude_m=25.0, box_long_px=43
+  relook-f0001-d01 verdict  detection=f0002-d01, verdict=v0002
+  relook-f0001-d01 outcome  detection=f0002-d01, outcome=resolved
+  second_look f0001-d01  relook-f0001-d01   expected 0.493300 realised 0.000000 delta -0.493300
+  second_look f0002-d01  relook-f0001-d01   expected 0.493300 realised 1.000000 delta +0.506700
+  leg         L004       relook-f0001-d01   expected 0.000097 realised 0.000051 delta -0.000046
+```
+
 ## Evaluation
 
 **Task success.** On val (95 photos, 333 people) the second look on near-misses finds 11 more
@@ -246,7 +364,9 @@ secrets in the trace (test 7).
   `cv2.dnn`, with identical scores to PyTorch on test and 363 of 363 boxes matched
   (`docs/report/OPENCV_REPORT.md:139-148`). The re-look tools are OpenCV 5 (`sightline/agent/relook.py`,
   report §3.5), and the model answers from OpenCV's images, so the visual evidence changes what the
-  system does next: a 0.18 near-miss becomes a review-queue proposal (span 1 → span 5 above).
+  system does next: a 0.18 near-miss becomes a review-queue proposal (span 1 → span 5 above). An
+  `unclear` on a box under 60 px sends a drone back at 25 m for about 4× the pixels, and the new
+  photo goes through the same pipeline (the third chain above, `sightline/agent/relook_leg.py`).
 - **Orchestration and appropriate autonomy (25 %).** Events go through hooks that only enqueue
   (`sightline/agent/hooks.py:36-72`) to one loop (`sightline/agent/loop.py:615`, `handle`) that turns
   each into proposals. Models are used where they add information (vision verdicts, briefings,
@@ -259,7 +379,9 @@ secrets in the trace (test 7).
   promotion to the person's sector or detection in every run (6/6, 9/9, 9/9, 3/3), with fake models and
   a scripted detector, so it tests routing rather than perception. Planner and fleet are evaluated in
   simulation, with the flat-prior result stated as no gain (`docs/report/OPENCV_REPORT.md:662-729`).
-  Rules are chosen on val and test is read once.
+  Rules are chosen on val and test is read once. The re-look leg and the ledger of expected against
+  realised value per observation are measured in `docs/report/AGENT_EVAL.md` (re-look and ledger
+  sections), including where the simulation cannot show the gain.
 - **Failure handling, observability, security, human control (15 %).** The four paragraphs under
   Evaluation above, with their tests in `tests/agent/` (for example
   `test_loop.py::test_never_dismisses_and_never_says_clear`,

@@ -160,6 +160,20 @@ def test_fake_llm_env_needs_no_key(monkeypatch) -> None:
     assert client.chat([{"role": "user", "content": "anything"}], model="m").text == "{}"
 
 
+def test_the_relook_fixture_scripts_unclear_then_yes(monkeypatch) -> None:
+    from sightline.agent.prompts import VERIFY_PROMPTS, VERIFY_VERSION
+    from sightline.agent.verify import parse_verdict
+
+    monkeypatch.setenv("SIGHTLINE_FAKE_LLM", "1")
+    monkeypatch.setenv("SIGHTLINE_FAKE_VL", "relook")
+    client = token_factory_client()
+    ask = [{"role": "user", "content": VERIFY_PROMPTS[VERIFY_VERSION][1].format(images="")}]
+    answers = [parse_verdict(client.chat(ask, model="vl").text) for _ in range(3)]
+    assert [a["person"] for a in answers] == ["unclear", "yes", "yes"]
+    assert all("fake model" in a["reason"] for a in answers)
+    assert client.chat([{"role": "user", "content": "Facts:\n{}"}], model="m").text == "{}"
+
+
 def test_factory_needs_the_key_and_defaults_the_base_url(monkeypatch) -> None:
     monkeypatch.delenv("SIGHTLINE_FAKE_LLM", raising=False)
     monkeypatch.delenv("NEBIUS_API_KEY", raising=False)
