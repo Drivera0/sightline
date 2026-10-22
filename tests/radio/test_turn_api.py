@@ -619,3 +619,25 @@ def test_a_placeholder_reply_is_retried_never_spoken(tmp_path: Path) -> None:
     api, session, _ = _setup(stubborn)
     r = _inbound(api, session, stubborn, QUESTION, tmp_path)
     assert r.turn.reply == "Team Two, Sightline. Say again, over."
+
+
+def test_a_briefing_with_its_own_call_up_is_said_once() -> None:
+    """Found on the live command view: "Team Two, Sightline. Team Two, Sightline. … over, over"."""
+    from sightline.radio.turn import _unwrapped
+
+    assert _unwrapped(
+        "Team Two, Sightline. New assignment, sector Bravo Three, over.", "Team Two"
+    ) == ("New assignment, sector Bravo Three")
+    assert _unwrapped("team two, new assignment. Over", "Team Two") == "new assignment"
+    assert (
+        _unwrapped("New assignment, sector Bravo Three.", "Team Two")
+        == "New assignment, sector Bravo Three"
+    )
+    assert (
+        _unwrapped("All teams, Sightline. Listen for a whistle, out.", "All teams")
+        == "Listen for a whistle"
+    )
+    assert (
+        _unwrapped("Hand over the radio to Team One.", "Team Two")
+        == "Hand over the radio to Team One"
+    )

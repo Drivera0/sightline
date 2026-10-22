@@ -103,6 +103,15 @@ export const getCard = (api: Api, id: string, sector: string) =>
   call<AssignmentCard>(api, "GET", `${m(id)}/cards/${encodeURIComponent(sector)}`);
 export const cardFileUrl = (api: Api, id: string, sector: string, ext: "gpx" | "kml") =>
   `${api.base}${m(id)}/cards/${encodeURIComponent(sector)}.${ext}`;
+/** GET /health: what this API runs (contract §13), including whether the radio desk is mounted. */
+export interface Health {
+  status: string;
+  contract_version: string;
+  backend: string;
+  detector?: string | null;
+  radio?: boolean;
+}
+export const getHealth = (api: Api) => call<Health>(api, "GET", "/health");
 export const getMapBase = (api: Api, id: string) => call<MapBase>(api, "GET", `${m(id)}/map_base`);
 /** A sector now (GET /sectors): label, POA on the live map, drone coverage. */
 export interface SectorNow {

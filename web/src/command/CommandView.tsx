@@ -4,7 +4,7 @@
 // once it reads live missions.
 
 import { useSelection } from "../lib/selection";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import type { Clue, ClueDraft, Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { Badge, Label, Panel } from "../shell/components";
@@ -30,6 +30,8 @@ export interface CommandProps {
   onPickOnMap?: () => Promise<{ lat: number; lon: number } | null>;
   /** Where a sector's assignment card opens (E-09); without it, no Card links. */
   cardHref?: (sectorId: string) => string;
+  /** Under the approval inbox (D-R3: the radio desk, so an approved briefing's Transmit is right there). */
+  sideRail?: ReactNode;
   now?: () => Date;
 }
 
@@ -52,7 +54,10 @@ export function CommandView(p: CommandProps) {
           <TaskBoard tasks={p.tasks} sectors={p.sectors} teams={p.teams} onSetTask={p.onSetTask} onUpdateTeam={p.onUpdateTeam} now={now()} cardHref={p.cardHref} />
           <TeamRoster teams={p.teams} tasks={p.tasks} now={now()} />
         </div>
-        <ApprovalInbox proposals={p.proposals} teams={p.teams} onDecide={p.onDecide} imageUrl={p.imageUrl} />
+        <div className="flex flex-col gap-4">
+          <ApprovalInbox proposals={p.proposals} teams={p.teams} onDecide={p.onDecide} imageUrl={p.imageUrl} />
+          {p.sideRail}
+        </div>
       </div>
       <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} />
     </div>

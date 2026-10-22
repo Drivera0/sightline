@@ -74,6 +74,7 @@ def test_health_names_the_contract_and_backend(api) -> None:
         "contract_version": "1.2",
         "backend": "cv2",
         "detector": None,  # nothing loaded yet: the first photo loads it
+        "radio": False,  # not started with --radio
     }
     _upload(client, _mission(client), ("a.jpg", drone_photo()))
     ctx.queue.join()

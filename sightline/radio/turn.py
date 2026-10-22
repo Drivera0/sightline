@@ -469,6 +469,24 @@ def outbound(mission_id: str, session: RadioSession, api: MissionApi) -> list[di
     ]
 
 
+def _unwrapped(briefing: str, who: str) -> str:
+    """The briefing without a call-up or sign-off of its own: transmit adds "<who>, Sightline." and
+    "over", and a briefing written "addressed to the team" often has them already (found on the live
+    command view: "Team Two, Sightline. Team Two, Sightline. … over, over")."""
+    b = briefing.strip()
+    for head in (
+        f"{who}, Sightline.",
+        f"{who}, Sightline,",
+        f"{who}, this is Sightline.",
+        f"{who},",
+        "Sightline.",
+    ):
+        if b.lower().startswith(head.lower()):
+            b = b[len(head) :].strip()
+            break
+    return re.sub(r"[,.\s]*\b(over|out)\b[.!\s]*$", "", b, flags=re.IGNORECASE).rstrip(". ")
+
+
 def transmit(
     mission_id: str, proposal_id: str, session: RadioSession, api: MissionApi, tts: Tts | None
 ) -> TurnResult:
@@ -480,7 +498,7 @@ def transmit(
     team = p["target"].get("team", "all")
     callsigns = {t["id"]: t["callsign"] for t in api.state(mission_id)["teams"]}
     who = "All teams" if team == "all" else callsigns.get(team, team)
-    body = speakable(p["briefing"].rstrip(". "))
+    body = speakable(_unwrapped(p["briefing"], who))
     text = f"{opening(who)} {body}, over."
     session.handled.add(proposal_id)
     turn = _turn(

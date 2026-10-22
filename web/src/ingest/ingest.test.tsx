@@ -160,9 +160,28 @@ describe("live mission tabs", () => {
     expect(window.location.hash).toBe("#m/a1b2c3d4/command");
   });
 
+  // /health answers (radio on or off); everything else stays pending
+  const withHealth = (radio: boolean) => ({
+    base: "http://api.test",
+    fetch: ((url: string) =>
+      String(url).endsWith("/health")
+        ? Promise.resolve(new Response(JSON.stringify({ status: "ok", contract_version: "1.2", backend: "cv2", radio })))
+        : new Promise(() => {})) as unknown as typeof fetch,
+  });
+
+  it("says when the server has no radio desk", async () => {
+    render(<LiveMission api={withHealth(false)} missionId="a1b2c3d4" initialTab="radio" />);
+    expect(await screen.findByText(/radio desk isn't running on this server/)).toBeInTheDocument();
+  });
+
+  it("puts the radio desk beside the approvals on the Command tab (D-R3)", async () => {
+    render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" initialTab="command" />);
+    expect(await screen.findByText(SAFETY_FRAME)).toBeInTheDocument();
+  });
+
   it("mounts the radio desk, safety frame first, and links the debrief", async () => {
-    render(<LiveMission api={pending} missionId="a1b2c3d4" initialTab="radio" />);
-    expect(screen.getByText(SAFETY_FRAME)).toBeInTheDocument();
+    render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" initialTab="radio" />);
+    expect(await screen.findByText(SAFETY_FRAME)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Debrief" })).toHaveAttribute("href", "http://api.test/missions/a1b2c3d4/debrief.md");
     await userEvent.click(screen.getByRole("button", { name: "Feed" }));
     expect(screen.getByRole("link", { name: "Debrief (markdown)" })).toHaveAttribute(
