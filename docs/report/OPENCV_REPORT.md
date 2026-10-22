@@ -146,7 +146,7 @@ from its ONNX export, with no PyTorch at run time (`sightline/ml/detect_cv.py`):
 | test (101 photos, 337 people) | Torch | RTX 4080 SUPER | 0.802 / 0.864 / 0.868 | 0.898 / 0.896 | 0.30 |
 | test | **OpenCV 5 cv2.dnn** | Ryzen 9 9950X | **0.802 / 0.864 / 0.868** | **0.898 / 0.896** | — |
 
-Every score is identical to three decimals. At or above the threshold, 100 % of boxes match
+The Torch times are from this parity run; the evaluation run on the same GPU (`detector_metrics.json`, §7.1) measured 0.25 s per test photo, which is the GPU time quoted elsewhere. Every score is identical to three decimals. At or above the threshold, 100 % of boxes match
 one-to-one between backends at IoU ≥ 0.95 (363/363 on test, 389/389 on val), with a largest
 confidence difference of 0.0015. Among all saved boxes (confidence ≥ 0.05) 99.8 % match; the rest
 are low-confidence boxes that move slightly. **The demo cache re-detected on the cv2 path is
@@ -257,7 +257,8 @@ its own reasoning (`docs/feedback/radio.md`, findings 5–11). Each is now check
   and never spoken.
 
 **Measured** (RTX 4080 SUPER for speech, Token Factory for the model; text turns, so speech
-recognition adds 45–153 ms): over 30 live turns, first sound p50 2.0 s and p90 3.0 s (a spoken
+recognition adds 45–153 ms): over 30 live turns, first sound p50 2.0 s and p90 3.0 s with typed team
+lines, and 2.5 s p50 (p90 3.0 s) with real voices over the 18 turns of the demo script (a spoken
 "standby" when the model takes over 3 s), 6 / 6 clue reports drafted, read back and committed, 6 / 6
 conditions answers from the tool (`docs/evidence/radio-latency-20261020.json`). The demo script
 (transmit the assignment, ask for the boundary, report a clue, confirm) ran **5 / 5 times as
@@ -312,7 +313,7 @@ default became c7i.2xlarge. Cost while running: about $0.36 an hour on c7i.2xlar
 used only for the demo recording); a $20 monthly budget alarm covers the account.
 `teardown.sh` deletes everything.
 
-**A longer run** (22 Oct, the instance rebuilt from `main`): 20 HERIDAL validation photos uploaded in two
+**A longer run** (21 Oct, the instance rebuilt from `main`, on c7i.xlarge, the default size then): 20 HERIDAL validation photos uploaded in two
 batches of 10 were all processed in 4 min, 11.9 s each (median; `cv2.dnn` 11.3 s, the slowest 13.1 s); the
 agent's second look ran on all 23 candidates (23 Nemotron calls). From CloudWatch:
 
@@ -457,7 +458,7 @@ HERIDAL photo covering 142 cells.
 
   ![Second-look errors](../figures/verifier/errors.png)
 
-- **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.3 s).
+- **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.25 s).
 - **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
   so long replies are spoken sentence by sentence and the first sound depends on the model's time;
   if the model fails or times out, the team hears "say again" and nothing changes. Its numbers so

@@ -47,6 +47,8 @@ From `metrics.json` (the HERIDAL test set: 101 photos, 337 people, never used fo
 | Precision | **0.898** | 0.59 |
 | Time per full 4000×3000 photo | 0.25 s (GPU) | 33 s |
 
+Time per photo is from the evaluation run on an RTX 4080 SUPER (`detector_metrics.json`: 0.251 s); the separate OpenCV parity run on the same GPU measured 0.30 s for the same Torch path (report §4.1).
+
 Under the strict VOC scoring (one box per person, IoU ≥ 0.5) the same detector scores recall **0.864**, precision **0.802**, AP50 0.868; those are the numbers used everywhere else (threshold choice, ablations, the search map's detection probability).
 
 Human baseline: Pyrrö, Naseri & Jung 2021, arXiv:2111.09406.
@@ -87,6 +89,7 @@ How the models fit together, and a real trace of one decision: [docs/architectur
 |---|---|---|
 | Speech to text (Parakeet, RTX 4080 SUPER) | 45–130 ms per phrase | 153 ms (max) |
 | Reasoning and tool calls (Nemotron 3 Super, Token Factory) | 2.3 s | 3.2 s |
+| First sound heard, typed team lines (30 turns) | 2.0 s | 3.0 s |
 | First sound heard, end to end with real voices (18 turns) | 2.5 s | 3.0 s |
 
 6 / 6 clue reports were read back and confirmed before they were logged. Safety frame (on the desk's screen): it runs on a secondary channel under the comms operator, never initiates orders, and transmits only what the search manager approved, when the operator presses Transmit. Measured on 461 live verifier calls: p50 1.35 s and p90 1.65 s per call, about 890 tokens in and 67 out, every reply valid JSON. What worked and what didn't: [docs/feedback/nebius.md](docs/feedback/nebius.md).
@@ -105,7 +108,7 @@ The Nemotron models think before they answer, and the thinking counts against `m
 
 ## Conditions with Tavily
 
-Each mission's conditions come from live web search at run time (`sightline/geo/conditions.py`): three Tavily searches (forecast, weather warnings, park and trail alerts for the area) and one Tavily extract, cached per hour. Nemotron reads the pages and returns each value **with the sentence it came from**; a value is kept only if that quote is found verbatim in the page, contains the number and names the field, and is in a sane range. Everything else stays empty rather than guessed. Sunset and civil twilight are computed locally.
+Each mission's conditions come from live web search at run time (`sightline/geo/conditions.py`): three Tavily searches (forecast, weather warnings, park and trail alerts for the area) and one Tavily extract, checked every 30 minutes for each active mission and cached per area and clock hour, so a second check in the same hour reuses the results (at most four Tavily calls per area per hour). Nemotron reads the pages and returns each value **with the sentence it came from**; a value is kept only if that quote is found verbatim in the page, contains the number and names the field, and is in a sane range. Everything else stays empty rather than guessed. Sunset and civil twilight are computed locally.
 
 What it changes during a search:
 

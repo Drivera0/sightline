@@ -454,7 +454,7 @@ def live() -> str:
     g.node(c0, top, "external", "INPUT", "Photos in", "SD card · watch folder", "fleet sim (simulated)")
     g.node(c1, top, "step", "API", "Mission API", "FastAPI · Caddy HTTPS", "SSE with resume")
     g.node(c2, top, "store", "S3 · SQS", "Originals · jobs", "S3 30 days · SQS FIFO", "one group per mission")
-    g.node(c3, top, "focal", "WORKER", "Per-photo pipeline", "pose → cv2.dnn tiled", "≈ 11 s / photo · 4 vCPU")
+    g.node(c3, top, "focal", "WORKER", "Per-photo pipeline", "pose → cv2.dnn tiled", "≈ 7 s / photo · 8 vCPU")
     g.node(c4, top, "store", "CLOUDWATCH", "Logs · metrics", "latency · queue · agent", "one dashboard")
     g.node(c0, mid, "external", "HUMAN", "Search manager", "command view · radio", "approves every move")
     g.node(c1, mid, "store", "STORE", "MissionStore", "the only writer", "validate_mission()")
