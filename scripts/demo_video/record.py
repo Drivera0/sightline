@@ -859,6 +859,106 @@ def live_shots(
     return replay
 
 
+# --- the recall shot (the Tavily moment) -------------------------------------------------------------
+
+OVERRIDE_PATH = "/missions/{mission_id}/conditions/override"
+
+
+def recall_guard(api: str, openapi: Callable[[str], dict] | None = None) -> str | None:
+    """None when the API has the conditions override (``POST /conditions/override``); else why not."""
+
+    def fetch(url: str) -> dict:
+        with urllib.request.urlopen(url, timeout=5) as r:
+            return json.loads(r.read())
+
+    try:
+        paths = (openapi or fetch)(f"{api.rstrip('/')}/openapi.json").get("paths", {})
+    except Exception as e:  # noqa: BLE001 - reported in shots.json
+        return f"no API schema at {api} ({type(e).__name__})"
+    if OVERRIDE_PATH not in paths:
+        return "the API has no conditions override yet (POST /conditions/override not merged)"
+    return None
+
+
+def recall_shot(d: Director, api: str) -> None:
+    """Gusts → no-fly → recall on a fresh live mission with the simulated fleet in the air
+    (``scripts/recall_demo.py``'s steps; set up before the shot, off camera): the console's Fleet
+    controls set gusts of 50 km/h as a demo override, the agent's recall cards arrive quoting it, a
+    person approves them, and the drones turn home on the map."""
+    p = d.page
+    skip = api_up(api) or recall_guard(api)
+    if skip is None and not local_file("data/heridal/yolo_full/val").exists():
+        skip = "no HERIDAL val photos for the fleet sim"
+    if skip:
+        d.shot("recall", 25, lambda: None, mode="live", skip=skip)
+        return
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from recall_demo import Recall
+
+    lines: list[str] = []
+    run = Recall(api, lambda s: lines.append(s), time_scale=15.0)
+    try:
+        try:  # mission, conditions, fleet joins, opening legs approved, drones flying
+            mid = run.setup()
+        except Exception as e:  # noqa: BLE001 - one broken shot must not lose the recording
+            d.shot(
+                "recall",
+                25,
+                lambda: None,
+                mode="live",
+                skip=f"setup failed: {type(e).__name__}: {e}",
+            )
+            return
+
+        def shoot():
+            d.hash(f"#m/{mid}/command", 3.0)
+            m = d.first(p.locator("figure[aria-label='Live map']"), timeout=6)
+            if m is not None:
+                d.to(m, 1.2, 0.5, 0.5)
+                d.pause(2.0)  # the drones on their legs
+            gusts = d.first(
+                p.get_by_role("button", name=re.compile(r"^Set gusts .*demo override")), timeout=3
+            )
+            if gusts is not None:
+                d.to(gusts, 1.0)
+                d.pause(0.8)
+                d.click(gusts)
+            else:  # no Fleet controls on this build: the same call the button makes
+                run.gusts()
+            recall = p.locator('[aria-label^="Proposal "]', has_text=re.compile(r"\bRecall\b"))
+            card = d.first(recall, timeout=15)
+            if card is None:
+                raise Skip("no recall proposal arrived within 15 s")
+            d.to(card, 1.0)
+            why = d.first(card.get_by_label("Why recall"), timeout=1)
+            if why is not None:
+                d.to(why, 0.8)
+            d.pause(3.0)  # read the quoted fact and its source
+            for _ in range(len(run.state()["fleet"]["drones"])):
+                card = d.first(recall, timeout=2)
+                if card is None:
+                    break
+                d.to(card, 0.6)  # new cards (team assignments) can push it down the inbox
+                d.click(card.get_by_role("button", name=re.compile(r"^Approve")))
+                d.pause(1.2)
+            # any a click missed (the inbox moved under the pointer): the same approval, off camera
+            left = [
+                x
+                for x in run.state()["proposals"]
+                if x["status"] == "pending" and "home" in x["target"]
+            ]
+            run.approve(left)
+            if m is not None:
+                d.to(m, 1.2, 0.5, 0.5)
+            d.pause(5.0)  # the drones turn home
+
+        shot = d.shot("recall", 25, shoot, mode="live")
+        shot.extra["mission"] = mid
+        shot.extra["timeline"] = lines[-12:]
+    finally:
+        run.close()
+
+
 # --- main ------------------------------------------------------------------------------------------
 
 
@@ -935,6 +1035,7 @@ def main(argv: list[str] | None = None) -> int:
             demo_shots(d)
             if args.live:
                 replay = live_shots(d, api, args.mission, args.replay_limit, args.replay_pace)
+                recall_shot(d, api)
             d.pause(1.5)  # a beat on the last frame
             total = d.now()
             video = page.video

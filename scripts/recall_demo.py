@@ -164,8 +164,10 @@ class Recall:
                 f"conditions said no flying ({c['flyability_reason']}): calm override (demo), gusts {CALM_KMH:g} km/h"
             )
         pool = FramePool(scn, val=local_file("data/heridal/yolo_full/val"))
+        # no scheduled link losses (the scenario cuts D2's): a drone that hears nothing can't hear
+        # its recall; the console's Fleet controls can still degrade a link by hand
         self.sim = FleetSim(self.http, mission, scn, time_scale=self.time_scale, pool=pool,
-                            out=lambda s: self.mark(f"fleet: {s}"))  # fmt: skip
+                            links=(), out=lambda s: self.mark(f"fleet: {s}"))  # fmt: skip
         self.sim.register()
         n = len(scn.drones)
 
