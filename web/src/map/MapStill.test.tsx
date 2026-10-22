@@ -16,7 +16,7 @@ describe("the still map", () => {
     expect(wantsStillMap()).toBe(false);
   });
 
-  it("is on under 1024 px, on four cores or fewer, and when less data is asked for", () => {
+  it("is on under 1024 px, on a touch device with four cores or fewer, and when less data is asked for", () => {
     vi.stubGlobal("navigator", { ...navigator, hardwareConcurrency: 16 });
     window.matchMedia = media(["(max-width: 1023.98px)"]);
     expect(wantsStillMap()).toBe(true);
@@ -25,8 +25,14 @@ describe("the still map", () => {
     window.matchMedia = media(["(prefers-reduced-data: reduce)"]);
     expect(wantsStillMap()).toBe(true);
     vi.stubGlobal("navigator", { ...navigator, hardwareConcurrency: 4 });
-    window.matchMedia = media([]);
+    window.matchMedia = media(["(pointer: coarse)"]);
     expect(wantsStillMap()).toBe(true);
+    // a 4-core laptop with a mouse at 1024 px and up keeps the live map
+    window.matchMedia = media(["(pointer: fine)"]);
+    expect(wantsStillMap()).toBe(false);
+    vi.stubGlobal("navigator", { ...navigator, hardwareConcurrency: 8 });
+    window.matchMedia = media(["(pointer: coarse)"]);
+    expect(wantsStillMap()).toBe(false);
   });
 
   it("names itself, says how to load the map, and loads it from a button", () => {

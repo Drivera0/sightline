@@ -85,8 +85,9 @@ or after; no colour tokens changed.
 What the targets section above left as a decision, now made: on phones and slower devices the console shows a still
 image of the map until the map is wanted, and only then starts MapLibre.
 
-- **Who gets it**: a screen under 1024 px, `navigator.hardwareConcurrency` of 4 or fewer, `prefers-reduced-data`,
-  or Save-Data (`web/src/map/MapStill.tsx`, `wantsStillMap`). Desktop at 1440 px on more cores is unchanged.
+- **Who gets it**: a screen under 1024 px, a coarse pointer (touch) with `navigator.hardwareConcurrency` of 4 or
+  fewer, `prefers-reduced-data`, or Save-Data (`web/src/map/MapStill.tsx`, `wantsStillMap`). A mouse or trackpad at
+  1024 px and up always gets the live map, whatever its core count, so desktop is unchanged.
 - **What it shows**: on the demo mission, a picture of the demo map at the call (t0) with the sectors, their POA and
   the last known point, taken with Playwright from the built site (`web/public/map/demo-t0-390.webp`, 41 KB, 2×
   for 390 px; `demo-t0-1440.webp`, 25 KB, for 1024 px and up), labelled "Still image · at the call"; on a live

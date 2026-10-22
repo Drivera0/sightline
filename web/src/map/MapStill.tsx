@@ -14,14 +14,17 @@ export const STILL = {
 } as const;
 
 /**
- * Whether this device gets the still map first: a screen under 1024 px, four cores or fewer, or a viewer
- * who asked for less data. False where the browser cannot tell (tests, no matchMedia).
+ * Whether this device gets the still map first: a screen under 1024 px, a touch device with four cores or
+ * fewer, or a viewer who asked for less data. False where the browser cannot tell (tests, no matchMedia).
  */
 export function wantsStillMap(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   const cores = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : 0;
   const saveData = typeof navigator !== "undefined" && !!(navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
-  return window.matchMedia("(max-width: 1023.98px)").matches || (cores > 0 && cores <= 4) || window.matchMedia("(prefers-reduced-data: reduce)").matches || saveData;
+  // a fine pointer at 1024 px and up (a laptop, a desktop) always gets the live map, whatever its cores
+  const small = window.matchMedia("(max-width: 1023.98px)").matches;
+  const slowTouch = window.matchMedia("(pointer: coarse)").matches && cores > 0 && cores <= 4;
+  return small || slowTouch || window.matchMedia("(prefers-reduced-data: reduce)").matches || saveData;
 }
 
 /**
