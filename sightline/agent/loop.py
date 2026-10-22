@@ -10,10 +10,15 @@ from the facts it was given (``write_briefing``). There is no ``dismiss_detectio
 |--------------|--------------|-----------------------------------------------------------------|
 | detection    | detection id | ``promote_detection`` for a near-miss the verifier calls a person |
 | review       | detection id | person: ``alert`` to all teams + ``assign_sector`` (nearest standby team); unsure: verdict only |
-| clue         | clue id      | ``retask_drone`` / ``drone_leg`` toward the planner's best sector |
+| clue         | clue id      | re-plan: ``retask_drone`` / ``drone_leg`` toward the planner's best sector, plus a ``drone_leg`` for every other idle drone |
+| task_searched | sector id   | re-plan, as for a clue (the team's step is on the map)          |
+| team_position | team id     | ``assign_sector`` if that team is on standby; ``drone_leg`` for idle drones with no pending one |
 | conditions   | mission id   | ``alert`` to recall drones when flying turns unsafe; re-plan when visibility drops below 0.6 |
 | leg_done     | leg id       | next ``drone_leg`` for that drone                               |
 | tick         | mission id   | ``assign_sector`` for standby teams                            |
+
+A re-plan is one proposal per drone at most, each approved on its own; the planner discounts
+sectors a ground team is assigned to or searching.
 """
 
 from __future__ import annotations
@@ -259,17 +264,47 @@ def _propose_leg(
 
 
 def _replan(
-    store: Any, mission_id: str, why: str, drone_id: str | None = None, cause: tuple[str, ...] = ()
+    store: Any,
+    mission_id: str,
+    why: str,
+    drone_id: str | None = None,
+    cause: tuple[str, ...] = (),
+    idle_only: bool = False,
 ) -> list[Proposal]:
+    """Leg proposals on the live map, one per drone, each for a person to approve: with
+    ``drone_id``, that drone's next leg; else the best leg of the whole fleet (a re-task when its
+    drone is flying) and one for every other idle drone, planned around it (sequential greedy, so
+    no two share a sector). ``idle_only``: idle drones with no pending leg proposal, nothing else."""
     state = store.state(mission_id)
     if state["fleet"] is None:
         return []
     live, layout = _layout(store, mission_id)
     fleet = state["fleet"]
+
+    def plan(f: Any, k: int) -> list[Leg]:
+        return propose_legs(
+            live, layout, f, state["conditions"], now_iso(), k=k, tasks=state["tasks"]
+        )
+
     if drone_id is not None:  # plan for that drone only (the others' legs still count as taken)
         fleet = fleet.model_copy(update={"drones": [d for d in fleet.drones if d.id == drone_id]})
-    legs = propose_legs(live, layout, fleet, state["conditions"], now_iso(), tasks=state["tasks"])
-    return [_propose_leg(store, mission_id, state, legs[0], why, cause)] if legs else []
+        legs = plan(fleet, 1)
+    else:
+        idle = {d.id for d in fleet.drones if d.status == "idle"}
+        if idle_only:
+            idle -= {d for d in idle if _pending(state, ("drone_leg", "retask_drone"), "drone", d)}
+            keep = idle
+        else:
+            best = plan(fleet, 1)
+            keep = idle | {best[0].drone_id} if best else set()
+        # the best leg's drone first: greedy picks it again, then the idle drones around it
+        fleet = fleet.model_copy(update={"drones": [d for d in fleet.drones if d.id in keep]})
+        legs = plan(fleet, len(keep)) if keep else []
+    out = []
+    for leg in legs:
+        out.append(_propose_leg(store, mission_id, state, leg, why, cause))
+        state = store.state(mission_id)
+    return out
 
 
 def _assign(
@@ -457,6 +492,34 @@ def _on_leg_done(store, mission_id, leg_id) -> list[Proposal]:
     )
 
 
+def _on_task_searched(store, mission_id, sector_id) -> list[Proposal]:
+    state = store.state(mission_id)
+    task = next((t for t in state["tasks"] if t.sector_id == sector_id), None)
+    if task is None or task.state != "searched" or task.pod is None:
+        return []
+    team = next((t for t in state["teams"] if t.id == task.team_id), None)
+    who = team.callsign if team else "A ground team"
+    why = f"{who} searched sector {sector_id} at POD {task.pod:.0%}; re-planned on the new map."
+    return _replan(store, mission_id, why, cause=(sector_id,))
+
+
+def _on_team_position(store, mission_id, team_id, client) -> list[Proposal]:
+    """A standby team gets its next sector from where it now is; idle drones without a proposal
+    get one. A flying drone is not re-tasked for a position report: it changes no probability."""
+    state = store.state(mission_id)
+    team = next((t for t in state["teams"] if t.id == team_id), None)
+    if team is None:
+        return []
+    out = []
+    if team.status == "standby":
+        live, layout = _layout(store, mission_id)
+        for tid, sector, reason in propose_assignments(live, layout, state["tasks"], [team]):
+            facts = {"why": reason, "subject": state["mission"].subject}
+            out += _assign(store, mission_id, state, tid, sector, reason, facts, client, [])
+    why = f"{team.callsign} reported a new position."
+    return out + _replan(store, mission_id, why, cause=(team_id,), idle_only=True)
+
+
 def _on_tick(store, mission_id, client) -> list[Proposal]:
     state = store.state(mission_id)
     live, layout = _layout(store, mission_id)
@@ -493,6 +556,10 @@ def handle(
         return _on_conditions(store, mission_id)
     if event == "leg_done":
         return _on_leg_done(store, mission_id, ref)
+    if event == "task_searched":
+        return _on_task_searched(store, mission_id, ref)
+    if event == "team_position":
+        return _on_team_position(store, mission_id, ref, client)
     if event == "tick":
         return _on_tick(store, mission_id, client)
     raise ValueError(f"unknown agent event {event!r}")

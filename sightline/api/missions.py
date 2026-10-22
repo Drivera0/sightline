@@ -485,7 +485,7 @@ def patch_team(mission_id: str, tid: str, patch: dict, request: Request) -> dict
         new = Team.model_validate({**team.model_dump(), **patch, "id": tid})
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
-    store.upsert_team(mission_id, new)
+    effects.on_team_update(store, mission_id, new, _ctx(request).hooks)  # a new position re-plans
     return _dump(new)
 
 

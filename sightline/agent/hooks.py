@@ -53,6 +53,16 @@ def on_leg_done(store: Any, mission_id: str, leg_id: str) -> None:
     _submit("leg_done", store, mission_id, leg_id)
 
 
+def on_task_searched(store: Any, mission_id: str, sector_id: str) -> None:
+    """A team marked the sector searched at a POD (the map has the step): re-plan the drones."""
+    _submit("task_searched", store, mission_id, sector_id)
+
+
+def on_team_position(store: Any, mission_id: str, team_id: str) -> None:
+    """A team reported a new position: a standby team's next sector; idle drones' legs."""
+    _submit("team_position", store, mission_id, team_id)
+
+
 def on_tick(store: Any, mission_id: str) -> None:
     """Every 5 min or 25 photos (D's scheduler): standby teams get ``assign_sector`` proposals."""
     _submit("tick", store, mission_id, mission_id)
