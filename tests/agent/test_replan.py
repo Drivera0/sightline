@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from sightline.agent import loop
-from sightline.contract import Distribution, FleetState, LatLon, SectorTask
+from sightline.contract import Distribution, FleetState, FleetTelemetry, LatLon, Leg, SectorTask
 from sightline.mission import effects
 from sightline.search.live import LiveMap
 from sightline.search.sectors import lattice_sectors
@@ -95,6 +95,35 @@ def test_flying_drones_other_than_the_best_are_not_retasked(spread) -> None:
     assert len(out) <= 2
 
 
+def _leg(id_: str, drone: str, sector: str, status: str = "flying") -> Leg:
+    return Leg(id=id_, drone_id=drone, sector_id=sector, waypoints=[], altitude_m=50,
+               est_minutes=8, expected_clearance=0.1, score_per_min=0.01, reason="r",
+               status=status)  # fmt: skip
+
+
+def test_a_drone_over_the_best_sector_is_not_retasked_away(spread) -> None:
+    store, mid, _ = spread
+    store.put_fleet(
+        mid,
+        FleetState(
+            simulated=True,
+            drones=[_drone("D1", "flying", "L900")],
+            legs=[_leg("L900", "D1", "B2")],
+            updated_at=NOW,
+        ),
+    )
+    assert loop._replan(store, mid, "After a clue in B2.") == []  # B2 is taken, and the best
+
+
+def test_legs_done_one_after_another_get_different_sectors(spread) -> None:
+    store, mid, _ = spread
+    legs = [_leg(f"L90{i}", f"D{i}", s, "done") for i, s in ((1, "A1"), (2, "A2"), (3, "A3"))]
+    _fleet(store, mid, _drone("D1"), _drone("D2"), _drone("D3"))
+    store.put_fleet(mid, store.state(mid)["fleet"].model_copy(update={"legs": legs}))
+    out = [p for leg in legs for p in _handle(store, mid, "leg_done", leg.id)]
+    assert len({p.leg.sector_id for p in out}) == 3  # each pending proposal counts as taken
+
+
 def test_a_sector_searched_at_a_pod_steps_the_map_and_replans(spread) -> None:
     store, mid, layout = spread
     _fleet(store, mid, _drone("D1"), _drone("D2"))
@@ -150,3 +179,25 @@ def test_a_team_position_assigns_that_team_and_fills_idle_drones_once(spread) ->
     assert [p.kind for p in out] == ["assign_sector", "drone_leg"]
     assert out[0].target["team"] == "T1" and out[1].target["drone"] == "D1"  # D2 is flying
     assert _handle(store, mid, "team_position", "T1") == []  # both already pending
+
+
+def test_the_fleet_joining_gets_opening_legs(spread) -> None:
+    store, mid, _ = spread
+    hooks = Hooks()
+    t = FleetTelemetry(drones=[_drone("D1"), _drone("D2"), _drone("D3")], leg_status={}, at=NOW)
+    effects.on_fleet(store, mid, t, hooks)
+    assert hooks.calls == [("on_fleet_join",)]
+    out = _handle(store, mid, "fleet_join", mid)
+    assert [p.kind for p in out] == ["drone_leg"] * 3
+    assert len({p.leg.sector_id for p in out}) == 3 and out[0].created_by == "planner"
+    assert "opening legs" in out[0].reason
+    effects.on_fleet(store, mid, t, hooks)  # telemetry after the join: no second opening
+    assert hooks.calls == [("on_fleet_join",)]
+    assert _handle(store, mid, "fleet_join", mid) == []  # already pending: nothing new
+
+
+def test_no_opening_legs_when_it_is_not_flyable(spread) -> None:
+    store, mid, _ = spread
+    store.put_conditions(mid, _conditions(flyable=False))
+    _fleet(store, mid, _drone("D1"))
+    assert _handle(store, mid, "fleet_join", mid) == []

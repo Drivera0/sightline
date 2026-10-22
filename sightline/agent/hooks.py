@@ -63,6 +63,11 @@ def on_team_position(store: Any, mission_id: str, team_id: str) -> None:
     _submit("team_position", store, mission_id, team_id)
 
 
+def on_fleet_join(store: Any, mission_id: str) -> None:
+    """The fleet joined the mission: the opening legs, one proposal per drone."""
+    _submit("fleet_join", store, mission_id, mission_id)
+
+
 def on_tick(store: Any, mission_id: str) -> None:
     """Every 5 min or 25 photos (D's scheduler): standby teams get ``assign_sector`` proposals."""
     _submit("tick", store, mission_id, mission_id)
