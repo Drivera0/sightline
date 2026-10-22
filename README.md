@@ -8,6 +8,8 @@ Sightline is the brain of a drone search for a missing person: it finds the like
 
 **[Live demo](https://sightline-iota-sandy.vercel.app) · [Demo mission](https://sightline-iota-sandy.vercel.app/#m/demo/command) · [Report](docs/report/OPENCV_REPORT.md) · [Architecture](docs/architecture/sightline-architecture.html) · [Run it](#reproduce-the-results-cpu-only-about-14-minutes)**
 
+**For judges:** a two-minute tour on the live site, [#judges](https://sightline-iota-sandy.vercel.app/#judges), and answers to the questions we expect, with their evidence, in [docs/JUDGE_QA.md](docs/JUDGE_QA.md).
+
 ![Sightline system architecture](docs/architecture/system.png)
 
 ## Results
@@ -27,7 +29,14 @@ uv run --extra ml python scripts/parity_table.py --splits test --device cpu \
   --pt data/weights/release_v2/yolo11s_tiles_run1_best.pt --onnx data/weights/release_v2/sightline-detector-v2.onnx
 ```
 
-- **The human row is a reference point, not a head-to-head.** Pyrrö, Naseri & Jung (2021, arXiv:2111.09406) quote it from Pyrrö's master's thesis: "the average human achieves roughly ... 59% PRC, 68% RCL and 33 s ATI, with less than around 200 images to inspect". They don't say who the people were or whether they saw these 101 photos. SAR-APD is loose on purpose (one box may cover a group; an IoU of 0.0025 counts), so every other number in this repo uses the strict VOC scoring. Report §7.1.
+Beyond the detector (simulated or with fake models where marked; every headline number with its source: report §9):
+
+| Result | Headline | Reproduce |
+|---|---|---|
+| Agent evaluation: the real mission API, worker, map, planner and agent driven over HTTP through the creek scenario and three variants, 3 runs each (fake models, scripted detector) | the drone, alert, team and promotion go to the person's sector or detection in every run (6/6, 9/9, 9/9, 3/3); approval-gate checks pass in 12 of 12 runs; Token Factory fully down costs about 82 s in all, not minutes per call ([AGENT_EVAL.md](docs/report/AGENT_EVAL.md)) | `uv run python scripts/agent_eval.py` (about 20 s) |
+| Fleet v2 (simulated): three drones, coordinated on one shared map vs a hand split of the area, with a clue at the start | found within 30 min in 22.7 % vs 20.0 % of trials (ideal), 15.9 % vs 11.5 % (realistic wind, battery, GPS and link loss), 13.5 % vs 10.0 % (harsh); level with no clue ([FLEET_V2.md](docs/report/FLEET_V2.md)) | `uv run python scripts/fleet_eval.py` (about 2 min) |
+
+- **The human row is a reference point, not a head-to-head.** Pyrrö, Naseri & Jung (2021, arXiv:2111.09406) quote it from Pyrrö's master's thesis: "the average human achieves roughly ... 59% PRC, 68% RCL and 33 s ATI, with less than around 200 images to inspect". They don't say who the people were or whether they saw these 101 photos. SAR-APD is loose on purpose (one box may cover a group; an IoU of 0.0025 counts), so every other number in this repo uses the strict VOC scoring. Report §3.9.
 - **Disclosure:** the threshold and every inference setting were chosen on the validation split, but two earlier model choices were made with test scores in view: keeping training run 2 over run 1, and dropping the hard-negative fine-tune (test F2 0.840 vs 0.850). The test numbers above are therefore slightly optimistic; **our best estimate of true test recall is about 0.86, the reported 0.864 or slightly below**, and 0.825 at the four test sites the model never saw. Since then every choice is made on validation only ([scripts/README.md](scripts/README.md)).
 - **GPU time** is from the evaluation run on an RTX 4080 SUPER (`detector_metrics.json`: 0.251 s); the separate OpenCV parity run on the same GPU measured 0.30 s for the same Torch path (report §3.1).
 - **Mirror-image experiment (not in the demo).** Running each photo and its mirror image and fusing the boxes passed our validation rule (val F2 0.857 vs 0.831, 95% CI of the gain [+0.004, +0.048]). Scored once on test it gave recall 0.858, precision 0.835, AP50 0.872 at 0.50 s per photo: within noise of the single view, with 2 fewer people found and twice the time. The demo's photos were detected single-view and there was no time to rebuild the demo and every number around it, so the single-view model stays the reported one. That last decision was made after the mirror test score was seen, so both are reported here. Details: [docs/LANE_A_ML.md](docs/LANE_A_ML.md) §6.3a.
@@ -178,6 +187,14 @@ The last command scores the 101 test photos twice, with Torch on the CPU (5.0 s 
 uv run python scripts/evaluate_model.py --weights data/weights/release_v2/yolo11s_tiles_run1_best.pt --final tiled
 uv run python scripts/analysis/detector_errors.py                                # the error analysis
 ```
+
+### Docker dress run (from nothing, about 13 minutes)
+
+```bash
+bash deploy/dressrun/run.sh          # needs Docker and git; writes runs/dressrun/<timestamp>/times.md
+```
+
+A clean image built from what a fresh clone has (no GPU, keys or HERIDAL download): it installs from the lock files, runs the tests (1108 passed, 4 skipped), the smoke test of the live loop, the demo cache's contract check, the mission API with the `cv2.dnn` detector and `remote_check.py` against it, and the web build. 805 s end to end on the machine above; the stage times and the judge's 10-minute path without Docker are in [deploy/dressrun/README.md](deploy/dressrun/README.md).
 
 `demo-cache` and `real-gps-cache` hold the two surveys the site shows; the Vercel build downloads both (`web/scripts/fetch-caches.sh`). `scripts/README.md` has the training runs and every ablation.
 
