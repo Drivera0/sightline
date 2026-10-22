@@ -21,6 +21,9 @@ weights/
 runs/
 datasets/
 
+# Live missions (MissionStore, contract §12)
+missions/
+
 # Secrets and environment
 .env
 .env*

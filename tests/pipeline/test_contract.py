@@ -187,7 +187,14 @@ def test_json_schema_export(tmp_path):
     out = tmp_path / "nested" / "contract.schema.json"
     export_json_schema(out)
     schema = json.loads(out.read_text())
-    assert set(schema["properties"]) == {"manifest", "survey", "detections", "map", "metrics", "mission"}
+    assert set(schema["properties"]) == {
+        "manifest",
+        "survey",
+        "detections",
+        "map",
+        "metrics",
+        "mission",
+    }
     assert "Proposal" in schema["$defs"]  # v1.2 live-mission models, for contract.ts
 
 

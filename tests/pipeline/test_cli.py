@@ -197,12 +197,17 @@ def test_serve_starts_the_upload_api_on_localhost_by_default(monkeypatch, tmp_pa
     monkeypatch.setattr("uvicorn.run", fake_run)
 
     result = invoke(
-        "serve", "--cache-root", str(tmp_path / "cache"), "--data-root", str(tmp_path / "up")
-    )
+        "serve",
+        "--cache-root", str(tmp_path / "cache"),
+        "--data-root", str(tmp_path / "up"),
+        "--mission-root", str(tmp_path / "missions"),
+    )  # fmt: skip
 
     assert result.exit_code == 0, result.output
     assert (started["host"], started["port"]) == ("127.0.0.1", 8000)
-    assert {route.path for route in started["app"].routes} >= {"/health", "/survey"}
+    paths = {route.path for route in started["app"].router.routes if hasattr(route, "path")}
+    assert paths >= {"/health", "/survey"}
+    assert (tmp_path / "missions").is_dir()  # the mission API is on too
 
 
 def test_serve_passes_the_weights_and_port_through(monkeypatch, tmp_path):
@@ -217,6 +222,8 @@ def test_serve_passes_the_weights_and_port_through(monkeypatch, tmp_path):
         "0.0.0.0",
         "--weights",
         "best.pt",
+        "--mission-root",
+        str(tmp_path / "missions"),
         "--cache-root",
         str(tmp_path / "c"),
         "--data-root",

@@ -7,6 +7,7 @@ and say so.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
@@ -309,12 +310,21 @@ def serve(
     weights: WeightsOption = None,
     candidate_threshold: ThresholdOption = 0.25,
     model_name: ModelNameOption = "yolo11s-heridal-tiled",
+    mission_root: Annotated[
+        Path, typer.Option(help="Where live missions are kept (the mission API, contract §13).")
+    ] = Path("missions"),
+    backend: Annotated[
+        str | None, typer.Option(help="Detector for live missions: cv2 (default) or torch.")
+    ] = None,
 ) -> None:
-    """Run the upload API: POST a zip of JPEGs to /survey, get a cache back."""
+    """Run the API: live missions under /missions (photos are processed by a worker thread),
+    and the sprint-1 upload (POST a zip of JPEGs to /survey, get a cache back)."""
     import uvicorn  # imported here so the other commands start without the web server stack
 
     from sightline.api.app import create_app
 
+    if backend:
+        os.environ["SIGHTLINE_BACKEND"] = backend
     api = create_app(
         cache_root=cache_root,
         data_root=data_root,
@@ -322,6 +332,7 @@ def serve(
         weights=weights,
         candidate_threshold=candidate_threshold,
         model_name=model_name,
+        mission_root=mission_root,
     )
     uvicorn.run(api, host=host, port=port)
 

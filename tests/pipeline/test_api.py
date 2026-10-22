@@ -70,7 +70,8 @@ def test_health_says_ok(api):
 
     response = client.get("/health")
 
-    assert response.status_code == 200 and response.json() == {"status": "ok"}
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok" and response.json()["contract_version"] == "1.2"
 
 
 def test_the_cache_folder_is_served_as_static_files(api):
