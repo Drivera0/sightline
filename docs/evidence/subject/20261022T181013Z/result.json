@@ -1,0 +1,30 @@
+{
+  "searched": true,
+  "why": "no page stated a lost-person category with a quote (https://globalnews.ca/news/4972616/hikers-mount-seymour-north-shore-rescue-avalanche, https://www.nsnews.com/[redacted]): no proposal",
+  "profile": {
+    "values": {
+      "age": null,
+      "category": null,
+      "last_seen_time": null,
+      "last_seen_place": "Mount Seymour",
+      "clothing": "snowshoeing"
+    },
+    "quotes": {
+      "last_seen_place": "Mount Seymour",
+      "clothing": "snowshoeing"
+    },
+    "urls": {
+      "last_seen_place": "https://globalnews.ca/news/4972616/hikers-mount-seymour-north-shore-rescue-avalanche",
+      "clothing": "https://globalnews.ca/news/4972616/hikers-mount-seymour-north-shore-rescue-avalanche"
+    },
+    "sources": [
+      "https://globalnews.ca/news/4972616/hikers-mount-seymour-north-shore-rescue-avalanche",
+      "https://www.nsnews.com/[redacted]"
+    ],
+    "query": "Mount Seymour missing",
+    "fetched_at": "2026-10-22T18:10:03Z",
+    "cached": false,
+    "error": null,
+    "redacted": true
+  }
+}

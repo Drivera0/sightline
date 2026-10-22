@@ -1,0 +1,36 @@
+{
+  "searched": true,
+  "why": "proposed",
+  "profile": {
+    "values": {
+      "age": 20,
+      "category": "hiker/temperate_mountainous",
+      "last_seen_time": "Nov. 18",
+      "last_seen_place": "North Shore",
+      "clothing": "equipped for a hike"
+    },
+    "quotes": {
+      "age": "20-year-old hiker",
+      "category": "hiker",
+      "last_seen_time": "Nov. 18",
+      "last_seen_place": "North Shore",
+      "clothing": "equipped for a hike"
+    },
+    "urls": {
+      "age": "https://www.nsnews.com/local-news/missing-hikers-body-found-in-lynn-headwaters-creek-2921113",
+      "category": "https://www.nsnews.com/local-news/missing-hikers-body-found-in-lynn-headwaters-creek-2921113",
+      "last_seen_time": "https://www.nsnews.com/local-news/missing-hikers-body-found-in-lynn-headwaters-creek-2921113",
+      "last_seen_place": "https://www.nsnews.com/local-news/missing-hikers-body-found-in-lynn-headwaters-creek-2921113",
+      "clothing": "https://www.nsnews.com/local-news/missing-hikers-body-found-in-lynn-headwaters-creek-2921113"
+    },
+    "sources": [
+      "https://www.nsnews.com/local-news/hiker-found-dead-in-lynn-headwaters-2914625",
+      "https://www.nsnews.com/local-news/missing-hikers-body-found-in-lynn-headwaters-creek-2921113"
+    ],
+    "query": "Lynn Headwaters Regional Park missing",
+    "fetched_at": "2026-10-22T18:10:46Z",
+    "cached": false,
+    "error": null,
+    "redacted": true
+  }
+}

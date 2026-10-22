@@ -1,0 +1,16 @@
+{
+  "mission": {
+    "mission": "Lynn Headwaters Regional Park: missing person",
+    "area": "Lynn Headwaters Regional Park",
+    "last_known_point": {
+      "lat": 49.37,
+      "lon": -123.03
+    },
+    "last_seen_at": null,
+    "mission_started": "2026-10-22",
+    "mode": "live",
+    "subject": "not given",
+    "prior": "uniform (no lost-person category)"
+  },
+  "query_written_by_model": "Lynn Headwaters Regional Park missing"
+}
