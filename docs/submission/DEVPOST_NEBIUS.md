@@ -104,9 +104,9 @@ A Jetson field kit without internet; thermal for night searches; real drone phot
 2. `docs/report/OPENCV_REPORT.md:417-429`
 3. `docs/report/OPENCV_REPORT.md:350-355`; `docs/LANE_A_ML.md:314`
 4. `docs/report/OPENCV_REPORT.md:395-403`
-5. `docs/feedback/nebius.md:26-29`
+5. `docs/feedback/nebius.md:71-74`
 6. `docs/feedback/radio.md:84`, `:101`
-7. `docs/feedback/nebius.md:116-119`; `README.md:80`
+7. `docs/feedback/nebius.md:173-176`; `README.md:80`
 8. `docs/report/OPENCV_REPORT.md:466-467`, `:512-514`
 9. `README.md:33`; `docs/architecture/agent.md` ("A second chain"); `scripts/creek_run.py`, `scripts/retask_chain.py`
 10. Ultralytics, "NVIDIA Jetson" guide, Orin Nano Super benchmark table, YOLO26n, TensorRT FP16 (https://docs.ultralytics.com/guides/nvidia-jetson/, read 2026-10-22)
