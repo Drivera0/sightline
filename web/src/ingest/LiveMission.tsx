@@ -156,7 +156,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           type="button"
           aria-pressed={tab === t.id}
           onClick={() => go(t.id)}
-          className={`rounded-full px-3.5 py-1 text-small transition-colors ${tab === t.id ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--border)]" : "text-text-2 hover:text-text"}`}
+          className={`sl-tap rounded-full px-3.5 py-1 text-small transition-colors ${tab === t.id ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--border)]" : "text-text-2 hover:text-text"}`}
         >
           {t.label}
           {t.id === "approvals" && waiting > 0 && <span className="ml-1.5 font-mono text-accent">{waiting}</span>}
@@ -343,10 +343,10 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
 
 /** The app's top line on mission pages: the logo back to the start, and the way back to the guided demo. */
 function AppBar({ demo, children, onShortcuts }: { demo: boolean; children?: ReactNode; onShortcuts: () => void }) {
-  const link = "text-text-2 underline-offset-4 hover:text-text hover:underline";
+  const link = "sl-tap inline-flex items-center text-text-2 underline-offset-4 hover:text-text hover:underline";
   return (
     <nav aria-label="Sightline" className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-2">
-      <a href="#" className="flex items-center gap-2 text-body font-medium text-text" title="Back to the start">
+      <a href="#" className="sl-tap flex items-center gap-2 text-body font-medium text-text" title="Back to the start">
         <Logo />
         Sightline
       </a>

@@ -23,7 +23,7 @@ export function StepBar({ value, onChange }: { value: StepId; onChange: (id: Ste
                 onClick={() => onChange(step.id)}
                 title={step.hint}
                 className={
-                  "inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2 text-small transition-colors lg:px-3 " +
+                  "sl-tap inline-flex h-8 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2 text-small transition-colors lg:px-3 " +
                   (isCurrent
                     ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--border)]"
                     : isDone

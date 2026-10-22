@@ -188,7 +188,7 @@ function Step({ e, stage, imageUrl }: { e: TraceEntry; stage: string | null; ima
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="grid w-full grid-cols-[5.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 px-4 py-2 text-left hover:bg-surface md:grid-cols-[6.5rem_5.5rem_minmax(0,12rem)_minmax(0,1fr)_minmax(0,1fr)_4rem]"
+        className="sl-tap grid w-full grid-cols-[5.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 px-4 py-2 text-left hover:bg-surface md:grid-cols-[6.5rem_5.5rem_minmax(0,12rem)_minmax(0,1fr)_minmax(0,1fr)_4rem]"
       >
         <span className="text-caption text-text-3">{stage ?? ""}</span>
         <span>

@@ -12,7 +12,7 @@ import { HONESTY, JUDGE_LINKS, JUDGES, VIDEOS } from "./judges";
 function Ext({ href, children }: { href: string; children: ReactNode }) {
   const external = href.startsWith("http");
   return (
-    <a href={href} {...(external ? { target: "_blank", rel: "noreferrer" } : {})} className="text-text underline decoration-text-3 underline-offset-4 hover:decoration-text">
+    <a href={href} {...(external ? { target: "_blank", rel: "noreferrer" } : {})} className="sl-tap inline-flex min-w-10 items-center text-text underline decoration-text-3 underline-offset-4 hover:decoration-text">
       {children}
       {external && <span aria-hidden> ↗</span>}
     </a>
@@ -63,7 +63,7 @@ export function JudgesPage() {
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-10 px-4 py-8 lg:py-12">
       <header className="flex flex-col gap-4">
-        <a href="#" className="flex items-center gap-2 text-body font-medium text-text" title="Back to the start">
+        <a href="#" className="sl-tap flex items-center gap-2 text-body font-medium text-text" title="Back to the start">
           <Logo />
           Sightline
         </a>
@@ -128,7 +128,7 @@ export function JudgesPage() {
         <Label>What is simulated, what is real</Label>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-solid p-4">
-            <StatusPill tone="caution">Simulated</StatusPill>
+            <StatusPill tone="caution" className="self-start">Simulated</StatusPill>
             <ul className="flex list-disc flex-col gap-1 pl-5 text-small text-text-2">
               {HONESTY.simulated.map((s) => (
                 <li key={s}>{s}</li>
@@ -136,7 +136,7 @@ export function JudgesPage() {
             </ul>
           </div>
           <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-solid p-4">
-            <StatusPill tone="ok">Real</StatusPill>
+            <StatusPill tone="ok" className="self-start">Real</StatusPill>
             <ul className="flex list-disc flex-col gap-1 pl-5 text-small text-text-2">
               {HONESTY.real.map((s) => (
                 <li key={s}>{s}</li>
