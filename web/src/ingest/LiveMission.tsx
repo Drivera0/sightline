@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
-import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent, TraceEntry } from "../contract";
+import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent, Proposal, TraceEntry } from "../contract";
+import { clueLine, clueShifts } from "../command/clueShift";
 import { AssignmentCardView } from "../command/AssignmentCardView";
 import { CoachMark } from "../command/CoachMark";
 import { Debrief } from "../command/Debrief";
@@ -23,7 +24,7 @@ import { photoProgress, useMission } from "../lib/mission";
 import { clockWithZone, ClockZone, DEMO_TZ, utcLabel } from "../lib/time";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
-import { DEMO_CACHE, DEMO_MISSION_ID, demoConditionsData, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
+import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
 import type { ConditionsData } from "../command/ConditionsPanel";
 import { TraceView, type TraceRun } from "../command/TraceView";
@@ -260,8 +261,11 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
     getHealth(api).then((h) => setRadioOn(!!h.radio), () => setRadioOn(false));
   }, [api, demo]);
 
-  const imageUrl = (rel: string) => (demo ? `${DEMO_CACHE}/${rel}` : fileUrl(api, missionId, rel));
+  const imageUrl = (rel: string) => (demo ? demoImageUrl(rel) : fileUrl(api, missionId, rel));
   const conditionsData = useConditionsData(api, missionId, demo, s.conditions, s.fleet);
+  // which clues moved each sector, from the map log: a line on an assignment's card (clueShift.ts)
+  const shifts = useMemo(() => (s.mapBase && s.sectors.length ? clueShifts(s.mapBase, s.mapUpdates, s.sectors, s.clues) : null), [s.mapBase, s.mapUpdates, s.sectors, s.clues]);
+  const clueNote = (p: Proposal) => clueLine(shifts?.get(String(p.target.sector ?? "")));
   const clockZone = useMemo(() => ({ tz: demo ? DEMO_TZ : false }), [demo]);
   const demoNow = useMemo(() => (demo ? new Date(clockIso) : undefined), [demo, clockIso]);
   const waiting = s.proposals.filter((p) => p.status === "pending").length;
@@ -504,6 +508,7 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
             clues={s.clues}
             proposals={s.proposals}
             imageUrl={imageUrl}
+            clueNote={clueNote}
             onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
             onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
             onAddClue={(draft) => useMission.getState().addClue(draft)}
@@ -673,7 +678,7 @@ function TraceTab({ api, missionId, demo }: { api: Api; missionId: string; demo:
     <div className="flex flex-col gap-3">
       <p className="text-small text-text-2">
         Every step the agent took, grouped from what it saw to what a person decided: perception → decision → action → approval. Open a step for its full input and output.
-        {demo && " The demo mission's proposals are fixtures with no trace, so this shows two recorded runs from the repository instead."}
+        {demo && " On the demo: this mission's own trace (generated offline with fake models and scripted people, as labelled), then two runs recorded live, copied from the repository."}
       </p>
       {error && (
         <p role="alert" className="text-small text-caution">

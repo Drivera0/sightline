@@ -15,7 +15,7 @@ const entry = (over: Partial<TraceEntry>): TraceEntry => ({
 describe("trace helpers", () => {
   it("reads the showcase chain as one chain, perception → decision → action → approval", async () => {
     const { runs } = await loadDemoTrace();
-    const [showcase, conditions] = runs;
+    const [, showcase, conditions] = runs; // the demo mission's own trace first
     expect(showcase!.entries).toHaveLength(6);
     const [c] = chains(showcase!.entries);
     expect(chains(showcase!.entries)).toHaveLength(1);
@@ -29,7 +29,7 @@ describe("trace helpers", () => {
 
   it("says each step in one line", async () => {
     const { runs } = await loadDemoTrace();
-    const [note, tool, model, verdict, proposal, decision] = runs[0]!.entries;
+    const [note, tool, model, verdict, proposal, decision] = runs[1]!.entries;
     expect(spanName(tool!)).toBe("zoom_native");
     expect(spanName(model!)).toBe("nvidia/Nemotron-3.5-Super-VL");
     expect(stageOf(model!)).toBe("perception"); // the VL model looks; the verdict decides
@@ -39,7 +39,7 @@ describe("trace helpers", () => {
     expect(outputSummary(decision!)).toBe("p001 approved");
     expect(outputSummary(proposal!)).toMatch(/^p001 promote_detection: Detector confidence 0.18/);
     expect(inputSummary(note!)).toBe("photo train_ZRI_2061");
-    const conditions = runs[1]!.entries;
+    const conditions = runs[2]!.entries;
     expect(spanName(conditions[0]!)).toBe("Tavily search (forecast)");
     expect(outputSummary(conditions[4]!)).toBe("wind_kmh 20 (“NW 20”) · gust_kmh 40 (“gusts 40”) · 0 alerts");
   });
@@ -75,7 +75,7 @@ describe("TraceView", () => {
     const outcome = within(chain).getByText(/p001 promote_detection → approved by a script, not a person/);
     expect(outcome.closest("[data-tone]")).toHaveAttribute("data-tone", "caution");
     expect(within(chain).getByRole("listitem", { name: "Approval t000006" }).querySelector("[data-tone]")).toHaveAttribute("data-tone", "caution");
-    expect(strip).toHaveTextContent("0 decided by a person · 1 scripted approval (demo run)");
+    expect(strip).toHaveTextContent("0 decided by a person · 5 scripted approvals (demo run)"); // the demo mission's 4 and the showcase's 1
     const step = within(chain).getByRole("listitem", { name: "Model t000003" });
     expect(step).toHaveTextContent("1.4 s");
     await userEvent.click(within(step).getByRole("button"));

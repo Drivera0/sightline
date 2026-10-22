@@ -31,6 +31,8 @@ export interface TraceRun {
   /** A recorded run's name and where it is in the repo; null for the live mission's own trace. */
   label: string | null;
   source: string | null;
+  /** How the run is labelled: Recorded (a run copied from the repo, the default) or Demo (the demo mission's own, generated). */
+  mode?: "replay" | "demo";
   entries: TraceEntry[];
 }
 
@@ -113,7 +115,7 @@ function RunView({ run, imageUrl }: { run: TraceRun; imageUrl?: (rel: string) =>
     <div className="flex flex-col gap-3" aria-label={run.label ?? "This mission's trace"}>
       {run.label && (
         <div className="flex flex-wrap items-center gap-2">
-          <ModeChip mode="replay" />
+          <ModeChip mode={run.mode ?? "replay"} />
           <span className="text-small text-text">{run.label}</span>
           {run.source && <code className="font-mono text-caption text-text-3">{run.source}</code>}
         </div>

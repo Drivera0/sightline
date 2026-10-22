@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import type { MapFile } from "../contract";
 import fixture from "./__fixtures__/demo_mission.json";
-import { cacheBase, loadDemoMission } from "./demoMission";
+import { cacheBase, demoImageUrl, loadDemoMission, loadDemoTrace } from "./demoMission";
+import { chains } from "./trace";
 
 const map = {
   contract_version: "1.2",
@@ -17,20 +18,38 @@ const map = {
 } as unknown as MapFile;
 
 describe("demo mission", () => {
-  it("has every task state, radio and form clues, and two proposals waiting with real crops", () => {
+  it("has every task state, radio and form clues, and a promotion waiting with the second look's images", () => {
     const states = new Set(fixture.tasks.map((t) => t.state));
     expect(states).toEqual(new Set(["proposed", "assigned", "in_progress", "searched"]));
-    expect(fixture.tasks).toHaveLength(8);
+    expect(fixture.tasks).toHaveLength(16);
     expect(fixture.clues.filter((c) => c.source === "radio")).toHaveLength(2);
-    expect(fixture.clues).toHaveLength(5);
+    expect(fixture.clues).toHaveLength(4);
     const pending = fixture.proposals.filter((p) => p.status === "pending");
-    expect(pending).toHaveLength(2);
-    expect(pending.flatMap((p) => p.evidence).some((e) => e.kind === "crop" && e.ref.startsWith("crops/f"))).toBe(true);
+    expect(pending.map((p) => p.kind)).toEqual(["promote_detection"]);
+    const images = pending.flatMap((p) => p.evidence).filter((e) => e.kind === "crop" || e.kind === "relook");
+    expect(images.length).toBeGreaterThan(0);
+    for (const e of images) expect(demoImageUrl(e.ref)).not.toMatch(/^\/cache\//); // shipped with the fixtures
     expect(fixture.sectors).toHaveLength(16);
     expect(JSON.stringify(fixture)).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 
-  it("turns the cache's steps into the map log, then the ground searches", async () => {
+  it("every proposal has its chain in the demo's own trace: the calls that led to it, the proposal, the decision", async () => {
+    const { runs } = await loadDemoTrace();
+    const own = runs[0]!;
+    expect(own.label).toMatch(/fake models/);
+    const groups = chains(own.entries);
+    for (const p of fixture.proposals) {
+      const c = groups.find((g) => g.entries.some((e) => e.kind === "proposal" && e.refs.includes(p.id)));
+      expect(c, p.id).toBeDefined();
+      const kinds = c!.entries.map((e) => e.kind);
+      expect(kinds).toContain("model_call");
+      if (p.kind === "promote_detection") expect(kinds).toContain("tool_call"); // the OpenCV re-look
+      if (p.status !== "pending") expect(kinds).toContain("decision");
+      for (const e of c!.entries.filter((x) => x.kind === "model_call")) expect(e.model).toMatch(/^fake\//);
+    }
+  });
+
+  it("turns the cache's steps into the map log, then the clues and the ground searches", async () => {
     const fetchFn = (async () => new Response(JSON.stringify(map))) as unknown as typeof fetch;
     const { data, now } = await loadDemoMission(fetchFn);
     expect(now).toBe(fixture.now);
@@ -40,7 +59,8 @@ describe("demo mission", () => {
       [1, "step", "frame", "f0001"],
       [2, "step", "frame", "f0002"],
     ]);
-    expect(ups.slice(2).every((u) => u.source === "ground")).toBe(true);
+    expect(ups.slice(2).map((u) => u.source)).toEqual(["clue", "clue", "clue", "clue", "ground", "ground"]);
+    expect(ups.slice(2).map((u) => u.seq)).toEqual([501, 502, 503, 504, 505, 506]); // after the cache's 500 frames
     expect(data.mission?.mode).toBe("demo");
   });
 
