@@ -6,7 +6,7 @@
 > simulated, and what we could not verify is marked. Lead: Dan (lane A). Every claim, its file and line, and how to regenerate it: [`EVIDENCE_INDEX.md`](EVIDENCE_INDEX.md).
 
 Repository: https://github.com/Drivera0/sightline (tag `opencv-submit`) · Live demo:
-https://sightline-iota-sandy.vercel.app (demo; `#judges` is a one-screen summary for judges) · Live
+https://sightline-iota-sandy.vercel.app (the console on a demo mission at t0; **Follow the search** plays it, and the Debrief's list for judges is `#m/demo?t=5&judges`, where the old `#judges` redirects) · Live
 mission API on AWS: https://44-227-39-234.sslip.io (started for demos and judging; `GET /health`).
 
 | § | Section | Rubric line it answers |
@@ -42,7 +42,7 @@ voice over the radio. It assists searchers and **never declares an area clear**.
 
 | User | Question | Where Sightline answers it |
 |---|---|---|
-| Search manager | Where do I send drones and teams next, and why? | Command view: map, proposals with reasons, approvals |
+| Search manager | Where do I send drones and teams next, and why? | The console: map, proposals with reasons, approvals |
 | Image reviewer | Show me the likeliest person first. | Review queue, with a second look on uncertain crops |
 | Ground team leader | Where do I go, what am I looking for, what changed? | Assignment card, GPX, radio |
 
@@ -53,21 +53,21 @@ reviewer confirmed the person in the crop, the agent proposed an assignment for 
 each with its reason, evidence and a radio briefing. A person approves, edits or rejects (with a reason); an
 approved briefing waits in the radio's outbound queue until the operator presses Transmit.*
 
-![Front door](../architecture/screens/front-door.png)
+![The console at t0](figures/one-console/t0-d.webp)
 
-*The front door, the default page: who it is for, how photos get in (after each landing from the SD card,
-or during the flight), and that the demo's flight is simulated, before anything is clicked.*
+*The landing (`#`): the console on the demo mission at t0, the call, with a two-line pitch and Follow the search; the
+DEMO chip and SIM labels say what is simulated, and the About sheet (`#about`) says who it is for and how photos get in.*
 
-![Command view](../architecture/screens/command-view.png)
+![The console on a live mission](../architecture/screens/command-view.png)
 
-*The command view on a live mission (HERIDAL validation photos at their site near Mostar; conditions from
+*The console's map on a live mission, before the one-console bar of #171 (HERIDAL validation photos at their site near Mostar; conditions from
 Tavily; Nemotron): sectors move from proposed to searched with a POD (never "cleared"), each with its
 probability on the live map and its drone coverage; the teams with their positions' age; the agent's
 proposal waiting for approval; the clue log.*
 
 ![Live map](../architecture/screens/live-map.png)
 
-*The live map above the command view (Mount Seymour test mission with synthetic drone photos): the heat is
+*The live map in the console (Mount Seymour test mission with synthetic drone photos): the heat is
 rebuilt from the mission's map log and changes with each photo; grey cells have not been photographed; the
 sectors show their probability now, with the last-known point, a clue and a team's position.*
 
@@ -105,7 +105,7 @@ The figure shows the original batch pipeline (BCS). Live missions (contract v1.2
 
 The `MissionStore` is the only writer of mission files and checks every write against the contract;
 `validate_mission()` checks the invariants (no "clear", POD caps, decisions recorded, radio clues
-confirmed). The search manager approves every move in the command view and sees each change over
+confirmed). The search manager approves every move in the console and sees each change over
 server-sent events. Locally the queue is a thread in the API process; on AWS (§4) it is SQS and a
 separate worker container, with the API keys in Secrets Manager. The agent's own workflow
 (perception → decision → action → human approval → effect) is figure 3, in §5.1. All four figures, with
@@ -496,7 +496,7 @@ printed by `scripts/trace_excerpt.py`, is in `docs/architecture/agent.md`):
 | 5 `agent` proposal | `loop.py` `_on_detection` | `p001 promote_detection`, with the reason | — | pending in the approval inbox |
 | 6 `human` decision | — | approved (scripted for this run, and the trace says so) | — | the detection joins the review queue |
 
-**The Trace tab.** The same chains are in the product: on any mission page, `#m/<id>/trace`
+**The Trace view.** The same chains are in the product: on any mission's console, `#m/<id>/trace`
 (`web/src/command/TraceView.tsx`) polls `GET /missions/{id}/trace` and groups the entries into chains by
 the ids they share (perception → decision → action → approval), one line per step (span type, tool or
 model, input, output, ms), each opening to its full input, output and images, with the proposal each
@@ -587,7 +587,7 @@ add the model time (the VL verdict above).
   person; every rejection has a reason; no proposal or verdict says "clear"; `validate_mission` passes.
 - **Observability:** every tool call (image path, time, the heuristics that chose it), model call
   (model, prompt version, latency, tokens, reply, retries), verdict, proposal and decision is a line in the
-  mission's `trace.jsonl`, shown in the Trace tab (§5.2); images by path, never base64; API keys redacted (tested).
+  mission's `trace.jsonl`, shown in the Trace view (§5.2); images by path, never base64; API keys redacted (tested).
 - **Human control:** proposals only; no dismissals; the fleet and the radio act only on approved
   proposals; every decision records who and when.
 - **Tests:** `uv run pytest tests/ml tests/agent tests/radio`, no network or keys needed.
@@ -777,14 +777,14 @@ What it changes, each with its test (`docs/report/TAVILY.md`, "What the conditio
 civil twilight"), so the planner proposed no legs. An earlier run that evening also found a fog advisory
 (visibility factor 0.6) and gave the same values on two runs (`sightline/geo/README.md`). Neither mission had
 a fleet in the air, so the recall itself is shown by the test above, not by a live run. Every Tavily call and every extracted value with its quote and source URL is in
-the mission trace (`actor="conditions"`) and in the Trace tab. Conditions add no OpenCV calls.
+the mission trace (`actor="conditions"`) and in the Trace view. Conditions add no OpenCV calls.
 
 ## 8. Radio desk
 
 Ground teams don't watch a screen. The radio desk puts Sightline on a **secondary voice channel
 under the comms operator** (`sightline/radio/`, `web/src/radio/`): a team asks "say again the sector
 boundary" or reports "found a blue backpack by the creek, our position", and Sightline answers by
-voice from the same mission state the command view shows. Three NVIDIA models, one per step:
+voice from the same mission state the console shows. Three NVIDIA models, one per step:
 Parakeet TDT 0.6B v2 (speech to text, on the GPU desktop), Nemotron 3 Super with tools on Token
 Factory (thinking off), Magpie TTS (text to speech, spoken sentence by sentence).
 
@@ -894,7 +894,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
   verbatim from a page and it is in range, so a forecast phrased unusually leaves the field empty rather
   than guessed; offline, the last values are shown as stale with their time, or nothing. The visibility
   factor and the exposure band (and the shelter shift it triggers) are planning heuristics, labelled so
-  in the command view.
+  in the console.
 - **Detection falls with person size and image quality** (`docs/report/POD.md`, val, frozen threshold
   0.29, `cv2.dnn`): recall is 0.64 for a person about 18 px across, 0.74 at 22 px, 0.81 at 27 px and
   0.87–0.89 from 37 px up; under 20 px it found 38 of 61 people. One degradation at a time, recall goes
@@ -1110,7 +1110,7 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
   the INT8 QDQ experiment (§3.3);
 - **OpenCV 5 re-look tools** and a Nemotron VL second look on uncertain detections (§3.5, §5);
 - the **agent loop**: verdicts, planner legs, clues and conditions become proposals a person
-  approves, every step traced and shown in the Trace tab (§5); its evaluation, and the reliability fixes it
+  approves, every step traced and shown in the Trace view (§5); its evaluation, and the reliability fixes it
   led to (§5.4, §5.5);
 - the **radio desk**: ground teams talk to Sightline on a secondary channel; questions answered
   from the mission, clues reported by voice and logged only after a readback (§8);
@@ -1123,7 +1123,7 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
 - conditions from live web search (Tavily): forecast, warnings and park alerts, each value kept only
   with a verbatim quote; they decide whether drones may fly, how much a photo can see, how exposed the
   person is, and what briefings say (§7);
-- the front door, New search, and the live mission's command view: task board, teams, approval inbox,
+- one console (the demo's story at `#m/demo?t=0..5`, the About sheet, New search at `#new`, and the live mission's views): task board, teams, approval inbox,
   clue log, live map with the drones, teams and clues, and printable assignment cards with GPX/KML for
   the teams' handheld GPS (§1);
 - a **simulated drone fleet**, one process per drone, that flies approved legs and sends its photos through

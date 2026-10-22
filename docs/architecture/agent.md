@@ -265,7 +265,7 @@ change an `unclear` ended the chain. Now the agent asks for a better photo of th
   chain. It is never re-looked again, even if still `unclear`.
 
 Every step is a trace `note` with `output.type = "relook"`, and the chain id is in its output and
-refs. `chain_id` is `relook-<detection id>`, and the Trace tab groups by shared refs:
+refs. `chain_id` is `relook-<detection id>`, and the Trace view groups by shared refs:
 
 | `output.step` | Fields (besides `type`, `chain_id`, `step`) |
 |---|---|
@@ -389,8 +389,8 @@ secrets in the trace (test 7).
   `trace.jsonl` with model, ms and tokens; keys are redacted. Injected failures (Token Factory down or
   slow, malformed replies, Tavily down, a photo with no GPS, repeated events) are handled and traced, and
   the approval-gate checks pass in 12 of 12 runs (`docs/report/AGENT_EVAL.md`).
-- **UX, documentation, demonstration (10 %).** The approval inbox and command view
+- **UX, documentation, demonstration (10 %).** The approval inbox and the console
   (`docs/architecture/screens/approval-inbox.png`), this page, report §5 and two reproducible chains
-  (`scripts/av_chain.py`, `scripts/retask_chain.py`). The Trace tab shows each chain in the product
+  (`scripts/av_chain.py`, `scripts/retask_chain.py`). The Trace view shows each chain in the product
   (`#m/<id>/trace`, `web/src/command/TraceView.tsx`; `#m/demo/trace` without a server). The gap we know
   about: the recorded approvals are scripted until the video run.
