@@ -12,6 +12,9 @@ import { NewSearch } from "./NewSearch";
 import { batches, photoFiles, uploadCommand } from "./upload";
 import { UploadPanel } from "./UploadPanel";
 
+// MapLibre needs WebGL, which jsdom lacks; the real pick was checked in Chromium.
+vi.mock("./LkpPicker", () => ({ LkpPicker: () => <div aria-label="Pick the last known position on the map" /> }));
+
 const API = { base: "http://api.test" };
 const jpeg = (name: string) => new File(["x"], name, { type: "image/jpeg" });
 
@@ -67,9 +70,17 @@ describe("upload (test 9)", () => {
     expect(screen.getByLabelText("Rejected files")).toHaveTextContent("phone.jpg: no GPS position");
   });
 
+  it("offers the map to pick the last known position", async () => {
+    render(<NewSearch api={API} onCreated={vi.fn()} createMission={vi.fn()} />);
+    const button = screen.getByRole("button", { name: "Pick on the map" });
+    await userEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByText(/Click where the person was last seen/)).toBeInTheDocument();
+  });
+
   it("puts the mission id in the command for the laptop", () => {
     expect(uploadCommand("https://api.example.org", "a1b2c3d4")).toBe(
-      'curl -F "files=@DJI_0001.JPG" https://api.example.org/missions/a1b2c3d4/photos',
+      "uv run python -m sightline.client watch PHOTO_FOLDER --api https://api.example.org --mission a1b2c3d4",
     );
   });
 });

@@ -20,7 +20,8 @@ export function batches<T>(items: readonly T[], size = BATCH): T[][] {
   return out;
 }
 
-/** The command an operator runs on the laptop the drone's photos land on (copy button). */
+/** The command an operator runs on the laptop the drone's photos land on (copy button): lane B's
+ * `watch` client uploads each photo once its copy has finished, and queues while offline. */
 export function uploadCommand(apiBase: string, missionId: string): string {
-  return `curl -F "files=@DJI_0001.JPG" ${apiBase || "http://127.0.0.1:8000"}/missions/${missionId}/photos`;
+  return `uv run python -m sightline.client watch PHOTO_FOLDER --api ${apiBase || "http://127.0.0.1:8000"} --mission ${missionId}`;
 }

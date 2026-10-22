@@ -177,8 +177,8 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
           <Panel className="flex flex-col gap-2" aria-label="During the flight">
             <Label>During the flight</Label>
             <p className="text-body text-text-2">
-              From the laptop the drone's photos land on, send each one as it arrives (lane B's <code>watch</code> command will do
-              this for a folder):
+              On the laptop the drone's photos land on, watch the folder: each photo is sent once its copy has finished, batches of up
+              to 10, and kept in a queue while there is no connection (replace PHOTO_FOLDER with the SD card or sync folder):
             </p>
             <code className="block overflow-x-auto rounded-sm bg-surface-strong p-2 font-mono text-small text-text">{uploadCommand(api.base, missionId)}</code>
             <button
