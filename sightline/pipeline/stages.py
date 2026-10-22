@@ -119,12 +119,37 @@ def frames_stage(ctx: Context) -> None:
     write_survey(frames, truth, images, ctx.survey_dir)
 
 
+def _source_gsd(test_dir: Path, name: str) -> float | None:
+    """GSD of a source photo from its EXIF pose (lane B's `read_pose`), or None without one."""
+    from sightline.geo.pose import read_pose
+
+    for path in (test_dir / "images" / name, test_dir / name):
+        if path.is_file():
+            try:
+                info = read_pose(path)
+            except (OSError, ValueError):
+                return None
+            return info.pose.gsd_m if info else None
+    return None
+
+
 def place_stage(ctx: Context) -> None:
-    """Give every frame a pose and a footprint (lane B, or the placeholder flight)."""
+    """Give every frame a pose and a footprint (lane B, or the placeholder flight).
+
+    The flight is simulated, but the detector runs on 1:1 crops of the real photos, so a frame's
+    `detector_gsd_m` is its source photo's own GSD (EXIF), not the simulated pose's."""
     ids = _frame_ids(ctx)
     flight = ctx.lanes.flight(len(ids), ctx.seed)
+    entries = read_json(ctx.survey_dir / "frames.json", SurveyFrameFile, produced_by="frames").root
+    source = {e.id: e.source_image for e in entries}
+    test_dir = ctx.test_dir or _default_test_dir(ctx.data)
+    gsd = {name: _source_gsd(test_dir, name) for name in sorted(set(source.values()))}
     frames = {
-        frame_id: PlacedFrame(pose=pose, footprint=ctx.lanes.footprint(pose))
+        frame_id: PlacedFrame(
+            pose=pose,
+            footprint=ctx.lanes.footprint(pose),
+            detector_gsd_m=gsd.get(source.get(frame_id, "")),
+        )
         for frame_id, pose in zip(ids, flight.poses, strict=True)
     }
     write_json(
@@ -232,6 +257,7 @@ def map_stage(ctx: Context) -> None:
             footprint=place.frames[frame_id].footprint,
             flight_index=index,
             candidates=candidates.get(frame_id, ()),
+            detector_gsd_m=place.frames[frame_id].detector_gsd_m,
         )
         for frame_id, index in sorted(flight_index.items(), key=lambda item: item[1])
     ]

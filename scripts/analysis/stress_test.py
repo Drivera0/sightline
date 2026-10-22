@@ -28,10 +28,17 @@ Conditions (one parameter changed at a time, applied to the 4000x3000 original):
 Person size is the **shorter side of the labelled box** in pixels. "Recall by size" is reported on
 the original val boxes (``size_bins``) and, for the POD curve, pooled over the original and the
 downscaled conditions with each box's size multiplied by the downscale factor (``curve``): the
-originals have no person under 25 px, the downscales reach 12 px. The curve's points are made
-monotone (non-decreasing in size) by pool-adjacent-violators weighted by the number of people;
-``--write-curve`` copies it to ``sightline/search/pod_curve.json``, which ``sightline.search.pod``
-reads.
+originals have no person under 25 px, the downscales reach 12 px. Bins with at least
+``CURVE_MIN_PEOPLE`` people are curve points; a bin below the smallest of them with at least
+``CURVE_LOW_N_MIN_PEOPLE`` is added as a point labelled ``low_n`` (the only measurement of the
+smallest sizes; under it ``sightline.search.pod`` falls to 0 at ``DETECTION_FLOOR_PX``). The
+points are made monotone (non-decreasing in size) by pool-adjacent-violators weighted by the number
+of people; ``--write-curve`` copies them to ``sightline/search/pod_curve.json``, which
+``sightline.search.pod`` reads.
+
+``box_size_m``: the labelled val boxes' shorter side in metres, at the EXIF GSD of each photo that
+has a pose (``sightline.geo.pose.read_pose``); its median is ``pod.PERSON_WIDTH_M``. ``sensitivity``
+reads the curve at 2 and 3 cm/px for several assumed widths.
 
 Resumable: each condition's boxes are cached per photo in ``<cache>/<onnx stem>/<condition>.jsonl``
 (all boxes at conf >= 0.05); a rerun skips what is there. Writes ``<out>/<ts>/pod.json`` and
@@ -62,6 +69,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from sightline.search.pod import DETECTION_FLOOR_PX
+
 THRESHOLD = 0.29  # frozen on val in sprint 1; never re-chosen here
 FOG_GREY = 192
 DUSK_BRIGHTNESS = 0.6  # brightness -40 %
@@ -79,7 +88,10 @@ CURVE_BINS = [
     (80, 100),
     (100, math.inf),
 ]
-CURVE_MIN_PEOPLE = 20  # a curve bin with fewer people is reported but not used
+CURVE_MIN_PEOPLE = 20  # a curve bin with fewer people is reported but not used...
+CURVE_LOW_N_MIN_PEOPLE = 5  # ...unless it is below every used bin: then it is a `low_n` point
+SENSITIVITY_GSD_M = (0.02, 0.03)
+SENSITIVITY_WIDTH_M = (0.4, 0.5, 0.6, 0.7)
 FIGURE_MAX_BYTES = 300_000
 
 Row = tuple[int, int, int, int, float]
@@ -393,6 +405,14 @@ def make_curve(results: list[dict]) -> dict:
             found += r["_found"]
     table = bin_table(sizes, found, CURVE_BINS)
     used = [t for t in table if t["people"] >= CURVE_MIN_PEOPLE]
+    low = [
+        t
+        for t in table
+        if used
+        and CURVE_LOW_N_MIN_PEOPLE <= t["people"] < CURVE_MIN_PEOPLE
+        and t["lo_px"] < used[0]["lo_px"]
+    ]
+    used = low + used
     fit = monotone(used)
     return {
         "size_measure": "shorter side of the labelled box, px",
@@ -404,6 +424,8 @@ def make_curve(results: list[dict]) -> dict:
             "downscale_0.5",
         ],
         "min_people_per_point": CURVE_MIN_PEOPLE,
+        "min_people_low_n_point": CURVE_LOW_N_MIN_PEOPLE,
+        "floor_px": DETECTION_FLOOR_PX,
         "bins": table,
         "points": [
             {
@@ -411,10 +433,56 @@ def make_curve(results: list[dict]) -> dict:
                 "recall": round(v, 4),
                 "measured": t["recall"],
                 "people": t["people"],
+                **({"low_n": True} if t["people"] < CURVE_MIN_PEOPLE else {}),
             }
             for t, v in zip(used, fit, strict=True)
         ],
     }
+
+
+def box_size_m(images: list) -> dict:
+    """The labelled boxes' shorter side in metres, on the photos whose EXIF gives a GSD."""
+    from sightline.geo.pose import read_pose
+
+    metres, pixels, gsds = [], [], []
+    for im in images:
+        info = read_pose(im.path)
+        if info is None:
+            continue
+        gsds.append(info.pose.gsd_m)
+        pixels += [short_side(b) for b in im.boxes]
+        metres += [short_side(b) * info.pose.gsd_m for b in im.boxes]
+    q1, med, q3 = (float(v) for v in np.percentile(metres, [25, 50, 75]))
+    return {
+        "measure": "shorter side of the labelled box x the photo's EXIF GSD, m",
+        "photos": len(images),
+        "photos_with_pose": len(gsds),
+        "boxes": len(metres),
+        "median_m": round(med, 3),
+        "q1_m": round(q1, 3),
+        "q3_m": round(q3, 3),
+        "median_px": float(np.median(pixels)),
+        "median_gsd_m": round(float(np.median(gsds)), 5),
+    }
+
+
+def sensitivity(points: list[dict]) -> list[dict]:
+    """Map recall (the curve as ``sightline.search.pod`` reads it) per GSD and assumed width."""
+    from sightline.search.pod import PERSON_WIDTH_M, PodCurve, person_px
+
+    curve = PodCurve(tuple((p["px"], p["recall"]) for p in points), floor_px=DETECTION_FLOOR_PX)
+    widths = sorted({*SENSITIVITY_WIDTH_M, PERSON_WIDTH_M})
+    return [
+        {
+            "gsd_m": g,
+            "width_m": w,
+            "px": round(person_px(g, w), 1),
+            "recall": round(curve.recall_at(person_px(g, w)), 3),
+            "used": w == PERSON_WIDTH_M,
+        }
+        for g in SENSITIVITY_GSD_M
+        for w in widths
+    ]
 
 
 def figure(results: list[dict], curve: dict, test: dict | None, path: Path, n_photos: int) -> None:
@@ -454,9 +522,36 @@ def figure(results: list[dict], curve: dict, test: dict | None, path: Path, n_ph
         capsize=0,
         label="val, original + downscaled (95 % CI)",
     )
-    cx = [p["px"] for p in curve["points"]]
-    cy = [p["recall"] for p in curve["points"]]
+    low = [p for p in curve["points"] if p.get("low_n")]
+    if low:
+        lb = [b for b in curve["bins"] if b["median_px"] in {p["px"] for p in low}]
+        a1.errorbar(
+            [b["median_px"] for b in lb],
+            [b["recall"] for b in lb],
+            yerr=[
+                [b["recall"] - b["ci95"][0] for b in lb],
+                [b["ci95"][1] - b["recall"] for b in lb],
+            ],
+            fmt="o",
+            ms=5,
+            mfc="white",
+            color=blue,
+            ecolor=blue,
+            elinewidth=1,
+            capsize=0,
+            label=f"low n (n = {', '.join(str(b['people']) for b in lb)})",
+        )
+    cx = [curve["floor_px"], *(p["px"] for p in curve["points"])]
+    cy = [0.0, *(p["recall"] for p in curve["points"])]
     a1.plot(cx, cy, color=blue, lw=2, label="POD curve used by the map (monotone fit)")
+    a1.plot(
+        cx[:2],
+        cy[:2],
+        color="white",
+        lw=1,
+        ls=(0, (2, 2)),
+        label=f"(dashed: extrapolated to 0 at {DETECTION_FLOOR_PX:g} px)",
+    )
     if test:
         tb = [b for b in test["size_bins"] if b["people"]]
         a1.plot(
@@ -469,7 +564,11 @@ def figure(results: list[dict], curve: dict, test: dict | None, path: Path, n_ph
             mew=1.5,
             label="test, existing predictions (read-only)",
         )
-    for px, name in ((15, "Johnson: recognise 15 px"), (25, "identify 25 px")):
+    for px, name in (
+        (DETECTION_FLOOR_PX, "Johnson: detect 4 px"),
+        (15, "recognise 15 px"),
+        (25, "identify 25 px"),
+    ):
         a1.axvline(px, color=muted, lw=0.8, ls=":")
         a1.text(px + 0.8, 0.04, name, color=muted, fontsize=7.5, rotation=90, va="bottom")
     a1.set_xlabel("person size in the photo (shorter side of box, px)")
@@ -552,9 +651,43 @@ def markdown(doc: dict) -> str:
         lines.append(f"| {b['bin']} px | {b['people']} | {b['found']} | {rec} | {ci} | {med} |")
     lines += [
         "",
-        "Monotone curve points (px, recall): "
-        + ", ".join(f"({p['px']}, {p['recall']:.3f})" for p in doc["curve"]["points"]),
+        "Monotone curve points (px, recall; * low-n): "
+        + ", ".join(
+            f"({p['px']}, {p['recall']:.3f}{', n=' + str(p['people']) + '*' if p.get('low_n') else ''})"
+            for p in doc["curve"]["points"]
+        ),
+        f"Below the smallest point the map falls linearly to 0 at {DETECTION_FLOOR_PX:g} px.",
     ]
+    if doc.get("box_size_m"):
+        b = doc["box_size_m"]
+        lines += [
+            "",
+            "## Labelled box size in metres",
+            "",
+            (
+                f"{b['boxes']} boxes on the {b['photos_with_pose']} of {b['photos']} photos with an "
+                f"EXIF pose: shorter side median {b['median_m']:.3f} m (IQR {b['q1_m']:.3f}-"
+                f"{b['q3_m']:.3f}), {b['median_px']:g} px at a median GSD of "
+                f"{b['median_gsd_m'] * 100:.2f} cm/px."
+            ),
+        ]
+    if doc.get("sensitivity"):
+        gsds = sorted({r["gsd_m"] for r in doc["sensitivity"]})
+        widths = sorted({r["width_m"] for r in doc["sensitivity"]})
+        at = {(r["gsd_m"], r["width_m"]): r for r in doc["sensitivity"]}
+        lines += [
+            "",
+            "## Map recall by assumed person width",
+            "",
+            "| Width | " + " | ".join(f"{g * 100:g} cm/px" for g in gsds) + " |",
+            "|---|" + "---:|" * len(gsds),
+        ]
+        for w in widths:
+            used = " (used)" if at[(gsds[0], w)]["used"] else ""
+            cells = " | ".join(
+                f"{at[(g, w)]['recall']:.3f} ({at[(g, w)]['px']:g} px)" for g in gsds
+            )
+            lines.append(f"| {w:g} m{used} | {cells} |")
     if doc.get("test_rebin"):
         t = doc["test_rebin"]
         lines += [
@@ -650,6 +783,8 @@ def main(argv: list[str] | None = None) -> int:
         doc["curve"] = make_curve(results)
     else:
         doc["curve"] = {"bins": [], "points": []}
+    doc["box_size_m"] = box_size_m(images)
+    doc["sensitivity"] = sensitivity(doc["curve"]["points"]) if doc["curve"]["points"] else []
     doc["wall_s"] = round(time.perf_counter() - t0, 1)
     doc["cached_conditions"] = cached
 
@@ -670,6 +805,8 @@ def main(argv: list[str] | None = None) -> int:
                 "split": "val",
                 "threshold": THRESHOLD,
                 "size_measure": doc["curve"]["size_measure"],
+                "floor_px": DETECTION_FLOOR_PX,
+                "low_n_px": [p["px"] for p in doc["curve"]["points"] if p.get("low_n")],
                 "points": [[p["px"], p["recall"]] for p in doc["curve"]["points"]],
             }
             dest.write_text(json.dumps(curve, indent=2) + "\n", encoding="utf-8")

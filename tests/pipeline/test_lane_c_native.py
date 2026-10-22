@@ -153,6 +153,45 @@ def test_frames_become_frame_inputs_with_the_fields_in_the_doc():
     assert inputs[0].candidates == []
 
 
+def test_the_detector_gsd_reaches_lane_c_frame_inputs():
+    from dataclasses import replace
+
+    from sightline.search.pod import FrameInput as LaneCFrameInput
+
+    given = [replace(f, detector_gsd_m=0.014 if f.id == "f0002" else None) for f in frames()]
+    for frame_input in (None, LaneCFrameInput):  # the stand-in class and lane C's own
+        recorder = Recorder()
+        no_c_helpers(build_map=recorder, frame_input=frame_input).build_map(
+            given, LKP, 0.8, "placeholder"
+        )
+        assert [f.detector_gsd_m for f in recorder.calls[0][3]] == [None, 0.014, None]
+
+
+def test_the_place_stage_gives_each_frame_its_source_photo_gsd(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import sightline.geo.pose as pose_module
+    from sightline.pipeline.stages import _source_gsd
+
+    images = tmp_path / "test" / "images"
+    images.mkdir(parents=True)
+    for name in ("with_pose.jpg", "no_pose.jpg"):
+        Image.new("RGB", (8, 6)).save(images / name)
+    monkeypatch.setattr(
+        pose_module,
+        "read_pose",
+        lambda path: (
+            SimpleNamespace(pose=SimpleNamespace(gsd_m=0.0141))
+            if path.name == "with_pose.jpg"
+            else None
+        ),
+    )
+    test_dir = tmp_path / "test"
+    assert _source_gsd(test_dir, "with_pose.jpg") == 0.0141
+    assert _source_gsd(test_dir, "no_pose.jpg") is None
+    assert _source_gsd(test_dir, "missing.jpg") is None
+
+
 def test_lane_c_own_frame_input_class_is_used_when_it_exists():
     recorder = Recorder()
 
