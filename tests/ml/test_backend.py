@@ -27,7 +27,7 @@ def _fakes(monkeypatch, tmp_path):
     monkeypatch.setattr(backend, "CvDetector", _FakeCv)
     monkeypatch.setattr(backend, "Detector", _FakeTorch)
     monkeypatch.setattr(backend, "DEFAULT_ONNX", tmp_path / "missing.onnx")
-    for var in ("SIGHTLINE_BACKEND", "SIGHTLINE_ONNX", "SIGHTLINE_WEIGHTS"):
+    for var in ("SIGHTLINE_BACKEND", "SIGHTLINE_ONNX", "SIGHTLINE_WEIGHTS", "SIGHTLINE_DETECT_URL"):
         monkeypatch.delenv(var, raising=False)
 
 
