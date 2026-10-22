@@ -149,6 +149,8 @@ def main() -> int:
             str(tmp / "cache"),
             "--data-root",
             str(tmp / "up"),
+            "--radio",
+            "text",
         ],
         cwd=ROOT,
         env=env,
@@ -289,11 +291,21 @@ def main() -> int:
             assert d["status"] == "approved", d
             _, st = s.call("GET", f"/missions/{mid}/state")
             assert {t["id"]: t["status"] for t in st["teams"]}["T2"] == "assigned"
+            state["pid"] = p.id
             s.wait_for(
                 "proposal.decided",
                 lambda e: e["type"] == "proposal.decided" and e["ref"] == p.id,
                 10,
             )
+
+        def radio():
+            mid, pid = state["mid"], state["pid"]
+            _, out = s.call("GET", f"/missions/{mid}/radio/outbound")
+            assert [o["id"] for o in out] == [pid], out
+            _, t = s.call("POST", f"/missions/{mid}/radio/outbound/{pid}/transmit")
+            assert t["state"] == "transmitted" and t["reply"].startswith("Team Two, Sightline."), t
+            s.wait_for("radio.turn", lambda e: e["type"] == "radio.turn", 10)
+            return "approved briefing transmitted"
 
         def debrief():
             status, _ = s.call("GET", f"/missions/{state['mid']}/debrief.md", ok=None)
@@ -314,6 +326,7 @@ def main() -> int:
             ("clue", clue),
             ("task searched", task),
             ("decide a proposal", decision),
+            ("radio desk", radio),
             ("debrief", debrief),
             ("validate_mission", valid),
         ]:

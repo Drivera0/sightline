@@ -1,7 +1,7 @@
 # sightline/mission: live missions (lane D)
 
 Lane D's folder. Lane D had not started on Tue Oct 21, and every lane was blocked on the contract
-and the store, so **lane A built D-C1, D-M0, D-A1, D-P1 and `effects.py`** (issue #51). **Build on
+and the store, so **lane A built D-C1, D-M0, D-A1, D-P1, D-S1, D-R4, `effects.py` and the scheduler** (issue #51). **Build on
 this; don't start them again.**
 Lane D owns all of it: review, change anything, and update the checklist below.
 
@@ -12,6 +12,7 @@ Lane D owns all of it: review, change anything, and update the checklist below.
 | `store.py` | `MissionStore`, contract §14 exactly, plus `list_missions()`, `events()`, `trace_entries()`. Files per §12.1 under `root/<mission_id>/`; JSON rewritten atomically (temp + `os.replace`), `.jsonl` appended, both under a per-mission lock (threads: `RLock`; processes: `fcntl`/`msvcrt` on `.lock`); every write validated with the contract models; id counters in `counters.json`; `emit()` → `events.jsonl` + every `subscribe()`r (thread-safe); `subscribe()` replays after `Last-Event-ID`, then streams | `tests/pipeline/test_mission.py` |
 | `validate.py` | `validate_mission(root, mission_id) -> list[str]`: every file parses, and §12.3 invariants 1–8 | test 2 (every invariant broken once) |
 | `pipeline.py` | `ingest_photo` (LANE_D §5.3 steps 1–7): B's `read_pose` (rejects photos with no GPS/pose or not nadir) → 1000×750 display frame → `detect_tiled` on the **original** → candidates (conf ≥ 0.29, crop) and near-miss crops (0.15–0.29, `crops/nearmiss/`, files only) → B's `georef_detection` → `append_frame`/`append_detections` → `rank_frames_live` → C's `frame_update` (skipped until C-L1) → A's `hooks.on_detection` → one `photo.processed` event with per-step ms. Also `start_map_base` (C's `LiveMap.start`, else the same grid and labelled placeholder prior) | `tests/pipeline/test_mission_api.py` (test 4) |
+| `scheduler.py` | `Scheduler`: A's `hooks.on_tick` every 5 min or 25 photos per active mission; B's conditions every 30 min once `fetch_conditions` exists | `tests/pipeline/test_scheduler.py` |
 | `queue.py` | `PhotoQueue` protocol, `LocalQueue` (one worker thread, jobs in upload order). `SqsQueue` is still to do (D-W1) | test 4 |
 | `effects.py` | LANE_D §5.4: `on_decision` (approved `assign_sector` → task + team assigned; approved `promote_detection` → `detection.new`), `on_task_update` (POD only when searched; ground step via C), `on_clue`, `on_review`, `on_conditions`, `on_fleet` (`on_leg_done` hooks). C's map steps are skipped with a note until C lands | test 5 rows |
 | `../api/missions.py` | Contract §13 as one `APIRouter` + `MissionContext` (store, queue, detector, hooks). Mounted by `create_app(missions=…)` or `create_app(mission_root=…)`; `serve` turns it on (`--mission-root missions`, `--backend cv2\|torch`). Endpoints that need B (conditions, cards) or C (debrief) answer 503 naming what they wait for | `tests/pipeline/test_mission_api.py` |
@@ -67,20 +68,26 @@ These weren't spelled out in the contract; each is one place in `store.py` to ch
    (JPEG or DJI's MPO, ≤ 60 MB, ≤ 100 MP, pose readable and nadir), so the worker rarely fails.
 11. **`effects.py` signatures** take `hooks` instead of `live` (LANE_D §4 listed `live`): the store
    already holds each mission's live map (`store.live`).
-12. **`pnpm gen:contract` was broken** (pnpm runs it in `web/`, and the paths assumed the repo root).
+12. **The radio writes its own audio** into `missions/<id>/radio/` (not through `put_file`), and radio
+   turn ids restart at `r0001` every radio session: a turn is recorded by id **and** time, but a radio
+   clue's `confirmed_by_turn` is checked by id only. Unique turn ids (with the run token) would close that.
+13. **`SIGHTLINE_BACKEND=fake`** (`sightline/ml/fake.py`): two fixed boxes per photo, for the smoke test and
+   demos without model files; `/health` reports it so nobody mistakes it for the model.
+14. **`pnpm gen:contract` was broken** (pnpm runs it in `web/`, and the paths assumed the repo root).
    Fixed in `web/package.json`.
 
 ## Lane D checklist (LANE_D §7)
 
 - [x] **D-C1** contract v1.2 (lane A, PR #52)
 - [x] **D-M0** `MissionStore` + `validate_mission`, tests 2–3 (lane A)
-- [ ] D-G1 repo hygiene (`CLAUDE.md`, sprint docs into `docs/`, labels, issue templates)
+- [ ] D-G1 repo hygiene (sprint docs into `docs/`, labels, issue templates). **`CLAUDE.md` is skipped on purpose (team choice): don't add it.**
 - [x] **D-A1** mission API + SSE (`sightline/api/missions.py`, `sse.py`), test 6 (lane A)
 - [x] **D-P1** per-photo pipeline + local queue, test 4; detector via `make_detector()` (closes #8 for the live path) (lane A)
 - [x] `effects.py` (§5.4), test 5 (lane A)
-- [ ] Mount `radio_router` with a `RadioContext` (D-R4, `sightline/radio/README.md`): needs a `MissionApi` adapter over the store
-- [ ] `SqsQueue` + `worker` command (D-W1); conditions scheduler every 30 min (needs B-W1); `on_tick` every 5 min / 25 photos
-- [ ] D-S1 `scripts/smoke.sh`
+- [x] **D-R4** radio on live missions: `serve --radio text|real` (`sightline/radio/mount.py`, lane A)
+- [x] Scheduler (`scheduler.py`): `on_tick` every 5 min or 25 photos; conditions every 30 min once B-W1 exists (lane A)
+- [x] **D-S1** `scripts/smoke.sh`: 11 checks, 11 s, no network (`SIGHTLINE_BACKEND=fake`, fake LLM), lane A
+- [ ] `SqsQueue` + `worker` command (D-W1)
 - [ ] D-M1/M2 `useMission`, D-L1 live shell, D-Q1 review live mode, D-I1 New search, D-R1–R3 routing
 - [ ] D-W1 AWS (`deploy/aws/` already has lane A's worker image, see its README)
 - [ ] Sample cache regenerated as 1.2 (optional: 1.1 caches are still readable)
