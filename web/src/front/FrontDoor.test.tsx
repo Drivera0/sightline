@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { routeFromHash } from "../shell/flow";
 import { CLEAR_ALLOWLIST, FOOTER, HERO, HOW_IT_WORKS, PRINCIPLES, ROADMAP, WHO_ITS_FOR } from "./copy";
-import { FrontDoor } from "./FrontDoor";
+import { CONSOLE_SHOT, FrontDoor } from "./FrontDoor";
 
 describe("FrontDoor", () => {
   it("is the default route", () => {
@@ -30,6 +30,18 @@ describe("FrontDoor", () => {
     expect(onWatchDemo).toHaveBeenCalledOnce();
     expect(fetchSpy).not.toHaveBeenCalled(); // works offline
     expect(screen.getAllByRole("img")).toHaveLength(4); // the four line drawings, inline
+  });
+
+  it("opens on the product: the console above the fold, linked to the demo mission, served locally", () => {
+    render(<FrontDoor onStartNew={() => {}} onWatchDemo={() => {}} />);
+    const shot = screen.getByRole("link", { name: "Open the command console on the demo mission" });
+    expect(shot).toHaveAttribute("href", "#m/demo/command");
+    expect(shot.querySelector("img")).toHaveAttribute("src", CONSOLE_SHOT);
+    expect(CONSOLE_SHOT.startsWith("/")).toBe(true); // no remote asset
+    // the pitch and both buttons come before the four steps
+    const hero = screen.getByRole("region", { name: "Sightline" });
+    expect(hero).toContainElement(screen.getByRole("button", { name: HERO.start }));
+    expect(hero.compareDocumentPosition(screen.getByRole("region", { name: "How it works" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('says "clear" only in the allowlisted negation', () => {

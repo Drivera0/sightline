@@ -4,7 +4,11 @@
 
 import type { ReactNode } from "react";
 import { Label, Panel } from "../shell/components";
+import { Logo } from "../shell/Logo";
 import { FOOTER, HERO, HOW_IT_WORKS, PRINCIPLES, ROADMAP, ROADMAP_LABEL, WHO_ITS_FOR } from "./copy";
+
+/** The command console on the demo mission at 1440×900 (served from public/, so it works offline). */
+export const CONSOLE_SHOT = "/front/console.webp";
 
 const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" } as const;
 
@@ -50,20 +54,49 @@ const PICTURES: ReactNode[] = [
 
 export function FrontDoor({ onStartNew, onWatchDemo }: { onStartNew: () => void; onWatchDemo: () => void }) {
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-14 px-4 py-10 lg:px-8 lg:py-16">
-      <section aria-label="Sightline" className="flex flex-col gap-4">
-        <h1 className="font-mono text-display text-text">{HERO.title}</h1>
-        <p className="text-title text-accent-soft">{HERO.tagline}</p>
-        <p className="max-w-3xl text-body text-text-2">{HERO.body}</p>
-        <div className="flex flex-wrap gap-3 pt-2">
-          <button type="button" onClick={onStartNew} className="rounded-full border border-accent bg-accent/15 px-6 py-3 text-body text-text">
-            {HERO.start}
-          </button>
-          <button type="button" onClick={onWatchDemo} className="rounded-full border border-border px-6 py-3 text-body text-text">
-            {HERO.demo}
-          </button>
+    <main className="mx-auto flex max-w-7xl flex-col gap-14 px-4 py-8 lg:px-8 lg:py-12">
+      {/* Above the fold: the pitch, the two buttons, and the product itself (the command console on the
+          demo mission, a local screenshot until the product video exists; it opens the real thing). */}
+      <section aria-label="Sightline" className="grid items-center gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,8fr)] lg:gap-10">
+        <div className="flex flex-col gap-4">
+          <h1 className="flex items-center gap-3 text-headline font-medium text-text">
+            <Logo />
+            {HERO.title}
+          </h1>
+          <p className="text-title text-text">{HERO.tagline}</p>
+          <p className="text-body text-text-2">{HERO.body}</p>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <button type="button" onClick={onStartNew} className="rounded-full border border-accent bg-accent/15 px-6 py-2.5 text-body text-text hover:bg-accent/25">
+              {HERO.start}
+            </button>
+            <button type="button" onClick={onWatchDemo} className="rounded-full border border-border px-6 py-2.5 text-body text-text hover:bg-surface-strong">
+              {HERO.demo}
+            </button>
+          </div>
+          <p className="text-small text-text-3">{HERO.honesty}</p>
         </div>
-        <p className="max-w-3xl text-small italic text-text-3">{HERO.honesty}</p>
+        <figure className="flex flex-col gap-2">
+          <a
+            href="#m/demo/command"
+            aria-label="Open the command console on the demo mission"
+            className="group block overflow-hidden rounded-lg border border-border bg-surface-solid shadow-[0_24px_80px_-24px_rgba(0,0,0,0.9)]"
+          >
+            <span aria-hidden className="flex items-center gap-1.5 border-b border-line px-3 py-2">
+              <span className="size-2 rounded-full bg-surface-strong" />
+              <span className="size-2 rounded-full bg-surface-strong" />
+              <span className="size-2 rounded-full bg-surface-strong" />
+              <span className="ml-2 font-mono text-caption text-text-3">sightline · command</span>
+            </span>
+            {/* alt="": the link names it; the figure's caption says what it shows */}
+            <img src={CONSOLE_SHOT} alt="" width={1440} height={900} className="block h-auto w-full transition-opacity group-hover:opacity-90" />
+          </a>
+          <figcaption className="flex flex-wrap items-center justify-between gap-2 text-caption text-text-3">
+            <span>The command console: map, task board, teams, and the agent's proposals waiting for a person. Demo mission, simulated.</span>
+            <a href="#m/demo/command" className="text-text-2 underline underline-offset-2">
+              Open it
+            </a>
+          </figcaption>
+        </figure>
       </section>
 
       <section aria-label="How it works" className="flex flex-col gap-4">
