@@ -157,3 +157,25 @@ def test_no_fleet_and_no_drones_is_still_409(world) -> None:
         json={"drones": [], "leg_status": {}, "at": "2026-10-24T22:00:00Z"},
     )
     assert r.status_code == 409
+
+
+def test_a_retask_cancels_the_leg_being_flown(world) -> None:
+    http, _, store, _, mid, _bodies, tmp = world
+    lines: list[str] = []
+    sim = FleetSim(http, mid, _scenario(), time_scale=1.0, pool=Pool(tmp), out=lines.append)
+    sim.register()
+    _leg_over_hidden(store, mid)
+    sim.tick(1.0)
+    fleet = store.state(mid)["fleet"]
+    new = fleet.legs[0].model_copy(
+        update={
+            "id": "L2",
+            "waypoints": list(reversed(fleet.legs[0].waypoints)),
+            "status": "approved",
+        }
+    )
+    old = fleet.legs[0].model_copy(update={"status": "cancelled"})
+    store.put_fleet(mid, fleet.model_copy(update={"legs": [old, new]}))
+    sim.tick(1.0)
+    assert "Drone 1: L1 cancelled" in lines and sim.drones[0].leg.id == "L2"
+    assert store.state(mid)["fleet"].legs[1].status == "flying"

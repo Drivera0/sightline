@@ -230,6 +230,10 @@ class FleetSim:
         self.sim_s += sim_dt
         legs = self._approved()
         for sd in self.drones:
+            if sd.leg is not None and sd.leg.id not in legs:  # re-tasked: the store cancelled it
+                self.out(f"{sd.drone.name}: {sd.leg.id} cancelled")
+                sd.leg = None
+                sd.drone = sd.drone.model_copy(update={"status": "idle"})
             if sd.leg is None:
                 nxt = next(
                     (
