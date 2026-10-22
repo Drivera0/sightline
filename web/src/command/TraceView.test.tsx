@@ -95,3 +95,70 @@ describe("TraceView", () => {
     expect(document.body.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 });
+
+// A re-look chain with its ledger (docs/architecture/agent.md: `note` entries whose output.type is
+// "ledger" or "relook", the chain id in refs), built from that schema.
+describe("ledger and re-look chains", () => {
+  const load = async () => parseTrace((await import("./__fixtures__/trace_relook.jsonl?raw")).default);
+
+  it("groups the re-look steps and the ledger records on their chain", async () => {
+    const cs = chains(await load());
+    expect(cs).toHaveLength(2); // the re-look chain and an unrelated lookup
+    const [c, other] = cs;
+    expect(c!.relook.map((r) => r.step)).toEqual(["unclear", "leg", "photo", "verdict", "outcome"]);
+    expect(c!.relook.map((r) => r.words)).toEqual([
+      "unclear: 21 px from 50 m",
+      "L004 by D3 at 25 m, 4× pixels",
+      "photo f0002 from 25 m: f0002-d01, 43 px",
+      "v0002: person yes",
+      "outcome: resolved",
+    ]);
+    expect(c!.ledger.map((l) => [l.kind, l.ref, l.expected, l.realised, l.delta])).toEqual([
+      ["second_look", "f0001-d01", 0.4933, 0, -0.4933],
+      ["second_look", "f0002-d01", 0.4933, 1, 0.5067],
+      ["leg", "L004", 0.000097, 0.000051, -0.000046],
+    ]);
+    expect(c!.outcomes.map((o) => [o.proposal, o.status])).toEqual([
+      ["p004", "approved"],
+      ["p005", null],
+    ]);
+    expect(other!.ledger).toEqual([]);
+    expect(other!.relook).toEqual([]);
+  });
+
+  it("a ledger note joins its chain by the chain id in its output, even with no refs", () => {
+    const es = [
+      entry({ id: "a", kind: "verdict", actor: "verifier", refs: ["d1", "v1"] }),
+      entry({ id: "b", kind: "note", actor: "agent", refs: ["relook-d1", "d1"], output: { type: "relook", chain_id: "relook-d1", step: "skipped", why: "no drone is idle or flying" } }),
+      entry({ id: "c", kind: "note", actor: "pipeline", refs: [], output: { type: "ledger", chain_id: "relook-d1", kind: "second_look", ref: "d1", expected: { gain: 0.7 }, realised: { gain: 1 }, delta: 0.3 } }),
+    ];
+    const cs = chains(es);
+    expect(cs).toHaveLength(1);
+    expect(cs[0]!.relook[0]!.words).toBe("no leg: no drone is idle or flying");
+    expect(cs[0]!.ledger[0]!.delta).toBe(0.3);
+  });
+
+  it("shows each ledger record as a two-number chip and the re-look as a chain with its model chips", async () => {
+    render(<TraceView runs={[{ label: null, source: null, entries: await load() }]} />);
+    const [other, chain] = screen.getAllByRole("article"); // the latest chain on top
+    expect(chain).toHaveAccessibleName(/^Chain f0001-d01 · v0001 · relook-f0001-d01 · /);
+    const ledger = within(chain!).getByLabelText("Ledger");
+    expect([...ledger.querySelectorAll("[data-ledger]")].map((c) => c.textContent)).toEqual([
+      "second look f0001-d01expected 0.493 → realised 0(Δ −0.493)",
+      "second look f0002-d01expected 0.493 → realised 1(Δ +0.507)",
+      "leg L004expected 0.000097 → realised 0.000051(Δ −0.000046)",
+    ]);
+    const relook = within(chain!).getByLabelText("Re-look relook-f0001-d01");
+    expect([...relook.querySelectorAll("[data-step]")].map((s) => s.getAttribute("data-step"))).toEqual(["unclear", "leg", "photo", "verdict", "outcome"]);
+    expect(within(relook).getByLabelText("Models")).toHaveTextContent("Nemotron-3.5-Super-VL");
+    expect(within(relook).getByLabelText("Models")).toHaveTextContent("zoom_native");
+    // the other kinds keep their own lines: every step is still listed, the notes among them
+    expect(within(chain!).getAllByRole("listitem", { name: /^Note / })).toHaveLength(9);
+    expect(within(chain!).getByRole("listitem", { name: "Approval t000009" })).toBeInTheDocument();
+    expect(within(chain!).getByText("p004 retask_drone → approved by Dana")).toHaveAttribute("data-tone", "ok");
+    // the unrelated chain has neither row
+    expect(within(other!).queryByLabelText("Ledger")).toBeNull();
+    expect(within(other!).queryByLabelText(/^Re-look/)).toBeNull();
+    expect(document.body.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
+  });
+});
