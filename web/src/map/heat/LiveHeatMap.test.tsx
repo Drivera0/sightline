@@ -74,6 +74,12 @@ describe("live map features", () => {
     expect(list.className).toContain("grid-rows-4"); // two columns, at most four lines
     expect(list.querySelectorAll("li").length).toBeLessThanOrEqual(8);
     expect(screen.getByText(/SIM: simulated/)).toBeInTheDocument();
+    // The heat's own line above it: the three classes, both edges and the unshaded rest.
+    const heat = screen.getByRole("list", { name: "Probability classes" });
+    expect(heat).toHaveTextContent("Likeliest 50 · 80 · 90 % of probability");
+    expect(heat).toHaveTextContent("50 % edge");
+    expect(heat).toHaveTextContent("90 % edge");
+    expect(heat).toHaveTextContent("No shading: outside 90 % of estimated probability");
     expect(localStorage.getItem("sightline.mapLegend")).toBe("open");
     unmount();
     expect(legendOpenAtStart()).toBe(true);

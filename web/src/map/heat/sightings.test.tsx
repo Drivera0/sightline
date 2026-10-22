@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { CandidateShare } from "../../search/update";
-import { heatColor, heatPixels, paletteFromTokens, FALLBACK_TOKENS } from "./raster";
+import { CELL, cellKinds } from "./classes";
 import { SectorList } from "./SectorList";
 import {
   candidateMask,
@@ -48,14 +48,14 @@ describe("candidate cells", () => {
     expect(cellAt(grid, [-122.95 - 1 / mLon, 49.37])).toBe(-1);
   });
 
-  it("heatPixels draws candidate cells as the darkest class, even where held or unphotographed", () => {
-    const palette = paletteFromTokens(FALLBACK_TOKENS);
-    const state = { p: Float64Array.from([0.01, 0.01, 0.01]), outside: 0.97 };
-    const px = heatPixels(state, Uint8Array.from([1, 0, 1]), Uint8Array.from([1, 0, 0]), palette, 0.4, Uint8Array.from([1, 1, 0]));
-    const top = heatColor(palette, 1);
-    expect(Array.from(px.slice(0, 4))).toEqual(top);
-    expect(Array.from(px.slice(4, 8))).toEqual(top);
-    expect(Array.from(px.slice(8, 12))).not.toEqual(top);
+  it("cellKinds draws candidate cells in the likeliest class, even where held or unphotographed", () => {
+    const p = Float64Array.from([0.01, 0.01, 0.01, 0.5]);
+    const kinds = cellKinds(p, Uint8Array.from([1, 0, 1, 1]), Uint8Array.from([1, 0, 0, 0]), Uint8Array.from([1, 1, 0, 0]));
+    expect(kinds[0]).toBe(CELL.top);
+    expect(kinds[1]).toBe(CELL.top);
+    // Cell 3 alone holds 98 % of the rest: it is the likeliest 50 %; cell 2 is outside the 90 % region.
+    expect(kinds[3]).toBe(CELL.top);
+    expect(kinds[2]).toBe(CELL.none);
   });
 });
 

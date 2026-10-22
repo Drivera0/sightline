@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FoundBanner } from "./FoundBanner";
-import { isPlaceholderPrior, Legend, showsPlaceholderPrior } from "./Legend";
+import { classSwatches, isPlaceholderPrior, Legend, showsPlaceholderPrior, swatchColor } from "./Legend";
+import { HEAT_PALETTES } from "./palette";
 import { NextSearch, SHARE_LABELS } from "./NextSearch";
 import { StepSlider, stepText } from "./StepSlider";
 
@@ -154,15 +155,37 @@ describe("Legend", () => {
     expect(showsPlaceholderPrior(null, "real prior")).toBe(false);
   });
 
-  it("shows the ramp words; the simulated labels are the map's own line, not repeated here", () => {
+  it("names the three mass classes, the unshaded rest and both contour lines; the simulated labels are the map's own line", () => {
     render(<Legend simulatedPath hasSurveyed />);
-    expect(screen.getByText("Lower probability")).toBeInTheDocument();
-    expect(screen.getByText("Higher probability")).toBeInTheDocument();
+    const classes = screen.getByRole("list", { name: "Probability classes" });
+    expect(within(classes).getByText("Likeliest 50 %")).toBeInTheDocument();
+    expect(within(classes).getByText("50 to 80 %")).toBeInTheDocument();
+    expect(within(classes).getByText("80 to 90 %")).toBeInTheDocument();
+    expect(within(classes).getByText("Outside 90 % of estimated probability")).toBeInTheDocument();
+    expect(within(classes).getByText("Edge of the likeliest 50 %")).toBeInTheDocument();
+    expect(within(classes).getByText("Edge of the 90 % region")).toBeInTheDocument();
+    expect(screen.getByText(/on photographed ground/)).toBeInTheDocument();
     expect(screen.queryByText("Simulated flight path")).not.toBeInTheDocument();
     expect(screen.queryByText("Placeholder prior")).not.toBeInTheDocument();
     expect(screen.getByText("Surveyed area (outline)")).toBeInTheDocument();
-    expect(screen.getByText(/one fixed scale for the whole replay/)).toBeInTheDocument();
     expect(screen.getByText("Not yet searched")).toBeInTheDocument();
+  });
+
+  it("never calls the unshaded ground empty or clear", () => {
+    const { container } = render(<Legend simulatedPath hasSurveyed hasSightings hasUnsure />);
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/\bclear(s|ed|ing)?\b/i);
+    expect(text).not.toMatch(/\bempty\b/i);
+    expect(text).not.toMatch(/\bno one\b|\bnobody\b/i);
+  });
+
+  it("colours the class swatches from the palette of the basemap under the map", () => {
+    const { rerender } = render(<Legend simulatedPath hasSurveyed palette={HEAT_PALETTES.satellite} />);
+    const swatch = () => within(screen.getByRole("list", { name: "Probability classes" })).getByText("Likeliest 50 %").querySelector("span") as HTMLElement;
+    expect(swatch().style.background).toContain("rgb(227, 26, 28)"); // #e31a1c
+    rerender(<Legend simulatedPath hasSurveyed palette={HEAT_PALETTES.dark} />);
+    expect(swatch().style.background).toContain("rgb(254, 159, 109)"); // #fe9f6d
+    expect(classSwatches(HEAT_PALETTES.dark)).toEqual([HEAT_PALETTES.dark.low, HEAT_PALETTES.dark.mid, HEAT_PALETTES.dark.top].map(swatchColor));
   });
 
   it("has a swatch for cells awaiting review", () => {

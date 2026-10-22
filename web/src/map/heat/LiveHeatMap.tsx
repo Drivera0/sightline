@@ -35,8 +35,11 @@ import { prefersReducedMotion } from "../../metrics/motion";
 import { LiveHeat, lookedAt } from "../../search/live";
 import { basemapStyle, chooseBasemapMode, readBasemapColors } from "../base/basemap";
 import { MapProvider, useMap } from "../MapView";
-import { heatScaleMax } from "./geometry";
-import { gridCorners, HeatRaster, heatPixels, paletteFromTokens, readRasterTokens } from "./raster";
+import { cellKinds, surfaceData } from "./classes";
+import { CLASS_ROWS, ContourGlyph, OUTSIDE_LABEL, swatchColor } from "./Legend";
+import { basemapKind, basemapLabelLayer, type BasemapKind, HEAT_PALETTES, type HeatPalette, muteImagery } from "./palette";
+import { gridCorners, HeatRaster, kindColors, kindPixels, surfaceTheme } from "./raster";
+import { ensureSurfaceLayers, pushSurface, setSurfaceMode, setSurfacePalette, surfaceIds } from "./surface";
 
 export const LIVE_IDS = {
   heat: "live-heat-cells",
@@ -51,10 +54,15 @@ export const LIVE_IDS = {
   droneSim: "live-heat-drone-sim",
   relay: "live-heat-relay",
 } as const;
+/** The probability surface: the raster (LIVE_IDS.heat) while it tweens, class fills and contours at rest. */
+export const LIVE_SURFACE_IDS = surfaceIds("live-heat-", LIVE_IDS.heat);
 const TWEEN_MS = 600;
 
 type Feature = { type: "Feature"; properties: Record<string, unknown>; geometry: { type: string; coordinates: unknown } };
 const fc = (features: Feature[]) => ({ type: "FeatureCollection" as const, features });
+/** A theme token (MapLibre cannot read CSS variables). */
+const cssVar = (name: string, fallback: string) =>
+  (typeof document === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue(name).trim()) || fallback;
 const pct = (x: number) => `${Math.round(x * 100)} %`;
 
 /** Sector outlines and their "B3 · 6 %" labels (sectors from a server before #83 have no outline). */
@@ -94,7 +102,17 @@ export function pointFeatures(
   ];
 }
 
-function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, proposals = [], now }: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase }): ReactNode {
+function LiveLayers({
+  base,
+  updates,
+  sectors,
+  clues,
+  teams,
+  fleet = null,
+  proposals = [],
+  now,
+  onBasemap,
+}: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase; onBasemap?: (kind: BasemapKind) => void }): ReactNode {
   const { map, onPick } = useMap();
   const links = useMission((s) => s.links);
   const { utc } = useClock();
@@ -104,7 +122,13 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
   const pending = usePick((s) => s.pending);
   const heat = useMemo(() => new LiveHeat(base), [base]);
   const raster = useMemo(() => new HeatRaster(base.grid), [base]);
-  const scaleMax = useMemo(() => heatScaleMax(base.prior.p), [base]);
+  const [basemap, setBasemap] = useState<BasemapKind>("dark");
+  const theme = useMemo(
+    () => surfaceTheme({ veil: cssVar("--bg", "#0a0b0d"), held: cssVar("--text", "#f2f2f0") }),
+    [],
+  );
+  const surface = useRef<ReturnType<typeof surfaceData> | null>(null);
+  const appliedPalette = useRef<BasemapKind | null>(null);
   // Ready means *this* map has the sources: StrictMode (and a new mission) replace the map instance.
   const [readyMap, setReadyMap] = useState<Map | null>(null);
   const ready = map !== null && readyMap === map;
@@ -115,10 +139,20 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
   useEffect(() => {
     if (!map) return undefined;
     const install = () => {
-      if (!map.getSource(LIVE_IDS.heat)) {
-        map.addSource(LIVE_IDS.heat, { type: "canvas", canvas: raster.canvas, coordinates: gridCorners(base.grid), animate: false });
-        map.addLayer({ id: LIVE_IDS.heat, type: "raster", source: LIVE_IDS.heat, paint: { "raster-opacity": 0.85, "raster-resampling": "nearest", "raster-fade-duration": 0 } });
+      // The heat sits under the basemap's roads and labels; its palette follows the basemap (palette.ts).
+      // This runs on every styledata: the palette is set again only after a basemap switch.
+      const kind = basemapKind(map);
+      const palette = HEAT_PALETTES[kind];
+      const mode = raster.animating ? "raster" : "vector";
+      const added = ensureSurfaceLayers(map, LIVE_SURFACE_IDS, raster.canvas, base.grid, palette, theme, 1, mode, basemapLabelLayer(map));
+      if (added || appliedPalette.current !== kind) {
+        setSurfacePalette(map, LIVE_SURFACE_IDS, palette, theme, 1);
+        appliedPalette.current = kind;
+        setBasemap(kind);
+        onBasemap?.(kind);
       }
+      muteImagery(map, true);
+      if (added && surface.current) pushSurface(map, LIVE_SURFACE_IDS, surface.current);
       for (const id of [LIVE_IDS.sectors, LIVE_IDS.sectorLabels, LIVE_IDS.points, LIVE_IDS.legs, LIVE_IDS.drones, LIVE_IDS.relay]) {
         if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: fc([]) });
       }
@@ -256,6 +290,7 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
       const src = map.getSource(LIVE_IDS.heat) as { play?: () => void; pause?: () => void } | undefined;
       src?.play?.();
       if (!playing) src?.pause?.();
+      setSurfaceMode(map, LIVE_SURFACE_IDS, playing ? "raster" : "vector");
     });
     if (map.isStyleLoaded()) install();
     else map.once("load", install);
@@ -266,19 +301,36 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
       map.off("load", install);
       map.off("styledata", install);
       raster.stop();
+      try {
+        muteImagery(map, false);
+      } catch {
+        /* map gone */
+      }
     };
-  }, [map, raster, base]);
+    // onBasemap is a notification only; a new one does not need the layers again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, raster, base, theme]);
 
-  // The heat: new updates are applied incrementally and the change is tweened.
-  useEffect(() => {
-    if (!ready) return;
-    const state = heat.sync(updates);
+  // The heat: new updates are applied incrementally and the change is tweened (the raster), then the
+  // same classes are drawn as fills and contours.
+  const kinds = useMemo(() => {
+    if (!ready) return null;
     const covered = lookedAt(base, updates);
-    const pixels = heatPixels(state, covered, new Uint8Array(covered.length), paletteFromTokens(readRasterTokens()), scaleMax);
+    return cellKinds(heat.sync(updates).p, covered, new Uint8Array(covered.length));
+  }, [ready, heat, base, updates]);
+  const colors = useMemo(() => kindColors(HEAT_PALETTES[basemap], theme), [basemap, theme]);
+  useEffect(() => {
+    if (!map || !kinds) return;
+    surface.current = surfaceData(base.grid, kinds);
+    pushSurface(map, LIVE_SURFACE_IDS, surface.current);
+  }, [map, base, kinds]);
+  useEffect(() => {
+    if (!kinds) return;
+    const pixels = kindPixels(kinds, colors);
     if (!drawn.current || prefersReducedMotion()) raster.show(pixels);
     else raster.animate(pixels, { durationMs: TWEEN_MS });
     drawn.current = true;
-  }, [ready, heat, raster, base, updates, scaleMax]);
+  }, [raster, kinds, colors]);
 
   useEffect(() => {
     if (!map || !ready) return;
@@ -510,20 +562,21 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
   }, []);
   const center = useMemo<[number, number] | undefined>(() => (mapBase ? [mapBase.lkp.lon, mapBase.lkp.lat] : undefined), [mapBase]);
   const picking = usePick((s) => s.pending !== null);
+  const [basemap, setBasemap] = useState<BasemapKind>("dark");
   if (!mapBase) return <p className="text-small text-text-3">The map appears once the mission has its search area.</p>;
   if (fill) {
     return (
       <figure aria-label="Live map" aria-describedby={describedBy} className={`relative h-full min-h-[360px] overflow-hidden rounded-lg border border-border ${ATTRIBUTION_CLASS}`}>
         {description}
         <MapProvider className="h-full w-full" initialCenter={center} initialZoom={15} mapStyle={style}>
-          <LiveLayers base={mapBase} {...rest} />
+          <LiveLayers base={mapBase} {...rest} onBasemap={setBasemap} />
         </MapProvider>
         {picking && (
           <p role="status" className="absolute left-3 top-3 rounded-full border border-accent bg-bg/85 px-3 py-1 text-small text-accent-soft">
             Click the map to place the clue (Esc cancels).
           </p>
         )}
-        <FloatingLegend updates={rest.updates.length} />
+        <FloatingLegend updates={rest.updates.length} palette={HEAT_PALETTES[basemap]} />
       </figure>
     );
   }
@@ -532,7 +585,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
       {description}
       <div className={`h-[420px] overflow-hidden rounded-lg border border-border ${ATTRIBUTION_CLASS}`}>
         <MapProvider className="h-full w-full" initialCenter={center} initialZoom={15} mapStyle={style}>
-          <LiveLayers base={mapBase} {...rest} />
+          <LiveLayers base={mapBase} {...rest} onBasemap={setBasemap} />
         </MapProvider>
       </div>
       {picking && (
@@ -541,10 +594,10 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
         </p>
       )}
       <figcaption className="flex flex-col gap-1.5 text-small text-text-3">
+        <HeatKeyRow palette={HEAT_PALETTES[basemap]} />
         <MapLegend />
         <span>
-          Red shading: where the person could be now, on ground a photo has looked at (darker: more likely); grey: not photographed yet.
-          {" "}
+          {HEAT_CAPTION}{" "}
           {rest.fleet?.simulated ? "Drones, their links and relays are simulated. " : ""}
           {rest.updates.length} map updates · each sector shows its share of the probability (POA).
         </span>
@@ -552,6 +605,10 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
     </figure>
   );
 }
+
+/** The heat in words: the caption under the map and the floating legend's tooltip. */
+export const HEAT_CAPTION =
+  "Shading: the likeliest 50, 80 and 90 % of the probability on ground a photo has looked at (lighter on the dark map, redder on satellite: likelier); no shading: outside 90 % of estimated probability; dimmed: not photographed yet.";
 
 /** The map's attribution on the app background, so a mark drawn under it stays readable and so does it. */
 const ATTRIBUTION_CLASS =
@@ -572,7 +629,7 @@ export function legendOpenAtStart(): boolean {
  * The legend floating on the console's map: a small "Legend" pill with the map-update count (bottom
  * left), opened by a click or the L key; open, two columns of at most four lines above the pill.
  */
-export function FloatingLegend({ updates }: { updates: number }) {
+export function FloatingLegend({ updates, palette }: { updates: number; palette?: HeatPalette }) {
   const [open, setOpen] = useState(legendOpenAtStart);
   const bodyId = useId();
   useEffect(() => {
@@ -593,9 +650,10 @@ export function FloatingLegend({ updates }: { updates: number }) {
   return (
     <figcaption
       className={`absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] border border-border bg-bg/85 backdrop-blur-[16px] ${open ? "rounded-md px-3 py-2" : "rounded-full px-2.5 py-1"}`}
-      title="Red shading: where the person could be now, on ground a photo has looked at (darker: more likely); grey: not photographed yet. Each sector shows its share of the probability (POA)."
+      title={`${HEAT_CAPTION} Each sector shows its share of the probability (POA).`}
     >
-      <div id={bodyId} hidden={!open} className="mb-1.5">
+      <div id={bodyId} hidden={!open} className="mb-1.5 flex flex-col gap-1.5">
+        <HeatKeyRow palette={palette} />
         <MapLegend columns />
       </div>
       <div className="flex items-center gap-2.5">
@@ -648,6 +706,30 @@ function Ring({ color, thick = false, className = "" }: { color: string; thick?:
 
 function Dot({ color, className = "" }: { color: string; className?: string }) {
   return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${className}`} style={{ background: color }} />;
+}
+
+/** The heat in one line: the three classes, the two contour lines and the unshaded rest. */
+export function HeatKeyRow({ palette = HEAT_PALETTES.dark }: { palette?: HeatPalette }) {
+  return (
+    <ul aria-label="Probability classes" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-text-2">
+      <li className="flex items-center gap-1.5 whitespace-nowrap" title={CLASS_ROWS.map((r) => `${r.label}: ${r.hint}`).join(". ")}>
+        {CLASS_ROWS.map((r) => (
+          <span key={r.key} aria-hidden="true" className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: swatchColor(palette[r.key]) }} />
+        ))}
+        Likeliest 50 · 80 · 90 % of probability
+      </li>
+      <li className="flex items-center gap-1.5 whitespace-nowrap">
+        <ContourGlyph line={palette.contour50} casing={palette.casing} />
+        50 % edge
+        <ContourGlyph line={palette.contour90} casing={palette.casing} className="ml-2" />
+        90 % edge
+      </li>
+      <li className="flex items-center gap-1.5 whitespace-nowrap">
+        <span aria-hidden="true" className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px] ring-1 ring-border" />
+        No shading: {OUTSIDE_LABEL.toLowerCase()}
+      </li>
+    </ul>
+  );
 }
 
 /** What the map's marks mean: the colours LiveLayers gives each kind and tone. `columns`: two columns, four lines. */

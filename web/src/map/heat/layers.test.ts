@@ -30,7 +30,11 @@ import {
   hotspotFeatures,
   pushHotspots,
   setBreath,
+  HEAT_SURFACE_IDS,
+  surfaceBeforeId,
 } from "./layers";
+import { CELL } from "./classes";
+import { HEAT_PALETTES, ZOOM_FADE, zoomOpacity } from "./palette";
 
 const path: [number, number][] = [
   [0, 0],
@@ -107,12 +111,66 @@ describe("ensureHeatLayers paint", () => {
     const review = install("review");
     expect(review.layer(HEAT_LAYER_IDS.drone)).toBeUndefined();
     expect(review.layer(HEAT_LAYER_IDS.hotspots)).toBeUndefined();
-    expect(review.layer(HEAT_LAYER_IDS.cells)!.paint!["raster-opacity"]).toBeLessThan(
-      install().layer(HEAT_LAYER_IDS.cells)!.paint!["raster-opacity"] as number,
-    );
+    // Fainter beside the review queue: the raster and every class fill, at every zoom.
+    const atZ13 = (v: unknown) => (v as number[])[4] as number;
+    for (const id of [HEAT_LAYER_IDS.cells, HEAT_SURFACE_IDS.fills[CELL.top] as string]) {
+      const prop = id === HEAT_LAYER_IDS.cells ? "raster-opacity" : "fill-opacity";
+      expect(atZ13(review.layer(id)!.paint![prop])).toBeCloseTo(atZ13(install().layer(id)!.paint![prop]) * HEAT_BASE_OPACITY.review, 9);
+    }
     expect(review.layer(HEAT_LAYER_IDS.ripple)).toBeDefined();
   });
+
+  it("draws the classes as fills and the 50 % and 90 % edges as cased lines, under every other heat layer", () => {
+    const { layer, layers } = install();
+    const ids = layers.map((l) => l.id);
+    const p = HEAT_PALETTES.dark;
+    for (const [kind, style] of [
+      [CELL.top, p.top],
+      [CELL.mid, p.mid],
+      [CELL.low, p.low],
+    ] as const) {
+      const fill = layer(HEAT_SURFACE_IDS.fills[kind] as string)!;
+      expect(fill.type).toBe("fill");
+      expect(fill.paint!["fill-color"]).toBe(style.color);
+      // The class alpha at z13, faded by zoom to ZOOM_FADE.to of it at z16.
+      expect(fill.paint!["fill-opacity"]).toEqual(["interpolate", ["linear"], ["zoom"], 13, style.alpha, 16, style.alpha * ZOOM_FADE.to]);
+    }
+    const line50 = layer(HEAT_SURFACE_IDS.line50)!;
+    expect(line50.paint!["line-color"]).toBe(p.contour50.color);
+    expect(line50.paint!["line-dasharray"]).toBeUndefined();
+    expect(layer(HEAT_SURFACE_IDS.line90)!.paint!["line-dasharray"]).toEqual(p.contour90.dash);
+    // Each line on its casing; the contours keep full opacity at every zoom.
+    expect(ids.indexOf(HEAT_SURFACE_IDS.casing50)).toBe(ids.indexOf(HEAT_SURFACE_IDS.line50) - 1);
+    expect(layer(HEAT_SURFACE_IDS.casing90)!.paint!["line-width"]).toBe(p.contour90.width + 2 * p.casing.width);
+    expect(line50.paint!["line-opacity"]).toBe(1);
+    // The surface sits below the sectors, outlines and the rest of the heat layers.
+    expect(ids.indexOf(HEAT_SURFACE_IDS.line50)).toBeLessThan(ids.indexOf(HEAT_LAYER_IDS.sectorFill));
+    // At rest the fills show and the raster waits for the next animation.
+    expect(layer(HEAT_LAYER_IDS.cells)!.layout!.visibility).toBe("none");
+    expect(fillVisibility(layer)).toBe("visible");
+  });
 });
+
+describe("surfaceBeforeId", () => {
+  it("puts the heat under the basemap's roads, else under lane B's layers, else on top", () => {
+    const withLayers = (layers: { id: string; type: string; source?: string }[], sources: Record<string, string>) =>
+      ({
+        getLayersOrder: () => layers.map((l) => l.id),
+        getLayer: (id: string) => layers.find((l) => l.id === id),
+        getSource: (id: string) => (sources[id] ? { type: sources[id] } : undefined),
+      }) as unknown as Map;
+    const roads = { id: "basemap-roads", type: "line", source: "offline-basemap" };
+    const outline = { id: MAP_LAYER_IDS.gridOutline, type: "line", source: "search-grid" };
+    const sources = { "offline-basemap": "vector", "search-grid": "geojson" };
+    expect(surfaceBeforeId(withLayers([{ id: "bg", type: "background" }, roads, outline], sources))).toBe("basemap-roads");
+    expect(surfaceBeforeId(withLayers([outline], sources))).toBe(MAP_LAYER_IDS.gridOutline);
+    expect(surfaceBeforeId(withLayers([], sources))).toBeUndefined();
+  });
+});
+
+function fillVisibility(layer: (id: string) => { layout?: Record<string, unknown> } | undefined): unknown {
+  return layer(HEAT_SURFACE_IDS.fills[CELL.top] as string)?.layout?.visibility;
+}
 
 describe("refreshHeatSource", () => {
   it("re-uploads every frame while playing and uploads once then stops otherwise", () => {
@@ -230,12 +288,20 @@ describe("breathing", () => {
 
   it("breathes only the heat (the circles stay steady), and skips layers not drawn yet", () => {
     const setPaintProperty = vi.fn();
-    const drawn = new Set<string>([HEAT_LAYER_IDS.cells, HEAT_LAYER_IDS.hotspots]);
+    const top = HEAT_SURFACE_IDS.fills[CELL.top] as string;
+    const drawn = new Set<string>([HEAT_LAYER_IDS.cells, top, HEAT_LAYER_IDS.hotspots]);
     const map = { getLayer: (id: string) => (drawn.has(id) ? {} : undefined), setPaintProperty } as unknown as Map;
-    setBreath(map, 1 + BREATH_AMPLITUDE);
+    setBreath(map, 0.9, HEAT_BASE_OPACITY.search);
     const heat = setPaintProperty.mock.calls.find((c) => c[0] === HEAT_LAYER_IDS.cells)!;
     expect(heat[1]).toBe("raster-opacity");
-    expect(heat[2]).toBeCloseTo(Math.min(1, HEAT_BASE_OPACITY.search * (1 + BREATH_AMPLITUDE)), 9);
+    expect(heat[2]).toEqual(zoomOpacity(HEAT_BASE_OPACITY.search * 0.9));
+    const fill = setPaintProperty.mock.calls.find((c) => c[0] === top)!;
+    expect(fill[1]).toBe("fill-opacity");
+    expect(fill[2]).toEqual(zoomOpacity(HEAT_PALETTES.dark.top.alpha * HEAT_BASE_OPACITY.search * 0.9));
+    // Never above full opacity.
+    setPaintProperty.mockClear();
+    setBreath(map, 1 + BREATH_AMPLITUDE, 1);
+    expect(setPaintProperty.mock.calls.find((c) => c[0] === HEAT_LAYER_IDS.cells)![2]).toEqual(zoomOpacity(1));
     expect(setPaintProperty.mock.calls.some((c) => c[0] === HEAT_LAYER_IDS.hotspots)).toBe(false);
     setPaintProperty.mockClear();
     drawn.clear();

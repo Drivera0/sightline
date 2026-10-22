@@ -20,7 +20,8 @@ import {
   HEAT_UNSURE_SOURCE_ID,
 } from "./layers";
 import { PanelSlotContext } from "./panelSlot";
-import { HEAT_ALPHA_MAX, HELD_ALPHA, rasterForCanvas, VEIL_ALPHA } from "./raster";
+import { HEAT_PALETTES, HELD_ALPHA, VEIL_ALPHA } from "./palette";
+import { rasterForCanvas } from "./raster";
 
 const ctx: { value: MapContextValue | null } = { value: null };
 vi.mock("../MapView", () => ({
@@ -104,7 +105,7 @@ function mockMap(withGridOutline: boolean) {
     const px = rasterForCanvas(spec.canvas)!.shown;
     const a = px[idx * 4 + 3] as number;
     if (a === Math.round(VEIL_ALPHA * 255) && (px[idx * 4] as number) < 40) return "veil";
-    if (a === Math.round(HELD_ALPHA * 255)) return "held";
+    if (a === Math.round(HELD_ALPHA * 255) && (px[idx * 4] as number) > 200) return "held";
     return "heat";
   };
   /** Heat alpha of a cell (higher = more likely). */
@@ -372,7 +373,7 @@ describe("HeatLayer", () => {
     expect(m.kind(1275)).toBe("held");
     act(() => useReview.getState().answer("f0001-d01", "person", 1));
     // Not "awaiting review" any more: the darkest class, ringed in the Person colour.
-    expect(m.alpha(1275)).toBe(Math.round(HEAT_ALPHA_MAX * 255));
+    expect(m.alpha(1275)).toBe(Math.round(HEAT_PALETTES.dark.top.alpha * 255));
     const ring = m.replayDrawn.get(HEAT_CANDIDATE_SOURCE_ID) as { geometry: { coordinates: unknown[] } };
     expect(ring.geometry.coordinates.length).toBeGreaterThan(0);
     expect(screen.getByText(/if this is the missing person, the search ends here \(100%\)/)).toBeInTheDocument();
@@ -542,7 +543,7 @@ describe("HeatLayer", () => {
       expect(within(slot).getByRole("list", { name: "Sectors by remaining probability" })).toBeInTheDocument();
       expect(tabs[1]).toHaveAttribute("aria-selected", "true");
       act(() => tabs[2]!.click());
-      expect(within(slot).getByText("Lower probability")).toBeInTheDocument();
+      expect(within(slot).getByText("Likeliest 50 %")).toBeInTheDocument();
       slot.remove();
     } finally {
       window.matchMedia = original;
@@ -602,20 +603,20 @@ describe("HeatLayer", () => {
           <HeatLayer />
         </CacheContext.Provider>,
       );
-      expect(screen.queryByText("Lower probability")).toBeNull();
+      expect(screen.queryByText("Likeliest 50 %")).toBeNull();
       const pill = screen.getByRole("button", { name: "Reading the map" });
       expect(pill).toHaveAttribute("aria-expanded", "false");
       expect(pill).toHaveAttribute("data-map-overlay", "corner");
       // Both sit above the map's attribution row (OpenStreetMap credit), like the simulated line.
       expect(pill.className).toContain("bottom-7");
       act(() => pill.click());
-      expect(screen.getByText("Lower probability")).toBeInTheDocument();
+      expect(screen.getByText("Likeliest 50 %")).toBeInTheDocument();
       expect(document.getElementById("search-legend")!.className).toContain("bottom-7");
       // The replay bar leaves 22rem free on each side, so it never covers the simulated line (bottom left).
       const replayBar = screen.getByRole("slider").closest('[data-map-overlay="bottom"]');
       expect(replayBar!.className).toContain("calc(100%-44rem)");
       act(() => screen.getByRole("button", { name: "Hide" }).click());
-      expect(screen.queryByText("Lower probability")).toBeNull();
+      expect(screen.queryByText("Likeliest 50 %")).toBeNull();
     } finally {
       window.matchMedia = original;
     }

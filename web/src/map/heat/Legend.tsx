@@ -2,7 +2,7 @@ import type { Params } from "../../contract";
 import { Label } from "../../shell/components";
 import { droneSvgMarkup } from "./droneImage";
 import { UNSURE_LABEL } from "./unsure";
-import { HEAT_CLASSES, HELD_ALPHA, heatColor, paletteFromTokens, readRasterTokens, VEIL_ALPHA } from "./raster";
+import { type FillStyle, HEAT_PALETTES, type HeatPalette, HELD_ALPHA, type LineStyle, VEIL_ALPHA } from "./palette";
 
 /** Contract 1.1 §8: the value of `map.params.prior_source` when the pipeline used the placeholder prior. */
 export const PRIOR_FROM_PLACEHOLDER = "placeholder";
@@ -30,17 +30,46 @@ export function showsPlaceholderPrior(priorSource: Params["prior_source"], notes
 const pct = (x: number) => Math.round(x * 100);
 
 /**
- * The map's own classes as CSS colours, light (lower probability) to dark (higher): the same
- * OKLab-built colours and opacities as the raster, one per class (HEAT_CLASSES).
+ * A class's swatch on the legend's dark panel: its colour, a little stronger than on the map (where
+ * the ground under it adds to it), so the three classes stay apart on the panel too.
  */
-export function rampSwatches(classes = HEAT_CLASSES): string[] {
-  const palette = paletteFromTokens(typeof document === "undefined" ? { bg: "", text: "", accent: "", accentSoft: "" } : readRasterTokens());
-  const n = Math.max(2, classes);
-  return Array.from({ length: n }, (_, k) => {
-    const [r, g, b, a] = heatColor(palette, k / (n - 1));
-    return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
-  });
+export function swatchColor(fill: FillStyle): string {
+  const alpha = Math.min(1, fill.alpha + 0.3);
+  return `color-mix(in srgb, ${fill.color} ${pct(alpha)}%, transparent)`;
 }
+
+/** The three classes as CSS colours, 80–90 % first and the likeliest 50 % last (the pill's bar). */
+export function classSwatches(palette: HeatPalette = HEAT_PALETTES.dark): string[] {
+  return [palette.low, palette.mid, palette.top].map(swatchColor);
+}
+
+/** The mass classes, likeliest first: what each fill means (classes.ts MASS_LEVELS). */
+export const CLASS_ROWS = [
+  { key: "top", label: "Likeliest 50 %", hint: "The fewest cells that hold half of the estimated probability" },
+  { key: "mid", label: "50 to 80 %", hint: "The next cells, up to 80 % of it" },
+  { key: "low", label: "80 to 90 %", hint: "Up to 90 % of it" },
+] as const;
+/** The cells with no fill: never "empty", only less likely than the 90 % region. */
+export const OUTSIDE_LABEL = "Outside 90 % of estimated probability";
+
+/** A contour line's legend glyph: its colour, width and dash, on a dark casing like on the map. */
+export function ContourGlyph({ line, casing, className = "" }: { line: LineStyle; casing: HeatPalette["casing"]; className?: string }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 6" className={`h-1.5 w-5 shrink-0 overflow-visible ${className}`}>
+      <line x1="0" y1="3" x2="20" y2="3" stroke={casing.color} strokeOpacity={casing.opacity} strokeWidth={line.width + 2 * casing.width} />
+      <line
+        x1="0"
+        y1="3"
+        x2="20"
+        y2="3"
+        stroke={line.color}
+        strokeWidth={line.width}
+        strokeDasharray={line.dash ? line.dash.map((d) => d * line.width).join(" ") : undefined}
+      />
+    </svg>
+  );
+}
+
 const UNSEEN_FILL = `color-mix(in srgb, var(--bg) ${pct(VEIL_ALPHA)}%, transparent)`;
 const REVIEW_FILL = `color-mix(in srgb, var(--text) ${pct(HELD_ALPHA)}%, transparent)`;
 
@@ -80,6 +109,48 @@ interface Props {
   hasUnsure?: boolean;
   /** With a handler (the folded legend below 1280 px), the header gets a "Hide" button. */
   onCollapse?: () => void;
+  /** The palette the map is drawn in (it follows the basemap). */
+  palette?: HeatPalette;
+}
+
+/** The three classes, the unshaded rest, and the two contour lines: the legend's first block. */
+export function HeatClassKey({ palette, compact = false }: { palette: HeatPalette; compact?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <ul aria-label="Probability classes" className="flex flex-col gap-1.5 text-small text-text-2">
+        {CLASS_ROWS.map((row) => (
+          <li key={row.key} className="flex items-center gap-2.5" title={row.hint}>
+            <span
+              className="inline-block size-3 shrink-0 rounded-[3px] ring-1 ring-border"
+              style={{ background: swatchColor(palette[row.key]) }}
+              aria-hidden="true"
+            />
+            {row.label}
+          </li>
+        ))}
+        <li className="flex items-center gap-2.5">
+          <span className="inline-block size-3 shrink-0 rounded-[3px] ring-1 ring-border" aria-hidden="true" />
+          <span className="flex flex-col">
+            <span>No shading</span>
+            <span className="text-label text-text-2">{OUTSIDE_LABEL}</span>
+          </span>
+        </li>
+        <li className="flex items-center gap-2.5">
+          <ContourGlyph line={palette.contour50} casing={palette.casing} />
+          Edge of the likeliest 50 %
+        </li>
+        <li className="flex items-center gap-2.5">
+          <ContourGlyph line={palette.contour90} casing={palette.casing} />
+          Edge of the 90 % region
+        </li>
+      </ul>
+      {!compact && (
+        <span className="text-label text-text-2">
+          Shares of the estimated probability on photographed ground, recomputed at every step and answer.
+        </span>
+      )}
+    </div>
+  );
 }
 
 export function Legend({
@@ -91,8 +162,8 @@ export function Legend({
   onCollapse,
   hasSightings = false,
   hasUnsure = false,
+  palette = HEAT_PALETTES.dark,
 }: Props) {
-  const swatches = rampSwatches();
   return (
     <div className="flex flex-col gap-3">
       {!compact &&
@@ -114,26 +185,10 @@ export function Legend({
         ) : (
           <Label>Reading the map</Label>
         ))}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex h-2.5 w-full gap-px overflow-hidden rounded-full" data-testid="heat-ramp">
-          {swatches.map((c) => (
-            <span key={c} className="h-full flex-1" style={{ background: c }} />
-          ))}
-        </div>
-        <div className="flex justify-between text-label text-text-2">
-          <span>Lower probability</span>
-          <span>Higher probability</span>
-        </div>
-        {!compact && (
-          <span className="text-label text-text-2">
-            Chance per cell, on one fixed scale for the whole replay. Deepest red: as likely as the likeliest cell before
-            the flight.
-          </span>
-        )}
-      </div>
+      <HeatClassKey palette={palette} compact={compact} />
       {hasSightings && (
         <span className="text-label text-text-2">
-          With a sighting on the map, the colours are the plan if none of the sightings is the missing person.
+          With a sighting on the map, the shading is the plan if none of the sightings is the missing person.
         </span>
       )}
       <ul className="flex flex-col gap-2 text-small text-text-2">
@@ -150,7 +205,7 @@ export function Legend({
           <li className="flex items-center gap-2.5">
             <span
               className="inline-block size-3 rounded-[3px] ring-2 ring-ok"
-              style={{ background: swatches.at(-1) }}
+              style={{ background: swatchColor(palette.top) }}
               aria-hidden="true"
             />
             <span className="flex flex-col">

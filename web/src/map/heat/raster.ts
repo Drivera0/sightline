@@ -1,252 +1,56 @@
-// The heat map as a raster: one RGBA pixel per grid cell, drawn into a canvas that MapLibre shows as
-// a canvas source with nearest-neighbour resampling (so every cell stays a crisp square; nothing is
-// blurred or interpolated between cells). Pure functions except HeatRaster, which owns the canvas.
-//
-// Colour: a sequential light-to-dark ramp, pale yellow (less likely) through orange to deep red
-// (more likely), after ColorBrewer's YlOrRd (Brewer, colorbrewer2.org), with the app's accent as
-// the orange stop. Darker means more likely, as on a printed probability map. The stops are placed
-// by their OKLab distance and interpolated in OKLab (Ottosson 2020), so equal steps in probability
-// give roughly equal steps in perceived colour, with lightness falling monotonically (the idea
-// behind matplotlib's viridis/magma, Smith & van der Walt 2015). Opacity rises with probability: the
-// low end lets the basemap show through, the high end is dense and saturated, the strongest signal
-// over the dark basemap.
+// The heat as a raster: one RGBA pixel per grid cell, drawn into a canvas that MapLibre shows as a
+// canvas source with nearest-neighbour resampling (so every cell stays a crisp square; nothing is
+// blurred or interpolated between cells). Used while the heat animates; at rest the same cell kinds
+// are drawn as GeoJSON fills (surface.ts). Pure functions except HeatRaster, which owns the canvas.
 import type { MapFile } from "../../contract";
-import type { MapState } from "../../search/update";
-import { edgeLat, edgeLon, fixedHeatLevels } from "./geometry";
+import { edgeLat, edgeLon } from "./geometry";
+import { type HeatPalette, kindFill } from "./palette";
 
 type Grid = MapFile["grid"];
 export type RGB = [number, number, number];
 
-/** Opacity of the "not yet searched" veil (cells not photographed at this step). */
-export const VEIL_ALPHA = 0.62;
-/**
- * Heat opacity at the low and the high end of the ramp: the pale low end lets the basemap through, the
- * dark high end is dense. (Was 0.5 to 0.9, too muddy at the pale end; then 0.8 to 0.95, which hid the
- * basemap.) Multiplied by the layer's HEAT_BASE_OPACITY.
- */
-export const HEAT_ALPHA_MIN = 0.7;
-export const HEAT_ALPHA_MAX = 0.92;
-/** Fill of a cell awaiting review: a neutral light tone (no update yet), outlined dashed on the map. */
-export const HELD_ALPHA = 0.3;
-/** Ramp resolution. */
-export const RAMP_STEPS = 256;
-/**
- * The map shows the ramp in this many classes (ColorBrewer's YlOrRd is designed as 3 to 9 classes).
- * Rounding each cell's level to a class turns the cell-to-cell speckle into a few clear bands; it
- * only removes precision, it adds no detail. 1 would mean a continuous ramp.
- */
-export const HEAT_CLASSES = 7;
-
-/** A heat level in [0, 1] rounded down to its class: class k of n is shown at k / (n − 1). */
-export function classLevel(t: number, classes = HEAT_CLASSES): number {
-  const x = Math.min(1, Math.max(0, t));
-  if (classes <= 1) return x;
-  return Math.min(classes - 1, Math.floor(x * classes)) / (classes - 1);
-}
-
-/** Theme values used when a CSS token is missing (tests, or before the stylesheet loads). */
-export const FALLBACK_TOKENS = {
-  bg: "#0a0b0d",
-  text: "#f2f2f0",
-  accent: "#ff7a1a",
-  accentSoft: "#ffb27a",
-  warn: "#ffc48f",
-  ok: "#7ee2a0",
-} as const;
+const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** "#rrggbb" or "#rgb" to [r, g, b]; the fallback for anything else. */
 export function parseHex(css: string, fallback: string): RGB {
   const s = (css || "").trim();
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s) ? s : fallback;
+  const hex = HEX.test(s) ? s : fallback;
   const h = hex.length === 4 ? hex.slice(1).replace(/./g, (c) => c + c) : hex.slice(1);
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-// --- OKLab (Ottosson 2020) ---------------------------------------------------------------------
-const toLinear = (c: number) => {
-  const v = c / 255;
-  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-};
-const fromLinear = (v: number) => {
-  const c = v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055;
-  return Math.round(Math.min(1, Math.max(0, c)) * 255);
-};
+/** Theme values used when a CSS token is missing (tests, or before the stylesheet loads). */
+export const FALLBACK_THEME = { veil: "#0a0b0d", held: "#f2f2f0" } as const;
 
-export function rgbToOklab([r8, g8, b8]: RGB): [number, number, number] {
-  const r = toLinear(r8);
-  const g = toLinear(g8);
-  const b = toLinear(b8);
-  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-  return [
-    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
-    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
-    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
-  ];
+/** The two theme colours of the surface, each a hex colour (the fallback when a token is missing or not hex). */
+export function surfaceTheme(theme: { veil: string; held: string }): { veil: string; held: string } {
+  const pick = (css: string, fallback: string) => (HEX.test((css || "").trim()) ? css.trim() : fallback);
+  return { veil: pick(theme.veil, FALLBACK_THEME.veil), held: pick(theme.held, FALLBACK_THEME.held) };
 }
 
-export function oklabToRgb([L, A, B]: [number, number, number]): RGB {
-  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
-  const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
-  const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
-  return [
-    fromLinear(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
-    fromLinear(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
-    fromLinear(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
-  ];
-}
+/** Kinds a cell can have (classes.ts CELL): room for all of them in the colour table. */
+const KIND_SLOTS = 8;
 
-/** Mix two colours in OKLab: t = 0 gives a, t = 1 gives b. */
-export function mixOklab(a: RGB, b: RGB, t: number): RGB {
-  const x = rgbToOklab(a);
-  const y = rgbToOklab(b);
-  return oklabToRgb([x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t]);
-}
-
-/** Evenly spaced stops interpolated in OKLab into RAMP_STEPS colours (r, g, b per step). */
-export function buildRamp(stops: readonly RGB[], steps = RAMP_STEPS): Uint8ClampedArray {
-  const out = new Uint8ClampedArray(steps * 3);
-  const labs = stops.map(rgbToOklab);
-  for (let i = 0; i < steps; i++) {
-    const pos = (i / (steps - 1)) * (labs.length - 1);
-    const k = Math.min(labs.length - 2, Math.floor(pos));
-    const t = pos - k;
-    const a = labs[k] as [number, number, number];
-    const b = labs[k + 1] as [number, number, number];
-    const rgb = oklabToRgb([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]);
-    out.set(rgb, i * 3);
+/** RGBA (0–255) of each cell kind, indexed by kind: the fill colours and alphas of surface.ts. */
+export function kindColors(palette: HeatPalette, theme: { veil: string; held: string }): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(KIND_SLOTS * 4);
+  const safe = surfaceTheme(theme);
+  for (let kind = 0; kind < KIND_SLOTS; kind++) {
+    const fill = kindFill(palette, kind, safe);
+    if (fill) out.set([...parseHex(fill.color, "#000000"), Math.round(fill.alpha * 255)], kind * 4);
   }
   return out;
 }
 
-/**
- * Stops placed by their cumulative OKLab distance (instead of evenly), then interpolated in OKLab, so
- * the colour changes at a steady perceived rate along the ramp even when the stops are unevenly spaced.
- */
-export function buildEvenRamp(stops: readonly RGB[], steps = RAMP_STEPS): Uint8ClampedArray {
-  const labs = stops.map(rgbToOklab);
-  const at = [0];
-  for (let k = 1; k < labs.length; k++) {
-    const a = labs[k - 1] as [number, number, number];
-    const b = labs[k] as [number, number, number];
-    at.push((at[k - 1] as number) + Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
-  }
-  const total = at.at(-1) as number;
-  const out = new Uint8ClampedArray(steps * 3);
-  let k = 0;
-  for (let i = 0; i < steps; i++) {
-    const d = (i / (steps - 1)) * total;
-    while (k < labs.length - 2 && d > (at[k + 1] as number)) k++;
-    const span = (at[k + 1] as number) - (at[k] as number);
-    const t = span > 0 ? Math.min(1, Math.max(0, (d - (at[k] as number)) / span)) : 0;
-    const a = labs[k] as [number, number, number];
-    const b = labs[k + 1] as [number, number, number];
-    out.set(oklabToRgb([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]), i * 3);
-  }
-  return out;
-}
-
-/**
- * ColorBrewer YlOrRd (9 classes, Cynthia Brewer, colorbrewer2.org), less likely to more likely. The
- * palest class (#ffffcc) is left out: at partial opacity over the dark basemap it reads as grey.
- * The two palest stops used are lightened a little (#ffeda0 -> #fff4b8, #fed976 -> #fedc80) so they
- * stay yellow, not olive, at the lower opacity that lets the basemap through. The orange class
- * #fd8d3c is replaced by the theme accent (see paletteFromTokens).
- */
-export const YLORRD_STOPS = ["#fff4b8", "#fedc80", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"] as const;
-const ACCENT_STOP_INDEX = 3;
-
-export interface RasterPalette {
-  ramp: Uint8ClampedArray;
-  veil: RGB;
-  held: RGB;
-}
-
-export interface RasterTokens {
-  bg: string;
-  text: string;
-  accent: string;
-  accentSoft: string;
-}
-
-/**
- * The heat ramp: YlOrRd with the theme accent as its orange stop, so the middle of the ramp is the
- * app's one accent (05_FRONTEND_SHARED §5). Lightness falls monotonically along it (OKLab L about
- * 0.94 → 0.72 at the accent → 0.38), so lighter is less likely and darker is more likely.
- */
-export function paletteFromTokens(tokens: RasterTokens): RasterPalette {
-  const bg = parseHex(tokens.bg, FALLBACK_TOKENS.bg);
-  const text = parseHex(tokens.text, FALLBACK_TOKENS.text);
-  const accent = parseHex(tokens.accent, FALLBACK_TOKENS.accent);
-  const stops = YLORRD_STOPS.map((hex, i) => (i === ACCENT_STOP_INDEX ? accent : parseHex(hex, hex)));
-  return { ramp: buildEvenRamp(stops), veil: bg, held: text };
-}
-
-/** Read the tokens from the document (MapLibre and canvases cannot read CSS variables). */
-export function readRasterTokens(root: Element = document.documentElement): RasterTokens {
-  const styles = getComputedStyle(root);
-  const v = (name: string) => styles.getPropertyValue(name).trim();
-  return { bg: v("--bg"), text: v("--text"), accent: v("--accent"), accentSoft: v("--accent-soft") };
-}
-
-/** Ramp colour and alpha (0–255) for a heat level t in [0, 1]. */
-export function heatColor(palette: RasterPalette, t: number): [number, number, number, number] {
-  const k = Math.round(Math.min(1, Math.max(0, t)) * (RAMP_STEPS - 1)) * 3;
-  const r = palette.ramp;
-  const alpha = HEAT_ALPHA_MIN + (HEAT_ALPHA_MAX - HEAT_ALPHA_MIN) * t;
-  return [r[k] as number, r[k + 1] as number, r[k + 2] as number, Math.round(alpha * 255)];
-}
-
-/**
- * RGBA per cell (row-major, row 0 = north: the canvas's own pixel order).
- * - not photographed at this step: the background colour at VEIL_ALPHA ("not yet searched");
- * - a candidate sighting (a "Person" answer whose photo is flown): the darkest class;
- * - photographed and awaiting review: the neutral held tone at HELD_ALPHA;
- * - photographed: the ramp at the cell's level on the fixed scale p / scaleMax (fixedHeatLevels,
- *   scaleMax = the prior's highest cell, the same at every replay step), rounded to one of
- *   HEAT_CLASSES classes (classLevel). A fixed scale keeps the map and the sector list in step: a
- *   searched sector with a small share is drawn pale, not stretched to dark red.
- */
-export function heatPixels(
-  state: MapState,
-  covered: Uint8Array,
-  held: Uint8Array,
-  palette: RasterPalette,
-  scaleMax: number,
-  candidate?: Uint8Array | null,
-  out = new Uint8ClampedArray(state.p.length * 4),
-): Uint8ClampedArray {
-  const levels = fixedHeatLevels(state.p, covered, scaleMax, held);
-  const veilA = Math.round(VEIL_ALPHA * 255);
-  const heldA = Math.round(HELD_ALPHA * 255);
-  const top = heatColor(palette, 1);
-  for (let i = 0; i < state.p.length; i++) {
+/** RGBA per cell (row-major, row 0 = north: the canvas's own pixel order) from the cell kinds. */
+export function kindPixels(kinds: Uint8Array, colors: Uint8ClampedArray, out = new Uint8ClampedArray(kinds.length * 4)): Uint8ClampedArray {
+  for (let i = 0; i < kinds.length; i++) {
+    const k = (kinds[i] as number) * 4;
     const o = i * 4;
-    if (candidate?.[i] === 1) {
-      // A candidate sighting: someone is there. Drawn as the darkest class (ringed on the map); no
-      // probability is invented for it, the class only says "most likely point on the map".
-      out[o] = top[0];
-      out[o + 1] = top[1];
-      out[o + 2] = top[2];
-      out[o + 3] = top[3];
-    } else if (covered[i] !== 1) {
-      out[o] = palette.veil[0];
-      out[o + 1] = palette.veil[1];
-      out[o + 2] = palette.veil[2];
-      out[o + 3] = veilA;
-    } else if (held[i] === 1) {
-      out[o] = palette.held[0];
-      out[o + 1] = palette.held[1];
-      out[o + 2] = palette.held[2];
-      out[o + 3] = heldA;
-    } else {
-      const c = heatColor(palette, classLevel(levels[i] as number));
-      out[o] = c[0];
-      out[o + 1] = c[1];
-      out[o + 2] = c[2];
-      out[o + 3] = c[3];
-    }
+    out[o] = colors[k] as number;
+    out[o + 1] = colors[k + 1] as number;
+    out[o + 2] = colors[k + 2] as number;
+    out[o + 3] = colors[k + 3] as number;
   }
   return out;
 }

@@ -17,7 +17,10 @@ import { flownFrames } from "../base/features";
 import { OVERLAY_ATTR, readOverlays } from "../base/camera";
 import { placeLabel } from "./labelPlacement";
 import { FoundBanner } from "./FoundBanner";
-import { heatScaleMax, likelyPatches, probabilityShares } from "./geometry";
+import { likelyPatches, probabilityShares } from "./geometry";
+import { cellKinds, surfaceData } from "./classes";
+import { basemapKind, type BasemapKind, HEAT_PALETTES, muteImagery } from "./palette";
+import { pushSurface, setSurfaceMode, setSurfacePalette } from "./surface";
 import {
   buildOverlapIndex,
   eligibleCells,
@@ -32,6 +35,8 @@ import {
   breathFactor,
   ensureHeatLayers,
   HEAT_BASE_OPACITY,
+  HEAT_SURFACE_IDS,
+  heatTheme,
   HOTSPOT_HIT_LAYERS,
   type HeatVariant,
   pushHotspots,
@@ -53,11 +58,11 @@ import {
   setSurveyedBoundary,
   setUnsureBoundary,
 } from "./layers";
-import { Legend, rampSwatches } from "./Legend";
+import { classSwatches, Legend } from "./Legend";
 import { SimulatedLine, simulatedLineFor } from "../base/SimulatedLine";
 import { NextSearch } from "./NextSearch";
 import { PanelSlotContext, ROOMY_LAYOUT_QUERY, useMediaQuery, WIDE_LAYOUT_QUERY } from "./panelSlot";
-import { HeatRaster, heatPixels, paletteFromTokens, readRasterTokens, sweepDelays } from "./raster";
+import { HeatRaster, kindColors, kindPixels, sweepDelays } from "./raster";
 import { SectorList } from "./SectorList";
 import {
   candidateMask,
@@ -343,20 +348,26 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
   const activeHotRef = useRef(activeHot);
   activeHotRef.current = activeHot;
 
-  // --- the raster ---------------------------------------------------------------------------
-  const palette = useMemo(() => paletteFromTokens(readRasterTokens()), []);
+  // --- the probability surface ----------------------------------------------------------------
+  // Classes by probability mass (classes.ts), coloured for the basemap under them (palette.ts): the
+  // raster while it animates, GeoJSON fills and contours at rest (surface.ts).
+  const [basemap, setBasemap] = useState<BasemapKind>("dark");
+  const palette = HEAT_PALETTES[basemap];
+  const theme = useMemo(() => heatTheme(readHeatColors()), []);
+  const colors = useMemo(() => kindColors(palette, theme), [palette, theme]);
   const raster = useMemo(() => new HeatRaster(grid), [grid]);
-  // One colour scale for the whole replay: the top is the prior's likeliest cell (geometry.ts).
-  const scaleMax = useMemo(() => heatScaleMax(mapFile.prior.p), [mapFile.prior.p]);
-  const pixels = useMemo(
-    () => (ready && state ? heatPixels(state, covered, heldShown, palette, scaleMax, candidate) : null),
-    [ready, state, covered, heldShown, palette, scaleMax, candidate],
+  const kinds = useMemo(
+    () => (ready && state ? cellKinds(state.p, covered, heldShown, candidate) : null),
+    [ready, state, covered, heldShown, candidate],
   );
+  const pixels = useMemo(() => (kinds ? kindPixels(kinds, colors) : null), [kinds, colors]);
+  const surface = useMemo(() => (kinds ? surfaceData(grid, kinds) : null), [grid, kinds]);
   const [building, setBuilding] = useState(false);
+  const appliedPalette = useRef<BasemapKind | null>(null);
 
   // The latest values, for the style-reload installer.
-  const latest = useRef({ covered, heldOutline, candidate, unsure, hotspots, statuses, currentId, hoverId });
-  latest.current = { covered, heldOutline, candidate, unsure, hotspots, statuses, currentId, hoverId };
+  const latest = useRef({ covered, heldOutline, candidate, unsure, hotspots, statuses, currentId, hoverId, surface, palette });
+  latest.current = { covered, heldOutline, candidate, unsure, hotspots, statuses, currentId, hoverId, surface, palette };
   const [showPath, setShowPath] = useState(true);
   const showPathRef = useRef(showPath);
   showPathRef.current = showPath;
@@ -374,12 +385,41 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     raster.setOnDraw((playing) => {
       try {
         refreshHeatSource(map, playing);
+        // While it moves the raster shows; at rest the fills and contours of the same picture. The
+        // replay keeps the raster between its tweens (its fills are pushed at the pause).
+        setSurfaceMode(map, HEAT_SURFACE_IDS, playing || playingRef.current ? "raster" : "vector");
       } catch {
         /* style reloading; install() pushes again */
       }
     });
     return () => raster.stop();
   }, [map, raster]);
+
+  // The imagery is muted while the heat is on the map, and put back when it goes.
+  useEffect(() => {
+    if (!map) return undefined;
+    return () => {
+      try {
+        muteImagery(map, false);
+      } catch {
+        /* map gone */
+      }
+    };
+  }, [map]);
+
+  // The fills and contours follow every new picture. While the replay plays only the raster shows,
+  // so they wait for the pause (saves a GeoJSON re-tile every commit).
+  const replayPlaying = replay.playing;
+  useEffect(() => {
+    if (!map || !surface || replayPlaying) return;
+    try {
+      pushSurface(map, HEAT_SURFACE_IDS, surface);
+      // Paused with the raster at rest: hand over once these fills are drawn.
+      if (!raster.animating) setSurfaceMode(map, HEAT_SURFACE_IDS, "vector");
+    } catch {
+      /* style reloading; install() pushes again */
+    }
+  }, [map, raster, surface, replayPlaying]);
 
   // Install the layers once the style is ready, and again whenever a style reload drops them.
   useEffect(() => {
@@ -388,7 +428,21 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       try {
         const colors = readHeatColors();
         const now = latest.current;
-        ensureHeatLayers(map, raster, grid, now.covered, colors, variant);
+        // The palette follows the basemap: a switch reloads the style and lands here.
+        const kind = basemapKind(map);
+        const palette = HEAT_PALETTES[kind];
+        const opacity = HEAT_BASE_OPACITY[variant];
+        // Runs on every styledata (any style change, the breath's too): the palette is set again only
+        // after a basemap switch, the fills only when a reload dropped them, and muting the imagery
+        // twice changes nothing (MapLibre ignores a paint value equal to the current one).
+        const added = ensureHeatLayers(map, raster, grid, now.covered, colors, variant, palette, raster.animating ? "raster" : "vector");
+        if (added || appliedPalette.current !== kind) {
+          setSurfacePalette(map, HEAT_SURFACE_IDS, palette, heatTheme(colors), opacity);
+          appliedPalette.current = kind;
+        }
+        muteImagery(map, true);
+        if (added && now.surface) pushSurface(map, HEAT_SURFACE_IDS, now.surface);
+        if (kind !== now.palette.kind) setBasemap(kind);
         if (isSearch) {
           ensureDroneImage(map, colors.outline);
           ensureHotspotBadges(map, { accent: colors.accent, veil: colors.veil });
@@ -438,7 +492,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
         raster.show(pixels);
       } else if (isSearch) {
         // Cells sweep in from "not yet searched" in the order the flight photographed them.
-        const from = heatPixels(state, new Uint8Array(covered.length), heldShown, palette, scaleMax, candidate);
+        const from = kindPixels(cellKinds(state.p, new Uint8Array(covered.length), heldShown, candidate), colors);
         setBuilding(true);
         raster.animate(pixels, { durationMs: BUILD_UP_MS, delays: sweepDelays(firstStep, stepCount), fade: BUILD_UP_FADE }, from);
       } else {
@@ -649,7 +703,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       if (document.hidden || now - last < 50) return;
       last = now;
       try {
-        setBreath(map, breathFactor(now), HEAT_BASE_OPACITY.search);
+        setBreath(map, breathFactor(now), HEAT_BASE_OPACITY.search, palette, theme);
         // The first search-next circle pulses gently (hidden while the drone flies).
         setHotspotPulse(map, now);
       } catch {
@@ -660,13 +714,13 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
     return () => {
       cancelAnimationFrame(frame);
       try {
-        setBreath(map, 1, HEAT_BASE_OPACITY.search);
+        setBreath(map, 1, HEAT_BASE_OPACITY.search, palette, theme);
         setHotspotPulse(map, null);
       } catch {
         /* map gone */
       }
     };
-  }, [map, isSearch, reduced]);
+  }, [map, isSearch, reduced, palette, theme]);
 
   // Candidate sighting cells are not "photographed and cleared": the readout leaves them out.
   const coveredClear = useMemo(() => withoutCandidates(panelCovered, candidate), [panelCovered, candidate]);
@@ -773,6 +827,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
               hasSurveyed={hasSurveyed}
               hasSightings={sightings.length > 0}
               hasUnsure={shownUnsure.length > 0}
+              palette={palette}
             />
             {/* Review's map is narrow: its one simulated line lives here, not in a corner the card covers. */}
             <SimulatedLine {...simulatedLineFor(bundle)} plain />
@@ -854,6 +909,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
       hasSurveyed={hasSurveyed}
       hasSightings={sightings.length > 0}
       hasUnsure={shownUnsure.length > 0}
+      palette={palette}
       showPath={showPath}
       onShowPathChange={setShowPath}
       onCollapse={
@@ -966,7 +1022,7 @@ function HeatOverlay({ bundle, mapCtx, variant }: { bundle: CacheBundle; mapCtx:
           className={`pointer-events-auto absolute bottom-7 right-3 inline-flex h-8 items-center gap-2 rounded-full border border-border px-3 font-mono text-label uppercase tracking-wider text-text-2 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.9)] backdrop-blur-md transition-colors hover:text-text ${OVER_MAP}`}
         >
           <span aria-hidden="true" className="flex h-1.5 w-6 overflow-hidden rounded-full">
-            {rampSwatches().map((c) => (
+            {classSwatches(palette).map((c) => (
               <span key={c} className="h-full flex-1" style={{ background: c }} />
             ))}
           </span>
