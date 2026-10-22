@@ -69,7 +69,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from sightline.search.pod import DETECTION_FLOOR_PX  # noqa: E402
+from sightline.search.pod import DETECTION_FLOOR_PX
 
 THRESHOLD = 0.29  # frozen on val in sprint 1; never re-chosen here
 FOG_GREY = 192

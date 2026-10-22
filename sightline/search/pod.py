@@ -23,6 +23,10 @@ Without that GSD, or without the curve file, the caller's constant recall is use
 Outside the measured sizes: above the largest point the curve holds its last value; below the
 smallest point it falls linearly to 0 at ``DETECTION_FLOOR_PX`` (4 px, the size DJI's Drone SAR
 Altitude Guide gives for detection by Johnson's criteria) and is 0 below that.
+
+The curve (and the constant) were measured on HERIDAL; on other terrain the recall is multiplied by
+``TERRAIN_FACTORS[terrain]`` (measured on LADD's snow and winter photos), chosen by the
+``SIGHTLINE_TERRAIN`` environment variable, default ``heridal_like`` (1.0).
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ from __future__ import annotations
 import itertools
 import json
 import math
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import lru_cache
@@ -62,6 +67,26 @@ DETECTION_FLOOR_PX = 4.0
 """Below this size (px) the curve gives 0: DJI's Drone SAR Altitude Guide puts detection by
 Johnson's criteria at 4 px on screen (docs/report/POD.md, Context). Between it and the smallest
 measured point the recall is linear."""
+TERRAIN_ENV = "SIGHTLINE_TERRAIN"
+DEFAULT_TERRAIN = "heridal_like"
+TERRAIN_FACTORS: dict[str, float] = {
+    "heridal_like": 1.0,
+    "snow": 0.508,
+    "winter_other": 0.632,
+}
+"""Multiplier on the recall for terrain unlike HERIDAL's (summer Croatian karst), so the map does
+not assume HERIDAL recall elsewhere. Measured on LADD (snow and winter terrain the detector never
+saw; docs/report/LADD.md) at the frozen threshold 0.29, divided by the HERIDAL val recall the curve
+was measured on (0.859, 286 / 333, docs/evidence/pod/20261022-110620/pod.json):
+
+- ``snow``: LADD photos with snow cover, recall 0.436 (1,185 people) / 0.859 = 0.508;
+- ``winter_other``: the other LADD photos, recall 0.543 (3,548 people) / 0.859 = 0.632;
+
+both from ``by_snow_cover_proxy`` in docs/evidence/ladd/20261022T174430Z/breakdown.json. One
+factor for every size: LADD's recall barely changes with person size (0.53 to 0.54 from under 40
+to 90 px, square root of the box area), so the loss is the terrain, not the pixels. Chosen per mission by the ``SIGHTLINE_TERRAIN``
+environment variable (the contract's ``Mission`` has no field for it yet; TODO in
+docs/01_CONTRACT.md)."""
 # Overlaps below this are float noise on a shared edge, not real coverage.
 MIN_OVERLAP = 1e-9
 # Sub-pixel bits for cv2.fillPoly (vertices are rounded to 1/16 pixel).
@@ -139,15 +164,34 @@ def person_px(gsd_m: float, width_m: float = PERSON_WIDTH_M) -> float:
     return width_m / gsd_m
 
 
-def frame_recall(f: FrameInput, fallback: float, curve: PodCurve | None | bool = True) -> float:
+def terrain_factor(terrain: str | None = None) -> float:
+    """``TERRAIN_FACTORS[terrain]``; ``None`` reads ``SIGHTLINE_TERRAIN`` (default
+    ``heridal_like``, 1.0). An unknown name raises ValueError rather than guess."""
+    name = terrain or os.environ.get(TERRAIN_ENV) or DEFAULT_TERRAIN
+    try:
+        return TERRAIN_FACTORS[name]
+    except KeyError:
+        raise ValueError(
+            f"unknown terrain {name!r}; choose one of {', '.join(TERRAIN_FACTORS)}"
+        ) from None
+
+
+def frame_recall(
+    f: FrameInput,
+    fallback: float,
+    curve: PodCurve | None | bool = True,
+    terrain: str | None = None,
+) -> float:
     """Detector recall for this photo: the POD curve at the person's size in the detector's
-    pixels, else ``fallback`` (the constant). ``curve=True`` loads ``pod_curve.json``;
-    ``None``/``False`` always gives ``fallback``."""
+    pixels, else ``fallback`` (the constant), times the terrain factor (``terrain_factor``: both
+    the curve and the constant were measured on HERIDAL). ``curve=True`` loads
+    ``pod_curve.json``; ``None``/``False`` always uses ``fallback``."""
+    factor = terrain_factor(terrain)
     if curve is True:
         curve = load_pod_curve()
     if not curve or f.detector_gsd_m is None:
-        return fallback
-    return curve.recall_at(person_px(f.detector_gsd_m))
+        return fallback * factor
+    return curve.recall_at(person_px(f.detector_gsd_m)) * factor
 
 
 # Overlap, canopy and POD for every grid cell one frame covers.

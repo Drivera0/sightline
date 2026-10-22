@@ -380,6 +380,11 @@ class Lanes:
         grid = self._grid(lkp, cell_m)
         prior = self._prior(grid)
         frame_class = self.get("frame_input") or NativeFrameInput
+        # An older FrameInput without the field still works (it then uses the constant recall).
+        try:
+            takes_gsd = "detector_gsd_m" in inspect.signature(frame_class).parameters
+        except (TypeError, ValueError):
+            takes_gsd = False
         inputs = [
             frame_class(
                 frame_id=f.id,
@@ -390,7 +395,7 @@ class Lanes:
                 candidates=[
                     (LatLon(lat=lat, lon=lon), radius) for lat, lon, radius in f.candidates
                 ],
-                detector_gsd_m=f.detector_gsd_m,
+                **({"detector_gsd_m": f.detector_gsd_m} if takes_gsd else {}),
             )
             for f in frames
         ]

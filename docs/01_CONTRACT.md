@@ -415,6 +415,9 @@ class Mission(_Model):
     mode: Literal["live", "demo", "replay"]   # replay = a real flight pushed at drone pace (labelled)
     last_seen_at: str | None            # when the subject was last seen (urgency clock, B)
     subject: str | None                 # free text: "adult, red jacket, day hiker"
+    # TODO (lane A, POD terrain factor): no field selects the terrain yet. The map reads it from the
+    # SIGHTLINE_TERRAIN env var (heridal_like | snow | winter_other; sightline/search/pod.py,
+    # docs/report/POD.md). A future `terrain: str = "heridal_like"` here would make it per mission.
 
 # --- map (C) -----------------------------------------------------------------------------
 class MapBase(_Model):                  # map.json (§8) minus steps/final/top_cells

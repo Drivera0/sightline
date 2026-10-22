@@ -16,11 +16,14 @@ from sightline.search.pod import (
     DETECTION_FLOOR_PX,
     PERSON_WIDTH_M,
     POD_CURVE_PATH,
+    TERRAIN_ENV,
+    TERRAIN_FACTORS,
     FrameInput,
     PodCurve,
     frame_recall,
     load_pod_curve,
     person_px,
+    terrain_factor,
 )
 
 LKP = LatLon(lat=49.37, lon=-122.945)
@@ -169,3 +172,72 @@ def test_live_map_discounts_a_photo_with_small_people() -> None:
     assert after and set(after) <= set(before)
     for i, b in after.items():
         assert b == pytest.approx(min(0.95, before[i] * ratio), abs=2e-4)
+
+
+# --- terrain ----------------------------------------------------------------------------------
+
+
+def test_terrain_factor_defaults_to_heridal_and_reads_the_env(monkeypatch) -> None:
+    monkeypatch.delenv(TERRAIN_ENV, raising=False)
+    assert terrain_factor() == 1.0
+    monkeypatch.setenv(TERRAIN_ENV, "snow")
+    assert terrain_factor() == TERRAIN_FACTORS["snow"]
+    assert terrain_factor("winter_other") == TERRAIN_FACTORS["winter_other"]  # explicit wins
+    with pytest.raises(ValueError):
+        terrain_factor("moon")
+
+
+def test_terrain_scales_the_curve_and_the_constant(monkeypatch) -> None:
+    monkeypatch.delenv(TERRAIN_ENV, raising=False)
+    gsd = PERSON_WIDTH_M / 20.0
+    snow = TERRAIN_FACTORS["snow"]
+    assert frame_recall(_frame(gsd), RECALL, CURVE, terrain="snow") == pytest.approx(0.6 * snow)
+    assert frame_recall(_frame(None), RECALL, CURVE, terrain="snow") == pytest.approx(RECALL * snow)
+
+
+def test_terrain_factors_are_the_measured_ladd_over_heridal_val_recalls() -> None:
+    root = Path(__file__).resolve().parents[2]
+    ladd = json.loads(
+        (root / "docs/evidence/ladd/20261022T174430Z/breakdown.json").read_text(encoding="utf-8")
+    )
+    curve = load_pod_curve(POD_CURVE_PATH)
+    assert curve is not None
+    pod = json.loads((root / curve.source).read_text(encoding="utf-8"))
+    val = next(c for c in pod["conditions"] if c["name"] == "baseline")["recall"]
+    snow = ladd["by_snow_cover_proxy"]
+    assert TERRAIN_FACTORS["snow"] == pytest.approx(snow["snow"]["recall"] / val, abs=5e-4)
+    assert TERRAIN_FACTORS["winter_other"] == pytest.approx(
+        snow["no snow"]["recall"] / val, abs=5e-4
+    )
+    assert TERRAIN_FACTORS["heridal_like"] == 1.0
+
+
+# --- the batch map (build_map) uses the same curve as the live map ----------------------------
+
+
+def test_build_map_reads_the_curve_at_the_detector_gsd(tmp_path: Path, monkeypatch) -> None:
+    from PIL import Image
+
+    from sightline.search import build_map
+    from sightline.search.grid import make_grid
+    from sightline.search.prior import placeholder_prior
+
+    monkeypatch.delenv(TERRAIN_ENV, raising=False)
+    image = tmp_path / "grey.png"
+    Image.fromarray(np.full((750, 1000, 3), 128, np.uint8)).save(image)
+    grid = make_grid(LKP)
+    prior = placeholder_prior(grid)
+    curve = load_pod_curve()
+    assert curve is not None
+    gsd = 0.05  # 16 px per person: well below the constant
+    maps = {
+        k: build_map(grid, LKP, prior, [replace(_frame(g), image=image)], RECALL, "test")[0]
+        for k, g in (("constant", None), ("curve", gsd))
+    }
+    ratio = curve.recall_at(person_px(gsd)) / RECALL
+    assert ratio < 1
+    before = dict(maps["constant"].steps[0].cells)
+    after = dict(maps["curve"].steps[0].cells)
+    assert before and set(after) <= set(before)
+    for i, pod in after.items():
+        assert pod == pytest.approx(min(0.95, before[i] * ratio), abs=2e-4)
