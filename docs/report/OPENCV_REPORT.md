@@ -8,7 +8,8 @@
 > simulated is labelled simulated. Lead: Dan (lane A).
 
 Repository: https://github.com/Drivera0/sightline (tag `opencv-submit`) · Live demo:
-https://sightline-iota-sandy.vercel.app · **TODO (lane D):** AWS endpoint URL.
+https://sightline-iota-sandy.vercel.app (demo) · Live mission API on AWS: https://44-227-39-234.sslip.io
+(started for demos and judging; `GET /health`).
 
 ---
 
@@ -44,8 +45,9 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
   approves, every step traced (§5);
 - the **radio desk**: ground teams talk to Sightline on a secondary channel; questions answered
   from the mission, clues reported by voice and logged only after a readback (§5.1);
-- live missions: photos uploaded one at a time, processed as they arrive (**TODO (lane D)**);
-- the AWS deployment (§6, **TODO (lane D)**);
+- live missions: a search created in the browser, photos uploaded as each flight lands and
+  processed as they arrive, with live updates over server-sent events (§3);
+- the AWS deployment (§6);
 - the command view and front door (**TODO (lane E)**), the information-gain planner (**TODO (lane C)**),
   conditions from live web search (**TODO (lane B)**).
 
@@ -55,9 +57,21 @@ Diff: `git diff bcs-final-submission..opencv-submit`.
 
 ![System](../architecture/system.png)
 
-**TODO (lane D):** replace with the live-mission architecture once the mission API is merged
-(photos → `POST /missions/{id}/photos` → per-photo pipeline → MissionStore → SSE → web), and add
-where AWS sits.
+The figure shows the original batch pipeline. Live missions (contract v1.2, `sightline/mission/`,
+`sightline/api/`) run the same stages per photo:
+
+```
+browser ─ POST /missions/{id}/photos ─► API ─ original → S3, job → SQS (FIFO, one group per mission)
+                                                                   │
+            SSE /missions/{id}/events ◄─ MissionStore ◄─ worker: pose (EXIF/XMP) → display frame →
+                                          (only writer)    cv2.dnn on the original, tiled → georef →
+                                                           ranking → map step → agent hooks
+```
+
+The `MissionStore` is the only writer of mission files and checks every write against the contract;
+`validate_mission()` checks the invariants (no "clear", POD caps, decisions recorded, radio clues
+confirmed). Locally the queue is a thread in the API process; on AWS (§6) it is SQS and a separate
+worker container.
 
 ![Agent workflow](../architecture/agent.png)
 
@@ -85,8 +99,8 @@ from its ONNX export, with no PyTorch at run time (`sightline/ml/detect_cv.py`):
   `CvDetector` detects that it accepts non-square input and pads the same way.
 - **Backend switch:** `SIGHTLINE_BACKEND=cv2` (default) or `torch` through
   `sightline.ml.backend.make_detector()`, which the demo-cache build (`run_survey`) uses; the
-  Nebius batch job runs `CvDetector` directly. **TODO (lane D):** confirm the live pipeline and
-  the AWS worker build their detector with `make_detector()` (issue #8).
+  Nebius batch job runs `CvDetector` directly. The live pipeline and the AWS worker build theirs
+  with `make_detector()` too, and `/health` reports which backend is running.
 
 **Parity** (`scripts/parity_table.py`; the same weights, the same photos, the frozen threshold
 0.29, the same scoring code; test read once, only to check agreement):
@@ -209,10 +223,30 @@ three human voices (`scripts/radio_wer.py`).
 
 ## 6. AWS deployment
 
-**TODO (lane D):** what runs where (S3 uploads → SQS → worker running `cv2.dnn` → API on EC2 behind
-HTTPS → CloudWatch), instance type, IAM and Secrets Manager, per-photo latency from CloudWatch,
-a dashboard screenshot, teardown, and the cost so far. Note for sizing: `cv2.dnn` takes about
-30 CPU-seconds of work per full photo (1.9 s on 16 cores); measure on the instance.
+The live pipeline runs on AWS (us-west-2), set up and torn down by scripts in `deploy/aws/`:
+
+| Piece | What it does |
+|---|---|
+| **EC2** (c7i.xlarge, 4 vCPU; Amazon Linux 2023) | one Docker image, three containers: the API, the photo **worker** running OpenCV 5 `cv2.dnn` (no PyTorch in the image), and Caddy for HTTPS |
+| **SQS** (FIFO + dead-letter queue) | photo jobs, one message group per mission so each mission's photos are processed in upload order; a job is deleted only after success and goes to the dead-letter queue after 3 failures; duplicate deliveries are skipped |
+| **S3** | the original photos (`missions/<id>/orig/`), private, deleted after 30 days |
+| **EBS** | the mission files, shared by the API and worker containers; the API's event stream also reads events the worker writes |
+| **CloudWatch** | container logs; metrics `PhotoLatencyMs` (per pipeline step), `DetectionsPerPhoto`, `AgentModelCalls`; a dashboard with the queue depth and dead letters |
+| **Secrets Manager** | the Nebius and Tavily API keys, read at container start; never in the image, the repo or the logs |
+| **IAM** | the instance role can only reach the bucket's `missions/` prefix, the one queue, its log group, the one secret, and `PutMetricData` in the `Sightline` namespace; no SSH port is open (administration through SSM) |
+
+**Measured** (one real HERIDAL validation photo, 4000×3000, uploaded through the API; `scripts/remote_check.py`):
+
+| Instance | vCPU | In the worker | of which `cv2.dnn` | Upload to "processed" |
+|---|---|---|---|---|
+| c7i.xlarge | 4 | 10.0 s | 9.6 s | 11.5 s |
+| c7i.4xlarge | 16 | 3.5 s | 3.1 s | 4.9 s |
+
+`cv2.dnn` needs about 30 CPU-seconds per full photo, so time falls roughly with the core count. The
+same checks pass after stopping and starting the instance (same address, missions kept), so the
+instance is stopped between demos. Cost while running: about $0.18 an hour on c7i.xlarge (~$0.71 on
+c7i.4xlarge, used only for the demo recording); a $20 monthly budget alarm covers the account.
+`teardown.sh` deletes everything. **TODO (lane A):** the CloudWatch dashboard screenshot from a longer run.
 
 ## 7. Evaluation
 
@@ -273,8 +307,9 @@ existing map result (28–30 % fewer cells to search than a naive map; README).
 
 ### 7.5 End to end
 
-**TODO (lane D):** per-photo latency through the live pipeline (upload → pin → map update), on
-AWS from CloudWatch.
+Per photo through the live pipeline (upload → detections on screen): **2.1 s** on the GPU desktop
+(16 cores, `cv2.dnn` 1.8 s), **11.5 s** on AWS c7i.xlarge and **4.9 s** on c7i.4xlarge (§6). The map
+step waits for the live map (lane C); **TODO (lane C):** the map-update time once it lands.
 
 ## 8. Limitations and failure cases
 
@@ -301,10 +336,12 @@ AWS from CloudWatch.
   proposal and briefing for it (`test_the_word_clear_never_reaches_the_mission`,
   `test_never_dismisses_and_never_says_clear`); the radio replaces a spoken "clear" with "standby"
   (`tests/radio/test_turn_api.py::test_postcheck`) and its screen copy is checked for the word
-  (`web/src/radio/RadioDesk.test.tsx`); **TODO (lanes C, D):** name your tests.
+  (`web/src/radio/RadioDesk.test.tsx`); `validate_mission()` flags
+  it in any summary, reason, briefing or note of a mission (`tests/pipeline/test_mission.py`, "cleared in a reason");
+  **TODO (lane C):** name your tests.
 - **Every action is approved by a person and logged** with who and when.
 - **No secrets in the browser, the repo or the trace**; keys come from environment variables
-  (and AWS Secrets Manager, **TODO (lane D)**).
+  and, on AWS, Secrets Manager (§6).
 - **Honest evaluation:** thresholds and rules are chosen on validation; test is scored once per
   decision. Choices that saw test results are disclosed (§10).
 - **Imagery:** HERIDAL (Božić-Štulić, Marušić & Gotovac, 2019), CC BY 3.0; no real search data.
@@ -340,4 +377,12 @@ uv run python scripts/radio_rehearse.py --runs 5           # §5.1, against a ru
 
 The radio server needs the NeMo environment for real voices (`sightline/radio/README.md`).
 
-**TODO (lane D):** run the app and the AWS deployment (`deploy/aws/README.md`).
+Live missions, locally and on AWS:
+
+```bash
+uv run python -m sightline.pipeline serve --radio text      # the API with a local worker (cv2 by default)
+cd web && VITE_API_URL=http://127.0.0.1:8000 pnpm dev        # then open #new: start a search, drop photos in
+bash scripts/smoke.sh                                       # the whole loop in ~11 s, no network or model files
+bash deploy/aws/setup.sh                                     # AWS (deploy/aws/README.md); teardown.sh removes it
+uv run python scripts/remote_check.py --api https://<address>   # is the deployment working right now?
+```
