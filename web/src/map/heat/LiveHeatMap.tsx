@@ -3,7 +3,7 @@
 // animated as each `map.updated` arrives (reduced motion: no tween); sector outlines with their POA
 // now; the last-known point; clues; teams at their last position. Demo caches keep HeatLayer.
 // Built by lane A for lanes C and B (issues #64, #74).
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Popup, type GeoJSONSource, type Map } from "maplibre-gl";
 import type { Clue, FleetState, MapBase, MapUpdate, Proposal, Team } from "../../contract";
 import { usePick } from "../pick";
@@ -227,7 +227,46 @@ export interface LiveHeatMapProps {
   fill?: boolean;
 }
 
+const TEAM_WORDS: Record<Team["status"], string> = { standby: "standby", assigned: "assigned", searching: "searching", returning: "returning", off_duty: "off duty" };
+const pctWords = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
+
+/**
+ * The map in words, for screen readers (the figure's description): every sector with its POA (likeliest
+ * first), every team with its status, every clue, every drone. Rebuilt whenever the data changes.
+ */
+export function mapTextAlternative({ sectors, teams, clues, fleet = null }: Pick<LiveHeatMapProps, "sectors" | "teams" | "clues" | "fleet">): string[] {
+  const callsign = (id: string) => teams.find((t) => t.id === id)?.callsign ?? id;
+  const bySector = [...sectors].sort((a, b) => b.poa - a.poa);
+  const drones = fleet?.drones ?? [];
+  return [
+    bySector.length
+      ? `Sectors by probability (POA): ${bySector.map((s) => `${s.sector_id} ${s.label} ${pctWords(s.poa)}`).join("; ")}.`
+      : "No sectors yet.",
+    teams.length
+      ? `Teams: ${teams.map((t) => `${t.callsign} ${TEAM_WORDS[t.status]}${t.position ? "" : ", no position"}`).join("; ")}.`
+      : "No teams.",
+    clues.length
+      ? `Clues: ${clues.map((c) => `${c.id} ${c.kind}: ${c.text} (${callsign(c.reported_by)}, ${c.confirmed ? "confirmed" : "unconfirmed"})`).join("; ")}.`
+      : "No clues yet.",
+    drones.length
+      ? `Drones${fleet?.simulated ? " (simulated)" : ""}: ${drones.map((d) => `${d.name} ${d.status}, battery ${Math.round(d.battery_pct)}%`).join("; ")}.`
+      : "No drones on the map.",
+  ];
+}
+
+function MapDescription({ id, ...data }: { id: string } & Pick<LiveHeatMapProps, "sectors" | "teams" | "clues" | "fleet">) {
+  return (
+    <div id={id} className="sr-only">
+      {mapTextAlternative(data).map((line) => (
+        <p key={line.slice(0, 40)}>{line}</p>
+      ))}
+    </div>
+  );
+}
+
 export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps): ReactNode {
+  const describedBy = useId();
+  const description = <MapDescription id={describedBy} sectors={rest.sectors} teams={rest.teams} clues={rest.clues} fleet={rest.fleet} />;
   const style = useMemo(() => {
     const key = import.meta.env.VITE_MAPTILER_KEY?.trim() || undefined;
     return basemapStyle(chooseBasemapMode(key, navigator.onLine), key, readBasemapColors());
@@ -237,7 +276,8 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
   if (!mapBase) return <p className="text-small text-text-3">The map appears once the mission has its search area.</p>;
   if (fill) {
     return (
-      <figure aria-label="Live map" className="relative h-full min-h-[360px] overflow-hidden rounded-lg border border-border">
+      <figure aria-label="Live map" aria-describedby={describedBy} className="relative h-full min-h-[360px] overflow-hidden rounded-lg border border-border">
+        {description}
         <MapProvider className="h-full w-full" initialCenter={center} initialZoom={15} mapStyle={style}>
           <LiveLayers base={mapBase} {...rest} />
         </MapProvider>
@@ -257,7 +297,8 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
     );
   }
   return (
-    <figure aria-label="Live map" className="flex flex-col gap-2">
+    <figure aria-label="Live map" aria-describedby={describedBy} className="flex flex-col gap-2">
+      {description}
       <div className="h-[420px] overflow-hidden rounded-lg border border-border">
         <MapProvider className="h-full w-full" initialCenter={center} initialZoom={15} mapStyle={style}>
           <LiveLayers base={mapBase} {...rest} />
