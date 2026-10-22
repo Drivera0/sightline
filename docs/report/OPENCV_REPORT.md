@@ -48,8 +48,9 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
 - live missions: a search created in the browser, photos uploaded as each flight lands and
   processed as they arrive, with live updates over server-sent events (§3);
 - the AWS deployment (§6);
-- the command view and front door (**TODO (lane E)**), the information-gain planner (**TODO (lane C)**),
-  conditions from live web search (**TODO (lane B)**).
+- the live map (every photo, review, searched sector and clue updates it) and the information-gain
+  planner that sends drones and teams where they rule out the most probability per minute (§5.2);
+- the command view and front door (**TODO (lane E)**), conditions from live web search (**TODO (lane B)**).
 
 Diff: `git diff bcs-final-submission..opencv-submit`.
 
@@ -154,8 +155,9 @@ contrast on a low-contrast fixture; the zoom reads the right native pixels for a
 - **Choosing the re-look tool** (`sightline/agent/verify.py`): `cv2.cvtColor` to grey for the
   contrast measure; crops go to the model through `cv2.imencode`.
 
-**TODO (lane C, lane B):** add any new uses this sprint (sector rasterisation, footprints) with one
-line each.
+The live map, sectors and planner added this sprint reuse these (each photo's step is
+`pod.frame_step`, with `cv2.fillPoly` and `cv2.blur` per photo); they add no new OpenCV calls.
+**TODO (lane B):** any new uses in conditions or cards.
 
 ## 5. The agent (Agentic Vision)
 
@@ -322,7 +324,8 @@ existing map result (28–30 % fewer cells to search than a naive map; README).
 
 Per photo through the live pipeline (upload → detections on screen): **2.1 s** on the GPU desktop
 (16 cores, `cv2.dnn` 1.8 s), **11.5 s** on AWS c7i.xlarge and **4.9 s** on c7i.4xlarge (§6). The map
-step waits for the live map (lane C); **TODO (lane C):** the map-update time once it lands.
+step (the live map's update for the photo, canopy from its own pixels) takes 46 ms of that for a full
+HERIDAL photo covering 142 cells.
 
 ## 8. Limitations and failure cases
 
@@ -340,7 +343,10 @@ step waits for the live map (lane C); **TODO (lane C):** the map-update time onc
   if the model fails or times out, the team hears "say again" and nothing changes. Its numbers so
   far use typed team lines (§5.1).
 - **Simulated parts:** the demo flight path over Mount Seymour, the search-map evaluation and the
-  fleet are simulated and labelled so on screen. **TODO (lane C/D):** list any others.
+  fleet are simulated and labelled so on screen; in the live AV chains (§5) the drones are simulated and
+  the human steps scripted, both labelled in the trace. The search prior is a labelled placeholder
+  (uniform, half outside the 1 km grid) until a cited lost-person prior; the clue and shelter factors of
+  the live map are heuristics, labelled in `sightline/search/live.py`.
 
 ## 9. Responsible use
 
@@ -351,7 +357,9 @@ step waits for the live map (lane C); **TODO (lane C):** the map-update time onc
   (`tests/radio/test_turn_api.py::test_postcheck`) and its screen copy is checked for the word
   (`web/src/radio/RadioDesk.test.tsx`); `validate_mission()` flags
   it in any summary, reason, briefing or note of a mission (`tests/pipeline/test_mission.py`, "cleared in a reason");
-  **TODO (lane C):** name your tests.
+  a searched sector's POD is capped at 0.9, so searching never rules a sector out
+  (`tests/search/test_live.py::test_a_searched_sector_is_never_cleared`, and the task rule in
+  `tests/pipeline/test_mission.py`).
 - **Every action is approved by a person and logged** with who and when.
 - **No secrets in the browser, the repo or the trace**; keys come from environment variables
   and, on AWS, Secrets Manager (§6).
