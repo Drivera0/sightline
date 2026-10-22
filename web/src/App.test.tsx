@@ -8,6 +8,7 @@ import { useSelection } from "./lib/selection";
 
 describe("App", () => {
   beforeEach(() => {
+    window.location.hash = "#survey"; // the demo flow (the default route is the front door)
     useCache.getState().reset();
     useSelection.getState().clear();
     vi.unstubAllGlobals();

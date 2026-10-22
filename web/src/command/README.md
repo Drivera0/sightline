@@ -13,5 +13,5 @@ Mounted in the live mission page (`web/src/ingest/LiveMission.tsx`, tab **Approv
 transmitted from the inbox. Checked in Chromium against the real server (val photos, cv2.dnn, Nemotron):
 screenshot in `docs/architecture/screens/approval-inbox.png`.
 
-Still lane E's: the front door, the rest of the command view (task board, roster, clue log, event feed with
+Lane A also built the **front door** (`web/src/front/`: `FrontDoor.tsx`, `copy.ts` with LANE_E §6.2's words exactly, the default route `#`, test 6). Still lane E's: the rest of the command view (task board, roster, clue log, event feed with
 filters, assignment card), `__fixtures__` for demo mode.
