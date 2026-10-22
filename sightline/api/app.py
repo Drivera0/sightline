@@ -191,9 +191,16 @@ def create_app(
 
 
 def detector_name(det: object) -> str:
-    """ "cv2", "torch" or "fake" for a detector object (by class, so a fallback shows)."""
+    """ "cv2", "torch", "fake" or "remote" (``SIGHTLINE_DETECT_URL``) for a detector object (by
+    class, so a fallback shows)."""
     name = type(det).__name__
-    return {"CvDetector": "cv2", "Detector": "torch", "FakeDetector": "fake"}.get(name, name)
+    names = {
+        "CvDetector": "cv2",
+        "Detector": "torch",
+        "FakeDetector": "fake",
+        "RemoteDetector": "remote",
+    }
+    return names.get(name, name)
 
 
 def mission_context(mission_root: Path, queue: str = "local") -> MissionContext:

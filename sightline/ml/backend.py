@@ -5,6 +5,11 @@
 Both have ``detect_tiled``, which the pipeline calls on full-size photos. ``fake`` (smoke test,
 no model files) returns two fixed boxes on every photo (``sightline/ml/fake.py``).
 
+``SIGHTLINE_DETECT_URL`` (unset by default) sends the cv2 path to a detector served over HTTP
+instead (``RemoteDetector``, sightline/ml/remote.py; the Nebius Serverless Endpoint of
+deploy/nebius/ENDPOINT.md), with ``SIGHTLINE_DETECT_TOKEN`` as its bearer token. ``torch`` and
+``fake`` ignore it.
+
 If cv2 is asked for but no ONNX file exists, this falls back to Torch with a warning, and fails
 with one error naming every path it tried when Torch can't run either.
 """
@@ -18,6 +23,7 @@ from pathlib import Path
 from sightline.ml.detect import Detector
 from sightline.ml.detect_cv import CvDetector
 from sightline.ml.fake import FakeDetector
+from sightline.ml.remote import RemoteDetector
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +59,7 @@ def onnx_candidates(onnx: Path | None, weights: Path | None) -> list[Path]:
 
 def make_detector(
     *, weights: Path | None = None, onnx: Path | None = None, backend: str | None = None
-) -> Detector | CvDetector | FakeDetector:
+) -> Detector | CvDetector | FakeDetector | RemoteDetector:
     """The detector for ``backend`` (default: env ``SIGHTLINE_BACKEND``, else ``"cv2"``).
 
     ``weights`` is the Torch ``.pt`` (default: ``SIGHTLINE_WEIGHTS``, else ``DEFAULT_WEIGHTS``);
@@ -70,6 +76,9 @@ def make_detector(
         return FakeDetector()
     if backend == "torch":
         return Detector(pt)
+
+    if os.environ.get("SIGHTLINE_DETECT_URL"):
+        return RemoteDetector.from_env()
 
     tried = onnx_candidates(onnx, pt)
     found = next((p for p in tried if p.is_file()), None)
