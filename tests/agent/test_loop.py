@@ -371,6 +371,8 @@ FACTS = {"team": "Team Two", "sector": "B3", "daylight_left": "2 h 40 min"}
             "no punctuation",
         ),
         ("Team Two, search sector B3.", None),  # short and punctuated
+        ("{}", "not a briefing"),  # seen in the browser with the fake model: never radio text
+        ('{"briefing": "Team Two, search B3."}', "not a briefing"),
         # live, from Nemotron, on a confirmed sighting: never tell teams to stop
         (
             "Team, a person was seen in sector B3. No further action is needed.",
