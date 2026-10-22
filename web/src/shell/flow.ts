@@ -35,6 +35,7 @@ export type Route = { kind: "front" } | { kind: "demo" } | { kind: "new" } | { k
 export function routeFromHash(hash: string): Route {
   if (hash === "" || hash === "#") return { kind: "front" };
   if (hash === "#new") return { kind: "new" };
+  if (hash === "#command") return { kind: "mission", id: "demo" }; // D-R2: the command view (demo mission; live: #m/<id>/command)
   const m = /^#m\/([0-9a-f]{8}|demo)(\/|$)/.exec(hash); // "demo": the command view on fixtures (E-04)
   return m ? { kind: "mission", id: m[1] as string } : { kind: "demo" };
 }

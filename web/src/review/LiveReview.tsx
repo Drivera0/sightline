@@ -9,6 +9,13 @@ import { Badge, EmptyState, Label, Panel } from "../shell/components";
 export type LiveAnswer = "person" | "not_person" | "unsure";
 
 /** "Second look: likely a person · lying down · red jacket", or "Second look: unclear". Always words. */
+/** "relook/f0003-d01-zoom_native.jpg" → "zoom native": which OpenCV 5 tool made the image. */
+export function relookName(rel: string): string {
+  const base = rel.split("/").at(-1)?.replace(/\.[a-z]+$/i, "") ?? rel;
+  const tool = /^f\d{4}-d\d{2}-(.+)$/.exec(base)?.[1] ?? base;
+  return tool.replace(/_/g, " ");
+}
+
 export function verdictWords(v: Verdict | undefined): string | null {
   if (!v) return null;
   if (v.person === "unclear") return "Second look: unclear";
@@ -50,6 +57,7 @@ export function LiveReview({
   onAnswer: (detectionId: string, answer: LiveAnswer) => void;
 }) {
   const [answers, setAnswers] = useState<Record<string, LiveAnswer>>({});
+  const [shown, setShown] = useState<Record<string, boolean>>({});
   const items = liveReviewItems(detections, promoted);
   if (items.length === 0) return <EmptyState title="No candidates yet">Candidates appear here as photos are processed.</EmptyState>;
   const latest = new Map<string, Verdict>();
@@ -75,6 +83,29 @@ export function LiveReview({
             </div>
             <Label className="normal-case tracking-normal">{frameName(d.id)}</Label>
             {words && <p className="text-small text-text-2">{words}</p>}
+            {(latest.get(d.id)?.relook_crops.length ?? 0) > 0 && (
+              // the OpenCV 5 re-look images the second look saw (D-Q1), on demand: they are larger files
+              <div className="flex flex-col gap-1">
+                <button
+                  type="button"
+                  className="self-start text-small text-accent-soft underline"
+                  aria-expanded={!!shown[d.id]}
+                  onClick={() => setShown((x) => ({ ...x, [d.id]: !x[d.id] }))}
+                >
+                  {shown[d.id] ? "Hide the second look's images" : `Show the second look's images (${latest.get(d.id)!.relook_crops.length})`}
+                </button>
+                {shown[d.id] && (
+                  <div className="grid grid-cols-2 gap-1">
+                    {latest.get(d.id)!.relook_crops.map((rel) => (
+                      <figure key={rel} className="flex flex-col gap-0.5">
+                        <img src={imageUrl(rel)} alt={`Re-look image ${rel}`} className="aspect-square w-full rounded-sm object-cover" />
+                        <figcaption className="text-caption text-text-3">{relookName(rel)}</figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex gap-2">
               {ANSWERS.map((a) => (
                 <button

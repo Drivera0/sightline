@@ -99,7 +99,7 @@ These weren't spelled out in the contract; each is one place in `store.py` to ch
 - [x] D-M2 `useSelection` gains `selectedTeamId`, `selectedDroneId`, `selectedClueId` (one at a time; lane A). Demo fixtures: `web/src/command/__fixtures__/` (#94)
 - [x] D-I1 rest (lane A): the last known position picked on the map in New search (`LkpPicker.tsx`, B's `onPick`; checked in Chromium), and the live-source command is now lane B's `watch` client
 - [x] D-W1 AWS (lane A): live at https://44-227-39-234.sslip.io (stopped between demos); `deploy/aws/update.sh` redeploys `main`; `scripts/remote_check.py` passes 7/7
-- [ ] Sample cache regenerated as 1.2 (optional: 1.1 caches are still readable)
+- [x] Sample cache regenerated as 1.2 (lane A; only the version stamp changed, `validate` passes)
 - [x] `_live.py` deleted: C-L1 landed (`sightline/search/live.py`, lane A, #64); new missions get sector tasks A1–D4
 
 ## Measured (Tue Oct 21, `serve` on the GPU desktop, cv2 backend, fake LLM)
@@ -108,4 +108,9 @@ One real HERIDAL **val** photo (`train_BRK_2048.jpg`, 4000×3000, DJI metadata) 
 `POST /photos`: accepted as `f0001`, 2 candidates (0.814, 0.801), `photo.processed` after **2.1 s**
 (pose 174 ms, cv2.dnn detect 1.8 s, store 130 ms), events streamed over SSE, `validate_mission` → `[]`.
 It found one bug the unit tests didn't: DJI photos open in Pillow as **MPO**, not JPEG (fixed).
+- [x] Audit fixes (lane A, 2026-10-22): `#command` opens the command view (the demo mission; live: `#m/<id>/command`);
+      live review shows the second look's re-look images on demand (D-Q1); `web/src/noClear.test.ts` scans every
+      visible string in `web/src` for "clear"/"cleared" against a reviewed list (test 10); **CI**
+      (`.github/workflows/ci.yml`): ruff, pytest, smoke, tsc, vitest and the offline build check on every push to
+      `main` and every PR. The radio stays a tab of the live mission, not the command view's right rail.
 

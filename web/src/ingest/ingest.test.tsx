@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Detections, Verdict } from "../contract";
 import { LiveRoutes } from "../App";
-import { LiveReview, liveReviewItems, verdictWords } from "../review/LiveReview";
+import { LiveReview, liveReviewItems, relookName, verdictWords } from "../review/LiveReview";
 import { routeFromHash } from "../shell/flow";
 import { SAFETY_FRAME } from "../radio/RadioDesk";
 import { cardFromHash, LiveMission, tabFromHash } from "./LiveMission";
@@ -24,6 +24,7 @@ describe("routes", () => {
     expect(routeFromHash("#m/a1b2c3d4/review")).toEqual({ kind: "mission", id: "a1b2c3d4" });
     expect(routeFromHash("#review")).toEqual({ kind: "demo" });
     expect(routeFromHash("#m/demo/command")).toEqual({ kind: "mission", id: "demo" });
+    expect(routeFromHash("#command")).toEqual({ kind: "mission", id: "demo" });
     expect(routeFromHash("#m/../../x")).toEqual({ kind: "demo" });
   });
 
@@ -104,6 +105,17 @@ describe("review in live mode (test 8)", () => {
   it("shows candidates and approved promotions, most confident first", () => {
     expect(liveReviewItems(dets, []).map((d) => d.id)).toEqual(["f0001-d01"]);
     expect(liveReviewItems(dets, ["f0001-d02"]).map((d) => d.id)).toEqual(["f0001-d01", "f0001-d02"]);
+  });
+
+  it("shows the second look's re-look images on demand (D-Q1)", async () => {
+    expect(relookName("relook/f0003-d01-zoom_native.jpg")).toBe("zoom native");
+    expect(relookName("relook/f0003-d01-enhance_contrast.jpg")).toBe("enhance contrast");
+    const v = verdict({ relook_crops: ["relook/f0001-d02-zoom_native.jpg"] });
+    render(<LiveReview detections={dets} survey={null} verdicts={[v]} promoted={["f0001-d02"]} imageUrl={(r) => `/f/${r}`} onAnswer={vi.fn()} />);
+    expect(screen.queryByAltText(/Re-look image/)).toBeNull(); // not loaded until asked for
+    await userEvent.click(screen.getByRole("button", { name: "Show the second look's images (1)" }));
+    expect(screen.getByAltText("Re-look image relook/f0001-d02-zoom_native.jpg")).toHaveAttribute("src", "/f/relook/f0001-d02-zoom_native.jpg");
+    expect(screen.getByText("zoom native")).toBeInTheDocument();
   });
 
   it("always says the second look in words", () => {
