@@ -59,6 +59,28 @@ as lane D's pipeline (the `pipeline` line is written by the script); and the app
 **scripted** for this run and says so in the trace. Everything else is the production code path
 (`loop.handle`, `verify`, the OpenCV tools, Token Factory).
 
+## End to end on a live mission
+
+`scripts/agent_live.py` runs the agent on the real system: the mission API, OpenCV 5 `cv2.dnn`, lane C's live map,
+the mission store, and Nemotron on Token Factory. It uploads six HERIDAL **validation** photos from one site and
+acts as the search would: a reviewer answers "person", a clue comes in, a scripted search manager approves one
+proposal (labelled in the trace). The fleet is two **simulated** drones until lane C's fleet sim lands.
+
+Run of 2026-10-21 (`runs/agent_live/`): 9 candidates from 6 photos; the second look on all 9 (OpenCV re-look tools:
+`zoom_native` on all 9, `enhance_contrast` on 2, `redetect_region` on 1); a confirmed person led to an `alert` to all
+teams and an `assign_sector` for the nearest team on standby (approved: the task and the team became "assigned"); the
+clue reweighted the map and led to a `drone_leg` from the planner (still the stub, and its reason says so).
+12 model calls, about 8.5k tokens in. `validate_mission` passed after every step.
+
+Two problems this run found, both fixed:
+
+- **A briefing told teams to stand down.** Asked to add "no orders", Nemotron ended an alert for a confirmed sighting
+  with "No further action is needed." Briefings saying a team should stop or that nothing is needed are now rejected
+  in code (one retry, then the facts-only template), and the prompt says to state the facts and stop. A run-on
+  without punctuation is rejected too: briefings are read aloud on the radio.
+- **Briefing model calls were not in the trace.** Every attempt is now a `model_call` entry (facts in, text and
+  tokens out, why it was rejected), and a fallback to the template is a `note`.
+
 ## Evaluation
 
 **Task success.** On val (95 photos, 333 people) the second look on near-misses finds 11 more
