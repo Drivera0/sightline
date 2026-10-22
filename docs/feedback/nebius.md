@@ -285,10 +285,30 @@ No Hugging Face token needed.
 inverse-text-normalisation switch would help. **It does not know the ICAO / radio word "niner"**: "four
 niner point three eight one" came out as "49er.381", "one two two point niner four zero" as
 "122.9er40", and "point niner three six" as "point nine or three six". Every coordinate error in our
-WER set was this one word. We normalise it in code (`sightline/radio/protocol.py`, `normalize`), but a
-radio-vocabulary hint or custom vocabulary (word boosting for "niner", "affirmative", "say again") at
-inference time should fix it upstream for every SAR, aviation or marine voice agent. NeMo pins its own
+WER set was this one word. We normalise it in code (`sightline/radio/protocol.py`, `normalize`). NeMo pins its own
 Lightning and torch versions, so it needs its own environment (`docs/feedback/radio.md:175-176`).
+
+**Word boosting (measured 2026-10-22).** NeMo 3.0's phrase boosting fixes "niner" in the model: with 22
+radio phrases at alpha 1, context score 1, raw WER (no "niner" repair) went from 0.080 to 0.025 and
+coordinates from 0 / 2 to 2 / 2 on the same 20 clips, at no time cost (47 vs 48 ms per clip). After our
+normaliser both are 0.025, so we keep it off by default. The hosted model on build.nvidia.com honours
+Riva's word boosting too: with verbatim transcripts, 0.043 → 0.031 raw, 1 / 2 → 2 / 2 coordinates
+(`docs/feedback/radio.md`, "Word boosting"). Finding it locally took about 15 minutes of reading NeMo's
+source, from the first search to the first boosted transcript (the classes are in `context_biasing`, but
+the switch is `decoding.greedy.boosting_tree`, a key missing from Parakeet's shipped config, so setting
+it raises `ConfigAttributeError: Missing key boosting_tree` until it is added with `open_dict`); hosted,
+about 10 minutes (the model page shows no function id or gRPC example outside the browser; we read the id
+from the NVCF function list). What
+the API lacks: (1) **a documented, model-specific weight scale.** Locally, twice the working weight
+inserts "Negative" into "request a new assignment"; Riva's tutorial suggests boost scores of 20–100, and
+on the hosted endpoint 20 rewrote whole phrases into boosted words ("fife POD Sightline East at four
+niner point niner niner …") and 5 already wrote "How much Delta Is Left"; only 1 helped. For a voice
+agent that reads back confirmations, an inserted "Negative" or "Affirmative" is a safety problem, so a
+recommended range per model, or a boost that can only re-rank and never insert, would matter.
+(2) **Boosting in `transcribe()`** (a `boost=[...]` argument) instead of a decoder rebuild, and in
+Parakeet's shipped config. (3) **Hosted default text normalisation** writes "four niner.374" and "122
+point niner": mixed forms no parser expects (0 / 2 coordinates, boosting or not); `verbatim_transcripts`
+avoids it, but it is not mentioned on the model page.
 
 **Onboarding.** `uv pip install "nemo_toolkit[asr,tts]"`, then our spike script runs in about 2 minutes
 and downloads about 3 GB once (`docs/feedback/radio.md:172`). Start of the spike → first transcript and first spoken reply: about 75 minutes (2026-10-20

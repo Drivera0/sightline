@@ -3,6 +3,9 @@
     ~/radio-env/bin/python scripts/radio_wer.py                 # data/radio_wer/<voice>/01.m4a … 20.m4a
     ~/radio-env/bin/python scripts/radio_wer.py --one-file      # data/radio_wer/<voice>/<any>.m4a, all 20 with pauses
     uv run python scripts/radio_wer.py --dry-run                # no NeMo: mock transcripts, checks the pipeline
+    ~/radio-env/bin/python scripts/radio_wer.py --boost         # phrase boosting off vs on, runs/radio_wer/<ts>-boost/
+    uv run --no-project --with nvidia-riva-client --env-file .env python scripts/radio_wer.py --riva --boost
+                                                                # the same on hosted Parakeet (build.nvidia.com)
 
 Recordings: one folder per voice under ``--recordings`` (default ``data/radio_wer``). Either one file
 per phrase, ``<nn>.<ext>`` with ``nn`` the 1-based line of ``tests/radio/phrases.txt`` (01 … 20), or,
@@ -20,7 +23,10 @@ WER is word level, after ``protocol.normalize`` on both sides, the normalisation
 before it matches callsigns and replies (number words and digits count as the same, "Team Two" = "Team
 2", "Sight line" = "Sightline"). Per voice and overall it is pooled: word errors / reference words.
 Also the **coordinate exact-match rate**: of the phrases with a coordinate, the share where the
-transcript yields exactly the right numbers. Writes ``runs/radio_wer/<timestamp>/wer.md`` (tables, the
+transcript yields exactly the right numbers. "Raw" WER and coordinates are the same without
+``normalize``'s repair of Parakeet's "niner" ("49er", "nine or"). ``--boost`` transcribes every clip
+with phrase boosting off and on (``sightline.radio.asr.RADIO_BOOST``) and reports both side by side,
+with the time per clip, in ``runs/radio_wer/<timestamp>-boost/``. Writes ``runs/radio_wer/<timestamp>/wer.md`` (tables, the
 five worst phrases with their transcripts) and ``wer.json`` next to it.
 """
 
@@ -57,9 +63,10 @@ def phrases() -> list[str]:
     return [p for p in PHRASES.read_text().splitlines() if p.strip() and not p.startswith("#")]
 
 
-def edits(ref: str, hyp: str) -> tuple[int, int]:
-    """(word errors, reference words) after ``normalize`` on both sides: Levenshtein over words."""
-    r, h = normalize(ref).split(), normalize(hyp).split()
+def edits(ref: str, hyp: str, niner_fix: bool = True) -> tuple[int, int]:
+    """(word errors, reference words) after ``normalize`` on both sides: Levenshtein over words.
+    ``niner_fix=False`` leaves Parakeet's "49er" and "nine or" as heard (the "raw" WER)."""
+    r, h = normalize(ref).split(), normalize(hyp, niner_fix=niner_fix).split()
     d = list(range(len(h) + 1))
     for i in range(1, len(r) + 1):
         prev, d[0] = d[0], i
@@ -75,8 +82,8 @@ def wer(ref: str, hyp: str) -> float:
     return errors / max(1, words)
 
 
-def coordinates(text: str) -> list[float]:
-    return [float(x) for x in _NUM.findall(normalize(text))]
+def coordinates(text: str, niner_fix: bool = True) -> list[float]:
+    return [float(x) for x in _NUM.findall(normalize(text, niner_fix=niner_fix))]
 
 
 # --- recordings ---------------------------------------------------------------------------------
@@ -266,10 +273,12 @@ def synthetic_clips(lines: list[str], voices: list[int], device: str, work: Path
 MOCK_VOICES = ("mock voice A", "mock voice B", "mock voice C")
 
 
-def mock_transcript(ref: str, voice: int, phrase: int) -> str:
+def mock_transcript(ref: str, voice: int, phrase: int, boosted: bool = False) -> str:
     """Parakeet-like output with a few deterministic errors: digits for number words (which
-    ``normalize`` forgives), a dropped word now and then, "Sight line" split, a misheard word."""
-    digits = {"one": "1", "two": "2", "three": "3", "four": "4", "niner": "9", "zero": "0"}
+    ``normalize`` forgives), "niner" as "nine or" unless ``boosted``, a dropped word now and then,
+    "Sight line" split, a misheard word."""
+    digits = {"one": "1", "two": "2", "three": "3", "four": "4", "zero": "0"}
+    digits["niner"] = "niner" if boosted else "nine or"
     words = [digits.get(w.lower().strip(",."), w) for w in ref.split()]
     k = voice + phrase
     if k % 5 == 0 and len(words) > 3:
@@ -284,11 +293,16 @@ def mock_transcript(ref: str, voice: int, phrase: int) -> str:
 # --- report -------------------------------------------------------------------------------------
 
 
-def score(clips: list[Clip], heard: dict[str, str], lines: list[str]) -> list[dict]:
+def score(
+    clips: list[Clip], heard: dict[str, str], lines: list[str], ms: dict[str, int] | None = None
+) -> list[dict]:
+    """One row per clip: WER after ``normalize`` and "raw" (without its "niner" repair), coordinate
+    exact match both ways, and the transcription time when ``ms`` has it."""
     rows = []
     for c in clips:
         ref, hyp = lines[c.phrase], heard[c.key]
         errors, words = edits(ref, hyp)
+        errors_raw, _ = edits(ref, hyp, niner_fix=False)
         ref_coords = coordinates(ref)
         rows.append(
             {
@@ -297,17 +311,30 @@ def score(clips: list[Clip], heard: dict[str, str], lines: list[str]) -> list[di
                 "ref": ref,
                 "heard": hyp,
                 "errors": errors,
+                "errors_raw": errors_raw,
                 "words": words,
                 "wer": round(errors / max(1, words), 3),
+                "wer_raw": round(errors_raw / max(1, words), 3),
                 "has_coordinate": bool(ref_coords),
                 "coordinate_exact": coordinates(hyp) == ref_coords if ref_coords else None,
+                "coordinate_exact_raw": (
+                    coordinates(hyp, niner_fix=False) == ref_coords if ref_coords else None
+                ),
+                "ms": (ms or {}).get(c.key),
             }
         )
     return rows
 
 
-def _pooled(rows: list[dict]) -> float:
-    return sum(r["errors"] for r in rows) / max(1, sum(r["words"] for r in rows))
+def _pooled(rows: list[dict], key: str = "errors") -> float:
+    return sum(r[key] for r in rows) / max(1, sum(r["words"] for r in rows))
+
+
+def _ms(rows: list[dict]) -> dict[str, int] | None:
+    times = sorted(r["ms"] for r in rows if r.get("ms") is not None)
+    if not times:
+        return None
+    return {"p50": times[len(times) // 2], "max": times[-1]}
 
 
 def summarise(rows: list[dict], n: int) -> dict:
@@ -316,11 +343,18 @@ def summarise(rows: list[dict], n: int) -> dict:
     for cond in conditions:
         rs = [r for r in rows if r["condition"] == cond]
         coord = [r["coordinate_exact"] for r in rs if r["has_coordinate"]]
+        coord_raw = [r["coordinate_exact_raw"] for r in rs if r["has_coordinate"]]
         per_condition[cond] = {
             "phrases": len(rs),
             "words": sum(r["words"] for r in rs),
             "wer": round(_pooled(rs), 3),
+            "wer_raw": round(_pooled(rs, "errors_raw"), 3),
+            "errors": sum(r["errors"] for r in rs),
+            "errors_raw": sum(r["errors_raw"] for r in rs),
+            "no_error": sum(r["errors"] == 0 for r in rs),
             "coordinate_exact": f"{sum(coord)}/{len(coord)}" if coord else "–",
+            "coordinate_exact_raw": f"{sum(coord_raw)}/{len(coord_raw)}" if coord_raw else "–",
+            "ms": _ms(rs),
             "missing": sorted(set(range(1, n + 1)) - {r["phrase"] for r in rs}),
         }
     per_phrase = {}
@@ -335,6 +369,7 @@ def summarise(rows: list[dict], n: int) -> dict:
             "clips": len(rows),
             "words": sum(r["words"] for r in rows),
             "wer": round(_pooled(rows), 3),
+            "wer_raw": round(_pooled(rows, "errors_raw"), 3),
         },
         "conditions": per_condition,
         "phrases": per_phrase,
@@ -402,6 +437,96 @@ def report(rows: list[dict], summary: dict, lines: list[str], mode: str, worst: 
     return "\n".join(md).rstrip() + "\n"
 
 
+def transcribe_all(asr, clips: list[Clip]) -> tuple[dict[str, str], dict[str, int]]:
+    """(text, ms) per clip key, one clip at a time as the radio desk transcribes."""
+    heard, ms = {}, {}
+    for c in clips:
+        r = asr.transcribe(c.wav)
+        heard[c.key], ms[c.key] = r.text, r.ms
+    return heard, ms
+
+
+def boost_report(
+    runs: dict[str, list[dict]], lines: list[str], mode: str, boost: dict, n: int
+) -> str:
+    """Markdown for ``--boost``: each run (boost off, boost on, ...) side by side."""
+    sums = {label: summarise(rows, n) for label, rows in runs.items()}
+    md = [
+        "# Radio WER: phrase boosting off vs on",
+        "",
+        f"{time.strftime('%Y-%m-%d %H:%M')} · {mode} · `scripts/radio_wer.py --boost`",
+        "",
+    ]
+    if mode.startswith("DRY RUN"):
+        md += ["**MOCK transcripts, not a measurement**: this run checks the pipeline only.", ""]
+    md += [
+        f"Boost: {boost['how']}. Phrases ({len(boost['phrases'])}): "
+        + ", ".join(f'"{p}"' for p in boost["phrases"])
+        + ".",
+        "",
+        (
+            '"Raw" is word level after `protocol.normalize` without its repair of Parakeet\'s '
+            '"niner" ("49er", "nine or"); "normalised" is with it, the radio desk\'s own path. '
+            "Pooled: word errors / reference words. Time is the transcription call per clip "
+            "(local: GPU; hosted: network round trip included)."
+        ),
+        "",
+        "## Summary",
+        "",
+        (
+            "| Run | Voice | WER raw | WER normalised | Phrases with no error "
+            "| Coordinates exact, raw | Coordinates exact, normalised | ms p50 / max |"
+        ),
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for label, s in sums.items():
+        for cond, c in s["conditions"].items():
+            t = f"{c['ms']['p50']} / {c['ms']['max']}" if c["ms"] else "–"
+            md.append(
+                f"| {_cell(label)} | {_cell(cond)} | {c['wer_raw']:.3f} ({c['errors_raw']}/{c['words']}) "
+                f"| {c['wer']:.3f} ({c['errors']}/{c['words']}) | {c['no_error']}/{c['phrases']} "
+                f"| {c['coordinate_exact_raw']} | {c['coordinate_exact']} "
+                f"| {t} |"
+            )
+    labels = list(runs)
+    md += [
+        "",
+        "## Per phrase (WER raw / normalised, ms)",
+        "",
+        "| Voice | # | Phrase | " + " | ".join(_cell(lb) for lb in labels) + " |",
+        "|---|---|---|" + "---|" * len(labels),
+    ]
+    by = {lb: {(r["condition"], r["phrase"]): r for r in rows} for lb, rows in runs.items()}
+    keys = sorted({k for rows in by.values() for k in rows}, key=lambda k: (k[0], k[1]))
+    for key in keys:
+        cells = []
+        for lb in labels:
+            r = by[lb].get(key)
+            cells.append(
+                f"{r['wer_raw']:.2f} / {r['wer']:.2f}, {r['ms'] if r['ms'] is not None else '–'}"
+                if r
+                else "–"
+            )
+        md.append(
+            f"| {_cell(key[0])} | {key[1]} | {_cell(lines[key[1] - 1])} | "
+            + " | ".join(cells)
+            + " |"
+        )
+    md += ["", "## Transcripts that differ between runs", ""]
+    differ = 0
+    for key in keys:
+        texts = {lb: by[lb][key]["heard"] for lb in labels if key in by[lb]}
+        if len(set(texts.values())) < 2:
+            continue
+        differ += 1
+        md += [f"**{key[1]}. {lines[key[1] - 1]}** ({key[0]})", ""]
+        md += [f'- {lb} ({by[lb][key]["wer"]:.2f}): "{t}"' for lb, t in texts.items()]
+        md.append("")
+    if not differ:
+        md += ["None: every run heard the same text.", ""]
+    return "\n".join(md).rstrip() + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -419,11 +544,44 @@ def main(argv: list[str] | None = None) -> int:
         "--voices", type=int, nargs="+", default=[0, 1, 2], help="Magpie speakers for --synthetic"
     )
     ap.add_argument("--dry-run", action="store_true", help="mock transcripts, no NeMo")
+    ap.add_argument(
+        "--boost",
+        action="store_true",
+        help="transcribe every clip twice, phrase boosting off and on (RADIO_BOOST); writes <ts>-boost/",
+    )
+    ap.add_argument("--boost-alpha", type=float, default=None, help="NeMo boosting_tree_alpha")
+    ap.add_argument("--boost-score", type=float, default=None, help="NeMo context_score")
+    ap.add_argument(
+        "--riva",
+        action="store_true",
+        help="hosted Parakeet on build.nvidia.com (Riva gRPC; nvidia-riva-client, NVIDIA_API_KEY)",
+    )
+    ap.add_argument(
+        "--riva-score", type=float, default=None, help="Riva word-boosting score with --boost"
+    )
+    ap.add_argument(
+        "--riva-itn",
+        action="store_true",
+        help="with --riva: keep the hosted inverse text normalisation (default: verbatim words)",
+    )
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args(argv)
+    if args.synthetic and args.riva:
+        ap.error("--synthetic needs the local model; leave out --riva")
 
+    from sightline.radio.asr import (
+        BOOST_ALPHA,
+        BOOST_SCORE,
+        RADIO_BOOST,
+        RIVA_BOOST_SCORE,
+    )
+
+    alpha = BOOST_ALPHA if args.boost_alpha is None else args.boost_alpha
+    ctx = BOOST_SCORE if args.boost_score is None else args.boost_score
+    riva_score = RIVA_BOOST_SCORE if args.riva_score is None else args.riva_score
     lines = phrases()
     n = len(lines)
+    asr = None
     with tempfile.TemporaryDirectory(prefix="radio_wer-") as tmp:
         work = Path(tmp)
         if args.synthetic and not args.dry_run:
@@ -454,25 +612,84 @@ def main(argv: list[str] | None = None) -> int:
                 layout = "<voice>/<any>.m4a" if args.one_file else "<voice>/01.m4a … 20.m4a"
                 ap.error(f"no recordings in {args.recordings}/{layout} (or use --dry-run)")
             if args.dry_run:
+                mode = f"DRY RUN, mock transcripts ({mode})"
+            elif args.riva:
+                text = "hosted text normalisation on" if args.riva_itn else "verbatim transcripts"
+                mode = f"hosted Parakeet (build.nvidia.com, Riva gRPC, {text}), {mode}"
+
+        def make_asr(boosted: bool):
+            """The ASR for one run: mock, hosted (a client per run) or local (one model, re-decoded)."""
+            nonlocal asr
+            if args.dry_run:
                 from sightline.radio.asr import FakeAsr
 
                 voices = list(dict.fromkeys(c.condition for c in clips))
-                asr = FakeAsr(
+                return FakeAsr(
                     {
-                        c.key: mock_transcript(lines[c.phrase], voices.index(c.condition), c.phrase)
+                        c.key: mock_transcript(
+                            lines[c.phrase], voices.index(c.condition), c.phrase, boosted
+                        )
                         for c in clips
                     }
                 )
-                mode = f"DRY RUN, mock transcripts ({mode})"
-            else:
+            if args.riva:
+                from sightline.radio.asr import RivaAsr
+
+                return RivaAsr(
+                    boost=RADIO_BOOST if boosted else None,
+                    boost_score=riva_score,
+                    verbatim=not args.riva_itn,
+                )
+            if asr is None:
                 from sightline.radio.asr import ParakeetAsr
 
                 asr = ParakeetAsr()
-        heard = {c.key: asr.transcribe(c.wav).text for c in clips}
+            if args.boost:
+                asr.set_boost(RADIO_BOOST if boosted else None, alpha, ctx)
+            return asr
 
-    rows = score(clips, heard, lines)
+        engine = "hosted" if args.riva else "local"
+        runs = {}
+        for boosted in (False, True) if args.boost else (False,):
+            heard, ms = transcribe_all(make_asr(boosted), clips)
+            label = f"{engine}, boost {'on' if boosted else 'off'}"
+            runs[label] = score(clips, heard, lines, ms)
+
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    if args.boost:
+        how = (
+            f"Riva word boosting (`speech_contexts`), score {riva_score:g}"
+            if args.riva
+            else f"NeMo GPU phrase boosting tree, greedy_batch, alpha {alpha:g}, context score {ctx:g}"
+        )
+        boost = {"how": how, "phrases": list(RADIO_BOOST)}
+        suffix = ("-riva-itn" if args.riva_itn else "-riva") if args.riva else ""
+        out = args.out / f"{stamp}-boost{suffix}"
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "wer.md").write_text(boost_report(runs, lines, mode, boost, n))
+        summaries = {label: summarise(rows, n) for label, rows in runs.items()}
+        (out / "wer.json").write_text(
+            json.dumps(
+                {
+                    "mode": mode,
+                    "boost": boost,
+                    "runs": {
+                        label: {"summary": summaries[label], "rows": rows}
+                        for label, rows in runs.items()
+                    },
+                },
+                indent=2,
+            )
+        )
+        for label, s in summaries.items():
+            o = s["overall"]
+            print(f"{label}: WER raw {o['wer_raw']:.3f}, normalised {o['wer']:.3f} ({mode})")
+        print(f"wrote {out / 'wer.md'}")
+        return 0
+
+    rows = next(iter(runs.values()))
     summary = summarise(rows, n)
-    out = args.out / time.strftime("%Y%m%d-%H%M%S")
+    out = args.out / stamp
     out.mkdir(parents=True, exist_ok=True)
     (out / "wer.md").write_text(report(rows, summary, lines, mode))
     (out / "wer.json").write_text(

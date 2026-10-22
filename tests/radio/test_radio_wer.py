@@ -100,6 +100,35 @@ def test_dry_run_without_recordings_writes_the_report(tmp_path: Path) -> None:
         assert f"\n| {p} | " in md
 
 
+def test_raw_wer_leaves_parakeets_niner_as_heard() -> None:
+    ref = "four niner point three eight one, over"
+    heard = "49er.381 over"
+    assert wer_mod.edits(ref, heard) == (0, 2)  # "49.381 over"
+    assert wer_mod.edits(ref, heard, niner_fix=False)[0] > 0
+    assert wer_mod.coordinates(heard) == [49.381]
+    assert wer_mod.coordinates(heard, niner_fix=False) != [49.381]
+
+
+def test_dry_run_boost_reports_off_and_on_side_by_side(tmp_path: Path) -> None:
+    md, data = _run("--recordings", str(tmp_path / "none"), "--boost", out=tmp_path / "runs")
+    (run,) = (tmp_path / "runs").iterdir()
+    assert run.name.endswith("-boost")
+    assert set(data["runs"]) == {"local, boost off", "local, boost on"}
+    assert data["boost"]["phrases"][0] == "niner" and "alpha 1" in data["boost"]["how"]
+    off, on = (
+        data["runs"][k]["summary"]["overall"] for k in ("local, boost off", "local, boost on")
+    )
+    assert off["wer_raw"] > on["wer_raw"]  # the mock hears "niner" only when boosted
+    for rows in (data["runs"][k]["rows"] for k in data["runs"]):
+        assert len(rows) == 60 and all(r["ms"] == 0 for r in rows)
+    assert "MOCK transcripts, not a measurement" in md
+    assert "| Run | Voice | WER raw | WER normalised |" in md
+    assert "| Voice | # | Phrase | local, boost off | local, boost on |" in md
+    assert (
+        "## Transcripts that differ between runs" in md and '"nine or' not in md.split("on (")[-1]
+    )
+
+
 def test_no_recordings_without_dry_run_is_an_error(tmp_path: Path) -> None:
     with pytest.raises(SystemExit):
         wer_mod.main(["--recordings", str(tmp_path), "--out", str(tmp_path / "runs")])

@@ -37,7 +37,7 @@ clip recorded once.
    "Team Two" → "Team 2", "Bravo Three" → "Bravo. 3", "Sightline" → "Sight line". Measured WER on
    the three phrases was 0.29 / 0.11 / 0.00 *before* normalisation; almost all of it is this.
    `protocol.normalize` (LANE_E §8.3) should map number words and digits to one form, and
-   `parse_callsign` must accept "Sight line". With a human voice, "niner" came out as "49er" or "nine or" (see "WER with a human voice").
+   `parse_callsign` must accept "Sight line". With a human voice, "niner" came out as "49er" or "nine or" (see "WER with a human voice"); NeMo's phrase boosting fixes that in the model (an option, off by default: "Word boosting").
 4. **Super's replies didn't always start with "<callsign>, Sightline"**: enforce the opening in
    code (prefix it) rather than trusting the prompt, as §8.4 already does for outbound.
 
@@ -205,3 +205,77 @@ as that digit run and drops "or" between "nine" (or a decimal ending in 9) and t
 transcripts give the right coordinates; "either", "never" and a real "or" are untouched
 (`tests/radio/test_protocol_asr_tts.py`). The four words still wrong are ordinary mishearings ("sectory",
 "frown" for "found", "are" for "our") and "we're" for "we are".
+
+### Word boosting
+
+Can the model hear "niner" itself, so the normaliser's repair is no longer needed? NeMo 3.0.0 (the
+installed version) has GPU phrase boosting for TDT models: a boosting tree over the tokenised phrases,
+fused into `greedy_batch` decoding (`BoostingTreeModelConfig` in
+`nemo.collections.asr.parts.context_biasing`; set as `decoding.greedy.boosting_tree` plus
+`boosting_tree_alpha`, then `change_decoding_strategy`). It is now an option:
+`ParakeetAsr(boost=RADIO_BOOST)` (`sightline/radio/asr.py`), 22 phrases: "niner", "four niner",
+"point niner", "fife", "tree", "Sightline", "over", "say again", "affirmative", "negative" (both cases
+where Parakeet capitalises them), "Team One" … "Team Four", "Bravo Three", "Charlie Four", "Alpha",
+"Delta", "POD". The hosted Parakeet TDT 0.6B v2 on build.nvidia.com (Riva gRPC, function
+`ai-parakeet-tdt-0_6b-v2`) has Riva's word boosting (`speech_contexts`, `add_word_boosting_to_config`), and
+it is honoured; `RivaAsr` in the same file, measured with the same list.
+
+Same 20 recordings (voice "dan", 162 words), each clip transcribed once with boosting off and once on.
+"Raw" is `normalize` without its "niner" repair (`normalize(text, niner_fix=False)`); "normalised" is the
+radio desk's own path. Time is per clip; local on the RTX 4080 SUPER, hosted including the network round trip.
+
+| ASR | Boost | WER raw | WER normalised | Coordinates exact, raw / normalised | Time p50 / max | Evidence |
+|---|---|---|---|---|---|---|
+| Local Parakeet (NeMo) | off | 0.080 (13 / 162) | 0.025 (4 / 162) | 0 / 2 · 2 / 2 | 48 / 115 ms | `docs/evidence/radio_wer/20261022-160226-boost/` |
+| Local Parakeet (NeMo) | **on** (alpha 1, context score 1) | **0.025** (4 / 162) | 0.025 (4 / 162) | **2 / 2** · 2 / 2 | 47 / 136 ms | same |
+| Hosted, verbatim transcripts | off | 0.043 (7 / 162) | 0.025 (4 / 162) | 1 / 2 · 2 / 2 | 288 ms / 14.3 s | `docs/evidence/radio_wer/20261022-160527-boost-riva/` |
+| Hosted, verbatim transcripts | on (score 1) | 0.031 (5 / 162) | 0.031 (5 / 162) | 2 / 2 · 2 / 2 | 298 ms / 14.4 s | same |
+| Hosted, default text normalisation | off | 0.056 (9 / 162) | 0.037 (6 / 162) | 0 / 2 · 0 / 2 | 297 ms / 15.3 s | `docs/evidence/radio_wer/20261022-160447-boost-riva-itn/` |
+| Hosted, default text normalisation | on (score 1) | 0.043 (7 / 162) | 0.043 (7 / 162) | 0 / 2 · 0 / 2 | 293 ms / 13.4 s | same |
+
+The local boost-off transcripts are the same as the 10:08 run above; the raw scorer counts 13 errors
+where the normaliser of that time counted 14 (phrase 12 tokenises one word differently).
+
+What it shows:
+
+- **Local boosting fixes "niner" at the source.** "49er.381 minus 122.9er40" becomes "four niner point
+  three eight one minus one two two point niner four zero", and "point nine or three six" becomes "point
+  niner three six". Raw WER drops from 0.080 to 0.025 and both coordinates are exact without the repair.
+  After `normalize` nothing changes (0.025 either way): the repair already did this job, and the four
+  remaining errors ("sectory", "are" for "our", "frowned", "we're") are not on the list. No time cost:
+  47 vs 48 ms per clip. Side effect: boosted runs capitalise more ("What Are the Conditions Over?"),
+  which `normalize` ignores.
+- **The working range is narrow.** A sweep of the weights on the same 20 clips
+  (`docs/evidence/radio_wer/20261022-160226-boost/sweep.txt`): alpha 0.5–1 with context score 1 is the
+  best result; doubling either gives "Request a Negative Assignment", "We have a Sighting Negative Creek
+  Fork" (WER 0.043–0.049); alpha 2 with score 2 or more replaces spoken words with boosted ones ("How
+  much Delta Is Left", "found a red jacket on the trail Affirmative", WER 0.10–0.43, coordinates
+  wrong). A boost that inserts "Negative" or "Affirmative" would change what a team confirmed. Boosting
+  only "niner" ("niner", "four niner", "point niner") needs alpha 1.5 or context score 2 to fix "49er".
+  The weights were chosen on the clips they are scored on, so 0.025 is optimistic.
+- **Hosted:** word boosting is accepted and works, but the score scale is not the docs' one. Riva's
+  tutorial suggests 20–100; on this endpoint 20 turned "found footprints heading east at …" into "fife
+  POD Sightline East at four niner point niner niner …", 5 already wrote "How much Delta Is Left", and 1 is
+  the only value tried that helped. With the default text normalisation the hosted model writes "four
+  niner.374" and "122 point niner", which `normalize` cannot read (0 / 2 coordinates, boosting or not);
+  with `verbatim_transcripts=True` it writes words, and boosting then gets both coordinates right raw,
+  at the cost of one word ("Our" → "Are", 0.031). The first call on each new client took 13–15 s; after
+  that 290 ms p50, 630 ms max, six times local.
+
+**Decision: boosting stays off by default.** With the normaliser's repair the radio desk already gets
+0.025 and 2 / 2 coordinates; boosting gives the same numbers on this set, from one voice, with weights
+tuned on that set, and a factor of two above them it inserts prowords. `normalize` keeps its repair so
+an unboosted model stays safe. Boosting is worth turning on (`ParakeetAsr(boost=RADIO_BOOST)`) for a
+consumer that reads raw transcripts, and worth measuring again when the other two voices are recorded
+(issue #49). To rerun the table:
+
+```bash
+~/radio-env/bin/python scripts/radio_wer.py --boost       # local; --boost-alpha, --boost-score to change the weights
+uv run --no-project --with nvidia-riva-client --env-file .env python scripts/radio_wer.py --riva --boost
+                                                          # hosted; --riva-score, --riva-itn for the default text normalisation
+```
+
+`NVIDIA_API_KEY` comes from `.env`; `uv run --no-project --with` keeps the Riva client out of the
+project's `.venv`. The hosted function id is in `RIVA_PARAKEET_FUNCTION` (read from the NVCF function list,
+`api.nvcf.nvidia.com/v2/nvcf/functions`, because the build.nvidia.com model page renders its API tab in
+the browser only).
