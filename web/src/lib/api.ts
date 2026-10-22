@@ -17,6 +17,7 @@ import type {
   SectorTask,
   Survey,
   Team,
+  TraceEntry,
   Verdict,
 } from "../contract";
 
@@ -123,6 +124,9 @@ export interface SectorNow {
   polygon?: [number, number][];
 }
 export const getSectors = (api: Api, id: string) => call<SectorNow[]>(api, "GET", `${m(id)}/sectors`);
+/** The agent's trace, oldest first; `after`: only the entries after that id (polling). */
+export const getTrace = (api: Api, id: string, after?: string | null) =>
+  call<TraceEntry[]>(api, "GET", `${m(id)}/trace${after ? `?after=${encodeURIComponent(after)}` : ""}`);
 
 export const getMapUpdates = (api: Api, id: string, after = 0) =>
   call<MapUpdate[]>(api, "GET", `${m(id)}/map_updates?after=${after}`);

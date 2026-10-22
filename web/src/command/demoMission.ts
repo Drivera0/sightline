@@ -4,6 +4,8 @@
 // Everything is a demo and says so on screen. Built by lane A for lane E (#70).
 import type { MapBase, MapFile, MapUpdate } from "../contract";
 import type { MissionData } from "../lib/mission";
+import { parseTrace } from "./trace";
+import type { TraceRun } from "./TraceView";
 
 export const DEMO_MISSION_ID = "demo";
 export const DEMO_CACHE = "/cache/demo";
@@ -39,5 +41,28 @@ export async function loadDemoMission(
   return {
     data: { ...rest, verdicts: [], fleet: null, mapBase: cacheBase(map), mapUpdates: [...frames, ...ground_updates] },
     now,
+  };
+}
+
+/**
+ * The demo's Trace tab: two recorded runs, not this demo mission's own (its proposals are fixtures with
+ * no trace). The showcase chain (`docs/architecture/av-chain`: a 0.18 detection on a val photo, a second
+ * look with zoom_native, Nemotron VL's verdict, the promotion, the approval) and a live conditions lookup
+ * (`docs/evidence/conditions-live-20261021`: Tavily searches and the extraction). Copied as they were.
+ */
+export async function loadDemoTrace(): Promise<{ runs: TraceRun[]; imageUrl: (rel: string) => string | null }> {
+  const [chain, conditions, crop, zoom] = await Promise.all([
+    import("./__fixtures__/demo_trace.jsonl?raw"),
+    import("./__fixtures__/demo_trace_conditions.jsonl?raw"),
+    import("./__fixtures__/trace_crop.jpg?url"),
+    import("./__fixtures__/trace_zoom_native.jpg?url"),
+  ]);
+  const images: Record<string, string> = { "relook/f0001-d01-crop.jpg": crop.default, "relook/f0001-d01-zoom_native.jpg": zoom.default };
+  return {
+    runs: [
+      { label: "Recorded 21 Oct 2026: a second look on a val photo", source: "docs/architecture/av-chain/trace.jsonl", entries: parseTrace(chain.default) },
+      { label: "Recorded 22 Oct 2026: a live conditions lookup", source: "docs/evidence/conditions-live-20261021/trace.jsonl", entries: parseTrace(conditions.default) },
+    ],
+    imageUrl: (rel) => images[rel] ?? null,
   };
 }

@@ -4,15 +4,16 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import type { Api } from "../lib/api";
-import { cardFileUrl, fileUrl, getCard, getHealth } from "../lib/api";
-import type { AssignmentCard } from "../contract";
+import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
+import type { AssignmentCard, TraceEntry } from "../contract";
 import { AssignmentCardView } from "../command/AssignmentCardView";
 import { isTyping } from "../lib/keys";
 import { photoProgress, useMission } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
 import { EventFeed } from "../command/EventFeed";
-import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoMission } from "../command/demoMission";
+import { DEMO_CACHE, DEMO_MISSION_ID, loadDemoMission, loadDemoTrace } from "../command/demoMission";
+import { TraceView, type TraceRun } from "../command/TraceView";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
 import { usePick } from "../map/pick";
 import { Label, ModeChip, modeOf, Panel, Stat } from "../shell/components";
@@ -22,7 +23,7 @@ import { LiveReview } from "../review/LiveReview";
 import { uploadCommand } from "./upload";
 import { UploadPanel } from "./UploadPanel";
 
-type Tab = "command" | "photos" | "review" | "approvals" | "radio" | "feed";
+type Tab = "command" | "photos" | "review" | "approvals" | "radio" | "feed" | "trace";
 const TABS: { id: Tab; label: string }[] = [
   { id: "command", label: "Command" },
   { id: "photos", label: "Photos" },
@@ -30,9 +31,10 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "approvals", label: "Approvals" },
   { id: "radio", label: "Radio" },
   { id: "feed", label: "Feed" },
+  { id: "trace", label: "Trace" },
 ];
-/** The demo mission has no API: no photos, review, radio, cards or debrief. */
-const DEMO_TABS: readonly Tab[] = ["command", "approvals", "feed"];
+/** The demo mission has no API: no photos, review, radio, cards or debrief. Its Trace tab shows recorded runs. */
+const DEMO_TABS: readonly Tab[] = ["command", "approvals", "feed", "trace"];
 const STATUS_WORDS = { idle: "", connecting: "Connecting…", live: "Live", reconnecting: "Reconnecting…", demo: "Demo", error: "Offline" };
 
 export function tabFromHash(hash: string): Tab {
@@ -131,7 +133,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
     ? "flex flex-col gap-4"
     : isConsole
       ? "flex flex-col gap-3 p-3 lg:h-dvh lg:px-4"
-      : "mx-auto flex max-w-5xl flex-col gap-4 p-4 lg:p-8";
+      : `mx-auto flex ${tab === "trace" ? "max-w-7xl" : "max-w-5xl"} flex-col gap-4 p-4 lg:p-8`;
   const heatMap = (
     <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demo && demoNow ? demoNow : undefined} fill={isConsole} />
   );
@@ -291,6 +293,8 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           </p>
         ))}
 
+      {tab === "trace" && <TraceTab api={api} missionId={missionId} demo={demo} />}
+
       {tab === "feed" && (
         <EventFeed
           events={s.events}
@@ -327,6 +331,64 @@ function AppBar({ demo, children }: { demo: boolean; children?: ReactNode }) {
         </a>
       </span>
     </nav>
+  );
+}
+
+const TRACE_POLL_MS = 4000;
+
+/** The Trace tab: the live mission's trace (polled with `after`), or the demo's recorded runs. */
+function TraceTab({ api, missionId, demo }: { api: Api; missionId: string; demo: boolean }) {
+  const [runs, setRuns] = useState<TraceRun[] | null>(null);
+  const [imageUrl, setImageUrl] = useState<(rel: string) => string | null>(() => (rel: string) => fileUrl(api, missionId, rel));
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    if (demo) {
+      loadDemoTrace().then(
+        (t) => {
+          if (!live) return;
+          setRuns(t.runs);
+          setImageUrl(() => t.imageUrl);
+        },
+        (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)),
+      );
+      return () => {
+        live = false;
+      };
+    }
+    let entries: TraceEntry[] = [];
+    const poll = () =>
+      getTrace(api, missionId, entries.at(-1)?.id).then(
+        (more) => {
+          if (!live) return;
+          setError(null);
+          if (more.length || entries.length === 0) {
+            entries = [...entries, ...more];
+            setRuns([{ label: null, source: null, entries }]);
+          }
+        },
+        (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)),
+      );
+    void poll();
+    const id = setInterval(() => void poll(), TRACE_POLL_MS);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+  }, [api, missionId, demo]);
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-small text-text-2">
+        Every step the agent took, grouped from what it saw to what a person decided: perception → decision → action → approval. Open a step for its full input and output.
+        {demo && " The demo mission's proposals are fixtures with no trace, so this shows two recorded runs from the repository instead."}
+      </p>
+      {error && (
+        <p role="alert" className="text-small text-caution">
+          Could not read the trace: {error}
+        </p>
+      )}
+      {runs === null ? <p className="text-small text-text-3">Loading the trace…</p> : <TraceView runs={runs} imageUrl={imageUrl} />}
+    </div>
   );
 }
 

@@ -65,11 +65,12 @@ export function StatusPill({ tone = "neutral", dot = true, title, children, clas
   );
 }
 
-export type Mode = "live" | "demo" | "sim" | "offline" | "connecting";
+export type Mode = "live" | "demo" | "sim" | "replay" | "offline" | "connecting";
 const MODE: Record<Mode, { tone: Tone; word: string; title: string }> = {
   live: { tone: "ok", word: "Live", title: "Connected to the mission server" },
   demo: { tone: "neutral", word: "Demo", title: "Demo mission: fixtures in the page, no server" },
   sim: { tone: "caution", word: "Sim", title: "Simulated" },
+  replay: { tone: "neutral", word: "Recorded", title: "A recorded run, replayed: not happening now" },
   offline: { tone: "alert", word: "Offline", title: "Not connected to the mission server" },
   connecting: { tone: "muted", word: "Connecting", title: "Connecting to the mission server" },
 };

@@ -361,6 +361,18 @@ def get_debrief(mission_id: str, request: Request, narrative: bool = False) -> R
     return Response(md, media_type="text/markdown; charset=utf-8")
 
 
+@missions_router.get("/missions/{mission_id}/trace")
+def get_trace(mission_id: str, request: Request, after: str | None = None) -> list[dict]:
+    """The agent's trace (contract §12 ``TraceEntry``), oldest first: every tool call, model call,
+    verdict, proposal and decision, for the web app's Trace tab. ``after``: only the entries after
+    that id (polling); an id it doesn't know returns them all. Read-only."""
+    entries = _store(request, mission_id).trace_entries(mission_id)
+    ids = [e.id for e in entries]
+    if after is not None and after in ids:
+        entries = entries[ids.index(after) + 1 :]
+    return _dump(entries)
+
+
 @missions_router.get("/missions/{mission_id}/map_updates")
 def get_map_updates(mission_id: str, request: Request, after: int = 0) -> list[dict]:
     return _dump(_store(request, mission_id).map_updates(mission_id, after))
