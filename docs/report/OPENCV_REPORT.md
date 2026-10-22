@@ -541,8 +541,8 @@ near-misses and for 65 % of crops where the person is under 60 px. Test also con
 that are in neither training nor validation (114 of the 337 people, `docs/DETECTOR_LIMITS.md` §5),
 which may explain part of the gap. Cost: about 890 tokens in and 67 out (mean of all 461 calls; the val and test runs alone differ by a few per cent, `docs/LANE_A_ML.md` §6.8), p50 1.35 s and p90
 1.65 s per detection, about 0.00033 per detection at Token Factory's catalog prices (0.30 / 0.90
-per million tokens in / out); 461 of 461 replies were valid JSON. A second verifier, Cosmos Reason on
-NVIDIA's hosted API, has a harness and mocked tests but has not been run (`COSMOS_VERIFIER.md`).
+per million tokens in / out); 461 of 461 replies were valid JSON. A second verifier on NVIDIA's hosted
+API (val only, `COSMOS_VERIFIER.md`): Cosmos Reason is listed but answers 404, so Nemotron 3 Nano Omni ran in its place; on the 98 crops it answered (2 server errors cost the other 72) it called 20 of 21 people `yes` but 43 of 77 false alarms too (`yes` precision 0.317 against 0.390 for the VL model on the same crops) at 10.8 s per verdict, so Nemotron-3.5-Super-VL stays and no number above changes.
 
 **The agent's routing on the whole system** (`scripts/agent_eval.py`, [`AGENT_EVAL.md`](AGENT_EVAL.md)): the
 real mission API, worker, live map, planner and agent run under uvicorn and are driven over HTTP through
