@@ -66,7 +66,8 @@ const FLASH_ID = "sl-clue-flash";
 /** A theme token (MapLibre cannot read CSS variables). */
 const cssVar = (name: string, fallback: string) =>
   (typeof document === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue(name).trim()) || fallback;
-const pct = (x: number) => `${Math.round(x * 100)} %`;
+// one decimal under 10 %: a sector a clue raised from 2.9 to 5.5 % must not read "3 %" and "5 %" on the map
+const pct = (x: number) => `${(x * 100).toFixed(x < 0.1 ? 1 : 0)} %`;
 
 /** Sector outlines and their "B3 · 6 %" labels (sectors from a server before #83 have no outline). */
 export function sectorFeatures(sectors: readonly SectorNow[]): { lines: Feature[]; labels: Feature[] } {

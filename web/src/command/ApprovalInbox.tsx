@@ -121,6 +121,7 @@ export function ApprovalInbox({
   onDecide,
   imageUrl,
   feedHref,
+  clueNote,
 }: {
   proposals: readonly Proposal[];
   teams: readonly Team[];
@@ -130,6 +131,8 @@ export function ApprovalInbox({
   imageUrl: (rel: string) => string;
   /** The mission's feed, linked when nothing is waiting (none inside the guided demo, which owns the address). */
   feedHref?: string;
+  /** The clues behind an assignment's sector, from the map log (clueShift.ts); null when none moved it. */
+  clueNote?: (p: Proposal) => string | null;
 }) {
   const { time } = useClock();
   const [operator, setOperator] = useState(loadOperator);
@@ -201,6 +204,7 @@ export function ApprovalInbox({
           by={operator.trim() || "Search manager"}
           onDecide={decide}
           imageUrl={imageUrl}
+          clues={p.kind === "assign_sector" ? (clueNote?.(p) ?? null) : null}
           cardRef={(el) => {
             if (el) cards.current.set(p.id, el);
             else cards.current.delete(p.id);
@@ -237,6 +241,7 @@ function PendingCard({
   by,
   onDecide,
   imageUrl,
+  clues = null,
   cardRef,
 }: {
   p: Proposal;
@@ -245,6 +250,8 @@ function PendingCard({
   by: string;
   onDecide: Decide;
   imageUrl: (rel: string) => string;
+  /** Which clues moved the sector's probability (from the map log), or null. */
+  clues?: string | null;
   cardRef?: (el: HTMLDivElement | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -283,6 +290,12 @@ function PendingCard({
       <button type="button" className="sl-tap self-start text-left text-small text-text-2" aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? p.reason : `${p.reason.slice(0, 140)}${p.reason.length > 140 ? "…" : ""}`}
       </button>
+      {clues && (
+        <p aria-label="Clues behind it" className="text-small text-text-2">
+          <span className="text-text-3">Clues behind it, from the map log: </span>
+          {clues}.
+        </p>
+      )}
       {isRecall(p) && <RecallFacts p={p} drone={drone} />}
       {p.evidence.length > 0 && !isRecall(p) && (
         <div className="flex flex-wrap gap-2" aria-label="Evidence">

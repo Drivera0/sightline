@@ -83,7 +83,7 @@ def test_ics204_fills_every_block_from_the_card_and_trace(tmp_path: Path) -> Non
     f = _demo_204(store, mid, "T1")
     assert f["incident_name"] == "Mount Seymour (demo)"
     assert f["operational_period"] == {"from": "2026-10-24T20:30:00Z", "to": NOW}
-    assert f["division"] == "Sector A1 (Alpha One)"
+    assert f["division"] == "Sector C2 (Charlie Two)"  # the planner's sector on the map with the clues
     assert f["resources_assigned"][0]["resource_identifier"] == "T1 Team One"
     assert f["resources_assigned"][0]["persons"] == 3
     assert "Target POD 0.6" in f["work_assignments"]
@@ -97,8 +97,8 @@ def test_ics204_fills_every_block_from_the_card_and_trace(tmp_path: Path) -> Non
     assert "No-fly" not in special  # the demo's conditions are flyable
     assert f["communications"][0]["primary_contact"].startswith("radio Channel 2")
     trace = {e.id: e for e in store.trace_entries(mid)}
-    assert f["prepared_by"]["name"] == "Search manager"
-    assert trace[f["prepared_by"]["trace_entry"]].output["proposal"] == "p001"
+    assert f["prepared_by"]["name"] == "Search manager (scripted for the demo fixture)"
+    assert trace[f["prepared_by"]["trace_entry"]].output["proposal"] == "p003"
     md = ics204_markdown(f)
     for block in ("1. Incident Name", "2. Operational Period", "3. Branch", "4. Operations Personnel",
                   "5. Resources Assigned", "6. Work Assignments", "7. Special Instructions",
@@ -128,7 +128,7 @@ def test_ics204_api_md_json_and_errors(api) -> None:
     mid = seed_demo(store)
     r = client.get(f"/missions/{mid}/ics204/T1.md")  # a read: no token needed
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/markdown")
-    assert r.text.startswith("# Assignment List (ICS 204)") and "Sector A1 (Alpha One)" in r.text
+    assert r.text.startswith("# Assignment List (ICS 204)") and "Sector C2 (Charlie Two)" in r.text
     j = client.get(f"/missions/{mid}/ics204/t1.json?pod_target=0.7").json()
     assert j["form"] == "ICS 204" and "Target POD 0.7" in j["work_assignments"]
     assert client.get(f"/missions/{mid}/ics204/T9.md").status_code == 404
@@ -154,20 +154,20 @@ def test_ics214_logs_decisions_clues_and_searched_sectors(tmp_path: Path) -> Non
     mid = seed_demo(store)
     f = ics214(store.state(mid), store.trace_entries(mid), store.events(mid), NOW)
     what = [r["what"] for r in f["activity_log"]]
-    assert "Assignment approved: Assign sector A1 to Team One (p001)" in what
-    assert any(w.startswith("Detection dismissal rejected") for w in what)
-    assert sum(w.startswith("Clue logged") for w in what) == 5
+    assert "Assignment approved: Assign sector C2 to Team One (p003)" in what
+    assert any(w.startswith("Promotion to the review queue approved") for w in what)
+    assert sum(w.startswith("Clue logged") for w in what) == 4
     assert (
         "Sector B4 searched at POD 0.6: trail and both ditches, thick salal on the east side"
         in what
     )
-    assert not any("p004" in w for w in what)  # pending: not an activity yet
+    assert not any("p002" in w for w in what)  # pending: not an activity yet
     times = [r["at"] for r in f["activity_log"]]
     assert times == sorted(times)  # oldest first (all whole-second UTC here)
     who = {r["what"]: r["who"] for r in f["activity_log"]}
-    assert who["Assignment approved: Assign sector A1 to Team One (p001)"] == "Search manager"
+    assert who["Assignment approved: Assign sector C2 to Team One (p003)"] == "Search manager (scripted for the demo fixture)"
     md = ics214_markdown(f)
-    assert "7. Activity Log" in md and "| 10/24/2026 21:43 UTC | Search manager |" in md
+    assert "7. Activity Log" in md and "| 10/24/2026 21:43 UTC | Search manager (scripted for the demo fixture) |" in md
     assert not NEVER.search(md)
 
 
@@ -236,8 +236,7 @@ def test_caltopo_geojson_on_the_demo_mission(tmp_path: Path) -> None:
         "L004",
     }  # not the cancelled one
     assert all(f["geometry"]["type"] == "LineString" for f in legs)
-    assert {"Team One (T1)", "Team Two (T2)", "Team Three (T3)"} <= set(by_title)
-    assert "Team Four (T4)" not in by_title  # no position
+    assert {"Team One (T1)", "Team Two (T2)", "Team Three (T3)", "Team Four (T4)"} <= set(by_title)
     clue = by_title["Clue c003: object"]["properties"]
     assert clue["marker-symbol"] == "clue" and "blue water bottle" in clue["description"]
     assert by_title["LKP"]["geometry"]["coordinates"] == [-122.945, 49.37]

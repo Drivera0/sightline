@@ -14,7 +14,7 @@ describe("live map features", () => {
       { sector_id: "B4", label: "Bravo Four", poa: 0.05, drone_coverage: 0 }, // an older server: no outline
     ]);
     expect(lines).toHaveLength(1);
-    expect(labels[0]?.properties.text).toBe("B3 · 6 %");
+    expect(labels[0]?.properties.text).toBe("B3 · 6.1 %");
     expect(labels[0]?.geometry.coordinates).toEqual([0.5, 0.5]);
   });
 

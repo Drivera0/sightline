@@ -19,6 +19,8 @@ import { ApprovalInbox, type Decide } from "./ApprovalInbox";
 type TaskBody = { state: SectorTask["state"]; team_id?: string | null; pod?: number | null; note?: string | null };
 
 export interface CommandProps {
+  /** The clues behind an assignment's sector, from the map log (clueShift.ts). */
+  clueNote?: (p: Proposal) => string | null;
   mission: Mission | null;
   status: string;
   conditions: Conditions | null;
@@ -138,7 +140,7 @@ export function CommandView(p: CommandProps) {
         <aside aria-label={p.rightRail ? "View" : "Approvals"} className="order-2 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 lg:order-none">
           {p.rightRail ?? (
             <>
-              <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} />
+              <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} clueNote={p.clueNote} />
               {p.sideRail}
             </>
           )}
@@ -160,7 +162,7 @@ export function CommandView(p: CommandProps) {
           {controls}
         </div>
         <div className="flex flex-col gap-4">
-          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} />
+          <ApprovalInbox proposals={p.proposals} teams={p.teams} drones={fleet?.drones} onDecide={p.onDecide} imageUrl={p.imageUrl} feedHref={p.feedHref} clueNote={p.clueNote} />
           {p.sideRail}
         </div>
       </div>
