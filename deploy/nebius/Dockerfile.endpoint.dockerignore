@@ -1,0 +1,10 @@
+# Build context is the repo root; send only what the image copies (BuildKit reads this file
+# for deploy/nebius/Dockerfile).
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!sightline/
+!scripts/nebius_batch_detect.py
+**/__pycache__

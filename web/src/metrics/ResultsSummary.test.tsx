@@ -1,10 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CacheBundle } from "../contract";
 import { loadCache } from "../lib/cache";
 import { diskFetch } from "../lib/diskFetch";
-import { placeName } from "../shell/SurveyIntro";
-import { useReview } from "../review/store";
 import { pct } from "./format";
 import { duration, fewer, medianGapSeconds, ResultsSummary, seedNote } from "./ResultsSummary";
 
@@ -39,7 +37,6 @@ describe("ResultsSummary", () => {
 });
 
 describe("ResultsSummary in time and in your own answers", () => {
-  beforeEach(() => useReview.setState({ history: [], answers: {}, cleared: null }));
 
   it("says the saving in photos and as a share of the survey, never in minutes at 33 s per section", () => {
     const m = structuredClone(cache.metrics);
@@ -71,38 +68,6 @@ describe("ResultsSummary in time and in your own answers", () => {
     expect(screen.getByText("one layout, as flown")).toBeInTheDocument();
   });
 
-  it("summarises the reviewer's own answers for this survey's candidates", () => {
-    useReview.setState({
-      history: [
-        { detectionId: "a", answer: "person", at: 0 },
-        { detectionId: "b", answer: "not_person", at: 30_000 },
-        { detectionId: "x", answer: "person", at: 40_000 },
-      ],
-      answers: { a: "person", b: "not_person", x: "person" },
-    });
-    render(<ResultsSummary metrics={cache.metrics} candidateIds={["a", "b", "c"]} />);
-    // "x" is not one of this survey's candidates, so it is not counted.
-    expect(screen.getByText(/2 of 3 candidates answered/)).toHaveTextContent("a median of 30 s per answer");
-    expect(screen.getByText("Not answered").nextSibling).toHaveTextContent("1");
-  });
-
-  it("lets a new reviewer on a shared machine reset the saved answers from the summary", async () => {
-    useReview.setState({
-      surveyId: null,
-      cleared: null,
-      history: [{ detectionId: "a", answer: "person", at: 0 }],
-      answers: { a: "person" },
-    });
-    render(<ResultsSummary metrics={cache.metrics} candidateIds={["a"]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Reset review" }));
-    expect(screen.getByText(/haven't answered any of the 1 candidates/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
-  });
-
-  it("asks for a review before there are answers", () => {
-    render(<ResultsSummary metrics={cache.metrics} candidateIds={["a"]} />);
-    expect(screen.getByText(/haven't answered any of the 1 candidates/)).toBeInTheDocument();
-  });
 });
 
 describe("Results recall figures", () => {
@@ -168,13 +133,6 @@ describe("duration", () => {
   });
 });
 
-describe("placeName", () => {
-  it("drops a trailing parenthetical from the survey's area name", () => {
-    expect(placeName("Mount Seymour, North Vancouver (simulated flight path)")).toBe("Mount Seymour, North Vancouver");
-    expect(placeName("HERIDAL SB site (real EXIF positions)")).toBe("HERIDAL SB site");
-    expect(placeName("Somewhere")).toBe("Somewhere");
-  });
-});
 
 describe("fewer", () => {
   it("gives a percentage only when it means something", () => {

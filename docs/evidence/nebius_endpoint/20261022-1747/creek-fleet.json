@@ -1,0 +1,817 @@
+{
+ "url_host": "port8080-tn77452agre6sr8.tunnel.applications.us-north1.nebius.cloud",
+ "label": "creek-fleet",
+ "started_utc": "2026-10-22T17:50:44+00:00",
+ "photo_dir": "/home/driver/sightline/runs/creek/20261021-204123/missions/c797e96a/frames/orig",
+ "photos_available": 711,
+ "cold": {
+  "create_or_start_to_healthy_s": 291.2,
+  "create_or_start_to_first_detection_s": 291.5
+ },
+ "first_request": {
+  "photo": "f0001.jpg",
+  "wall_ms": 364.8,
+  "server_ms": {
+   "decode": 5.2,
+   "detect": 196.6,
+   "total": 201.8
+  },
+  "boxes": 0,
+  "candidates": 0,
+  "size": [
+   912,
+   684
+  ]
+ },
+ "health": {
+  "status": "ok",
+  "model": "yolo11s-heridal-tiled-run2",
+  "onnx": "model.onnx",
+  "threads": 8,
+  "rect_letterbox": true,
+  "load_ms": 446,
+  "cpus": 8
+ },
+ "warm": {
+  "n": 50,
+  "p50_ms": 716.5,
+  "p90_ms": 3450.7,
+  "max_ms": 3504.2,
+  "mean_ms": 1394.8
+ },
+ "warm_server_detect": {
+  "n": 50,
+  "p50_ms": 516.9,
+  "p90_ms": 3065.4,
+  "max_ms": 3134.7,
+  "mean_ms": 1194.7
+ },
+ "warm_requests": [
+  {
+   "photo": "f0001.jpg",
+   "wall_ms": 282.8,
+   "server_ms": {
+    "decode": 2.1,
+    "detect": 191.4,
+    "total": 193.5
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    912,
+    684
+   ]
+  },
+  {
+   "photo": "f0002.jpg",
+   "wall_ms": 3420.9,
+   "server_ms": {
+    "decode": 22.8,
+    "detect": 3134.7,
+    "total": 3157.5
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0003.jpg",
+   "wall_ms": 3504.2,
+   "server_ms": {
+    "decode": 22.4,
+    "detect": 3064.8,
+    "total": 3087.2
+   },
+   "boxes": 2,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0004.jpg",
+   "wall_ms": 3479.6,
+   "server_ms": {
+    "decode": 19.1,
+    "detect": 3074.1,
+    "total": 3093.2
+   },
+   "boxes": 1,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0005.jpg",
+   "wall_ms": 355.5,
+   "server_ms": {
+    "decode": 2.1,
+    "detect": 186.1,
+    "total": 188.2
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    915,
+    686
+   ]
+  },
+  {
+   "photo": "f0006.jpg",
+   "wall_ms": 1127.1,
+   "server_ms": {
+    "decode": 6.1,
+    "detect": 988.6,
+    "total": 994.8
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1469,
+    1102
+   ]
+  },
+  {
+   "photo": "f0007.jpg",
+   "wall_ms": 1239.0,
+   "server_ms": {
+    "decode": 6.2,
+    "detect": 1007.0,
+    "total": 1013.2
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1469,
+    1102
+   ]
+  },
+  {
+   "photo": "f0008.jpg",
+   "wall_ms": 716.5,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 503.8,
+    "total": 508.7
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1309,
+    982
+   ]
+  },
+  {
+   "photo": "f0009.jpg",
+   "wall_ms": 649.7,
+   "server_ms": {
+    "decode": 4.8,
+    "detect": 506.3,
+    "total": 511.2
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1309,
+    982
+   ]
+  },
+  {
+   "photo": "f0010.jpg",
+   "wall_ms": 654.3,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 512.9,
+    "total": 517.8
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1312,
+    984
+   ]
+  },
+  {
+   "photo": "f0011.jpg",
+   "wall_ms": 655.3,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 512.6,
+    "total": 517.5
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1312,
+    984
+   ]
+  },
+  {
+   "photo": "f0012.jpg",
+   "wall_ms": 662.1,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 514.5,
+    "total": 519.4
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1335,
+    1001
+   ]
+  },
+  {
+   "photo": "f0013.jpg",
+   "wall_ms": 278.6,
+   "server_ms": {
+    "decode": 2.0,
+    "detect": 188.0,
+    "total": 190.0
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    912,
+    684
+   ]
+  },
+  {
+   "photo": "f0014.jpg",
+   "wall_ms": 3239.6,
+   "server_ms": {
+    "decode": 20.9,
+    "detect": 3023.0,
+    "total": 3043.9
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0015.jpg",
+   "wall_ms": 3358.1,
+   "server_ms": {
+    "decode": 21.5,
+    "detect": 2997.5,
+    "total": 3019.0
+   },
+   "boxes": 2,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0016.jpg",
+   "wall_ms": 3417.1,
+   "server_ms": {
+    "decode": 19.1,
+    "detect": 3057.2,
+    "total": 3076.3
+   },
+   "boxes": 1,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0017.jpg",
+   "wall_ms": 362.7,
+   "server_ms": {
+    "decode": 2.1,
+    "detect": 190.3,
+    "total": 192.5
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    915,
+    686
+   ]
+  },
+  {
+   "photo": "f0018.jpg",
+   "wall_ms": 1143.2,
+   "server_ms": {
+    "decode": 6.2,
+    "detect": 1016.0,
+    "total": 1022.2
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1469,
+    1102
+   ]
+  },
+  {
+   "photo": "f0019.jpg",
+   "wall_ms": 1234.1,
+   "server_ms": {
+    "decode": 6.2,
+    "detect": 1012.2,
+    "total": 1018.5
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1469,
+    1102
+   ]
+  },
+  {
+   "photo": "f0020.jpg",
+   "wall_ms": 718.0,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 512.5,
+    "total": 517.4
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1309,
+    982
+   ]
+  },
+  {
+   "photo": "f0021.jpg",
+   "wall_ms": 650.5,
+   "server_ms": {
+    "decode": 4.8,
+    "detect": 511.3,
+    "total": 516.1
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1309,
+    982
+   ]
+  },
+  {
+   "photo": "f0022.jpg",
+   "wall_ms": 630.8,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 493.9,
+    "total": 498.8
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1312,
+    984
+   ]
+  },
+  {
+   "photo": "f0023.jpg",
+   "wall_ms": 631.6,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 494.0,
+    "total": 498.9
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1312,
+    984
+   ]
+  },
+  {
+   "photo": "f0024.jpg",
+   "wall_ms": 662.5,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 521.8,
+    "total": 526.7
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1335,
+    1001
+   ]
+  },
+  {
+   "photo": "f0025.jpg",
+   "wall_ms": 278.8,
+   "server_ms": {
+    "decode": 2.1,
+    "detect": 188.7,
+    "total": 190.8
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    912,
+    684
+   ]
+  },
+  {
+   "photo": "f0026.jpg",
+   "wall_ms": 3335.0,
+   "server_ms": {
+    "decode": 20.8,
+    "detect": 3046.2,
+    "total": 3067.0
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0027.jpg",
+   "wall_ms": 3465.1,
+   "server_ms": {
+    "decode": 21.4,
+    "detect": 3027.7,
+    "total": 3049.1
+   },
+   "boxes": 2,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0028.jpg",
+   "wall_ms": 3472.4,
+   "server_ms": {
+    "decode": 19.1,
+    "detect": 3065.4,
+    "total": 3084.6
+   },
+   "boxes": 1,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0029.jpg",
+   "wall_ms": 360.6,
+   "server_ms": {
+    "decode": 2.1,
+    "detect": 192.2,
+    "total": 194.3
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    915,
+    686
+   ]
+  },
+  {
+   "photo": "f0030.jpg",
+   "wall_ms": 1161.8,
+   "server_ms": {
+    "decode": 6.1,
+    "detect": 1022.9,
+    "total": 1029.0
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1469,
+    1102
+   ]
+  },
+  {
+   "photo": "f0031.jpg",
+   "wall_ms": 1270.5,
+   "server_ms": {
+    "decode": 6.2,
+    "detect": 1037.4,
+    "total": 1043.6
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1469,
+    1102
+   ]
+  },
+  {
+   "photo": "f0032.jpg",
+   "wall_ms": 763.9,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 551.7,
+    "total": 556.6
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1309,
+    982
+   ]
+  },
+  {
+   "photo": "f0033.jpg",
+   "wall_ms": 634.4,
+   "server_ms": {
+    "decode": 4.8,
+    "detect": 516.9,
+    "total": 521.7
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1309,
+    982
+   ]
+  },
+  {
+   "photo": "f0034.jpg",
+   "wall_ms": 627.6,
+   "server_ms": {
+    "decode": 4.8,
+    "detect": 512.6,
+    "total": 517.4
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1312,
+    984
+   ]
+  },
+  {
+   "photo": "f0035.jpg",
+   "wall_ms": 620.6,
+   "server_ms": {
+    "decode": 5.1,
+    "detect": 500.2,
+    "total": 505.3
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1312,
+    984
+   ]
+  },
+  {
+   "photo": "f0036.jpg",
+   "wall_ms": 615.2,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 490.4,
+    "total": 495.3
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1335,
+    1001
+   ]
+  },
+  {
+   "photo": "f0037.jpg",
+   "wall_ms": 265.2,
+   "server_ms": {
+    "decode": 2.0,
+    "detect": 183.7,
+    "total": 185.7
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    912,
+    684
+   ]
+  },
+  {
+   "photo": "f0038.jpg",
+   "wall_ms": 3233.2,
+   "server_ms": {
+    "decode": 20.7,
+    "detect": 3025.8,
+    "total": 3046.5
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0039.jpg",
+   "wall_ms": 3450.7,
+   "server_ms": {
+    "decode": 21.4,
+    "detect": 3069.6,
+    "total": 3091.0
+   },
+   "boxes": 2,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0040.jpg",
+   "wall_ms": 3351.0,
+   "server_ms": {
+    "decode": 19.2,
+    "detect": 2984.1,
+    "total": 3003.4
+   },
+   "boxes": 1,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  },
+  {
+   "photo": "f0041.jpg",
+   "wall_ms": 357.2,
+   "server_ms": {
+    "decode": 2.2,
+    "detect": 190.8,
+    "total": 193.1
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    915,
+    686
+   ]
+  },
+  {
+   "photo": "f0042.jpg",
+   "wall_ms": 1126.6,
+   "server_ms": {
+    "decode": 6.1,
+    "detect": 994.4,
+    "total": 1000.5
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1469,
+    1102
+   ]
+  },
+  {
+   "photo": "f0043.jpg",
+   "wall_ms": 1237.4,
+   "server_ms": {
+    "decode": 6.4,
+    "detect": 1015.6,
+    "total": 1022.0
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1469,
+    1102
+   ]
+  },
+  {
+   "photo": "f0044.jpg",
+   "wall_ms": 745.6,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 540.4,
+    "total": 545.4
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1309,
+    982
+   ]
+  },
+  {
+   "photo": "f0045.jpg",
+   "wall_ms": 651.4,
+   "server_ms": {
+    "decode": 4.8,
+    "detect": 515.2,
+    "total": 520.0
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1309,
+    982
+   ]
+  },
+  {
+   "photo": "f0046.jpg",
+   "wall_ms": 631.1,
+   "server_ms": {
+    "decode": 4.8,
+    "detect": 497.1,
+    "total": 501.9
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1312,
+    984
+   ]
+  },
+  {
+   "photo": "f0047.jpg",
+   "wall_ms": 648.6,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 513.2,
+    "total": 518.1
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1312,
+    984
+   ]
+  },
+  {
+   "photo": "f0048.jpg",
+   "wall_ms": 651.8,
+   "server_ms": {
+    "decode": 4.9,
+    "detect": 513.7,
+    "total": 518.6
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    1335,
+    1001
+   ]
+  },
+  {
+   "photo": "f0049.jpg",
+   "wall_ms": 293.9,
+   "server_ms": {
+    "decode": 2.2,
+    "detect": 205.7,
+    "total": 207.9
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    912,
+    684
+   ]
+  },
+  {
+   "photo": "f0050.jpg",
+   "wall_ms": 3414.5,
+   "server_ms": {
+    "decode": 20.9,
+    "detect": 3121.1,
+    "total": 3142.0
+   },
+   "boxes": 0,
+   "candidates": 0,
+   "size": [
+    2667,
+    2000
+   ]
+  }
+ ],
+ "concurrent": {
+  "concurrency": 4,
+  "n": 50,
+  "p50_ms": 4383.1,
+  "p90_ms": 9421.3,
+  "max_ms": 9971.2,
+  "mean_ms": 4673.6,
+  "wall_s": 60.99,
+  "photos_per_s": 0.82
+ },
+ "cost": {
+  "price_per_hour_usd": 0.264,
+  "photos_per_s_used": 0.82,
+  "usd_per_1000_photos": 0.0894,
+  "note": "VM list price while it runs, at the best measured throughput; idle time not included"
+ }
+}

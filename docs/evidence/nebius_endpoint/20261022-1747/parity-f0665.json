@@ -1,0 +1,1 @@
+{"n_candidates": 1, "top": [{"box": [420, 291, 477, 379], "conf": 0.73487788438797}], "timing_ms": {"decode": 2.7, "detect": 187.3, "total": 190.0}}

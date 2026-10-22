@@ -65,6 +65,10 @@ class _File(BaseModel):
 class PlacedFrame(_File):
     pose: Pose
     footprint: Footprint
+    # Metres per pixel of the image the detector ran on: the original photo's GSD (from its EXIF),
+    # which differs from `pose.gsd_m` when the frame is a resized photo or the flight is simulated.
+    # The map reads the POD size curve at it (docs/report/POD.md); None: unknown, constant recall.
+    detector_gsd_m: float | None = Field(default=None, gt=0)
 
 
 class PlaceFile(_File):

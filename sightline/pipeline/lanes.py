@@ -106,6 +106,9 @@ class MapFrame:
     # (lat, lon, radius_m) of each candidate detection in the frame (conf >= candidate_threshold),
     # so lane C can hold those cells for review (pod = 0 near a detection).
     candidates: tuple[tuple[float, float, float], ...] = ()
+    # Metres per pixel of the image the detector ran on (the original photo); lane C reads its POD
+    # size curve there (docs/report/POD.md). None: unknown, and the constant recall is used.
+    detector_gsd_m: float | None = None
 
 
 @dataclass(frozen=True)
@@ -119,6 +122,7 @@ class NativeFrameInput:
     height_px: int
     image: Path
     candidates: list[tuple[LatLon, float]]
+    detector_gsd_m: float | None = None
 
 
 def _first_parameter(function: Callable[..., Any]) -> str | None:
@@ -376,6 +380,11 @@ class Lanes:
         grid = self._grid(lkp, cell_m)
         prior = self._prior(grid)
         frame_class = self.get("frame_input") or NativeFrameInput
+        # An older FrameInput without the field still works (it then uses the constant recall).
+        try:
+            takes_gsd = "detector_gsd_m" in inspect.signature(frame_class).parameters
+        except (TypeError, ValueError):
+            takes_gsd = False
         inputs = [
             frame_class(
                 frame_id=f.id,
@@ -386,6 +395,7 @@ class Lanes:
                 candidates=[
                     (LatLon(lat=lat, lon=lon), radius) for lat, lon, radius in f.candidates
                 ],
+                **({"detector_gsd_m": f.detector_gsd_m} if takes_gsd else {}),
             )
             for f in frames
         ]

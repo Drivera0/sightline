@@ -1,0 +1,636 @@
+{
+  "ts": "20261022-110620",
+  "split": "val",
+  "val_photos": 95,
+  "val_people": 333,
+  "threshold": 0.29,
+  "onnx": "yolo11s_tiles_run1_best.onnx",
+  "backend": "cpu",
+  "opencv": "5.0.0",
+  "transforms": {
+    "fog_grey": 192,
+    "dusk_brightness": 0.6
+  },
+  "conditions": [
+    {
+      "name": "baseline",
+      "family": "baseline",
+      "param": 0.0,
+      "label": "original",
+      "precision": 0.7352,
+      "recall": 0.8589,
+      "ap50": 0.861,
+      "people": 333,
+      "found": 286,
+      "boxes_kept": 389
+    },
+    {
+      "name": "downscale_0.9",
+      "family": "downscale",
+      "param": 0.9,
+      "label": "downscale x0.9",
+      "precision": 0.7534,
+      "recall": 0.8438,
+      "ap50": 0.8693,
+      "people": 333,
+      "found": 281,
+      "boxes_kept": 373
+    },
+    {
+      "name": "downscale_0.75",
+      "family": "downscale",
+      "param": 0.75,
+      "label": "downscale x0.75",
+      "precision": 0.744,
+      "recall": 0.8378,
+      "ap50": 0.8515,
+      "people": 333,
+      "found": 279,
+      "boxes_kept": 375
+    },
+    {
+      "name": "downscale_0.6",
+      "family": "downscale",
+      "param": 0.6,
+      "label": "downscale x0.6",
+      "precision": 0.746,
+      "recall": 0.8378,
+      "ap50": 0.8402,
+      "people": 333,
+      "found": 279,
+      "boxes_kept": 374
+    },
+    {
+      "name": "downscale_0.5",
+      "family": "downscale",
+      "param": 0.5,
+      "label": "downscale x0.5",
+      "precision": 0.7569,
+      "recall": 0.8228,
+      "ap50": 0.8283,
+      "people": 333,
+      "found": 274,
+      "boxes_kept": 362
+    },
+    {
+      "name": "fog_0.2",
+      "family": "fog",
+      "param": 0.2,
+      "label": "fog 20%",
+      "precision": 0.7522,
+      "recall": 0.7838,
+      "ap50": 0.7947,
+      "people": 333,
+      "found": 261,
+      "boxes_kept": 347
+    },
+    {
+      "name": "fog_0.4",
+      "family": "fog",
+      "param": 0.4,
+      "label": "fog 40%",
+      "precision": 0.7386,
+      "recall": 0.6787,
+      "ap50": 0.7109,
+      "people": 333,
+      "found": 226,
+      "boxes_kept": 306
+    },
+    {
+      "name": "fog_0.6",
+      "family": "fog",
+      "param": 0.6,
+      "label": "fog 60%",
+      "precision": 0.7509,
+      "recall": 0.6156,
+      "ap50": 0.6232,
+      "people": 333,
+      "found": 205,
+      "boxes_kept": 273
+    },
+    {
+      "name": "motion_5",
+      "family": "motion",
+      "param": 5,
+      "label": "motion blur 5 px",
+      "precision": 0.7346,
+      "recall": 0.8228,
+      "ap50": 0.8351,
+      "people": 333,
+      "found": 274,
+      "boxes_kept": 373
+    },
+    {
+      "name": "motion_9",
+      "family": "motion",
+      "param": 9,
+      "label": "motion blur 9 px",
+      "precision": 0.7594,
+      "recall": 0.7297,
+      "ap50": 0.755,
+      "people": 333,
+      "found": 243,
+      "boxes_kept": 320
+    },
+    {
+      "name": "motion_15",
+      "family": "motion",
+      "param": 15,
+      "label": "motion blur 15 px",
+      "precision": 0.7352,
+      "recall": 0.5586,
+      "ap50": 0.5981,
+      "people": 333,
+      "found": 186,
+      "boxes_kept": 253
+    },
+    {
+      "name": "dusk_1.8",
+      "family": "dusk",
+      "param": 1.8,
+      "label": "dusk gamma 1.8, -40 %",
+      "precision": 0.5762,
+      "recall": 0.7718,
+      "ap50": 0.7569,
+      "people": 333,
+      "found": 257,
+      "boxes_kept": 446
+    },
+    {
+      "name": "dusk_2.5",
+      "family": "dusk",
+      "param": 2.5,
+      "label": "dusk gamma 2.5, -40 %",
+      "precision": 0.4192,
+      "recall": 0.6937,
+      "ap50": 0.6007,
+      "people": 333,
+      "found": 231,
+      "boxes_kept": 551
+    },
+    {
+      "name": "jpeg_50",
+      "family": "jpeg",
+      "param": 50,
+      "label": "JPEG q50",
+      "precision": 0.7788,
+      "recall": 0.7928,
+      "ap50": 0.8446,
+      "people": 333,
+      "found": 264,
+      "boxes_kept": 339
+    },
+    {
+      "name": "jpeg_30",
+      "family": "jpeg",
+      "param": 30,
+      "label": "JPEG q30",
+      "precision": 0.7869,
+      "recall": 0.7207,
+      "ap50": 0.7815,
+      "people": 333,
+      "found": 240,
+      "boxes_kept": 305
+    }
+  ],
+  "size_bins": [
+    {
+      "bin": "<20",
+      "lo_px": 0,
+      "hi_px": 20,
+      "people": 0,
+      "found": 0,
+      "recall": null,
+      "ci95": null,
+      "median_px": null
+    },
+    {
+      "bin": "20-40",
+      "lo_px": 20,
+      "hi_px": 40,
+      "people": 42,
+      "found": 32,
+      "recall": 0.7619,
+      "ci95": [
+        0.6147,
+        0.8652
+      ],
+      "median_px": 34.0
+    },
+    {
+      "bin": "40-60",
+      "lo_px": 40,
+      "hi_px": 60,
+      "people": 177,
+      "found": 155,
+      "recall": 0.8757,
+      "ci95": [
+        0.819,
+        0.9165
+      ],
+      "median_px": 48.0
+    },
+    {
+      "bin": "60-100",
+      "lo_px": 60,
+      "hi_px": 100,
+      "people": 111,
+      "found": 97,
+      "recall": 0.8739,
+      "ci95": [
+        0.7994,
+        0.9234
+      ],
+      "median_px": 67.0
+    },
+    {
+      "bin": ">100",
+      "lo_px": 100,
+      "hi_px": null,
+      "people": 3,
+      "found": 2,
+      "recall": 0.6667,
+      "ci95": [
+        0.2077,
+        0.9385
+      ],
+      "median_px": 106.0
+    }
+  ],
+  "test_rebin": {
+    "source": "data/work/analysis/preds.json",
+    "people": 337,
+    "found": 291,
+    "recall": 0.8635,
+    "size_bins": [
+      {
+        "bin": "<20",
+        "lo_px": 0,
+        "hi_px": 20,
+        "people": 0,
+        "found": 0,
+        "recall": null,
+        "ci95": null,
+        "median_px": null
+      },
+      {
+        "bin": "20-40",
+        "lo_px": 20,
+        "hi_px": 40,
+        "people": 81,
+        "found": 71,
+        "recall": 0.8765,
+        "ci95": [
+          0.7874,
+          0.9315
+        ],
+        "median_px": 36.0
+      },
+      {
+        "bin": "40-60",
+        "lo_px": 40,
+        "hi_px": 60,
+        "people": 184,
+        "found": 158,
+        "recall": 0.8587,
+        "ci95": [
+          0.801,
+          0.9017
+        ],
+        "median_px": 47.5
+      },
+      {
+        "bin": "60-100",
+        "lo_px": 60,
+        "hi_px": 100,
+        "people": 70,
+        "found": 61,
+        "recall": 0.8714,
+        "ci95": [
+          0.7734,
+          0.9309
+        ],
+        "median_px": 67.0
+      },
+      {
+        "bin": ">100",
+        "lo_px": 100,
+        "hi_px": null,
+        "people": 2,
+        "found": 1,
+        "recall": 0.5,
+        "ci95": [
+          0.0945,
+          0.9055
+        ],
+        "median_px": 110.5
+      }
+    ]
+  },
+  "curve": {
+    "size_measure": "shorter side of the labelled box, px",
+    "pooled_from": [
+      "baseline",
+      "downscale_0.9",
+      "downscale_0.75",
+      "downscale_0.6",
+      "downscale_0.5"
+    ],
+    "min_people_per_point": 20,
+    "min_people_low_n_point": 5,
+    "floor_px": 4.0,
+    "bins": [
+      {
+        "bin": "<15",
+        "lo_px": 0,
+        "hi_px": 15,
+        "people": 9,
+        "found": 5,
+        "recall": 0.5556,
+        "ci95": [
+          0.2666,
+          0.8112
+        ],
+        "median_px": 14.5
+      },
+      {
+        "bin": "15-20",
+        "lo_px": 15,
+        "hi_px": 20,
+        "people": 52,
+        "found": 33,
+        "recall": 0.6346,
+        "ci95": [
+          0.4987,
+          0.752
+        ],
+        "median_px": 17.8
+      },
+      {
+        "bin": "20-25",
+        "lo_px": 20,
+        "hi_px": 25,
+        "people": 159,
+        "found": 118,
+        "recall": 0.7421,
+        "ci95": [
+          0.669,
+          0.8039
+        ],
+        "median_px": 22.2
+      },
+      {
+        "bin": "25-30",
+        "lo_px": 25,
+        "hi_px": 30,
+        "people": 210,
+        "found": 170,
+        "recall": 0.8095,
+        "ci95": [
+          0.751,
+          0.8569
+        ],
+        "median_px": 27.0
+      },
+      {
+        "bin": "30-35",
+        "lo_px": 30,
+        "hi_px": 35,
+        "people": 243,
+        "found": 202,
+        "recall": 0.8313,
+        "ci95": [
+          0.7791,
+          0.8731
+        ],
+        "median_px": 32.0
+      },
+      {
+        "bin": "35-40",
+        "lo_px": 35,
+        "hi_px": 40,
+        "people": 220,
+        "found": 193,
+        "recall": 0.8773,
+        "ci95": [
+          0.8273,
+          0.9143
+        ],
+        "median_px": 37.2
+      },
+      {
+        "bin": "40-50",
+        "lo_px": 40,
+        "hi_px": 50,
+        "people": 357,
+        "found": 309,
+        "recall": 0.8655,
+        "ci95": [
+          0.8262,
+          0.8971
+        ],
+        "median_px": 44.2
+      },
+      {
+        "bin": "50-60",
+        "lo_px": 50,
+        "hi_px": 60,
+        "people": 213,
+        "found": 191,
+        "recall": 0.8967,
+        "ci95": [
+          0.8486,
+          0.9308
+        ],
+        "median_px": 54.0
+      },
+      {
+        "bin": "60-80",
+        "lo_px": 60,
+        "hi_px": 80,
+        "people": 165,
+        "found": 148,
+        "recall": 0.897,
+        "ci95": [
+          0.8412,
+          0.9347
+        ],
+        "median_px": 64.8
+      },
+      {
+        "bin": "80-100",
+        "lo_px": 80,
+        "hi_px": 100,
+        "people": 33,
+        "found": 28,
+        "recall": 0.8485,
+        "ci95": [
+          0.6908,
+          0.9335
+        ],
+        "median_px": 86.0
+      },
+      {
+        "bin": ">100",
+        "lo_px": 100,
+        "hi_px": null,
+        "people": 4,
+        "found": 2,
+        "recall": 0.5,
+        "ci95": [
+          0.15,
+          0.85
+        ],
+        "median_px": 104.8
+      }
+    ],
+    "points": [
+      {
+        "px": 14.5,
+        "recall": 0.5556,
+        "measured": 0.5556,
+        "people": 9,
+        "low_n": true
+      },
+      {
+        "px": 17.8,
+        "recall": 0.6346,
+        "measured": 0.6346,
+        "people": 52
+      },
+      {
+        "px": 22.2,
+        "recall": 0.7421,
+        "measured": 0.7421,
+        "people": 159
+      },
+      {
+        "px": 27.0,
+        "recall": 0.8095,
+        "measured": 0.8095,
+        "people": 210
+      },
+      {
+        "px": 32.0,
+        "recall": 0.8313,
+        "measured": 0.8313,
+        "people": 243
+      },
+      {
+        "px": 37.2,
+        "recall": 0.87,
+        "measured": 0.8773,
+        "people": 220
+      },
+      {
+        "px": 44.2,
+        "recall": 0.87,
+        "measured": 0.8655,
+        "people": 357
+      },
+      {
+        "px": 54.0,
+        "recall": 0.8929,
+        "measured": 0.8967,
+        "people": 213
+      },
+      {
+        "px": 64.8,
+        "recall": 0.8929,
+        "measured": 0.897,
+        "people": 165
+      },
+      {
+        "px": 86.0,
+        "recall": 0.8929,
+        "measured": 0.8485,
+        "people": 33
+      }
+    ]
+  },
+  "box_size_m": {
+    "measure": "shorter side of the labelled box x the photo's EXIF GSD, m",
+    "photos": 95,
+    "photos_with_pose": 70,
+    "boxes": 121,
+    "median_m": 0.808,
+    "q1_m": 0.673,
+    "q3_m": 0.961,
+    "median_px": 53.0,
+    "median_gsd_m": 0.01408
+  },
+  "sensitivity": [
+    {
+      "gsd_m": 0.02,
+      "width_m": 0.4,
+      "px": 20.0,
+      "recall": 0.688,
+      "used": false
+    },
+    {
+      "gsd_m": 0.02,
+      "width_m": 0.5,
+      "px": 25.0,
+      "recall": 0.781,
+      "used": false
+    },
+    {
+      "gsd_m": 0.02,
+      "width_m": 0.6,
+      "px": 30.0,
+      "recall": 0.823,
+      "used": false
+    },
+    {
+      "gsd_m": 0.02,
+      "width_m": 0.7,
+      "px": 35.0,
+      "recall": 0.854,
+      "used": false
+    },
+    {
+      "gsd_m": 0.02,
+      "width_m": 0.8,
+      "px": 40.0,
+      "recall": 0.87,
+      "used": true
+    },
+    {
+      "gsd_m": 0.03,
+      "width_m": 0.4,
+      "px": 13.3,
+      "recall": 0.494,
+      "used": false
+    },
+    {
+      "gsd_m": 0.03,
+      "width_m": 0.5,
+      "px": 16.7,
+      "recall": 0.607,
+      "used": false
+    },
+    {
+      "gsd_m": 0.03,
+      "width_m": 0.6,
+      "px": 20.0,
+      "recall": 0.688,
+      "used": false
+    },
+    {
+      "gsd_m": 0.03,
+      "width_m": 0.7,
+      "px": 23.3,
+      "recall": 0.758,
+      "used": false
+    },
+    {
+      "gsd_m": 0.03,
+      "width_m": 0.8,
+      "px": 26.7,
+      "recall": 0.805,
+      "used": true
+    }
+  ],
+  "wall_s": 0.4,
+  "cached_conditions": 15
+}

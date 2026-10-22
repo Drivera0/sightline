@@ -2,7 +2,8 @@
 
 Lane A. The fleet scenario's photos (lane C, C-F2) are detected in a batch as a **Nebius Serverless Job**
 ("process sensor data at scale", Physical AI track). The job runs the Sightline detector on OpenCV 5
-`cv2.dnn`, no torch.
+`cv2.dnn`, no torch. The same detector as a real-time **Serverless Endpoint** (one photo per request) is
+in `ENDPOINT.md`.
 
 | | |
 |---|---|

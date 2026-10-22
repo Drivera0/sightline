@@ -1,12 +1,11 @@
-// "Hear Sightline on the radio": the clip with its transcript, on the front door and #judges, served locally.
+// "Hear Sightline on the radio": the clip with its transcript, in About and the Debrief, served locally.
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RADIO_CLIP } from "./copy";
-import { FrontDoor } from "./FrontDoor";
-import { JudgesPage } from "./JudgesPage";
+import { AboutSheet } from "./About";
 import { RadioClip } from "./RadioClip";
 
 afterEach(() => vi.restoreAllMocks());
@@ -30,13 +29,9 @@ describe("RadioClip", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("is on the front door under the hero, and on #judges", () => {
-    render(<FrontDoor base={null} />);
-    const hero = screen.getByRole("region", { name: "Sightline" });
-    expect(within(hero).getByRole("group", { name: "Sightline on the radio" })).toHaveTextContent(RADIO_CLIP.transcript);
-    document.body.innerHTML = "";
-    render(<JudgesPage />);
-    expect(screen.getByRole("group", { name: "Sightline on the radio" })).toHaveTextContent(RADIO_CLIP.transcript);
+  it("is in the About sheet, under the pitch", () => {
+    render(<AboutSheet onClose={() => undefined} />);
+    expect(within(screen.getByRole("dialog", { name: "About Sightline" })).getByRole("group", { name: "Sightline on the radio" })).toHaveTextContent(RADIO_CLIP.transcript);
   });
 
   it("ships the clip: an MP3 of at most 300 KB in public/front", () => {

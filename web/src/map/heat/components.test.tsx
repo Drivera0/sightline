@@ -4,7 +4,6 @@ import { FoundBanner } from "./FoundBanner";
 import { classSwatches, isPlaceholderPrior, Legend, showsPlaceholderPrior, swatchColor } from "./Legend";
 import { HEAT_PALETTES } from "./palette";
 import { NextSearch, SHARE_LABELS } from "./NextSearch";
-import { StepSlider, stepText } from "./StepSlider";
 
 const grid = { origin_nw: { lat: 49.374492, lon: -122.951898 }, cell_m: 20, rows: 2, cols: 4 };
 
@@ -75,56 +74,6 @@ describe("NextSearch", () => {
     render(<NextSearch map={map} state={state} covered={new Uint8Array(8)} overlap={new Float64Array(8)} onSelect={vi.fn()} />);
     expect(screen.queryByRole("list", { name: "Most likely patches" })).toBeNull();
     expect(screen.getByText("No ground photographed well enough yet")).toBeInTheDocument();
-  });
-});
-
-describe("StepSlider", () => {
-  it("describes the step", () => {
-    expect(stepText(0, 500)).toBe("Before the first frame");
-    expect(stepText(212, 500)).toBe("After frame 212 of 500");
-  });
-
-  it("shows the text and moves with the range input, in whole frames", () => {
-    const onScrub = vi.fn();
-    render(<StepSlider value={212} max={500} onScrub={onScrub} />);
-    // Never broken mid-phrase on a narrow bar ("After frame 500 of / 500"): the parts wrap whole.
-    expect(screen.getByText("After frame 212 of 500")).toHaveClass("whitespace-nowrap");
-    expect(screen.getByText("Flight replay")).toHaveClass("whitespace-nowrap");
-    fireEvent.change(screen.getByRole("slider"), { target: { value: "13" } });
-    expect(onScrub).toHaveBeenCalledWith(13);
-    // A label that changes (Play / Pause) and no toggle state, so it is never read "Pause, not pressed".
-    expect(screen.getByRole("button", { name: "Play" })).not.toHaveAttribute("aria-pressed");
-  });
-
-  it("is only the controls: play, pause and skip call back; the clock moves the thumb while playing", () => {
-    const onTogglePlay = vi.fn();
-    const onSkip = vi.fn();
-    const { rerender } = render(<StepSlider value={40} max={500} onScrub={vi.fn()} onTogglePlay={onTogglePlay} onSkip={onSkip} />);
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
-    expect(onTogglePlay).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("slider")).toHaveAttribute("step", "1");
-    rerender(<StepSlider value={40} max={500} playing onScrub={vi.fn()} onTogglePlay={onTogglePlay} onSkip={onSkip} />);
-    // Fractional while playing (the thumb glides), and the step text is not announced every commit.
-    expect(screen.getByRole("slider")).toHaveAttribute("step", "any");
-    expect(screen.getByText("After frame 40 of 500")).toHaveAttribute("aria-live", "off");
-    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    fireEvent.click(screen.getByRole("button", { name: "Skip to the end of the flight" }));
-    expect(onSkip).toHaveBeenCalledTimes(1);
-    rerender(<StepSlider value={500} max={500} onScrub={vi.fn()} onTogglePlay={onTogglePlay} onSkip={onSkip} />);
-    // At the end it is marked unavailable but stays focusable, so keyboard focus is not dropped
-    // to the page after a skip, and a second press does nothing.
-    const skip = screen.getByRole("button", { name: "Skip to the end of the flight" });
-    expect(skip).toHaveAttribute("aria-disabled", "true");
-    expect(skip).not.toBeDisabled();
-    skip.focus();
-    fireEvent.click(skip);
-    expect(onSkip).toHaveBeenCalledTimes(1);
-    expect(skip).toHaveFocus();
-  });
-
-  it("is hidden when there are no steps", () => {
-    const { container } = render(<StepSlider value={0} max={0} onScrub={() => undefined} />);
-    expect(container).toBeEmptyDOMElement();
   });
 });
 

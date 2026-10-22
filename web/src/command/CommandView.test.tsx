@@ -1,9 +1,9 @@
 // LANE_E §9 tests 2 (task states; POD in (0, 0.9]), the roster, the clue form, the header.
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
-import { clueProblem, CommandView, HINT_KEY, missionStatus, type CommandProps } from "./CommandView";
+import { clueProblem, CommandView, missionStatus, type CommandProps } from "./CommandView";
 import { clock, zone } from "../lib/time";
 
 const NOW = new Date("2026-10-24T22:00:00Z");
@@ -162,21 +162,15 @@ describe("CommandView", () => {
     expect(b3).toHaveTextContent("Bravo Three · POA 6.9% · drone coverage 25%");
   });
 
-  it("console, first visit: a hint says where things are, and stays dismissed", async () => {
-    localStorage.removeItem(HINT_KEY);
-    setup({ map: <div>map</div> });
-    const hint = screen.getByRole("complementary", { name: "How to use the console" });
-    expect(within(hint).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
-      "→ Approve the agent's proposals on the right",
-      "← Assign teams to sectors on the left",
-      "↓ Add clues below the map",
-    ]);
-    expect(screen.getByText("Desktop recommended.")).toBeInTheDocument(); // shown under 1024 px
-    await userEvent.click(within(hint).getByRole("button", { name: "Got it" }));
-    expect(screen.queryByRole("complementary", { name: "How to use the console" })).toBeNull();
-    cleanup();
-    setup({ map: <div>map</div> });
-    expect(screen.queryByRole("complementary", { name: "How to use the console" })).toBeNull();
+  it("console: the views' rail in place of the approvals, a cover over it all, the map still mounted", () => {
+    setup({ map: <div>the map</div>, rightRail: <p>photos rail</p>, cover: <p>the trace</p>, overMap: <p>scrubber</p> });
+    const view = screen.getByLabelText("Command view");
+    expect(within(view).getByRole("complementary", { name: "View" })).toHaveTextContent("photos rail");
+    expect(within(view).queryByRole("complementary", { name: "Approvals" })).toBeNull();
+    expect(view).toHaveTextContent("the map");
+    expect(view).toHaveTextContent("scrubber");
+    expect(view).toHaveTextContent("the trace");
+    expect(view).not.toHaveTextContent("Desktop recommended"); // the bottom bar replaces the note
   });
 
   it("demo: the header clock tells the fixtures' scripted time, in UTC", () => {
@@ -195,7 +189,7 @@ describe("CommandView", () => {
   it("the shortcut overlay lists the console's keys", async () => {
     const { SHORTCUT_GROUPS } = await import("../shell/shortcuts");
     const console_ = SHORTCUT_GROUPS.find((g) => g.title === "Console");
-    expect(console_?.shortcuts.flatMap((s) => s.keys)).toEqual(["Tab", "A", "X", "W", "C"]);
+    expect(console_?.shortcuts.flatMap((s) => s.keys)).toEqual(["Tab", "A", "X", "W", "L"]);
   });
 
   it('never says "clear"', () => {

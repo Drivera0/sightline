@@ -2,17 +2,17 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AppBar, consoleHref, primaryAction, rememberMission } from "./AppBar";
+import { AppBar, lastMission, rememberMission } from "./AppBar";
 import { Button, Page, PageHeader, Panel } from "./components";
 import { Brand } from "./Logo";
 
 afterEach(() => sessionStorage.clear());
 
 describe("Brand", () => {
-  it("is one link back to the overview, at the title size", () => {
+  it("is one link to the About sheet, at the title size", () => {
     render(<Brand />);
     const link = screen.getByRole("link", { name: "Sightline" });
-    expect(link).toHaveAttribute("href", "#");
+    expect(link).toHaveAttribute("href", "#about");
     expect(link.className).toMatch(/text-title/);
   });
 });
@@ -74,37 +74,44 @@ describe("Panel, PageHeader, Page", () => {
 });
 
 describe("AppBar", () => {
-  it("has the brand, the four places and New search when there is a server", () => {
-    render(<AppBar current="judges" base="https://api.example.org" />);
-    const nav = screen.getByRole("navigation", { name: "Sightline" });
-    const links = within(nav).getAllByRole("link");
-    expect(links.map((a) => a.textContent)).toEqual(["Overview", "Guided demo", "Console", "For judges"]);
-    expect(links.map((a) => a.getAttribute("href"))).toEqual(["#", "#survey", "#m/demo/command", "#judges"]);
-    expect(within(nav).getByRole("link", { name: "For judges" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Sightline" })).toHaveAttribute("href", "#");
-    expect(screen.getByRole("link", { name: "New search" })).toHaveAttribute("href", "#new");
+  const views = (current: "map" | "debrief" = "map", onSelect = vi.fn()) => ({ current, onSelect, counts: { map: 2 } });
+
+  it("is one row: the wordmark, the mission with its mode and clock, the view switch and one button", () => {
+    render(<AppBar mission={{ name: "Mount Seymour (demo)", mode: "demo", clock: "21:18 UTC" }} views={views()} action={{ label: "New search", href: "#new" }} />);
+    const bar = screen.getByRole("banner");
+    expect(within(bar).getByRole("link", { name: "Sightline" })).toHaveAttribute("href", "#about");
+    expect(within(bar).getByText("Mount Seymour (demo)")).toBeInTheDocument();
+    expect(within(bar).getByText("Demo")).toBeInTheDocument();
+    expect(within(bar).getByText("21:18 UTC")).toBeInTheDocument();
+    expect(within(bar).getByRole("link", { name: "New search" })).toHaveAttribute("href", "#new");
+    // no places, no stepper: the views are the only navigation
+    expect(screen.queryByRole("navigation", { name: "Sightline" })).toBeNull();
   });
 
-  it("offers the demo console instead of New search on a site with no server", () => {
-    render(<AppBar current="overview" base={null} />);
-    expect(screen.getByRole("link", { name: "Open demo console" })).toHaveAttribute("href", "#m/demo/command");
-    expect(screen.queryByRole("link", { name: "New search" })).toBeNull();
-    expect(primaryAction(null)).toEqual({ label: "Open demo console", href: "#m/demo/command" });
+  it("switches views with aria-pressed, in the bar and in the bottom bar for phones", async () => {
+    const onSelect = vi.fn();
+    render(<AppBar mission={null} views={views("debrief", onSelect)} />);
+    const navs = screen.getAllByRole("navigation", { name: "Mission views" });
+    expect(navs).toHaveLength(2);
+    expect(navs[1]!.className).toMatch(/fixed .*bottom-0.*lg:hidden/);
+    for (const nav of navs) {
+      expect(within(nav).getAllByRole("button").map((b) => b.textContent)).toEqual(["Map2", "Photos", "Review", "Trace", "Debrief"]);
+      expect(within(nav).getByRole("button", { name: "Debrief" })).toHaveAttribute("aria-pressed", "true");
+      expect(within(nav).getByRole("button", { name: /Map/ })).toHaveAttribute("aria-pressed", "false");
+    }
+    await userEvent.click(within(navs[0]!).getByRole("button", { name: "Photos" }));
+    expect(onSelect).toHaveBeenCalledWith("photos");
   });
 
-  it("leads Console to the live mission that is open, else the last one, else the demo", () => {
-    expect(consoleHref("https://api", "a1b2c3d4")).toBe("#m/a1b2c3d4/command");
-    expect(consoleHref("https://api")).toBe("#m/demo/command");
+  it("has no view switch and no button where there is nothing to switch or start", () => {
+    render(<AppBar />);
+    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("remembers the live mission that is open", () => {
+    expect(lastMission()).toBeNull();
     rememberMission("deadbeef");
-    expect(consoleHref("https://api")).toBe("#m/deadbeef/command");
-    expect(consoleHref(null)).toBe("#m/demo/command"); // no server: the demo, whatever was remembered
-  });
-
-  it("renders the centre slot, extras and a second row", () => {
-    render(<AppBar current="demo" base={null} center={<span>tabs</span>} extra={<button type="button">Menu</button>} below={<nav aria-label="Demo steps" />} />);
-    expect(screen.getByText("tabs")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Menu" })).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Demo steps" })).toBeInTheDocument();
-    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(lastMission()).toBe("deadbeef");
   });
 });
