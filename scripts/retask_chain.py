@@ -1,4 +1,4 @@
-"""The OpenCV report's second Agentic Vision chain (§5.2): an OpenCV 5 / Nemotron VL result leads,
+"""The OpenCV report's second Agentic Vision chain (§5.3): an OpenCV 5 / Nemotron VL result leads,
 through the planner, to re-tasking a drone that is already flying. Recorded on a live mission.
 
     uv run python scripts/retask_chain.py

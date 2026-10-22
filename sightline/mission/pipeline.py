@@ -43,7 +43,7 @@ FRAME_W_PX, FRAME_H_PX = 1000, 750  # display frame, as the upload API makes it
 NEAR_MISS = 0.15  # 0.15 ≤ conf < 0.29: crops for A's verifier (contract §12.1)
 JOBS_REL = "frames/jobs.json"  # upload id → frame id, or null for a job that failed
 RECALL = 0.864  # detector recall on HERIDAL test (VOC), what a frame's look is worth
-RECALL_SOURCE = "HERIDAL test, VOC recall at the frozen threshold 0.29 (OpenCV report §7.1)"
+RECALL_SOURCE = "HERIDAL test, VOC recall at the frozen threshold 0.29 (OpenCV report §3.9)"
 
 
 class PhotoRejected(ValueError):

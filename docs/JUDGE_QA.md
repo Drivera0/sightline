@@ -20,23 +20,23 @@ In the Trace tab of the mission page, `#m/<id>/trace` (`web/src/command/TraceVie
 `GET /missions/{id}/trace` (`sightline/api/missions.py:384`) and groups the trace into chains by the ids they
 share (perception → decision → action → approval), one line per step with the tool or model, input, output
 and ms, the proposal each chain led to, and who decided it. Without a server, `#m/demo/trace` shows the
-recorded showcase chain and a live conditions lookup, labelled Recorded (`docs/report/OPENCV_REPORT.md:426-431`).
-The same chain as a table is in `docs/architecture/agent.md` and the report (`docs/report/OPENCV_REPORT.md:417-424`).
+recorded showcase chain and a live conditions lookup, labelled Recorded (`docs/report/OPENCV_REPORT.md:439-444`).
+The same chain as a table is in `docs/architecture/agent.md` and the report (`docs/report/OPENCV_REPORT.md:430-437`).
 
 ### 3. The second look costs 15 false alarms for 4 finds and doesn't move F2. Why keep it? What operating point would a SAR manager choose?
 
 Because a missed person costs more than a false alarm, which is why the threshold itself was chosen by
-F2 (`docs/report/OPENCV_REPORT.md:304-305`). The 15 extra false alarms are spread over 101 test photos
+F2 (`docs/report/OPENCV_REPORT.md:317-318`). The 15 extra false alarms are spread over 101 test photos
 (the review queue grows from 363 to 382 items, `docs/LANE_A_ML.md:310-311`), and each is a proposal a
 person dismisses, never an automatic action. The recall gain is small but its 95 % CI excludes zero
-([+0.003, +0.023], `docs/report/OPENCV_REPORT.md:464-465`). Which operating point a SAR manager would
+([+0.003, +0.023], `docs/report/OPENCV_REPORT.md:477-478`). Which operating point a SAR manager would
 pick, we don't know: no search manager has reviewed it. A 30-minute read by a BC SAR volunteer would
 answer it.
 
 ### 4. Two model choices saw test scores. What's your best estimate of true test recall?
 
 About 0.86: the reported 0.864 or slightly below, because the alternatives differed by less than
-validation can resolve and the dropped model had the higher test recall (`docs/report/OPENCV_REPORT.md:295-302`,
+validation can resolve and the dropped model had the higher test recall (`docs/report/OPENCV_REPORT.md:308-315`,
 `README.md:40`). We don't have an untouched number. Two bounds from the repo: validation recall at the same
 threshold is 0.859 (`docs/report/OPENCV_REPORT.md:141-142`), and on the four test sites the model has
 never seen it is 0.825 against 0.883 on trained sites (`docs/DETECTOR_LIMITS.md:117`), so on new terrain
@@ -45,10 +45,10 @@ expect nearer 0.825. Scoring once on a new held-out set (for example SARD) would
 ### 5. With a flat prior the planner equals a serpentine. When in a real search is there a clue early enough to matter?
 
 Agreed on the first part: on a flat prior the planner finds the person within 30 minutes in 6.9 % of
-trials against 6.8 % for a fixed order (`docs/report/OPENCV_REPORT.md:591-592`). With a clue at the start it
+trials against 6.8 % for a fixed order (`docs/report/OPENCV_REPORT.md:604-605`). With a clue at the start it
 is 10.7 % against 6.3 % (`:593-594`). The prior no longer has to be flat: with the subject category set,
 Koester's lost-person rings move finds within 30 min from 22.1 % to 52.8 % for a dementia subject with three
-drones, and cost 21.9 % → 15.7 % when the category is wrong (`docs/report/OPENCV_REPORT.md:610-614`,
+drones, and cost 21.9 % → 15.7 % when the category is wrong (`docs/report/OPENCV_REPORT.md:623-627`,
 `docs/report/PLANNER_V2.md`). With a clue arriving 10 minutes in, three drones with opening legs and two
 teams find the person within 30 minutes in 26.6 % of trials (`docs/report/PLANNER_V2.md`, table (c)). How early real clues
 arrive we have not measured; running the same evaluations with the clue at 30 and 60 minutes would answer it.
@@ -57,8 +57,8 @@ arrive we have not measured; running the same evaluations with the clue at 30 an
 
 A real drone photo, yes: one full 4000×3000 HERIDAL photo (taken by a real drone) uploaded through the
 AWS API, 7.1 s from upload to processed on the default instance
-(`docs/report/OPENCV_REPORT.md:328`). Our own drone, no: the fleet, its flight and the photos'
-poses are simulated and labelled (`docs/report/OPENCV_REPORT.md:809-811`). What is physical is the
+(`docs/report/OPENCV_REPORT.md:341`). Our own drone, no: the fleet, its flight and the photos'
+poses are simulated and labelled (`docs/report/OPENCV_REPORT.md:823-825`). What is physical is the
 loop: drone photos change the map, the map re-tasks a drone and a team, and a person approves each move
 (`docs/architecture/agent.md`, second chain). A flight with a DJI drone over a volunteer would settle it.
 
@@ -69,9 +69,9 @@ Yes. Checked against the live catalog on 2026-10-22: `nvidia/Nemotron-3.5-Super-
 (`docs/feedback/nebius.md:21-23`). If Token Factory is down, detection and the map carry on (they run on
 our own CPU), the second look returns `unclear` naming the error and makes no proposal, planner proposals
 continue with template briefings (`docs/architecture/agent.md:221-225`), and the radio answers "say
-again" and changes nothing (`docs/report/OPENCV_REPORT.md:807`). After 4 failed attempts in a row a circuit
+again" and changes nothing (`docs/report/OPENCV_REPORT.md:821`). After 4 failed attempts in a row a circuit
 breaker makes every call fail fast for 60 s, so a mission pays about 82 s in all rather than minutes per call;
-the agent evaluation injects this and shows it in the trace (`docs/report/OPENCV_REPORT.md:504`,
+the agent evaluation injects this and shows it in the trace (`docs/report/OPENCV_REPORT.md:517`,
 `docs/report/AGENT_EVAL.md`).
 
 ### 8. HERIDAL's original terms: may the imagery be shown on a public site?
@@ -92,18 +92,18 @@ trained with a permissively licensed framework, would resolve it.
 ### 10. Who is accountable when a sector shows "searched at POD 60 %" and the person was there? How is that different in practice from declaring the sector done?
 
 The search manager is: every assignment and every proposal is approved by a named person and logged with
-who and when (`docs/report/OPENCV_REPORT.md:836`). "Searched at POD 60 %" is a measure of effort, not a
+who and when (`docs/report/OPENCV_REPORT.md:850`). "Searched at POD 60 %" is a measure of effort, not a
 verdict. The map keeps 40 % of that sector's probability, and a searched sector's POD is capped at 0.9,
-so searching never rules a sector out (`docs/report/OPENCV_REPORT.md:826-835`). The planner keeps
+so searching never rules a sector out (`docs/report/OPENCV_REPORT.md:840-849`). The planner keeps
 weighing the sector, so it can come back to the top of the list. Tests check that no text the system
-writes says otherwise (`docs/report/OPENCV_REPORT.md:826-834`).
+writes says otherwise (`docs/report/OPENCV_REPORT.md:840-848`).
 
 ### 11. Radio: WER on a real volunteer's voice over a real handset?
 
 Not measured yet. The 20 phrases and the scoring script are ready (`docs/feedback/radio.md:137-145`,
 issue #49); what is missing is three people recording them. Today's numbers are from typed lines and
 Magpie's voice, plus real-voice rehearsals timed end to end (`docs/feedback/radio.md:101`,
-`docs/report/OPENCV_REPORT.md:807-808`). Recording three voices, with and without radio sound, would
+`docs/report/OPENCV_REPORT.md:821-822`). Recording three voices, with and without radio sound, would
 answer it.
 
 ### 12. Can I reproduce the HERIDAL test table in 10 minutes on a laptop without a GPU?
@@ -111,6 +111,6 @@ answer it.
 On a 16-core desktop with the GPU hidden, yes: `scripts/reproduce_cv2.py` runs the 101 test photos through
 OpenCV 5 `cv2.dnn` only and checks the three VOC scores against the published ones in 4 min 58 s (about
 5 min 10 s with the downloads), measured while another job used about 11 of the 32 threads
-(`README.md:158-169`, `docs/report/OPENCV_REPORT.md:939-952`). On a laptop we haven't timed it; the detector
-needs about 30 CPU-seconds per full photo (`docs/report/OPENCV_REPORT.md:331`), so the time grows as the core
+(`README.md:158-169`, `docs/report/OPENCV_REPORT.md:953-966`). On a laptop we haven't timed it; the detector
+needs about 30 CPU-seconds per full photo (`docs/report/OPENCV_REPORT.md:344`), so the time grows as the core
 count falls. Timing a clean run on a laptop would give an honest number.

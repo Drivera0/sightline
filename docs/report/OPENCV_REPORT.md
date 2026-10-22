@@ -209,8 +209,21 @@ ONNX Runtime runs the same INT8 file 1.5× faster than FP32 while OpenCV 5 runs 
 
 ### 3.4 `cv2.dnn` on CUDA
 
-Pending: `docs/report/CV2_CUDA.md` has not landed. Today every `cv2.dnn` number in this report is a CPU
-number (§3.2 explains why).
+Full write-up: [`CV2_CUDA.md`](CV2_CUDA.md). The pinned pip wheel has no CUDA, so we built OpenCV 5.0.0
+with CUDA 12.9 and cuDNN 9.10 (toolkit from conda-forge) and ran the detector through the **classic** engine
+with `DNN_BACKEND_CUDA` (the new engine is CPU-only in 5.0, §3.2), on the RTX 4080 SUPER:
+
+| Path | ms per 1024 px slice | s per 4000×3000 photo | Test VOC P / R / AP50 |
+|---|---|---|---|
+| `cv2.dnn`, CUDA FP32, classic engine | 10.5 ± 0.4 | 0.303 ± 0.012 | 0.802 / 0.864 / 0.868 |
+| `cv2.dnn`, CPU, new engine (pip wheel) | 95.8 ± 0.1 | 1.973 ± 0.005 | 0.802 / 0.864 / 0.868 |
+| Torch (Ultralytics + SAHI), `detector_metrics.json` | — | 0.25 | 0.802 / 0.864 / 0.868 |
+
+The FP32 boxes are the CPU boxes to the pixel (363 of 363 at 0.29). That is 6.5× faster per photo than
+the CPU path and about 20 % slower than Torch: the forward passes are about 0.21 s of a photo, the rest is
+reading the JPEG and the Python tiling and NMS. FP16 is no faster here and moves a few boxes. This is a
+custom build, not the shipped path: `uv sync` installs the CPU wheel, and the judge path stays on the CPU
+(`SIGHTLINE_CV_BACKEND=cuda` selects it in `sightline/ml/detect_cv.py`).
 
 ### 3.5 OpenCV 5 re-look tools
 
@@ -749,6 +762,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
 | Best estimate of true test recall; at the four unseen test sites | about 0.86; 0.825 | §3.9; `docs/DETECTOR_LIMITS.md` §5 |
 | OpenCV 5 `cv2.dnn` vs PyTorch | identical to three decimals; 363 / 363 boxes match at IoU ≥ 0.95 | §3.1; `scripts/parity_table.py`; `docs/evidence/raw-parity-20261022.json` |
 | Time per 4000×3000 photo | 0.25 s (GPU, Torch); 1.9 s (CPU, `cv2.dnn`, 16 cores) | `detector_metrics.json`; §3.1 |
+| `cv2.dnn` on CUDA (custom OpenCV 5.0.0 build, classic engine, FP32) | 0.303 s per photo, 10.5 ms per slice; boxes identical to the CPU path (363 / 363) | `docs/report/CV2_CUDA.md`; §3.4 |
 | New engine vs ORT engine inside OpenCV, per 1024 px slice | 96 ms vs 99 ms | §3.1, §3.2 |
 | INT8 QDQ vs FP32 on `ENGINE_NEW` (val) | 132.4 vs 92.0 ms per tile; AP50 0.842 vs 0.861 | `docs/report/INT8_ENGINE.md` |
 | AWS, upload → processed, c7i.2xlarge | 7.1 s (4.9 s on c7i.4xlarge) | §4; `scripts/remote_check.py` |
@@ -799,7 +813,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
   ![Second-look errors](../figures/verifier/errors.png)
 
 - **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.25 s), and
-  INT8 does not help on this CPU (§3.3).
+  INT8 does not help on this CPU (§3.3). On the GPU it needs a custom OpenCV build (0.30 s per photo, §3.4).
 - **The agent evaluation uses fake models and a scripted detector:** it tests routing, the gate and
   failure handling, not perception; `--live` has not been run for it (`AGENT_EVAL.md`).
 - **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
