@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FrontDoor } from "./front/FrontDoor";
 import { LiveMission, tabFromHash } from "./ingest/LiveMission";
 import { NewSearch } from "./ingest/NewSearch";
 import { apiBase } from "./lib/api";
@@ -24,14 +25,17 @@ function useRoute(): Route {
 }
 
 /** Live missions need the mission API (VITE_API_URL); the static demo needs nothing. */
-export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, { kind: "demo" }>; base?: string | null }) {
+export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, { kind: "demo" | "front" }>; base?: string | null }) {
   const api = useMemo(() => (base === null ? null : { base }), [base]);
   if (api === null) {
     return (
-      <div role="alert" className="flex h-full items-center justify-center p-6">
+      <div role="alert" className="flex h-full flex-col items-center justify-center p-6">
         <EmptyState title="Live missions aren't available here">
           This site runs the demo only. Live missions need the mission API: set VITE_API_URL to its address.
         </EmptyState>
+        <a href="#survey" className="mt-4 block text-center text-accent-soft underline">
+          Watch a demo search
+        </a>
       </div>
     );
   }
@@ -76,6 +80,9 @@ export async function discoverAvailableSurveys(
 
 export function App({ dir = CACHE_DIR }: { dir?: string }) {
   const route = useRoute();
+  if (route.kind === "front") {
+    return <FrontDoor onStartNew={() => (window.location.hash = "#new")} onWatchDemo={() => (window.location.hash = "#survey")} />;
+  }
   if (route.kind !== "demo") return <LiveRoutes route={route} />;
   return <DemoApp dir={dir} />;
 }

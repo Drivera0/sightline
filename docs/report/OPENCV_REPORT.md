@@ -38,7 +38,12 @@ reviewer confirmed the person in the crop, the agent proposed an assignment for 
 each with its reason, evidence and a radio briefing. A person approves, edits or rejects (with a reason); an
 approved briefing waits in the radio's outbound queue until the operator presses Transmit.*
 
-**TODO (lane E):** screenshots of the front door and the command view.
+![Front door](../architecture/screens/front-door.png)
+
+*The front door, the default page: who it is for, how photos get in (after each landing from the SD card,
+or during the flight), and that the demo's flight is simulated, before anything is clicked.*
+
+**TODO (lane E):** a screenshot of the command view (task board, roster, clue log).
 
 ## 2. What is new since BCS Hackathon 2026 (disclosure)
 
@@ -60,7 +65,8 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
 - conditions from live web search (Tavily): forecast, warnings and park alerts, each value kept only
   with a verbatim quote; they decide whether drones may fly, how much a photo can see, how exposed the
   person is, and what briefings say (`sightline/geo/conditions.py`);
-- the command view and front door (**TODO (lane E)**).
+- the front door, New search, the live mission page and the approval inbox (§1); the rest of the
+  command view is **TODO (lane E)**.
 
 Diff: `git diff bcs-final-submission..opencv-submit`.
 
