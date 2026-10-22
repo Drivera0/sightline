@@ -1,8 +1,8 @@
 # Radio desk: spike results (E-R0) and feedback data
 
 Lane E's file (LANE_E §8.6). The **E-R0 spike** below was run by lane A on 2026-10-20 (issue #24)
-because lane E had no owner yet; whoever builds the radio desk starts from here. The WER and
-latency tables (E-18, `scripts/radio_wer.py`, `scripts/radio_latency.py`, 3 voices) are still to do.
+because lane E had no owner yet; whoever builds the radio desk starts from here. The latency tables
+are below (E-18); the word error rate with three human voices still needs recordings (issue #49).
 
 ## Go / no-go: **GO**, with Nemotron 3 Super for the reasoning step
 
@@ -77,7 +77,7 @@ one-off tests hadn't, both now enforced in code (`sightline/radio/turn.py`), not
    light wind, twelve Celsius" without calling `get_conditions`, while the mission had gusts of 30 km/h and
    rain. Conditions questions now must call the tool that turn (one retry), else "conditions not available".
 
-After the fixes, 30 live turns (Nemotron 3 Super on Token Factory, `runs/radio/latency-20261020-202733.json`):
+After the fixes, 30 live turns (Nemotron 3 Super on Token Factory, `docs/evidence/radio-latency-20261020.json`):
 
 | Turns | First sound p50 / p90 | Answer p50 / p90 | Model p50 / p90 | Standby played | Clue reports | Conditions from the tool |
 |---|---|---|---|---|---|---|
@@ -87,6 +87,23 @@ Standby plays after 3 s (the model's p90); at 2 s it fired on 63 % of turns, mos
 answer. These are text turns (ASR adds 45–153 ms). For the feedback form: tool calling with thinking off
 needs code-side guards for anything safety-relevant; a "tool_choice: required" that the model honours, or
 a structured-output mode that forces a tool call, would remove most of them.
+
+### Per stage
+
+Each stage from the run that measured it (the text-turn runs leave out speech; the voice rehearsals log
+only end to end):
+
+| Stage | p50 | p90 | Measured on |
+|---|---|---|---|
+| Speech → text (Parakeet TDT 0.6B v2, RTX 4080 SUPER) | 45–130 ms per phrase (3.9–8.7 s of audio) | 153 ms (max) | the spike, 5 phrases |
+| Reasoning + tools (Nemotron 3 Super, Token Factory, thinking off) | 2.3 s | 3.2 s | 30 text turns |
+| Text → speech (Magpie 357M) | about 0.5× real time per sentence; the "<callsign>, Sightline" opener is cached (0 ms) | — | the spike; the opener cache in `sightline/radio/tts.py` |
+| **First sound, end to end, real voices** | **2.5 s** | **3.0 s** | 18 inbound turns of the demo script, 2 rehearsals (`scripts/radio_rehearse.py`) |
+| Full answer spoken, end to end, real voices | 2.6 s | 7.0 s | the same 18 turns (long replies are spoken sentence by sentence) |
+
+The ≤ ~5 s target is met for the first sound in every rehearsed turn (max 3.01 s): a spoken "standby"
+covers a slow model call. The full answer passes 5 s when the model takes over 4 s (p90 model time in the
+rehearsals 7.4 s, with a retry when the model described a tool instead of calling it).
 
 ## Voice and text didn't match (fixed)
 
