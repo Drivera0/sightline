@@ -4,16 +4,17 @@
 **Subtitle:** Drone photos and radio reports in, where to search next out: a search-and-rescue map with a person in charge
 **Repo:** https://github.com/Drivera0/sightline (tag `opencv-submit`, created at submission)
 **Report:** `docs/report/OPENCV_REPORT.md` · **Agentic Vision evidence:** `docs/architecture/agent.md`
-**Demo:** https://sightline-iota-sandy.vercel.app (`#m/demo/command` opens the command view on a demo mission, no server needed)
+**Demo:** https://sightline-iota-sandy.vercel.app (opens the console on a demo mission at t0, no server needed; `#m/demo/map` is the console at the end of its timeline)
+**Where to look, in order:** the console at t0 (`#`) → **Follow the search** (3 min, `#m/demo?t=0` to `?t=5`) → the Trace view (`#m/demo/trace`) → Conditions, W in the console (`#m/demo/map/conditions`) → the Debrief: results, what breaks first and the links out (`#m/demo?t=5`; the old `#judges` redirects to its list for judges) → the About sheet for the method (`#about`)
 **Live API (AWS):** https://44-227-39-234.sslip.io (stopped between demos to save cost)
 **Video:** <to add>
 
 <!--
 Video outline for Dan (≤ 5:00; from .documents/WIN_RESEARCH.md §8, OpenCV video):
 0:00–0:12 Dan on camera, lower-third, one line: "A missing hiker, 400 hectares, two hours of light. Sightline turns 500 drone photos into a ranked search plan." Logo card 1 s.
-0:12–0:30 Front door → demo mission: map with search area and drone track. Burned-in step labels throughout.
+0:12–0:30 The console at t0 → Follow the search: map with search area and drone track. Burned-in checkpoint labels throughout.
 0:30–1:05 Upload → detection: photos tick in, detections with confidence, heat map filling. Split screen: photo + boxes | map.
-1:05–1:35 Re-look: a 0.18 candidate, OpenCV zoom_native/CLAHE, Nemotron VL verdict; Trace tab visible (tool → model → result → proposal).
+1:05–1:35 Re-look: a 0.18 candidate, OpenCV zoom_native/CLAHE, Nemotron VL verdict; Trace view visible (tool → model → result → proposal).
 1:35–2:05 Approval: a real person approves in the inbox; the gate shown explicitly.
 2:05–2:40 Map re-task → assignment card → GPX opens in CalTopo.
 2:40–3:20 Radio desk: a real exchange with audio and transcript; team acknowledges; clue lands on the map.
@@ -26,8 +27,8 @@ Production: burn in captions; 1080p master; YouTube "Not for Kids"; no copyright
 
 **Gallery (in this order):**
 
-1. *The command view on the demo mission (DEMO chip, simulated data): detections on the map, task board, approval inbox.* (`docs/submission/figures/command-view-detections-task-board-approval-inbox.png`)
-2. *An OpenCV 5 result changes the next decision: the blurred review crop of a 0.18 detection, and the native-resolution zoom Nemotron VL answered "yes, lying" from, in the Trace tab.* (`docs/submission/figures/trace-which-model-did-what-second-look.png`)
+1. *The console on the demo mission (DEMO chip, simulated data): detections on the map, task board, approval inbox.* (`docs/submission/figures/command-view-detections-task-board-approval-inbox.png`)
+2. *An OpenCV 5 result changes the next decision: the blurred review crop of a 0.18 detection, and the native-resolution zoom Nemotron VL answered "yes, lying" from, in the Trace view.* (`docs/submission/figures/trace-which-model-did-what-second-look.png`)
 3. *The approval inbox: every proposal carries its reason, and nothing happens until a person approves it.* (`docs/submission/figures/approval-inbox-every-proposal-carries-its-reason.png`)
 4. *A printable assignment card for Team Two's sector B3, and the same sector's GPX opened in CalTopo.* (`docs/submission/figures/assignment-card-gpx-kml-opened-in-caltopo.png`)
 5. *Architecture: photos → OpenCV 5 `cv2.dnn` → map → agent and re-look tools → human approval → drone, team or radio, on AWS.* (`docs/submission/figures/architecture-photos-cv2dnn-map-agent-approval-on-aws.png`)

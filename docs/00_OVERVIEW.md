@@ -12,7 +12,7 @@ missing, search-and-rescue teams fly drones over the search area and come back w
 12-megapixel photos in which a person is about 70 px wide. Sightline finds the likeliest people in
 those photos, turns every photo, every negative sweep and every field report into one updated
 probability map, and proposes where drones and ground teams should go next. A person approves every
-move. It reaches the people in the search on the screen they use: the command view at the command
+move. It reaches the people in the search on the screen they use: the console at the command
 post, and the radio for teams in the field.
 
 It assists searchers. **It never rules an area out:** a searched sector says how well it was searched
@@ -22,7 +22,7 @@ It assists searchers. **It never rules an area out:** a searched sector says how
 
 | User | Their question | Where Sightline answers it |
 |---|---|---|
-| Search manager | Where do I send drones and teams next, and why? | Command view: live map, proposals with reasons and numbers, approval inbox, task board, clue log |
+| Search manager | Where do I send drones and teams next, and why? | The console: live map, proposals with reasons and numbers, approval inbox, task board, clue log |
 | Image reviewer | Show me the likeliest person first. | Review queue, ranked by the detector, with a second look on uncertain crops |
 | Ground team leader | Where do I go, what am I looking for, what changed? | Printable assignment card with GPX/KML, and the radio desk |
 
@@ -33,7 +33,7 @@ It assists searchers. **It never rules an area out:** a searched sector says how
 - **During the flight:** a drone (or the simulated fleet) posts each photo to the mission API as it is
   taken (`POST /missions/{id}/photos`); `python -m sightline.client replay` replays a folder at drone pace.
 
-Either way each photo is processed on its own as it arrives, and the command view updates over
+Either way each photo is processed on its own as it arrives, and the console updates over
 server-sent events.
 
 ## 4. The pipeline, per photo
@@ -74,7 +74,7 @@ on AWS, the agent workflow).
 | **B · Geo** | camera poses, footprints, pins, base map, clues, conditions (Tavily) | `sightline/geo/`, `web/src/map/` | `LANE_B_GEO.md` |
 | **C · Search** | probability map, live map, sectors, planner, simulated fleet and evaluations | `sightline/search/`, `web/src/map/heat/` | `LANE_C_SEARCH.md` |
 | **D · Pipeline** | contract, pipeline, mission store and API, website shell, review queue, AWS | `sightline/pipeline/`, `sightline/mission/`, `sightline/api/`, `web/src/shell/`, `deploy/aws/` | `LANE_D_PIPELINE.md` |
-| **E · Ops & Voice** | front door, command view, radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` | `web/src/command/README.md`, `sightline/radio/README.md` |
+| **E · Ops & Voice** | About sheet (was the front door), the console's map (was the command view), radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` | `web/src/command/README.md`, `sightline/radio/README.md` |
 
 The lanes meet at one contract (`01_CONTRACT.md`, v1.2): only the pipeline and the `MissionStore` write
 files, every write is validated against the contract, and the website only reads. How the pipeline calls
