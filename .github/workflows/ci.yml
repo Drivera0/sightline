@@ -23,7 +23,7 @@ jobs:
       - run: uv sync --frozen --extra conditions # no ml extra: the tests use fakes (2 torch tests skip)
       - run: uv run --frozen ruff check sightline tests scripts
       - run: uv run --frozen ruff format --check sightline tests scripts
-      - run: uv run --frozen pytest -q
+      - run: uv run --frozen pytest -q --timeout 900
       - run: python docs/report/check_evidence_index.py
       - run: bash scripts/smoke.sh
         env:

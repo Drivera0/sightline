@@ -43,7 +43,7 @@ video = ["playwright==1.64.0", "pyyaml>=6"]
 quant = ["onnxruntime==1.30.0"]
 
 [dependency-groups]
-dev = ["pytest", "ruff", "matplotlib", "httpx"]
+dev = ["pytest", "pytest-timeout", "ruff", "matplotlib", "httpx"]
 
 [build-system]
 requires = ["hatchling"]

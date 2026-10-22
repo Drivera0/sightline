@@ -1,0 +1,687 @@
+{
+ "near_misses_under_60px": 40,
+ "first_unclear": 25,
+ "relooked": 25,
+ "after": {
+  "unclear": 13,
+  "not re-detected": 12
+ },
+ "legs": 20,
+ "pattern_minutes_per_leg": 0.21,
+ "pattern_minutes_total": 4.2,
+ "items": [
+  {
+   "photo": "train_BLA_0008",
+   "index": 4,
+   "conf": 0.157,
+   "tp": false,
+   "long_px": 47,
+   "alt_m": 50.7,
+   "first": "unclear",
+   "first_reason": "The dark rectangular shape with a small red mark could be a person lying down, but the resolution is too low to confirm a human outline, head, or limbs.",
+   "centre_m": [
+    60.340166445000015,
+    62.42426599500001
+   ],
+   "zoom": 2.03,
+   "relook_box_px": 96,
+   "second": "unclear",
+   "second_reason": "A dark shape with a lighter patch and a possible leg is visible, but the resolution is too low to confirm a human head, body, or limbs.",
+   "second_conf": 0.158
+  },
+  {
+   "photo": "train_BRA_1002",
+   "index": 4,
+   "conf": 0.28,
+   "tp": false,
+   "long_px": 53,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The centre shows a white rectangular object with a dark item on top, but no head, body, limbs, or human outline is visible.",
+   "centre_m": [
+    13.751249999999999,
+    12.63375
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 106,
+   "second": "unclear",
+   "second_reason": "The crop shows a light rectangular object with a dark shape on top, but no head, body, limbs, or human outline is visible.",
+   "second_conf": 0.586
+  },
+  {
+   "photo": "train_BRA_1002",
+   "index": 5,
+   "conf": 0.257,
+   "tp": false,
+   "long_px": 33,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The centre shows a small red and blue patch with a white highlight, but no head, body, limbs, or human outline is visible, so it could be an object or debris rather than a person.",
+   "centre_m": [
+    13.21125,
+    15.6975
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 66,
+   "second": "unclear",
+   "second_reason": "The red and blue patches are too indistinct to confirm a human head, body, limbs, or outline.",
+   "second_conf": 0.228
+  },
+  {
+   "photo": "train_BRA_1052",
+   "index": 1,
+   "conf": 0.182,
+   "tp": false,
+   "long_px": 51,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The central shape is too blurry and obscured by foliage to confirm a human head, body, limbs, or outline.",
+   "centre_m": [
+    15.018749999999999,
+    21.0975
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 102,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_BRS_0035",
+   "index": 3,
+   "conf": 0.194,
+   "tp": false,
+   "long_px": 46,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The red and black shape is too small and lacks a visible head, body, limbs, or outline to confirm a human figure.",
+   "centre_m": [
+    12.764999999999999,
+    9.47625
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 92,
+   "second": "unclear",
+   "second_reason": "The red and black shape is too indistinct to confirm a human head, body, limbs, or outline, and could be an object or debris.",
+   "second_conf": 0.63
+  },
+  {
+   "photo": "train_BRS_0035",
+   "index": 4,
+   "conf": 0.193,
+   "tp": false,
+   "long_px": 47,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The central shape is too blurry and blocky to confirm a head, body, limbs, or outline, so it could be a person, a rock, or a bush.",
+   "centre_m": [
+    11.6775,
+    7.70625
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 94,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_GOR_2056",
+   "index": 2,
+   "conf": 0.165,
+   "tp": false,
+   "long_px": 59,
+   "alt_m": 45.0,
+   "first": "unclear",
+   "first_reason": "The object is too small and blurry to confirm a human head, body, limbs, or outline, and it could be a rock, stump, or other ground feature.",
+   "centre_m": [
+    12.723876346153848,
+    24.93100903846154
+   ],
+   "zoom": 1.8,
+   "relook_box_px": 106,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_GOR_3015",
+   "index": 2,
+   "conf": 0.179,
+   "tp": false,
+   "long_px": 52,
+   "alt_m": 42.3,
+   "first": "yes",
+   "first_reason": "A human figure with a head, torso, arms, and legs is visible, wearing a striped top and blue trousers, sitting on the ground.",
+   "centre_m": [
+    22.006090176923077,
+    7.518395492307692
+   ]
+  },
+  {
+   "photo": "train_JAS_0068",
+   "index": 1,
+   "conf": 0.159,
+   "tp": true,
+   "long_px": 42,
+   "alt_m": 40.6,
+   "first": "unclear",
+   "first_reason": "The blue and white shapes are too small and indistinct to confirm a human head, body, limbs, or outline.",
+   "centre_m": [
+    13.479769961538462,
+    36.77038001538462
+   ],
+   "zoom": 1.62,
+   "relook_box_px": 69,
+   "second": "unclear",
+   "second_reason": "The central dark shape with blue and white patches is too indistinct to confirm a human outline, head, limbs, or shadow, and could be a rock, bag, or other object.",
+   "second_conf": 0.489
+  },
+  {
+   "photo": "train_JAS_0086",
+   "index": 1,
+   "conf": 0.274,
+   "tp": false,
+   "long_px": 48,
+   "alt_m": 40.6,
+   "first": "unclear",
+   "first_reason": "The centre shows a white patch and a red object that could be clothing or gear, but no head, body, limbs, or human outline is visible.",
+   "centre_m": [
+    12.310847553846155,
+    34.87848247692308
+   ],
+   "zoom": 1.62,
+   "relook_box_px": 78,
+   "second": "unclear",
+   "second_reason": "The white and red shapes are too indistinct to confirm a human head, body, limbs, or outline, and could be objects or debris on the ground.",
+   "second_conf": 0.251
+  },
+  {
+   "photo": "train_MED_3009",
+   "index": 3,
+   "conf": 0.174,
+   "tp": false,
+   "long_px": 40,
+   "alt_m": 40.9,
+   "first": "unclear",
+   "first_reason": "A small light patch is visible among rocks and vegetation, but no head, body, limbs, or human outline can be distinguished.",
+   "centre_m": [
+    24.973796411538462,
+    22.353215430769232
+   ],
+   "zoom": 1.64,
+   "relook_box_px": 66,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_RAK_0077",
+   "index": 2,
+   "conf": 0.156,
+   "tp": false,
+   "long_px": 43,
+   "alt_m": 40.8,
+   "first": "no",
+   "first_reason": "The crop shows only rocks, grass, and a small reddish patch with no human head, body, limbs, or outline.",
+   "centre_m": [
+    54.02851966153846,
+    22.46152356923077
+   ]
+  },
+  {
+   "photo": "train_SB_0004",
+   "index": 2,
+   "conf": 0.225,
+   "tp": false,
+   "long_px": 55,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The central shape has red, blue, and dark tones but lacks a visible head, body, limbs, or outline, so it could be a person or an object such as a bag or clothing on the ground.",
+   "centre_m": [
+    48.41913000000001,
+    50.72325750000001
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 110,
+   "second": "unclear",
+   "second_reason": "The centre shows a dark shape with red, blue and yellow patches, but no head, body, limbs or human outline is visible, so it could be a person or an object such as a bag or clothing on the ground.",
+   "second_conf": 0.453
+  },
+  {
+   "photo": "train_SB_0009",
+   "index": 4,
+   "conf": 0.178,
+   "tp": false,
+   "long_px": 54,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The central shape has dark and bright patches but no visible head, body, limbs, or outline to confirm a human figure.",
+   "centre_m": [
+    54.80145500000001,
+    23.895857500000005
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 108,
+   "second": "unclear",
+   "second_reason": "The central dark shape with red, blue, and yellow patches is too indistinct to confirm a human head, body, limbs, or outline, and could be a bag, clothing, or other object on the ground.",
+   "second_conf": 0.555
+  },
+  {
+   "photo": "train_SB_0009",
+   "index": 5,
+   "conf": 0.166,
+   "tp": false,
+   "long_px": 40,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "A blue object is visible but lacks a discernible human head, body, limbs, or outline, so it could be a person or a false alarm such as a bag or rock.",
+   "centre_m": [
+    57.484195000000014,
+    26.849035000000008
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 80,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_SB_0028",
+   "index": 5,
+   "conf": 0.175,
+   "tp": false,
+   "long_px": 53,
+   "alt_m": 51.9,
+   "first": "unclear",
+   "first_reason": "The object is a dark square with a small red mark, but no head, body, limbs, or human outline is visible.",
+   "centre_m": [
+    50.292742635,
+    59.691051540000004
+   ],
+   "zoom": 2.08,
+   "relook_box_px": 110,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_VRD_0004",
+   "index": 2,
+   "conf": 0.187,
+   "tp": false,
+   "long_px": 36,
+   "alt_m": 38.9,
+   "first": "unclear",
+   "first_reason": "The object is a small dark shape with a light patch, but no head, body, limbs, or human outline is visible.",
+   "centre_m": [
+    29.818588530769226,
+    17.932585807692305
+   ],
+   "zoom": 1.56,
+   "relook_box_px": 56,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_VRD_2025",
+   "index": 2,
+   "conf": 0.245,
+   "tp": false,
+   "long_px": 42,
+   "alt_m": 38.8,
+   "first": "unclear",
+   "first_reason": "The dark shape is too small and lacks a visible head, body, limbs, or outline to confirm a human figure.",
+   "centre_m": [
+    10.835207415384614,
+    35.60508563076923
+   ],
+   "zoom": 1.55,
+   "relook_box_px": 65,
+   "second": "unclear",
+   "second_reason": "The dark shape with a light patch is too small and indistinct to confirm a human head, body, limbs, or outline, and could be a rock, log, or bag.",
+   "second_conf": 0.22
+  },
+  {
+   "photo": "train_VRD_2037",
+   "index": 1,
+   "conf": 0.287,
+   "tp": false,
+   "long_px": 44,
+   "alt_m": 38.8,
+   "first": "unclear",
+   "first_reason": "The centre shows a pink and dark patch with a small yellow detail, but no head, body, limbs, or human outline is visible, so it could be a person or an object such as a bag or clothing on the ground.",
+   "centre_m": [
+    28.21803123076923,
+    33.732493169230764
+   ],
+   "zoom": 1.55,
+   "relook_box_px": 69,
+   "second": "unclear",
+   "second_reason": "The shape could be a person lying down, but no head, limbs, or human outline is visible, so it may be a bag or pile of clothing.",
+   "second_conf": 0.299
+  },
+  {
+   "photo": "train_VRD_2037",
+   "index": 2,
+   "conf": 0.168,
+   "tp": false,
+   "long_px": 55,
+   "alt_m": 38.8,
+   "first": "unclear",
+   "first_reason": "The centre shows a small red-and-white patch with dark edges, but no head, body, limbs, or human outline is visible, so it could be a person or an object such as a bag or clothing on the ground.",
+   "centre_m": [
+    30.084166476923077,
+    36.83841376923077
+   ],
+   "zoom": 1.55,
+   "relook_box_px": 86,
+   "second": "unclear",
+   "second_reason": "The red and white patch could be clothing or a bag, but no head, body, limbs, or human outline is visible.",
+   "second_conf": 0.44
+  },
+  {
+   "photo": "train_VRD_3015",
+   "index": 1,
+   "conf": 0.25,
+   "tp": false,
+   "long_px": 41,
+   "alt_m": 35.9,
+   "first": "unclear",
+   "first_reason": "The dark shape with light patches could be a person but lacks a visible head, body, limbs, or outline, so it may be a rock, bush, or shadow.",
+   "centre_m": [
+    19.15453060769231,
+    24.453990573076922
+   ],
+   "zoom": 1.44,
+   "relook_box_px": 59,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_VRD_3015",
+   "index": 2,
+   "conf": 0.243,
+   "tp": false,
+   "long_px": 52,
+   "alt_m": 35.9,
+   "first": "yes",
+   "first_reason": "A human shape with a head, torso, and limbs is visible lying on the ground.",
+   "centre_m": [
+    17.505544192307692,
+    11.035064888461537
+   ]
+  },
+  {
+   "photo": "train_ZRI_2013",
+   "index": 35,
+   "conf": 0.288,
+   "tp": false,
+   "long_px": 42,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The central shape is too blurry to confirm a human head, body, limbs, or outline, and could be an object or shadow.",
+   "centre_m": [
+    9.615,
+    15.51
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 84,
+   "second": "unclear",
+   "second_reason": "The shape is too blurry to confirm a human head, body, limbs, or outline, and could be an object or shadow.",
+   "second_conf": 0.345
+  },
+  {
+   "photo": "train_ZRI_2013",
+   "index": 36,
+   "conf": 0.285,
+   "tp": false,
+   "long_px": 52,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The shape is too obscured by foliage and low resolution to confirm a human head, body, limbs, or outline.",
+   "centre_m": [
+    14.4375,
+    10.605
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 104,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_ZRI_2013",
+   "index": 38,
+   "conf": 0.252,
+   "tp": false,
+   "long_px": 46,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "Two human figures are visible at the centre, one in a light blue top and another in a white top, both with discernible heads and bodies.",
+   "centre_m": [
+    7.05,
+    12.9
+   ]
+  },
+  {
+   "photo": "train_ZRI_2013",
+   "index": 39,
+   "conf": 0.224,
+   "tp": true,
+   "long_px": 42,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "Two human figures are visible on the bench, one in blue and one in dark clothing with a red item, showing head and body outlines.",
+   "centre_m": [
+    16.125,
+    14.62125
+   ]
+  },
+  {
+   "photo": "train_ZRI_2013",
+   "index": 40,
+   "conf": 0.18,
+   "tp": false,
+   "long_px": 36,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "A human figure with a head and torso is visible sitting on a green surface next to a red object.",
+   "centre_m": [
+    6.851249999999999,
+    12.87
+   ]
+  },
+  {
+   "photo": "train_ZRI_2043",
+   "index": 4,
+   "conf": 0.18,
+   "tp": false,
+   "long_px": 42,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "A small dark object with a light rim and a shadow is visible, but it lacks a discernible human head, body, limbs, or outline.",
+   "centre_m": [
+    29.4,
+    4.77
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 84,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_ZRI_2061",
+   "index": 30,
+   "conf": 0.151,
+   "tp": false,
+   "long_px": 59,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "A human figure is visible lying on the ground with a head, torso, arms, and legs.",
+   "centre_m": [
+    1.24875,
+    16.38375
+   ]
+  },
+  {
+   "photo": "train_ZRI_2062",
+   "index": 29,
+   "conf": 0.271,
+   "tp": false,
+   "long_px": 56,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "A head with dark hair and a light-colored body outline are visible on the deck, consistent with a person lying down.",
+   "centre_m": [
+    4.53,
+    12.344999999999999
+   ]
+  },
+  {
+   "photo": "train_ZRI_2062",
+   "index": 33,
+   "conf": 0.182,
+   "tp": false,
+   "long_px": 55,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The crop shows a dark elongated shape with a small light patch that could be a person lying down, but the resolution is too low to confirm a head, body, or limbs.",
+   "centre_m": [
+    0.135,
+    21.02625
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 110,
+   "second": "unclear",
+   "second_reason": "A reddish shape with dark limbs is partly visible at the edge, but the head and body are not sufficiently defined to confirm a human.",
+   "second_conf": 0.193
+  },
+  {
+   "photo": "train_ZRI_2071",
+   "index": 10,
+   "conf": 0.272,
+   "tp": false,
+   "long_px": 44,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "A human figure with a head, torso, and legs is visible on the path.",
+   "centre_m": [
+    14.962499999999999,
+    2.34
+   ]
+  },
+  {
+   "photo": "train_ZRI_2071",
+   "index": 11,
+   "conf": 0.213,
+   "tp": false,
+   "long_px": 57,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "A light patch is visible under foliage, but no head, body, limbs, or human outline can be distinguished from a bag, cloth, or other object.",
+   "centre_m": [
+    7.1362499999999995,
+    14.34
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 114,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_ZRI_2071",
+   "index": 12,
+   "conf": 0.166,
+   "tp": true,
+   "long_px": 55,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "Three people are visible sitting on a bench, with heads, torsos, and limbs discernible.",
+   "centre_m": [
+    13.97625,
+    2.3925
+   ]
+  },
+  {
+   "photo": "train_ZRI_2076",
+   "index": 4,
+   "conf": 0.221,
+   "tp": true,
+   "long_px": 57,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "Two human figures are visible sitting on the path, with discernible heads, torsos, and limbs.",
+   "centre_m": [
+    20.197499999999998,
+    4.87125
+   ]
+  },
+  {
+   "photo": "train_ZRI_2077",
+   "index": 6,
+   "conf": 0.269,
+   "tp": true,
+   "long_px": 57,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "Two human figures are visible at the edge of the path, one in a light top and one in red, with discernible heads and bodies.",
+   "centre_m": [
+    19.87125,
+    8.44125
+   ]
+  },
+  {
+   "photo": "train_ZRI_2079",
+   "index": 9,
+   "conf": 0.264,
+   "tp": false,
+   "long_px": 54,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "Three human figures are visible lying on the path, with discernible heads, torsos, and limbs.",
+   "centre_m": [
+    15.903749999999999,
+    21.509999999999998
+   ]
+  },
+  {
+   "photo": "train_ZRI_2079",
+   "index": 14,
+   "conf": 0.157,
+   "tp": false,
+   "long_px": 48,
+   "alt_m": 50.0,
+   "first": "unclear",
+   "first_reason": "The object is too blurry to confirm a human head, body, limbs, or outline, and could be a rock, bag, or other ground item.",
+   "centre_m": [
+    0.945,
+    7.51875
+   ],
+   "zoom": 2.0,
+   "relook_box_px": 96,
+   "second": "not re-detected",
+   "second_conf": null
+  },
+  {
+   "photo": "train_ZRI_2079",
+   "index": 15,
+   "conf": 0.152,
+   "tp": false,
+   "long_px": 55,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "A human outline with a head and body is visible lying on the ground, though clothing details are not distinguishable.",
+   "centre_m": [
+    16.70625,
+    4.3687499999999995
+   ]
+  },
+  {
+   "photo": "train_ZRI_3008",
+   "index": 26,
+   "conf": 0.279,
+   "tp": false,
+   "long_px": 43,
+   "alt_m": 50.0,
+   "first": "yes",
+   "first_reason": "A human figure with a visible head, torso, and limbs is lying on the grass, wearing a red top and dark clothing.",
+   "centre_m": [
+    19.875,
+    3.8587499999999997
+   ]
+  }
+ ]
+}

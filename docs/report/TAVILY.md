@@ -223,7 +223,9 @@ query, and saves `request.json`, `result.json` (values, quotes, URLs), `proposal
 
 **Live runs (2026-10-22, real Tavily and Nemotron Nano on Nebius).** Three North Shore and Fraser Valley
 areas, each a fresh mission with a last known point and no subject. In all three the model chose to search and
-wrote its own query. Two runs abstained and one proposed:
+wrote its own query. Two runs abstained and one proposed. These were resolved public cases, one of them a
+hiker later found deceased, used only to test the lookup. Names are redacted and a minor's details are not
+stored: the Golden Ears subject was a minor, and `geo/subject.py` now drops the clothing of anyone under 18.
 
 | Area | Model's query | Pages read | Outcome | Evidence |
 |---|---|---|---|---|
@@ -234,8 +236,8 @@ wrote its own query. Two runs abstained and one proposed:
 The abstain rule is the one described above: a field is kept only when its quote is verbatim in the page and
 states the value. A category needs the quote itself to say "hiker", "hiking", "backpacker", "dementia" or
 "Alzheimer's". Mount Seymour's pages yielded a place ("Mount Seymour") and an activity ("snowshoeing"), and
-Golden Ears' an age, time, place and clothing ("16-year-old girl", "black leggings, a black jacket, a navy
-blue baseball hat ..."), but the model returned no quote that names a category, so the prior stayed uniform
+Golden Ears' an age, time, place and clothing (the age and clothing, a minor's, are stored as `[redacted:
+minor]`), but the model returned no quote that names a category, so the prior stayed uniform
 and nothing was proposed. (One Mount Seymour title says "Missing hiker"; the model did not return it as a
 category quote, and code does not invent one.) That is the behaviour we want. The category picks Koester's
 distance rings, the rings reshape the probability map, and the map decides where the drones fly. A guessed

@@ -70,11 +70,11 @@ go in; a JSON verdict comes out (person yes/no/unclear, posture, group size, clo
 
 | | Value | Source |
 |---|---|---|
-| Latency per call | p50 1.35 s, p90 1.65 s (max 2.19 s) | `docs/report/OPENCV_REPORT.md:542-543`; max over the 461 calls in `runs/verifier/*.csv` |
+| Latency per call | p50 1.35 s, p90 1.65 s (max 2.19 s) | `docs/report/OPENCV_REPORT.md:542-543`; max over the 461 calls in `docs/evidence/verifier/*/*.csv` |
 | Tokens per call | about 890 in, 67 out (mean of all 461 calls) | `docs/report/OPENCV_REPORT.md:542` |
 | Cost per call (catalog prices) | about 0.00033, so about 0.33 per 1,000 uncertain detections; all 461 evaluation calls 461 × 0.00033 ≈ 0.15 | `docs/report/OPENCV_REPORT.md:543-544` |
 | JSON schema compliance | 461 / 461 valid on the first try | `docs/report/OPENCV_REPORT.md:544`; `docs/architecture/agent.md:339-340` |
-| Real people called `yes` (val, prompt v2) | 75 % of near-miss people (9 of 12), 86 % of queue people | `docs/LANE_A_ML.md:304`; run file `runs/verifier/val-verify-v2-20261020-165932.json` (local runs, not in git, named in `docs/LANE_A_ML.md` §6.8) |
+| Real people called `yes` (val, prompt v2) | 75 % of near-miss people (9 of 12), 86 % of queue people | `docs/LANE_A_ML.md:304`; run file `docs/evidence/verifier/val-verify-v2-20261020-165932/val-verify-v2-20261020-165932.json` |
 | False alarms called `no` (val, prompt v2) | 17 % of near-miss false alarms, 13 % of queue ones | the same run file |
 | Person boxes under 60 px (test) | 65 % answered `unclear`; 2 of 8 people called `yes` | `docs/LANE_A_ML.md:314` |
 | Effect on the search (test, once) | 4 more of 337 people found (recall 0.864 → 0.875, 95 % CI [+0.003, +0.023]) for 15 more false alarms | `docs/report/OPENCV_REPORT.md:537-538` |
@@ -305,7 +305,7 @@ and downloads about 3 GB once (`docs/feedback/radio.md:172`). Start of the spike
 in later runs; loads in 57 s (`docs/feedback/radio.md:15`, `:59`). Full voice turns: TTS 4.6–10.4 s
 depending on reply length, the bottleneck for a 5 s target (`docs/feedback/radio.md:58`). Speaking
 sentence by sentence with a cached "<Callsign>, Sightline." opener brought time to first audio to
-3.6–3.7 s (`docs/feedback/radio.md:60-61`), and first sound with real voices to 2.5 s p50, 3.0 s p90
+3.6–3.7 s (`docs/feedback/radio.md:60-61`), and first sound with spoken replies (team lines typed) to 2.5 s p50, 3.0 s p90
 (`docs/feedback/radio.md:101`).
 
 **What worked.** Natural enough for a radio channel; chunked inference (`create_chunk_state` /

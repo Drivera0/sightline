@@ -1,0 +1,474 @@
+{
+ "meta": {
+  "command": "uv run python scripts/agent_eval.py --live --relook-val --scenarios relook --repeats 1 --no-failures --val /home/driver/sightline/data/heridal/yolo_full/val --pt /home/driver/sightline/data/weights/release_v2/yolo11s_tiles_run1_best.pt --out /tmp/claude-1000/-home-driver-sightline/b63b6bb5-cfae-4bc4-874a-eaf8c4ebae06/scratchpad/ev_live",
+  "started": "2026-10-22 10:56",
+  "models": "Token Factory (nvidia/Nemotron-3.5-Super-VL, nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B)",
+  "photos": "HERIDAL validation crops (/home/driver/sightline/data/heridal/yolo_full/val)",
+  "repeats": 1,
+  "hidden_sector": "C3"
+ },
+ "runs": [
+  {
+   "flights": [
+    {
+     "leg": "L004",
+     "drone": "D3",
+     "sector": "C3",
+     "altitude_m": 25.0,
+     "est_minutes": 1.13,
+     "sim_minutes": 1.08,
+     "photos": 5,
+     "battery_used_pct": 2.46,
+     "relook": true
+    },
+    {
+     "leg": "L002",
+     "drone": "D1",
+     "sector": "B2",
+     "altitude_m": 50.0,
+     "est_minutes": 11.5,
+     "sim_minutes": 7.67,
+     "photos": 233,
+     "battery_used_pct": 17.39,
+     "relook": false
+    }
+   ],
+   "relook_chains": [
+    {
+     "chain_id": "relook-f0003-d01",
+     "detection": "f0003-d01",
+     "box_long_px": 21,
+     "steps": [
+      "unclear",
+      "leg",
+      "photo",
+      "verdict",
+      "outcome",
+      "photo",
+      "photo",
+      "photo",
+      "photo"
+     ],
+     "leg": "L004",
+     "est_minutes": 1.13,
+     "pixel_factor": 4.0,
+     "outcome": "unclear",
+     "promoted": []
+    }
+   ],
+   "ledger": [
+    {
+     "type": "ledger",
+     "chain_id": "relook-f0003-d01",
+     "kind": "second_look",
+     "ref": "f0003-d01",
+     "expected": {
+      "cell_p": 7.06e-06,
+      "sector": {
+       "id": "C3",
+       "poa": 0.031156,
+       "expected_clearance": 0.01347
+      },
+      "map_seq": 3,
+      "gain": 0.4933,
+      "gain_is": "P(decisive verdict) for a 21 px box, val verify-v2 (runs/verifier/val-verify-v2-20261020-165932)",
+      "box_long_px": 21
+     },
+     "realised": {
+      "cell_p": 7.06e-06,
+      "sector": {
+       "id": "C3",
+       "poa": 0.031156,
+       "expected_clearance": 0.01347
+      },
+      "map_seq": 3,
+      "gain": 0.0,
+      "gain_is": "1 if the verdict was yes or no, 0 if unclear",
+      "verdict": "unclear"
+     },
+     "delta": -0.4933,
+     "flown_in_full": false
+    },
+    {
+     "type": "ledger",
+     "chain_id": "relook-f0003-d01",
+     "kind": "second_look",
+     "ref": "f0004-d01",
+     "expected": {
+      "cell_p": 3.88e-06,
+      "sector": {
+       "id": "C3",
+       "poa": 0.031145,
+       "expected_clearance": 0.013467
+      },
+      "map_seq": 4,
+      "gain": 0.4933,
+      "gain_is": "P(decisive verdict) for a 43 px box, val verify-v2 (runs/verifier/val-verify-v2-20261020-165932)",
+      "box_long_px": 43
+     },
+     "realised": {
+      "cell_p": 3.87e-06,
+      "sector": {
+       "id": "C3",
+       "poa": 0.031105,
+       "expected_clearance": 0.013445
+      },
+      "map_seq": 8,
+      "gain": 0.0,
+      "gain_is": "1 if the verdict was yes or no, 0 if unclear",
+      "verdict": "unclear"
+     },
+     "delta": -0.4933,
+     "flown_in_full": false
+    },
+    {
+     "type": "ledger",
+     "chain_id": "relook-f0003-d01",
+     "kind": "leg",
+     "ref": "L004",
+     "expected": {
+      "cell_p": 7.06e-06,
+      "sector": {
+       "id": "C3",
+       "poa": 0.031156,
+       "expected_clearance": 0.01347
+      },
+      "map_seq": 3,
+      "region": {
+       "lat": 49.3729,
+       "lon": -122.9354,
+       "radius_m": 10.0
+      },
+      "gain": 9.7e-05
+     },
+     "realised": {
+      "cell_p": 3.87e-06,
+      "sector": {
+       "id": "C3",
+       "poa": 0.031105,
+       "expected_clearance": 0.013445
+      },
+      "map_seq": 8,
+      "gain": 5.1e-05,
+      "gain_is": "sum of p (as proposed) x the POD the leg's photos gave each cell",
+      "photos": 5,
+      "cells_seen": 22,
+      "cells": 23
+     },
+     "delta": -4.6e-05,
+     "flown_in_full": true
+    },
+    {
+     "type": "ledger",
+     "chain_id": "leg-L002",
+     "kind": "leg",
+     "ref": "L002",
+     "expected": {
+      "cell_p": null,
+      "sector": {
+       "id": "B2",
+       "poa": 0.03125,
+       "expected_clearance": 0.0135
+      },
+      "map_seq": 0,
+      "region": null,
+      "gain": 0.0137
+     },
+     "realised": {
+      "cell_p": null,
+      "sector": {
+       "id": "B2",
+       "poa": 0.016145,
+       "expected_clearance": 0.006981
+      },
+      "map_seq": 241,
+      "gain": 0.014796,
+      "gain_is": "sum of p (as proposed) x the POD the leg's photos gave each cell",
+      "photos": 218,
+      "cells_seen": 2404,
+      "cells": 2500
+     },
+     "delta": 0.001096,
+     "flown_in_full": true
+    }
+   ],
+   "scenario": "relook",
+   "mission": "816f018f",
+   "hidden_sector": "C3",
+   "wall_s": 53.01,
+   "crash": null,
+   "runner_failures": [],
+   "proposals": [
+    {
+     "id": "p001",
+     "kind": "drone_leg",
+     "status": "approved",
+     "by": "planner",
+     "summary": "Send Drone 3 to sector C2 (1.4% expected)"
+    },
+    {
+     "id": "p002",
+     "kind": "drone_leg",
+     "status": "approved",
+     "by": "planner",
+     "summary": "Send Drone 1 to sector B2 (1.4% expected)"
+    },
+    {
+     "id": "p003",
+     "kind": "drone_leg",
+     "status": "approved",
+     "by": "planner",
+     "summary": "Send Drone 2 to sector C3 (1.4% expected)"
+    },
+    {
+     "id": "p004",
+     "kind": "retask_drone",
+     "status": "approved",
+     "by": "agent",
+     "summary": "Re-look at f0003-d01 from 25 m: re-task Drone 3"
+    },
+    {
+     "id": "p005",
+     "kind": "drone_leg",
+     "status": "pending",
+     "by": "planner",
+     "summary": "Send Drone 3 to sector C2 (1.4% expected)"
+    },
+    {
+     "id": "p006",
+     "kind": "assign_sector",
+     "status": "pending",
+     "by": "agent",
+     "summary": "Assign sector C2 to Team One"
+    },
+    {
+     "id": "p007",
+     "kind": "assign_sector",
+     "status": "pending",
+     "by": "agent",
+     "summary": "Assign sector B3 to Team Two"
+    },
+    {
+     "id": "p008",
+     "kind": "assign_sector",
+     "status": "pending",
+     "by": "agent",
+     "summary": "Assign sector C3 to Team Three"
+    },
+    {
+     "id": "p009",
+     "kind": "assign_sector",
+     "status": "pending",
+     "by": "agent",
+     "summary": "Assign sector B2 to Team Four"
+    },
+    {
+     "id": "p010",
+     "kind": "drone_leg",
+     "status": "pending",
+     "by": "planner",
+     "summary": "Send Drone 1 to sector B3 (1.4% expected)"
+    }
+   ],
+   "steps": [
+    {
+     "step": "start",
+     "evidence": [],
+     "proposals": []
+    },
+    {
+     "step": "fleet",
+     "evidence": [],
+     "proposals": [
+      "p001",
+      "p002",
+      "p003"
+     ]
+    },
+    {
+     "step": "photo",
+     "evidence": [],
+     "proposals": []
+    },
+    {
+     "step": "photo",
+     "evidence": [],
+     "proposals": []
+    },
+    {
+     "step": "detection",
+     "evidence": [
+      [
+       "detection",
+       "f0003-d01",
+       "2026-10-22T17:56:18.894Z"
+      ]
+     ],
+     "proposals": [
+      "p004"
+     ]
+    },
+    {
+     "step": "fly L004",
+     "evidence": [],
+     "proposals": []
+    },
+    {
+     "step": "leg_done",
+     "evidence": [
+      [
+       "leg_done",
+       "L004",
+       "2026-10-22T17:56:21.647Z"
+      ]
+     ],
+     "proposals": [
+      "p005"
+     ]
+    },
+    {
+     "step": "fly L002",
+     "evidence": [],
+     "proposals": [
+      "p006",
+      "p007",
+      "p008",
+      "p009"
+     ]
+    },
+    {
+     "step": "leg_done",
+     "evidence": [
+      [
+       "leg_done",
+       "L002",
+       "2026-10-22T17:56:54.572Z"
+      ]
+     ],
+     "proposals": [
+      "p010"
+     ]
+    },
+    {
+     "step": "tick",
+     "evidence": [
+      [
+       "tick",
+       "816f018f",
+       "2026-10-22T17:56:54.740Z"
+      ]
+     ],
+     "proposals": []
+    }
+   ],
+   "latency": [
+    {
+     "evidence": "leg_done",
+     "ref": "L004",
+     "proposal": "p005",
+     "kind": "drone_leg",
+     "ms": 116
+    },
+    {
+     "evidence": "leg_done",
+     "ref": "L002",
+     "proposal": "p010",
+     "kind": "drone_leg",
+     "ms": 153
+    }
+   ],
+   "truth": [
+    {
+     "check": "re-look: an unclear 21 px near miss gets a 25 m leg",
+     "ok": true,
+     "detail": "p004 retask_drone: Second look at f0003-d01 was unclear: box 21 px, too small to verify; a pass at 25 m gives"
+    },
+    {
+     "check": "leg done: next leg (informational, no truth)",
+     "ok": null,
+     "detail": "D3 \u2192 C2"
+    },
+    {
+     "check": "leg done: next leg (informational, no truth)",
+     "ok": null,
+     "detail": "D1 \u2192 B3"
+    },
+    {
+     "check": "re-look: the low pass resolves the person (photo \u2192 verdict \u2192 promote)",
+     "ok": false,
+     "detail": "relook-f0003-d01: unclear \u2192 leg \u2192 photo \u2192 verdict \u2192 outcome \u2192 photo \u2192 photo \u2192 photo \u2192 photo (unclear, promoted none)"
+    }
+   ],
+   "gate": [
+    {
+     "check": "every leg in the fleet comes from an approved proposal",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "check": "no pending, rejected or superseded leg is in the fleet",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "check": "every team off standby has an approved assign_sector",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "check": "every assigned sector task has an approved assign_sector",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "check": "every promotion to the review queue follows an approved promote_detection",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "check": "no leg is approved in the event log before its proposal exists",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "check": "approvals and rejections are by a person (who and when recorded)",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "check": "a rejection has a reason",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "check": "the agent only supersedes; it never approves or rejects",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "check": "no proposal or verdict says \"clear\"/\"cleared\"",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "check": "validate_mission passes",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "verdicts": [
+    {
+     "detection": "f0003-d01",
+     "person": "unclear",
+     "model": "nvidia/Nemotron-3.5-Super-VL"
+    },
+    {
+     "detection": "f0004-d01",
+     "person": "unclear",
+     "model": "nvidia/Nemotron-3.5-Super-VL"
+    }
+   ]
+  }
+ ],
+ "failures": []
+}

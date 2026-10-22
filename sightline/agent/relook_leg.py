@@ -220,7 +220,7 @@ def _propose(store: Any, mission_id: str, look: Look) -> list[Proposal]:
         f"Second look at {det.id} was unclear: box {look.long_px} px, too small to verify; a pass "
         f"at {RELOOK_ALT_M:.0f} m gives about {factor:.0f}× the pixels ({look.altitude_m:.0f} m → "
         f"{RELOOK_ALT_M:.0f} m). {drone.name} is {away(drone):.0f} m away: {leg.est_minutes:.1f} "
-        f"min there and over the spot, expected to rule out {gain:.3%} of the probability."
+        f"min there and over the spot, expected to lower the remaining probability by {gain:.3%}."
     )
     leg = leg.model_copy(
         update={
