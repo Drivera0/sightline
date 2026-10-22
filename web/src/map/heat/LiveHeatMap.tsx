@@ -2,6 +2,10 @@
 // heat from `useMission().mapBase` + `mapUpdates` (search/live.ts, a checkpoint every 25 updates),
 // animated as each `map.updated` arrives (reduced motion: no tween); sector outlines with their POA
 // now; the last-known point; clues; teams at their last position. Demo caches keep HeatLayer.
+// The fleet moves: drones glide between telemetry ticks (map/base/fleetMotion.ts), a re-tasked leg
+// fades out with a dashed trail to the new one (legLayer.ts), each drone's ring says its simulated
+// link (ok, degraded, lost; in words on its label), and dots travel along a drone's relay for a
+// cut-off team (relayLayer.ts). One requestAnimationFrame loop, only while something moves.
 // Built by lane A for lanes C and B (issues #64, #74).
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Popup, type GeoJSONSource, type Map } from "maplibre-gl";
@@ -9,9 +13,12 @@ import type { Clue, FleetState, MapBase, MapUpdate, Proposal, Team } from "../..
 import { usePick } from "../pick";
 import { clueFeatures } from "../base/clueLayer";
 import { droneFeatures } from "../base/droneLayer";
-import { legFeatures } from "../base/legLayer";
+import { FleetGlide, type LonLat } from "../base/fleetMotion";
+import { legFeatures, noteCancels, retaskAnimating, retaskFeatures, type SeenCancel } from "../base/legLayer";
 import { point, type MissionFeature } from "../base/missionFeature";
+import { relayFeatures } from "../base/relayLayer";
 import { teamFeatures } from "../base/teamLayer";
+import { useMission } from "../../lib/mission";
 import { useSelection } from "../../lib/selection";
 import type { SectorNow } from "../../lib/api";
 import { prefersReducedMotion } from "../../metrics/motion";
@@ -28,6 +35,9 @@ export const LIVE_IDS = {
   points: "live-heat-points",
   legs: "live-heat-legs",
   pointLabels: "live-heat-point-labels",
+  drones: "live-heat-drones",
+  droneLabels: "live-heat-drone-labels",
+  relay: "live-heat-relay",
 } as const;
 const TWEEN_MS = 600;
 
@@ -73,6 +83,10 @@ export function pointFeatures(
 
 function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, proposals = [], now }: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase }): ReactNode {
   const { map, onPick } = useMap();
+  const links = useMission((s) => s.links);
+  const glide = useMemo(() => new FleetGlide(), []);
+  const seen = useRef<Record<string, SeenCancel>>({});
+  const firstLook = useRef(true);
   const pending = usePick((s) => s.pending);
   const heat = useMemo(() => new LiveHeat(base), [base]);
   const raster = useMemo(() => new HeatRaster(base.grid), [base]);
@@ -89,7 +103,7 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
         map.addSource(LIVE_IDS.heat, { type: "canvas", canvas: raster.canvas, coordinates: gridCorners(base.grid), animate: false });
         map.addLayer({ id: LIVE_IDS.heat, type: "raster", source: LIVE_IDS.heat, paint: { "raster-opacity": 0.85, "raster-resampling": "nearest", "raster-fade-duration": 0 } });
       }
-      for (const id of [LIVE_IDS.sectors, LIVE_IDS.sectorLabels, LIVE_IDS.points, LIVE_IDS.legs]) {
+      for (const id of [LIVE_IDS.sectors, LIVE_IDS.sectorLabels, LIVE_IDS.points, LIVE_IDS.legs, LIVE_IDS.drones, LIVE_IDS.relay]) {
         if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: fc([]) });
       }
       const color = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
@@ -97,8 +111,18 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
         const tone = (): unknown => ["match", ["get", "tone"], "accent", color("--accent", "#ff7a1a"), "warn", color("--warn", "#ffc48f"), "ok", color("--ok", "#7ee2a0"),
           "info", color("--accent-soft", "#ffb27a"), "muted", color("--text-3", "#8a8f98"), color("--text", "#f2f2f0")]; // prettier-ignore
         // legs: proposed faint and dashed, approved solid, flying solid and thicker (B-T1)
-        map.addLayer({ id: LIVE_IDS.legs, type: "line", source: LIVE_IDS.legs, filter: ["!=", ["get", "style"], "proposed"],
+        map.addLayer({ id: LIVE_IDS.legs, type: "line", source: LIVE_IDS.legs, filter: ["in", ["get", "style"], ["literal", ["approved", "flying"]]],
           paint: { "line-color": tone() as never, "line-opacity": 0.85, "line-width": ["match", ["get", "style"], "flying", 2.5, 1.5] } }); // prettier-ignore
+        // a re-task: the cancelled leg fades out; a dashed trail from where the drone turned to its new leg
+        map.addLayer({ id: `${LIVE_IDS.legs}-cancelled`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "cancelled"],
+          paint: { "line-color": color("--accent", "#ff7a1a"), "line-opacity": ["*", 0.85, ["get", "fade"]] as never, "line-width": 2 } }); // prettier-ignore
+        map.addLayer({ id: `${LIVE_IDS.legs}-diverted`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "diverted"],
+          paint: { "line-color": color("--text-2", "#a1a1aa"), "line-opacity": 0.9, "line-width": 1.5, "line-dasharray": [1.5, 1.5] } }); // prettier-ignore
+        // relay for a cut-off team: a thin dashed link and dots moving along it towards the drones
+        map.addLayer({ id: LIVE_IDS.relay, type: "line", source: LIVE_IDS.relay, filter: ["==", ["get", "kind"], "relay"],
+          paint: { "line-color": color("--accent-soft", "#ffb27a"), "line-opacity": 0.6, "line-width": 1, "line-dasharray": [1, 2] } }); // prettier-ignore
+        map.addLayer({ id: `${LIVE_IDS.relay}-dots`, type: "circle", source: LIVE_IDS.relay, filter: ["==", ["get", "kind"], "relay-dot"],
+          paint: { "circle-radius": 2.5, "circle-color": color("--accent-soft", "#ffb27a"), "circle-stroke-color": color("--bg", "#0a0b0d"), "circle-stroke-width": 0.5 } }); // prettier-ignore
         map.addLayer({ id: `${LIVE_IDS.legs}-proposed`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "proposed"],
           paint: { "line-color": tone() as never, "line-opacity": 0.45, "line-width": 1.2, "line-dasharray": [2, 2] } }); // prettier-ignore
         map.addLayer({ id: LIVE_IDS.sectors, type: "line", source: LIVE_IDS.sectors, paint: { "line-color": color("--text", "#f2f2f0"), "line-opacity": 0.5, "line-width": 1 } });
@@ -124,6 +148,25 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
           id: LIVE_IDS.pointLabels,
           type: "symbol",
           source: LIVE_IDS.points,
+          layout: { "text-field": ["get", "label"], "text-size": 11, "text-offset": [0, 1.2], "text-anchor": "top" },
+          paint: { "text-color": color("--text", "#f2f2f0"), "text-halo-color": color("--bg", "#0a0b0d"), "text-halo-width": 1.5 },
+        });
+        // drones: the ring is the link (ok green, degraded amber, lost in the accent and thicker); the label says it in words
+        map.addLayer({
+          id: LIVE_IDS.drones,
+          type: "circle",
+          source: LIVE_IDS.drones,
+          paint: {
+            "circle-radius": 6,
+            "circle-color": tone() as never,
+            "circle-stroke-color": ["match", ["get", "link"], "lost", color("--accent", "#ff7a1a"), "degraded", color("--warn", "#ffc48f"), color("--ok", "#7ee2a0")] as never,
+            "circle-stroke-width": ["match", ["get", "link"], "lost", 3.5, "degraded", 3, 2] as never,
+          },
+        });
+        map.addLayer({
+          id: LIVE_IDS.droneLabels,
+          type: "symbol",
+          source: LIVE_IDS.drones,
           layout: { "text-field": ["get", "label"], "text-size": 11, "text-offset": [0, 1.2], "text-anchor": "top" },
           paint: { "text-color": color("--text", "#f2f2f0"), "text-halo-color": color("--bg", "#0a0b0d"), "text-halo-width": 1.5 },
         });
@@ -162,9 +205,40 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
     const { lines, labels } = sectorFeatures(sectors);
     setData(map, LIVE_IDS.sectors, lines);
     setData(map, LIVE_IDS.sectorLabels, labels);
-    setData(map, LIVE_IDS.points, pointFeatures(base, clues, teams, fleet, now ?? new Date()));
-    setData(map, LIVE_IDS.legs, legFeatures(fleet, proposals));
-  }, [map, ready, base, sectors, clues, teams, fleet, proposals, now]);
+    setData(map, LIVE_IDS.points, pointFeatures(base, clues, teams, null, now ?? new Date()));
+  }, [map, ready, base, sectors, clues, teams, now]);
+
+  // The fleet: drones glide to each new report, a re-task animates out, relay dots travel. One
+  // animation frame loop, running only while something moves (reduced motion: one still frame).
+  useEffect(() => {
+    if (!map || !ready) return undefined;
+    const reduced = prefersReducedMotion();
+    const start = performance.now();
+    const targets: Record<string, LonLat> = {};
+    for (const d of fleet?.drones ?? []) if (d.position) targets[d.id] = [d.position.lon, d.position.lat];
+    glide.update(targets, start, reduced);
+    seen.current = noteCancels(fleet, seen.current, start, glide.positions(start), firstLook.current);
+    firstLook.current = false;
+    const clock = now ?? new Date();
+    const drones = droneFeatures(fleet, links.drones, clock);
+    let raf = 0;
+    let settled = false;
+    const frame = () => {
+      const t = performance.now();
+      const drawn = glide.positions(t);
+      const moving = glide.animating(t) || retaskAnimating(seen.current, t);
+      if (moving || !settled) {
+        setData(map, LIVE_IDS.drones, drones.map((f) => (drawn[f.properties.id] ? { ...f, geometry: { type: "Point", coordinates: drawn[f.properties.id] } } : f)));
+        setData(map, LIVE_IDS.legs, [...legFeatures(fleet, proposals), ...retaskFeatures(fleet, seen.current, t, reduced)]);
+        settled = !moving;
+      }
+      const relays = relayFeatures(links, teams, drawn, t, reduced);
+      setData(map, LIVE_IDS.relay, relays);
+      if (!reduced && (moving || relays.length > 0)) raf = requestAnimationFrame(frame);
+    };
+    frame();
+    return () => cancelAnimationFrame(raf);
+  }, [map, ready, glide, fleet, proposals, links, teams, now]);
 
   // Clicking a team, drone or clue selects it (D-M2); selecting a team elsewhere (the roster) flies here.
   useEffect(() => {
@@ -188,7 +262,11 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
       else if (f.kind === "clue") sel.selectClue(String(f.id));
     };
     map.on("click", LIVE_IDS.points, onClick as never);
-    return () => void map.off("click", LIVE_IDS.points, onClick as never);
+    map.on("click", LIVE_IDS.drones, onClick as never);
+    return () => {
+      map.off("click", LIVE_IDS.points, onClick as never);
+      map.off("click", LIVE_IDS.drones, onClick as never);
+    };
   }, [map, ready]);
   const selectedTeam = useSelection((s) => s.selectedTeamId);
   useEffect(() => {
@@ -314,6 +392,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
         <span>
           Red shading: where the person could be now, on ground a photo has looked at (darker: more likely); grey: not photographed yet.
           {" "}
+          {rest.fleet?.simulated ? "Drones, their links and relays are simulated. " : ""}
           {rest.updates.length} map updates · each sector shows its share of the probability (POA).
         </span>
       </figcaption>
@@ -326,10 +405,18 @@ const LEGEND: readonly { label: string; swatch: ReactNode }[] = [
   { label: "Team searching", swatch: <Dot color="var(--ok)" /> },
   { label: "Team assigned or returning", swatch: <Dot color="var(--accent-soft)" /> },
   { label: "Clue", swatch: <Dot color="var(--warn)" /> },
-  { label: "Drone", swatch: <Dot color="var(--text)" /> },
+  { label: "Drone, link ok", swatch: <Ring color="var(--ok)" /> },
+  { label: "Drone, link degraded", swatch: <Ring color="var(--warn)" /> },
+  { label: "Drone, link lost (flies its leg on its own)", swatch: <Ring color="var(--accent)" thick /> },
   { label: "Drone route", swatch: <span className="inline-block h-0.5 w-4 bg-accent" /> },
   { label: "Proposed route, awaiting approval", swatch: <span className="inline-block w-4 border-t border-dashed border-text-3" /> },
+  { label: "Re-tasked: where the drone turned to its new route", swatch: <span className="inline-block w-4 border-t border-dashed border-text-2" /> },
+  { label: "Relay: a drone carries a cut-off team's position", swatch: <span className="inline-block w-4 border-t-2 border-dotted border-accent-soft" /> },
 ];
+
+function Ring({ color, thick = false }: { color: string; thick?: boolean }) {
+  return <span className="inline-block h-2.5 w-2.5 rounded-full bg-text" style={{ boxShadow: `0 0 0 ${thick ? 2.5 : 1.5}px ${color}` }} />;
+}
 
 function Dot({ color }: { color: string }) {
   return <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: color }} />;

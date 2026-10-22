@@ -32,6 +32,63 @@ export const EVENT_TYPES: readonly MissionEvent["type"][] = [
 ];
 const MAX_EVENTS = 200;
 
+// The simulated fleet's link model (sightline/search/fleet.py). Not contract models: the sim reports
+// link changes and relayed team positions as `mission.note` events (data `fleet_link` / `relay`), and
+// `GET /missions/{id}/fleet/links` gives the latest of each. A drone or team never reported is connected.
+export type DroneLinkState = "connected" | "degraded" | "lost";
+export interface DroneLink {
+  link: DroneLinkState;
+  since: string | null;
+  /** When the ground station last heard the drone's telemetry (set when the link drops). */
+  last_heard_at: string | null;
+  for_s?: number | null;
+  by?: string | null;
+}
+export interface TeamRelay {
+  team_id: string;
+  callsign?: string | null;
+  /** The drones that carried the team's check-in, in order (via[0] heard it). */
+  via: string[];
+  hops: number;
+  heard_at: string;
+  age_s: number;
+  lat: number;
+  lon: number;
+}
+export interface TeamLink {
+  link: "connected" | "no_signal";
+  since?: string | null;
+  relay?: TeamRelay;
+}
+export interface FleetLinks {
+  drones: Record<string, DroneLink>;
+  teams: Record<string, TeamLink>;
+}
+export const NO_LINKS: FleetLinks = { drones: {}, teams: {} };
+
+/** The links after one event (pure): only the sim's `mission.note` reports change them. */
+export function applyLinkEvent(links: FleetLinks, ev: MissionEvent): FleetLinks {
+  if (ev.type !== "mission.note" || !ev.data) return links;
+  const d = ev.data as { fleet_link?: { target: string; link: string; last_heard_at?: string | null; for_s?: number | null; by?: string | null }; relay?: TeamRelay };
+  if (d.fleet_link) {
+    const f = d.fleet_link;
+    if (f.target.startsWith("T") && (f.link === "connected" || f.link === "no_signal")) {
+      return { ...links, teams: { ...links.teams, [f.target]: { ...links.teams[f.target], link: f.link, since: ev.at } } };
+    }
+    const entry: DroneLink = { link: f.link as DroneLinkState, since: ev.at, last_heard_at: f.last_heard_at ?? null, for_s: f.for_s ?? null, by: f.by ?? null };
+    return { ...links, drones: { ...links.drones, [f.target]: entry } };
+  }
+  if (d.relay) {
+    const t = d.relay.team_id;
+    return { ...links, teams: { ...links.teams, [t]: { link: links.teams[t]?.link ?? "no_signal", since: links.teams[t]?.since ?? null, relay: d.relay } } };
+  }
+  return links;
+}
+
+export function fleetLinksFromEvents(events: readonly MissionEvent[]): FleetLinks {
+  return events.reduce(applyLinkEvent, NO_LINKS);
+}
+
 export interface MissionData {
   mission: Mission | null;
   tasks: SectorTask[];
@@ -50,11 +107,14 @@ export interface MissionData {
   mapUpdates: MapUpdate[];
   /** Each sector's POA and drone coverage on the live map (refreshed after map updates). */
   sectors: SectorNow[];
+  /** The simulated fleet's link states and relayed team positions. */
+  links: FleetLinks;
 }
 
 export const EMPTY: MissionData = {
   mission: null, tasks: [], teams: [], clues: [], proposals: [], verdicts: [], fleet: null,
   conditions: null, events: [], survey: null, detections: null, promoted: [], mapBase: null, mapUpdates: [], sectors: [],
+  links: NO_LINKS,
 };
 
 function upsert<T>(list: readonly T[], item: T, key: (x: T) => string): T[] {
@@ -77,7 +137,7 @@ export function applyEvent(s: MissionData, ev: MissionEvent): MissionData {
   if (s.events.some((e) => e.id === ev.id)) return s;
   const events = [...s.events, ev].slice(-MAX_EVENTS);
   const data = ev.data as unknown;
-  const next: MissionData = { ...s, events };
+  const next: MissionData = { ...s, events, links: applyLinkEvent(s.links ?? NO_LINKS, ev) };
   switch (ev.type) {
     case "detection.new": {
       const det = data as (Detection & { promoted_by?: string }) | null;
@@ -193,7 +253,8 @@ export const useMission = create<MissionStore>((set, get) => {
           api.getSectors(a, missionId).catch(() => [] as SectorNow[]),
         ]);
         const { events, ...rest } = state;
-        set({ ...rest, events, survey, detections, mapBase, mapUpdates, sectors, promoted: [] });
+        const links = await fetchLinks(a, missionId).catch(() => fleetLinksFromEvents(events));
+        set({ ...rest, events, survey, detections, mapBase, mapUpdates, sectors, promoted: [], links });
         const Ctor = deps.EventSource ?? (globalThis.EventSource as unknown as EventSourceCtor);
         const es = new Ctor(api.eventsUrl(a, missionId, events.at(-1)?.id ?? null));
         source = es;
@@ -216,7 +277,7 @@ export const useMission = create<MissionStore>((set, get) => {
     useDemo: (data) => {
       get().disconnect();
       demoSeq = data.events?.length ?? 0;
-      set({ ...EMPTY, ...data, status: "demo", error: null, api: null });
+      set({ ...EMPTY, links: fleetLinksFromEvents(data.events ?? []), ...data, status: "demo", error: null, api: null });
     },
 
     disconnect: () => {
@@ -334,6 +395,15 @@ export const useMission = create<MissionStore>((set, get) => {
     },
   };
 });
+
+/** GET /missions/{id}/fleet/links: the latest link of every drone and team (a server without the
+ * fleet's link model answers 404, and the caller reads the events it has instead). */
+async function fetchLinks(a: Api, missionId: string): Promise<FleetLinks> {
+  const r = await (a.fetch ?? fetch)(`${a.base}/missions/${missionId}/fleet/links`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const j = (await r.json()) as Partial<FleetLinks>;
+  return { drones: j.drones ?? {}, teams: j.teams ?? {} };
+}
 
 function mergeDetections(fresh: Detections, current: Detections | null): Detections {
   if (!current) return fresh;

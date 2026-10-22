@@ -53,11 +53,20 @@ def call(base: str, method: str, path: str, body: dict | None = None) -> dict:
         method=method,
         headers={**auth_headers(), **({"Content-Type": "application/json"} if data else {})},
     )
-    try:
-        with urllib.request.urlopen(r, timeout=60) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        raise RuntimeError(f"{method} {path}: {e.code} {e.read()[:300]!r}") from None
+    for attempt in range(6):  # the API's rate limit answers 429 + Retry-After: wait and try again
+        try:
+            with urllib.request.urlopen(r, timeout=60) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < 5:
+                try:
+                    wait = float(e.headers.get("Retry-After", "1"))
+                except ValueError:
+                    wait = 1.0
+                time.sleep(min(30.0, max(0.0, wait)))
+                continue
+            raise RuntimeError(f"{method} {path}: {e.code} {e.read()[:300]!r}") from None
+    raise AssertionError("unreachable")
 
 
 def upload(base: str, mid: str, files: list[Path]) -> dict:

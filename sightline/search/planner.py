@@ -52,7 +52,9 @@ class PlannerConfig:
     altitude_m: float = 50.0
     line_spacing_m: float = 20.0  # one photo's width on the ground at 50 m with the demo camera
     photo_spacing_m: float = 15.0
-    endurance_min: float = 30.0
+    # None: the fleet's airframe at the drone's airspeed (fleet.py ``Airframe``, DJI Mavic 3
+    # Enterprise: about 44 min at 8 m/s); a number overrides it (planner_sim: no battery limit)
+    endurance_min: float | None = None
     reserve_frac: float = 0.2
     unknown_canopy: float = 0.5
     recall: float = 0.864
@@ -150,6 +152,16 @@ def expected_clearance(
     return float(np.sum(p[cells] * _pods(cells, _canopy(live, cfg), visibility, cfg)))
 
 
+def endurance_min(drone: Drone, cfg: PlannerConfig) -> float:
+    """Minutes a full battery flies this drone: ``cfg.endurance_min`` when set, else the simulated
+    fleet's airframe (DJI Mavic 3 Enterprise, ``fleet.py``) at the drone's airspeed."""
+    if cfg.endurance_min is not None:
+        return cfg.endurance_min
+    from sightline.search.fleet import MAVIC_3E
+
+    return 100 / MAVIC_3E.drain_pct_per_min(drone.speed_ms)
+
+
 def _limits(
     drone: Drone,
     leg: Leg,
@@ -160,7 +172,9 @@ def _limits(
 ) -> str | None:
     """Why the drone can't fly this leg, or None."""
     return_min = home_m / drone.speed_ms / 60
-    budget = drone.battery_pct / 100 * cfg.endurance_min * (1 - cfg.reserve_frac) - return_min
+    budget = (
+        drone.battery_pct / 100 * endurance_min(drone, cfg) * (1 - cfg.reserve_frac) - return_min
+    )
     if leg.est_minutes > budget:
         return "battery"
     if conditions is not None:
