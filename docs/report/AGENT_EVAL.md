@@ -120,7 +120,7 @@ call never triggers a leg, and neither does a photo already taken at 25 m. The n
 detector → second look → verdict → promote. Every step is in the trace under one `chain_id`.
 
 **In the mission** (the `relook` scenario; fake models and a scripted detector; results from
-`runs/agent_eval/relook-final/`, 2026-10-22):
+`docs/evidence/agent_eval/relook-final/`, 2026-10-22):
 
 | | Fake VL, 3 runs | Nemotron VL (`--live`), 1 run |
 |---|---|---|
@@ -132,7 +132,7 @@ detector → second look → verdict → promote. Every step is in the trace und
 | Outcome | resolved, `promote_detection` approved, 3/3 | still `unclear`, left to the reviewer |
 | Approval gate | 3/3 runs pass every check | passes |
 
-The live run is in `runs/agent_eval/relook-live/`.
+The live run is in `docs/evidence/agent_eval/relook-live/`.
 
 **On val near-misses** (`--live --relook-val`: the real detector on the 95 annotated val photos,
 Nemotron VL, prompt verify-v2; tuned on nothing). Of the 40 near-misses (0.15 ≤ conf < 0.29) under

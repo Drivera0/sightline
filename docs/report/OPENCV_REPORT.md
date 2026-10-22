@@ -724,7 +724,7 @@ the realistic and harsh rows: a shared map sends the next free drone to where th
 Planning without sharing is the worst option every time. Realism costs about a third of the early finds
 (ideal → realistic, no clue: 20 % → 14.5 %). The plans are made for calm air and flown in the preset's
 conditions, so a planner that re-plans around wind and swaps would do better than shown. The v1 fleet
-evaluation (`runs/fleet_eval/`: coordinated 20.9 %, hand-split 20.0 %, independent 12.1 %, one drone 6.8 %
+evaluation (`docs/evidence/fleet_eval/v1-20261021/result.json`: coordinated 20.9 %, hand-split 20.0 %, independent 12.1 %, one drone 6.8 %
 within 30 min, no clue) used the demo cache's canopy, which comes from HERIDAL test photos; v2 replaces it.
 
 ### 6.6 One brain, many eyes: the simulated fleet
@@ -1054,7 +1054,7 @@ no GPU, keys or HERIDAL download, runs the tests, the smoke test of the live loo
 check (with the ICS 204, ICS 214 and CalTopo exports and the subject bulletin search), the mission API with the
 `cv2.dnn` detector and `remote_check.py` against it, the same with the detector behind HTTP
 (`SIGHTLINE_DETECT_URL`), the web build and a check of the built one-console site, and writes
-`runs/dressrun/<timestamp>/times.md` (`deploy/dressrun/README.md`). Measured on commit `de32e70`:
+`runs/dressrun/<timestamp>/times.md` (`deploy/dressrun/README.md`). Measured on commit `de32e70` (`docs/evidence/dressrun/20261022-192933/times.md`):
 
 | Stage | Seconds |
 |---|---:|

@@ -189,7 +189,7 @@ the mission store, and Nemotron on Token Factory. It uploads six HERIDAL **valid
 acts as the search would: a reviewer answers "person", a clue comes in, a scripted search manager approves one
 proposal (labelled in the trace). The fleet is two **simulated** drones until lane C's fleet sim lands.
 
-Run of 2026-10-21 (`runs/agent_live/`): 9 candidates from 6 photos; the second look on all 9 (OpenCV re-look tools:
+Run of 2026-10-21 (`docs/evidence/agent_live/`, one `summary.json` per run): 9 candidates from 6 photos; the second look on all 9 (OpenCV re-look tools:
 `zoom_native` on all 9, `enhance_contrast` on 2, `redetect_region` on 1); a confirmed person led to an `alert` to all
 teams and an `assign_sector` for the nearest team on standby (approved: the task and the team became "assigned"); the
 clue reweighted the map and led to a `drone_leg` from the planner (on 21 Oct still a stand-in, and its reason said so; the information-gain planner, C-P1, replaced it the next day and drives the re-task chain below).

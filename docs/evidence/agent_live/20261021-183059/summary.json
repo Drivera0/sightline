@@ -1,0 +1,153 @@
+{
+  "mission": "a7df0b7f",
+  "photos": 6,
+  "candidates": 9,
+  "map_updates": {
+    "frame": 6,
+    "clue": 1
+  },
+  "verdicts": [
+    {
+      "detection": "f0001-d01",
+      "person": "yes",
+      "tools": [
+        "zoom_native"
+      ],
+      "ms": 1840
+    },
+    {
+      "detection": "f0001-d02",
+      "person": "yes",
+      "tools": [
+        "zoom_native"
+      ],
+      "ms": 1054
+    },
+    {
+      "detection": "f0002-d01",
+      "person": "yes",
+      "tools": [
+        "zoom_native",
+        "redetect_region"
+      ],
+      "ms": 1917
+    },
+    {
+      "detection": "f0002-d02",
+      "person": "yes",
+      "tools": [
+        "zoom_native"
+      ],
+      "ms": 1016
+    },
+    {
+      "detection": "f0002-d03",
+      "person": "yes",
+      "tools": [
+        "enhance_contrast",
+        "zoom_native"
+      ],
+      "ms": 1585
+    },
+    {
+      "detection": "f0002-d04",
+      "person": "yes",
+      "tools": [
+        "enhance_contrast",
+        "zoom_native"
+      ],
+      "ms": 1632
+    },
+    {
+      "detection": "f0004-d01",
+      "person": "yes",
+      "tools": [
+        "zoom_native"
+      ],
+      "ms": 1302
+    },
+    {
+      "detection": "f0005-d01",
+      "person": "yes",
+      "tools": [
+        "zoom_native"
+      ],
+      "ms": 1378
+    },
+    {
+      "detection": "f0005-d02",
+      "person": "yes",
+      "tools": [
+        "zoom_native"
+      ],
+      "ms": 1264
+    }
+  ],
+  "proposals": [
+    {
+      "id": "p001",
+      "kind": "alert",
+      "by": "agent",
+      "status": "pending",
+      "summary": "Alert all teams: person confirmed in photo f0005 (sector B3)",
+      "reason": "Reviewer confirmed detection f0005-d01 as a person.",
+      "briefing": "Team, a reviewer confirmed a person in a drone photo. The subject is an adult hiker. They are wearing a blue jacket and a dark head covering. They are sitting. This is a sighting. No further action is needed."
+    },
+    {
+      "id": "p002",
+      "kind": "assign_sector",
+      "by": "agent",
+      "status": "approved",
+      "summary": "Assign sector B3 to Team One",
+      "reason": "Confirmed sighting in photo f0005 lies in sector B3; Team One is the nearest team on standby.",
+      "briefing": "Team One, sector B3, a reviewer confirmed a person in a drone photo, photo f0005, subject adult hiker, clothing blue jacket dark head covering, posture sitting."
+    },
+    {
+      "id": "p003",
+      "kind": "drone_leg",
+      "by": "planner",
+      "status": "pending",
+      "summary": "Send Drone 1 to sector B3 (1.7% expected)",
+      "reason": "After clue c001 (object, medium reliability: blue backpack by the trail) in sector B3, which now holds 3.3% of the probability. Sector B3: expected to rule out 1.7% of the probability in 8 min (stub p",
+      "briefing": null
+    }
+  ],
+  "trace": {
+    "verifier/tool_call": 12,
+    "verifier/model_call": 9,
+    "verifier/verdict": 9,
+    "agent/proposal": 3
+  },
+  "model_calls": 9,
+  "tokens": {
+    "in": 8123,
+    "out": 605
+  },
+  "steps": [
+    {
+      "step": "photos",
+      "proposals": 0,
+      "verdicts": 9,
+      "trace": 30
+    },
+    {
+      "step": "review: person",
+      "proposals": 2,
+      "verdicts": 9,
+      "trace": 32
+    },
+    {
+      "step": "clue",
+      "proposals": 3,
+      "verdicts": 9,
+      "trace": 33
+    },
+    {
+      "step": "approval",
+      "proposals": 3,
+      "verdicts": 9,
+      "trace": 33
+    }
+  ],
+  "validate_mission": []
+}

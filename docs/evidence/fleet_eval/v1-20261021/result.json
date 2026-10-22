@@ -1,0 +1,240 @@
+{
+  "simulated": true,
+  "map": "web/public/cache/demo/map.json",
+  "grid": "200\u00d7200 cells of 5 m",
+  "visibility_noise": 0.15,
+  "trials_per_row_per_seed": 2000,
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "horizon_min": 120.0,
+  "rows": [
+    {
+      "scenario": "no clue (flat placeholder prior)",
+      "strategy": "1 drone, planner",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.068,
+      "found_within_horizon": 0.267,
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.071,
+          "found_within_horizon": 0.265
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.062,
+          "found_within_horizon": 0.259
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.071,
+          "found_within_horizon": 0.278
+        }
+      ]
+    },
+    {
+      "scenario": "no clue (flat placeholder prior)",
+      "strategy": "3 drones, fixed order split in three",
+      "median_min": 84.167,
+      "p90_min": null,
+      "found_within_30_min": 0.2,
+      "found_within_horizon": 0.613,
+      "per_seed": [
+        {
+          "median_min": 83.2,
+          "p90_min": null,
+          "found_within_30_min": 0.201,
+          "found_within_horizon": 0.612
+        },
+        {
+          "median_min": 83.1,
+          "p90_min": null,
+          "found_within_30_min": 0.192,
+          "found_within_horizon": 0.613
+        },
+        {
+          "median_min": 86.2,
+          "p90_min": null,
+          "found_within_30_min": 0.207,
+          "found_within_horizon": 0.614
+        }
+      ]
+    },
+    {
+      "scenario": "no clue (flat placeholder prior)",
+      "strategy": "3 drones, each planning alone",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.121,
+      "found_within_horizon": 0.483,
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.128,
+          "found_within_horizon": 0.488
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.116,
+          "found_within_horizon": 0.484
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.12,
+          "found_within_horizon": 0.476
+        }
+      ]
+    },
+    {
+      "scenario": "no clue (flat placeholder prior)",
+      "strategy": "3 drones, coordinated",
+      "median_min": 82.267,
+      "p90_min": null,
+      "found_within_30_min": 0.209,
+      "found_within_horizon": 0.626,
+      "per_seed": [
+        {
+          "median_min": 80.3,
+          "p90_min": null,
+          "found_within_30_min": 0.216,
+          "found_within_horizon": 0.634
+        },
+        {
+          "median_min": 86.2,
+          "p90_min": null,
+          "found_within_30_min": 0.203,
+          "found_within_horizon": 0.622
+        },
+        {
+          "median_min": 80.3,
+          "p90_min": null,
+          "found_within_30_min": 0.207,
+          "found_within_horizon": 0.623
+        }
+      ]
+    },
+    {
+      "scenario": "a clue at the start (100 m, medium), in each sector in turn",
+      "strategy": "1 drone, planner",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.104,
+      "found_within_horizon": 0.282,
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.107,
+          "found_within_horizon": 0.286
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.1,
+          "found_within_horizon": 0.283
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.104,
+          "found_within_horizon": 0.276
+        }
+      ]
+    },
+    {
+      "scenario": "a clue at the start (100 m, medium), in each sector in turn",
+      "strategy": "3 drones, fixed order split in three",
+      "median_min": 87.1,
+      "p90_min": null,
+      "found_within_30_min": 0.198,
+      "found_within_horizon": 0.61,
+      "per_seed": [
+        {
+          "median_min": 81.8,
+          "p90_min": null,
+          "found_within_30_min": 0.203,
+          "found_within_horizon": 0.627
+        },
+        {
+          "median_min": 91.6,
+          "p90_min": null,
+          "found_within_30_min": 0.19,
+          "found_within_horizon": 0.591
+        },
+        {
+          "median_min": 87.9,
+          "p90_min": null,
+          "found_within_30_min": 0.2,
+          "found_within_horizon": 0.612
+        }
+      ]
+    },
+    {
+      "scenario": "a clue at the start (100 m, medium), in each sector in turn",
+      "strategy": "3 drones, each planning alone",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.159,
+      "found_within_horizon": 0.492,
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.158,
+          "found_within_horizon": 0.497
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.158,
+          "found_within_horizon": 0.483
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.162,
+          "found_within_horizon": 0.497
+        }
+      ]
+    },
+    {
+      "scenario": "a clue at the start (100 m, medium), in each sector in turn",
+      "strategy": "3 drones, coordinated",
+      "median_min": 81.1,
+      "p90_min": null,
+      "found_within_30_min": 0.23,
+      "found_within_horizon": 0.623,
+      "per_seed": [
+        {
+          "median_min": 77.3,
+          "p90_min": null,
+          "found_within_30_min": 0.235,
+          "found_within_horizon": 0.647
+        },
+        {
+          "median_min": 83.2,
+          "p90_min": null,
+          "found_within_30_min": 0.232,
+          "found_within_horizon": 0.608
+        },
+        {
+          "median_min": 82.8,
+          "p90_min": null,
+          "found_within_30_min": 0.222,
+          "found_within_horizon": 0.615
+        }
+      ]
+    }
+  ],
+  "seconds": 5.1
+}

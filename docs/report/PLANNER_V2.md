@@ -1,7 +1,7 @@
 # Planner v2: lost-person prior, ground teams, re-plans (simulated evaluation)
 
 **Simulated evaluation, not a field test.** `uv run python scripts/planner_v2_eval.py`, output in
-`runs/planner_v2/result.json`. A new mission's 1 km grid of 5 m cells at the creek scenario's last
+`runs/planner_v2/result.json` (this run: `docs/evidence/planner_v2/20261022-0157/`). A new mission's 1 km grid of 5 m cells at the creek scenario's last
 known point. Canopy is what the creek run's photos measured: HERIDAL **val** crops, 7,761 of 40,000
 cells, with 0.5 everywhere else. The demo cache map was not used because its canopy comes from HERIDAL
 test photos. Visibility noise is 0.15, 2,000 trials per row and seed, 5 seeds, and a 2 h horizon.

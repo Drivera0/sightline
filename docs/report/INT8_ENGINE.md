@@ -62,7 +62,7 @@ found) and has 1 more box kept (390 vs 389).
 
 - **A busy machine.** Other jobs shared the CPU (load average 16–50 on 32 threads during these
   runs). The table uses the second timing run (load 17–21). The first run, at load 21–47, gave
-  the same order: FP32 new 124 ± 19 ms, INT8 new 171 ± 32 ms, `runs/int8/bench-20261022-021019.json`.
+  the same order: FP32 new 124 ± 19 ms, INT8 new 171 ± 32 ms, `docs/evidence/int8/20261022/bench-20261022-021019.json`.
   The FP32 new-engine figure (92 ms per tile, 1.99 s per photo) agrees with the report's quiet-machine
   measurement (96 ms, 1.91 s), and the interleaving keeps the comparison fair. The absolute
   numbers on a quiet machine may be a few per cent lower.
@@ -92,5 +92,5 @@ uv run python scripts/quantize_onnx.py bench --no-eval --runs 5 --timing-photos 
     --int8 runs/int8/yolo11s_tiles_run1_best_int8_qdq_nohead.onnx          # interleaved timing only
 ```
 
-Outputs, not committed (`runs/` is ignored): `runs/int8/bench-*.json`,
-`runs/int8/accuracy-20261022.log`.
+Outputs go to `runs/int8/` (ignored); this page's runs are copied to `docs/evidence/int8/20261022/`
+(`bench-20261022-021019.json`, `bench-20261022-021627.json`, `accuracy-20261022.log`).
