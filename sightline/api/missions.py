@@ -79,6 +79,12 @@ def _default_detector() -> Any:
     return make_detector()
 
 
+def _default_chat() -> Any:
+    from sightline.radio.mount import chat_client
+
+    return chat_client()
+
+
 @dataclass
 class MissionContext:
     store: MissionStore
@@ -88,6 +94,7 @@ class MissionContext:
     scheduler: Scheduler | None = None  # default: on_tick + conditions for active missions
     metrics: Any = None  # CloudWatchMetrics on AWS
     run_worker: bool = True  # False: this process only enqueues (the API on AWS; the worker runs)
+    chat_factory: Callable[[], Any] = _default_chat  # the debrief narrative's ChatClient
     _detector: Any = None
 
     def __post_init__(self) -> None:
@@ -332,28 +339,26 @@ def get_map_base(mission_id: str, request: Request) -> dict:
 def get_sectors(mission_id: str, request: Request) -> list[dict]:
     """Each sector now: label, POA on the live map, and drone coverage (the share of its cells a
     photo has looked at), for the command view's task board (lane E). Read-only."""
-    from sightline.geo.cards import sector_label
+    return effects.sector_overview(_store(request, mission_id), mission_id)
+
+
+@missions_router.get("/missions/{mission_id}/debrief.md")
+def get_debrief(mission_id: str, request: Request, narrative: bool = False) -> Response:
+    """C's debrief (D-R5): tables from the log; ``?narrative=true`` adds the checked model
+    paragraph (a network call, so not by default)."""
+    from sightline.search.debrief import debrief
 
     store = _store(request, mission_id)
-    layout = effects._layout(store, mission_id)
-    if layout is None:
-        return []
-    live = store.live(mission_id)
-    poa = live.sector_poa(layout)
-    canopy = live.canopy()
-    out = []
-    for s in layout.sectors:
-        cells = layout.cells_of(s.id)
-        seen = sum(canopy[int(i)] is not None for i in cells) / len(cells)
-        out.append(
-            {
-                "sector_id": s.id,
-                "label": sector_label(s.id),
-                "poa": round(poa[s.id], 4),
-                "drone_coverage": round(seen, 3),
-            }
-        )
-    return out
+    client = _ctx(request).chat_factory() if narrative else None
+    md = debrief(
+        store.state(mission_id),
+        store.trace_entries(mission_id),
+        store.events(mission_id),
+        client,
+        sectors=effects.sector_overview(store, mission_id),
+        now=now_iso(),
+    )
+    return Response(md, media_type="text/markdown; charset=utf-8")
 
 
 @missions_router.get("/missions/{mission_id}/map_updates")
@@ -517,16 +522,3 @@ def get_card(mission_id: str, sector_id: str, request: Request) -> Response:
     if ext == "kml":
         return Response(to_kml(card), media_type="application/vnd.google-earth.kml+xml")
     return Response(card.model_dump_json(), media_type="application/json")
-
-
-@missions_router.get("/missions/{mission_id}/debrief.md")
-def get_debrief(mission_id: str, request: Request) -> Response:
-    store = _store(request, mission_id)
-    try:
-        from sightline.search.debrief import debrief  # type: ignore[import-not-found]
-    except ImportError:
-        raise HTTPException(503, "the debrief waits for lane C (C-D1)") from None
-    text = debrief(
-        store.state(mission_id), store.trace_entries(mission_id), store.events(mission_id), None
-    )
-    return Response(text, media_type="text/markdown")

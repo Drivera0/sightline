@@ -26,4 +26,5 @@ reported as "photo outside the search area" in `photo.processed`.
 - [ ] C-S1 rest: `build_sectors` port of `web/src/map/heat/sectors.ts` for demo caches, `sector_vectors.json`
 - [ ] TS mirror: `applyReweight`, `replayLive`, heat layer on `useMission().mapBase/mapUpdates`, `latticeSectors`
 - [x] **C-P2** planner evaluation, simulated (`planner_sim.py`, `scripts/planner_eval.py`, `tests/search/test_planner_sim.py`; lane A): no better than a fixed order with a flat prior; 1.7× the finds within 30 min after a clue
-- [ ] Fleet sim, scenarios, debrief
+- [x] **C-D1** debrief (`debrief.py`, `tests/search/test_debrief.py`; lane A): tables from the log (timeline, sightings with second look and review, proposals and decisions, sectors with drone coverage and "searched by Team Two at POD 50 %", conditions over time, clues, unsearched by POA, trace counts) and an optional narrative checked against the tables' numbers. "clear" in free text from the log is masked. `debrief()` takes `sectors=` (rows of `GET /sectors`, now `effects.sector_overview`) because the state has no layout. Served at `GET /missions/{id}/debrief.md` (`?narrative=true` for the model paragraph)
+- [ ] Fleet sim, scenarios
