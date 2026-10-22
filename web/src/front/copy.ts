@@ -1,12 +1,17 @@
-// The front door's words (LANE_E §6.2): exactly as written there; propose changes to Dan, don't
-// improvise. Tests read these constants. Built by lane A for lane E (issue #70).
+// The front door's words (LANE_E §6.2): as written there, with the button names made one name per
+// place in the 2026-10-22 redesign (Dan approved): "Guided demo", "Console", "New search", "For judges".
+// Propose other changes to Dan, don't improvise. Tests read these constants. Built by lane A for lane E (issue #70).
 
 export const HERO = {
   title: "Sightline",
+  eyebrow: "Drone search and rescue",
   tagline: "The brain of a drone search.",
   body: "Drones and ground teams feed one probability map. The map tells both where to look next — on screen at the command post, and by voice over the radio.",
+  /** The primary button with a mission server (New search). */
   start: "Start a new search",
-  demo: "Watch a demo search",
+  /** The primary button on the public demo site, which has no mission server: the console on the demo mission. */
+  startNoServer: "Open the console",
+  demo: "Guided demo",
   honesty:
     "The demo uses real aerial search-and-rescue photos (HERIDAL) placed on a simulated flight over Mount Seymour. Everything simulated is labelled.",
 } as const;
@@ -80,6 +85,7 @@ export const ROADMAP = [
 export const FOOTER = {
   data: "Photos: HERIDAL (Božić-Štulić, Marušić & Gotovac, 2019), CC BY 3.0. Basemap © OpenStreetMap contributors.",
   results: "Results",
+  tryPhoto: "Try a photo",
   code: "Code on GitHub",
   codeUrl: "https://github.com/Drivera0/sightline",
 } as const;

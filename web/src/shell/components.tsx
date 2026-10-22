@@ -73,7 +73,7 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className={cx("flex flex-col gap-3", className)}>
+    <div className={cx("flex flex-col gap-3", className)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex min-w-0 flex-col gap-2">
           {eyebrow && <Label>{eyebrow}</Label>}
@@ -83,7 +83,7 @@ export function PageHeader({
         {aside && <div className="flex shrink-0 flex-wrap items-center gap-2">{aside}</div>}
       </div>
       {children}
-    </header>
+    </div>
   );
 }
 

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CacheBundle } from "../contract";
 import { cacheUrl } from "../lib/cache";
 import { reviewItems } from "../review/items";
-import { Badge, Label, Panel } from "../shell/components";
+import { AppBar } from "../shell/AppBar";
+import { Badge, Page, PageHeader, Panel } from "../shell/components";
 import { detectPhoto, loadDetector, modelAvailable, type Backend } from "./runDetector";
 import { OVERLAP, SLICE_PX, type Detection } from "./tiling";
 
@@ -24,12 +25,33 @@ interface Shown {
 
 const mb = (bytes: number) => `${(bytes / 1e6).toFixed(1)} MB`;
 
+/** Try a photo, at `#try`: a page of its own, linked from Rank, For judges and the guided demo's menu. */
+export function TryPage({ cache, dir }: { cache: CacheBundle; dir: string }) {
+  return (
+    <>
+      <AppBar current="try" />
+      <Page>
+        <PageHeader
+          eyebrow="Try a photo"
+          title="Run Sightline's detector in your browser"
+          sub="Drop in an aerial photo, or pick one of the survey's, and see what the detector flags. Nothing is uploaded."
+        />
+        <TryPhoto cache={cache} dir={dir} />
+        <p className="text-small text-text-3">
+          Back to the <a className="text-text-2 underline underline-offset-2" href="#rank">guided demo's Rank step</a>, or see how the detector compares in{" "}
+          <a className="text-text-2 underline underline-offset-2" href="#results">Results</a>.
+        </p>
+      </Page>
+    </>
+  );
+}
+
 /**
  * "Try your own photo": the detector, running in the visitor's browser on a photo they drop in.
  * Same weights, slicing, merge and threshold as the pipeline. Said plainly: it runs on their
  * device, and on photos that aren't aerial search photos its boxes mean nothing.
  */
-export function TryPhoto({ cache, dir, onClose }: { cache: CacheBundle; dir: string; onClose: () => void }) {
+export function TryPhoto({ cache, dir }: { cache: CacheBundle; dir: string }) {
   const threshold = cache.metrics.detector.threshold;
   const [available, setAvailable] = useState<boolean | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -37,31 +59,17 @@ export function TryPhoto({ cache, dir, onClose }: { cache: CacheBundle; dir: str
   const [shown, setShown] = useState<Shown | null>(null);
   const [boxes, setBoxes] = useState<Detection[]>([]);
   const [dragging, setDragging] = useState(false);
-  const closeButton = useRef<HTMLButtonElement>(null);
   const busy = phase.kind === "model" || phase.kind === "running";
   const urlToRevoke = useRef<string | null>(null);
 
   useEffect(() => {
     let live = true;
     void modelAvailable().then((ok) => live && setAvailable(ok));
-    const previous = document.activeElement as HTMLElement | null;
-    closeButton.current?.focus();
     return () => {
       live = false;
-      previous?.focus();
       if (urlToRevoke.current) URL.revokeObjectURL(urlToRevoke.current);
     };
   }, []);
-
-  useEffect(() => {
-    // While the dialog is open, the page's own shortcuts (1-6, review keys) stay out of the way.
-    const onKey = (e: KeyboardEvent) => {
-      e.stopImmediatePropagation();
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [onClose]);
 
   const run = useCallback(
     async (blob: Blob, name: string, reference?: Shown["reference"]) => {
@@ -127,29 +135,7 @@ export function TryPhoto({ cache, dir, onClose }: { cache: CacheBundle; dir: str
   const kept = boxes.filter((b) => b.conf >= threshold);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-bg/75 p-4 backdrop-blur-sm sm:items-center sm:p-6" onClick={busy ? undefined : onClose}>
-      <Panel
-        role="dialog"
-        aria-modal="true"
-        aria-label="Try your own photo"
-        className="flex w-full max-w-4xl flex-col gap-4 bg-bg/95"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label>Try your own photo</Label>
-            <h2 className="text-title font-medium">Run Sightline&apos;s detector in your browser</h2>
-          </div>
-          <button
-            ref={closeButton}
-            type="button"
-            onClick={onClose}
-            className="rounded-sm px-2 py-1 text-small text-text-2 hover:text-text"
-          >
-            Close
-          </button>
-        </div>
-
+      <Panel role="region" aria-label="Try your own photo" className="flex w-full flex-col gap-4">
         <div className="flex flex-wrap gap-2">
           <Badge kind="info">Runs on your device</Badge>
           <Badge kind="placeholder">Aerial search photos only</Badge>
@@ -246,7 +232,6 @@ export function TryPhoto({ cache, dir, onClose }: { cache: CacheBundle; dir: str
           </figure>
         )}
       </Panel>
-    </div>
   );
 }
 

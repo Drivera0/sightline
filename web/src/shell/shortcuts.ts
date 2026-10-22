@@ -19,20 +19,20 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
-    title: "Command console",
+    title: "Console",
     shortcuts: [
       { keys: ["Tab"], description: "Move to the next proposal, sector or team" },
       { keys: ["A"], description: "Approve the focused proposal" },
       { keys: ["X"], description: "Reject the focused proposal (asks for a one-line reason)" },
       { keys: ["W"], description: "Open or close the Conditions panel: sources, quotes, the flyability gate" },
-      { keys: ["C"], description: "Back to the Command tab from another tab" },
+      { keys: ["C"], description: "Back to the Console tab from another tab" },
     ],
   },
   {
     title: "Everywhere",
     shortcuts: [
-      { keys: ["1", "2", "3", "4", "5", "6"], description: "Jump to a step: Survey, Rank, Review, Search next, Command, Results" },
-      { keys: ["C"], description: "Command view (the demo's Command step, or this mission's Command tab)" },
+      { keys: ["1", "2", "3", "4", "5"], description: "Jump to a guided demo step: Survey, Rank, Review, Search next, Results" },
+      { keys: ["C"], description: "Open the console (the demo console, or this mission's Console tab)" },
       { keys: ["T"], description: "Watch the guided tour (any key or click stops it)" },
       { keys: ["?"], description: "Show or hide this list" },
       { keys: ["Esc"], description: "Close" },

@@ -6,7 +6,7 @@ import type { Detections, Verdict } from "../contract";
 import { LiveRoutes } from "../App";
 import { LiveReview, liveReviewItems, relookName, verdictWords } from "../review/LiveReview";
 import { EMPTY, useMission } from "../lib/mission";
-import { routeFromHash } from "../shell/flow";
+import { redirectFromHash, routeFromHash } from "../shell/flow";
 import { SAFETY_FRAME } from "../radio/RadioDesk";
 import { cardFromHash, LiveMission, tabFromHash } from "./LiveMission";
 import { NewSearch } from "./NewSearch";
@@ -32,10 +32,16 @@ describe("routes", () => {
   it("on the demo-only site, hands over the demo mission first and never shows a developer message", () => {
     render(<LiveRoutes route={{ kind: "new" }} base={null} />);
     const box = screen.getByRole("region", { name: "No mission server" });
-    expect(box).toHaveTextContent("The live mission server runs during demos and judging; here is the demo mission.");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("The live mission server runs during demos and judging");
+    expect(box).toHaveTextContent("Here is the demo mission instead.");
     expect(box).not.toHaveTextContent("VITE_API_URL");
-    const links = screen.getAllByRole("link").filter((a) => a.getAttribute("href") !== "#");
-    expect(links.map((a) => a.getAttribute("href"))).toEqual(["#m/demo/command", "#survey"]);
+    const links = within(box).getAllByRole("link");
+    expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["Open the console", "#m/demo/command"],
+      ["Guided demo", "#survey"],
+    ]);
+    // the app bar is above it, with a way back
+    expect(within(screen.getByRole("banner")).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "#");
   });
 });
 
@@ -188,10 +194,10 @@ describe("live mission tabs", () => {
     expect(tabFromHash("#m/a1b2c3d4/nope")).toBe("photos");
   });
 
-  it("C goes to the Command tab, but not while typing", async () => {
+  it("C goes to the Console tab, but not while typing", async () => {
     render(<LiveMission api={pending} missionId="a1b2c3d4" initialTab="feed" />);
     await userEvent.keyboard("c");
-    expect(screen.getByRole("button", { name: "Command" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Console" })).toHaveAttribute("aria-pressed", "true");
     expect(window.location.hash).toBe("#m/a1b2c3d4/command");
   });
 
@@ -209,7 +215,7 @@ describe("live mission tabs", () => {
     expect(await screen.findByText(/radio desk isn't running on this server/)).toBeInTheDocument();
   });
 
-  it("puts the radio desk beside the approvals on the Command tab (D-R3)", async () => {
+  it("puts the radio desk beside the approvals in the console (D-R3)", async () => {
     render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" initialTab="command" />);
     expect(await screen.findByText(SAFETY_FRAME)).toBeInTheDocument();
   });
@@ -261,23 +267,29 @@ describe("the demo mission (E-04)", () => {
   });
 });
 
-describe("the guided demo's Command step (embedded)", () => {
-  it("is the console: map in the middle, rails either side from 1280 px, under the demo's own header", async () => {
+describe("the console (the guided demo's former Command step)", () => {
+  it("is one place: #operate and #command redirect to it, and it sits under the app bar with its tabs in the bar", async () => {
+    expect(redirectFromHash("#operate")).toBe("#m/demo/command");
+    expect(redirectFromHash("#command")).toBe("#m/demo/command");
     vi.stubGlobal("fetch", () => new Promise(() => {})); // the demo's map never arrives: the layout alone (jsdom has no WebGL)
-    window.history.replaceState(null, "", "#operate");
+    window.history.replaceState(null, "", "#m/demo/command");
     useMission.setState({ ...EMPTY, status: "idle" }); // not the previous test's mission
-    render(<LiveMission api={{ base: "" }} missionId="demo" initialTab="command" embedded />);
-    const frame = screen.getByRole("region", { name: "Demo mission" });
-    const view = within(frame).getByLabelText("Command view");
-    expect(view.className).toMatch(/xl:grid-cols-\[/); // three columns inside the demo frame from 1280 px
-    expect(view.className).not.toMatch(/\blg:grid-cols/); // stacked below that
+    render(<LiveMission api={{ base: "" }} missionId="demo" initialTab="command" />);
+    const bar = screen.getByRole("navigation", { name: "Sightline" }).closest("header") as HTMLElement; // the app bar
+    const tabs = within(bar).getByRole("navigation", { name: "Mission views" });
+    // Console, Trace, Feed on a desktop; Approvals only on phones (lg:hidden)
+    expect(within(tabs).getAllByRole("button").map((b) => b.textContent)).toEqual(["Console", "Approvals", "Trace", "Feed"]);
+    expect(within(tabs).getByRole("button", { name: /Approvals/ }).className).toMatch(/lg:hidden/);
+    expect(within(tabs).getByRole("button", { name: "Console" })).toHaveAttribute("aria-pressed", "true");
+    const view = screen.getByLabelText("Command view");
+    expect(view.className).toMatch(/lg:grid-cols-\[/); // three columns from 1024 px
     expect(within(view).getByRole("complementary", { name: "Sectors and teams" })).toBeInTheDocument();
     expect(within(view).getByRole("complementary", { name: "Approvals" })).toBeInTheDocument();
-    expect(view).toHaveTextContent("laid out for a screen 1280 px or wider");
-    // the guided demo owns the header and the address
-    expect(screen.queryByText("Demo mission · simulated data, no server")).toBeNull();
-    await userEvent.click(within(frame).getByRole("button", { name: /Approvals/ }));
-    expect(window.location.hash).toBe("#operate");
+    expect(view).toHaveTextContent("laid out for a screen 1024 px or wider");
+    await userEvent.click(within(tabs).getByRole("button", { name: "Trace" }));
+    expect(window.location.hash).toBe("#m/demo/trace");
+    // the tabs stay in the bar on every tab
+    expect(within(screen.getByRole("navigation", { name: "Sightline" }).closest("header") as HTMLElement).getByRole("button", { name: "Trace" })).toHaveAttribute("aria-pressed", "true");
     vi.unstubAllGlobals();
   });
 });

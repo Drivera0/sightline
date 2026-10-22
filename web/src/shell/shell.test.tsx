@@ -24,7 +24,7 @@ describe("Shell header", () => {
   it("shows the title, the place and one simulated-flight-path label under it", async () => {
     render(<Shell cache={await sample()} />);
 
-    expect(screen.getByRole("heading", { name: "Sightline" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sightline" })).toHaveAttribute("href", "#"); // the brand, back to the overview
     expect(screen.getByTitle("Mount Seymour, North Vancouver")).toHaveTextContent("Mount Seymour");
     expect(screen.getAllByText("Simulated flight path")).toHaveLength(1);
   });
@@ -39,7 +39,7 @@ describe("Shell header", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Sightline" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sightline" })).toHaveAttribute("href", "#"); // the brand, back to the overview
     expect(screen.getByText("HERIDAL SB site")).toBeInTheDocument();
     expect(screen.queryByText("Simulated flight path")).not.toBeInTheDocument();
   });
@@ -114,14 +114,14 @@ describe("Shell header", () => {
     expect(screen.queryByText(/20 frames/)).not.toBeInTheDocument();
   });
 
-  it("holds the shortcuts and the tour in one menu", async () => {
+  it("keeps only Shortcuts, Try a photo and the background toggle in the menu (the places are in the app bar)", async () => {
     render(<Shell cache={await sample()} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     const menu = screen.getByRole("menu", { name: "Menu" });
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       expect.stringContaining("Keyboard shortcuts"),
-      expect.stringContaining("Take the tour"),
+      expect.stringContaining("Try a photo"),
       expect.stringContaining("Background animation: on"),
     ]);
     await userEvent.keyboard("{Escape}");
@@ -150,10 +150,24 @@ describe("Shell steps (replace the old tabs)", () => {
     // The heat layer is inside the map, not a sibling of it.
     expect(within(screen.getByTestId("map-view")).getByTestId("mount-heat")).toBeInTheDocument();
     await userEvent.keyboard("5");
-    expect(screen.getByRole("heading", { name: "Running the search" })).toBeInTheDocument();
-    await userEvent.keyboard("6");
     expect(screen.getByTestId("mount-metrics")).toBeInTheDocument();
     await userEvent.keyboard("1");
+  });
+
+  it("C opens the console: the guided demo has no Command step of its own", async () => {
+    window.location.hash = "#review";
+    render(<Shell cache={await sample()} />);
+    await userEvent.keyboard("c");
+    expect(window.location.hash).toBe("#m/demo/command");
+  });
+
+  it("sits under the one app bar, with the steps as its second row", async () => {
+    window.location.hash = "#survey";
+    render(<Shell cache={await sample()} />);
+    const bar = screen.getByRole("navigation", { name: "Sightline" }).closest("header") as HTMLElement;
+    expect(within(bar).getByRole("link", { name: "Guided demo" })).toHaveAttribute("aria-current", "page");
+    expect(within(bar).getByRole("navigation", { name: "Demo steps" })).toBeInTheDocument();
+    expect(within(bar).getByRole("link", { name: "For judges" })).toHaveAttribute("href", "#judges");
   });
 });
 
