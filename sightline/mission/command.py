@@ -217,3 +217,146 @@ def check_overdue(store: MissionStore, mission_id: str, now: str, hooks: Any = N
             except Exception:
                 log.exception("hooks.on_team_overdue failed")
     return out
+
+
+# --- direct actions ----------------------------------------------------------------------------
+
+
+def _task(store: MissionStore, mission_id: str, sector: str) -> Any:
+    t = next((t for t in store.state(mission_id)["tasks"] if t.sector_id == sector), None)
+    if t is None:
+        raise KeyError(f"no sector {sector}")
+    return t
+
+
+def _release(
+    store: MissionStore, mission_id: str, team_id: str, keep: str | None, why: str
+) -> None:
+    """The team's other sectors not yet searched go back on the board (``proposed``), with why."""
+    for t in store.state(mission_id)["tasks"]:
+        if t.team_id == team_id and t.state in ("assigned", "in_progress") and t.sector_id != keep:
+            store.upsert_task(mission_id, t.model_copy(update={
+                "state": "proposed", "team_id": None, "note": why, "updated_at": now_iso()}))  # fmt: skip
+
+
+def _supersede(store: MissionStore, mission_id: str, team_id: str, sector: str | None) -> list[str]:
+    """Pending ``assign_sector`` proposals for this team (or this sector) give way to the manager's
+    own choice."""
+    out = []
+    for p in store.state(mission_id)["proposals"]:
+        t = p.target
+        if (
+            p.status == "pending"
+            and p.kind == "assign_sector"
+            and (t.get("team") == team_id or (sector is not None and t.get("sector") == sector))
+        ):
+            store.set_proposal_status(mission_id, p.id, "superseded", by="command")
+            out.append(p.id)
+    return out
+
+
+def assign(store: MissionStore, mission_id: str, team_id: str, sector: str, by: str,
+           reason: str | None = None) -> dict:  # fmt: skip
+    """Assign a team to a sector without the agent: the sector's task → ``assigned`` to the team,
+    the team's other open sectors back on the board, the team ``assigned`` with its walking ETA,
+    and pending agent assignments for that team or sector superseded."""
+    team = team_of(store, mission_id, team_id)
+    task = _task(store, mission_id, sector)
+    if task.state == "searched":
+        raise ActionError(f"sector {sector} is searched (POD {task.pod:g}): recheck it first")
+    if task.state == "in_progress" and task.team_id != team_id:
+        raise ActionError(f"sector {sector} is being searched by {task.team_id}")
+    _release(
+        store,
+        mission_id,
+        team_id,
+        sector,
+        f"{team.callsign} reassigned to {sector} before it was searched",
+    )
+    store.upsert_task(mission_id, task.model_copy(update={
+        "state": "assigned" if task.state != "in_progress" else "in_progress", "team_id": team_id,
+        "pod": None, "note": reason or task.note, "updated_at": now_iso()}))  # fmt: skip
+    eta = eta_to(store, mission_id, team, sector)
+    store.upsert_team(mission_id, team.model_copy(update={"status": "assigned", "eta_min": eta}))
+    gone = _supersede(store, mission_id, team_id, sector)
+    return human_decision(store, mission_id, "assign", f"{team.callsign} assigned to sector {sector}",
+                          by, reason=reason, team=team_id, sector=sector,
+                          extra={"eta_min": eta, "superseded": gone})  # fmt: skip
+
+
+def recall(store: MissionStore, mission_id: str, team_id: str, by: str,
+           reason: str | None = None) -> dict:  # fmt: skip
+    """Bring a team back to base camp: ``returning``, with the walking ETA back; its sectors not yet
+    searched go back on the board."""
+    team = team_of(store, mission_id, team_id)
+    _release(store, mission_id, team_id, None, f"{team.callsign} recalled before it was searched")
+    eta = eta_to(store, mission_id, team, None)
+    store.upsert_team(mission_id, team.model_copy(update={"status": "returning", "eta_min": eta}))
+    _supersede(store, mission_id, team_id, None)
+    return human_decision(store, mission_id, "recall", f"{team.callsign} recalled to base camp", by,
+                          reason=reason, team=team_id, extra={"eta_min": eta})  # fmt: skip
+
+
+def searched(store: MissionStore, mission_id: str, sector: str, pod: float, by: str,
+             team_id: str | None = None, note: str | None = None, hooks: Any = None) -> Any:  # fmt: skip
+    """Mark a sector searched at a POD: the map lowers its cells by that POD (never to nothing), the
+    team that searched it is back on standby, the agent re-plans. Returns the map update."""
+    from sightline.mission import effects
+
+    task = _task(store, mission_id, sector)
+    if task.state == "searched":
+        raise ActionError(
+            f"sector {sector} is already searched (POD {task.pod:g}): recheck it first"
+        )
+    who = team_id or task.team_id
+    new = task.model_copy(update={"state": "searched", "team_id": who, "pod": pod, "note": note,
+                                  "updated_at": now_iso()})  # fmt: skip
+    update = effects.on_task_update(store, mission_id, new, hooks, direct=True)
+    if who is not None:
+        team = team_of(store, mission_id, who)
+        if team.status in ("assigned", "searching", "overdue"):
+            store.upsert_team(
+                mission_id, team.model_copy(update={"status": "standby", "eta_min": None})
+            )
+    human_decision(store, mission_id, "searched",
+                   f"Sector {sector} searched at POD {pod:.0%}: its probability lowered by that",
+                   by, reason=note, team=who, sector=sector, extra={"pod": pod})  # fmt: skip
+    return update
+
+
+def recheck(store: MissionStore, mission_id: str, sector: str, by: str,
+            reason: str | None = None) -> dict:  # fmt: skip
+    """Put a searched sector back on the board (``proposed``) to be searched again; the map keeps
+    what the search lowered."""
+    task = _task(store, mission_id, sector)
+    if task.state != "searched":
+        raise ActionError(f"sector {sector} is {task.state}, not searched")
+    store.upsert_task(mission_id, task.model_copy(update={
+        "state": "proposed", "team_id": None, "pod": None, "note": reason, "updated_at": now_iso()}))  # fmt: skip
+    return human_decision(store, mission_id, "recheck", f"Sector {sector} back on the board to recheck",
+                          by, reason=reason, sector=sector, extra={"last_pod": task.pod})  # fmt: skip
+
+
+def call(store: MissionStore, mission_id: str, team_id: str, text: str, by: str, radio: Any = None,
+         reply_to: str | None = None) -> dict:  # fmt: skip
+    """The manager calls a team: the radio desk speaks it (``radio``: the ``RadioContext`` when the
+    desk is mounted, so audio chunks come back) and the turn is recorded like any desk turn (trace
+    and ``radio.turn`` event). Without the desk the turn is recorded with no audio."""
+    from sightline.radio.mount import StoreMissionApi
+    from sightline.radio.turn import RadioSession, call_team
+
+    team = team_of(store, mission_id, team_id)
+    if radio is not None:
+        result = call_team(mission_id, team_id, text, radio.session(mission_id), radio.api)
+        turn, chunks = radio.speak_chunked(mission_id, result.turn)
+        if radio.on_turn is not None:
+            radio.on_turn(mission_id, turn)
+    else:
+        api = StoreMissionApi(store)
+        n = sum(e.kind == "radio_turn" for e in store.trace_entries(mission_id))
+        result = call_team(mission_id, team_id, text, RadioSession(counter=n), api)
+        turn, chunks = result.turn, []
+        api.record_turn(mission_id, turn)
+    human_decision(store, mission_id, "call", f"Call to {team.callsign}: {text}", by, team=team_id,
+                   extra={"turn_id": turn.id, "reply_to": reply_to}, emit=False)  # fmt: skip
+    return {"turn_id": turn.id, "reply": turn.reply, "audio_chunks": chunks, "at": turn.at}

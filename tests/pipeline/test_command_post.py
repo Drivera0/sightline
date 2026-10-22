@@ -257,3 +257,176 @@ def test_the_scheduler_checks_for_overdue_teams(api) -> None:
     s.mission_active(mid)
     s.run_once()
     assert _team(store, mid, "T2").status == "overdue"
+
+
+# --- direct actions -----------------------------------------------------------------------------
+
+
+def _task(store, mid, sid):
+    return next(t for t in store.state(mid)["tasks"] if t.sector_id == sid)
+
+
+def _decisions(store, mid):
+    return [
+        e.output for e in store.trace_entries(mid) if e.kind == "decision" and e.actor == "human"
+    ]
+
+
+def test_direct_actions_need_the_write_token(api) -> None:
+    client, _, _ = api
+    mid = mission(client)
+    for path, body in (("teams/T1/assign", {"sector": "B2"}), ("teams/T1/call", {"text": "radio check"}),
+                       ("teams/T1/recall", {}), ("sectors/B2/searched", {"pod": 0.5}),
+                       ("sectors/B2/recheck", {})):  # fmt: skip
+        assert client.post(f"/missions/{mid}/{path}", json=body).status_code == 401
+
+
+def test_assign_without_the_agent_supersedes_its_pending_proposal_and_logs_a_decision(api) -> None:
+    from sightline.agent import loop
+
+    client, store, _ = api
+    mid = mission(client)
+    (p, *_) = loop.handle("tick", store, mid, mid, client=None)  # the agent's assignment proposals
+    team = p.target["team"]
+    r = client.post(f"/missions/{mid}/teams/{team}/assign", headers=AUTH,
+                    json={"sector": "A1", "reason": "the trail fork", "by": "Dana"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert r.json()["action"] == "assign" and p.id in r.json()["superseded"]
+    assert _task(store, mid, "A1").state == "assigned" and _task(store, mid, "A1").team_id == team
+    t = next(t for t in store.state(mid)["teams"] if t.id == team)
+    assert t.status == "assigned" and t.eta_min is not None
+    assert next(x for x in store.state(mid)["proposals"] if x.id == p.id).status == "superseded"
+    assert _decisions(store, mid)[-1] == {**r.json()}
+    ev = [e for e in store.events(mid) if (e.data or {}).get("decision")][-1]
+    assert ev.summary == f"{t.callsign} assigned to sector A1 (by Dana)"
+    # a second assignment moves the team: A1 goes back on the board, with why
+    client.post(f"/missions/{mid}/teams/{team}/assign", headers=AUTH, json={"sector": "B1"})
+    assert (
+        _task(store, mid, "A1").state == "proposed"
+        and "reassigned to B1" in _task(store, mid, "A1").note
+    )
+    assert (
+        client.post(
+            f"/missions/{mid}/teams/T9/assign", headers=AUTH, json={"sector": "B1"}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            f"/missions/{mid}/teams/T1/assign", headers=AUTH, json={"sector": "Z9"}
+        ).status_code
+        == 404
+    )
+
+
+def test_searched_lowers_the_map_by_the_pod_and_recheck_puts_it_back_on_the_board(api) -> None:
+    client, store, hooks = api
+    mid = mission(client)
+    from sightline.mission.effects import _layout
+
+    client.post(f"/missions/{mid}/teams/T2/assign", headers=AUTH, json={"sector": "B3"})
+    before = store.live(mid).sector_poa(_layout(store, mid))["B3"]
+    r = client.post(
+        f"/missions/{mid}/sectors/B3/searched",
+        headers=AUTH,
+        json={"pod": 0.6, "note": "dense salal"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["map"]["source"] == "ground"
+    after = store.live(mid).sector_poa(_layout(store, mid))["B3"]
+    assert 0 < after < before  # lowered, never removed
+    task = _task(store, mid, "B3")
+    assert task.state == "searched" and task.pod == 0.6 and task.team_id == "T2"
+    assert next(t for t in store.state(mid)["teams"] if t.id == "T2").status == "standby"
+    assert ("on_task_searched", "B3") in hooks.calls
+    assert _decisions(store, mid)[-1]["action"] == "searched"
+    again = client.post(f"/missions/{mid}/sectors/B3/searched", headers=AUTH, json={"pod": 0.5})
+    assert again.status_code == 409
+    assert (
+        client.post(
+            f"/missions/{mid}/sectors/B3/searched", headers=AUTH, json={"pod": 0.95}
+        ).status_code
+        == 422
+    )
+    r = client.post(
+        f"/missions/{mid}/sectors/B3/recheck", headers=AUTH, json={"reason": "new clue"}
+    )
+    assert r.status_code == 200 and _task(store, mid, "B3").state == "proposed"
+    assert (
+        client.post(f"/missions/{mid}/sectors/B3/recheck", headers=AUTH, json={}).status_code == 409
+    )
+    # a sector nobody was assigned to can be marked searched directly
+    assert (
+        client.post(
+            f"/missions/{mid}/sectors/A4/searched", headers=AUTH, json={"pod": 0.3}
+        ).status_code
+        == 200
+    )
+
+
+def test_recall_brings_the_team_back_with_the_eta_to_base_camp(api) -> None:
+    client, store, _ = api
+    mid = mission(client)
+    client.post(f"/missions/{mid}/teams/T3/assign", headers=AUTH, json={"sector": "D4"})
+    client.patch(
+        f"/missions/{mid}/teams/T3",
+        headers=AUTH,
+        json={"position": {"lat": 49.3665, "lon": -122.94}},
+    )
+    r = client.post(f"/missions/{mid}/teams/T3/recall", headers=AUTH, json={"reason": "dusk"})
+    assert r.status_code == 200
+    t = next(t for t in store.state(mid)["teams"] if t.id == "T3")
+    assert t.status == "returning" and t.eta_min > 0 and r.json()["eta_min"] == t.eta_min
+    assert _task(store, mid, "D4").state == "proposed"
+
+
+def test_call_speaks_through_the_desk_and_returns_the_turn_id(api, tmp_path) -> None:
+    client, store, _ = api
+    mid = mission(client)
+    r = client.post(f"/missions/{mid}/teams/T2/call", headers=AUTH,
+                    json={"text": "Team Two, Sightline. Report your position, over.", "by": "Dana"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["reply"] == "Team Two, Sightline. Report your position, over."  # no double call-up
+    (ev,) = [e for e in store.events(mid) if e.type == "radio.turn"]
+    assert (
+        ev.ref == body["turn_id"] and ev.data["direction"] == "out" and ev.data["callsign"] == "T2"
+    )
+    assert _decisions(store, mid)[-1]["turn_id"] == body["turn_id"]
+    assert (
+        client.post(f"/missions/{mid}/teams/T9/call", headers=AUTH, json={"text": "x"}).status_code
+        == 404
+    )
+
+
+def test_call_with_the_radio_desk_mounted_returns_audio(tmp_path) -> None:
+    store = MissionStore(tmp_path / "missions")
+    ctx = MissionContext(store, queue=LocalQueue(), detector_factory=lambda: None, hooks=None)
+    ctx.start()
+    app = create_app(cache_root=tmp_path / "c", data_root=tmp_path / "u", missions=ctx, radio="text",
+                     rate_limit=None)  # fmt: skip
+    with TestClient(app) as client:
+        mid = client.post("/missions", json={"name": "S", "area_name": "A", "lkp": LKP}).json()[
+            "mission_id"
+        ]
+        r = client.post(
+            f"/missions/{mid}/teams/T1/call", json={"text": "radio check", "reply_to": "r0003"}
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["audio_chunks"] and r.json()["turn_id"].startswith("r")
+        app.state.radio.wait()
+    ctx.queue.stop()
+
+
+def test_direct_actions_are_in_the_ics_214_beside_the_approvals(api) -> None:
+    client, _store, _ = api
+    mid = mission(client)
+    client.post(
+        f"/missions/{mid}/teams/T2/assign", headers=AUTH, json={"sector": "B3", "by": "Dana"}
+    )
+    client.post(
+        f"/missions/{mid}/sectors/B3/searched", headers=AUTH, json={"pod": 0.5, "by": "Dana"}
+    )
+    md = client.get(f"/missions/{mid}/ics214.md").text
+    assert "Direct action: Team Two assigned to sector B3" in md
+    assert "Direct action: Sector B3 searched at POD 50%" in md

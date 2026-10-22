@@ -438,6 +438,19 @@ def ics214(state: dict, trace: list[TraceEntry], events: list[Any], now: str) ->
             what += f"; reason: {p.decision_reason}"
         rows.append({"at": p.decided_at, "who": p.decided_by, "what": what, "source": p.id})
 
+    for e in trace:  # the search manager's direct actions (1.3, sightline/mission/command.py)
+        out = e.output or {}
+        if (
+            e.kind == "decision"
+            and e.actor == "human"
+            and out.get("action")
+            and not out.get("proposal")
+        ):
+            what = "Direct action: " + e.summary.removesuffix(f" (by {out.get('by')})")
+            if out.get("reason"):
+                what += f"; reason: {out['reason']}"
+            rows.append({"at": e.at, "who": out.get("by"), "what": what, "source": e.id})
+
     for c in state["clues"]:
         who = _team_name(teams, c.reported_by)
         rows.append(

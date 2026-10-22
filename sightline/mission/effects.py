@@ -150,14 +150,20 @@ TASK_MOVES: dict[str, set[str]] = {
 
 
 def on_task_update(
-    store: MissionStore, mission_id: str, task: SectorTask, hooks: Any = None
+    store: MissionStore,
+    mission_id: str,
+    task: SectorTask,
+    hooks: Any = None,
+    direct: bool = False,
 ) -> MapUpdate | None | str:
     """Save the task; a sector ``searched`` with a POD steps the map over its cells (C), then the
     agent re-plans (``on_task_searched``). Only the command view's moves are allowed (LANE_E §7.2,
-    ``TASK_MOVES``)."""
+    ``TASK_MOVES``), unless ``direct``: the search manager's own action (1.3, ``command.py``) may
+    mark any sector not yet searched as searched."""
     old = next((t for t in store.state(mission_id)["tasks"] if t.sector_id == task.sector_id), None)
     before = old.state if old else "proposed"
-    if task.state != before and task.state not in TASK_MOVES[before]:
+    allowed = TASK_MOVES[before] | ({"searched"} if direct and before != "searched" else set())
+    if task.state != before and task.state not in allowed:
         raise ValueError(f"sector {task.sector_id} can't go from {before} to {task.state}")
     if task.state == "searched" and task.pod is None:
         raise ValueError("a searched sector needs a POD")
