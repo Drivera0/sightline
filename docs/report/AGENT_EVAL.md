@@ -129,10 +129,51 @@ Cost is at the catalog prices (`docs/feedback/nebius.md:18-20`: VL 0.30 / 0.90, 
 million tokens in / out, no currency on the page); the four Tavily lookups are not counted. The VL
 model said "yes, a person" on the one photo over the person in every run (p50 1.6 s). Two things the
 fakes do not show: the slowest step is now the model (tick → assign_sector p50 2.4 s, review → alert
-p50 0.8 s, against 63 ms and 33 ms with fakes), and **8 of the 19 briefings fell back to the
-template** after a rejected retry (12 rejections for more than 60 words, 2 for no punctuation, 2 for
-telling a team to stop). The guards held, so no bad briefing reached a proposal, but Nano's briefings
-need a shorter prompt or a word limit it keeps.
+p50 0.8 s, against 63 ms and 33 ms with fakes), and, with the first briefing prompt (v1), **8 of the
+19 briefings fell back to the template** after a rejected retry (12 rejections for more than 60
+words, 2 for no punctuation, 2 for telling a team to stop). The guards held, so no bad briefing
+reached a proposal. The prompt is fixed (v2, below): replayed on the same 19 situations, 0 of 19 fall
+back.
+
+### Briefing prompt v2: the same 19 briefings, replayed
+
+**What went wrong with v1.** The 12 long replies were 63-67 words, and each one copied the planner's
+48-word reason ("Sector B3 holds 3.1% of the probability, 50% of it under tree cover where a drone
+sees poorly (drone POD 0.43): a ground team adds the most here; ...") word for word. The retry sent
+the rejected text back with "Problems: more than 60 words", and Nano returned the same text,
+token for token, all 8 times.
+
+**What changed** (`sightline/agent/prompts.py`, `briefing-v2`; the check in `loop.check_briefing` is
+unchanged). The limits are a numbered list: at most 45 words (the check rejects above 60), two to four
+short sentences, a full stop on every sentence, only numbers in the facts, as digits, never copy a
+long fact word for word, never tell a team to stop or wait or say nothing is needed (say the task the
+facts give instead, and give no order when they give none), a sighting is not a find, never "clear",
+start with the team's name and end with "Over." The prompt has one good and one bad example (the bad
+one is the copied reason, 63 words) and a good alert with no team and no order. The retry no longer
+sends the rejected text back: it says "It had 67 words. Reasons: more than 60 words" and asks again
+from the facts. Every attempt's trace entry records `prompt_version` and `attempt`.
+
+**Measured.** `scripts/briefing_replay.py` takes the facts of every briefing from the v1 run's traces
+(`inputs.json`, 19 situations, in order) and sends each through `loop.write_briefing` live, with the
+agent's client (Nemotron 3 Nano, thinking off). Files in
+`docs/evidence/agent_eval/live-creek-20261022-1319/`: `before.json` (the v1 run, recounted from its
+traces), `after.json` and `briefings.md` (every v2 briefing, its word count and outcome), and a second
+replay in `repeat/`.
+
+| Briefing prompt | First try accepted | Retries accepted | Fell back to the template | Rejections | Model calls | p50 latency | p50 tokens in / out | Tokens in / out (all) |
+|---|---|---|---|---|---|---|---|---|
+| v1 (live run, 13:05) | 11/19 | 0/8 | **8/19** | 12 over 60 words, 2 no punctuation, 2 stop | 27 | 727 ms | 275 / 71 | 8,854 / 2,054 |
+| v2 (replay, 13:19) | 19/19 | – (no retries) | **0/19** | none | 19 | 590 ms | 817 / 67 | 15,379 / 1,160 |
+| v2 (second replay) | 19/19 | – (no retries) | **0/19** | none | 19 | 608 ms | 817 / 69 | 15,379 / 1,170 |
+
+v2 briefings are 19-46 words (median 42). The examples triple the prompt (p50 275 → 817 tokens in), so
+the 19 briefings cost about 0.0012 instead of 0.0010 at Nano's catalog prices, with 8 fewer calls.
+Limits of this measurement: the retry path was not exercised live (no reply was rejected; the fake-LLM
+test `test_a_61_word_briefing_is_retried_with_the_reason_and_count` covers it); the 19 situations are
+only 3 kinds of facts (assign_sector with the planner's reason, alert to a team, alert with no team),
+and the prompt was written while looking at them, so a new kind of facts may do worse. Before v2's
+alert example, Nano wrote "All teams, search sector C3" for an alert with no task; the check does not
+catch an invented order, so the alert example stays.
 
 ## Re-look leg: an unclear second look sends a drone lower
 
