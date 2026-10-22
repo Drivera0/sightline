@@ -25,6 +25,8 @@ export interface CommandProps {
   onUpdateTeam: (teamId: string, patch: Partial<Team>) => void | Promise<void>;
   onAddClue: (draft: ClueDraft) => void | Promise<void>;
   onDecide: Decide;
+  /** Pick the clue's position on the live map (B-M3); null when cancelled. Without it, type lat/lon. */
+  onPickOnMap?: () => Promise<{ lat: number; lon: number } | null>;
   now?: () => Date;
 }
 
@@ -49,7 +51,7 @@ export function CommandView(p: CommandProps) {
         </div>
         <ApprovalInbox proposals={p.proposals} teams={p.teams} onDecide={p.onDecide} imageUrl={p.imageUrl} />
       </div>
-      <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} />
+      <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} />
     </div>
   );
 }
@@ -295,7 +297,17 @@ export function TeamRoster({ teams, tasks, now }: { teams: readonly Team[]; task
 
 const KINDS: ClueDraft["kind"][] = ["object", "track", "sighting", "sound", "other"];
 
-export function ClueLog({ clues, teams, onAddClue }: { clues: readonly Clue[]; teams: readonly Team[]; onAddClue: CommandProps["onAddClue"] }) {
+export function ClueLog({
+  clues,
+  teams,
+  onAddClue,
+  onPickOnMap,
+}: {
+  clues: readonly Clue[];
+  teams: readonly Team[];
+  onAddClue: CommandProps["onAddClue"];
+  onPickOnMap?: CommandProps["onPickOnMap"];
+}) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<ClueDraft["kind"]>("object");
   const [text, setText] = useState("");
@@ -363,6 +375,21 @@ export function ClueLog({ clues, teams, onAddClue }: { clues: readonly Clue[]; t
               <>
                 <input aria-label="Latitude" className={`${field} w-28`} value={lat} onChange={(e) => setLat(e.target.value)} />
                 <input aria-label="Longitude" className={`${field} w-28`} value={lon} onChange={(e) => setLon(e.target.value)} />
+                {onPickOnMap && (
+                  <button
+                    type="button"
+                    className="rounded-full border border-border px-3 py-1 text-small text-text-2"
+                    onClick={async () => {
+                      const p = await onPickOnMap();
+                      if (p) {
+                        setLat(p.lat.toFixed(6));
+                        setLon(p.lon.toFixed(6));
+                      }
+                    }}
+                  >
+                    Pick on map
+                  </button>
+                )}
               </>
             )}
             <select aria-label="Reliability" className={field} value={reliability} onChange={(e) => setReliability(e.target.value as ClueDraft["reliability"])}>

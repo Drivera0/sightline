@@ -53,6 +53,50 @@ export interface MapProviderProps extends PropsWithChildren {
 export interface MapContextValue {
   map: Map | null;
   flyTo: (lon: number, lat: number, zoom?: number) => void;
+  /** B-M3: pick a point. Crosshair cursor; the next click resolves once; Esc or the returned function
+   * cancels (`onCancel` is called). Starting a pick cancels any other. */
+  onPick: (cb: (lngLat: { lat: number; lon: number }) => void, onCancel?: () => void) => () => void;
+}
+
+type PickMap = Pick<Map, "getCanvas" | "once" | "off">;
+let activePick: (() => void) | null = null;
+
+/** The pick itself, on any map (exported for tests). Only one pick is active at a time. */
+export function startPick(
+  map: PickMap,
+  cb: (lngLat: { lat: number; lon: number }) => void,
+  onCancel?: () => void,
+  doc: Document = document,
+): () => void {
+  activePick?.();
+  const canvas = map.getCanvas();
+  const before = canvas.style.cursor;
+  canvas.style.cursor = "crosshair";
+  let live = true;
+  const end = () => {
+    live = false;
+    canvas.style.cursor = before;
+    map.off("click", onClick);
+    doc.removeEventListener("keydown", onKey);
+    if (activePick === cancel) activePick = null;
+  };
+  const onClick = (e: { lngLat: { lat: number; lng: number } }) => {
+    if (!live) return;
+    end();
+    cb({ lat: e.lngLat.lat, lon: e.lngLat.lng });
+  };
+  const cancel = () => {
+    if (!live) return;
+    end();
+    onCancel?.();
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") cancel();
+  };
+  map.once("click", onClick);
+  doc.addEventListener("keydown", onKey);
+  activePick = cancel;
+  return cancel;
 }
 
 const MapContext = createContext<MapContextValue | null>(null);
@@ -93,7 +137,11 @@ export function MapProvider({
     },
     [map],
   );
-  const value = useMemo(() => ({ map, flyTo }), [flyTo, map]);
+  const onPick = useCallback<MapContextValue["onPick"]>(
+    (cb, onCancel) => (map ? startPick(map, cb, onCancel) : (onCancel?.(), () => {})),
+    [map],
+  );
+  const value = useMemo(() => ({ map, flyTo, onPick }), [flyTo, map, onPick]);
 
   return (
     <MapContext.Provider value={value}>

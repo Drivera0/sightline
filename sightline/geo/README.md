@@ -337,5 +337,10 @@ radio would have read sweep points and "north-west corner" as landmarks, and "12
   file ("rejected 1 (not a valid JPEG)": it used to crash the watcher before the mission existed).
 - `httpx` is now a main dependency.
 
-Still lane B's: map layers, importing a card into CalTopo for the report screenshot.
+## Map pick and live layers (done by lane A, #74)
+
+- **B-M3 `onPick`** on `useMap()` (`web/src/map/MapView.tsx`, `startPick`): crosshair, the next click resolves once, Esc or the returned function cancels (optional `onCancel`), one pick at a time. `web/src/map/pick.ts` lets a form elsewhere on the page ask for one; the clue form's **Pick on map** fills lat/lon. Tests: `web/src/map/pick.test.ts`, `CommandView.test.tsx`.
+- **Layers on the live map** (`web/src/map/heat/LiveHeatMap.tsx`, first pass, in one component): clue pins, team markers, drone markers labelled "(simulated)", and approved/flying legs as dashed lines. Checked in Chromium with the fleet sim flying a leg; a clue placed by clicking the map was posted.
+
+Still lane B's: splitting those into `web/src/map/base/{clue,team,drone,leg}Layer.ts` with clicks → `useSelection` if wanted; importing a card into CalTopo for the report screenshot.
 

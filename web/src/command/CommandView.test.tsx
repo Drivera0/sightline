@@ -75,6 +75,16 @@ describe("CommandView", () => {
     expect(p.onAddClue).toHaveBeenCalledWith(expect.objectContaining({ kind: "object", text: "blue backpack by the creek", at_team_position: true, reported_by: "T2", source: "form" }));
   });
 
+  it("fills the clue's lat/lon from a pick on the map (B-M3)", async () => {
+    const p = setup({ onPickOnMap: vi.fn().mockResolvedValue({ lat: 49.3731234, lon: -122.9357654 }) });
+    await userEvent.click(screen.getByRole("button", { name: "+ Add clue" }));
+    await userEvent.type(screen.getByLabelText("What"), "boot print");
+    await userEvent.selectOptions(screen.getByLabelText("Where"), "latlon");
+    await userEvent.click(screen.getByRole("button", { name: "Pick on map" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(p.onAddClue).toHaveBeenCalledWith(expect.objectContaining({ lat: 49.373123, lon: -122.935765, at_team_position: false, reported_by: "command" }));
+  });
+
   it("shows the five likeliest unassigned sectors, the rest on request", async () => {
     const tasks = Array.from({ length: 13 }, (_, i) => task(`X${i}`, "proposed"));
     const sectors = tasks.map((t, i) => ({ sector_id: t.sector_id, label: t.sector_id, poa: 0.01 * (i + 1), drone_coverage: 0 }));

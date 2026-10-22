@@ -9,6 +9,7 @@ import { photoProgress, useMission } from "../lib/mission";
 import { ApprovalInbox } from "../command/ApprovalInbox";
 import { CommandView } from "../command/CommandView";
 import { LiveHeatMap } from "../map/heat/LiveHeatMap";
+import { usePick } from "../map/pick";
 import { Badge, Label, Panel, Stat } from "../shell/components";
 import { RadioDesk } from "../radio/RadioDesk";
 import { LiveReview } from "../review/LiveReview";
@@ -146,7 +147,7 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
       )}
 
       {tab === "command" && (
-        <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} />
+        <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} />
       )}
       {tab === "command" && (
         <CommandView
@@ -162,6 +163,10 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
           onSetTask={(sector, body) => useMission.getState().setTask(sector, body)}
           onUpdateTeam={(id, patch) => useMission.getState().updateTeam(id, patch)}
           onAddClue={(draft) => useMission.getState().addClue(draft)}
+          onPickOnMap={() => {
+            document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            return usePick.getState().request();
+          }}
           onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
         />
       )}
