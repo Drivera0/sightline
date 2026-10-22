@@ -134,3 +134,36 @@ def test_streams_pass_through_untouched() -> None:
     assert client.post("/events").status_code == 401
     with pytest.raises(ValueError):
         WriteToken(app, "")
+
+
+def test_creek_run_sends_the_token(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import io
+    import sys
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "scripts"))
+    sys.modules.pop("creek_run", None)
+    import agent_live
+    import creek_run
+
+    sent: list[dict] = []
+
+    def urlopen(request, timeout):
+        sent.append({k.lower(): v for k, v in request.header_items()})
+        return io.BytesIO(b"{}")
+
+    monkeypatch.setattr(agent_live.urllib.request, "urlopen", urlopen)
+    photo = tmp_path / "a.jpg"
+    photo.write_bytes(b"\xff\xd8")
+    monkeypatch.delenv("SIGHTLINE_API_TOKEN", raising=False)
+    agent_live.call("http://api.test", "POST", "/missions", BODY)
+    with creek_run.api_client("http://api.test") as http:
+        assert "authorization" not in http.headers
+    monkeypatch.setenv("SIGHTLINE_API_TOKEN", TOKEN)
+    agent_live.call("http://api.test", "POST", "/missions", BODY)
+    agent_live.upload("http://api.test", "m1", [photo])
+    with creek_run.api_client("http://api.test") as http:
+        assert http.headers["authorization"] == f"Bearer {TOKEN}"
+    assert "authorization" not in sent[0]
+    assert all(s["authorization"] == f"Bearer {TOKEN}" for s in sent[1:])
+    assert sent[1]["content-type"] == "application/json"
+    assert sent[2]["content-type"].startswith("multipart/form-data")

@@ -14,7 +14,8 @@
 Every scripted step is a ``human`` entry in the trace saying so. When the real conditions say the
 drones can't fly (a night rehearsal), the fair-weather fixture is put in instead, and the trace says
 so. Prints a timeline with wall-clock seconds and saves it with the mission under
-``runs/creek/<timestamp>/``. Validation photos only.
+``runs/creek/<timestamp>/``. Validation photos only. With ``SIGHTLINE_API_TOKEN`` set (the server
+then wants a write token), every write sends it: ``agent_live.call`` and the fleet's ``api_client``.
 """
 
 from __future__ import annotations
@@ -37,6 +38,15 @@ OPENING = ("A2", "A3", "B2")  # away from the creek: the clue has to move a dron
 CANDIDATE_MIN = 0.5
 
 
+def api_client(base: str):
+    """The fleet's HTTP client: ``Authorization: Bearer`` from ``SIGHTLINE_API_TOKEN`` when set."""
+    import httpx
+
+    from sightline.client import auth_headers
+
+    return httpx.Client(base_url=base, timeout=60, headers=auth_headers())
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -46,7 +56,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--limit-s", type=float, default=900.0, help="give up after this long")
     args = ap.parse_args(argv)
 
-    import httpx
     from dotenv import dotenv_values
 
     from sightline.agent.trace import now_iso, trace_call
@@ -127,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
             mark("conditions: fair-weather fixture (real ones say no flying)")
 
         # 1. the fleet joins; the scripted manager approves the opening legs
-        with httpx.Client(base_url=base, timeout=60) as http:
+        with api_client(base) as http:
             sim = FleetSim(
                 http,
                 mid,

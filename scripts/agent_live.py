@@ -9,7 +9,8 @@ site, give it a **simulated** fleet (lane C's fleet sim isn't in yet; labelled),
 as a **scripted** search manager (labelled). Waits for the agent to finish each step, then prints
 and saves what it did: proposals, verdicts, the trace by kind, model calls, map updates, and
 ``validate_mission``. Output: ``runs/agent_live/<timestamp>/`` (mission files + ``summary.json``).
-Val photos only; costs a few cents of tokens.
+Val photos only; costs a few cents of tokens. Against a server with a write token, set
+``SIGHTLINE_API_TOKEN``: ``call`` and ``upload`` send it (``scripts/creek_run.py`` uses them too).
 """
 
 from __future__ import annotations
@@ -43,12 +44,14 @@ APPROVER = "Search manager (scripted approval for this run)"
 
 
 def call(base: str, method: str, path: str, body: dict | None = None) -> dict:
+    from sightline.client import auth_headers
+
     data = json.dumps(body).encode() if body is not None else None
     r = urllib.request.Request(
         base + path,
         data=data,
         method=method,
-        headers={"Content-Type": "application/json"} if data else {},
+        headers={**auth_headers(), **({"Content-Type": "application/json"} if data else {})},
     )
     try:
         with urllib.request.urlopen(r, timeout=60) as resp:
@@ -58,6 +61,8 @@ def call(base: str, method: str, path: str, body: dict | None = None) -> dict:
 
 
 def upload(base: str, mid: str, files: list[Path]) -> dict:
+    from sightline.client import auth_headers
+
     b = uuid.uuid4().hex
     body = (
         b"".join(
@@ -71,7 +76,7 @@ def upload(base: str, mid: str, files: list[Path]) -> dict:
     r = urllib.request.Request(
         f"{base}/missions/{mid}/photos",
         data=body,
-        headers={"Content-Type": f"multipart/form-data; boundary={b}"},
+        headers={**auth_headers(), "Content-Type": f"multipart/form-data; boundary={b}"},
     )
     with urllib.request.urlopen(r, timeout=300) as resp:
         return json.loads(resp.read())
