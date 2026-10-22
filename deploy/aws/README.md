@@ -71,10 +71,18 @@ Secrets Manager stay well under $1 for a demo. Stop the instance between demos; 
 **Checked locally (2026-10-21):** the image (with the `agent`, `conditions` and `aws` extras) runs the mission API; one
 real HERIDAL val photo through `POST /photos` → `photo.processed` in 2.4 s (cv2.dnn 2.0 s, 32 threads).
 
+**Deployed (2026-10-22, us-west-2, c7i.xlarge, 4 vCPU):** `https://44-227-39-234.sslip.io/health` → `{"status":"ok",
+"contract_version":"1.2","backend":"cv2"}`. Three real HERIDAL **val** photos (4000×3000) uploaded at once: all three
+`photo.processed` over SSE 31 s after the upload began, the worker taking them one at a time, **about 10 s each**
+(cv2.dnn 9.4–9.8 s, pose 0.2 s, store 0.2–0.4 s); the agent's second look ran on Nemotron with the key from Secrets
+Manager (5 verdicts). cv2.dnn needs ~30 CPU-seconds per full photo, so a bigger instance is roughly linear: 8 vCPU ≈ 5 s,
+16 vCPU ≈ 2.5 s (`INSTANCE_TYPE=c7i.4xlarge`). Found on the first run, fixed in `setup.sh`: boto3 needs
+`AWS_DEFAULT_REGION` (not `AWS_REGION`), and the secret's ARN must come from the create call.
+
 ## Still to do
 
 - [x] `worker` command, SQS FIFO queue, S3 originals, CloudWatch metrics, Secrets Manager (lane A)
 - [x] `docker-compose.yml`, Caddy (HTTPS, SSE unbuffered), `setup.sh`, `teardown.sh`, `iam-policy.json` (lane A)
 - [x] first `docker build` + `container_check.py` (locally, lane A; numbers above)
-- [ ] Run `setup.sh` on the team account; `container_check.py` on the instance; per-photo latency and a dashboard
-      screenshot for the OpenCV report §6
+- [x] `setup.sh` run on the team account (lane A); per-photo latency above
+- [ ] Dashboard screenshot for the OpenCV report §6; choose the instance size for the demo
