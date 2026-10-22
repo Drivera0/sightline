@@ -25,7 +25,7 @@ Nemotron-3.5-Super-VL 0.30 in / 0.90 out; Nemotron 3 Super 0.30 / 0.90; Nemotron
 ## 1. Token Factory: the chat completions API
 
 **What we used it for.** Every language and vision model call in Sightline, at run time, through one
-client (`sightline/agent/llm.py:23-25`): vision verdicts, briefings, conditions extraction and radio
+client (`sightline/agent/llm.py:203`): vision verdicts, briefings, conditions extraction and radio
 turns with tool calls.
 
 **What worked.**
@@ -38,10 +38,10 @@ turns with tool calls.
 - **Thinking tokens count against `max_tokens`, silently.** Our first smoke test asked for a 2-word
   reply with `max_tokens` of 20–60 and got **empty content** with `finish_reason: length`: the model had
   spent the budget thinking, and nothing in the response says so. We now default to 2048 and raise a
-  clear error for this case (`sightline/agent/llm.py:228-229`). A `reasoning_tokens` field, or a
+  clear error for this case (`sightline/agent/llm.py:326`). A `reasoning_tokens` field, or a
   warning, would make it obvious.
 - **Turning thinking off is not documented where you look first.**
-  `extra_body={"chat_template_kwargs": {"enable_thinking": false}}` works (`llm.py:31`), but we found it
+  `extra_body={"chat_template_kwargs": {"enable_thinking": false}}` works (`llm.py:35`), but we found it
   by trial; it belongs in the model card and the quick-start.
 - **Model ids differ in casing and style** (`nemotron-3-super-120b-a12b`,
   `NVIDIA-Nemotron-3-Nano-30B-A3B`, `Nemotron-3.5-Super-VL`), so we copied each from the console. A
@@ -51,7 +51,7 @@ turns with tool calls.
   URL served all three for us; the catalog does not say whether region affects latency.
 
 **Onboarding.** Zero to the first chat reply: `<Dan: minutes>` (sign-up → key), `<Dan: minutes>`
-(first call). The one-line check we now give others is in `README.md:100`.
+(first call). The one-line check we now give others is in `README.md:113`.
 
 **Would we build with it again?** Yes. One OpenAI-compatible client for vision, text and tools, with
 reliable structured output, is what let a small team wire five jobs to NVIDIA models in a week.
@@ -72,7 +72,7 @@ go in; a JSON verdict comes out (person yes/no/unclear, posture, group size, clo
 | Tokens per call | about 890 in, 67 out (mean of all 461 calls) | `docs/report/OPENCV_REPORT.md:469` |
 | Cost per call (catalog prices) | about 0.00033, so about 0.33 per 1,000 uncertain detections; all 461 evaluation calls 461 × 0.00033 ≈ 0.15 | `docs/report/OPENCV_REPORT.md:470-471` |
 | JSON schema compliance | 461 / 461 valid on the first try | `docs/report/OPENCV_REPORT.md:471`; `docs/architecture/agent.md:221-222` |
-| Real people called `yes` (val, prompt v2) | 75 % of near-miss people (9 of 12), 86 % of queue people | `docs/LANE_A_ML.md:303`; run file `runs/verifier/val-verify-v2-20261020-165932.json` (local runs, not in git, named in `docs/LANE_A_ML.md` §6.8) |
+| Real people called `yes` (val, prompt v2) | 75 % of near-miss people (9 of 12), 86 % of queue people | `docs/LANE_A_ML.md:304`; run file `runs/verifier/val-verify-v2-20261020-165932.json` (local runs, not in git, named in `docs/LANE_A_ML.md` §6.8) |
 | False alarms called `no` (val, prompt v2) | 17 % of near-miss false alarms, 13 % of queue ones | the same run file |
 | Person boxes under 60 px (test) | 65 % answered `unclear`; 2 of 8 people called `yes` | `docs/LANE_A_ML.md:314` |
 | Effect on the search (test, once) | 4 more of 337 people found (recall 0.864 → 0.875, 95 % CI [+0.003, +0.023]) for 15 more false alarms | `docs/report/OPENCV_REPORT.md:464-465` |
@@ -87,7 +87,7 @@ pants") where the frame crop was a blur (`docs/architecture/av-chain/trace.jsonl
   are full of 40–80 px people seen from above; this is the regime that matters.
 - **Calibration between prompts.** With a neutral prompt (v1) it called many near-miss false alarms
   (rocks, bags, shadows) a person: 45 of 75 (`docs/LANE_A_ML.md:295`). A stricter prompt (v2) cut
-  promoted false alarms from 45 to 24 on val but also kept 2 fewer people (`docs/LANE_A_ML.md:303`).
+  promoted false alarms from 45 to 24 on val but also kept 2 fewer people (`docs/LANE_A_ML.md:304`).
   Confidence scores, or log-probs on the `person` field, would let us set an operating point instead of
   rewording prompts.
 - **Val → test shift.** The same prompt answered `yes` for 75 % of near-miss people on val and 36 % on
@@ -103,8 +103,8 @@ not yet as the deciding signal; we use it as advice that a person approves.
 ## 3. Nemotron 3 Nano (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`)
 
 **What we used it for.** 60-word radio briefings for ground teams from a dict of facts
-(`sightline/agent/loop.py:151`), and reading weather and park pages found by Tavily, returning each value
-with the sentence it came from (`sightline/geo/conditions.py:316`).
+(`sightline/agent/loop.py:160`), and reading weather and park pages found by Tavily, returning each value
+with the sentence it came from (`sightline/geo/conditions.py:317`).
 
 **What worked.** All 5 live briefings passed our post-check (no "clear"/"cleared", every number in the
 facts) on the first call once the prompt said "write numbers as digits, only numbers in the facts".
@@ -147,7 +147,7 @@ thinking on (`docs/feedback/radio.md:28-31`).
 **What needs work.**
 - **Reasoning leaked into the reply** with thinking off: "Now respond per rules … Keep brief.`</think>`
   Team Two, Sightline…", and our radio spoke it aloud (`docs/feedback/radio.md:115-120`). We strip
-  everything up to the last `</think>` (`sightline/agent/llm.py:43`). Expected: no reasoning in `content`
+  everything up to the last `</think>` (`sightline/agent/llm.py:58`). Expected: no reasoning in `content`
   with thinking off, or reasoning always in `reasoning_content`.
 - **Describing a tool call instead of making it** ("calling get_sector_boundary…"), **claiming a clue was
   drafted without calling `draft_clue`** (3 of 6 reports late in a conversation), and **invented weather**
@@ -214,7 +214,7 @@ SUPER through NeMo (`sightline/radio/asr.py`). Not on Token Factory.
 **Measured.** 45–130 ms per phrase for 3.9–8.7 s of audio; loads in 32 s; 6.1 GB GPU peak with Magpie
 also loaded (`docs/feedback/radio.md:13`, `:17`). WER on the three spike phrases was 0.29 / 0.11 / 0.00
 before normalisation, almost all of it number and word-split style (`docs/feedback/radio.md:36-40`). WER
-on human volunteers' voices is not measured yet (issue #49, `docs/feedback/radio.md:137-143`).
+on human volunteers' voices is not measured yet (issue #49, `docs/feedback/radio.md:137-145`).
 
 **What worked.** Fast enough that speech to text is never the bottleneck. Word timestamps came free.
 No Hugging Face token needed.
@@ -222,10 +222,10 @@ No Hugging Face token needed.
 **What needs work.** It writes numbers as digits and sometimes splits words ("Team Two" → "Team 2",
 "Sightline" → "Sight line"), so every voice agent needs its own normaliser. A documented
 inverse-text-normalisation switch would help. NeMo pins its own Lightning and torch versions, so it needs
-its own environment (`docs/feedback/radio.md:153-155`).
+its own environment (`docs/feedback/radio.md:168-169`).
 
 **Onboarding.** `uv pip install "nemo_toolkit[asr,tts]"`, then our spike script runs in about 2 minutes
-and downloads about 3 GB once (`docs/feedback/radio.md:148-150`). Install → first transcript:
+and downloads about 3 GB once (`docs/feedback/radio.md:165`). Install → first transcript:
 `<Dan: minutes>`.
 
 **Would we build with it again?** Yes. Fast and accurate for short radio phrases on one consumer GPU.
@@ -237,7 +237,7 @@ and downloads about 3 GB once (`docs/feedback/radio.md:148-150`). Install → fi
 
 **Measured.** About 0.5× real time in the spike (1.8–4.8 s to generate 3.9–8.7 s of speech), about 0.66×
 in later runs; loads in 57 s (`docs/feedback/radio.md:15`, `:59`). Full voice turns: TTS 4.6–10.4 s
-depending on reply length, the bottleneck for a 5 s target (`docs/feedback/radio.md:57-58`). Speaking
+depending on reply length, the bottleneck for a 5 s target (`docs/feedback/radio.md:58`). Speaking
 sentence by sentence with a cached "<Callsign>, Sightline." opener brought time to first audio to
 3.6–3.7 s (`docs/feedback/radio.md:60-61`), and first sound with real voices to 2.5 s p50, 3.0 s p90
 (`docs/feedback/radio.md:101`).

@@ -10,7 +10,7 @@ The public build has no API address baked in, so "Start a new search" opens a pa
 mission server runs during demos and judging; here is the demo mission", with two links that work without
 a server: the demo mission's command view and the guided demo (`web/src/App.tsx:42-75`). The demo mission
 needs no server (`web/src/App.tsx:33-36`). The AWS API is stopped between demos to save cost
-(`README.md:209-210`), so at 10 pm a live mission is not available unless it was started. During judging
+(`README.md:226-227`), so at 10 pm a live mission is not available unless it was started. During judging
 `.github/workflows/judging-check.yml` checks the API every 6 hours and opens an issue when it fails
 (`deploy/aws/README.md:107-115`); whether the instance stays up all through judging is a decision for Dan.
 
@@ -37,7 +37,7 @@ answer it.
 
 About 0.86: the reported 0.864 or slightly below, because the alternatives differed by less than
 validation can resolve and the dropped model had the higher test recall (`docs/report/OPENCV_REPORT.md:295-302`,
-`README.md:31`). We don't have an untouched number. Two bounds from the repo: validation recall at the same
+`README.md:40`). We don't have an untouched number. Two bounds from the repo: validation recall at the same
 threshold is 0.859 (`docs/report/OPENCV_REPORT.md:141-142`), and on the four test sites the model has
 never seen it is 0.825 against 0.883 on trained sites (`docs/DETECTOR_LIMITS.md:117`), so on new terrain
 expect nearer 0.825. Scoring once on a new held-out set (for example SARD) would settle it.
@@ -77,13 +77,13 @@ the agent evaluation injects this and shows it in the trace (`docs/report/OPENCV
 ### 8. HERIDAL's original terms: may the imagery be shown on a public site?
 
 We use the VOC-format copy by Pyrrö (2021), which is published under CC BY 3.0, and we attribute it
-(`README.md:237`, `:241`). We have not cited the original HERIDAL release's own terms page, so we don't
+(`README.md:254`, `:258`). We have not cited the original HERIDAL release's own terms page, so we don't
 know yet whether it adds conditions. Citing the original release page (or asking its authors) would
 resolve it.
 
 ### 9. AGPL + ONNX weights: can North Shore Rescue deploy on a Jetson without open-sourcing their stack?
 
-Our code is AGPL-3.0 to match Ultralytics, which the detector is trained with (`README.md:241`), and we
+Our code is AGPL-3.0 to match Ultralytics, which the detector is trained with (`README.md:258`), and we
 treat the exported ONNX weights as covered too. For a team running it unmodified, AGPL asks for source
 only when they distribute it or offer it over a network to others; for a modified stack it would. We
 are not lawyers and have not asked. An answer from Ultralytics on its enterprise licence, or a detector
@@ -111,6 +111,6 @@ answer it.
 On a 16-core desktop with the GPU hidden, yes: `scripts/reproduce_cv2.py` runs the 101 test photos through
 OpenCV 5 `cv2.dnn` only and checks the three VOC scores against the published ones in 4 min 58 s (about
 5 min 10 s with the downloads), measured while another job used about 11 of the 32 threads
-(`README.md:149-160`, `docs/report/OPENCV_REPORT.md:939-952`). On a laptop we haven't timed it; the detector
+(`README.md:158-169`, `docs/report/OPENCV_REPORT.md:939-952`). On a laptop we haven't timed it; the detector
 needs about 30 CPU-seconds per full photo (`docs/report/OPENCV_REPORT.md:331`), so the time grows as the core
 count falls. Timing a clean run on a laptop would give an honest number.
