@@ -69,6 +69,6 @@ describe("a demo override on screen", () => {
     render(<ConditionsPanel id="c" data={{ conditions: OVERRIDE, lookup, recorded: null, limitKmh: 43.2, drone: "Drone 1" }} now={new Date("2026-10-22T09:25:00Z")} time={(i) => i} />);
     expect(screen.getByText("Demo override: not from Tavily")).toBeInTheDocument();
     expect(screen.queryByText("gusts 40")).toBeNull();
-    expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+    expect(document.body.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 });

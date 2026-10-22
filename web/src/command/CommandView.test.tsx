@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
 import { clueProblem, CommandView, HINT_KEY, missionStatus, type CommandProps } from "./CommandView";
+import { clock, zone } from "../lib/time";
 
 const NOW = new Date("2026-10-24T22:00:00Z");
 const task = (sector_id: string, state: SectorTask["state"], team_id: string | null = null, pod: number | null = null): SectorTask => ({
@@ -183,6 +184,14 @@ describe("CommandView", () => {
     expect(screen.getByLabelText("Mission header")).toHaveTextContent("22:00 UTC");
   });
 
+  it("live: the header clock names the browser's zone too, so a bare 03:37 never shows", () => {
+    setup({ status: "live" });
+    const d = new Date("2026-10-24T22:00:00Z");
+    const label = `${clock(d, false)} ${zone(d, false)}`;
+    expect(zone(d, false)).not.toBe("");
+    expect(screen.getByLabelText("Mission header")).toHaveTextContent(label);
+  });
+
   it("the shortcut overlay lists the console's keys", async () => {
     const { SHORTCUT_GROUPS } = await import("../shell/shortcuts");
     const console_ = SHORTCUT_GROUPS.find((g) => g.title === "Command console");
@@ -191,6 +200,6 @@ describe("CommandView", () => {
 
   it('never says "clear"', () => {
     setup();
-    expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+    expect(document.body.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 });

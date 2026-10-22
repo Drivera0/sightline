@@ -852,7 +852,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
   the mission's trace; stale values are labelled with their time; the heuristics say they are
   heuristics on screen.
 - **The web app is scanned for the word** too: every visible string in `web/src` that contains
-  "clear"/"cleared" must be on a reviewed list of negations (`web/src/noClear.test.ts`).
+  "clear", "clears", "cleared" or "clearing" must be on a reviewed list of negations (`web/src/noClear.test.ts`).
 - **No secrets in the browser, the repo or the trace**; keys come from environment variables
   and, on AWS, Secrets Manager (§4).
 - **Honest evaluation:** thresholds and rules are chosen on validation; test is scored once per

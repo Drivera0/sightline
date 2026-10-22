@@ -6,12 +6,13 @@
 // fades out with a dashed trail to the new one (legLayer.ts), each drone's ring says its simulated
 // link (ok, degraded, lost), and dots travel along a drone's relay for a cut-off team (relayLayer.ts).
 // One requestAnimationFrame loop, only while something moves.
-// Labels: a drone shows only "D2 88%" and a SIM chip; its full line (name, battery, the link in words,
-// last heard) is a hover/focus tooltip and in the hidden text summary. Labels never overlap: MapLibre's
-// symbol collision drops or moves them. Layers higher up are placed first (drones, then clue/team
-// labels, then sector POA labels, which move inside their sector rather than vanish); inside a layer
-// `symbol-sort-key` decides (lost link first; last known point, then clues, then teams; likeliest
-// sector first).
+// Labels: a drone shows only "D2 88%" and a SIM chip, a team only "T3"; their full lines (name, battery,
+// the link in words, last heard; callsign, status, position age) are hover/focus tooltips and in the
+// hidden text summary. Labels never overlap: MapLibre's symbol collision moves or drops them. Layers
+// higher up are placed first: drones, then the last known point and clues, then teams, then sector POA
+// labels (which move inside their sector rather than vanish). Inside a layer `symbol-sort-key` decides
+// (lost link first; last known point before clues; likeliest sector first). Drones bunched at home
+// after a recall try eight spots around their dot before a label is dropped.
 // Built by lane A for lanes C and B (issues #64, #74).
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Marker, Popup, type GeoJSONSource, type Map } from "maplibre-gl";
@@ -44,6 +45,7 @@ export const LIVE_IDS = {
   points: "live-heat-points",
   legs: "live-heat-legs",
   pointLabels: "live-heat-point-labels",
+  teamLabels: "live-heat-team-labels",
   drones: "live-heat-drones",
   droneLabels: "live-heat-drone-labels",
   droneSim: "live-heat-drone-sim",
@@ -107,7 +109,8 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
   const [readyMap, setReadyMap] = useState<Map | null>(null);
   const ready = map !== null && readyMap === map;
   const drawn = useRef(false);
-  const droneTargets = useRef<Record<string, DroneTarget>>({});
+  const droneTargets = useRef<Record<string, MapTarget>>({});
+  const teamTargets = useRef<Record<string, MapTarget>>({});
 
   useEffect(() => {
     if (!map) return undefined;
@@ -166,10 +169,29 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
             "circle-stroke-width": 1.5,
           },
         });
+        // teams: "T3" only (the full line is the tooltip). Added below the clue labels, so placed after them.
+        map.addLayer({
+          id: LIVE_IDS.teamLabels,
+          type: "symbol",
+          source: LIVE_IDS.points,
+          filter: ["==", ["get", "kind"], "team"],
+          layout: {
+            "icon-image": FLEET_IMAGES.hit,
+            "icon-allow-overlap": true,
+            "text-field": ["get", "short"],
+            "text-size": 11,
+            "text-variable-anchor": ["right", "left", "top", "bottom", "top-right", "bottom-right", "top-left", "bottom-left"],
+            "text-radial-offset": 0.9,
+            "text-allow-overlap": false,
+            "text-optional": true,
+          },
+          paint: { "text-color": tone() as never, "text-halo-color": color("--bg", "#0a0b0d"), "text-halo-width": 1.5 },
+        });
         map.addLayer({
           id: LIVE_IDS.pointLabels,
           type: "symbol",
           source: LIVE_IDS.points,
+          filter: ["!=", ["get", "kind"], "team"],
           // the invisible square keeps other labels off the dot; a label that has no room is dropped, the dot stays
           layout: {
             "icon-image": FLEET_IMAGES.hit,
@@ -180,7 +202,7 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
             "text-radial-offset": 1.1,
             "text-allow-overlap": false,
             "text-optional": true,
-            "symbol-sort-key": ["match", ["get", "kind"], "lkp", 0, "clue", 1, 2],
+            "symbol-sort-key": ["match", ["get", "kind"], "lkp", 0, 1],
           },
           paint: { "text-color": color("--text", "#f2f2f0"), "text-halo-color": color("--bg", "#0a0b0d"), "text-halo-width": 1.5 },
         });
@@ -206,7 +228,8 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
             "icon-allow-overlap": true,
             "text-field": ["format", ["get", "short"], {}, " ", {}, ["get", "battery"], { "font-scale": 0.85 }] as never,
             "text-size": 11.5,
-            "text-variable-anchor": ["left", "right", "top"],
+            // bunched at home after a recall: each label tries eight spots around its dot before it is dropped
+            "text-variable-anchor": ["left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"],
             "text-radial-offset": 0.9,
             "text-allow-overlap": false,
             "text-optional": true,
@@ -262,7 +285,9 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
     const { lines, labels } = sectorFeatures(sectors);
     setData(map, LIVE_IDS.sectors, lines);
     setData(map, LIVE_IDS.sectorLabels, labels);
-    setData(map, LIVE_IDS.points, pointFeatures(base, clues, teams, null, now ?? new Date(), (iso) => clock(iso, utc)));
+    const points = pointFeatures(base, clues, teams, null, now ?? new Date(), (iso) => clock(iso, utc));
+    setData(map, LIVE_IDS.points, points);
+    syncTargets(map, teamTargets.current, points.filter((p) => p.properties.kind === "team"), "team");
   }, [map, ready, base, sectors, clues, teams, now, utc]);
 
   // The fleet: drones glide to each new report, a re-task animates out, relay dots travel. One
@@ -278,7 +303,7 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
     firstLook.current = false;
     const clock = now ?? new Date();
     const drones = droneFeatures(fleet, links.drones, clock);
-    syncDroneTargets(map, droneTargets.current, drones);
+    syncTargets(map, droneTargets.current, drones, "drone");
     let raf = 0;
     let settled = false;
     const frame = () => {
@@ -298,13 +323,15 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
     frame();
     return () => cancelAnimationFrame(raf);
   }, [map, ready, glide, fleet, proposals, links, teams, now]);
-  // the drones' hover/focus targets go with the map instance
+  // the drones' and teams' hover/focus targets go with the map instance
   useEffect(() => {
-    const all = droneTargets.current;
+    const groups = [droneTargets.current, teamTargets.current];
     return () => {
-      for (const [id, t] of Object.entries(all)) {
-        t.marker.remove();
-        delete all[id];
+      for (const all of groups) {
+        for (const [id, t] of Object.entries(all)) {
+          t.marker.remove();
+          delete all[id];
+        }
       }
     };
   }, [map]);
@@ -355,8 +382,8 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null, propos
   return null;
 }
 
-/** A drone's hover and keyboard target: a transparent button over its dot, with its full line as a tooltip. */
-interface DroneTarget {
+/** A drone's or team's hover and keyboard target: a transparent button over its dot, with its full line as a tooltip. */
+interface MapTarget {
   marker: Marker;
   el: HTMLButtonElement;
   tip: HTMLSpanElement;
@@ -367,25 +394,28 @@ const TARGET_CLASS =
 const TIP_CLASS =
   "pointer-events-none absolute bottom-full left-1/2 mb-3 hidden w-max max-w-[280px] -translate-x-1/2 whitespace-pre-line rounded-md border border-border bg-bg/90 px-2.5 py-1.5 text-left text-caption text-text shadow-lg group-hover:block group-focus-visible:block";
 
-/** One button per drone on the map: created, given the drone's latest line, or removed. */
-function syncDroneTargets(map: Map, targets: Record<string, DroneTarget>, drones: readonly MissionFeature[]): void {
-  const ids = new Set(drones.map((f) => f.properties.id));
+/** One button per drone (or team) on the map: created, moved, given its latest line, or removed. */
+function syncTargets(map: Map, targets: Record<string, MapTarget>, features: readonly MissionFeature[], kind: "drone" | "team"): void {
+  const ids = new Set(features.map((f) => f.properties.id));
   for (const [id, t] of Object.entries(targets)) {
     if (ids.has(id)) continue;
     t.marker.remove();
     delete targets[id];
   }
-  for (const f of drones) {
+  for (const f of features) {
     const id = f.properties.id;
     let t = targets[id];
     if (!t) {
       const el = document.createElement("button");
       el.type = "button";
       el.className = TARGET_CLASS;
-      el.dataset.droneTarget = id;
+      if (kind === "drone") el.dataset.droneTarget = id;
+      else el.dataset.teamTarget = id;
       el.addEventListener("click", (e) => {
         e.stopPropagation();
-        useSelection.getState().selectDrone(id);
+        const sel = useSelection.getState();
+        if (kind === "drone") sel.selectDrone(id);
+        else sel.selectTeam(id);
       });
       const tip = document.createElement("span");
       tip.className = TIP_CLASS;
@@ -393,6 +423,8 @@ function syncDroneTargets(map: Map, targets: Record<string, DroneTarget>, drones
       el.appendChild(tip);
       t = { marker: new Marker({ element: el }).setLngLat(f.geometry.coordinates as [number, number]).addTo(map), el, tip };
       targets[id] = t;
+    } else if (kind === "team") {
+      t.marker.setLngLat(f.geometry.coordinates as [number, number]); // drones are moved by the glide
     }
     t.el.setAttribute("aria-label", f.properties.label);
     t.tip.textContent = f.properties.popup ?? f.properties.label;

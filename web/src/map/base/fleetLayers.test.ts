@@ -168,7 +168,7 @@ describe("relay for a cut-off team", () => {
 
   it("never says clear", () => {
     const all = JSON.stringify([droneFeatures(fleet, {}, NOW), retaskFeatures(fleet, noteCancels(fleet, {}, 0, {}), 0)]);
-    expect(all).not.toMatch(/\bclear(ed)?\b/i);
+    expect(all).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 });
 

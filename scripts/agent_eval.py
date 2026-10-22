@@ -68,7 +68,7 @@ MANAGER = "Search manager (scripted for this eval)"
 REVIEWER = "Reviewer (scripted for this eval)"
 OPENING = ("A2", "A3", "B2")  # away from the creek, as in creek_run.py
 CANDIDATE_CONF, NEAR_MISS_CONF = 0.80, 0.20
-CLEAR = re.compile(r"\b(clear|cleared)\b", re.IGNORECASE)
+CLEAR = re.compile(r"\bclear(s|ed|ing)?\b", re.IGNORECASE)
 YES = json.dumps(
     {
         "person": "yes",

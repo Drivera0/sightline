@@ -129,7 +129,7 @@ export function detectionById(detections: Detections, id: string): Detection | u
 
 /**
  * Apply each still-valid answer, in history order, to the state after `stepIndex` steps (default:
- * the whole flight): "not a person" clears the cells around it; "person" is a candidate sighting, so
+ * the whole flight): "not a person" lowers the probability of the cells around it (never to zero); "person" is a candidate sighting, so
  * once its photo is flown that photo's "nobody here" look at the cells around it is undone
  * (applyReviewPerson). Then the flown sightings are merged into candidate areas with their shares.
  * foundDetectionId is the most recent detection whose latest answer is "person". "Unsure" leaves the

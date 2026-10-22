@@ -132,7 +132,7 @@ describe("ApprovalInbox", () => {
 
   it('never says "clear"', () => {
     setup([p({})]);
-    expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+    expect(document.body.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 });
 
@@ -161,7 +161,7 @@ describe("a recall", () => {
     expect(within(card).queryByText("leg L009")).toBeNull(); // the facts block replaces the chips
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
     expect(onDecide).toHaveBeenCalledWith("p007", "approve", "Search manager", undefined, undefined);
-    expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+    expect(document.body.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 
   it("labels the summary's battery 'at proposal' and puts the fleet's live value beside it", () => {

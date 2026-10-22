@@ -428,6 +428,16 @@ BREAKS = {
         lambda r: _set(r, reason="Sector B3 is cleared"),
         "clear",
     ),
+    "clears in a reason": (
+        "proposals.json",
+        lambda r: _set(r, reason="Team Two clears sector B3"),
+        "clear",
+    ),
+    "clearing in a reason": (
+        "proposals.json",
+        lambda r: _set(r, reason="Clearing sector B3 next"),
+        "clear",
+    ),
     "decided without decided_at": (
         "proposals.json",
         lambda r: _set(r, decided_at=None),

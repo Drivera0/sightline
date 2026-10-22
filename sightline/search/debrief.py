@@ -25,7 +25,7 @@ from sightline.contract import MissionEvent, TraceEntry
 
 log = logging.getLogger(__name__)
 
-_CLEAR = re.compile(r"\b(clear|cleared|clearing|clears)\b", re.IGNORECASE)
+_CLEAR = re.compile(r"\bclear(s|ed|ing)?\b", re.IGNORECASE)
 _NUMBER = re.compile(r"[A-Za-z]*\d+(?:[.,]\d+)?")
 NARRATIVE_WORDS = 120
 TIMELINE_TYPES = {
@@ -216,8 +216,8 @@ def _narrative(tables: str, client: Any) -> str | None:
                 "You summarise a search-and-rescue mission log for the debrief, in one paragraph of "
                 f"at most {NARRATIVE_WORDS} words. Use only what is in the tables. Write numbers as "
                 "digits, exactly as they appear in the tables, and no other numbers. A sector a team "
-                'searched is described by its POD; nothing is ever ruled out. Never say "clear" or '
-                '"cleared". A person seen in a photo is a sighting, not a find.'
+                'searched is described by its POD; nothing is ever ruled out. Never say "clear", '
+                '"clears", "cleared" or "clearing". A person seen in a photo is a sighting, not a find.'
             ),
         },
         {"role": "user", "content": "Tables:\n" + tables},

@@ -1,5 +1,5 @@
 // LANE_D §6 test 10 / LANE_E §9 test 1: no UI string says an area is "clear" or "cleared". Every visible
-// use of the words in web/src (string literals and JSX text; comments and code names don't count) must
+// use of the words (clear, clears, cleared, clearing) in web/src (string literals and JSX text; comments and code names don't count) must
 // be on this reviewed list; a new one fails until someone reads it and adds it here.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -40,11 +40,11 @@ export function visibleText(src: string): string[] {
 }
 
 describe("no UI string says clear", () => {
-  it("every visible 'clear'/'cleared' in web/src is a reviewed one", () => {
+  it("every visible 'clear'/'clears'/'cleared'/'clearing' in web/src is a reviewed one", () => {
     const found: string[] = [];
     for (const f of files(ROOT)) {
       for (const text of visibleText(readFileSync(f, "utf8"))) {
-        if (/\bclear(ed)?\b/i.test(text) && !ALLOWED.some((a) => text.includes(a))) found.push(`${f.slice(ROOT.length + 1)}: ${text}`);
+        if (/\bclear(s|ed|ing)?\b/i.test(text) && !ALLOWED.some((a) => text.includes(a))) found.push(`${f.slice(ROOT.length + 1)}: ${text}`);
       }
     }
     expect(found).toEqual([]);
@@ -57,6 +57,8 @@ describe("no UI string says clear", () => {
 
   it("would catch one", () => {
     expect(visibleText('const s = "Sector B3 cleared";').some((t) => /\bcleared\b/.test(t))).toBe(true);
+    expect(visibleText('const s = "Not a person clears that ground.";').some((t) => /\bclear(s|ed|ing)?\b/i.test(t))).toBe(true);
+    expect(visibleText('const s = "Clearing sector B3";').some((t) => /\bclear(s|ed|ing)?\b/i.test(t))).toBe(true);
     expect(visibleText("// the search area is clear\nconst x = 1;").some((t) => /\bclear\b/.test(t))).toBe(false);
   });
 });

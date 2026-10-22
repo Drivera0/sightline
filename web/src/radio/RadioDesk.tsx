@@ -180,7 +180,7 @@ export function RadioDesk({
     setLevel(0);
     const audio = await rec.stop();
     await send({ audio });
-    // After send: it clears errors first. The clip still goes out (Sightline will ask to say again).
+    // After send: it resets the error first. The clip still goes out (Sightline will ask to say again).
     if (rec.level && peak.current < SILENT) r().setError("No sound from the microphone: check the input device.");
   }, [send, r]);
 

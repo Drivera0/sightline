@@ -120,6 +120,8 @@ def test_postcheck() -> None:
     assert notes == ["made speakable (numbers, units, times, abbreviations)"]
     r, _ = postcheck("The sector is clear now.", "Team Two")
     assert r == "Team Two, Sightline. Standby, over."
+    for said in ("Your sweep clears the sector.", "Team Two is clearing the sector now."):
+        assert postcheck(said, "Team Two")[0] == "Team Two, Sightline. Standby, over."
     r, _ = postcheck("Team Two, Sightline. Bearing 270°, 600 m, gusts 30 km/h, over.", "Team Two")
     assert (
         "two seven zero degrees" in r and "six hundred metres" in r and "kilometres per hour" in r

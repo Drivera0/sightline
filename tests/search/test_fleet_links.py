@@ -169,7 +169,7 @@ def test_link_lines_are_honest_and_never_say_clear() -> None:
         for r in (True, False)
     ]
     assert all("simulated link model" in x for x in lines)
-    assert not any(re.search(r"\bclear(ed)?\b", x, re.IGNORECASE) for x in lines)
+    assert not any(re.search(r"\bclear(s|ed|ing)?\b", x, re.IGNORECASE) for x in lines)
     back = link_summary({"target": "D2", "link": "connected", "report": True, "synced": 3,
                          "last_heard_at": "2026-10-24T21:40:00Z", "at": "2026-10-24T21:42:00Z"})  # fmt: skip
     assert back.endswith("3 photos taken out of contact synced with their capture times, last heard 2 min before")  # fmt: skip

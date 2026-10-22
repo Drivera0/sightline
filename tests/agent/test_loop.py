@@ -50,7 +50,7 @@ NO = YES.replace('"yes"', '"no"')
 BRIEFING = (
     "Team One, Sightline. Search sector B3 for an adult in a red jacket, possibly lying down."
 )
-CLEAR = re.compile(r"\bclear(ed)?\b", re.IGNORECASE)
+CLEAR = re.compile(r"\bclear(s|ed|ing)?\b", re.IGNORECASE)
 
 
 class _CentreDetector:
@@ -463,11 +463,27 @@ def test_never_dismisses_and_never_says_clear(mission) -> None:
 FACTS = {"team": "Team Two", "sector": "B3", "daylight_left": "2 h 40 min"}
 
 
+def test_template_briefing_never_doubles_a_period() -> None:
+    # live, on the assign-sector card: "... from the last known point.. Subject ..."
+    facts = {
+        "why": "Sector B3 holds 12.0% of the probability: Team Two has no position yet: about 9 min "
+        "on foot from the last known point.",
+        "subject": "adult hiker, blue jacket",
+        "daylight_left": "2 h 40 min",
+    }
+    text = loop.template_briefing(facts)
+    assert ".." not in text
+    assert "last known point. Subject: adult hiker, blue jacket. Daylight left: 2 h 40 min." in text
+    assert loop.template_briefing({"a": "ends?", "b": "x. "}) == "A: ends? B: x."
+
+
 @pytest.mark.parametrize(
     "text,problem",
     [
         ("Team Two, search sector B3; 2 h 40 min of daylight left.", None),
         ("Team Two, sector B3 is clear.", "clear"),
+        ("Team Two, your search clears sector B3.", "clear"),
+        ("Team Two, keep clearing sector B3.", "clear"),
         ("Team Two, sector B3, 3 h of daylight left.", "numbers not in the facts"),
         ("word " * 61, "more than 60 words"),
         # live, from Nemotron: read aloud, this is one breathless line

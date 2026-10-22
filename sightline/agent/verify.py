@@ -62,7 +62,7 @@ RESPONSE_FORMAT = {
 
 log = logging.getLogger(__name__)
 
-_CLEAR = re.compile(r"\b(clear|cleared)\b", re.IGNORECASE)
+_CLEAR = re.compile(r"\bclear(s|ed|ing)?\b", re.IGNORECASE)
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$")
 
 

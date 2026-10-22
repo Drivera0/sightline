@@ -136,7 +136,7 @@ def test_the_word_clear_never_reaches_the_mission() -> None:
     v = verify(
         store, mid, "f0001-d01", FakeChatClient(default=json.dumps(reply)), _CentreDetector()
     )
-    assert not re.search(r"\bclear(ed)?\b", v.reason, re.IGNORECASE)
+    assert not re.search(r"\bclear(s|ed|ing)?\b", v.reason, re.IGNORECASE)
 
 
 def test_model_name_comes_from_the_result() -> None:

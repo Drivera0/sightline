@@ -92,6 +92,6 @@ describe("TraceView", () => {
   it('never says "clear"', async () => {
     const { runs } = await loadDemoTrace();
     render(<TraceView runs={runs} />);
-    expect(document.body.textContent).not.toMatch(/\bclear(ed)?\b/i);
+    expect(document.body.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 });

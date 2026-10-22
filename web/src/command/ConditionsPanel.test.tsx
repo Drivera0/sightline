@@ -60,7 +60,7 @@ describe("ConditionsPanel", () => {
     expect(gusts).toHaveTextContent("gusts 40");
     expect(within(gusts).getByRole("link", { name: /weather\.gc\.ca/ })).toHaveAttribute("href", "https://weather.gc.ca/en/forecast/hourly/index.html?coords=49.316%2C-123.071");
     expect(screen.getByLabelText("Alerts and closures")).toHaveTextContent("None found on the pages searched (weather.gc.ca, bcparks.ca)");
-    expect(panel.textContent).not.toMatch(/\bclear(ed)?\b/i);
+    expect(panel.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 
   it("links the exact page a quote was verified in, when the trace records it", async () => {

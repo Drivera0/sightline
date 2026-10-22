@@ -206,7 +206,9 @@ interface MissionStore extends MissionData {
   error: string | null;
   api: Api | null;
   connect: (missionId: string, api: Api, deps?: { EventSource?: EventSourceCtor }) => Promise<void>;
-  useDemo: (data: Partial<MissionData>) => void;
+  /** Demo mode. `clock`: the demo's pinned time (ISO); what is done on screen is stamped with it, so a
+   * decision made now reads among the scripted timeline's times, not at the real clock. */
+  useDemo: (data: Partial<MissionData>, clock?: string) => void;
   disconnect: () => void;
   decide: (pid: string, decision: "approve" | "reject", by: string, reason?: string, edits?: Record<string, string>) => Promise<void>;
   review: (detectionId: string, answer: "person" | "not_person" | "unsure") => Promise<void>;
@@ -223,7 +225,9 @@ let source: EventSourceLike | null = null;
 let lastSectors = 0;
 let demoSeq = 0;
 
-const now = () => new Date().toISOString().replace(/\.\d+Z$/, "Z");
+/** The demo mission's pinned clock while it is loaded (null on a live mission: the real clock). */
+let demoClock: string | null = null;
+const now = () => demoClock ?? new Date().toISOString().replace(/\.\d+Z$/, "Z");
 
 export const useMission = create<MissionStore>((set, get) => {
   /** Demo mode: an event as the server would have sent it. */
@@ -242,6 +246,7 @@ export const useMission = create<MissionStore>((set, get) => {
 
     connect: async (missionId, a, deps = {}) => {
       get().disconnect();
+      demoClock = null;
       set({ ...EMPTY, status: "connecting", error: null, api: a });
       try {
         const [state, survey, detections, mapBase, mapUpdates, sectors] = await Promise.all([
@@ -274,8 +279,9 @@ export const useMission = create<MissionStore>((set, get) => {
       }
     },
 
-    useDemo: (data) => {
+    useDemo: (data, clock) => {
       get().disconnect();
+      demoClock = clock ? new Date(clock).toISOString().replace(/\.\d+Z$/, "Z") : null;
       demoSeq = data.events?.length ?? 0;
       set({ ...EMPTY, links: fleetLinksFromEvents(data.events ?? []), ...data, status: "demo", error: null, api: null });
     },

@@ -43,7 +43,7 @@ log = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS = 3
 HISTORY_TURNS = 6  # per callsign, as user/assistant pairs
-_CLEAR = re.compile(r"\b(clear|cleared)\b", re.IGNORECASE)
+_CLEAR = re.compile(r"\bclear(s|ed|ing)?\b", re.IGNORECASE)
 _NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 
 

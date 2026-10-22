@@ -4,7 +4,7 @@ import type { Clue, FleetState, Proposal, Team } from "../../contract";
 import { clueFeatures } from "./clueLayer";
 import { droneFeatures } from "./droneLayer";
 import { legFeatures } from "./legLayer";
-import { teamFeatures } from "./teamLayer";
+import { teamFeatures, teamShort } from "./teamLayer";
 
 const NOW = new Date("2026-10-24T22:00:00Z");
 const ring = [[0, 0], [1, 1]];
@@ -24,7 +24,14 @@ describe("live-mission layers", () => {
     ] as Team[];
     const fs = teamFeatures(teams, NOW);
     expect(fs).toHaveLength(1);
-    expect(fs[0]!.properties).toMatchObject({ label: "Team One · searching · 12 min ago", tone: "ok" });
+    expect(fs[0]!.properties).toMatchObject({ label: "Team One · searching · 12 min ago", tone: "ok", short: "T1" });
+  });
+
+  it("teams: a short id for the map, the full line kept for the tooltip", () => {
+    expect(teamShort({ id: "T3", callsign: "Team Three" })).toBe("T3");
+    expect(teamShort({ id: "alpha", callsign: "Team Three" })).toBe("T3");
+    expect(teamShort({ id: "k9", callsign: "Team 12" })).toBe("T12");
+    expect(teamShort({ id: "K9", callsign: "Dog unit" })).toBe("K9");
   });
 
   it("drones: simulated badge and battery, low battery in the warning colour", () => {
@@ -52,6 +59,6 @@ describe("live-mission layers", () => {
 
   it("never says clear", () => {
     const all = JSON.stringify([clueFeatures([]), teamFeatures([], NOW), droneFeatures(null), legFeatures(null)]);
-    expect(all).not.toMatch(/\bclear(ed)?\b/i);
+    expect(all).not.toMatch(/\bclear(s|ed|ing)?\b/i);
   });
 });

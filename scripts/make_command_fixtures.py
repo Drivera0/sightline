@@ -394,7 +394,7 @@ def main() -> int:
     text = json.dumps(doc, indent=1, ensure_ascii=False)
     import re
 
-    assert not re.search(r"\bclear(ed)?\b", text, re.IGNORECASE), "a fixture says clear"
+    assert not re.search(r"\bclear(s|ed|ing)?\b", text, re.IGNORECASE), "a fixture says clear"
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(text + "\n")
     print(

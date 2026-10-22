@@ -433,7 +433,7 @@ export function Shell({
             <>
               <StepHeader
                 title="Is this a person?"
-                subtitle="Person pins them on the map. Not a person clears that ground. Unsure changes nothing."
+                subtitle="Person pins them on the map. Not a person lowers that ground's probability; it never removes it. Unsure changes nothing."
               />
               <div className="grid flex-1 grid-cols-1 gap-4 lg:min-h-0 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
                 <ScreenBoundary name="Review">
