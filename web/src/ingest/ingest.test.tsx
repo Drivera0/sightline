@@ -1,0 +1,113 @@
+// LANE_D §6 test 9 (ingest) and test 8 (review in live mode), plus the live routes.
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+import type { Detections, Verdict } from "../contract";
+import { LiveRoutes } from "../App";
+import { LiveReview, liveReviewItems, verdictWords } from "../review/LiveReview";
+import { routeFromHash } from "../shell/flow";
+import { NewSearch } from "./NewSearch";
+import { batches, photoFiles, uploadCommand } from "./upload";
+import { UploadPanel } from "./UploadPanel";
+
+const API = { base: "http://api.test" };
+const jpeg = (name: string) => new File(["x"], name, { type: "image/jpeg" });
+
+describe("routes", () => {
+  it("knows New search, live missions and the demo", () => {
+    expect(routeFromHash("#new")).toEqual({ kind: "new" });
+    expect(routeFromHash("#m/a1b2c3d4/review")).toEqual({ kind: "mission", id: "a1b2c3d4" });
+    expect(routeFromHash("#review")).toEqual({ kind: "demo" });
+    expect(routeFromHash("#m/../../x")).toEqual({ kind: "demo" });
+  });
+
+  it("says live missions need the API on a demo-only site", () => {
+    render(<LiveRoutes route={{ kind: "new" }} base={null} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("VITE_API_URL");
+  });
+});
+
+describe("New search", () => {
+  it("creates the mission from the details and hands back its id", async () => {
+    const createMission = vi.fn(async () => ({ mission_id: "a1b2c3d4" }) as never);
+    const onCreated = vi.fn();
+    render(<NewSearch api={API} onCreated={onCreated} createMission={createMission} />);
+    await userEvent.click(screen.getByRole("button", { name: "Start the search" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("name");
+    await userEvent.type(screen.getByPlaceholderText("Seymour — missing hiker"), "Seymour");
+    await userEvent.type(screen.getByLabelText("Latitude"), "49.3745");
+    await userEvent.type(screen.getByLabelText("Longitude"), "-122.9358");
+    await userEvent.click(screen.getByRole("button", { name: "Start the search" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith("a1b2c3d4"));
+    expect(createMission).toHaveBeenCalledWith(API, expect.objectContaining({ name: "Seymour", lkp: { lat: 49.3745, lon: -122.9358 }, mode: "live" }));
+  });
+});
+
+describe("upload (test 9)", () => {
+  it("keeps JPEGs in name order and sends them in batches of 10", () => {
+    const { photos, skipped } = photoFiles([jpeg("DJI_0010.JPG"), jpeg("DJI_0002.JPG"), new File(["x"], "notes.txt")]);
+    expect(photos.map((f) => f.name)).toEqual(["DJI_0002.JPG", "DJI_0010.JPG"]);
+    expect(skipped).toEqual([{ name: "notes.txt", reason: "not a JPEG" }]);
+    expect(batches(Array.from({ length: 23 }, (_, i) => i)).map((b) => b.length)).toEqual([10, 10, 3]);
+  });
+
+  it("lists the files the API refused, with its reason", async () => {
+    const upload = vi.fn(async (_a: unknown, _m: string, files: readonly File[]) => ({
+      accepted: files.filter((f) => f.name !== "phone.jpg").map((_, i) => `f${String(i + 1).padStart(4, "0")}`),
+      rejected: files.filter((f) => f.name === "phone.jpg").map((f) => ({ name: f.name, reason: "no GPS position in the photo's EXIF" })),
+    }));
+    render(<UploadPanel api={API} missionId="a1b2c3d4" upload={upload} />);
+    const files = [...Array.from({ length: 11 }, (_, i) => jpeg(`DJI_${String(i).padStart(4, "0")}.JPG`)), jpeg("phone.jpg")];
+    await userEvent.upload(screen.getByLabelText("Choose photos"), files);
+    await waitFor(() => expect(screen.getByText(/12 \/ 12 sent · 11 accepted/)).toBeInTheDocument());
+    expect(upload).toHaveBeenCalledTimes(2); // 10 + 2
+    expect(screen.getByLabelText("Rejected files")).toHaveTextContent("phone.jpg: no GPS position");
+  });
+
+  it("puts the mission id in the command for the laptop", () => {
+    expect(uploadCommand("https://api.example.org", "a1b2c3d4")).toBe(
+      'curl -F "files=@DJI_0001.JPG" https://api.example.org/missions/a1b2c3d4/photos',
+    );
+  });
+});
+
+const dets: Detections = {
+  contract_version: "1.2", model: "m", save_threshold: 0.05, candidate_threshold: 0.29,
+  frames: {
+    f0001: [
+      { id: "f0001-d01", box_px: [1, 1, 9, 9], conf: 0.8, crop: "crops/f0001-d01.jpg", lat: 0, lon: 0, radius_m: 10 },
+      { id: "f0001-d02", box_px: [1, 1, 9, 9], conf: 0.2, crop: null, lat: 0, lon: 0, radius_m: 10 },
+      { id: "f0001-d03", box_px: [1, 1, 9, 9], conf: 0.1, crop: null, lat: 0, lon: 0, radius_m: 10 },
+    ],
+  },
+};
+const verdict = (over: Partial<Verdict>): Verdict => ({
+  id: "v0001", detection_id: "f0001-d02", tools: ["zoom_native"], relook_crops: [], person: "yes", posture: "lying",
+  group_size: 1, clothing: "red jacket", reason: "r", model: "m", ms: 1, at: "2026-10-24T21:40:00Z", ...over,
+});
+
+describe("review in live mode (test 8)", () => {
+  it("shows candidates and approved promotions, most confident first", () => {
+    expect(liveReviewItems(dets, []).map((d) => d.id)).toEqual(["f0001-d01"]);
+    expect(liveReviewItems(dets, ["f0001-d02"]).map((d) => d.id)).toEqual(["f0001-d01", "f0001-d02"]);
+  });
+
+  it("always says the second look in words", () => {
+    expect(verdictWords(verdict({}))).toBe("Second look: likely a person · lying down · red jacket");
+    expect(verdictWords(verdict({ person: "unclear" }))).toBe("Second look: unclear");
+    expect(verdictWords(verdict({ person: "no" }))).toBe("Second look: probably not a person");
+    expect(verdictWords(undefined)).toBeNull();
+  });
+
+  it("sends each answer", async () => {
+    const onAnswer = vi.fn();
+    render(
+      <LiveReview detections={dets} survey={null} verdicts={[verdict({})]} promoted={["f0001-d02"]} imageUrl={(r) => `/f/${r}`} onAnswer={onAnswer} />,
+    );
+    expect(screen.getByText("Second look: likely a person · lying down · red jacket")).toBeInTheDocument();
+    expect(screen.getByAltText("Crop of f0001-d02")).toHaveAttribute("src", "/f/crops/nearmiss/f0001-d02.jpg");
+    const card = screen.getByLabelText("Candidate f0001-d02");
+    await userEvent.click(card.querySelector("button")!);
+    expect(onAnswer).toHaveBeenCalledWith("f0001-d02", "person");
+  });
+});

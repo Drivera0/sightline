@@ -88,7 +88,15 @@ These weren't spelled out in the contract; each is one place in `store.py` to ch
 - [x] Scheduler (`scheduler.py`): `on_tick` every 5 min or 25 photos; conditions every 30 min once B-W1 exists (lane A)
 - [x] **D-S1** `scripts/smoke.sh`: 11 checks, 11 s, no network (`SIGHTLINE_BACKEND=fake`, fake LLM), lane A
 - [ ] `SqsQueue` + `worker` command (D-W1)
-- [ ] D-M1/M2 `useMission`, D-L1 live shell, D-Q1 review live mode, D-I1 New search, D-R1–R3 routing
+- [x] **D-M1** `web/src/lib/api.ts` (typed §13 calls; `VITE_API_URL`, unset = demo only) and `web/src/lib/mission.ts`
+      (`useMission`: live via SSE with resume, optimistic actions rolled back on error, `useDemo` in memory), test 7 (lane A)
+- [x] **D-I1** New search (`web/src/ingest/`): details → mission → `#m/<id>`; drag-in upload in batches of 10 with rejected
+      files listed; the laptop command with the mission id; progress (processed, median per photo, candidates), test 9 (lane A)
+- [x] **D-Q1, D-L1 (first pass)** `#m/<id>/photos|review|feed`: live review (candidates + approved promotions, verdict badge
+      in words, answers → `POST /reviews`), event feed; "New search" in the app menu when an API is set; CORS on the API
+      (localhost + `SIGHTLINE_CORS_ORIGINS`), test 8 (lane A). Checked in Chromium against a real server
+- [ ] D-L1 rest: Search next on C's live heat, E's `<CommandView/>` (approval inbox) and `<FrontDoor/>` mounted, `C` shortcut
+- [ ] D-M2 `useSelection` gains `selectedTeamId`, `selectedDroneId`, `selectedClueId`; demo fixtures from E's `__fixtures__/`
 - [ ] D-W1 AWS (`deploy/aws/` already has lane A's worker image, see its README)
 - [ ] Sample cache regenerated as 1.2 (optional: 1.1 caches are still readable)
 - [ ] Delete `_live.py` when C-L1 lands
