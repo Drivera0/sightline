@@ -1,0 +1,73 @@
+{
+  "split": "val",
+  "prompt": "verify-v2",
+  "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+  "base_url": "https://integrate.api.nvidia.com/v1",
+  "accuracy": 0.12941176470588237,
+  "yes_rate": 0.37058823529411766,
+  "no_second_look": 72,
+  "p90_model_ms": 27182,
+  "cost_total": null,
+  "photos": 95,
+  "people": 333,
+  "verified": 170,
+  "rules": {
+    "a: threshold only": {
+      "precision": 0.7352185089974294,
+      "recall": 0.8588588588588588,
+      "f2": 0.8309122603137711,
+      "kept": 389,
+      "tp": 286
+    },
+    "b: + promote near-miss yes": {
+      "precision": 0.7053140096618358,
+      "recall": 0.8768768768768769,
+      "f2": 0.8361970217640321,
+      "kept": 414,
+      "tp": 292
+    },
+    "c: b + demote no below 0.4": {
+      "precision": 0.7053140096618358,
+      "recall": 0.8768768768768769,
+      "f2": 0.8361970217640321,
+      "kept": 414,
+      "tp": 292
+    },
+    "c: b + demote no below 0.5": {
+      "precision": 0.7053140096618358,
+      "recall": 0.8768768768768769,
+      "f2": 0.8361970217640321,
+      "kept": 414,
+      "tp": 292
+    }
+  },
+  "near_miss": {
+    "n": 87,
+    "people_called_yes": 0.5,
+    "false_called_no": 0.02666666666666667,
+    "unclear": 0.6896551724137931,
+    "n_people": 12,
+    "n_false": 75
+  },
+  "queue_below_max_conf": {
+    "n": 83,
+    "people_called_yes": 0.5,
+    "false_called_no": 0.0,
+    "unclear": 0.5421686746987951,
+    "n_people": 28,
+    "n_false": 55
+  },
+  "small_under_60px": {
+    "n": 75,
+    "people_called_yes": 0.6875,
+    "false_called_no": 0.0,
+    "unclear": 0.56,
+    "n_people": 16,
+    "n_false": 59
+  },
+  "median_ms": 5302,
+  "median_model_ms": 4865,
+  "tokens_in_mean": 535.0882352941177,
+  "tokens_out_mean": 374.34705882352944,
+  "retries": 0
+}
