@@ -19,7 +19,7 @@ cd "$(dirname "$0")/../.."
 
 PREFIX=${PREFIX:-sightline}
 REGION=${AWS_REGION:-$(aws configure get region || echo us-west-2)}
-INSTANCE_TYPE=${INSTANCE_TYPE:-c7i.xlarge}
+INSTANCE_TYPE=${INSTANCE_TYPE:-c7i.2xlarge}  # 8 vCPU: ~7 s per photo; c7i.xlarge missed 10 s
 GIT_REF=${GIT_REF:-main}
 REPO=${REPO:-https://github.com/Drivera0/sightline.git}
 CORS_ORIGINS=${CORS_ORIGINS:-https://sightline-iota-sandy.vercel.app}

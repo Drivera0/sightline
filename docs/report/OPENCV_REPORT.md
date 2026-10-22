@@ -282,7 +282,7 @@ The live pipeline runs on AWS (us-west-2), set up and torn down by scripts in `d
 
 | Piece | What it does |
 |---|---|
-| **EC2** (c7i.xlarge, 4 vCPU; Amazon Linux 2023) | one Docker image, three containers: the API, the photo **worker** running OpenCV 5 `cv2.dnn` (no PyTorch in the image), and Caddy for HTTPS |
+| **EC2** (c7i.2xlarge, 8 vCPU; Amazon Linux 2023) | one Docker image, three containers: the API, the photo **worker** running OpenCV 5 `cv2.dnn` (no PyTorch in the image), and Caddy for HTTPS |
 | **SQS** (FIFO + dead-letter queue) | photo jobs, one message group per mission so each mission's photos are processed in upload order; a job is deleted only after success and goes to the dead-letter queue after 3 failures; duplicate deliveries are skipped |
 | **S3** | the original photos (`missions/<id>/orig/`), private, deleted after 30 days |
 | **EBS** | the mission files, shared by the API and worker containers; the API's event stream also reads events the worker writes |
@@ -295,12 +295,15 @@ The live pipeline runs on AWS (us-west-2), set up and torn down by scripts in `d
 | Instance | vCPU | In the worker | of which `cv2.dnn` | Upload to "processed" |
 |---|---|---|---|---|
 | c7i.xlarge | 4 | 10.0 s | 9.6 s | 11.5 s |
+| **c7i.2xlarge (default since Oct 22)** | 8 | 5.1 s | 4.7 s | **7.1 s** |
 | c7i.4xlarge | 16 | 3.5 s | 3.1 s | 4.9 s |
 
 `cv2.dnn` needs about 30 CPU-seconds per full photo, so time falls roughly with the core count. The
 same checks pass after stopping and starting the instance (same address, missions kept), so the
-instance is stopped between demos. Cost while running: about $0.18 an hour on c7i.xlarge (~$0.71 on
-c7i.4xlarge, used only for the demo recording); a $20 monthly budget alarm covers the account.
+instance is stopped between demos. c7i.xlarge missed the plan's 10 s per photo, and batching the slices,
+OpenCV 5's FP16 target and its ORT engine made no difference (all ~0.146 s per slice, identical output), so the
+default became c7i.2xlarge. Cost while running: about $0.36 an hour on c7i.2xlarge (~$0.71 on c7i.4xlarge,
+used only for the demo recording); a $20 monthly budget alarm covers the account.
 `teardown.sh` deletes everything.
 
 **A longer run** (22 Oct, the instance rebuilt from `main`): 20 HERIDAL validation photos uploaded in two
@@ -423,7 +426,7 @@ table above: a different run, 2,000 rather than 3,200 trials per seed.)
 ### 7.5 End to end
 
 Per photo through the live pipeline (upload → detections on screen): **2.1 s** on the GPU desktop
-(16 cores, `cv2.dnn` 1.8 s), **11.5 s** on AWS c7i.xlarge and **4.9 s** on c7i.4xlarge (§6). The map
+(16 cores, `cv2.dnn` 1.8 s), **7.1 s** on AWS c7i.2xlarge (the default; 11.5 s on c7i.xlarge) and **4.9 s** on c7i.4xlarge (§6). The map
 step (the live map's update for the photo, canopy from its own pixels) takes 46 ms of that for a full
 HERIDAL photo covering 142 cells.
 
