@@ -70,6 +70,50 @@ def test_normalize(heard: str, normal: str) -> None:
     assert normalize(heard) == normal
 
 
+# Parakeet TDT 0.6B v2 does not know "niner" (runs/radio_wer/20261022-100806, voice "dan"): it wrote
+# "49er" and "nine or". The transcripts below are verbatim; the right side is the normalised reference.
+@pytest.mark.parametrize(
+    ("heard", "normal"),
+    [
+        (
+            "Sightline Team 4 found footprints heading east at 49er.381 minus 122.9er40 over",
+            "sightline team 4 found footprints heading east at 49.381 -122.940 over",
+        ),
+        (
+            (
+                "Sightline team three we're at four niner point three seven four minus one two two "
+                "point nine or three six over"
+            ),
+            "sightline team 3 we re at 49.374 -122.936 over",
+        ),
+        ("49er.381", "49.381"),
+        ("122.9er40", "122.940"),
+        ("122.9 or 36", "122.936"),
+        ("9er", "9"),
+        ("4 9er", "49"),
+        ("niner", "9"),
+        ("point nine or three six", "point 936"),
+    ],
+)
+def test_normalize_parakeet_niner(heard: str, normal: str) -> None:
+    assert normalize(heard) == normal
+
+
+@pytest.mark.parametrize(
+    ("text", "normal"),
+    [
+        ("either way, over", "either way over"),
+        ("never mind, over", "never mind over"),
+        ("nine or ten people, over", "9 or ten people over"),
+        ("sector 9 or 3, over", "sector 9 or 3 over"),
+        ("team 2 or team 3, over", "team 2 or team 3 over"),
+    ],
+)
+def test_normalize_niner_fix_keeps_words(text: str, normal: str) -> None:
+    """Only "<digits>9er" and "nine or" inside a number change; real words and real "or"s stay."""
+    assert normalize(text) == normal
+
+
 # --- test 2: parse_callsign and classify_reply --------------------------------------------------
 
 
