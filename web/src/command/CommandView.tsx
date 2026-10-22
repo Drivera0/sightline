@@ -321,7 +321,9 @@ export function TaskBoard({
   const poa = (t: SectorTask) => live.get(t.sector_id)?.poa ?? t.poa;
   return (
     <section aria-label="Task board" data-tour="tasks" className="flex flex-col gap-2">
-      <span className="px-1 text-caption font-medium text-text-2">Task board</span>
+      <span className="px-1 text-caption font-medium text-text-2">
+        Task board <span className="font-normal text-text-3">· each sector, from proposed to searched</span>
+      </span>
       <div className={compact ? "flex flex-col gap-3" : "grid gap-3 md:grid-cols-4"}>
         {COLUMNS.map((col) => {
           const all = tasks.filter((t) => t.state === col.state).sort((a, b) => poa(b) - poa(a));

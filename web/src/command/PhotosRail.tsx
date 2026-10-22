@@ -93,7 +93,9 @@ export function PhotosRail({
   return (
     <section aria-label="Photos" data-tour="photos" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-2 px-1">
-        <span className="text-caption font-medium text-text-2">Photos</span>
+        <span className="text-caption font-medium text-text-2">
+          Photos <span className="font-normal text-text-3">· from the drone, newest first</span>
+        </span>
         <button type="button" onClick={onTry} aria-expanded={tryOpen} className="sl-tap rounded-full border border-border px-3 py-0.5 text-caption text-text-2 hover:text-text">
           {tryOpen ? "Hide Try a photo" : "Try a photo of your own"}
         </button>
