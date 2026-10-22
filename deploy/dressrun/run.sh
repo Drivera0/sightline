@@ -11,6 +11,7 @@
 #   DRESSRUN_CACHE=1   reuse Docker's layer cache (faster reruns; the build times then measure
 #                      nothing). Default: --no-cache --pull, a build from nothing.
 #   DRESSRUN_TAG       image tag (default sightline-dressrun)
+#   DRESSRUN_CPUS=4    cap the container at 4 CPUs (docker run --cpus), to time a laptop-sized run
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 ROOT="$PWD"
@@ -45,6 +46,7 @@ run_rc=1
 run_s=0
 if [ "$build_rc" -eq 0 ]; then
   env_flags=()
+  [ -n "${DRESSRUN_CPUS:-}" ] && env_flags+=(--cpus "$DRESSRUN_CPUS")
   for k in NEBIUS_API_KEY TAVILY_API_KEY NEBIUS_BASE_URL SIGHTLINE_MODEL_VISION SIGHTLINE_MODEL_FAST SIGHTLINE_MODEL_REASON; do
     [ -n "${!k:-}" ] && env_flags+=(-e "$k")
   done
@@ -63,6 +65,7 @@ fi
   echo "Commit \`$(git rev-parse --short HEAD)\`$(git diff --quiet HEAD -- . 2>/dev/null || echo ' (with uncommitted changes)'),"
   echo "host: $(nproc) CPUs, $(awk '/MemTotal/ { printf "%.0f GB", $2 / 1048576 }' /proc/meminfo 2>/dev/null || echo '? GB') RAM,"
   echo "$(uname -sr), Docker $(docker version --format '{{.Server.Version}}' 2>/dev/null)."
+  echo "Container CPUs: ${DRESSRUN_CPUS:-all}."
   echo "Image build: $([ ${#cache_flags[@]} -gt 0 ] && echo 'from nothing (--no-cache --pull)' || echo 'with the layer cache')."
   echo "LLM: $([ -n "${NEBIUS_API_KEY:-}" ] && echo 'Nebius Token Factory' || echo 'fake (no key)'); conditions: $([ -n "${TAVILY_API_KEY:-}" ] && echo 'Tavily' || echo 'fake (no key)')."
   echo
