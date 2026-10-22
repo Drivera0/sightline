@@ -2,9 +2,11 @@
 // `#m/demo/command`. Fixtures from `scripts/make_command_fixtures.py` (validated against the contract
 // there) plus the demo cache's map: its frame steps become the map log, then the two ground searches.
 // Everything is a demo and says so on screen. Built by lane A for lane E (#70).
-import type { MapBase, MapFile, MapUpdate } from "../contract";
+import type { Conditions, MapBase, MapFile, MapUpdate } from "../contract";
 import type { MissionData } from "../lib/mission";
 import { parseTrace } from "./trace";
+import { latestLookup } from "./conditions";
+import type { ConditionsData } from "./ConditionsPanel";
 import type { TraceRun } from "./TraceView";
 
 export const DEMO_MISSION_ID = "demo";
@@ -64,5 +66,22 @@ export async function loadDemoTrace(): Promise<{ runs: TraceRun[]; imageUrl: (re
       { label: "Recorded 22 Oct 2026: a live conditions lookup", source: "docs/evidence/conditions-live-20261021/trace.jsonl", entries: parseTrace(conditions.default) },
     ],
     imageUrl: (rel) => images[rel] ?? null,
+  };
+}
+
+/**
+ * The demo console's Conditions panel: a real recorded lookup (docs/evidence/conditions-live-20261021: its
+ * conditions.json and trace.jsonl, copied as they were). The demo mission's own conditions are a fixture
+ * with no sources, so the panel says it shows the recorded run instead.
+ */
+export async function loadDemoConditions(): Promise<ConditionsData> {
+  const [c, trace] = await Promise.all([import("./__fixtures__/demo_conditions_recorded.json"), import("./__fixtures__/demo_trace_conditions.jsonl?raw")]);
+  const conditions = c.default as unknown as Conditions;
+  return {
+    conditions,
+    lookup: latestLookup(parseTrace(trace.default)),
+    recorded: `Recorded live lookup for Mount Seymour, ${conditions.fetched_at.slice(0, 10)} ${conditions.fetched_at.slice(11, 16)} UTC (the demo mission's own conditions are a fixture with no sources)`,
+    limitKmh: null,
+    drone: null,
   };
 }

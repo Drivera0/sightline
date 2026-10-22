@@ -4,10 +4,12 @@
 // once it reads live missions.
 
 import { useSelection } from "../lib/selection";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
+import { isTyping } from "../lib/keys";
+import { ConditionsPanel, type ConditionsData } from "./ConditionsPanel";
 import type { Clue, ClueDraft, Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
-import { ModeChip, modeOf, Panel, StatusPill, type Tone } from "../shell/components";
+import { KeyHint, ModeChip, modeOf, Panel, StatusPill, type Tone } from "../shell/components";
 import { ApprovalInbox, type Decide } from "./ApprovalInbox";
 
 type TaskBody = { state: SectorTask["state"]; team_id?: string | null; pod?: number | null; note?: string | null };
@@ -36,6 +38,8 @@ export interface CommandProps {
   map?: ReactNode;
   /** Between the status line and the map (the console only): the demo's pre-seeded note, the first-visit hint. */
   aboveMap?: ReactNode;
+  /** The conditions with their quotes and sources (the console's Conditions panel, W); none: no panel. */
+  conditionsData?: ConditionsData | null;
   now?: () => Date;
 }
 
@@ -51,6 +55,19 @@ export function CommandView(p: CommandProps) {
     const id = setInterval(() => tick((n) => n + 1), 30_000); // the clock and the ages
     return () => clearInterval(id);
   }, []);
+  // W: the Conditions panel (the console only), unless typing
+  const [condOpen, setCondOpen] = useState(false);
+  const condId = useId();
+  const hasConditions = !!p.map && !!p.conditionsData;
+  useEffect(() => {
+    if (!hasConditions) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCondOpen(false);
+      else if ((e.key === "w" || e.key === "W") && !isTyping(e.target) && !e.ctrlKey && !e.metaKey && !e.altKey) setCondOpen((o) => !o);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hasConditions]);
   if (p.map) {
     // LANE_E §7.1: header across the top; task board and teams | map | approvals and radio; clue log along the bottom.
     // Each rail scrolls on its own so the map never leaves the screen.
@@ -59,12 +76,25 @@ export function CommandView(p: CommandProps) {
         aria-label="Command view"
         className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]"
       >
-        <div className="flex flex-col gap-2 lg:col-span-3">
+        <div className="relative z-20 flex flex-col gap-2 lg:col-span-3">
           <p className="rounded-sm border border-line bg-surface-solid px-3 py-2 text-caption text-text-2 lg:hidden">
             <span className="font-medium text-text">Desktop recommended.</span> The console is laid out for a screen 1024 px or wider; here
             its panels stack: map, sectors and teams, approvals, clues.
           </p>
-          <MissionHeader heading mission={p.mission} status={p.status} conditions={p.conditions} now={now()} />
+          <MissionHeader
+            heading
+            mission={p.mission}
+            status={p.status}
+            conditions={p.conditions}
+            now={now()}
+            toggle={hasConditions ? { open: condOpen, controls: condId, onToggle: () => setCondOpen(!condOpen) } : undefined}
+          />
+          {hasConditions && condOpen && (
+            // over the console, under the header (the map keeps its place); W or Esc closes it
+            <div className="absolute inset-x-0 top-full mt-1 max-h-[75vh] overflow-y-auto rounded-lg shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]">
+              <ConditionsPanel id={condId} data={p.conditionsData!} now={p.conditionsData!.recorded ? new Date(p.conditionsData!.conditions.fetched_at) : now()} time={(iso) => `${hhmm(new Date(iso), true)} UTC`} />
+            </div>
+          )}
         </div>
         <aside aria-label="Sectors and teams" className="order-2 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 lg:order-none">
           <TaskBoard compact tasks={p.tasks} sectors={p.sectors} teams={p.teams} onSetTask={p.onSetTask} onUpdateTeam={p.onUpdateTeam} now={now()} cardHref={p.cardHref} />
@@ -104,7 +134,23 @@ export function CommandView(p: CommandProps) {
   );
 }
 
-export function MissionHeader({ mission, status, conditions: c, now, heading = false }: { mission: Mission | null; status: string; conditions: Conditions | null; now: Date; heading?: boolean }) {
+export function MissionHeader({
+  mission,
+  status,
+  conditions: c,
+  now,
+  heading = false,
+  toggle,
+}: {
+  mission: Mission | null;
+  status: string;
+  conditions: Conditions | null;
+  now: Date;
+  heading?: boolean;
+  /** The conditions line opens the Conditions panel (sources, quotes, the flyability gate). */
+  toggle?: { open: boolean; controls: string; onToggle: () => void };
+}) {
+  const Line = toggle ? "button" : "p";
   const utc = status === "demo"; // the demo's scripted timeline, as its fixtures are dated
   const bits: string[] = [];
   if (c) {
@@ -136,12 +182,21 @@ export function MissionHeader({ mission, status, conditions: c, now, heading = f
       </span>
       <StatusPill tone={fly[0]}>{fly[1]}</StatusPill>
       {c && c.alerts.length > 0 && <StatusPill tone="caution">{c.alerts.length === 1 ? "1 alert" : `${c.alerts.length} alerts`}</StatusPill>}
-      <p className="min-w-0 flex-1 text-small text-text-2 lg:truncate" title={`Conditions: ${words}`}>
+      <Line
+        className="min-w-0 flex-1 text-left text-small text-text-2 lg:truncate"
+        title={`Conditions: ${words}${toggle ? " (W: sources and quotes)" : ""}`}
+        {...(toggle ? { type: "button" as const, "aria-expanded": toggle.open, "aria-controls": toggle.controls, onClick: toggle.onToggle } : {})}
+      >
         <span className="text-text-3">Conditions: </span>
         {c ? bits.join(" · ") : "not yet fetched"}
         {c && c.alerts.length > 0 && <span className="text-caution"> · {c.alerts.map((a) => a.title).join("; ")}</span>}
         {old && <span className="text-caution"> · as of {hhmm(new Date(c!.fetched_at), utc)}</span>}
-      </p>
+      </Line>
+      {toggle && (
+        <button type="button" onClick={toggle.onToggle} aria-expanded={toggle.open} aria-controls={toggle.controls} className="flex shrink-0 items-center gap-1.5 text-caption text-text-2 hover:text-text">
+          {toggle.open ? "Hide sources" : "Sources and quotes"} <KeyHint>W</KeyHint>
+        </button>
+      )}
     </section>
   );
 }
