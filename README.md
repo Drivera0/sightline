@@ -1,6 +1,6 @@
 # Sightline
 
-Sightline finds the hiker in hundreds of search-and-rescue drone photos, then shows the rescue team where to look next. A detector ranks the photos, each detection becomes a pin on a map, and a Bayesian probability map updates after every photo. It assists searchers; it never decides that an area is clear. Built for BCS Hackathon 2026.
+Sightline finds the hiker in hundreds of search-and-rescue drone photos, then shows the rescue team where to look next. A detector ranks the photos, each detection becomes a pin on a map, and a Bayesian probability map updates after every photo. It assists searchers; it never decides that an area is clear. Built for BCS Hackathon 2026, then extended into live missions (an agent that proposes, people who approve, a radio desk and a simulated drone fleet) for the OpenCV and Nebius hackathons.
 
 **Live demo: https://sightline-iota-sandy.vercel.app**
 
@@ -21,6 +21,21 @@ The site walks through one survey in five steps (keys 1 to 5):
 5. **Results**: the numbers below, with their sources.
 
 A second survey, real HERIDAL photos at their recorded EXIF positions, is in the survey menu. The Mount Seymour flight path and the search evaluation are simulated, and the site labels them that way.
+
+## Live missions
+
+A live mission runs the same detector and map while the search happens, through a mission API (`python -m sightline.pipeline serve --mission-root missions`):
+
+- **Photos in** after each landing (drag the SD card's photos in, or `python -m sightline.client watch FOLDER`), or replayed at drone pace (`... client replay`). Each one is detected with OpenCV 5 `cv2.dnn`, placed on the map from its GPS and camera pose, and steps the probability map.
+- **An agent proposes; a person decides.** Uncertain detections get a second look (OpenCV 5 re-look tools, then Nemotron VL). The agent turns verdicts, clues, conditions and the planner's legs into proposals: promote a detection, fly a drone leg, re-task a flying drone, assign a sector to a team, alert the teams. Nothing happens until the search manager approves it in the **command view** (task board, team roster, approval inbox, clue log, live heat map, printable assignment cards with GPX/KML). Every model and tool call is in the mission's trace.
+- **The radio desk** puts Sightline on a secondary voice channel: teams ask questions and report clues by voice; a clue is logged only after Sightline reads it back and the team confirms; it transmits only briefings the search manager approved, when the operator presses Transmit.
+- **Conditions from the web** (Tavily, below) gate the drones and shape the briefings.
+- **A simulated drone fleet** (labelled so everywhere) flies approved legs and sends its photos through the same API (`python -m sightline.search.fleet run`); `scripts/creek_run.py` runs the whole story: a team's clue → the agent re-tasks a drone → its photo shows the person → review → alert.
+- **A debrief** from the log: every proposal and who decided it, each sector's coverage and POD (`GET /missions/{id}/debrief.md`).
+
+Try the command view without a server: **`#m/demo/command`** on the live site (a demo mission, simulated data). The API runs on AWS between demos (`deploy/aws/`). The OpenCV report, with the measured numbers: [docs/report/OPENCV_REPORT.md](docs/report/OPENCV_REPORT.md).
+
+![The command view on a live mission](docs/architecture/screens/command-view.png)
 
 ## Results
 
@@ -61,10 +76,12 @@ Every language and vision model call goes through **Nebius Token Factory** at ru
 | Second look at uncertain detections: the crop plus OpenCV 5 re-look images in, a JSON verdict out (person, posture, group size, clothing, reason) | Nemotron-3.5-Super-VL (`nvidia/Nemotron-3.5-Super-VL`) | Token Factory | `sightline/agent/verify.py` |
 | Radio-style briefings for ground teams, written only from given facts and post-checked (≤ 60 words, never "clear", no invented numbers) | Nemotron 3 Nano (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`) | Token Factory | `sightline/agent/loop.py` |
 | Planning text and tool calls | Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b`) | Token Factory | `sightline/agent/llm.py` (`MODEL_REASON`) |
-| **Coming (lane E):** the radio desk: speech in, an answer, speech out | Parakeet TDT 0.6B v2 (speech to text), Nemotron with tools, Magpie TTS | GPU desktop / Token Factory | `sightline/radio/` |
+| The radio desk: speech in, an answer from tools (sector boundary, assignment, conditions, clue drafts), speech out | Parakeet TDT 0.6B v2 (speech to text), Nemotron 3 Super with tool calls, Magpie TTS | speech on the GPU desktop (NeMo); the model on Token Factory | `sightline/radio/` |
 | Batch detection of the simulated fleet's photos: 711 photos in 483 s on 16 vCPUs, about $0.10 (2026-10-22) | the Sightline detector on OpenCV 5 `cv2.dnn` | Nebius Serverless Job (CPU, us-north1) | `deploy/nebius/run_job.sh`, `scripts/nebius_batch_detect.py` |
 
-How the models fit together, and a real trace of one decision: [docs/architecture/agent.md](docs/architecture/agent.md). Measured on 461 live verifier calls: p50 1.35 s and p90 1.65 s per call, about 890 tokens in and 67 out, every reply valid JSON. What worked and what didn't: [docs/feedback/nebius.md](docs/feedback/nebius.md).
+![Agent workflow: perception, decision, action, human approval, effect](docs/architecture/agent.png)
+
+How the models fit together, and a real trace of one decision: [docs/architecture/agent.md](docs/architecture/agent.md). Radio, measured over 30 live turns: first sound p50 2.0 s and p90 3.0 s; speech recognition 45–153 ms per phrase; 6 / 6 clue reports read back and confirmed ([docs/feedback/radio.md](docs/feedback/radio.md)). Measured on 461 live verifier calls: p50 1.35 s and p90 1.65 s per call, about 890 tokens in and 67 out, every reply valid JSON. What worked and what didn't: [docs/feedback/nebius.md](docs/feedback/nebius.md).
 
 Setup:
 
@@ -78,6 +95,18 @@ SIGHTLINE_FAKE_LLM=1 ...                                         # run anything 
 
 The Nemotron models think before they answer, and the thinking counts against `max_tokens`; our client defaults to 2048 and can turn thinking off with `extra_body={"chat_template_kwargs": {"enable_thinking": False}}` (`NO_THINKING` in `llm.py`).
 
+## Conditions with Tavily
+
+Each mission's conditions come from live web search at run time (`sightline/geo/conditions.py`): three Tavily searches (forecast, weather warnings, park and trail alerts for the area) and one Tavily extract, cached per hour. Nemotron reads the pages and returns each value **with the sentence it came from**; a value is kept only if that quote is found verbatim in the page, contains the number and names the field, and is in a sane range. Everything else stays empty rather than guessed. Sunset and civil twilight are computed locally.
+
+What it changes during a search:
+
+- **Flying:** the planner proposes no drone leg when gusts exceed the drones' limit, it's raining, or it's after civil twilight, and the agent proposes recalling drones that are in the air.
+- **The map:** fog or haze in a warning lowers the visibility factor, which lowers what each photo is worth (its POD) on the map.
+- **People:** the exposure band shifts probability toward shelter; briefings to teams carry daylight left, wind and alerts.
+
+Live, Mount Seymour on the evening of Oct 22: wind NW 20 km/h gusting 40 (quoted "NW 20", "gusts 40"), a fog advisory (visibility factor 0.6), not flyable ("after civil twilight"); the same values on two runs. Every Tavily call and every extracted value with its quote and source URL is in the mission trace (`actor="conditions"`). The key lives on the server only (AWS Secrets Manager); `SIGHTLINE_FAKE_TAVILY=1` runs without it.
+
 ## Team and lanes
 
 | Lane | Owns | Code |
@@ -85,14 +114,17 @@ The Nemotron models think before they answer, and the thinking counts against `m
 | A · Detector | data prep, training, evaluation, metrics screen | `sightline/ml/`, `scripts/` |
 | B · Geo | camera poses, footprints, pins, base map, real-GPS survey | `sightline/geo/`, `web/src/map/` |
 | C · Search | probability map, simulation, Search next | `sightline/search/`, `web/src/map/heat/` |
-| D · Pipeline | contract, pipeline, website shell, review queue | `sightline/pipeline/`, `web/src/shell/` |
+| D · Pipeline | contract, pipeline, mission store and API, website shell, review queue, AWS | `sightline/pipeline/`, `sightline/mission/`, `sightline/api/`, `web/src/shell/`, `deploy/aws/` |
+| E · Ops & Voice | front door, command view, radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` |
+
+In the live-missions sprint lane A also owns the second look and the agent (`sightline/agent/`), the Nebius Serverless Job (`deploy/nebius/`) and the reports.
 
 The lanes meet at one contract (`docs/01_CONTRACT.md`): only the pipeline writes the cache, every cache file is validated against it, and the website only reads the cache.
 
 ## Quick start
 
 ```bash
-uv sync                                      # Python dependencies
+uv sync                                      # Python dependencies (add --extra ml --extra conditions on a GPU machine)
 uv run pytest                                # all tests
 uv run python -m sightline.pipeline sample   # regenerate the fake sample cache
 cd web && pnpm install && pnpm dev           # the website (reads web/public/cache/sample)
@@ -129,15 +161,17 @@ If a lane's function is missing, its stage writes a labelled **placeholder** and
 command output and in `manifest.json`. See `docs/LANE_INTERFACES.md` for what the pipeline calls in
 lanes A, B and C.
 
-## Upload API (optional)
+## Mission API
 
 ```bash
-uv run python -m sightline.pipeline serve --weights data/weights/best.pt
-curl -F file=@photos.zip http://127.0.0.1:8000/survey      # returns an id; check GET /survey/<id>
+uv run python -m sightline.pipeline serve --mission-root missions [--radio text]   # http://127.0.0.1:8000
+cd web && VITE_API_URL=http://127.0.0.1:8000 pnpm dev                              # then "Start a new search"
+SIGHTLINE_FAKE_LLM=1 SIGHTLINE_FAKE_TAVILY=1 bash scripts/smoke.sh                 # the whole loop, no network, no keys
 ```
 
-A zip of JPEGs becomes `cache/upload-<id>/` (frames are resized to 1000×750). The API has no login:
-keep it on `127.0.0.1` or a trusted network.
+The routes are in `docs/01_CONTRACT.md` §13. The API has no login: keep it on `127.0.0.1` or a trusted network
+(the AWS deployment is for demos and is stopped between them). The older single-survey upload (`POST /survey`,
+a zip of JPEGs → `cache/upload-<id>/`) still works.
 
 ## Docs
 
@@ -147,10 +181,12 @@ keep it on `127.0.0.1` or a trusted network.
 - `docs/DETECTOR_LIMITS.md`: where the detector fails, with figures.
 - `docs/LANE_INTERFACES.md`: the functions the pipeline calls in other lanes.
 - `docs/05_FRONTEND_SHARED.md`: the shared website rules and look.
-- `CLAUDE.md`: rules for Claude Code in this repo.
+- `docs/report/OPENCV_REPORT.md`: the OpenCV report (live missions, agentic vision chains, measurements).
+- `docs/feedback/nebius.md`, `docs/feedback/radio.md`: what worked and what didn't with Token Factory, Serverless Jobs, Parakeet and Magpie.
+- `sightline/mission/README.md`, `sightline/search/README_LIVE.md`, `sightline/geo/README.md`, `web/src/command/README.md`: the live-mission pieces, with what was checked and how.
 
 Every number on screen comes from `metrics.json` or a cited source. Anything simulated (the flight
-path, the search-map evaluation, the 10 m position uncertainty) is labelled simulated.
+path, the search-map evaluation, the 10 m position uncertainty, the drone fleet, the demo mission) is labelled simulated.
 
 ## Attribution
 
