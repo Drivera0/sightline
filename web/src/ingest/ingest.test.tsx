@@ -126,6 +126,7 @@ describe("live mission tabs", () => {
   it("mounts the radio desk, safety frame first, and links the debrief", async () => {
     render(<LiveMission api={pending} missionId="a1b2c3d4" initialTab="radio" />);
     expect(screen.getByText(SAFETY_FRAME)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Debrief" })).toHaveAttribute("href", "http://api.test/missions/a1b2c3d4/debrief.md");
     await userEvent.click(screen.getByRole("button", { name: "Feed" }));
     expect(screen.getByRole("link", { name: "Debrief (markdown)" })).toHaveAttribute(
       "href",

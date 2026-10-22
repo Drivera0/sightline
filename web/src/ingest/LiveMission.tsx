@@ -103,6 +103,14 @@ export function LiveMission({ api, missionId, initialTab = "photos" }: { api: Ap
         >
           Go to review
         </button>
+        <a
+          href={`${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-full border border-border px-4 py-1.5 text-small text-text-2"
+        >
+          Debrief
+        </a>
       </nav>
 
       {tab === "photos" && (
