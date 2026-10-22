@@ -442,6 +442,17 @@ HERIDAL photo covering 142 cells.
 - **The second look is weak on the smallest people:** under 60 px it mostly abstains, and with a
   neutral prompt it called many false alarms a person. It is advice that a person approves, never
   a decision.
+- **What the second look gets wrong**, from the early prompt benchmark (val crops, "strict" prompt,
+  `docs/evidence/verifier-bench-20261020.csv`, before the final prompt and the re-look images): of 150
+  crops it called 7 real people "not a person": people in deep shade, small figures on dark grass (top
+  row below; the first looks like bare rock even to us). It called 5 crops labelled "no person" a
+  person, and **all 5 do show people** (bottom row): those crops were mined as hard negatives from
+  regions without a label, and HERIDAL's labels miss some people. So the measured false-alarm rate of
+  the second look is pessimistic, and the hard-negative set itself contains people (the hard-negative
+  fine-tune was dropped for other reasons, §10).
+
+  ![Second-look errors](../figures/verifier/errors.png)
+
 - **cv2.dnn on CPU:** 1.9 s per full photo on 16 cores, slower than the GPU Torch path (0.3 s).
 - **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
   so long replies are spoken sentence by sentence and the first sound depends on the model's time;
