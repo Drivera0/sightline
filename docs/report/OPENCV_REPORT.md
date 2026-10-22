@@ -421,10 +421,10 @@ credit price and the per-vCPU wattage, which are cited. Prices in US dollars, li
 | Item | Inputs (source) | 500 photos |
 |---|---|---|
 | Detector, `cv2.dnn` on AWS c7i.2xlarge | 5.1 s per photo in the worker (`docs/report/OPENCV_REPORT.md:374`) × 500 = 2,550 s = 0.71 h, at about $0.36 an hour (`:381`) | $0.26 |
-| Second look, Nemotron VL on Token Factory | 170 calls on 95 HERIDAL val photos (`docs/LANE_A_ML.md:273`, `:183`), so about 895 calls for 500 photos, × about $0.00033 per call (`docs/feedback/nebius.md:74`) | $0.30 |
+| Second look, Nemotron VL on Token Factory | 170 calls on 95 HERIDAL val photos (`docs/LANE_A_ML.md:273`, `:183`), so about 895 calls for 500 photos, × about $0.00033 per call (`docs/feedback/nebius.md:75`) | $0.30 |
 | Conditions, Tavily | one lookup per area per clock hour, at most 4 calls (`docs/report/TAVILY.md:15`): 3 advanced searches at 2 credits and 1 basic extract at 1 credit (`:17`, `:20`; `sightline/geo/conditions.py:540`, `:575`), so 7 credits an hour at $0.008 per credit ([Tavily API credits](https://docs.tavily.com/documentation/api-credits)); for a 2-hour mission (our assumption) | $0.11 |
 | **Total, AWS path** | | **$0.67** |
-| Instead of the AWS detector row: a Nebius Serverless Job | 0.68 s per photo inside the job plus about 3 min of VM start (677 s − 483 s), at $0.53 an hour (`docs/feedback/nebius.md:174-177`): (500 × 0.68 s + 194 s) = 534 s | $0.08 |
+| Instead of the AWS detector row: a Nebius Serverless Job | 0.68 s per photo inside the job plus about 3 min of VM start (677 s − 483 s), at $0.53 an hour (`docs/feedback/nebius.md:175-178`): (500 × 0.68 s + 194 s) = 534 s | $0.08 |
 | Instead of the CPU detector: `cv2.dnn` on a GPU | 0.303 s per photo on an RTX 4080 SUPER (`docs/report/CV2_CUDA.md:143`) × 500 = 152 s, about 2.5 min | time only; no GPU price is recorded in the repo |
 
 The second-look row is an upper bound for a real survey: HERIDAL photos were chosen because they contain

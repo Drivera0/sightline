@@ -1,0 +1,153 @@
+[2026-10-22T17:45:53Z] create (T0=1792691153.521656092)
+[2026-10-22T17:45:53Z] $ nebius ai endpoint create --name sightline-detect --image cr.us-north1.nebius.cloud/u02a4kdn1y8ryyzejt/sightline-detect-endpoint:v1 --container-port 8080 --platform cpu-d3 --preset 8vcpu-32gb --disk-size 30Gi --auth token --token "$SIGHTLINE_DETECT_TOKEN" --format json
+Token: <token>
+Endpoint ID: aiendpoint-u02m9wxy7e3vy3mzcj
+[2026-10-22T17:50:43Z] create exit 0 after 290.3 s
+[2026-10-22T17:50:43Z] endpoint id: aiendpoint-u02m9wxy7e3vy3mzcj
+[2026-10-22T17:50:44Z] url host: port8080-tn77452agre6sr8.tunnel.applications.us-north1.nebius.cloud
+{
+ "private_endpoints": [
+  "10.104.0.52:8080"
+ ],
+ "public_endpoints": [
+  "https://port8080-tn77452agre6sr8.tunnel.applications.us-north1.nebius.cloud"
+ ],
+ "instances": [
+  {
+   "state": "RUNNING",
+   "compute_instance_id": "computeinstance-u02kr4ww5r2kambnrx",
+   "compute_instance_state": "RUNNING",
+   "private_ip": "10.104.0.52"
+  }
+ ],
+ "state": "RUNNING"
+}
+[2026-10-22T17:50:44Z] first request after create + warm 50 + 4 concurrent (creek fleet photos, 912x684)
+{"first_request": {"photo": "f0001.jpg", "wall_ms": 364.8, "server_ms": {"decode": 5.2, "detect": 196.6, "total": 201.8}, "boxes": 0, "candidates": 0, "size": [912, 684]}, "cold": {"create_or_start_to_healthy_s": 291.2, "create_or_start_to_first_detection_s": 291.5}}
+{"warm": {"n": 50, "p50_ms": 716.5, "p90_ms": 3450.7, "max_ms": 3504.2, "mean_ms": 1394.8}, "warm_server_detect": {"n": 50, "p50_ms": 516.9, "p90_ms": 3065.4, "max_ms": 3134.7, "mean_ms": 1194.7}, "concurrent": {"concurrency": 4, "n": 50, "p50_ms": 4383.1, "p90_ms": 9421.3, "max_ms": 9971.2, "mean_ms": 4673.6, "wall_s": 60.99, "photos_per_s": 0.82}, "cost": {"price_per_hour_usd": 0.264, "photos_per_s_used": 0.82, "usd_per_1000_photos": 0.0894, "note": "VM list price while it runs, at the best measured throughput; idle time not included"}}
+[2026-10-22T17:52:55Z] HERIDAL test photos, 4000x3000 (20 slices each)
+{"first_request": {"photo": "test_BLI_0001.jpg", "wall_ms": 5940.4, "server_ms": {"decode": 207.3, "detect": 4970.0, "total": 5177.3}, "boxes": 8, "candidates": 7, "size": [4000, 3000]}, "cold": null}
+{"warm": {"n": 50, "p50_ms": 5675.1, "p90_ms": 5797.2, "max_ms": 5905.2, "mean_ms": 5665.1}, "warm_server_detect": {"n": 50, "p50_ms": 5101.1, "p90_ms": 5163.2, "max_ms": 5219.5, "mean_ms": 5097.6}, "concurrent": {"concurrency": 4, "n": 50, "p50_ms": 20664.7, "p90_ms": 20813.0, "max_ms": 21587.4, "mean_ms": 20102.4, "wall_s": 259.09, "photos_per_s": 0.193}, "cost": {"price_per_hour_usd": 0.264, "photos_per_s_used": 0.193, "usd_per_1000_photos": 0.38, "note": "VM list price while it runs, at the best measured throughput; idle time not included"}}
+[2026-10-22T18:02:01Z] parity photo f0665 (the job's one candidate, 0.735)
+{"n_candidates": 1, "top": [{"box": [420, 291, 477, 379], "conf": 0.73487788438797}], "timing_ms": {"decode": 2.7, "detect": 187.3, "total": 190.0}}
+[2026-10-22T18:02:01Z] auth: /detect without the token
+401
+[2026-10-22T18:02:01Z] auth: /healthz without the token
+401
+[2026-10-22T18:02:02Z] stop
+[2026-10-22T18:02:02Z] $ nebius ai endpoint stop --id aiendpoint-u02m9wxy7e3vy3mzcj
+waiting for operation "opvmapp-u02ynpp2e21th04sf6" over resource "aiendpoint-u02m9wxy7e3vy3mzcj" to complete
+metadata:
+  id: aiendpoint-u02m9wxy7e3vy3mzcj
+  parent_id: project-u02f79gjig00vh19c80abn
+  name: sightline-detect
+  resource_version: "1"
+  created_at: "2026-10-22T17:45:53.441679Z"
+  updated_at: "2026-10-22T17:45:53.441679Z"
+spec:
+  image: cr.us-north1.nebius.cloud/u02a4kdn1y8ryyzejt/sightline-detect-endpoint:v1
+  ports:
+    - container_port: 8080
+      host_port: 8080
+      protocol: HTTP
+  platform: cpu-d3
+  preset: 8vcpu-32gb
+  disk:
+    type: NETWORK_SSD
+    size_bytes: "32212254720"
+  subnet_id: vpcsubnet-u02yb4zefh7txcybd2
+  auth_token: <token>
+status:
+  public_endpoints:
+    - https://port8080-tn77452agre6sr8.tunnel.applications.us-north1.nebius.cloud
+  state: STOPPED
+
+[2026-10-22T18:03:10Z] stop took 68 s
+[2026-10-22T18:03:10Z] $ nebius ai endpoint get aiendpoint-u02m9wxy7e3vy3mzcj --format jsonpath={.status.state}
+STOPPED
+[2026-10-22T18:03:10Z] request while stopped
+404
+[2026-10-22T18:03:10Z] start (T1=1792692190.729926605)
+[2026-10-22T18:03:10Z] $ nebius ai endpoint start --id aiendpoint-u02m9wxy7e3vy3mzcj
+waiting for operation "opvmapp-u02edpk7zq81mr6pyq" over resource "aiendpoint-u02m9wxy7e3vy3mzcj" to complete
+metadata:
+  id: aiendpoint-u02m9wxy7e3vy3mzcj
+  parent_id: project-u02f79gjig00vh19c80abn
+  name: sightline-detect
+  resource_version: "1"
+  created_at: "2026-10-22T17:45:53.441679Z"
+  updated_at: "2026-10-22T17:45:53.441679Z"
+spec:
+  image: cr.us-north1.nebius.cloud/u02a4kdn1y8ryyzejt/sightline-detect-endpoint:v1
+  ports:
+    - container_port: 8080
+      host_port: 8080
+      protocol: HTTP
+  platform: cpu-d3
+  preset: 8vcpu-32gb
+  disk:
+    type: NETWORK_SSD
+    size_bytes: "32212254720"
+  subnet_id: vpcsubnet-u02yb4zefh7txcybd2
+  auth_token: <token>
+status:
+  private_endpoints:
+    - 10.104.0.52:8080
+  public_endpoints:
+    - https://port8080-tn77452agre6sr8.tunnel.applications.us-north1.nebius.cloud
+  instances:
+    - state: RUNNING
+      compute_instance_id: computeinstance-u02xtc3hgnvhnysfva
+      compute_instance_state: RUNNING
+      private_ip: 10.104.0.52
+  state: STARTING
+
+[2026-10-22T18:07:42Z] start returned after 271.7 s
+[2026-10-22T18:07:42Z] url after start same: yes
+{"first_request": {"photo": "f0001.jpg", "wall_ms": 330.1, "server_ms": {"decode": 4.9, "detect": 159.6, "total": 164.5}, "boxes": 0, "candidates": 0, "size": [912, 684]}, "cold": {"create_or_start_to_healthy_s": 272.6, "create_or_start_to_first_detection_s": 272.9}}
+[2026-10-22T18:07:43Z] endpoint logs (tail)
+INFO:     172.18.0.5:41160 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41172 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:48640 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41156 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41160 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41172 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:48640 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41156 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41160 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41172 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:48640 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41156 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41160 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41172 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:48640 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41156 - "POST /detect HTTP/1.1" 200 OK
+INFO:     172.18.0.5:41156 - "POST /detect HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1]
+Provisioning resources for the workload
+Workload initialization started
+Downloading container image
+Starting workload container
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     172.18.0.6:44108 - "GET /healthz HTTP/1.1" 200 OK
+[2026-10-22T18:07:44Z] done
+[2026-10-22T18:07:44Z] deleting aiendpoint-u02m9wxy7e3vy3mzcj
+[2026-10-22T18:07:44Z] $ nebius ai endpoint delete --id aiendpoint-u02m9wxy7e3vy3mzcj
+waiting for operation "opvmapp-u02wt9xv431w19n0qd" over resource "aiendpoint-u02m9wxy7e3vy3mzcj" to complete
+id: opvmapp-u02wt9xv431w19n0qd
+description: Delete endpoint
+created_at: "2026-10-22T18:07:44.673064Z"
+created_by: tenantuseraccount-e00aqwb1ebbj8vbwe3
+finished_at: "2026-10-22T18:09:18.695620Z"
+resource_id: aiendpoint-u02m9wxy7e3vy3mzcj
+status: {}
+
+[2026-10-22T18:09:22Z] delete took 98 s
+[2026-10-22T18:09:22Z] $ nebius ai endpoint list
+No endpoints, jobs, or Devlabs

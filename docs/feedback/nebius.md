@@ -2,10 +2,10 @@
 
 For the Nebius "Most Valuable Feedback" form. Each tool follows the judges' template: what we used it
 for, what worked, what needs work, how onboarding felt (zero to hello world), and whether we would build
-with it again. Token Factory numbers are from 2026-10-20; the Serverless Job numbers from 2026-10-22.
-The radio desk's own measurements are in `docs/feedback/radio.md`.
+with it again. Token Factory numbers are from 2026-10-20; the Serverless Job and Serverless Endpoint
+numbers from 2026-10-22. The radio desk's own measurements are in `docs/feedback/radio.md`.
 
-**Onboarding timings** (items 2–5 read from our session logs and `git log`; items 1 and 6 from memory):
+**Onboarding timings** (items 2–5 and 7 read from our session logs and `git log`; items 1 and 6 from memory):
 
 1. Token Factory: sign-up → first API key, 10 hours
 2. Token Factory: key in the shell → first successful chat call, about 3 minutes (2026-10-20 13:29 → 13:32 PDT, session log)
@@ -13,6 +13,7 @@ The radio desk's own measurements are in `docs/feedback/radio.md`.
 4. Serverless Jobs: `nebius` CLI install → logged in, about 2 minutes (2026-10-21 21:14 → 21:16 PDT), after one failed try because `profile create` only works interactively
 5. Parakeet and Magpie: start of the spike → first transcript and first spoken reply, about 75 minutes (2026-10-20 18:30 → 19:45 PDT), including the NeMo environment build and the 3 GB download
 6. Builders credits: applied → credited, under a day; the process was straightforward
+7. Serverless Endpoints: start (docs, CLI help) → first detection from our endpoint, about 14 minutes including our app code and image build (2026-10-22 17:37 → 17:50:44 UTC, `docs/evidence/nebius_endpoint/20261022-1747/commands.log`), 5 of them the create itself
 
 **Prices** (Token Factory model catalog, https://tokenfactory.nebius.com/model-catalog.md, read
 2026-10-20 and again 2026-10-22, unchanged; per million tokens, no currency stated on the page):
@@ -208,7 +209,62 @@ successful job itself 11 minutes.
 **Would we build with it again?** Yes for batch CPU work like this: a container, a command, logs back,
 billed by the second. We would check quotas per region first.
 
-## 6. Parakeet TDT 0.6B v2 (`nvidia/parakeet-tdt-0.6b-v2`, speech to text)
+## 6. Serverless Endpoints
+
+**What we used it for.** The Sightline person detector served on demand: one drone photo in over HTTPS,
+boxes out, on a CPU endpoint (OpenCV 5 `cv2.dnn`, no GPU, no torch). The mission worker sends detection
+there when `SIGHTLINE_DETECT_URL` is set, so a field laptop or a small API box can hand detection to
+Nebius. Code: `sightline/serve/detect_app.py`, `sightline/ml/remote.py`, `deploy/nebius/ENDPOINT.md`.
+
+**Measured** (2026-10-22, us-north1, `cpu-d3` / `8vcpu-32gb`, token auth; client on our dev machine, so wall
+times include upload; run files in `docs/evidence/nebius_endpoint/20261022-1747/`):
+
+| | Value |
+|---|---|
+| Cold start: `ai endpoint create` → first detection | 291.5 s (create returned at 290.3 s, healthy at 291.2 s) |
+| Cold start after `stop` → `start` | 272.9 s to the first detection; the logs show the image downloaded again |
+| Warm, 50 full HERIDAL test photos (4000×3000) one at a time | p50 5.68 s, p90 5.80 s wall; 5.10 s of it detection in the container |
+| Warm, 50 fleet photos (912×684 to 2667×2000) | p50 0.72 s, p90 3.45 s wall (189 ms detection at 912×684, 3.06 s at 2667×2000) |
+| 4 concurrent | 0.193 full photos/s, 0.82 fleet photos/s: little over one at a time, since `cv2.dnn` already uses all 8 vCPUs |
+| Cost per 1,000 photos (list price $0.264/h while running, best throughput) | **$0.38** full photos, **$0.089** fleet photos; the whole session (23 min) about $0.10 |
+| Same output as the batch job | f0665: same box, 0.735, the one candidate |
+
+**What worked.** A CPU endpoint worked from our own image with no GPU and no code change beyond a FastAPI
+app: `--platform cpu-d3` was accepted though every example uses a GPU. `--dry-run` validated the whole
+request in seconds before we spent five minutes on a create. The managed `https://` URL with bearer-token
+auth meant no public IP, TLS or auth code on our side, and unauthenticated calls got 401. The image pull
+from a registry in the same project needed no credentials, and the push took 5 s because the image shares
+layers with our batch-job image. `stop` kept the URL, so the worker's configuration survived a stop and
+start. `nebius ai endpoint logs` showed both our uvicorn log and the platform's start-up steps.
+
+**What needs work.**
+- **The token is printed in plain text.** `create` echoes `Token: <value>` even when we passed it in, and
+  `stop` and `start` print the endpoint YAML with `spec.auth_token`. In CI logs or shared terminals that
+  leaks the secret; we filtered it out of our logs ourselves. Mask it, or print it only once when the CLI
+  generated it.
+- **No scale to zero.** An endpoint bills like a VM while it runs. For photos that arrive in bursts during
+  a search, scale to zero with a request-triggered start would make the endpoint the default; today a
+  `stop` → `start` takes 4.5 minutes because the image is downloaded again, too slow for a first photo.
+  Even a cached image on restart would help.
+- **Health checks need the token.** The platform puts `/healthz` behind the same bearer token, so an
+  external uptime check needs the secret. An option to leave one path open would help.
+- **CPU endpoints are undocumented in practice.** The deploy tutorial and every example are GPU (vLLM on
+  L40S), and `--platform` defaults to an H100/H200 platform; the manage page mentions CPU-only endpoints
+  only for the minimum disk size. One CPU example would have saved the guess, as with Jobs (§5).
+- Small: `delete $ENDPOINT_ID` in the tutorial versus `--id` required in the CLI help; `start` returned
+  with `state: STARTING` while its instance already said RUNNING; while stopped the URL answers 404, which
+  a client can't tell from a wrong path.
+
+**Onboarding.** From starting (17:37 UTC: the docs and the CLI help) to the first detection from the
+endpoint (17:50:44 UTC): **about 14 minutes**, including writing the FastAPI app and building the image;
+5 of them were the create itself. The CLI profile and registry already existed
+from the Serverless Job (§5); a new user would add the 2 minutes of CLI setup there.
+
+**Would we build with it again?** Yes for an always-on detector during an active search, where 5 s per
+full photo for $0.264 an hour is cheap. For the bursty, mostly idle case we would keep the batch job until
+endpoints scale to zero.
+
+## 7. Parakeet TDT 0.6B v2 (`nvidia/parakeet-tdt-0.6b-v2`, speech to text)
 
 **What we used it for.** The radio desk hears ground teams: push-to-talk audio → text, on our RTX 4080
 SUPER through NeMo (`sightline/radio/asr.py`). Not on Token Factory.
@@ -240,7 +296,7 @@ and downloads about 3 GB once (`docs/feedback/radio.md:165`). Start of the spike
 
 **Would we build with it again?** Yes. Fast and accurate for short radio phrases on one consumer GPU.
 
-## 7. Magpie TTS multilingual 357M (`nvidia/magpie_tts_multilingual_357m`, text to speech)
+## 8. Magpie TTS multilingual 357M (`nvidia/magpie_tts_multilingual_357m`, text to speech)
 
 **What we used it for.** Sightline's spoken replies on the radio desk, speaker 0, on the RTX 4080 SUPER
 (`sightline/radio/tts.py`). Not on Token Factory.
@@ -259,17 +315,17 @@ sentence by sentence with a cached "<Callsign>, Sightline." opener brought time 
 streaming API with first audio under 300 ms would matter more than raw throughput
 (`docs/feedback/radio.md:59-63`).
 
-**Onboarding.** Same NeMo install as Parakeet (§6).
+**Onboarding.** Same NeMo install as Parakeet (§7).
 
 **Would we build with it again?** Yes, with chunked playback from the start.
 
-## 8. Builders credits process
+## 9. Builders credits process
 
 **What we used it for.** Token Factory credits for development and evaluation (the 461 vision calls cost
 about 0.15 at catalog prices, §2), alongside the hackathon promo code.
 
 **How it went.** Applied → credited: under a day. The form was short and the credit appeared without a
 follow-up; nothing to change. One ask: a note on the credits page saying which services and regions the
-credit covers, so a first job is not planned in a region with no quota (§3).
+credit covers, so a first job is not planned in a region with no quota (§5).
 
 **Would we use it again?** `<Dan>`
