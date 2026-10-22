@@ -83,7 +83,9 @@ def test_ics204_fills_every_block_from_the_card_and_trace(tmp_path: Path) -> Non
     f = _demo_204(store, mid, "T1")
     assert f["incident_name"] == "Mount Seymour (demo)"
     assert f["operational_period"] == {"from": "2026-10-24T20:30:00Z", "to": NOW}
-    assert f["division"] == "Sector C2 (Charlie Two)"  # the planner's sector on the map with the clues
+    assert (
+        f["division"] == "Sector C2 (Charlie Two)"
+    )  # the planner's sector on the map with the clues
     assert f["resources_assigned"][0]["resource_identifier"] == "T1 Team One"
     assert f["resources_assigned"][0]["persons"] == 3
     assert "Target POD 0.6" in f["work_assignments"]
@@ -165,9 +167,15 @@ def test_ics214_logs_decisions_clues_and_searched_sectors(tmp_path: Path) -> Non
     times = [r["at"] for r in f["activity_log"]]
     assert times == sorted(times)  # oldest first (all whole-second UTC here)
     who = {r["what"]: r["who"] for r in f["activity_log"]}
-    assert who["Assignment approved: Assign sector C2 to Team One (p003)"] == "Search manager (scripted for the demo fixture)"
+    assert (
+        who["Assignment approved: Assign sector C2 to Team One (p003)"]
+        == "Search manager (scripted for the demo fixture)"
+    )
     md = ics214_markdown(f)
-    assert "7. Activity Log" in md and "| 10/24/2026 21:43 UTC | Search manager (scripted for the demo fixture) |" in md
+    assert (
+        "7. Activity Log" in md
+        and "| 10/24/2026 21:43 UTC | Search manager (scripted for the demo fixture) |" in md
+    )
     assert not NEVER.search(md)
 
 

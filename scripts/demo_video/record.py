@@ -605,7 +605,9 @@ def demo_shots(d: Director) -> None:
     def next_():
         """t3: back on the story; the agent's proposal, approved by the visitor."""
         d.hash("#m/demo?t=3", 1.8)
-        prop = d.first(p.locator('[data-proposal="p003"]'), timeout=5)  # missionTime.ts STORY_PROPOSAL
+        prop = d.first(
+            p.locator('[data-proposal="p003"]'), timeout=5
+        )  # missionTime.ts STORY_PROPOSAL
         if prop is None:
             raise RuntimeError("no proposal p003 at t3")
         d.to(prop, 1.0, 0.4, 0.45)  # the reason and the briefing

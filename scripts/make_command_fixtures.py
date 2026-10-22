@@ -108,7 +108,11 @@ class Clock:
 def briefing(facts: dict) -> str:
     """The fake briefing model: a few of the facts, word for word, in the radio's order (the agent's
     ``check_briefing`` still checks it; the full facts are in the proposal's reason)."""
-    parts = [f"{facts['team']}, Sightline. New assignment: sector {facts['sector']}."] if "team" in facts else []
+    parts = (
+        [f"{facts['team']}, Sightline. New assignment: sector {facts['sector']}."]
+        if "team" in facts
+        else []
+    )
     if facts.get("subject"):
         parts.append(f"Look for: {facts['subject']}.")
     if facts.get("daylight_left"):
@@ -204,7 +208,9 @@ def main() -> int:
 
     tmp = Path(tempfile.mkdtemp(prefix="demo-mission-"))
     store = MissionStore(tmp / "missions")
-    ctx = MissionContext(store, queue=LocalQueue(), detector_factory=lambda: NoDetector(), hooks=NoHooks())
+    ctx = MissionContext(
+        store, queue=LocalQueue(), detector_factory=lambda: NoDetector(), hooks=NoHooks()
+    )
     ctx.start()
     app = create_app(cache_root=tmp / "c", data_root=tmp / "u", missions=ctx, rate_limit=None)
     http = TestClient(app)
@@ -229,20 +235,30 @@ def main() -> int:
     for fid, ds in dets.frames.items():
         crops = {x.crop: (CACHE / x.crop).read_bytes() for x in ds if x.crop}
         store.append_detections(mid, fid, ds, crops)
-    seeded = len(store.events(mid))  # the cache's own candidates: in the cache, not the mission's feed
+    seeded = len(
+        store.events(mid)
+    )  # the cache's own candidates: in the cache, not the mission's feed
     clock.tick(30)
     store.emit(mid, "mission.note", "the subject's car is in the Mount Seymour trailhead lot: the search starts there (where they set off, not a clue on the map)")  # fmt: skip
     for tid in ("T1", "T2", "T3", "T4"):
         # Teams One and Four are at the lot; Two and Three check in later (off duty until then)
         status = "off_duty" if tid in ("T2", "T3") else "standby"
-        call("PATCH", f"/missions/{mid}/teams/{tid}", json={"position": TRAILHEAD, "position_at": iso(at(1)), "status": status})
+        call(
+            "PATCH",
+            f"/missions/{mid}/teams/{tid}",
+            json={"position": TRAILHEAD, "position_at": iso(at(1)), "status": status},
+        )
     fair = json.loads((ROOT / "tests/geo/fixtures/conditions_clear.json").read_text())["conditions"]
 
     def conditions(minutes: float) -> Conditions:
-        return Conditions.model_validate(fair | {"fetched_at": iso(at(minutes)), "sources": ["fixture (demo)"]})
+        return Conditions.model_validate(
+            fair | {"fetched_at": iso(at(minutes)), "sources": ["fixture (demo)"]}
+        )
 
     clock.t = at(5)
-    store.put_conditions(mid, conditions(5))  # the first lookup; the same fair weather again at 21:30
+    store.put_conditions(
+        mid, conditions(5)
+    )  # the first lookup; the same fair weather again at 21:30
 
     # --- the timeline: frames as they land, and what people and the agent do around them ---------
     schedule: list[tuple[datetime, int, Any]] = []
@@ -263,27 +279,74 @@ def main() -> int:
         k = order[x.frame_id] if hasattr(x, "frame_id") else order[x.id.split("-")[0]]
         t = FLIGHT[0] + timedelta(seconds=round(span * k / (n - 1)) + 8)
         schedule.append((t, 2, ("detection", x.id)))
-    clue_lake = {"kind": "other", "text": "hiker at the lot saw a red jacket near the lake around 11:30",
-                 "d": (0.0004, 0.0021), "reliability": "medium", "reported_by": "command", "source": "form"}
-    clue_boots = {"kind": "track", "text": "fresh boot prints heading east off the main trail",
-                  "d": (0.0010, -0.0008), "reliability": "medium", "reported_by": "T1", "source": "form"}
-    clue_bottle = {"kind": "object", "text": "blue water bottle by the creek crossing", "d": (-0.0013, 0.0009),
-                   "reliability": "high", "reported_by": "T2", "source": "radio", "confirmed_by_turn": "r0004"}
+    clue_lake = {
+        "kind": "other",
+        "text": "hiker at the lot saw a red jacket near the lake around 11:30",
+        "d": (0.0004, 0.0021),
+        "reliability": "medium",
+        "reported_by": "command",
+        "source": "form",
+    }
+    clue_boots = {
+        "kind": "track",
+        "text": "fresh boot prints heading east off the main trail",
+        "d": (0.0010, -0.0008),
+        "reliability": "medium",
+        "reported_by": "T1",
+        "source": "form",
+    }
+    clue_bottle = {
+        "kind": "object",
+        "text": "blue water bottle by the creek crossing",
+        "d": (-0.0013, 0.0009),
+        "reliability": "high",
+        "reported_by": "T2",
+        "source": "radio",
+        "confirmed_by_turn": "r0004",
+    }
     clue_whistle = {"kind": "sound", "text": "possible whistle, three blasts, to the south-west", "d": (-0.0006, -0.0012),
                     "reliability": "low", "reported_by": "T1", "source": "radio", "confirmed_by_turn": "r0007"}  # fmt: skip
     later(40, ("clue", clue_lake))
-    later(50, ("task", "C4", {"state": "assigned", "team_id": "T4"}, "Team Four: hasty search of the trail through C4 (search manager)"))
+    later(
+        50,
+        (
+            "task",
+            "C4",
+            {"state": "assigned", "team_id": "T4"},
+            "Team Four: hasty search of the trail through C4 (search manager)",
+        ),
+    )
     later(51, ("task", "C4", {"state": "in_progress", "team_id": "T4"}, None))
     later(51.2, ("team", "T4", {"status": "searching"}))
     later(56, ("place", "T4", "C4", (0.45, 0.4)))
     later(82, ("place", "T4", "B4", (0.3, 0.55)))
     later(66, ("clue", clue_boots))
-    later(67.8, ("turn", "r0004", "Team Two", "Sightline, Team Two. Blue water bottle by the creek crossing, over.", "Team Two, Sightline. Copy a blue water bottle by the creek crossing, logging it as a clue. Confirm, over."))
+    later(
+        67.8,
+        (
+            "turn",
+            "r0004",
+            "Team Two",
+            "Sightline, Team Two. Blue water bottle by the creek crossing, over.",
+            "Team Two, Sightline. Copy a blue water bottle by the creek crossing, logging it as a clue. Confirm, over.",
+        ),
+    )
     later(68, ("clue", clue_bottle))
-    later(69.8, ("turn", "r0007", "Team One", "Sightline, Team One. Possible whistle, three blasts, to the south-west, over.", "Team One, Sightline. Copy a possible whistle, three blasts, south-west, low reliability. Confirm, over."))
+    later(
+        69.8,
+        (
+            "turn",
+            "r0007",
+            "Team One",
+            "Sightline, Team One. Possible whistle, three blasts, to the south-west, over.",
+            "Team One, Sightline. Copy a possible whistle, three blasts, south-west, low reliability. Confirm, over.",
+        ),
+    )
     later(70, ("clue", clue_whistle))
     later(60, ("conditions",))
-    later(72, ("tick",))  # 21:42, Where next: the planner on the map with the clues (Team One on standby)
+    later(
+        72, ("tick",)
+    )  # 21:42, Where next: the planner on the map with the clues (Team One on standby)
     later(73, ("decide", "T1", "approve", None))
     later(73.5, ("checkin", "T2"))  # Team Two checks in at the lot: its next sector
     later(75, ("decide", "T2", "approve", None))
@@ -308,7 +371,11 @@ def main() -> int:
         return next(t for t in store.state(mid)["tasks"] if t.sector_id == sid)
 
     def assignment_of(tid: str) -> Proposal:
-        return next(p for p in store.state(mid)["proposals"] if p.kind == "assign_sector" and p.target.get("team") == tid)
+        return next(
+            p
+            for p in store.state(mid)["proposals"]
+            if p.kind == "assign_sector" and p.target.get("team") == tid
+        )
 
     def sector_point(sid: str, f: tuple[float, float]) -> dict:
         poly = layout.polygon(sid, m.grid)
@@ -338,13 +405,18 @@ def main() -> int:
             store.emit(mid, what[1], what[2], ref=what[3])
         elif kind == "detection":
             models.next_vl = VL_ANSWERS.get(what[1])
-            out = loop.handle("detection", store, mid, what[1], client=models, detector=NoDetector())
+            out = loop.handle(
+                "detection", store, mid, what[1], client=models, detector=NoDetector()
+            )
             for p in out:
                 if p.kind == "promote_detection":
                     reviewed.append((clock.t, p.id))
         elif kind == "clue":
             d = what[1]
-            body = {k: v for k, v in d.items() if k != "d"} | {"lat": lkp.lat + d["d"][0], "lon": lkp.lon + d["d"][1]}
+            body = {k: v for k, v in d.items() if k != "d"} | {
+                "lat": lkp.lat + d["d"][0],
+                "lon": lkp.lon + d["d"][1],
+            }
             clue = call("POST", f"/missions/{mid}/clues", json=body)
             loop.handle("clue", store, mid, clue["id"], client=models)
         elif kind == "task":
@@ -368,23 +440,41 @@ def main() -> int:
                  json={"decision": what[2], "by": MANAGER, "reason": what[3]})  # fmt: skip
         elif kind == "task_team":
             sid = assignment_of(what[1]).target["sector"]
-            call("POST", f"/missions/{mid}/tasks/{sid}", json={"state": what[2], "team_id": what[1]})
+            call(
+                "POST", f"/missions/{mid}/tasks/{sid}", json={"state": what[2], "team_id": what[1]}
+            )
             call("PATCH", f"/missions/{mid}/teams/{what[1]}", json={"status": "searching"})
         elif kind == "searched":
             sid, pod, note = what[1], what[2], what[3]
-            call("POST", f"/missions/{mid}/tasks/{sid}", json={"state": "searched", "team_id": "T4", "pod": pod, "note": note})
+            call(
+                "POST",
+                f"/missions/{mid}/tasks/{sid}",
+                json={"state": "searched", "team_id": "T4", "pod": pod, "note": note},
+            )
             loop.handle("task_searched", store, mid, sid, client=models)
         elif kind == "place":
-            call("PATCH", f"/missions/{mid}/teams/{what[1]}", json={"position": sector_point(what[2], what[3]), "position_at": clock.iso_ms()})
+            call(
+                "PATCH",
+                f"/missions/{mid}/teams/{what[1]}",
+                json={"position": sector_point(what[2], what[3]), "position_at": clock.iso_ms()},
+            )
         elif kind == "position":
             sid = assignment_of(what[1]).target["sector"]
             f = {"T1": (0.55, 0.35), "T2": (0.4, 0.6), "T3": (0.85, 0.5)}[what[1]]
-            call("PATCH", f"/missions/{mid}/teams/{what[1]}", json={"position": sector_point(sid, f), "position_at": clock.iso_ms()})
+            call(
+                "PATCH",
+                f"/missions/{mid}/teams/{what[1]}",
+                json={"position": sector_point(sid, f), "position_at": clock.iso_ms()},
+            )
         # the image reviewer decides each promotion three minutes after it is made; the last stays pending
         for when, pid in list(reviewed):
             if clock.t >= when + timedelta(minutes=3) and pid != reviewed[-1][1]:
                 clock.tick()
-                call("POST", f"/missions/{mid}/proposals/{pid}/decide", json={"decision": "approve", "by": REVIEWER, "reason": None})
+                call(
+                    "POST",
+                    f"/missions/{mid}/proposals/{pid}/decide",
+                    json={"decision": "approve", "by": REVIEWER, "reason": None},
+                )
                 reviewed.remove((when, pid))
         clock.tick()
 
@@ -404,9 +494,15 @@ def main() -> int:
     # the map log after the cache's frame steps (the browser builds those from map.json, seq 1..n)
     rest = [u for u in store.map_updates(mid) if u.source != "frame"]
     map_updates = [u.model_copy(update={"seq": n + k + 1}) for k, u in enumerate(rest)]
-    events = [e for e in store.events(mid)[seeded:] if not (e.type == "map.updated" and e.data and e.data.get("source") == "frame")]
+    events = [
+        e
+        for e in store.events(mid)[seeded:]
+        if not (e.type == "map.updated" and e.data and e.data.get("source") == "frame")
+    ]
     # the creation's own events (mission.note, the 16 proposed tasks) happened before the cache seeding
-    events = [e for e in store.events(mid)[:seeded] if e.type in ("mission.note", "task.updated")] + events
+    events = [
+        e for e in store.events(mid)[:seeded] if e.type in ("mission.note", "task.updated")
+    ] + events
     trace = store.trace_entries(mid)
     mission_out = Mission.model_validate({**state["mission"].model_dump(), "mission_id": "demo"})
     proposals = state["proposals"]
@@ -435,11 +531,9 @@ def main() -> int:
         "sectors": sectors,
         "map_updates": dump(map_updates),
     }
-    seen_ids = 0
     out_events = []
     renumbered = {u.seq: v.seq for u, v in zip(rest, map_updates, strict=True)}
-    for e in sorted(events, key=lambda e: e.at):
-        seen_ids += 1
+    for seen_ids, e in enumerate(sorted(events, key=lambda e: e.at), 1):
         patch: dict[str, Any] = {"id": f"e{seen_ids:05d}"}
         if e.type == "map.updated" and e.data:
             # the update itself is in map_updates (renumbered after the cache's frames): one copy
@@ -449,7 +543,9 @@ def main() -> int:
         out_events.append(e.model_dump(mode="json"))
     doc["events"] = out_events
     text = json.dumps(doc, indent=1, ensure_ascii=False)
-    trace_text = "".join(TraceEntry.model_validate(x.model_dump()).model_dump_json() + "\n" for x in trace)
+    trace_text = "".join(
+        TraceEntry.model_validate(x.model_dump()).model_dump_json() + "\n" for x in trace
+    )
     for name, body in (("fixture", text), ("trace", trace_text)):
         assert not re.search(r"\bclear(s|ed|ing)?\b", body, re.IGNORECASE), f"the {name} says clear"
     OUT.write_text(text + "\n")
@@ -458,10 +554,18 @@ def main() -> int:
 
     print(f"wrote {OUT.relative_to(ROOT)}: {len(state['tasks'])} tasks, {len(state['clues'])} clues, "
           f"{len(proposals)} proposals, {len(out_events)} events, {len(map_updates)} map updates after the frames")  # fmt: skip
-    print(f"wrote {TRACE.relative_to(ROOT)}: {len(trace)} entries; {len(list(RELOOK.glob('*.jpg')))} re-look images")
+    print(
+        f"wrote {TRACE.relative_to(ROOT)}: {len(trace)} entries; {len(list(RELOOK.glob('*.jpg')))} re-look images"
+    )
     for p in proposals:
         print(f"  {p.id} {p.kind} {p.status:<8} {p.summary}\n      {p.reason}")
-    print("sectors by POA:", [(x["sector_id"], round(x["poa"] * 100, 1)) for x in sorted(sectors, key=lambda x: -x["poa"])])
+    print(
+        "sectors by POA:",
+        [
+            (x["sector_id"], round(x["poa"] * 100, 1))
+            for x in sorted(sectors, key=lambda x: -x["poa"])
+        ],
+    )
     return 0
 
 
