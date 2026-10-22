@@ -683,7 +683,7 @@ All JSON bodies are the models above. Errors: `{"detail": str}` with 4xx. No aut
 | `POST /missions/{id}/clues` | `ClueDraft` (radio drafts only after readback "affirmative", with `confirmed_by_turn`) | `Clue` | E clue form, E radio |
 | `POST /missions/{id}/conditions/refresh` | — | `Conditions` | E header button, A agent |
 | `GET /missions/{id}/cards/{sector_id}` / `.gpx` / `.kml` | — | `AssignmentCard` / file | E assignment card |
-| `PUT /missions/{id}/fleet` | `FleetTelemetry` | merged `FleetState`; D emits `fleet.updated` and calls `hooks.on_leg_done` for legs that turned `done` | C fleet sim |
+| `PUT /missions/{id}/fleet` | `FleetTelemetry` | merged `FleetState`; D emits `fleet.updated` and calls `hooks.on_leg_done` for legs that turned `done`. The first telemetry with drones creates the fleet (no drones and no fleet: 409) | C fleet sim |
 | `GET /missions/{id}/debrief.md` | — | markdown from C's `debrief()` | E debrief button |
 | `GET /missions/{id}/files/{path}` | — | frames, crops, relook crops, radio audio | web |
 | `/missions/{id}/radio/...` | see `LANE_E_OPS_VOICE.md` §8.3 | | E |
