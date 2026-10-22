@@ -320,6 +320,22 @@ radio would have read sweep points and "north-west corner" as landmarks, and "12
 §4: a sighting defaults to **100 m, not 50 m** (a person seen moves on; the report's re-task chain §5.2 and
 `scripts/planner_eval.py` were recorded with 100 m). Change them together if you change it.
 
-Still lane B's: map layers,
-replay/watch clients; importing a card into CalTopo for the report screenshot.
+## Photo clients (done by lane A, #74)
+
+`sightline/client/` (test 7 in `tests/client/`, against `tests/client/fake_api.py`), HTTP only:
+
+    uv run python -m sightline.client replay --api URL [--pace 2] [--limit N] [--mission ID to resume]
+    uv run python -m sightline.client watch FOLDER --api URL (--mission ID | --name "...")
+
+- `replay` takes the largest site of nadir **validation** photos with GPS (89 of 155 have a full pose;
+  the largest site has 18) in capture order, and refuses a path in the test split. A new mission's
+  last-known point is the first photo's position. Resume skips names already in the survey.
+- `watch`: a JPEG is ready when its size is the same on two polls; batches of ≤ 10; ledger in
+  `~/.sightline/watch/<mission>.json` (`SIGHTLINE_HOME` moves it); offline it keeps a queue and backs
+  off (2 → 4 → … 60 s). With `--name` the mission is created at the first photo with GPS.
+- Checked against a real local server: replay of 4 + resume of 2; watch of 3 photos and a broken
+  file ("rejected 1 (not a valid JPEG)": it used to crash the watcher before the mission existed).
+- `httpx` is now a main dependency.
+
+Still lane B's: map layers, importing a card into CalTopo for the report screenshot.
 
