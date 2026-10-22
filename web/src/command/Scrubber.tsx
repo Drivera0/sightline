@@ -2,6 +2,7 @@
 // checkpoints as ticks, the mission clock. The same control is the story's progress: a tick is a
 // checkpoint of the story and a moment of the mission at once.
 
+import type { ReactNode } from "react";
 import { clock } from "../lib/time";
 import { CHECKPOINTS, type Checkpoint } from "./missionTime";
 
@@ -12,6 +13,9 @@ export function Scrubber({
   at,
   onSeek,
   onToggle,
+  canPlay = false,
+  through = null,
+  hint = null,
 }: {
   t: Checkpoint;
   progress: number;
@@ -19,12 +23,22 @@ export function Scrubber({
   /** The mission clock (ISO). */
   at: string;
   onSeek: (t: Checkpoint) => void;
+  /** Play or pause: with `canPlay`, at a checkpoint it plays the clock on to the end. */
   onToggle: () => void;
+  /** Outside the story: the play button runs the clock from here to the end (else only a run in progress pauses). */
+  canPlay?: boolean;
+  /** Playing through to the end: the clock it started at (ISO). */
+  through?: string | null;
+  /** One line under the scrubber, when nothing is playing (how to use the console). */
+  hint?: ReactNode;
 }) {
   const running = progress < 1;
   // the thumb: between the previous tick and t while the clock runs into t
   const pos = Math.max(0, t - 1 + progress) / (CHECKPOINTS.length - 1);
+  const end = CHECKPOINTS[4]!.at;
+  const note = through ? `${playing ? "Playing" : "Paused"} · ${clock(through, true)} → ${clock(end, true)}` : null;
   return (
+    <div className="pointer-events-none flex w-full flex-col items-stretch gap-1">
     <div
       role="group"
       aria-label="Mission time"
@@ -34,9 +48,9 @@ export function Scrubber({
       <button
         type="button"
         onClick={onToggle}
-        disabled={!running}
-        aria-label={playing ? "Pause the mission clock (Space)" : "Play the mission clock (Space)"}
-        title={running ? (playing ? "Pause (Space)" : "Play (Space)") : "The clock is at this checkpoint"}
+        disabled={!running && !canPlay}
+        aria-label={playing ? "Pause the mission clock (Space)" : running ? "Play the mission clock (Space)" : "Play the mission clock to the end (Space)"}
+        title={playing ? "Pause (Space)" : running || canPlay ? "Play (Space)" : "The clock is at this checkpoint"}
         className="sl-tap inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-border text-text-2 hover:text-text disabled:opacity-40"
       >
         {playing ? (
@@ -83,6 +97,12 @@ export function Scrubber({
           })}
         </ol>
       </div>
+    </div>
+    {(note || hint) && (
+      <p role="status" aria-label="Mission clock status" className="self-center rounded-full bg-bg/85 px-3 py-0.5 text-center text-caption text-text-2 backdrop-blur">
+        {note ?? hint}
+      </p>
+    )}
     </div>
   );
 }

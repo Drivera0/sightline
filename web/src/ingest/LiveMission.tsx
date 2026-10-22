@@ -232,9 +232,10 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
       else if (keysOpen) return;
       else if (e.key === "c" || e.key === "C") go("map");
       else if (/^[1-5]$/.test(e.key) && !useStory.getState().tour) go(VIEWS[Number(e.key) - 1]!.id);
-      else if (e.key === " " && demo && !useStory.getState().tour && useStory.getState().progress < 1 && !(e.target instanceof HTMLButtonElement)) {
+      else if (e.key === " " && demo && !useStory.getState().tour && !(e.target instanceof HTMLButtonElement)) {
+        // outside the story Space plays the clock on to the end, or pauses it
         e.preventDefault();
-        useStory.getState().toggle();
+        useStory.getState().play();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -494,7 +495,24 @@ export function LiveMission({ api, missionId, route }: { api: Api; missionId: st
                   progress={story.progress}
                   playing={story.playing}
                   at={clockIso}
-                  onToggle={() => useStory.getState().toggle()}
+                  canPlay={!story.tour}
+                  through={story.through}
+                  hint={
+                    story.tour ? null : (
+                      <>
+                        Press Follow the search for the 3-minute story, or play the clock and use the views <span className="lg:hidden">below</span>
+                        <span className="max-lg:hidden">above</span>.
+                      </>
+                    )
+                  }
+                  onToggle={() => {
+                    const st = useStory.getState();
+                    if (st.tour) st.toggle();
+                    else {
+                      if (st.progress >= 1 && view === "debrief") setView("map");
+                      st.play();
+                    }
+                  }}
                   onSeek={(to) => {
                     const st = useStory.getState();
                     st.seek(to, { animate: to === st.t + 1 });
