@@ -40,9 +40,9 @@ For search managers, Sightline turns drone photos and radio reports into one map
 
 **What breaks first,** before you ask [18]:
 
-1. The detector misses 46 of the 337 test people (strict VOC recall 0.864), and 28 of the 46 are at two sites, MED and CAB: groups, clothing that matches rock, people sitting or lying down.
-2. The second look is a small gain: 4 more of the 337 people for 15 more false alarms (95 % CI of the gain [+0.003, +0.023]), and it is advice a person approves.
-3. The fleet and the approvals in the demo are simulated: the drones, their flights and photos are simulated, and the human approvals in the recorded traces are scripted, labelled so on screen and in the trace.
+1. The detector misses 46 of the 337 people in the HERIDAL test set (recall 0.864, strict VOC), and 28 of those 46 are at two sites, MED and CAB: groups, clothing that matches pale or dark rock, people sitting or lying down.
+2. The second look is a small gain: on test it finds 4 more of the 337 people for 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023]), it is advice a person approves, and on people under 60 px it mostly answers "unclear".
+3. The fleet and the approvals in the demo are simulated: the drones, their flights and their photos are simulated, and the human approvals in the recorded traces are scripted; both are labelled so on screen and in the trace.
 
 Measured, with the caveat beside each number:
 
@@ -52,6 +52,10 @@ Measured, with the caveat beside each number:
 - **On the whole live system, the agent sent the drone, the alert, the team and the promotion to the person's sector or detection in every run of its evaluation (fake models, scripted detector), the approval-gate checks passed in 12 of 12 runs, and with Token Factory fully down a mission pays about 82 s in all, not minutes per call** [17].
 - **The planner's honest result:** on a flat prior it is no better than a fixed serpentine. With a clue it flies there first, and finds the person within 30 minutes in 10.7 % of trials against 6.3 % [12].
 - **A 500-photo mission's compute costs under a dollar:** about $0.67 with detection on AWS, the Nemotron VL second look and Tavily, or $0.49 with detection as a Nebius Serverless Job; the detector uses about 17 Wh (an estimate from CPU-seconds) [19].
+- **On a dataset it never saw, the detector finds about half the people:** frozen, scored once on LADD (1,365 photos, 4,733 people, Russian forest, fields and snow), VOC precision / recall / AP50 0.509 / 0.516 / 0.458, and 0.436 recall on snow [20].
+- **Recall falls with the pixels a person gets, and the map now knows it:** 0.64 at about 18 px, 0.87–0.89 from 37 px (val); each photo's POD reads this curve at its own GSD for a 0.8 m person, times a terrain factor measured on LADD (snow 0.508) [21].
+- **Beside published HERIDAL results** (AIR 90.1 / 86.1 / 84.6 P / R / AP, self-reported; Faster R-CNN 67.3 / 88.3 / 86.1), ours is 80.2 / 86.4 / 86.8 under strict VOC, the one row anyone can re-check in about 5 minutes on a CPU; the rows are not strictly comparable [22].
+- **A negative we kept:** sending a drone to 25 m when the second look says `unclear` resolved 0 of 25 val near-misses in simulation (12 of the 24 false alarms stopped being detected), and the ledger shows the second look's value predicted on val (0.62 decisive) overstates test (0.49) [23].
 
 ## Inspiration
 
@@ -66,6 +70,7 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes an
 - **Takes a second look** at uncertain detections: OpenCV 5 re-look tools (native-resolution zoom, CLAHE, re-detection) build better images, and Nemotron VL gives a verdict.
 - **Proposes the next move** (promote a detection, fly or re-task a drone, assign a sector, alert the teams), each with its reason. **A person approves every one**, and the decision is logged with who and when.
 - **Talks to ground teams** on a secondary radio channel. A clue is logged only after Sightline reads it back and the team confirms.
+- **Writes the files a command post already files:** an ICS 204 Assignment List per team, an ICS 214 Activity Log from the trace and a CalTopo / SARTopo GeoJSON, every searched area "searched at POD 0.6", linked from a live mission's Debrief [24].
 
 ## How we built it
 
@@ -73,6 +78,7 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes an
 - **OpenCV 5 re-look tools,** one per failure mode from our error analysis: `zoom_native` for small people, CLAHE for clothing that matches rock, `redetect_region` for groups and people lying down. Also `cv2.fillPoly` and `cv2.blur` for coverage and canopy on the map [5].
 - **Agent:** proposes; never acts. Every tool call, model call, verdict, proposal and decision is one line of the mission's `trace.jsonl` [6].
 - **AWS:** S3, an SQS FIFO queue, an EC2 worker running `cv2.dnn`, CloudWatch metrics and Secrets Manager. 7.1 s per photo from upload to "processed" on the default c7i.2xlarge [7].
+- **One console:** the map stays in the middle while the views (Map · Photos · Review · Trace · Debrief) change the rail beside it; the demo plays as a 3-minute story through six clock checkpoints, and the Trace view shows each chain step by step, with chips for which model and tool ran and what each observation was worth [25].
 
 ## Challenges
 
@@ -123,3 +129,9 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 17. `docs/report/AGENT_EVAL.md` (correct target, approval gate, failure handling); `docs/report/OPENCV_REPORT.md:547-562`, `:577`, `:583-587`
 18. `docs/submission/WHAT_BREAKS_FIRST.md`; `docs/report/OPENCV_REPORT.md:853-855`, `:537-538`, `:884-886`; `docs/DETECTOR_LIMITS.md:39`, `:54`
 19. `docs/report/OPENCV_REPORT.md` §4.1 (inputs: `:374`, `:377`, `:381`; `docs/feedback/nebius.md:75`, `:175-178`; `docs/report/TAVILY.md:15`; `docs/report/CV2_CUDA.md:143`)
+20. `docs/report/LADD.md:6-8`, `:36-40`; `docs/evidence/ladd/20261022T174430Z/ladd.json`
+21. `docs/report/POD.md:8-15`, `:156-197`; `sightline/search/pod.py:55`, `:72`
+22. `docs/report/OPENCV_REPORT.md:322-353`
+23. `docs/report/AGENT_EVAL.md:137-163`, `:197-206`
+24. `docs/EXPORTS.md`; `tests/geo/test_exports.py`
+25. `web/src/command/README.md:5-22`, `:86-90`; `README.md:58-68`

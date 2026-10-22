@@ -6,9 +6,9 @@ are as of `main` after the report integration (#143 plus the `a/report-integrati
 
 ### What breaks first
 
-1. The detector misses 46 of the 337 people in the HERIDAL test set (strict VOC recall 0.864), and 28 of the 46 are at two sites, MED and CAB: groups, clothing that matches pale or dark rock, people sitting or lying down (`docs/report/OPENCV_REPORT.md:853-855`; `docs/DETECTOR_LIMITS.md:39`, `:54`).
-2. The second look is a small gain: on test it finds 4 more of the 337 people for 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023]), and it is advice a person approves (`docs/report/OPENCV_REPORT.md:537-538`).
-3. The fleet and the approvals in the demo are simulated: the drones, their flights and photos are simulated, and the human approvals in the recorded traces are scripted, labelled so on screen and in the trace (`docs/report/OPENCV_REPORT.md:884-886`).
+1. The detector misses 46 of the 337 people in the HERIDAL test set (recall 0.864, strict VOC), and 28 of those 46 are at two sites, MED and CAB: groups, clothing that matches pale or dark rock, people sitting or lying down (`docs/report/OPENCV_REPORT.md:853-855`; `docs/DETECTOR_LIMITS.md:39`, `:54`).
+2. The second look is a small gain: on test it finds 4 more of the 337 people for 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023]), it is advice a person approves, and on people under 60 px it mostly answers "unclear" (`docs/report/OPENCV_REPORT.md:537-540`).
+3. The fleet and the approvals in the demo are simulated: the drones, their flights and their photos are simulated, and the human approvals in the recorded traces are scripted; both are labelled so on screen and in the trace (`docs/report/OPENCV_REPORT.md:884-886`).
 
 The same three lines, for the web page and the video script: `docs/submission/WHAT_BREAKS_FIRST.md`.
 
@@ -34,7 +34,7 @@ mission is the whole public site and needs no server (`web/src/App.tsx:74-75`); 
 ### 2. Where in the product can I see the perception → decision → action trace for the proposal I just approved?
 
 In the console's Trace view, `#m/<id>/trace` (`web/src/command/TraceView.tsx`). It polls
-`GET /missions/{id}/trace` (`sightline/api/missions.py:384`) and groups the trace into chains by the ids they
+`GET /missions/{id}/trace` (`sightline/api/missions.py:413`) and groups the trace into chains by the ids they
 share (perception → decision → action → approval), one line per step with the tool or model, input, output
 and ms, the proposal each chain led to, and who decided it. Without a server, `#m/demo/trace` shows the
 recorded showcase chain and a live conditions lookup, labelled Recorded (`docs/report/OPENCV_REPORT.md:499-504`).
@@ -64,7 +64,7 @@ recall is 0.516 (precision 0.509, AP50 0.458), so on very different terrain expe
 
 Agreed on the first part: on a flat prior the planner finds the person within 30 minutes in 6.9 % of
 trials against 6.8 % for a fixed order (`docs/report/OPENCV_REPORT.md:664-665`). With a clue at the start it
-is 10.7 % against 6.3 % (`:593-594`). The prior no longer has to be flat: with the subject category set,
+is 10.7 % against 6.3 % (`:666-667`). The prior no longer has to be flat: with the subject category set,
 Koester's lost-person rings move finds within 30 min from 22.1 % to 52.8 % for a dementia subject with three
 drones, and cost 21.9 % → 15.7 % when the category is wrong (`docs/report/OPENCV_REPORT.md:683-687`,
 `docs/report/PLANNER_V2.md`). With a clue arriving 10 minutes in, three drones with opening legs and two
@@ -86,7 +86,7 @@ Yes. Checked against the live catalog on 2026-10-22: `nvidia/Nemotron-3.5-Super-
 `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` and `nvidia/nemotron-3-super-120b-a12b` are all listed verbatim
 (`docs/feedback/nebius.md:22-24`). If Token Factory is down, detection and the map carry on (they run on
 our own CPU), the second look returns `unclear` naming the error and makes no proposal, planner proposals
-continue with template briefings (`docs/architecture/agent.md:221-225`), and the radio answers "say
+continue with template briefings (`docs/architecture/agent.md:339-343`), and the radio answers "say
 again" and changes nothing (`docs/report/OPENCV_REPORT.md:882`). After 4 failed attempts in a row a circuit
 breaker makes every call fail fast for 60 s, so a mission pays about 82 s in all rather than minutes per call;
 the agent evaluation injects this and shows it in the trace (`docs/report/OPENCV_REPORT.md:577`,
@@ -110,16 +110,16 @@ trained with a permissively licensed framework, would resolve it.
 ### 10. Who is accountable when a sector shows "searched at POD 60 %" and the person was there? How is that different in practice from declaring the sector done?
 
 The search manager is: every assignment and every proposal is approved by a named person and logged with
-who and when (`docs/report/OPENCV_REPORT.md:911`). "Searched at POD 60 %" is a measure of effort, not a
+who and when (`docs/report/OPENCV_REPORT.md:919`). "Searched at POD 60 %" is a measure of effort, not a
 verdict. The map keeps 40 % of that sector's probability, and a searched sector's POD is capped at 0.9,
-so searching never rules a sector out (`docs/report/OPENCV_REPORT.md:901-910`). The planner keeps
+so searching never rules a sector out (`docs/report/OPENCV_REPORT.md:909-918`). The planner keeps
 weighing the sector, so it can come back to the top of the list. Tests check that no text the system
-writes says otherwise (`docs/report/OPENCV_REPORT.md:901-909`).
+writes says otherwise (`docs/report/OPENCV_REPORT.md:909-918`).
 
 ### 11. Radio: WER on a real volunteer's voice over a real handset?
 
-Measured on one voice so far, direct microphone, not a handset: 20 phrases, 162 words, WER 0.086 as
-transcribed and 0.025 after the radio desk's own normalisation, with both coordinates exactly right
+Measured on one voice so far, direct microphone, not a handset: 20 phrases, 162 words, WER 0.086 with 0 / 2
+coordinates right, then 0.025 with both exactly right after the "niner" fix, both scored after the radio desk's normaliser
 (`docs/evidence/radio_wer/20261022-101034/wer.md`, `docs/feedback/radio.md:190-207`). The one real
 finding: Parakeet does not know the radio word "niner" and writes "49er" or "nine or"; the normaliser
 now resolves both. Two more voices and a set through a handheld radio are still to be recorded (issue
@@ -130,6 +130,6 @@ now resolves both. Two more voices and a set through a handheld radio are still 
 On a 16-core desktop with the GPU hidden, yes: `scripts/reproduce_cv2.py` runs the 101 test photos through
 OpenCV 5 `cv2.dnn` only and checks the three VOC scores against the published ones in 4 min 58 s (about
 5 min 10 s with the downloads), measured while another job used about 11 of the 32 threads
-(`README.md:169-180`, `docs/report/OPENCV_REPORT.md:1014-1027`). On a laptop we haven't timed it; the detector
+(`README.md:169-180`, `docs/report/OPENCV_REPORT.md:1022-1035`). On a laptop we haven't timed it; the detector
 needs about 30 CPU-seconds per full photo (`docs/report/OPENCV_REPORT.md:377`), so the time grows as the core
 count falls. Timing a clean run on a laptop would give an honest number.

@@ -24,6 +24,7 @@ jobs:
       - run: uv run --frozen ruff check sightline tests scripts
       - run: uv run --frozen ruff format --check sightline tests scripts
       - run: uv run --frozen pytest -q
+      - run: python docs/report/check_evidence_index.py
       - run: bash scripts/smoke.sh
         env:
           SIGHTLINE_FAKE_LLM: "1"

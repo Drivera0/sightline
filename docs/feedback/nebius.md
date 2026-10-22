@@ -26,7 +26,7 @@ Nemotron-3.5-Super-VL 0.30 in / 0.90 out; Nemotron 3 Super 0.30 / 0.90; Nemotron
 ## 1. Token Factory: the chat completions API
 
 **What we used it for.** Every language and vision model call in Sightline, at run time, through one
-client (`sightline/agent/llm.py:203`): vision verdicts, briefings, conditions extraction and radio
+client (`sightline/agent/llm.py:224`): vision verdicts, briefings, conditions extraction and radio
 turns with tool calls.
 
 **What worked.**
@@ -39,10 +39,10 @@ turns with tool calls.
 - **Thinking tokens count against `max_tokens`, silently.** Our first smoke test asked for a 2-word
   reply with `max_tokens` of 20–60 and got **empty content** with `finish_reason: length`: the model had
   spent the budget thinking, and nothing in the response says so. We now default to 2048 and raise a
-  clear error for this case (`sightline/agent/llm.py:326`). A `reasoning_tokens` field, or a
+  clear error for this case (`sightline/agent/llm.py:347`). A `reasoning_tokens` field, or a
   warning, would make it obvious.
 - **Turning thinking off is not documented where you look first.**
-  `extra_body={"chat_template_kwargs": {"enable_thinking": false}}` works (`llm.py:35`), but we found it
+  `extra_body={"chat_template_kwargs": {"enable_thinking": false}}` works (`llm.py:56`), but we found it
   by trial; it belongs in the model card and the quick-start.
 - **Model ids differ in casing and style** (`nemotron-3-super-120b-a12b`,
   `NVIDIA-Nemotron-3-Nano-30B-A3B`, `Nemotron-3.5-Super-VL`), so we copied each from the console. A
@@ -73,7 +73,7 @@ go in; a JSON verdict comes out (person yes/no/unclear, posture, group size, clo
 | Latency per call | p50 1.35 s, p90 1.65 s (max 2.19 s) | `docs/report/OPENCV_REPORT.md:542-543`; max over the 461 calls in `runs/verifier/*.csv` |
 | Tokens per call | about 890 in, 67 out (mean of all 461 calls) | `docs/report/OPENCV_REPORT.md:542` |
 | Cost per call (catalog prices) | about 0.00033, so about 0.33 per 1,000 uncertain detections; all 461 evaluation calls 461 × 0.00033 ≈ 0.15 | `docs/report/OPENCV_REPORT.md:543-544` |
-| JSON schema compliance | 461 / 461 valid on the first try | `docs/report/OPENCV_REPORT.md:544`; `docs/architecture/agent.md:221-222` |
+| JSON schema compliance | 461 / 461 valid on the first try | `docs/report/OPENCV_REPORT.md:544`; `docs/architecture/agent.md:339-340` |
 | Real people called `yes` (val, prompt v2) | 75 % of near-miss people (9 of 12), 86 % of queue people | `docs/LANE_A_ML.md:304`; run file `runs/verifier/val-verify-v2-20261020-165932.json` (local runs, not in git, named in `docs/LANE_A_ML.md` §6.8) |
 | False alarms called `no` (val, prompt v2) | 17 % of near-miss false alarms, 13 % of queue ones | the same run file |
 | Person boxes under 60 px (test) | 65 % answered `unclear`; 2 of 8 people called `yes` | `docs/LANE_A_ML.md:314` |
@@ -105,8 +105,8 @@ not yet as the deciding signal; we use it as advice that a person approves.
 ## 3. Nemotron 3 Nano (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`)
 
 **What we used it for.** 60-word radio briefings for ground teams from a dict of facts
-(`sightline/agent/loop.py:160`), and reading weather and park pages found by Tavily, returning each value
-with the sentence it came from (`sightline/geo/conditions.py:317`).
+(`sightline/agent/loop.py:144`), and reading weather and park pages found by Tavily, returning each value
+with the sentence it came from (`sightline/geo/conditions.py:338`).
 
 **What worked.** All 5 live briefings passed our post-check (no "clear"/"cleared", every number in the
 facts) on the first call once the prompt said "write numbers as digits, only numbers in the facts".
@@ -120,7 +120,7 @@ per million tokens it is the cheapest model we call.
   say which models are reliable at tool calling with thinking off.
 - **Staying with the facts.** The first briefing prompt produced invented urgency ("Move fast. Stay
   sharp.") and turned "a person seen in a photo" into "found"; asked to add "no orders", it once ended an
-  alert with "No further action is needed" (`docs/architecture/agent.md:174-177`). For safety-critical
+  alert with "No further action is needed" (`docs/architecture/agent.md:199-202`). For safety-critical
   text, a documented grounded-generation mode would save every team writing its own checker.
 
 **Onboarding.** Same client and key as the others; the `max_tokens` surprise in §1 happened on this model.
@@ -132,7 +132,7 @@ calls with thinking off.
 
 **What we used it for.** The radio desk's reasoning step: a ground team's question or report goes in,
 and the model answers from tools (sector boundary, assignment, conditions, clue drafts)
-(`sightline/radio/turn.py:232`).
+(`sightline/radio/turn.py:219`).
 
 **Measured.**
 
@@ -149,7 +149,7 @@ thinking on (`docs/feedback/radio.md:28-31`).
 **What needs work.**
 - **Reasoning leaked into the reply** with thinking off: "Now respond per rules … Keep brief.`</think>`
   Team Two, Sightline…", and our radio spoke it aloud (`docs/feedback/radio.md:115-120`). We strip
-  everything up to the last `</think>` (`sightline/agent/llm.py:58`). Expected: no reasoning in `content`
+  everything up to the last `</think>` (`sightline/agent/llm.py:79`). Expected: no reasoning in `content`
   with thinking off, or reasoning always in `reasoning_content`.
 - **Describing a tool call instead of making it** ("calling get_sector_boundary…"), **claiming a clue was
   drafted without calling `draft_clue`** (3 of 6 reports late in a conversation), and **invented weather**
@@ -288,10 +288,10 @@ niner point three eight one" came out as "49er.381", "one two two point niner fo
 WER set was this one word. We normalise it in code (`sightline/radio/protocol.py`, `normalize`), but a
 radio-vocabulary hint or custom vocabulary (word boosting for "niner", "affirmative", "say again") at
 inference time should fix it upstream for every SAR, aviation or marine voice agent. NeMo pins its own
-Lightning and torch versions, so it needs its own environment (`docs/feedback/radio.md:168-169`).
+Lightning and torch versions, so it needs its own environment (`docs/feedback/radio.md:175-176`).
 
 **Onboarding.** `uv pip install "nemo_toolkit[asr,tts]"`, then our spike script runs in about 2 minutes
-and downloads about 3 GB once (`docs/feedback/radio.md:165`). Start of the spike → first transcript and first spoken reply: about 75 minutes (2026-10-20
+and downloads about 3 GB once (`docs/feedback/radio.md:172`). Start of the spike → first transcript and first spoken reply: about 75 minutes (2026-10-20
 18:30 → 19:45 PDT), including the environment build and the one-time download.
 
 **Would we build with it again?** Yes. Fast and accurate for short radio phrases on one consumer GPU.
@@ -328,4 +328,4 @@ about 0.15 at catalog prices, §2), alongside the hackathon promo code.
 follow-up; nothing to change. One ask: a note on the credits page saying which services and regions the
 credit covers, so a first job is not planned in a region with no quota (§5).
 
-**Would we use it again?** `<Dan>`
+**Would we use it again?** Yes.
