@@ -113,3 +113,28 @@ def test_waiting_in_the_air_drains_at_the_hover_rate_and_landed_drains_nothing()
     sim._set(position=LatLon(lat=LKP.lat + 0.001, lon=LKP.lon))
     sim.step(60.0, {})
     assert 100 - sim.drone.battery_pct == pytest.approx(100 / 38)
+
+
+def test_a_recall_cancels_the_leg_and_flies_home_in_any_wind_without_photos() -> None:
+    """The store cancels the leg and approves a home leg (planner.home_leg); the sim turns home at
+    once, even above the wind limit that holds any other leg, takes no photos and lands."""
+    from sightline.search.planner import home_leg, is_home_leg
+
+    sim = _drone()
+    photos = []
+    sim._photo = lambda: photos.append(1)  # type: ignore[method-assign]
+    sim.step(60.0, {"L1": _leg(200.0)})
+    assert sim.leg is not None and sim.drone.status == "flying"
+    taken = len(photos)
+    home = home_leg(sim.drone, LKP, "L2", "Recall: gusts")
+    assert is_home_leg(home) and not is_home_leg(_leg(0.0))
+    assert home.sector_id is None and home.waypoints[-1] == (LKP.lon, LKP.lat)
+    gusty = Wind(speed_ms=14.0, from_deg=90.0)  # above the Mavic 3E's 12 m/s; a tailwind home
+    sim.step(1.0, {"L2": home}, gusty)  # L1 is gone from the approved legs: the store cancelled it
+    assert sim.leg is not None and sim.leg.id == "L2" and sim.drone.status == "returning"
+    for _ in range(100):
+        sim.step(10.0, {"L2": home}, gusty)
+        if sim.leg is None:
+            break
+    assert sim.leg_status["L2"] == "done" and sim.drone.status == "idle"
+    assert math.hypot(*sim._pos_m()) < 1.0 and len(photos) == taken

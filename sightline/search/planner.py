@@ -132,6 +132,34 @@ def candidate_legs(
     return legs
 
 
+def home_leg(drone: Drone, home: LatLon, leg_id: str, reason: str) -> Leg:
+    """A recall: from where the drone is to its launch point, no sector, no photos (nothing to rule
+    out). It is an ordinary leg for the store, so approving it cancels the drone's current leg (the
+    re-task path); the fleet sim flies it straight home (``is_home_leg``)."""
+    here = drone.position or home
+    metres = math.dist(
+        (here.lat * 111_320.0, here.lon * 111_320.0 * math.cos(math.radians(here.lat))),
+        (home.lat * 111_320.0, home.lon * 111_320.0 * math.cos(math.radians(here.lat))),
+    )
+    return Leg(
+        id=leg_id,
+        drone_id=drone.id,
+        sector_id=None,
+        waypoints=[(here.lon, here.lat), (home.lon, home.lat)],
+        altitude_m=drone.altitude_m,
+        est_minutes=round(metres / drone.speed_ms / 60, 1),
+        expected_clearance=0.0,
+        score_per_min=0.0,
+        reason=reason,
+        status="proposed",
+    )
+
+
+def is_home_leg(leg: Leg) -> bool:
+    """A recall leg (``home_leg``): no sector and nothing expected to be ruled out."""
+    return leg.sector_id is None and leg.expected_clearance == 0.0
+
+
 def _pods(
     sector_cells: np.ndarray, canopy: np.ndarray, visibility: float, cfg: PlannerConfig
 ) -> np.ndarray:

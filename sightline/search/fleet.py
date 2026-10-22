@@ -21,6 +21,8 @@ planner's 20 % reserve. It takes a photo every
 ``photo_every_m`` along the leg: a crop of a HERIDAL **validation** photo with EXIF GPS, the 35 mm
 focal length and DJI XMP altitude/yaw written for its simulated pose. Telemetry carries positions,
 battery, and only ``flying``/``done`` for its legs. The sim never creates, approves or reassigns legs.
+An approved recall (a home leg, ``planner.home_leg``: the agent's answer to gusts over the limit) is
+flown straight to the launch point in any wind, with no photos.
 
 **Degraded comms (a simulated link model, not a radio measurement).** Each drone's link to the
 ground station is connected, degraded or lost (``GroundStation``). It changes on the scenario's
@@ -61,6 +63,7 @@ from PIL import ExifTags, Image
 from sightline.client import Offline, _call, say
 from sightline.contract import Drone, LatLon, Leg, Pose
 from sightline.geo.camera import FULL_FRAME_DIAGONAL_MM
+from sightline.search.planner import is_home_leg
 
 SCENARIOS = Path(__file__).parent / "scenarios"
 VAL = Path("data/heridal/yolo_full/val")
@@ -487,7 +490,12 @@ class DroneSim:
                 ),
                 None,
             )
-            if nxt is not None and wind.speed_ms > self.airframe.max_wind_ms:
+            # a recall (home leg) flies in any wind: holding would keep it out in the gusts
+            if (
+                nxt is not None
+                and wind.speed_ms > self.airframe.max_wind_ms
+                and not is_home_leg(nxt)
+            ):
                 if not self._wind_held:
                     self.out(f"{self.drone.name}: holds {nxt.id}: wind {wind.speed_ms:.0f} m/s is "
                              f"above the {self.airframe.name}'s {self.airframe.max_wind_ms:.0f} m/s")  # fmt: skip
@@ -509,7 +517,11 @@ class DroneSim:
         if self.link == "lost" and self.leg is None and not self.returning and self._airborne():
             self.out(f"{self.drone.name}: leg flown with no link; flies home (lost-link return)")
             self._go_home()
-        if self.leg is not None and not self._enough_to_get_home(wind):
+        if (
+            self.leg is not None
+            and not is_home_leg(self.leg)
+            and not self._enough_to_get_home(wind)
+        ):
             self.out(f"{self.drone.name}: leaves {self.leg.id} and flies home: "
                      f"{self.drone.battery_pct:.0f} % left, {RESERVE_FRAC:.0%} kept in reserve")  # fmt: skip
             self.leg = None
@@ -566,9 +578,15 @@ class DroneSim:
 
     def _start(self, leg: Leg) -> None:
         self.leg = leg
-        self.route = [_to_m(self.scn.lkp, lon, lat) for lon, lat in leg.waypoints]
         self.in_survey, self.to_next_photo_m = False, 0.0
         self.leg_status[leg.id] = "flying"
+        if is_home_leg(leg):  # a recall: straight to its own launch point, no photos
+            self.route = [self.home]
+            self._set(status="returning")
+            self.out(f"{self.drone.name}: recalled ({leg.id}), turns home at "
+                     f"{self.drone.battery_pct:.0f} % battery")  # fmt: skip
+            return
+        self.route = [_to_m(self.scn.lkp, lon, lat) for lon, lat in leg.waypoints]
         self._set(status="flying", altitude_m=leg.altitude_m)
         self.out(f"{self.drone.name}: flying {leg.id} ({leg.sector_id or 'leg'})")
 
@@ -607,6 +625,14 @@ class DroneSim:
                         self.out(f"{self.drone.name}: home, {self.drone.battery_pct:.0f} % left")
                     continue
                 assert self.leg is not None
+                if is_home_leg(self.leg):
+                    if not self.route:
+                        self.leg_status[self.leg.id] = "done"
+                        self.out(f"{self.drone.name}: home ({self.leg.id} done), "
+                                 f"{self.drone.battery_pct:.0f} % left")  # fmt: skip
+                        self.leg = None
+                        self._set(status="idle")
+                    continue
                 if not self.in_survey:  # reached the first waypoint: the survey starts with a photo
                     self.in_survey = True
                     self._photo()
