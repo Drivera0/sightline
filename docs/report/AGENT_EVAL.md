@@ -4,12 +4,17 @@ How well the agent turns evidence into proposals, whether anything takes effect 
 decision, and what it does when its dependencies fail. It backs `OPENCV_REPORT.md` §5.4 and §5.5.
 
 ```
-uv run python scripts/agent_eval.py            # fake models, 3 runs per scenario, about 20 s
+uv run python scripts/agent_eval.py            # fake models, 3 runs per scenario, about 6 min
 uv run python scripts/agent_eval.py --live     # Nemotron on Token Factory (needs NEBIUS_API_KEY)
+uv run python scripts/agent_eval.py --ledger-csv runs/verifier/<val>.csv runs/verifier/<test>.csv
+uv run --extra ml python scripts/agent_eval.py --live --relook-val --scenarios relook --repeats 1 --no-failures
+uv run python scripts/relook_demo.py           # the re-look chain once, offline, about 3 s
 ```
 
 Output: `runs/agent_eval/<timestamp>/agent_eval.md` (one table per section) and `agent_eval.json`.
-Test: `tests/agent/test_agent_eval.py` runs the creek scenario once.
+The `relook` scenario flies four legs through the photo pipeline, which is most of the 6 min; the
+other scenarios take about 1 s each. Tests: `tests/agent/test_agent_eval.py` runs the creek scenario
+once and the relook scenario once with one full leg.
 
 ## Setup
 
@@ -28,6 +33,11 @@ decision is a `human` trace entry that says it was scripted.
   The scripted manager approves only what each step proposed, never a stale proposal from an
   earlier step.
   - `near_miss_only`: the only evidence is a 0.20 detection over the person.
+  - `relook`: as `near_miss_only`, but the person's box is 21 px long (from 50 m; the scripted
+    detector scales it by 50 / altitude), and the fake VL model answers `unclear` first and `yes`
+    after that. The manager approves the agent's re-look leg, and the fleet sim's `DroneSim` flies
+    it at 25 m through the API. Then up to three sector legs are flown in full: the approved opening
+    legs, then the agent's next proposals, approved. That gives the ledger whole legs to compare.
 
   Every run then marks Drone 1's leg done and runs one agent tick. The manager rejects the first
   `assign_sector` from the tick, with a reason.
@@ -98,6 +108,102 @@ detection. They do not test perception.
 - Every rejection has a reason.
 - No proposal or verdict says "clear" or "cleared".
 - `validate_mission` passes.
+
+## Re-look leg: an unclear second look sends a drone lower
+
+**The rule** (`sightline/agent/relook_leg.py`; rule and trace schema in `docs/architecture/agent.md`,
+"A third chain"). A second look that answers `unclear` on a near-miss, or on a reviewer's "unsure",
+with the box's long side under 60 px in original pixels, gets a `drone_leg` proposal over the spot at
+25 m. The reason has the numbers: "box 21 px, too small to verify; a pass at 25 m gives about 4× the
+pixels (50 m → 25 m)", with the drone's distance, its minutes and the expected value. A failed model
+call never triggers a leg, and neither does a photo already taken at 25 m. The new photo goes through
+detector → second look → verdict → promote. Every step is in the trace under one `chain_id`.
+
+**In the mission** (the `relook` scenario; fake models and a scripted detector; results from
+`runs/agent_eval/relook-final/`, 2026-10-22):
+
+| | Fake VL, 3 runs | Nemotron VL (`--live`), 1 run |
+|---|---|---|
+| 21 px near-miss, first second look | `unclear` (scripted) | `unclear` |
+| Re-look leg proposed (25 m, 4× the pixels) | 3/3, a `retask_drone` for Drone 3, 438 m away | 1/1, the same |
+| Leg: planner estimate / sim time flown | 1.13 min / 1.08 min, 5 photos at 25 m, 2.5 % battery | the same |
+| The person in the 25 m photo | 43 px, re-detected at 0.20 | 43 px, re-detected at 0.20 |
+| Second second look | `yes` (scripted) | `unclear` |
+| Outcome | resolved, `promote_detection` approved, 3/3 | still `unclear`, left to the reviewer |
+| Approval gate | 3/3 runs pass every check | passes |
+
+The live run is in `runs/agent_eval/relook-live/`.
+
+**On val near-misses** (`--live --relook-val`: the real detector on the 95 annotated val photos,
+Nemotron VL, prompt verify-v2; tuned on nothing). Of the 40 near-misses (0.15 ≤ conf < 0.29) under
+60 px, the second look called 14 `yes`, 1 `no` and 25 `unclear`. Each of the 25 was re-flown in
+simulation: the original's window around the box, narrowed by 25 / altitude (the photo's own EXIF
+altitude, 36–52 m) and resized back. The detector then ran on that photo, and the second look ran
+again on the box over the spot.
+
+| Unclear near-misses | n | → yes | → no | → still unclear | → no detection near the spot |
+|---|---|---|---|---|---|
+| all | 25 | 0 | 0 | 13 | 12 |
+| people (VOC true positive) | 1 | 0 | 0 | 1 | 0 |
+| false alarms | 24 | 0 | 0 | 12 | 12 |
+
+**None of the 25 resolved to yes or no.** This is what the simulation can show, and it is not a
+measure of a real low pass. The re-flown photo is the 50 m photo's own pixels resampled, and the
+verifier's `zoom_native` already enlarges those pixels, so the model sees no new detail. What changed
+is that 12 of the 24 false alarms were no longer detected near the spot at the larger scale. In a
+mission those cells would get the photo's step on the map, as for any photo with nobody in it. The
+one person stayed `unclear`. A real pass at 25 m would capture new detail. The val cross-section is
+the only hint of how much: the second look was decisive for 37 of 75 boxes under 60 px and for 68 of
+95 at 60 px and over (46 of 70 at 60–90 px, 19 of 20 at 90–120 px). Those are different detections,
+not the same ones seen closer, so they are not a forecast.
+
+**Cost.** 25 unclear boxes make 20 legs (one per spot: boxes in a photo within 10 m on the ground share
+a pattern). Over the spot each leg takes 0.21 min at 8 m/s: 61 m of pattern and about 5 photos. That
+is 4.2 min in all, plus the transit at 8 m/s to each spot (in the creek scenario, 438 m and 0.9 min).
+On the val near-misses that is about 0.5 legs per small near-miss.
+
+## Did the observation help (ledger)
+
+Active perception asks a system to compare the value it predicted for an observation with the
+improvement it actually got (arXiv 2512.03687, §3.3.2). The agent writes a `ledger` record for every
+second look and every flown leg: expected and realised gain, the cell probability, and the sector's
+share and `expected_clearance` before and after (schema in `docs/architecture/agent.md`).
+
+| Observation (fake models, all scenarios, 3 runs each) | n | Mean expected gain | Mean realised gain | Mean delta | Correlation |
+|---|---|---|---|---|---|
+| second look (P of a decisive verdict) | 21 (4 distinct) | 0.493 | 0.857 | +0.364 | – (no spread) |
+| leg flown in full by the fleet sim | 12 (4 distinct) | 0.0103 | 0.0110 | +0.0007 | 1.00 over 4 legs |
+| leg marked done by the script, not flown | 12 (2 distinct) | 0.0151 | 0.0000 | −0.0151 | – |
+
+| Leg flown in full | Sector | Photos | Cells photographed | Expected | Realised | Realised / expected |
+|---|---|---|---|---|---|---|
+| L004 (re-look, 25 m) | C3 | 5 | 22/23 | 0.000097 | 0.000051 | 0.53 |
+| L002 | B2 | 218 | 2404/2500 | 0.01370 | 0.01480 | 1.08 |
+| L003 | C3 | 221 | 2474/2500 | 0.01390 | 0.01483 | 1.07 |
+| L005 | C2 | 204 | 2376/2500 | 0.01350 | 0.01421 | 1.05 |
+
+- **Legs.** The planner's prediction held within 8 %. The sector legs realised 5–8 % more than
+  predicted. The photos' frame steps gave a slightly higher POD than the planner assumes with unknown
+  canopy at 0.5: the steps use the canopy estimated from each photo. That outweighed the 1–5 % of cells
+  the lawnmower left unphotographed. The 1.00 correlation over
+  four legs is driven by the re-look leg being 100× smaller; the three sector legs alone give 0.89. The
+  re-look leg realised half its prediction. It found the person, and the cells under a detection are
+  held for the reviewer instead of being stepped down, which is the intended behaviour. Legs the script
+  only marked done realise nothing, as they should.
+- **Second looks.** With fake models the realised value is the script's, so the means above show the
+  plumbing, not the model. The real test of the prediction is the recorded verifier runs
+  (`--ledger-csv`). The prediction is the val share of decisive verdicts by box size (0.493 under 60 px,
+  0.716 at 60 px and over), checked against what the model answered:
+
+| Recorded run (Nemotron VL, verify-v2) | n | Mean expected | Mean realised | Realised under 60 px (n) | Correlation |
+|---|---|---|---|---|---|
+| val (the shares come from it) | 170 | 0.618 | 0.618 | 0.493 (75) | 0.23 |
+| test, read once before this change | 121 | 0.622 | 0.488 | 0.353 (51) | 0.23 |
+
+On test the model was less decisive than val predicted: 0.49 against 0.62 overall, and 0.35 against
+0.49 under 60 px. This is the val-to-test gap report §5.4 describes. Box size still ranks the
+outcome the same way (correlation 0.23 on both). The ledger therefore overstates a second look's value
+on new terrain, and it says so in its records.
 
 ## Failure handling (injected)
 
