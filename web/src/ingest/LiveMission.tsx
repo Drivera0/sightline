@@ -2,7 +2,7 @@
 // photos in, candidates reviewed, everything that happens in the feed, all from useMission. Lane E's
 // command view and lane C's live heat (above it, on the Command tab) mount here. Built by lane A for lane D (#51).
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard, getHealth } from "../lib/api";
 import type { AssignmentCard } from "../contract";
@@ -125,10 +125,36 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
   }
 
   const Frame = embedded ? "section" : "main";
+  // The Command tab is the full-screen console (LANE_E §7.1); the other tabs keep the reading column.
+  const isConsole = tab === "command" && !embedded;
+  const frameClass = embedded
+    ? "flex flex-col gap-4"
+    : isConsole
+      ? "flex flex-col gap-3 p-3 lg:h-dvh lg:px-4"
+      : "mx-auto flex max-w-5xl flex-col gap-4 p-4 lg:p-8";
+  const heatMap = (
+    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demo && demoNow ? demoNow : undefined} fill={isConsole} />
+  );
+  const tabNav = (
+    <nav className="flex gap-2" aria-label="Mission views">
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          aria-pressed={tab === t.id}
+          onClick={() => go(t.id)}
+          className={`rounded-full border px-4 py-1.5 text-small ${tab === t.id ? "border-accent text-text" : "border-border text-text-2"}`}
+        >
+          {t.label}
+          {t.id === "approvals" && waiting > 0 && <span className="ml-1 font-mono text-accent-soft">{waiting}</span>}
+        </button>
+      ))}
+    </nav>
+  );
   return (
-    <Frame aria-label={embedded ? "Demo mission" : undefined} className={embedded ? "flex flex-col gap-4" : "mx-auto flex max-w-5xl flex-col gap-4 p-4 lg:p-8"}>
-      {!embedded && <AppBar demo={demo} />}
-      {!embedded && (
+    <Frame aria-label={embedded ? "Demo mission" : undefined} className={frameClass}>
+      {!embedded && <AppBar demo={demo}>{isConsole && tabNav}</AppBar>}
+      {!embedded && !isConsole && (
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-col">
           <Label>{demo ? "Demo mission · simulated data, no server" : `Live mission · ${missionId}`}</Label>
@@ -141,7 +167,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
       </header>
       )}
 
-      {!demo && (
+      {!demo && !isConsole && (
       <section aria-label="Progress" className="grid grid-cols-3 gap-4">
         <Stat value={progress.processed} label="Photos processed" />
         <Stat
@@ -152,19 +178,9 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
       </section>
       )}
 
-      <nav className="flex gap-2" aria-label="Mission views">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            aria-pressed={tab === t.id}
-            onClick={() => go(t.id)}
-            className={`rounded-full border px-4 py-1.5 text-small ${tab === t.id ? "border-accent text-text" : "border-border text-text-2"}`}
-          >
-            {t.label}
-            {t.id === "approvals" && waiting > 0 && <span className="ml-1 font-mono text-accent-soft">{waiting}</span>}
-          </button>
-        ))}
+      {!isConsole && (
+      <nav className="flex gap-2" aria-label="Mission actions">
+        {tabNav}
         {!demo && (
         <button
           type="button"
@@ -186,6 +202,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
         </a>
         )}
       </nav>
+      )}
 
       {tab === "photos" && (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -228,9 +245,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
         </p>
       )}
 
-      {tab === "command" && (
-        <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} now={demo && demoNow ? demoNow : undefined} />
-      )}
+      {tab === "command" && !isConsole && heatMap}
       {tab === "command" && (
         <CommandView
           mission={s.mission}
@@ -248,6 +263,7 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
           cardHref={demo ? undefined : (sector) => `#m/${missionId}/card/${encodeURIComponent(sector)}`}
           now={demo && demoNow ? () => demoNow : undefined}
           sideRail={radioOn && !demo ? radioDesk : undefined}
+          map={isConsole ? heatMap : undefined}
           onPickOnMap={() => {
             document.querySelector("figure[aria-label='Live map']")?.scrollIntoView({ behavior: "smooth", block: "center" });
             return usePick.getState().request();
@@ -292,13 +308,14 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
 }
 
 /** The app's top line on mission pages: the logo back to the start, and the way back to the guided demo. */
-function AppBar({ demo }: { demo: boolean }) {
+function AppBar({ demo, children }: { demo: boolean; children?: ReactNode }) {
   return (
-    <nav aria-label="Sightline" className="flex items-center justify-between gap-4 border-b border-border pb-3">
+    <nav aria-label="Sightline" className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-3">
       <a href="#" className="flex items-center gap-2 text-title font-medium text-text" title="Back to the start">
         <Logo />
         Sightline
       </a>
+      {children}
       <span className="flex items-center gap-4 text-small">
         {demo && (
           <a href="#survey" className="text-accent-soft underline">

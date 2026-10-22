@@ -32,6 +32,8 @@ export interface CommandProps {
   cardHref?: (sectorId: string) => string;
   /** Under the approval inbox (D-R3: the radio desk, so an approved briefing's Transmit is right there). */
   sideRail?: ReactNode;
+  /** The live map: with it, the view is the full-screen console of LANE_E §7.1 (map in the middle). */
+  map?: ReactNode;
   now?: () => Date;
 }
 
@@ -46,6 +48,32 @@ export function CommandView(p: CommandProps) {
     const id = setInterval(() => tick((n) => n + 1), 30_000); // the clock and the ages
     return () => clearInterval(id);
   }, []);
+  if (p.map) {
+    // LANE_E §7.1: header across the top; task board and teams | map | approvals and radio; clue log along the bottom.
+    // Each rail scrolls on its own so the map never leaves the screen.
+    return (
+      <div
+        aria-label="Command view"
+        className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(17rem,20rem)_minmax(0,1fr)_minmax(20rem,24rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]"
+      >
+        <div className="lg:col-span-3">
+          <MissionHeader mission={p.mission} status={p.status} conditions={p.conditions} now={now()} />
+        </div>
+        <aside aria-label="Sectors and teams" className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 lg:order-none order-2">
+          <TaskBoard compact tasks={p.tasks} sectors={p.sectors} teams={p.teams} onSetTask={p.onSetTask} onUpdateTeam={p.onUpdateTeam} now={now()} cardHref={p.cardHref} />
+          <TeamRoster teams={p.teams} tasks={p.tasks} now={now()} />
+        </aside>
+        <div className="order-1 h-[60vh] min-h-0 lg:order-none lg:h-auto">{p.map}</div>
+        <aside aria-label="Approvals" className="order-3 flex min-h-0 flex-col gap-4 overflow-y-auto pr-1 lg:order-none">
+          <ApprovalInbox proposals={p.proposals} teams={p.teams} onDecide={p.onDecide} imageUrl={p.imageUrl} />
+          {p.sideRail}
+        </aside>
+        <div className="order-4 max-h-44 overflow-y-auto rounded-lg border border-border bg-surface px-4 py-3 lg:order-none lg:col-span-3">
+          <ClueLog clues={p.clues} teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-4" aria-label="Command view">
       <MissionHeader mission={p.mission} status={p.status} conditions={p.conditions} now={now()} />
@@ -115,6 +143,7 @@ export function TaskBoard({
   onUpdateTeam,
   now,
   cardHref,
+  compact = false,
 }: {
   tasks: readonly SectorTask[];
   sectors: readonly SectorNow[];
@@ -123,6 +152,8 @@ export function TaskBoard({
   onUpdateTeam: CommandProps["onUpdateTeam"];
   now: Date;
   cardHref?: CommandProps["cardHref"];
+  /** One column of states (the console's left rail) instead of four side by side. */
+  compact?: boolean;
 }) {
   const [allProposed, setAllProposed] = useState(false);
   const live = new Map(sectors.map((s) => [s.sector_id, s]));
@@ -131,7 +162,7 @@ export function TaskBoard({
   return (
     <section aria-label="Task board" className="flex flex-col gap-2">
       <Label>Task board</Label>
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className={compact ? "flex flex-col gap-3" : "grid gap-3 md:grid-cols-4"}>
         {COLUMNS.map((col) => {
           const all = tasks.filter((t) => t.state === col.state).sort((a, b) => poa(b) - poa(a));
           // The unassigned sectors: the most likely few; the rest on request (16 cards bury the board).
