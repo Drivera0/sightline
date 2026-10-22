@@ -174,6 +174,34 @@ def test_lookup_searches_trusted_domains_then_extracts_and_caches_the_hour(tmp_p
     assert again["cached"] and len(tav.calls) == 2 and again["values"] == out["values"]
 
 
+def test_a_minor_has_no_clothing_stored_and_is_marked(tmp_path: Path) -> None:
+    class Teen(geo.FakeBulletinTavily):
+        def __init__(self) -> None:
+            super().__init__()
+            self.text = self.text.replace("Jordan Example, 34", "Jordan Example, 16")
+
+    fields = {
+        **subject_tool.DEMO_FIELDS,
+        "age": {"value": 16, "quote": "Jordan Example, 16, a hiker", "doc": 0},
+    }
+    client = FakeChatClient(default=json.dumps({"fields": fields, "names": list(NAMES)}))
+    traced: list[dict] = []
+    out = geo.lookup_subject("q", cache_dir=tmp_path, now=AT, tavily=Teen(), client=client,
+                             trace=lambda **e: traced.append(e))  # fmt: skip
+    assert out["minor"] is True and out["values"]["age"] == 16
+    assert out["values"]["clothing"] is None and "clothing" not in out["quotes"]
+    assert (
+        "clothing" not in out["urls"] and out["values"]["category"] == "hiker/temperate_mountainous"
+    )
+    stored = json.dumps(out) + json.dumps([{**e, "result": None} for e in traced])
+    stored += "".join(p.read_text() for p in tmp_path.glob("*.json"))
+    assert "red jacket" not in stored and "backpack" not in stored
+    # an adult keeps the clothing and is not marked
+    adult = geo.lookup_subject("q", cache_dir=tmp_path / "a", now=AT,
+                               tavily=geo.FakeBulletinTavily(), client=subject_tool.demo_client())  # fmt: skip
+    assert adult["minor"] is False and adult["values"]["clothing"]
+
+
 def test_tavily_down_gives_no_profile_and_says_why(tmp_path: Path) -> None:
     class Down:
         def search(self, *a, **k):

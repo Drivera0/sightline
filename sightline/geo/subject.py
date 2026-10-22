@@ -286,6 +286,22 @@ def _tavily() -> TavilyLike:
     return TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
 
+MINOR_AGE = 18
+
+
+def protect_minor(profile: dict) -> bool:
+    """A subject under ``MINOR_AGE``: their clothing is dropped (value, quote and URL) before
+    anything is stored or traced, and the profile is marked ``minor: true``. True if so."""
+    age = profile["values"].get("age")
+    if not isinstance(age, int) or age >= MINOR_AGE:
+        return False
+    profile["values"]["clothing"] = None
+    profile["quotes"].pop("clothing", None)
+    profile["urls"].pop("clothing", None)
+    profile["minor"] = True
+    return True
+
+
 def profile_text(values: dict) -> str:
     """What the mission's subject becomes on approval, with no name, e.g. "hiker, 34, red jacket,
     last seen 3:30 p.m. at the trailhead"."""
@@ -309,7 +325,8 @@ def lookup_subject(
     trace: Any = None,
 ) -> dict:
     """Search → extract → read, for one model-written ``query``. Returns ``{"values", "quotes",
-    "urls", "sources", "query", "fetched_at", "cached", "error"}``, everything redacted.
+    "urls", "sources", "query", "fetched_at", "cached", "error", "minor"}``, everything redacted;
+    a subject under 18 has no clothing (``protect_minor``).
     ``trace(kind=..., summary=..., input=..., output=..., result=...)`` gets one entry per Tavily
     call and one for the model, written after redaction so no name reaches the trace."""
     now = now or _now()
@@ -327,6 +344,7 @@ def lookup_subject(
         "fetched_at": now,
         "cached": False,
         "error": None,
+        "minor": False,
     }
     entries: list[dict] = []  # traced after redaction
     docs: list[dict] = []
@@ -363,6 +381,8 @@ def lookup_subject(
             values, quotes, urls, seen, result = extract_profile(docs, client)
             names |= seen
             out["values"], out["quotes"], out["urls"] = values, quotes, urls
+            if protect_minor(out):
+                log.info("subject: under %d, clothing not stored", MINOR_AGE)
         except Exception as e:  # noqa: BLE001 - a failed read leaves the fields empty
             log.warning("subject extraction failed: %s", e)
             out["error"] = f"model failed ({type(e).__name__})"
