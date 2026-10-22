@@ -1,0 +1,39 @@
+# The clean-machine dress run (deploy/dressrun/): build the image from nothing, run the tests, the
+# demo-cache validation, the API + remote_check and the web build, and upload the stage times.
+# Manual only: it takes a while (torch and the caches are downloaded every time).
+name: dressrun
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dressrun:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      # The runner's 14 GB disk is tight for torch's CUDA wheels plus the image layers.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - name: Dress run
+        run: bash deploy/dressrun/run.sh
+        # Without these secrets the agent and conditions use the built-in fakes.
+        env:
+          NEBIUS_API_KEY: ${{ secrets.NEBIUS_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      - name: Stage times
+        if: always()
+        run: cat runs/dressrun/*/times.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dressrun-times
+          path: |
+            runs/dressrun/*/times.md
+            runs/dressrun/*/build.log
+            runs/dressrun/*/run.log

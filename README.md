@@ -136,7 +136,7 @@ The lanes meet at one contract (`docs/01_CONTRACT.md`): only the pipeline writes
 ## Quick start
 
 ```bash
-uv sync                                      # Python dependencies (add --extra ml --extra conditions on a GPU machine)
+uv sync --extra conditions                   # Python dependencies (add --extra ml on a GPU machine)
 uv run pytest                                # all tests
 uv run python -m sightline.pipeline sample   # regenerate the fake sample cache
 cd web && pnpm install && pnpm dev           # the website (reads web/public/cache/sample)
