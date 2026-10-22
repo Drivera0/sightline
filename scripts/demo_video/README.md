@@ -27,7 +27,7 @@ Builds the site with `VITE_CACHE_DIR=demo` into the run folder, serves it with `
 
 | Shot | What happens | Target |
 |---|---|---|
-| `call` | `#`: the console at t0 with the pitch bar; pointer over the pitch line and the LKP; click **Follow the search** | 10 s |
+| `call` | `#`: the console at t0 with the pitch bar (one centred line and the button); pointer over the line and the LKP; click **Follow the search** | 10 s |
 | `photos` | t1: the clock runs over the survey flight (6 s), photos land and the heat fills; the counter, then the photo tiles | 13 s |
 | `confirm` | t2: **Next**; the three cards; the 0.18 recorded card's chips (OpenCV 5 zoom native, Nemotron-3.5-Super-VL); **Show the second look's images**; **Person** on it and on #1 (f0336-d01), whose sighting lands in the clue log and on the map | 20 s |
 | `trace` | **Trace** in the view switch: the f0001-d01 chain, pointer down its steps (note → tool → model → verdict → proposal → approval), the model call opened | 17 s |
@@ -35,7 +35,7 @@ Builds the site with `VITE_CACHE_DIR=demo` into the run folder, serves it with `
 | `run` | the approval runs the clock to t4 (3.5 s): teams out, drones fly, B4 searched at POD 60 % in the task board, Drone 1's tooltip | 12 s |
 | `conditions` | Esc (the story steps aside, the console stays at t4), **Sources and quotes** (W): wind, gusts, the pages read | 13 s |
 | `fleet` | zoom on the simulated fleet at t4: Drone 2 link lost, Drone 3 degraded, Team Two relayed through D1 (each marker's tooltip) | 15 s |
-| `radio` | the rail's **Radio desk**: play the recorded Magpie briefing, open its transcript | 11 s |
+| `radio` | **Open Radio** under the approvals (else **Radio** in the view switch, key 6): the Radio view; play the recorded Magpie briefing, open its transcript | 11 s |
 | `results` | `#m/demo?t=5`: the Debrief beside the map; pointer over the three numbers | 10 s |
 | `breaks` | scroll the Debrief to "What breaks first", the three lines one by one (on screen about 15 s) | 20 s |
 | `live_link` | **live**: Fleet controls' **Degrade link D2** (the ring turns), Team Two loses its signal, a drone relays it (the dashed relay line) | 18 s |
@@ -82,24 +82,24 @@ A shot that didn't run is left out. When the shots don't fit, each is trimmed fr
 
 The GIF takes the first candidate shot (`gif.candidates`, in order of preference) with enough movement in its window (a candidate's own `min_motion` overrides the default), ends it on the frame within 18 ± 2 s closest to its first frame (never over 20 s), and fades its first half second in over its end, playing on from the frame after: the last frame is the frame before the first, so the loop has no jump. `end_aligned: true` takes the window that ends with the shot: `run` (the first choice) is 12 s, so its window starts at t3 on the proposal, then the approval and the run. Larger than 3 MB, it retries at lower fps and width.
 
-## Last run (live, `--serve-local`, this machine, 2026-10-22, after #173)
+## Last run (live, `--serve-local`, this machine, 2026-10-22, after #177)
 
-`runs/video/20261022-114907/`: 238.6 s master; shot times from the sync mark, nothing skipped or failed:
+`runs/video/final4-20261022-122829/`: 236.6 s master; shot times from the sync mark, nothing skipped or failed:
 
 | Shot | Start | End | Length | Target |
 |---|---|---|---|---|
-| call | 1.6 | 11.5 | 9.9 | 10 |
-| photos | 12.4 | 25.3 | 12.9 | 13 |
-| confirm | 26.0 | 47.0 | 20.9 | 20 |
-| trace | 47.7 | 65.6 | 17.9 | 17 |
-| next | 66.3 | 75.4 | 9.1 | 9 |
-| run | 76.2 | 88.3 | 12.0 | 12 |
-| conditions | 89.1 | 103.5 | 14.4 | 13 |
-| fleet | 104.4 | 120.6 | 16.3 | 15 |
-| radio | 121.5 | 133.8 | 12.3 | 11 |
-| results | 134.6 | 146.2 | 11.6 | 10 |
-| breaks | 147.0 | 170.4 | 23.4 | 20 |
-| live_link | 181.1 | 200.7 | 19.6 | 18 |
-| recall | 201.8 | 235.8 | 34.0 | 32 |
+| call | 1.1 | 11.1 | 10.0 | 10 |
+| photos | 12.0 | 24.8 | 12.9 | 13 |
+| confirm | 25.6 | 46.6 | 21.0 | 20 |
+| trace | 47.3 | 65.1 | 17.8 | 17 |
+| next | 65.8 | 75.0 | 9.1 | 9 |
+| run | 75.8 | 87.3 | 11.4 | 12 |
+| conditions | 88.1 | 101.2 | 13.0 | 13 |
+| fleet | 102.0 | 117.8 | 15.8 | 15 |
+| radio | 118.7 | 132.3 | 13.6 | 11 |
+| results | 133.2 | 144.6 | 11.4 | 10 |
+| breaks | 145.1 | 169.2 | 24.2 | 20 |
+| live_link | 179.8 | 199.0 | 19.3 | 18 |
+| recall | 200.4 | 233.6 | 33.2 | 32 |
 
-Cuts: OpenCV 3:54.2 (9 shots, none trimmed: 2:12 of screen, 1:20 of slide slots, 22 s of black for the camera), Nebius 2:40.7 (8 shots, none trimmed). GIF: 2.16 MB, 16.0 s at 10 fps, 800 px, from `run` (Team One approved for A1, the clock runs on, teams out, the drones fly, B4 searched at POD 60 %). Live: Team Two relayed twice through D2, all three drones recalled and home. Wall time: about 4 min to record, about 2 min for the encodes.
+Cuts: OpenCV 3:52.8 (9 shots), Nebius 2:41.1 (8 shots), none trimmed. GIF: 2.63 MB, 15.7 s at 10 fps, 800 px, from `run` (the t3 proposal approved, the clock runs on, teams out, the drones fly, B4 searched at POD 60 %). Wall time: about 4 min to record, about 3 min for the encodes.
