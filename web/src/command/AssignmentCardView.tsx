@@ -45,7 +45,7 @@ export function AssignmentCardView({
       <div className="flex flex-wrap items-center gap-2 print:hidden">
         {backHref && (
           <a className="text-small text-accent-soft underline" href={backHref}>
-            ← Command view
+            ← Console
           </a>
         )}
         <span className="ml-auto" />

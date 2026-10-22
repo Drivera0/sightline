@@ -12,7 +12,7 @@ who it's for, the principles and what's next follow below.
 
 - **Accessibility:** axe-core (via `axe-playwright-python`) reports **no violations** on the front door at
   1440×900, 1920×1080 and 390×844, nor on the command view's demo mission (`#m/demo/command`, 1280×900).
-- **Keyboard:** Tab goes "Start a new search" → "Watch a demo search" → Results → Code on GitHub, and
+- **Keyboard:** (before the 2026-10-22 redesign) Tab went "Start a new search" → "Watch a demo search" → Results → Code on GitHub, and
   every focus is visible (`:focus-visible` in `theme.css`).
 - **Motion:** the front door has no animation; the rest of the app follows `prefers-reduced-motion`.
 - **Offline:** `pnpm check:offline` (no external web address in the build); the drawings are inline SVG and
