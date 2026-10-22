@@ -7,12 +7,14 @@ Vercel site; a new mission; one real HERIDAL **val** photo through upload → SQ
 ``photo.processed`` with candidates, timed; the event stream (SSE) replays that mission's events;
 an unknown mission is a 404; with ``--mission``, an earlier mission is still there (data survived a
 restart). Exit code 1 on any failure. Uses the agent's real model (a few cents of tokens).
+If the instance runs with a write token, set ``SIGHTLINE_API_TOKEN`` here too: writes send it.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -32,7 +34,11 @@ def req(
     headers: dict | None = None,
     timeout: float = 30,
 ):
-    r = urllib.request.Request(url, data=body, method=method, headers=headers or {})
+    headers = dict(headers or {})
+    token = os.environ.get("SIGHTLINE_API_TOKEN", "").strip()
+    if token and method != "GET":
+        headers["Authorization"] = f"Bearer {token}"
+    r = urllib.request.Request(url, data=body, method=method, headers=headers)
     try:
         with urllib.request.urlopen(r, timeout=timeout) as resp:
             return resp.status, dict(resp.headers), resp.read()

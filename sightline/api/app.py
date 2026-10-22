@@ -8,7 +8,9 @@ of a zip of drone photos that returns a cache (LANE_D section 6.6).
     POST /survey            -> zip of JPEGs; runs place -> ... -> export in the background
     GET  /survey/<id>       -> {"status": "running" | "done" | "failed", ...}
 
-There is no login: run it on a trusted network (it listens on 127.0.0.1 by default). Uploads are
+There is no login. With ``SIGHTLINE_API_TOKEN`` set, writes (POST/PUT/PATCH/DELETE) need
+``Authorization: Bearer <token>`` (``sightline/api/auth.py``); reads, ``/health`` and the event streams
+stay open. Unset, run it on a trusted network (it listens on 127.0.0.1 by default). Uploads are
 limited in size, count and unpacked size, member names are never used as file paths, and every
 image is decoded and re-saved by Pillow.
 """
@@ -31,6 +33,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from sightline.api.auth import WriteToken, token_from_env
 from sightline.api.missions import MissionContext, missions_router
 from sightline.contract import CONTRACT_VERSION
 from sightline.pipeline.formats import SurveyFrameEntry, SurveyFrameFile, write_json
@@ -58,7 +61,9 @@ def create_app(
     mission_root: Path | None = None,
     radio: str | None = None,
     queue: str = "local",
+    api_token: str | None = None,
 ) -> FastAPI:
+    """``api_token``: the write token (default: ``SIGHTLINE_API_TOKEN``); none leaves it open."""
     cache_root.mkdir(parents=True, exist_ok=True)
     app = FastAPI(title="Sightline upload API")
     jobs: dict[str, dict] = {}
@@ -76,6 +81,11 @@ def create_app(
 
             app.state.radio = radio_context(missions.store, hooks=missions.hooks, voices=radio)
             app.include_router(radio_router)
+
+    # Added before CORS, so CORS wraps it: a 401 still carries the CORS headers the browser needs.
+    token = api_token or token_from_env()
+    if token:
+        app.add_middleware(WriteToken, token=token)
 
     # The web app calls the API from another origin: Vite on localhost in development, the Vercel
     # site in production (SIGHTLINE_CORS_ORIGINS, comma-separated). No cookies, no credentials.

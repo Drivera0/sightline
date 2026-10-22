@@ -9,6 +9,9 @@ localhost, a laptop at the command post or AWS unchanged.
   ``~/.sightline/watch/<mission>.json`` (never in the camera's folder); queues while offline and
   backs off.
 
+Against an API started with ``SIGHTLINE_API_TOKEN`` (writes need a token), set the same variable here:
+every call sends it as ``Authorization: Bearer <token>``.
+
 Built by lane A for lane B (issue #74); lane B owns this package.
 """
 
@@ -41,7 +44,14 @@ class Offline(Exception):
     """The API could not be reached, or answered 5xx: keep the photos and try again."""
 
 
+def auth_headers() -> dict[str, str]:
+    """``Authorization: Bearer <token>`` from ``SIGHTLINE_API_TOKEN``, or nothing when it is unset."""
+    token = os.environ.get("SIGHTLINE_API_TOKEN", "").strip()
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
 def _call(http: httpx.Client, method: str, path: str, **kw) -> httpx.Response:
+    kw["headers"] = {**auth_headers(), **(kw.get("headers") or {})}
     try:
         r = http.request(method, path, **kw)
     except httpx.TransportError as e:
