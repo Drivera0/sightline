@@ -27,6 +27,7 @@ describe("live map features", () => {
     ] as Team[];
     const pts = pointFeatures(base, [clue], teams);
     expect(pts.map((f) => f.properties.label)).toEqual(["Last known point", "c001 track", "Team One"]);
+    expect(pts.map((f) => f.properties.id)).toEqual(["", "c001", "T1"]); // ids select them on click
   });
 
   it("says when there is no map yet", () => {

@@ -256,9 +256,10 @@ def main() -> int:
             return "radio clue refused without readback; confirmed one added"
 
         def task():
-            _, t = s.call(
-                "POST", f"/missions/{state['mid']}/tasks/B3", {"state": "searched", "pod": 0.6}
-            )
+            url = f"/missions/{state['mid']}/tasks/B3"
+            s.call("POST", url, {"state": "assigned", "team_id": "T2"})  # as the command view does
+            s.call("POST", url, {"state": "in_progress", "team_id": "T2"})
+            _, t = s.call("POST", url, {"state": "searched", "team_id": "T2", "pod": 0.6})
             assert t["task"]["pod"] == 0.6, t
             assert t["map"]["source"] == "ground" and {c[1] for c in t["map"]["cells"]} == {0.6}, t[
                 "map"

@@ -40,6 +40,8 @@ def resolve_position(
             if age > STALE_MIN:
                 warnings.append(f"{team.callsign}'s position is {age:.0f} min old")
     elif draft.lat is not None and draft.lon is not None:
+        if not (-90 <= draft.lat <= 90 and -180 <= draft.lon <= 180):
+            raise ValueError("a clue's latitude must be -90 to 90 and its longitude -180 to 180")
         lat, lon = draft.lat, draft.lon
     else:
         raise ValueError("a clue needs lat/lon or at_team_position")

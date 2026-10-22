@@ -7,6 +7,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map } from "maplibre-gl";
 import type { Clue, FleetState, MapBase, MapUpdate, Team } from "../../contract";
 import { usePick } from "../pick";
+import { useSelection } from "../../lib/selection";
 import type { SectorNow } from "../../lib/api";
 import { prefersReducedMotion } from "../../metrics/motion";
 import { LiveHeat, lookedAt } from "../../search/live";
@@ -57,18 +58,18 @@ export function legFeatures(fleet: FleetState | null): Feature[] {
 
 /** The last-known point, clues, teams and drones with a known position, as labelled points. */
 export function pointFeatures(base: MapBase, clues: readonly Clue[], teams: readonly Team[], fleet: FleetState | null = null): Feature[] {
-  const pt = (kind: string, label: string, lon: number, lat: number): Feature => ({
+  const pt = (kind: string, label: string, lon: number, lat: number, id = ""): Feature => ({
     type: "Feature",
-    properties: { kind, label },
+    properties: { kind, label, id },
     geometry: { type: "Point", coordinates: [lon, lat] },
   });
   return [
     pt("lkp", "Last known point", base.lkp.lon, base.lkp.lat),
-    ...clues.map((c) => pt("clue", `${c.id} ${c.kind}`, c.lon, c.lat)),
-    ...teams.filter((t) => t.position).map((t) => pt("team", t.callsign, t.position!.lon, t.position!.lat)),
+    ...clues.map((c) => pt("clue", `${c.id} ${c.kind}`, c.lon, c.lat, c.id)),
+    ...teams.filter((t) => t.position).map((t) => pt("team", t.callsign, t.position!.lon, t.position!.lat, t.id)),
     ...(fleet?.drones ?? [])
       .filter((d) => d.position)
-      .map((d) => pt("drone", `${d.name}${d.simulated ? " (simulated)" : ""}`, d.position!.lon, d.position!.lat)),
+      .map((d) => pt("drone", `${d.name}${d.simulated ? " (simulated)" : ""}`, d.position!.lon, d.position!.lat, d.id)),
   ];
 }
 
@@ -160,6 +161,26 @@ function LiveLayers({ base, updates, sectors, clues, teams, fleet = null }: Omit
     setData(map, LIVE_IDS.points, pointFeatures(base, clues, teams, fleet));
     setData(map, LIVE_IDS.legs, legFeatures(fleet));
   }, [map, ready, base, sectors, clues, teams, fleet]);
+
+  // Clicking a team, drone or clue selects it (D-M2); selecting a team elsewhere (the roster) flies here.
+  useEffect(() => {
+    if (!map || !ready) return undefined;
+    const onClick = (e: { features?: { properties: Record<string, unknown> }[] }) => {
+      const f = e.features?.[0]?.properties;
+      if (!f?.id) return;
+      const sel = useSelection.getState();
+      if (f.kind === "team") sel.selectTeam(String(f.id));
+      else if (f.kind === "drone") sel.selectDrone(String(f.id));
+      else if (f.kind === "clue") sel.selectClue(String(f.id));
+    };
+    map.on("click", LIVE_IDS.points, onClick as never);
+    return () => void map.off("click", LIVE_IDS.points, onClick as never);
+  }, [map, ready]);
+  const selectedTeam = useSelection((s) => s.selectedTeamId);
+  useEffect(() => {
+    const t = teams.find((x) => x.id === selectedTeam);
+    if (map && t?.position) map.flyTo({ center: [t.position.lon, t.position.lat], zoom: Math.max(map.getZoom(), 16), duration: prefersReducedMotion() ? 0 : 800 });
+  }, [map, selectedTeam, teams]);
 
   // A pick asked for elsewhere on the page (the clue form): B's onPick answers it.
   useEffect(() => {

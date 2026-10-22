@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Conditions, Mission, SectorTask, Team } from "../contract";
-import { CommandView, type CommandProps } from "./CommandView";
+import { clueProblem, CommandView, type CommandProps } from "./CommandView";
 
 const NOW = new Date("2026-10-24T22:00:00Z");
 const task = (sector_id: string, state: SectorTask["state"], team_id: string | null = null, pod: number | null = null): SectorTask => ({
@@ -73,6 +73,37 @@ describe("CommandView", () => {
     await userEvent.selectOptions(screen.getByLabelText("Team"), "T2");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(p.onAddClue).toHaveBeenCalledWith(expect.objectContaining({ kind: "object", text: "blue backpack by the creek", at_team_position: true, reported_by: "T2", source: "form" }));
+  });
+
+  it("selects a team from the roster (the live map flies to it)", async () => {
+    setup();
+    const { useSelection } = await import("../lib/selection");
+    await userEvent.click(within(screen.getByRole("region", { name: "Teams" })).getByRole("button", { name: "Team Two" }));
+    expect(useSelection.getState().selectedTeamId).toBe("T2");
+    await userEvent.click(within(screen.getByRole("region", { name: "Teams" })).getByRole("button", { name: "Team Two" }));
+    expect(useSelection.getState().selectedTeamId).toBeNull();
+  });
+
+  it("checks a clue before sending it (test 5)", async () => {
+    expect(clueProblem("", "team", "", "", "")).toBe("Say what was found.");
+    expect(clueProblem("pack", "latlon", "91", "-122", "")).toMatch(/Latitude/);
+    expect(clueProblem("pack", "latlon", "49.3", "", "")).toMatch(/Longitude/);
+    expect(clueProblem("pack", "latlon", "49.3", "-122.9", "-5")).toMatch(/radius/);
+    expect(clueProblem("pack", "latlon", "49.3", "-122.9", "40")).toBeNull();
+    const p = setup();
+    await userEvent.click(screen.getByRole("button", { name: "+ Add clue" }));
+    await userEvent.type(screen.getByLabelText("What"), "boot print");
+    await userEvent.selectOptions(screen.getByLabelText("Where"), "latlon");
+    await userEvent.type(screen.getByLabelText("Latitude"), "123");
+    await userEvent.type(screen.getByLabelText("Longitude"), "-122.9");
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Latitude must be a number from -90 to 90.");
+    expect(p.onAddClue).not.toHaveBeenCalled();
+    await userEvent.clear(screen.getByLabelText("Latitude"));
+    await userEvent.type(screen.getByLabelText("Latitude"), "49.37");
+    await userEvent.type(screen.getByLabelText("Radius (m)"), "40");
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(p.onAddClue).toHaveBeenCalledWith(expect.objectContaining({ lat: 49.37, lon: -122.9, radius_m: 40 }));
   });
 
   it("fills the clue's lat/lon from a pick on the map (B-M3)", async () => {

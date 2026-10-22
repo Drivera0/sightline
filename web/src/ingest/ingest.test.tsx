@@ -1,5 +1,5 @@
 // LANE_D §6 test 9 (ingest) and test 8 (review in live mode), plus the live routes.
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Detections, Verdict } from "../contract";
@@ -165,7 +165,7 @@ describe("the demo mission (E-04)", () => {
     vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ steps: [], prior: { p: [], outside: 0 } })));
     render(<LiveRoutes route={{ kind: "mission", id: "demo" }} base={null} />);
     expect(await screen.findByText("Demo mission · simulated data, no server")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Photos" })).toBeNull();
+    expect(within(screen.getByRole("navigation", { name: "Mission views" })).queryByRole("button", { name: "Photos" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Debrief" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Approvals/ }));
     expect(await screen.findByText("Promote f0127-d01 to the review queue")).toBeInTheDocument();
