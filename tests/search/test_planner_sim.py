@@ -55,3 +55,28 @@ def test_summary_counts_only_finds_within_the_horizon() -> None:
     assert s["found_within_30_min"] == 0.25 and s["found_within_horizon"] == 0.5
     assert s["median_min"] is None  # half found is not "median found"
     assert summary(np.array([5.0, 6.0, 7.0]))["median_min"] == 6.0
+
+
+def test_fleet_strategies_share_or_split_the_sectors() -> None:
+    from sightline.search.planner_sim import plan_fleet
+
+    first = lambda s: [p.leg.sector_id for p in plan_fleet(_scn(), s, CFG, 3, 30)[:3]]
+    assert len(set(first("coordinated"))) == 3  # one shared map: three different sectors
+    assert len(set(first("independent"))) == 1  # each alone picks the same best sector
+    split = plan_fleet(_scn(), "split", CFG, 3, 30)
+    assert {p.leg.sector_id for p in split} == {s.id for s in lattice_sectors(_scn().grid).sectors}
+    assert {p.leg.drone_id for p in split} == {"D1", "D2", "D3"}
+
+
+def test_three_coordinated_drones_find_sooner_than_one() -> None:
+    from sightline.search.planner_sim import plan_fleet
+
+    scn = _scn()
+    one = summary(
+        minutes_to_find(scn, plan(scn, "planner", CFG, 60), CFG, 1000, 0.15, 1), horizon=60
+    )
+    three = summary(
+        minutes_to_find(scn, plan_fleet(scn, "coordinated", CFG, 3, 60), CFG, 1000, 0.15, 1),
+        horizon=60,
+    )
+    assert three["found_within_30_min"] > one["found_within_30_min"]
