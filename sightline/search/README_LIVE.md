@@ -25,4 +25,5 @@ reported as "photo outside the search area" in `photo.processed`.
 - [x] **C-P1** planner (`planner.py`: `candidate_legs`, `expected_clearance`, `propose_legs`, `propose_assignments`; lane A, `tests/search/test_planner.py`). The agent's stand-ins (`sightline/agent/_stubs.py`) are deleted
 - [ ] C-S1 rest: `build_sectors` port of `web/src/map/heat/sectors.ts` for demo caches, `sector_vectors.json`
 - [ ] TS mirror: `applyReweight`, `replayLive`, heat layer on `useMission().mapBase/mapUpdates`, `latticeSectors`
-- [ ] Fleet sim, scenarios, debrief, planner evaluation
+- [x] **C-P2** planner evaluation, simulated (`planner_sim.py`, `scripts/planner_eval.py`, `tests/search/test_planner_sim.py`; lane A): no better than a fixed order with a flat prior; 1.7× the finds within 30 min after a clue
+- [ ] Fleet sim, scenarios, debrief
