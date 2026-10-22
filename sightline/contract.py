@@ -387,6 +387,16 @@ class BaseCamp(_Model):
     name: str
 
 
+class Found(_Model):
+    """1.3: where and when the person was found, and by which team."""
+
+    team: str
+    sector: str | None
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    at: str
+
+
 class Mission(_Model):
     contract_version: ContractVersion
     mission_id: str
@@ -398,6 +408,8 @@ class Mission(_Model):
     subject: str | None
     # 1.3 (section 15): null only in missions created before 1.3
     base_camp: BaseCamp | None = None
+    status: Literal["searching", "found", "suspended"] = "searching"
+    found: Found | None = None  # set exactly when status is "found"
 
 
 # --- map (C) -------------------------------------------------------------------------------

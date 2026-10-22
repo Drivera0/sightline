@@ -900,7 +900,13 @@ def handle(
 ) -> list[Proposal]:
     """Proposals for one event (table in the module docstring). ``client=None`` means no model
     is available: the verifier is skipped and briefings use the template; planner proposals
-    still go out."""
+    still go out. Once the mission is ``found`` (1.3) nothing new is proposed: a trace note says
+    which event was left alone."""
+    status = getattr(store.get(mission_id), "status", "searching")
+    if status == "found":
+        trace_call(store, mission_id, actor="agent", kind="note", refs=[ref],
+                   summary=f"Mission found: no new proposals ({event} {ref} not planned)")  # fmt: skip
+        return []
     if event == "detection":
         return _on_detection(store, mission_id, ref, client, detector)
     if event == "review":

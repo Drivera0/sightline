@@ -275,6 +275,13 @@ class MissionStore:
                 self._live[mission_id] = live
             return self._live[mission_id]
 
+    def update_mission(self, mission_id: str, **fields: Any) -> Mission:
+        """Rewrite ``mission.json`` with ``fields`` changed (1.3: status, found). Validated first."""
+        with self._lock(mission_id) as d:
+            m = Mission.model_validate({**self.get(mission_id).model_dump(), **fields})
+            self._save(d, "mission.json", m)
+            return m
+
     def next_id(self, mission_id: str, kind: str) -> str:
         with self._lock(mission_id) as d:
             counters = self._read_json(d / "counters.json", {})

@@ -1012,6 +1012,47 @@
       "title": "FleetTelemetry",
       "type": "object"
     },
+    "Found": {
+      "additionalProperties": false,
+      "description": "1.3: where and when the person was found, and by which team.",
+      "properties": {
+        "team": {
+          "type": "string"
+        },
+        "sector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "team",
+        "sector",
+        "lat",
+        "lon",
+        "at"
+      ],
+      "title": "Found",
+      "type": "object"
+    },
     "Frame": {
       "additionalProperties": false,
       "properties": {
@@ -1690,6 +1731,26 @@
           "anyOf": [
             {
               "$ref": "#/$defs/BaseCamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "default": "searching",
+          "enum": [
+            "searching",
+            "found",
+            "suspended"
+          ],
+          "type": "string"
+        },
+        "found": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Found"
             },
             {
               "type": "null"

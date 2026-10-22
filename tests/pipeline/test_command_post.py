@@ -109,3 +109,49 @@ def test_a_simulated_drone_flies_home_to_its_home_not_where_it_started() -> None
     )
     sim2 = DroneSim(d.model_copy(update={"home": None}), None, "m", scn2, pool=None)  # type: ignore[arg-type]
     assert sim2.home == _to_m(lkp, camp.lon, camp.lat)
+
+
+# --- found -------------------------------------------------------------------------------------
+
+
+def test_found_sets_the_status_at_the_sectors_likeliest_cell_and_freezes_proposals(api) -> None:
+    client, store, _ = api
+    mid = mission(client)
+    assert (
+        client.post(f"/missions/{mid}/found", json={"team": "T1", "sector": "C2"}).status_code
+        == 401
+    )
+    r = client.post(f"/missions/{mid}/found", json={"team": "T1", "sector": "C2", "by": "Dana"},
+                    headers=AUTH)  # fmt: skip
+    assert r.status_code == 200, r.text
+    m = r.json()
+    assert m["status"] == "found" and m["found"]["team"] == "T1" and m["found"]["sector"] == "C2"
+    from sightline.mission.command import likeliest_cell, sector_of
+
+    cell = likeliest_cell(store, mid, "C2")
+    assert (m["found"]["lat"], m["found"]["lon"]) == (round(cell.lat, 6), round(cell.lon, 6))
+    assert sector_of(store, mid, cell.lat, cell.lon) == "C2"
+    (e,) = [e for e in store.trace_entries(mid) if e.kind == "decision"]
+    assert e.actor == "human" and e.output["action"] == "found" and e.output["by"] == "Dana"
+    (ev,) = [e for e in store.events(mid) if e.data and e.data.get("found")]
+    assert ev.data["found"]["team"] == "T1"
+    # the agent proposes nothing new once found, and says so in the trace
+    from sightline.agent import loop
+
+    assert loop.handle("tick", store, mid, mid, client=None) == []
+    assert "Mission found: no new proposals" in store.trace_entries(mid)[-1].summary
+    again = client.post(f"/missions/{mid}/found", json={"team": "T1", "sector": "C2"}, headers=AUTH)
+    assert again.status_code == 409
+
+
+def test_found_with_a_position_finds_its_sector_and_refuses_unknown_teams(api) -> None:
+    client, store, _ = api
+    mid = mission(client)
+    from sightline.mission.command import likeliest_cell
+
+    p = likeliest_cell(store, mid, "B3")
+    assert client.post(f"/missions/{mid}/found", json={"team": "T9", "sector": "B3"},
+                       headers=AUTH).status_code == 404  # fmt: skip
+    r = client.post(f"/missions/{mid}/found", json={"team": "T2", "lat": p.lat, "lon": p.lon},
+                    headers=AUTH)  # fmt: skip
+    assert r.json()["found"]["sector"] == "B3"

@@ -261,6 +261,8 @@ export interface Mission {
   last_seen_at: string | null;
   subject: string | null;
   base_camp?: BaseCamp | null;
+  status?: "searching" | "found" | "suspended";
+  found?: Found | null;
 }
 /**
  * 1.3: where teams stage and drones launch from and return to.
@@ -269,6 +271,16 @@ export interface BaseCamp {
   lat: number;
   lon: number;
   name: string;
+}
+/**
+ * 1.3: where and when the person was found, and by which team.
+ */
+export interface Found {
+  team: string;
+  sector: string | null;
+  lat: number;
+  lon: number;
+  at: string;
 }
 export interface MapBase {
   contract_version: "1.0" | "1.1" | "1.2" | "1.3";
