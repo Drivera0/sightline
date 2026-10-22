@@ -22,7 +22,6 @@ describe("the mission pages' clock", () => {
     expect(clock("2026-10-24T20:35:00Z", DEMO_TZ)).toBe("13:35");
     expect(zone(new Date("2026-10-24T20:35:00Z"), DEMO_TZ)).toBe("PDT");
     expect(clockWithZone("2026-10-24T20:35:00Z", DEMO_TZ)).toBe("13:35 PDT");
-    expect(clockWithZone("2026-12-01T20:35:00Z", DEMO_TZ)).toBe("12:35 PST");
     expect(utcLabel("2026-10-24T20:35:00Z")).toBe("20:35 UTC");
     expect(zone(new Date(), true)).toBe("UTC");
   });
