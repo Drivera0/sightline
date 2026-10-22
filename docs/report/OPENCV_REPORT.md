@@ -16,8 +16,9 @@ https://sightline-iota-sandy.vercel.app (demo) · Live mission API on AWS: https
 
 When a hiker goes missing, search-and-rescue teams fly drones over the search area and come back
 with hundreds of photos. A person is about 70 px wide in a 4000×3000 photo; a volunteer reviewing
-them by eye takes about 33 s per photo (Pyrrö, Naseri & Jung 2021), so 500 photos is over four
-hours, and humans in that study found 68 % of the people. Meanwhile the search manager has to
+them by eye takes about 33 s per photo, so 500 photos is over four hours, and finds about 68 % of the
+people (figures quoted by Pyrrö, Naseri & Jung 2021 under their loose SAR-APD scoring; what that baseline
+did and did not measure is in §7.1). Meanwhile the search manager has to
 decide where to send drones and ground teams next.
 
 Sightline is the brain of that search: **one brain, many eyes, every channel.** Drones and ground
@@ -65,7 +66,7 @@ sectors show their probability now, with the last-known point, a clue and a team
 
 Sightline was first built in 36 hours at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`):
 the tiled detector, the review queue and the Bayesian search map, run as a batch over a demo survey.
-The OpenCV organizers confirmed the existing project is eligible. Built for this competition, Oct 20–26:
+The OpenCV organizers confirmed the existing project is eligible. Built for this competition between Oct 20 and the code freeze on Sat Oct 25, 12:00 PT:
 
 - the detector running on **OpenCV 5 `cv2.dnn`**, with a parity table against the Torch path (§4.1);
 - **OpenCV 5 re-look tools** and a Nemotron VL second look on uncertain detections (§4.2, §5);
@@ -377,9 +378,28 @@ the time per photo, so a bigger instance or a second worker shortens it directly
 
 | Scoring | Recall | Precision | AP50 | Time per photo |
 |---|---|---|---|---|
-| SAR-APD, as in the human study | **0.896** | **0.898** | — | 0.25 s (GPU) |
-| Human baseline (Pyrrö et al. 2021) | 0.68 | 0.59 | — | 33 s |
+| SAR-APD, as in the human figures | 0.896 | 0.898 | — | 0.25 s (GPU) |
+| Human reference (quoted by Pyrrö et al. 2021; not a matched study) | 0.68 | 0.59 | — | 33 s |
 | VOC (one box per person, IoU ≥ 0.5) | 0.864 | 0.802 | 0.868 | 1.9 s (cv2.dnn, CPU) |
+
+**What the human figures are.** Pyrrö, Naseri & Jung (2021, arXiv:2111.09406, §5) write: "According to
+Pyrrö et al. [35], the average human achieves roughly the following metrics in SAR-APD: 59% PRC, 68% RCL and
+33 s ATI, with less than around 200 images to inspect", where [35] is Pyrrö's 2021 Aalto master's thesis;
+they add that human performance drops with the number of images because of fatigue. The paper does not say
+who the people were, how they marked people, or whether they saw these 101 test photos, so 0.896 against
+0.68 is a reference point, not a head-to-head result. SAR-APD (their §2.3) is deliberately loose: one box
+may cover several people (a box over a group of five counts five hits) and a box needs an IoU of only
+0.0025 with a person; the authors note that SAR-APD results "cannot be directly compared to other work".
+That is why every other number in this report uses the strict VOC scoring.
+
+**Test-set disclosure, beside the numbers it affects.** The threshold and every inference setting were
+chosen on validation, but two model choices were made with these test scores in view: keeping training
+run 2 over run 1, and dropping the hard-negative fine-tune (test F2 0.840 vs 0.850). A later check on
+validation could not have made either call (run 2 vs run 1 ΔF2 +0.002, 95 % CI [−0.028, +0.031];
+`scripts/README.md`). **Best estimate of true test recall (VOC): about 0.86, the reported 0.864 or slightly below**, since the
+alternatives differed by less than validation can resolve and the dropped model had the higher test recall
+(0.869); on terrain the model has never seen, expect lower: recall is 0.825 on the 114 people at the four
+test sites that are in neither training nor validation (`docs/DETECTOR_LIMITS.md` §5).
 
 Threshold 0.29 chosen on validation by maximising F2 (a missed person costs more than a false
 alarm). On the demo survey, all 6 photos with a person are in the first 7 of the review queue.
@@ -546,14 +566,73 @@ HERIDAL photo covering 142 cells.
   and, on AWS, Secrets Manager (§6).
 - **Honest evaluation:** thresholds and rules are chosen on validation; test is scored once per
   decision. Choices that saw test results are disclosed (§10).
-- **Imagery:** HERIDAL (Božić-Štulić, Marušić & Gotovac, 2019), CC BY 3.0; no real search data.
+- **Imagery:** HERIDAL (Božić-Štulić, Marušić & Gotovac, 2019), from a CC BY 3.0 copy (§9.2); no real
+  search data.
+
+### 9.1 Privacy and data handling
+
+Sightline handles photos of real people in distress, so what happens to them is part of the design:
+
+- **Who sees the photos.** Everyone who can reach the mission API: it has **no login**. `GET /missions` lists
+  the missions, and `GET /missions/{id}/files/...` serves their frames, crops and trace. Locally the API
+  listens on `127.0.0.1`. The AWS deployment is a demo for judges, who need to click through without an
+  account; it holds only HERIDAL validation photos and synthetic drone photos, and it is stopped between
+  demos. A search team deploying it must put the API on its own network or VPN, or add authentication
+  (not built).
+- **CORS** allows the deployed website's origin (`SIGHTLINE_CORS_ORIGINS`, the Vercel site on AWS) and
+  `localhost`/`127.0.0.1` on any port, for `GET`, `POST`, `PATCH` and `PUT`, with no cookies or credentials
+  (`sightline/api/app.py`). CORS only limits which web pages may call the API from a browser; it is not
+  access control.
+- **Where photos are kept.** On AWS the original photos go to a private S3 bucket (`missions/<id>/orig/`,
+  no public access) and are **deleted after 30 days** by a lifecycle rule (`deploy/aws/setup.sh`); the
+  instance role can reach only that prefix. The mission files (frames, crops, trace) stay on the instance's
+  disk until `deploy/aws/teardown.sh` deletes everything; container logs are kept 14 days and contain no
+  images.
+- **What leaves for a model.** For every detection at confidence 0.15 or more, the crop and at most two
+  OpenCV re-look images (JPEG) go to **Nebius Token Factory**, model `nvidia/Nemotron-3.5-Super-VL`, with
+  the verifier prompt; no full photo, no GPS and no EXIF. Briefings and radio answers send mission text
+  (sectors, clues, conditions) to the Nemotron text models on Token Factory. Radio speech is transcribed
+  and spoken on our own GPU (Parakeet, Magpie); only text goes to Token Factory. We have not reviewed Token
+  Factory's data-retention terms for real search data; a team should before using it on a live search.
+  Tavily receives only the search area's name in its queries.
+- **No faces, no identity.** Sightline runs no face detection or recognition and stores no identity data.
+  At survey altitude a person is about 70 px across, and the system only asks whether a crop shows a
+  person, their posture and clothing colour.
+- **Keys** live in environment variables and AWS Secrets Manager, never in the browser, the repo, the logs
+  or the trace (§6, §7.3).
+
+### 9.2 Licences
+
+- **Code: AGPL-3.0-or-later** (`LICENSE`), because the detector is trained with Ultralytics YOLO, which is
+  AGPL-3.0. Ultralytics states that "All Ultralytics YOLO trained models fall under the AGPL-3.0 License by
+  default" and that the licence "covers the training code and the models produced by that training code"
+  ([ultralytics.com/license](https://www.ultralytics.com/license)). We therefore treat our weights
+  (`weights-v2`) and their **ONNX export** (`model-onnx-v2`), which `cv2.dnn` runs with no Ultralytics code,
+  as a derivative under the same licence; Ultralytics' pages do not mention exported formats, so that is
+  our reading, not a statement from them.
+- **What a search organisation must do to deploy it**, as we read the licences (not legal advice): it may
+  run and change Sightline freely; if it lets people use a modified version over a network (the mission
+  API for its members), or ships it on a device such as a Jetson field kit, it must offer those users the
+  complete corresponding source of that version, and per Ultralytics the model weights where applicable;
+  Ultralytics says this applies even to internal and private deployments. The alternatives are an
+  Ultralytics Enterprise licence, which lets code and models be embedded "in commercial products" without
+  the AGPL terms, or retraining the detector with a permissively licensed framework (not done).
+- **HERIDAL imagery.** The photos are from HERIDAL (Božić-Štulić, Marušić & Gotovac, "Deep Learning
+  Approach in Aerial Imagery for Supporting Land Search and Rescue Missions", IJCV 127(9), 2019). We use
+  Pyrrö's copy on Zenodo ([record 5662351](https://zenodo.org/records/5662351), "HERIDAL dataset in
+  keras-retinanet PASCAL VOC format"), whose licence field is **CC BY 3.0** and which describes itself as a
+  "Modified version of the HERIDAL dataset". **The original dataset's own terms are not verified:** the IJCV
+  paper's metadata states none that we could find, and the original site (`ipsar.fesb.unist.hr`) did not
+  answer on 22 Oct. The public demo shows HERIDAL photos under the Zenodo copy's CC BY 3.0 with attribution
+  to both; before any commercial use we would ask the original authors.
 
 ## 10. Disclosures
 
 1. **Existing project:** started at BCS Hackathon 2026 (§2); eligibility confirmed by the organizers.
 2. **Test-seen choices (sprint 1):** keeping training run 2 over run 1, and dropping the
    hard-negative fine-tune, were made with test scores in view; the mirror-TTA setting was
-   scored on test and not adopted (README). Test numbers are therefore slightly optimistic.
+   scored on test and not adopted (README). Test numbers are therefore slightly optimistic; the best
+   estimate of true test recall is beside the table in §7.1.
 3. **Verifier benchmark:** two early 20-crop prompt runs used test photos; they were superseded by
    val runs and played no part in the final choice (`docs/LANE_A_ML.md` §6.7).
 4. **This sprint:** the parity check and the verifier rule each read test once, after every
