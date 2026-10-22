@@ -107,6 +107,11 @@ def clue_text(text: str) -> str:
     return _REPORT_LEAD.sub("", text).strip().rstrip(".")
 
 
+def _whole(v: float | None) -> int | None:
+    """124.0 → 124: the card stores floats, and "one two four point zero" is not radio."""
+    return None if v is None else round(v)
+
+
 @dataclass
 class RadioTools:
     api: MissionApi
@@ -148,8 +153,8 @@ class RadioTools:
             "sector": card["sector_label"],
             "state": task["state"],
             "entry": card["entry"]["name"],
-            "bearing_deg": card.get("bearing_deg_from_team"),
-            "distance_m": card.get("distance_m_from_team"),
+            "bearing_deg": _whole(card.get("bearing_deg_from_team")),
+            "distance_m": _whole(card.get("distance_m_from_team")),
             "look_for": card.get("look_for", []),
         }
 
@@ -164,14 +169,19 @@ class RadioTools:
         landmarks = [
             w["name"]
             for w in card.get("waypoints", [])
-            if not re.fullmatch(r"(N|S)(E|W) corner", w["name"])
+            # named places only: not the corners ("NW corner", "north-west corner"), the entry or
+            # the card's sweep-line points, which tell a team nothing on the radio
+            if not re.fullmatch(
+                r"((N|S)(E|W)|(north|south)-(east|west)) corner", w["name"], re.IGNORECASE
+            )
+            and w.get("note") not in ("entry", "sweep")
         ]
         if landmarks:
             out["landmarks"] = landmarks
         out["entry"] = card["entry"]["name"]
         if from_team:
-            out["bearing_deg"] = card.get("bearing_deg_from_team")
-            out["distance_m"] = card.get("distance_m_from_team")
+            out["bearing_deg"] = _whole(card.get("bearing_deg_from_team"))
+            out["distance_m"] = _whole(card.get("distance_m_from_team"))
         return out
 
     def get_conditions(self) -> dict:
