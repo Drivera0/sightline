@@ -334,3 +334,47 @@ def test_no_flying_before_dawn(tmp_path: Path) -> None:
     assert (
         sun_times(43.34, 17.79, date(2026, 10, 22))[0] == c.sunset
     )  # today's sunset, not yesterday's
+
+
+class _FarTavily:
+    """Found live on AWS: "HERIDAL site" (Croatia) searched by name returned a Cincinnati forecast."""
+
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+        self.extracted: list[str] = []
+
+    def search(self, query: str, **kw) -> dict:
+        self.queries.append(query)
+        return {"results": [
+            {"url": "https://forecast.weather.gov/MapClick.php?lat=39.1031&lon=-84.512", "title": "Cincinnati", "content": "Wind 20 mph"},
+            {"url": "https://example.org/forecast?lat=43.36&lon=17.80", "title": "Near Mostar", "content": "Wind 10 km/h"},
+        ]}  # fmt: skip
+
+    def extract(self, urls: list[str], **kw) -> dict:
+        self.extracted += urls
+        return {"results": [{"url": urls[0], "raw_content": "Wind 10 km/h"}]}
+
+
+def test_a_forecast_for_another_place_is_never_used(tmp_path: Path) -> None:
+    from sightline.geo.conditions import _far_away
+
+    area = Area(name="HERIDAL site", lkp=LatLon(lat=43.393, lon=17.726))
+    store = FakeMissionStore()
+    mid = store.create("m", area.name, area.lkp, "live").mission_id
+    t = _FarTavily()
+    fetch_conditions(area, fleet_max_wind_kmh=38, last_seen_at=None, cache_dir=tmp_path,
+                     now="2026-10-22T10:00:00Z", tavily=t, store=store, mission_id=mid)  # fmt: skip
+    assert all("43.39, 17.73" in q for q in t.queries)  # the search says where
+    assert t.extracted == [
+        "https://example.org/forecast?lat=43.36&lon=17.80"
+    ]  # the near page, not Cincinnati
+    assert any(
+        "skipped (for another place)" in e.summary and "weather.gov" in e.summary
+        for e in store.trace_entries(mid)
+    )
+    assert not _far_away(
+        "https://weather.gc.ca/en/forecast/hourly/index.html?coords=49.316%2C-123.071", SEYMOUR.lkp
+    )
+    assert not _far_away(
+        "https://bcparks.ca/mount-seymour-park", SEYMOUR.lkp
+    )  # no coordinates: kept

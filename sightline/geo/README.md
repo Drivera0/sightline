@@ -350,5 +350,16 @@ radio would have read sweep points and "north-west corner" as landmarks, and "12
   team, drone or clue selects it (`useSelection`, D-M2); selecting a team in the roster flies the map to it.
   Tests: `web/src/map/base/missionLayers.test.ts` (incl. never "clear"). Checked in Chromium on `#m/demo/command`.
 
+## Found on AWS (2026-10-22, lane A)
+
+- **Replay against AWS** (B-R1 DoD): `python -m sightline.client replay --api https://44-227-39-234.sslip.io
+  --limit 6`: 6 HERIDAL val photos uploaded (0.45 s each); all 6 processed by the worker, cv2.dnn 10.5 s each
+  on c7i.xlarge (the first after a cold boot waited for the rebuilt worker).
+- **Fixed: a forecast for another place.** That mission's area was "HERIDAL site" (Croatia); searched by name,
+  Tavily returned a Cincinnati forecast (weather.gov `lat=39.10&lon=-84.51`) and it was extracted. Now the
+  searches for any area but the demo's carry the last known point's coordinates, and a page whose URL names
+  coordinates more than 100 km away is dropped (logged in the trace). Test:
+  `test_a_forecast_for_another_place_is_never_used`.
+
 Still lane B's: importing a card into CalTopo for the report screenshot.
 

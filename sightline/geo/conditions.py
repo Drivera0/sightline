@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 from dataclasses import dataclass
@@ -82,11 +83,12 @@ class AreaQueries:
 
 
 def queries_for(area: Area) -> AreaQueries:
-    """Seymour's queries for the demo area; for any other area, the same searches by its name and
-    without domain filters."""
+    """Seymour's queries for the demo area; for any other area, the same searches by its name and the
+    last known point's coordinates (a name like "HERIDAL site" alone found a Cincinnati forecast,
+    live on AWS), without domain filters."""
     if "seymour" in area.name.lower():
         return AreaQueries()
-    n = area.name
+    n = f"{area.name} near {area.lkp.lat:.2f}, {area.lkp.lon:.2f}"
     return AreaQueries(
         forecast=f"hourly weather forecast {n} wind gusts precipitation",
         forecast_domains=(),
@@ -95,6 +97,35 @@ def queries_for(area: Area) -> AreaQueries:
         warnings=f"weather warning {n}",
         warnings_domains=(),
     )
+
+
+FAR_KM = 100.0
+
+
+def _far_away(url: str, lkp: Any) -> bool:
+    """True when the URL names coordinates more than FAR_KM from the search area."""
+    from urllib.parse import parse_qs, unquote, urlparse
+
+    q = parse_qs(urlparse(url).query)
+    lat = lon = None
+    if "coords" in q:  # weather.gc.ca: coords=49.316,-123.071
+        parts = unquote(q["coords"][0]).split(",")
+        if len(parts) == 2:
+            lat, lon = parts
+    else:
+        lat = (q.get("lat") or q.get("latitude") or [None])[0]
+        lon = (q.get("lon") or q.get("lng") or q.get("longitude") or [None])[0]
+    try:
+        la, lo = float(lat), float(lon)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False  # no coordinates in the URL: nothing to check
+    r = 6371.0
+    dlat, dlon = math.radians(la - lkp.lat), math.radians(lo - lkp.lon)
+    h = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lkp.lat)) * math.cos(math.radians(la)) * math.sin(dlon / 2) ** 2
+    )
+    return 2 * r * math.asin(math.sqrt(h)) > FAR_KM
 
 
 class TavilyLike(Protocol):
@@ -474,6 +505,18 @@ def fetch_conditions(
                 }
                 for r in res
             ]
+        # a page whose URL says it is for somewhere else (weather.gov lat=/lon=, Environment Canada
+        # coords=) is dropped, so a far-away forecast can't be quoted as this area's
+        kept = [d for d in docs if not _far_away(d["url"], area.lkp)]
+        for d in docs:
+            if d not in kept:
+                _trace(
+                    store,
+                    mission_id,
+                    kind="note",
+                    summary=f"skipped (for another place): {d['url']}",
+                )
+        docs = kept
         top = next((d for d in docs if d["search"] == "forecast"), None)
         if top and top["url"]:
             ext = tavily.extract([top["url"]]).get("results", [])
