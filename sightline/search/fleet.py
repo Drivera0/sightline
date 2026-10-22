@@ -1302,6 +1302,12 @@ def main() -> None:
         degrade_link: str = typer.Option("lost", help="lost or degraded"),
         no_signal: str = typer.Option("", help="teams with no signal from the start: T2 or T1,T2"),
     ) -> None:
+        import signal
+
+        def _stop(*_: Any) -> None:  # SIGTERM stops like Ctrl-C: the drone processes are joined
+            raise KeyboardInterrupt
+
+        signal.signal(signal.SIGTERM, _stop)
         extra = parse_degrade(degrade if degrade[0] else None, degrade_at_s, degrade_link)
         extra += [
             {"after_s": 0.0, "target": t.strip(), "link": "no_signal"}
