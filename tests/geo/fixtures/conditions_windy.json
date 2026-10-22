@@ -1,0 +1,28 @@
+{
+  "now": "2026-10-24T22:00:00Z",
+  "last_seen_at": "2026-10-24T08:00:00Z",
+  "conditions": {
+    "fetched_at": "2026-10-24T22:00:00Z",
+    "stale": false,
+    "area": "Mount Seymour",
+    "sources": [
+      "https://weather.gc.ca/example"
+    ],
+    "wind_kmh": 30.0,
+    "gust_kmh": 55.0,
+    "wind_dir_deg": null,
+    "precip_mm_h": 0.0,
+    "precip_prob": null,
+    "temp_c": 6.0,
+    "visibility_km": 30.0,
+    "sunset": "2026-10-25T01:03:22Z",
+    "civil_twilight_end": "2026-10-25T01:36:46Z",
+    "alerts": [],
+    "flyable": false,
+    "flyable_until": null,
+    "flyability_reason": "gusts 55 km/h at or above the drones' limit of 38 km/h",
+    "visibility_factor": 1.0,
+    "exposure_band": "moderate",
+    "exposure_note": "moderate: 6 \u00b0C, rain 0 mm/h, wind 55 km/h, 14 h since last seen (planning heuristic, not a medical assessment)"
+  }
+}

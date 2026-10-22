@@ -1,0 +1,26 @@
+{
+  "now": "2026-10-24T22:00:00Z",
+  "last_seen_at": null,
+  "conditions": {
+    "fetched_at": "2026-10-24T22:00:00Z",
+    "stale": true,
+    "area": "Mount Seymour",
+    "sources": [],
+    "wind_kmh": null,
+    "gust_kmh": null,
+    "wind_dir_deg": null,
+    "precip_mm_h": null,
+    "precip_prob": null,
+    "temp_c": null,
+    "visibility_km": null,
+    "sunset": null,
+    "civil_twilight_end": null,
+    "alerts": [],
+    "flyable": null,
+    "flyable_until": null,
+    "flyability_reason": "no conditions data (offline: ConnectError)",
+    "visibility_factor": 1.0,
+    "exposure_band": null,
+    "exposure_note": "no weather data: exposure unknown (planning heuristic, not a medical assessment)"
+  }
+}

@@ -279,3 +279,25 @@ Status: cache-backed base layers implemented.
   the deferred `VITE_MAPTILER_KEY`.
 - The complete jsdom suite passes under Node 22.20. The installed Node 20.17 is
   too old for the current Vite/jsdom dependency set.
+
+## Conditions (B-W1/B-W2, built by lane A, issue #74)
+
+`conditions.py`: `fetch_conditions` (three Tavily searches + one extract, cached per hour, offline → stale or
+all-null with the reason), `extract_fields` (Nemotron returns value + quote; kept only when the quote is verbatim in
+its document, carries the number, names the field, and is in range), `sun_times` (astral, **local** date),
+`flyability`, `visibility_factor` (fog in an alert counts), `exposure_band` (labelled a planning heuristic). Every
+Tavily call and the extraction are in the mission trace (`actor="conditions"`). `SIGHTLINE_FAKE_TAVILY=1` for the
+smoke test; tests never use the network (`tests/conftest.py`). Fixtures for other lanes:
+`tests/geo/fixtures/conditions_{clear,windy,rainy-dusk,offline}.json`. Tests: `tests/geo/test_conditions.py`.
+
+Wired: the mission API fetches a new mission's first conditions in the background and every 30 min (scheduler);
+`POST /conditions/refresh`; the planner's flyability gate, photo POD × visibility factor, the shelter shift, the
+agent's recall alert (only with a drone up) and assignment briefings (daylight left, wind, alerts).
+
+**Live (22 Oct, Mount Seymour, evening):** wind NW 20 km/h gusting 40 (quotes "NW 20", "gusts 40"), a Fog Advisory
+→ visibility factor 0.6, not flyable ("after civil twilight"), exposure moderate; the same values on two runs.
+Found while building it, fixed: the UTC date gave tomorrow's sunset in the evening ("flyable" in the dark); bare
+digits were accepted as quotes; the model picked different forecast hours on two runs (it is now told the time).
+
+Still lane B's: cards (B-K1), clue positions (`resolve_position`), map layers, replay/watch clients.
+

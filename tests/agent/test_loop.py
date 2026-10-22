@@ -316,6 +316,21 @@ def test_unflyable_conditions_recall_drones_once(mission) -> None:
     assert _handle(store, mid, "conditions", mid) == []  # only on the change
 
 
+def test_no_recall_when_no_drone_is_up(mission) -> None:
+    """Found live: a mission with no drones got "Recall drones" when night fell."""
+    store, mid, _ = mission
+    fleet = store.state(mid)["fleet"]
+    store.put_fleet(
+        mid,
+        fleet.model_copy(
+            update={"drones": [d.model_copy(update={"status": "idle"}) for d in fleet.drones]}
+        ),
+    )
+    _handle(store, mid, "conditions", mid)
+    store.put_conditions(mid, _conditions(flyable=False))
+    assert _handle(store, mid, "conditions", mid) == []
+
+
 def test_visibility_drop_replans(mission) -> None:
     store, mid, _ = mission
     _handle(store, mid, "conditions", mid)
@@ -445,3 +460,29 @@ def test_budget_stops_model_calls_and_notes_it_once() -> None:
     with pytest.raises(BudgetExceeded):
         client.chat([{"role": "user", "content": "a"}], model="m")
     assert notes == [1] and len(base.calls) == 2
+
+
+def test_assignment_briefings_carry_the_conditions() -> None:
+    """Lane B's briefing hook: daylight left, wind, alerts, from the mission's conditions."""
+    from sightline.contract import ConditionAlert
+
+    c = _conditions().model_copy(
+        update={
+            "civil_twilight_end": "2026-10-25T01:12:00Z",
+            "wind_kmh": 18.0,
+            "gust_kmh": 30.0,
+            "alerts": [
+                ConditionAlert(
+                    kind="closure", title="Lower Seymour trail closed", text="t", url="u"
+                )
+            ],
+        }
+    )
+    facts = loop.conditions_facts(c, "2026-10-24T22:32:00Z")
+    assert facts == {
+        "daylight_left": "2 h 40 min",
+        "weather": "wind 18 km/h, gusts 30 km/h",
+        "alerts": "Lower Seymour trail closed",
+    }
+    assert loop.conditions_facts(None, "2026-10-24T22:32:00Z") == {}
+    assert "daylight_left" not in loop.conditions_facts(c, "2026-10-25T02:00:00Z")  # after dark

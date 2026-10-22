@@ -12,6 +12,7 @@ Done by lane A for lane D (issue #51); lane D owns this file.
 from __future__ import annotations
 
 import io
+import logging
 import os
 import tempfile
 from collections.abc import Callable
@@ -65,6 +66,13 @@ def _fetch_conditions() -> Callable | None:
     return fetch_conditions
 
 
+def _first_conditions(ctx: MissionContext, mission_id: str) -> None:
+    try:
+        ctx.refresh_conditions(mission_id)
+    except Exception:  # conditions never block or break a new mission
+        logging.getLogger(__name__).exception("first conditions for %s failed", mission_id)
+
+
 def _default_detector() -> Any:
     from sightline.ml.backend import make_detector
 
@@ -100,6 +108,8 @@ class MissionContext:
             fleet_max_wind_kmh=max_wind,
             last_seen_at=m.last_seen_at,
             cache_dir=self.store.root / mission_id / "conditions_cache",
+            store=self.store,
+            mission_id=mission_id,
         )
         effects.on_conditions(self.store, mission_id, c, self.hooks)
         return c
@@ -211,7 +221,14 @@ def create_mission(body: NewMission, request: Request) -> dict:
                 ),
             )
     store.emit(m.mission_id, "mission.note", f"mission created: {m.name}", data=_dump(m))
-    _ctx(request).scheduler.mission_active(m.mission_id)
+    ctx = _ctx(request)
+    ctx.scheduler.mission_active(m.mission_id)
+    # The first conditions (lane B), in the background: Tavily + the model take ~30 s and the
+    # browser shouldn't wait for them; they arrive as a conditions.updated event.
+    if _fetch_conditions() is not None:
+        import threading
+
+        threading.Thread(target=_first_conditions, args=(ctx, m.mission_id), daemon=True).start()
     return _dump(m)
 
 
