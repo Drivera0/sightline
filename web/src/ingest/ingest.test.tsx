@@ -216,6 +216,28 @@ describe("the demo mission (E-04)", () => {
     expect(await screen.findByText("Promote f0127-d01 to the review queue")).toBeInTheDocument();
     vi.unstubAllGlobals();
   });
+
+  it("keeps an approval across a hash change and a remount: the state stays while you're on the mission", async () => {
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ steps: [], prior: { p: [], outside: 0 } })));
+    useMission.setState({ ...EMPTY, status: "idle" });
+    const route = { kind: "mission", id: "demo" } as const;
+    const pending = () => useMission.getState().proposals.filter((p) => p.status === "pending").length;
+    const settle = () => new Promise((r) => setTimeout(r, 50));
+    const { rerender, unmount } = render(<LiveRoutes route={route} base={null} />);
+    await userEvent.click(screen.getByRole("button", { name: /Approvals/ }));
+    const card = (await screen.findByText("Promote f0127-d01 to the review queue")).closest("[aria-label^='Proposal']") as HTMLElement;
+    const before = pending();
+    await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
+    expect(pending()).toBe(before - 1);
+    rerender(<LiveRoutes route={route} base={null} />); // what a hash change does (Command -> Trace)
+    await settle();
+    expect(pending()).toBe(before - 1);
+    unmount();
+    render(<LiveRoutes route={route} base={null} />);
+    await settle();
+    expect(pending()).toBe(before - 1);
+    vi.unstubAllGlobals();
+  });
 });
 
 describe("the guided demo's Command step (embedded)", () => {

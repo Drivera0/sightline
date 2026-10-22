@@ -52,13 +52,21 @@ export function cardFromHash(hash: string): string | null {
   return step === "card" && sector ? decodeURIComponent(sector) : null;
 }
 
+/** The loaded demo mission's clock and seed note, kept beside the store (`useMission`) that holds its state. */
+let demoLoaded: { now: string; seed: string } | null = null;
+/** The store still holds the demo mission: no live mission has replaced it since it was loaded. */
+const demoKept = () => {
+  const s = useMission.getState();
+  return demoLoaded !== null && s.status === "demo" && s.mission?.mission_id === DEMO_MISSION_ID;
+};
+
 /** `embedded`: inside the guided demo's frame (its Command step), which owns the header and the address. */
 export function LiveMission({ api, missionId, initialTab = "photos", embedded = false }: { api: Api; missionId: string; initialTab?: Tab; embedded?: boolean }) {
   const s = useMission();
   const demo = missionId === DEMO_MISSION_ID;
   const [tab, setTab] = useState<Tab>(demo && !DEMO_TABS.includes(initialTab) ? "command" : initialTab);
-  const [demoNow, setDemoNow] = useState<Date | null>(null);
-  const [demoSeed, setDemoSeed] = useState<string | null>(null);
+  const [demoNow, setDemoNow] = useState<Date | null>(() => (demo && demoKept() ? new Date(demoLoaded!.now) : null));
+  const [demoSeed, setDemoSeed] = useState<string | null>(() => (demo && demoKept() ? demoLoaded!.seed : null));
   const [keysOpen, setKeysOpen] = useState(false);
   const [card, setCard] = useState<string | null>(() => cardFromHash(window.location.hash));
   useEffect(() => {
@@ -73,15 +81,28 @@ export function LiveMission({ api, missionId, initialTab = "photos", embedded = 
 
   useEffect(() => {
     if (demo) {
+      // The demo mission's store outlives a tab change or a remount: what was approved a moment ago stays.
+      if (demoKept()) {
+        setDemoNow(new Date(demoLoaded!.now));
+        setDemoSeed(demoLoaded!.seed);
+        return undefined;
+      }
+      let live = true;
       loadDemoMission().then(
         ({ data, now }) => {
+          if (!live) return;
           useMission.getState().useDemo(data);
+          demoLoaded = { now, seed: demoSeedWords(data) };
           setDemoNow(new Date(now));
-          setDemoSeed(demoSeedWords(data));
+          setDemoSeed(demoLoaded.seed);
         },
-        (e: unknown) => useMission.setState({ status: "error", error: e instanceof Error ? e.message : String(e) }),
+        (e: unknown) => {
+          if (live) useMission.setState({ status: "error", error: e instanceof Error ? e.message : String(e) });
+        },
       );
-      return undefined;
+      return () => {
+        live = false;
+      };
     }
     void useMission.getState().connect(missionId, api);
     return () => useMission.getState().disconnect();
@@ -419,7 +440,7 @@ const MISSION_SHORTCUTS: readonly ShortcutGroup[] = [
 /** The demo mission's pre-seeded state in one sentence: what is there before anyone acts, and its date. */
 export function demoSeedWords(data: Partial<MissionData>): string {
   const n = (k: number, one: string) => `${k} ${one}${k === 1 ? "" : "s"}`;
-  return `Pre-seeded demo, scripted timeline: ${n(data.clues?.length ?? 0, "clue")}, ${n(data.proposals?.length ?? 0, "proposal")}, ${n(data.teams?.length ?? 0, "team")}. What you change stays in this tab.`;
+  return `Pre-seeded demo, scripted timeline: ${n(data.clues?.length ?? 0, "clue")}, ${n(data.proposals?.length ?? 0, "proposal")}, ${n(data.teams?.length ?? 0, "team")}. What you change stays while you're on this mission.`;
 }
 
 function DemoSeedNote({ words }: { words: string }) {

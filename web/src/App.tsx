@@ -30,9 +30,11 @@ function useRoute(): Route {
 /** Live missions need the mission API (VITE_API_URL); the static demo needs nothing. */
 export function LiveRoutes({ route, base = apiBase() }: { route: Exclude<Route, { kind: "demo" | "front" | "judges" }>; base?: string | null }) {
   const api = useMemo(() => (base === null ? null : { base }), [base]);
+  // one object across renders: a new one on each hash change re-ran the mission's load and reset the demo
+  const demoApi = useMemo(() => api ?? { base: "" }, [api]);
   if (route.kind === "mission" && route.id === DEMO_MISSION_ID) {
     // the command view's demo mission needs no API (E-04): it works on the demo-only site too
-    return <LiveMission key="demo" api={api ?? { base: "" }} missionId={DEMO_MISSION_ID} initialTab={tabFromHash(window.location.hash)} />;
+    return <LiveMission key="demo" api={demoApi} missionId={DEMO_MISSION_ID} initialTab={tabFromHash(window.location.hash)} />;
   }
   if (api === null) return <NoServer />;
   if (route.kind === "new") return <NewSearch api={api} onCreated={(id) => (window.location.hash = `#m/${id}/photos`)} />;
