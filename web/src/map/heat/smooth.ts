@@ -242,18 +242,20 @@ export function wholeGridKinds(p: ArrayLike<number>, held?: Uint8Array | null): 
   }
   // A flat map (the prior before anything is known, ties everywhere) puts nearly every cell in the likeliest
   // 50 %: a block of one colour that says nothing. Draw no classes until the map has a shape.
-  let top = 0;
-  let any = 0;
+  let lo = Infinity;
+  let hi = 0;
   for (let i = 0; i < n; i++) {
-    if (out[i] === CELL.top) top++;
-    if (eligible[i] === 1 && (p[i] as number) > 0) any++;
+    const v = p[i] as number;
+    if (eligible[i] !== 1 || !(v > 0)) continue;
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
   }
-  if (any > 0 && top / any > FLAT_SHARE) for (let i = 0; i < n; i++) if (out[i] !== CELL.held) out[i] = CELL.none;
+  if (hi > 0 && hi <= lo * FLAT_RATIO) for (let i = 0; i < n; i++) if (out[i] !== CELL.held) out[i] = CELL.none;
   return out;
 }
 
-/** Above this share of the cells in the likeliest 50 %, the map is flat: no classes are drawn. */
-export const FLAT_SHARE = 0.6;
+/** When the likeliest cell is within this factor of the least likely one, the map is flat: no classes are drawn. */
+export const FLAT_RATIO = 1.05;
 
 /** The smoothed per-cell kinds (for the raster while the heat tweens, so it matches the fills it hands over to). */
 export function smoothKinds(grid: Pick<Grid, "rows" | "cols">, kinds: Uint8Array, radius = SMOOTH_RADIUS): Uint8Array {
