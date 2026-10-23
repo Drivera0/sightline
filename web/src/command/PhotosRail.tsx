@@ -4,7 +4,7 @@
 
 import type { ReactNode } from "react";
 import type { Frame } from "../contract";
-import { Badge, Label } from "../shell/components";
+import { Label } from "../shell/components";
 
 /** How many of the newest photos are shown as pictures (each is a full survey photo). */
 export const PHOTO_TILES = 12;
@@ -117,14 +117,6 @@ export function PhotosRail({
               <progress className="sr-only" max={total} value={landed.length} aria-label="Photos placed on the map" />
             </div>
           </div>
-          <p className="text-caption text-text-3">
-            One survey flight, its photos off the card after landing. Each one is ranked by the detector and placed on the map, which updates where
-            the person could still be.
-          </p>
-          <span className="flex flex-wrap gap-1.5">
-            <Badge kind="simulated">Simulated flight path</Badge>
-            <Badge kind="info">Real HERIDAL photos</Badge>
-          </span>
           {newest.length === 0 ? (
             <p className="text-small text-text-3">No photos yet: the drone is still flying.</p>
           ) : (

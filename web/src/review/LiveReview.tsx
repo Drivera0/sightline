@@ -171,9 +171,7 @@ export function ReviewRail({
   return (
     <section aria-label="Review" data-tour="review" className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between px-1">
-        <span className="text-caption font-medium text-text-2">
-          Review queue <span className="font-normal text-text-3">· what the detector flagged, for you to confirm</span>
-        </span>
+        <span className="text-caption font-medium text-text-2">Candidates to review</span>
         {cards.length > 0 && (
           <span className="text-caption text-text-3">
             {done} of {cards.length} answered
