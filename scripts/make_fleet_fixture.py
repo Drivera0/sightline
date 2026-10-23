@@ -8,12 +8,19 @@ Runs ``sightline.search.fleet`` (one loop, ``FleetSim``) against the real missio
 over the demo map's lattice sectors: three simulated drones fly planner legs (``candidate_legs``)
 approved through proposals by a scripted search manager; Drone 1 is re-tasked to the sector of Team
 Two's water-bottle clue; Team Two loses its signal and the drone nearest it relays its check-ins;
-Drone 2 loses its link (simulated link model) and flies on; Drone 3's link is degraded. The run's clock is set to the demo mission's evening,
+simulated fleet's link model) and flies on; Drone 3's link is degraded. The run's clock is set to the demo mission's evening,
 so its events sit in the demo's timeline. Writes the final fleet, the fleet's events (link changes,
-relays, leg approvals) and Team Two's relayed position into
+relays, leg approvals, legs started and done, battery marks) and Team Two's relayed position into
 ``web/src/command/__fixtures__/demo_mission.json``. Photos are plain stand-in crops (the demo's
 real photos are the cache's): the fixture keeps no photo from this run. Everything is labelled
 simulated.
+
+v1.3: the drones launch from the mission's base camp (``Drone.home``); the sim's person (``hidden``,
+which only picks a photo's crop) is where the demo mission finds them (``mission.found``). Each photo
+a drone takes along a leg is in the fixture: its map step joins ``map_updates`` (``at`` = its capture
+time, ``ref`` = its frame id after the cache's 500) and ``leg_photos`` lists it (frame, drone, leg,
+capture time, position, footprint, map update seq), so the map can lower under the drone as it flies.
+``timeline`` and ``photographed`` are rebuilt with the fleet's lines and cells.
 """
 
 from __future__ import annotations
@@ -93,12 +100,16 @@ def main() -> int:
     clock = {"t": START}
     now = lambda: iso(clock["t"])
     lkp = m.lkp
+    camp = fx["mission"].get("base_camp") or {"lat": lkp.lat, "lon": lkp.lon}
+    home = LatLon(lat=camp["lat"], lon=camp["lon"])
+    found = fx["mission"].get("found") or {"lat": 0.0, "lon": 0.0}
     drones = [
         Drone(
             id=f"D{k}",
             name=f"Drone {k}",
             simulated=True,
-            position=LatLon(lat=lkp.lat + 0.0003, lon=lkp.lon - 0.0002 + 0.0002 * k),
+            position=home,  # on the pad at the base camp
+            home=home,
             altitude_m=50,
             speed_ms=8,
             battery_pct=100,
@@ -110,7 +121,7 @@ def main() -> int:
     ]
     team = {"id": "T2", "callsign": "Team Two", "members": t2.members,
             "position": t2.position.model_dump()}  # fmt: skip
-    scn = Scenario(name="demo fleet", lkp=lkp, drones=drones, hidden=LatLon(lat=0, lon=0),
+    scn = Scenario(name="demo fleet", lkp=lkp, drones=drones, hidden=LatLon(lat=found["lat"], lon=found["lon"]),
                    positive={}, clue=None, teams=(team,), relay_radius_m=300.0)  # fmt: skip
 
     class _Det:
@@ -134,7 +145,7 @@ def main() -> int:
         ctx = MissionContext(
             store, queue=LocalQueue(), detector_factory=lambda: _Det(), hooks=_Hooks()
         )
-        ctx.start()
+        ctx.queue.run_worker(ctx.handle)  # the photo worker only: no scheduler on the real clock
         app = create_app(cache_root=tmp / "c", data_root=tmp / "u", missions=ctx)
         log: list[str] = []
         with TestClient(app) as http:
@@ -194,12 +205,15 @@ def main() -> int:
             fleet = store.state(mid)["fleet"]
             team_now = next(t for t in store.state(mid)["teams"] if t.id == "T2")
             events = store.events(mid)[first_event:]
+            frames = store.survey(mid).frames
+            steps = {u.ref: u for u in store.map_updates(mid) if u.source == "frame"}
         ctx.queue.stop()
 
     keep = [
         e for e in events
         if (e.type == "mission.note" and e.data and ("fleet_link" in e.data or "relay" in e.data))
         or (e.type == "fleet.updated" and e.ref and "approved for" in e.summary)
+        or (e.type == "mission.note" and e.data and "drone" in e.data)
     ]  # fmt: skip
     fleet_events = []
     for e in keep:
@@ -221,6 +235,22 @@ def main() -> int:
         e["id"] = f"e{k:05d}"
     fx["events"] = merged
     fx["fleet"] = json.loads(fleet.model_dump_json())
+    leg_photos(fx, events, frames, steps, stamps)
+    from sightline.contract import MissionEvent
+    from sightline.mission.timeline import timeline
+    from sightline.search.grid import cell_containing
+
+    def sector_of(lat: float, lon: float) -> str | None:
+        rc = cell_containing(m.grid, LatLon(lat=lat, lon=lon))
+        return (
+            None
+            if rc is None
+            else layout.sectors[int(layout.cell_sector[rc[0] * m.grid.cols + rc[1]])].id
+        )
+
+    teams_now = [Team.model_validate(t) for t in fx["teams"]]
+    fx["timeline"] = [x.model_dump(mode="json") for x in
+                      timeline([MissionEvent.model_validate(e) for e in fx["events"]], teams_now, sector_of)]  # fmt: skip
     fx["teams"] = [
         json.loads(team_now.model_dump_json()) if t["id"] == "T2" else t for t in fx["teams"]
     ]
@@ -239,7 +269,51 @@ def main() -> int:
 
 def _is_fleet(e: dict) -> bool:
     d = e.get("data") or {}
-    return e["type"] == "fleet.updated" or "fleet_link" in d or "relay" in d
+    return e["type"] == "fleet.updated" or "fleet_link" in d or "relay" in d or "drone" in d
+
+
+def leg_photos(fx: dict, events: list, frames: list, steps: dict, stamps: dict) -> None:
+    """The legs' photos into the fixture: their map steps (after the cache's frames, at their
+    capture times) and ``leg_photos``; ``photographed`` gets their cells."""
+    taken = {e.ref: (e.data or {}).get("taken_at") for e in events if e.type == "photo.processed"}
+    starts = sorted(
+        (stamps[e.id], e.data["drone"]["drone"], e.data["drone"]["leg"])
+        for e in events
+        if e.type == "mission.note" and (e.data or {}).get("drone", {}).get("event") == "leg_start"
+    )
+    prev = {p["frame_id"] for p in fx.get("leg_photos", [])}  # a re-run replaces its own
+    old = [u for u in fx["map_updates"] if u.get("ref") not in prev]
+    seq = max((u["seq"] for u in old), default=500)
+    first = 500  # the cache's photos are f0001..f0500
+    out, updates = [], []
+    for k, f in enumerate(frames, 1):
+        u = steps.get(f.id)
+        drone = f.source.image.split("_")[1] if f.source.image.startswith("SIM_") else None
+        at = taken.get(f.id) or stamps.get(f.id)
+        leg = next((lg for t, d, lg in reversed(starts) if d == drone and t <= (at or "")), None)
+        fid = f"f{first + k:04d}"
+        seq += 1
+        if u is not None:
+            updates.append({**u.model_dump(mode="json"), "seq": seq, "ref": fid, "at": at})
+        out.append({"frame_id": fid, "drone": drone, "leg": leg, "at": at, "lat": f.pose.lat,
+                    "lon": f.pose.lon, "footprint": [list(c) for c in f.footprint],
+                    "map_seq": seq if u is not None else None})  # fmt: skip
+    fx["map_updates"] = old + updates
+    fx["leg_photos"] = out
+    # the photographed flag with the legs' cells
+    import numpy as np
+
+    from sightline.search.coverage import runs
+
+    flags = np.repeat(
+        [v for v, _ in fx["photographed"]], [n for _, n in fx["photographed"]]
+    ).astype(np.int8)
+    for u in updates:
+        for i, _ in u["cells"]:
+            flags[int(i)] = 1
+        for c in u.get("canopy") or []:
+            flags[int(c[0])] = 1
+    fx["photographed"] = runs(flags)
 
 
 if __name__ == "__main__":

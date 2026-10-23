@@ -79,7 +79,7 @@ def after_action(
     searched = [
         {"sector": t.sector_id, "team": teams.get(t.team_id or "", t.team_id), "pod": t.pod,
          "note": t.note, "at": t.updated_at}
-        for t in state["tasks"] if t.state == "searched"
+        for t in sorted(state["tasks"], key=lambda t: t.updated_at) if t.state == "searched"
     ]  # fmt: skip
     coverage = sorted(
         ({"sector": s["sector_id"], "label": s["label"], "poa": s["poa"], "drone_coverage": s["drone_coverage"]}
