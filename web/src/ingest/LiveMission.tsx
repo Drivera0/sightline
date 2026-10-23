@@ -9,13 +9,11 @@ import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
 import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent, Proposal, TraceEntry } from "../contract";
 import { clueLine, clueShifts } from "../command/clueShift";
-import { CoachMark } from "../command/CoachMark";
 import { candidatePosition, demoCards, landedFrames } from "../command/demoReview";
-import { checkpoint, demoAt, LAST, STORY_PROPOSAL, type Checkpoint, type DemoFull } from "../command/missionTime";
-import { beatCounts, markIndex, storyBeats, storyProposal as firstAssignment } from "../command/storyCopy";
+import { checkpoint, demoAt, LAST, type Checkpoint, type DemoFull } from "../command/missionTime";
 import { PhotoStrip, PhotosRail } from "../command/PhotosRail";
 import { PitchBar } from "../command/PitchBar";
-import { Scrubber, STORY_HINT } from "../command/Scrubber";
+import { Scrubber } from "../command/Scrubber";
 import { landing, RUN_MS, storyClock, useGuide, useStory } from "../command/story";
 import { guidedOptsFor, useGuideRun } from "../command/GuideRun";
 import { costsOf, standingUser } from "../command/guide";
@@ -144,30 +142,28 @@ function afterPaint(cb: () => void): () => void {
   };
 }
 
-/** The demo mission's story as the address sets it: the landing, a checkpoint of the story, or a view's clock. */
+/**
+ * The demo mission's clock as the address sets it: the guided search, the landing, or the console at a
+ * checkpoint (`?t=N`, with or without a view: no coach marks, the walk-through is the guided search).
+ */
 function storyFromRoute(route: MissionRoute): void {
   const st = useStory.getState();
-  // the guided search (`?guide=1`): its own clock from the call, no coach marks, no pitch bar
+  // the guided search (`?guide=1`): its own clock from the call, no pitch bar
   if (route.open.guide) {
-    useStory.setState({ t: 0, beat: 0, progress: 1, playing: false, through: null, tour: false, pitch: false, started: true });
+    useStory.setState({ t: 0, progress: 1, playing: false, through: null, pitch: false, started: true });
     if (!useGuide.getState().guide) useGuide.getState().start();
     return;
   }
   if (useGuide.getState().guide) useGuide.getState().stop();
-  if (route.view === null && route.t === null) landing();
-  else if (route.view === null && route.t !== null) {
-    if (route.t === 0) landing();
-    else st.seek(route.t, { tour: true });
-  } else if (route.view !== null) {
-    if (route.t !== null) st.seek(route.t, { tour: false });
-    else if (!st.started || st.tour || st.pitch) st.skipToNow();
-  }
+  if (route.t !== null) st.seek(route.t);
+  else if (route.view === null) landing();
+  else if (!st.started || st.pitch) st.skipToNow();
 }
 
-/** The demo mission's clock, the story's checkpoint, the view and the scenario, as an address. */
-function demoHash(view: View, t: Checkpoint, tour: boolean, pitch: boolean, seed: string | null = null, guide = false): string {
+/** The demo mission's clock, the view and the scenario, as an address. */
+function demoHash(view: View, t: Checkpoint, pitch: boolean, seed: string | null = null, guide = false): string {
   if (guide) return guideHash(seed);
-  const h = pitch ? "#m/demo" : tour ? `#m/demo?t=${t}` : viewHash(DEMO_MISSION_ID, view, t >= LAST ? null : t);
+  const h = pitch ? "#m/demo" : viewHash(DEMO_MISSION_ID, view, t >= LAST ? null : t);
   return seed ? `${h}${h.includes("?") ? "&" : "?"}s=${encodeURIComponent(seed)}` : h;
 }
 
@@ -339,39 +335,13 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     return () => cancelAnimationFrame(raf);
   }, [demo, story.playing, story.t]);
 
-  // The story moves the view with it, and keeps the address on the moment it shows.
-  useEffect(() => {
-    // read now, not from this render: the address may have just ended the story (a view link)
-    const st = useStory.getState();
-    if (!demo || !st.tour) return;
-    setView(checkpoint(st.t).view);
-  }, [demo, story.tour, story.t]);
+  // The address keeps on the moment the console shows.
   useEffect(() => {
     // only while the address is this mission's (the About sheet keeps #about over it)
     if (!demo || !story.started || !/^#m\/demo(\/|\?|$)/.test(window.location.hash)) return;
-    const want = demoHash(view, story.t, story.tour, story.pitch, seed, guided);
+    const want = demoHash(view, story.t, story.pitch, seed, guided);
     if (window.location.hash !== want) window.history.replaceState(null, "", want);
-  }, [demo, view, story.t, story.tour, story.pitch, story.started, seed, guided]);
-
-  // phones: the story's marks on a candidate (t2) and on the proposal (t3) open Needs you, folded otherwise
-  useEffect(() => {
-    if (demo && story.tour && (story.t === 2 || story.t === 3)) useConsole.getState().setTab("needs");
-  }, [demo, story.tour, story.t]);
-
-  // The story's beats for this scenario (storyCopy.ts): what each coach mark says and where it points.
-  const beats = useMemo(() => storyBeats(scenario), [scenario]);
-  useEffect(() => {
-    if (demo && scenario) useStory.getState().setBeats(beatCounts(beats));
-  }, [demo, scenario, beats]);
-  // t3's gate: the visitor's approval of the story's proposal runs the clock on to the run. The story's
-  // proposal is the scenario's first assignment (the overdue hiker's p003), so the story works on any scenario.
-  const storyAssign = firstAssignment(scenario);
-  const storyProposal = storyAssign?.id ?? STORY_PROPOSAL;
-  useEffect(() => {
-    if (!demo || !story.tour || story.t !== 3 || story.progress < 1) return;
-    const decided = story.user.some((e) => e.type === "proposal.decided" && e.ref === storyProposal);
-    if (decided) useStory.getState().nextCheckpoint();
-  }, [demo, story.tour, story.t, story.progress, story.user, storyProposal]);
+  }, [demo, view, story.t, story.pitch, story.started, seed, guided]);
 
   /** Load another scenario: the visitor's actions and answers go with the old one. */
   const useSeedRef = useRef<string | null>(seed);
@@ -388,7 +358,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     setSeed(s);
     if (write) {
       const st = useStory.getState();
-      window.history.replaceState(null, "", demoHash(view, st.t, st.tour, st.pitch, s, !!useGuide.getState().guide));
+      window.history.replaceState(null, "", demoHash(view, st.t, st.pitch, s, !!useGuide.getState().guide));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
@@ -398,7 +368,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       setView(v);
       if (demo) {
         const st = useStory.getState();
-        if (st.tour || st.pitch) st.exit();
+        if (st.pitch) st.exit();
       }
       if (!demo) window.history.replaceState(null, "", viewHash(missionId, v));
     },
@@ -415,7 +385,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       } else if (keysOpen) return;
       else if (e.key === "c" || e.key === "C") go("map");
       else if ((e.key === "w" || e.key === "W") && view === "map") setCondOpen((o) => !o);
-      else if (/^[1-6]$/.test(e.key) && !useStory.getState().tour && !useGuide.getState().guide) {
+      else if (/^[1-6]$/.test(e.key) && !useGuide.getState().guide) {
         // 1 Map, 2 Photos, 3 Needs you (the old Review), 4 Trace, 5 Debrief, 6 the radio (the old Radio view)
         const n = Number(e.key);
         if (n === 3) {
@@ -425,7 +395,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           go("map");
           toRadio();
         } else go((["map", "photos", "", "trace", "debrief"] as const)[n - 1] as View);
-      } else if (e.key === " " && demo && !useStory.getState().tour && !useGuide.getState().guide && !(e.target instanceof HTMLButtonElement)) {
+      } else if (e.key === " " && demo && !useGuide.getState().guide && !(e.target instanceof HTMLButtonElement)) {
         // outside the story Space plays the clock on to the end, or pauses it
         e.preventDefault();
         useStory.getState().play();
@@ -457,7 +427,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // on the map, a team picked on the roster (after the next paint). Once wanted it stays.
   const [still] = useState(wantsStillMap);
   const [wanted, setWanted] = useState<"auto" | "tap" | null>(null);
-  const storyMoves = demo && (guided || ((story.tour || story.playing) && story.t >= 1 && story.t !== 2 && story.t !== LAST));
+  const storyMoves = demo && (guided || (story.playing && story.t >= 1 && story.t !== 2 && story.t !== LAST));
   const picking = usePick((p) => p.pending !== null);
   const teamPicked = useSelection((x) => x.selectedTeamId !== null || x.selectedClueId !== null);
   const sectorOpen = useConsole((x) => x.sector !== null || x.picking !== null);
@@ -638,7 +608,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const review =
     reviewCount > 0 || tried ? (
       demo ? (
-        <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id] || story.tour)} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Candidates appear here as the survey's photos land." />
+        <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id])} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Candidates appear here as the survey's photos land." />
       ) : (
         <LiveReview
           detections={s.detections}
@@ -688,28 +658,26 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const briefings = radioApi ? <Briefings api={radioApi} callsign={callsign} /> : undefined;
 
   // ---- the bar ----
+  /** "Follow the search" (the bar, the pitch bar): the guided search on this scenario. */
+  const followSearch = () => {
+    window.location.hash = guideHash(seed);
+  };
   const t = story.t;
   const action: BarAction | null = demo
-    ? story.pitch || story.tour || guided
+    ? story.pitch || guided
       ? null
       : {
+          // the walk-through is the guided search: each decision waits for you ("Watch instead" inside it plays the agent's)
           label: "Follow the search",
-          onClick: () => {
-            landing();
-            useStory.getState().begin();
-          },
+          onClick: followSearch,
         }
     : { label: "New search", href: "#new" };
   const barAt = demo ? new Date(run.missionClock ?? clockIso) : new Date();
   const barClock = demo || s.mission ? clockWithZone(barAt, clockZone.tz) : null;
   const barTitle = `Mission clock · ${utcLabel(barAt)}`;
-  // the coach mark at this checkpoint and beat (it shows while the clock runs into the checkpoint too)
-  const mark = demo && story.tour ? (beats[t]?.[story.beat] ?? null) : null;
-  const markCount = beats.reduce((n, b) => n + b.length, 0);
-  const markNo = markIndex(beats, t, story.beat);
   // once the subject is found, pending proposals and candidates are closed (Needs you folds them away)
   const needsCount = s.mission?.status === "found" ? 0 : (run.on ? run.proposals(s.proposals) : s.proposals).filter((p) => p.status === "pending").length + reviewCount;
-  const inStory = demo && !guided && (story.tour || story.playing);
+  const inStory = demo && !guided && story.playing;
 
   return (
     <ClockZone.Provider value={clockZone}>
@@ -762,7 +730,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
         {keysOpen && <ShortcutOverlay groups={SHORTCUT_GROUPS} onClose={() => setKeysOpen(false)} />}
         {demo && story.pitch && (
           <PitchBar
-            onFollow={() => useStory.getState().begin()}
+            onFollow={followSearch}
             onSkip={() => {
               useStory.getState().skipToNow();
               setView("map");
@@ -770,7 +738,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           />
         )}
         {/* a phone's coach mark sits along the bottom: room under the last panel so any target can scroll to the top */}
-        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-2 pb-20 lg:p-3 lg:pb-3 ${mark || guided ? "max-sm:pb-[55vh]" : ""}`}>
+        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-2 pb-20 lg:p-3 lg:pb-3 ${guided ? "max-sm:pb-[55vh]" : ""}`}>
           {s.error && (
             <p role="alert" className="text-small text-warn">
               {s.error}
@@ -809,7 +777,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               review={review}
               reviewCount={reviewCount}
               briefings={briefings}
-              storyProposal={run.on ? run.proposal : demo ? storyProposal : null}
+              storyProposal={run.on ? run.proposal : null}
               voice={voice}
               conditionsData={conditionsData}
               conditionsOpen={condOpen && view === "map"}
@@ -846,26 +814,22 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                     progress={story.progress}
                     playing={story.playing}
                     at={clockIso}
-                    canPlay={!story.tour}
+                    canPlay
                     through={story.through}
                     onToggle={() => {
                       const st = useStory.getState();
-                      if (st.tour) st.toggle();
-                      else {
-                        if (st.progress >= 1 && view === "debrief") setView("map");
-                        st.play();
-                      }
+                      if (st.progress >= 1 && view === "debrief") setView("map");
+                      st.play();
                     }}
                     onSeek={(to) => {
                       const st = useStory.getState();
                       st.seek(to, { animate: to === st.t + 1 });
-                      if (!st.tour) setView(to === LAST ? "debrief" : view === "debrief" ? "map" : view);
+                      setView(to === LAST ? "debrief" : view === "debrief" ? "map" : view);
                     }}
                     onSkip={() => {
                       useStory.getState().skipToNow();
                       setView("map");
                     }}
-                    hint={story.tour ? STORY_HINT : null}
                   />
                 ) : undefined)
               }
@@ -878,20 +842,6 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           )}
         </main>
         {ready && run.overlay}
-        {mark && ready && (
-          <CoachMark
-            text={mark.text}
-            target={mark.target}
-            index={markNo}
-            count={markCount}
-            last={markNo >= markCount}
-            gate={mark.gate === "approve" ? "Approve it on the card to send the team." : undefined}
-            onNext={() => (markNo >= markCount ? useStory.getState().exit() : useStory.getState().next())}
-            onBack={markNo > 1 ? () => useStory.getState().previous() : undefined}
-            onExit={() => useStory.getState().exit()}
-            onToggleClock={() => useStory.getState().toggle()}
-          />
-        )}
       </div>
     </ClockZone.Provider>
   );

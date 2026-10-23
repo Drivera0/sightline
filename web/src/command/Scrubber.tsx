@@ -1,14 +1,12 @@
-// The demo mission's time control, on the map (Flightradar24's playback): play or pause, the seven
-// checkpoints as ticks, the mission clock, and Skip to now. The same control is the story's progress: a
-// tick is a checkpoint of the story and a moment of the mission at once. Under it, one line: the story's
-// keys while the coach marks show, or where a play-through is going.
+// The demo mission's time control on the map outside the guided search (Flightradar24's playback): play
+// or pause, the seven checkpoints as ticks, the mission clock, and Skip to now. Under it, one line: where a
+// play-through is going. The guided search has its own strip instead (GuideStrip, below): no free seeking
+// while decisions are open.
 
 import type { ReactNode } from "react";
 import { clock, DEMO_TZ, utcLabel, zone } from "../lib/time";
 import { CHECKPOINTS, LAST, type Checkpoint } from "./missionTime";
 
-/** The line under the scrubber while the coach marks show: the story's keys. */
-export const STORY_HINT = "→ next · ← back · Space pauses the clock · Esc leaves the story";
 
 export function Scrubber({
   t,
@@ -30,13 +28,13 @@ export function Scrubber({
   onSeek: (t: Checkpoint) => void;
   /** Play or pause: with `canPlay`, at a checkpoint it plays the clock on to the end. */
   onToggle: () => void;
-  /** Outside the story: the play button runs the clock from here to the end (else only a run in progress pauses). */
+  /** The play button runs the clock from here to the end (else only a run in progress pauses). */
   canPlay?: boolean;
   /** Playing through to the end: the clock it started at (ISO). */
   through?: string | null;
   /** One line under the scrubber, when nothing is playing (how to use the console). */
   hint?: ReactNode;
-  /** Skip to now: the mission as it stands at the end of the timeline, the story put away. */
+  /** Skip to now: the mission as it stands at the end of the timeline. */
   onSkip?: () => void;
 }) {
   const running = progress < 1;

@@ -14,7 +14,7 @@ instance (it never unmounts while you stay on a mission), one clock.
 | `components.tsx` | The visual system from #159: `Button` (one orange primary per screen), `Panel` (opaque), `PageHeader`, `Page`, `Stat`, `Badge`, `StatusPill`, `ModeChip`, `DisclosureChip`, `KeyHint`, `EmptyState`. |
 | `Logo.tsx` | `Brand`: the logo and the name, a link to `#about`. |
 | `ShortcutOverlay.tsx`, `shortcuts.ts` | `?`: About and the home page, then the story's keys, the views, the console's and the review's. |
-| `theme.css` | Tokens for both themes (Colour, below), type scale, the status pill, motion (sheets and coach marks 200–300 ms; none under reduced motion). |
+| `theme.css` | Tokens for both themes (Colour, below), type scale, the status pill, motion (sheets and the guided search's marks 200–300 ms; none under reduced motion). |
 | `theme.ts`, `ThemeToggle.tsx` | Dark or light: the system's preference until the visitor picks one with the app bar's toggle, then remembered (`localStorage` `sightline.theme`). `index.html` sets `data-theme` before the first paint with the same rule. |
 
 ## Colour
@@ -55,7 +55,7 @@ Never write a hex value in a component: when a colour is missing, add a token he
 | `#m/demo` | the console on the demo mission at t0, the pitch bar |
 | `#m/demo?s=<seed>&guide=1` | a scenario with the guided simulation started (a home card's Start) |
 | `#m/demo/map?s=<seed>` | a scenario, just the console |
-| `#m/demo?t=0..6` | the story at a checkpoint (the call, photos land, confirm, where next, the run, the find, the debrief), its coach marks on |
+| `#m/demo?t=0..6` | the console at a checkpoint's clock (the call, photos land, confirm, where next, the run, the find, the debrief), no coach marks; it settles on `#m/demo/map?t=N` |
 | `#m/<id>/map` · `photos` · `trace` · `debrief` | a view of a mission; on the demo `?t=0..5` sets the mission clock (none: the end of the timeline) |
 | `#m/<id>/map?needs` | the console with Needs you in front (`#m/<id>/review` lands here: the review folds into Needs you) |
 | `#m/<id>/map?radio` | the console with the timeline on Radio and the talk bar ready (`#m/<id>/radio` lands here: the radio desk is the talk bar) |
