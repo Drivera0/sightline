@@ -4,6 +4,7 @@
 // (optimistic) and the server's events confirm them. Demo mode (`useDemo`) runs the same actions on an
 // in-memory mission, so the click path works on Vercel with no backend. Built by lane A for lane D.
 
+import type { DistractorFrame, DroneFeedClip, ServerReport } from "./fixtureExtras";
 import { create } from "zustand";
 import type {
   Clue,
@@ -115,12 +116,16 @@ export interface MissionData {
   links: FleetLinks;
   /** The server's timeline (GET /events, SSE kinds radio … found); empty: built from `events`. */
   timeline: TimelineEvent[];
+  /** The demo fixtures' extras (fixtureExtras.ts): a feed clip per drone leg, the server's report, distractor frames. */
+  feeds?: DroneFeedClip[];
+  report?: ServerReport | null;
+  distractors?: DistractorFrame[];
 }
 
 export const EMPTY: MissionData = {
   mission: null, tasks: [], teams: [], clues: [], proposals: [], verdicts: [], fleet: null,
   conditions: null, events: [], survey: null, detections: null, promoted: [], mapBase: null, mapUpdates: [], sectors: [],
-  links: NO_LINKS, timeline: [],
+  links: NO_LINKS, timeline: [], feeds: [], report: null, distractors: [],
 };
 
 function upsert<T>(list: readonly T[], item: T, key: (x: T) => string): T[] {
