@@ -10,7 +10,7 @@ import type { Clue, Drone, MissionEvent, Proposal, RadioTurn, Team } from "../co
 import { Icon } from "../shell/icons";
 import { useClock } from "../lib/time";
 import { ApprovalInbox, type Decide } from "./ApprovalInbox";
-import { needs } from "./console";
+import { needs, sightingReports } from "./console";
 
 const btn = "sl-tap inline-flex h-7 items-center rounded-full border border-line px-2.5 text-caption text-text-2 hover:border-border hover:text-text";
 
@@ -33,7 +33,13 @@ export function NeedsYou({
   onRecall,
   onConfirmClue,
   found = null,
+  tasks = [],
+  onFound,
 }: {
+  /** The sectors' tasks: a team's sector for Record find. */
+  tasks?: readonly { sector_id: string; state: string; team_id: string | null }[];
+  /** Record the find (a team reported the subject on the radio). */
+  onFound?: (teamId: string, sector: string) => void;
   proposals: readonly Proposal[];
   teams: readonly Team[];
   drones: readonly Drone[];
@@ -57,13 +63,15 @@ export function NeedsYou({
   found?: { at: string | null } | null;
 }) {
   const items = needs(proposals, teams, events, clues, now, checkInMin, reviewCount);
+  // a team reported the subject on the radio: record the find from here (no need to find the sector's popover)
+  const reports = !found && onFound ? sightingReports(events, teams, tasks) : [];
   const { time } = useClock();
   const callsign = (id: string | null) => teams.find((t) => t.id === id)?.callsign ?? id ?? "";
   const closedProposals = found ? proposals.filter((p) => p.status === "pending") : [];
   const closedReview = found ? reviewCount : 0;
   const closedCount = closedProposals.length + closedReview;
   const pendingCount = found ? 0 : items.filter((i) => i.kind === "proposal").length;
-  const total = items.reduce((n, i) => n + (found && (i.kind === "proposal" || i.kind === "review") ? 0 : i.kind === "review" ? i.count : 1), 0);
+  const total = reports.length + items.reduce((n, i) => n + (found && (i.kind === "proposal" || i.kind === "review") ? 0 : i.kind === "review" ? i.count : 1), 0);
 
   return (
     <section aria-label="Needs you" data-tour="needs" className="flex min-h-0 flex-col overflow-hidden lg:flex-1 rounded-lg border border-line bg-surface-solid">
@@ -82,6 +90,25 @@ export function NeedsYou({
             at={found.at ? time(found.at) : null}
           />
         )}
+        {reports.map((r) => (
+          <article key={r.team.id} aria-label={`${r.team.callsign} reports the subject`} className="sl-slide-in flex flex-col gap-1.5 rounded-md border border-found/50 border-l-2 border-l-found bg-bg/40 p-2.5">
+            <span className="flex items-center gap-2 text-small font-medium text-text">
+              <Icon name="found" className="text-found" />
+              {r.team.callsign} reports the subject{r.sector ? ` in ${r.sector}` : ""}
+            </span>
+            <span className="text-caption text-text-2">“{r.words}”</span>
+            <span className="flex gap-1.5">
+              {r.sector && (
+                <button type="button" className={`${btn} border-found/60! text-text!`} onClick={() => onFound?.(r.team.id, r.sector!)}>
+                  Record find
+                </button>
+              )}
+              <button type="button" className={btn} onClick={() => onCall(r.team.id, `${r.team.callsign}, Sightline. Copy, stay with the subject, over.`)}>
+                Reply
+              </button>
+            </span>
+          </article>
+        ))}
         {pendingCount > 0 && <ApprovalInbox proposals={proposals} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={storyProposal} feedHref={undefined} />}
         {items
           .filter((i) => i.kind === "overdue")

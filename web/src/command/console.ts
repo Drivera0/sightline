@@ -161,5 +161,27 @@ export function outsideGrid(sectors: readonly { poa: number }[]): number | null 
   return Math.min(1, Math.max(0, 1 - sectors.reduce((n, s) => n + s.poa, 0)));
 }
 
+/** A team's radio words that report the subject ("Subject located in Charlie Two", "we found her"). */
+export const REPORTS_SUBJECT = /\bsubject (?:located|found)\b|\bfound (?:him|her|them|the subject|the hiker|the child)\b|\bwe have (?:him|her|the subject)\b/i;
+
+/**
+ * The teams that reported the subject on the radio while the mission is not yet marked found: who, in which
+ * sector (its task's, else none), and the words. Needs you offers Record find for each (judges 2026-10-23).
+ */
+export function sightingReports(events: readonly MissionEvent[], teams: readonly Team[], tasks: readonly { sector_id: string; state: string; team_id: string | null }[]): { team: Team; sector: string | null; words: string; at: string }[] {
+  const out = new Map<string, { team: Team; sector: string | null; words: string; at: string }>();
+  for (const e of events) {
+    if (e.type !== "radio.turn") continue;
+    const t = e.data as unknown as RadioTurn | null;
+    if (!t || t.direction !== "in" || !REPORTS_SUBJECT.test(t.transcript)) continue;
+    const id = teamOf(teams, t.callsign);
+    const team = teams.find((x) => x.id === id);
+    if (!team) continue;
+    const task = tasks.find((x) => x.team_id === team.id && (x.state === "in_progress" || x.state === "assigned"));
+    out.set(team.id, { team, sector: task?.sector_id ?? null, words: t.transcript.replace(/\s*\(typed for the demo fixture\)$/, ""), at: e.at });
+  }
+  return [...out.values()];
+}
+
 /** The drone's link in one word. */
 export const linkWord = (links: FleetLinks, id: string) => links.drones[id]?.link ?? "connected";

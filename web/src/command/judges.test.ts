@@ -1,7 +1,7 @@
 // What three cold judges found on the live site (2026-10-23), each fixed and held here.
 import { describe, expect, it } from "vitest";
 import type { MissionEvent, SectorTask, Team } from "../contract";
-import { heard, outsideGrid, withTaskStatus } from "./console";
+import { heard, outsideGrid, sightingReports, withTaskStatus } from "./console";
 import { overdueToast } from "./notifications";
 
 const team = (id: string, status: Team["status"], last: string | null = null): Team => ({ id, callsign: `Team ${id}`, members: 3, status, position: null, position_at: null, note: null, last_heard_at: last });
@@ -15,6 +15,15 @@ describe("judges 2026-10-23", () => {
     expect(overdueToast(out, 72, 30)).toMatchObject({ tone: "alert", title: "Team T3 is overdue", body: expect.stringContaining("Not heard for 72 min, past the 30-minute check-in") });
     // at base camp there is no check-in to keep
     expect(heard(team("T3", "standby", "2026-10-24T20:48:00Z"), [], NOW, 30).overdue).toBe(false);
+  });
+
+  it("(11) a team that reports the subject on the radio is offered Record find in its sector", () => {
+    const turn = (callsign: string, transcript: string): MissionEvent => ({ id: callsign, type: "radio.turn", at: "2026-10-24T21:58:48Z", summary: "", ref: null, data: { id: "r1", direction: "in", callsign, transcript } as never });
+    const teams = [{ ...team("T1", "searching"), callsign: "Team One" }, { ...team("T2", "searching"), callsign: "Team Two" }];
+    const r = sightingReports([turn("Team One", "Sightline, Team One. Subject located in Charlie Two, conscious and talking, over. (typed for the demo fixture)"), turn("Team Two", "Sightline, Team Two. Boot print by the creek, over.")], teams, [task("C2", "in_progress", "T1")]);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ sector: "C2", words: "Sightline, Team One. Subject located in Charlie Two, conscious and talking, over." });
+    expect(r[0]!.team.id).toBe("T1");
   });
 
   it("(7) the probability outside the grid is shown, so the sectors' POA adds up", () => {

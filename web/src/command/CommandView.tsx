@@ -189,7 +189,7 @@ export function CommandView(p: CommandProps) {
           now={t}
           glow={glow}
           proposals={p.proposals}
-          actions={{ onCall: (id) => call(id), onRecall: p.actions.recall, onRecallDrone: p.actions.recallDrone, onAssign: p.actions.assign, onDroneLeg: p.actions.droneLeg }}
+          actions={{ onCall: (id) => call(id), onRecall: p.actions.recall, onRecallDrone: p.actions.recallDrone, onAssign: p.actions.assign, onDroneLeg: p.actions.droneLeg, onFound: p.mission?.status === "found" ? undefined : p.actions.found }}
           footer={api && p.mission ? <FleetControls api={api} missionId={p.mission.mission_id} fleet={p.fleet} links={p.links} conditions={p.conditions} /> : undefined}
         />
       </div>
@@ -245,6 +245,8 @@ export function CommandView(p: CommandProps) {
             onRecall={p.actions.recall}
             onConfirmClue={p.actions.confirmClue}
             found={p.mission?.status === "found" ? { at: p.mission.found?.at ?? null } : null}
+            tasks={p.tasks}
+            onFound={p.actions.found}
           />
         )}
       </div>

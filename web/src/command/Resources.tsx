@@ -41,6 +41,8 @@ export interface ResourceActions {
   onCall: (teamId: string) => void;
   onRecall: (teamId: string) => void;
   onRecallDrone: (droneId: string) => void;
+  /** Record the find: the team has the subject in its sector. */
+  onFound?: (teamId: string, sector: string) => void;
 }
 
 export function Resources({
@@ -167,6 +169,11 @@ function TeamCard({ team, heard, task, base, picking, glow = false, actions, pic
         <button type="button" className={btn} disabled={!inField || team.status === "returning"} onClick={() => actions.onRecall(team.id)}>
           Recall
         </button>
+        {task && actions.onFound && (
+          <button type="button" className={`${btn} ml-auto`} title={`Record that ${team.callsign} has the subject in ${task.sector_id}`} onClick={() => actions.onFound?.(team.id, task.sector_id)}>
+            Record find
+          </button>
+        )}
       </div>
       {picking && picker && actions.onAssign && (
         <SectorPicker
