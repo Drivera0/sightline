@@ -1,16 +1,16 @@
 // About Sightline: a sheet over whatever is on screen (#about), opened from the wordmark and the `?` menu.
-// What it is, the four photographs, how it works in four steps, how it fits together, what the colours
-// mean, the models, the disclosure and the limits, and the links.
+// Only what the home page does not say: who built it and for which competitions, what the colours in the
+// console mean, the models, what is simulated and the limits, the licences, and where to ask. The
+// pitch, the photographs, how it works and the guided simulation are on the home page (#).
 
 import { DISCLOSURE, DISCLOSURE_TITLE, Label } from "../shell/components";
 import { Sheet } from "../shell/Sheet";
-import { Architecture } from "./Architecture";
-import { FOOTER, HERO, PRINCIPLES } from "./copy";
-import { HOME, PhotoRow, SAMPLE_PHOTOS_URL } from "./Home";
-import { REPORT_URL } from "./judges";
+import { Icon } from "../shell/icons";
+import { FOOTER, INTAKE, PRINCIPLES } from "./copy";
+import { LICENCE_URL, SAMPLE_PHOTOS_URL } from "./Home";
+import { JUDGES, REPO_URL, REPORT_URL } from "./judges";
 import { CREDITS_URL, PHOTO_CREDIT } from "./photos";
 import { RadioClip } from "./RadioClip";
-import { Steps } from "./Steps";
 
 /** The models, by job (README "Models"). */
 export const MODELS: readonly { job: string; model: string }[] = [
@@ -31,34 +31,70 @@ export const COLOURS: readonly { token: string; label: string }[] = [
   { token: "--searched", label: "Searched ground" },
 ];
 
+const BLOB = `${REPO_URL}/blob/main`;
+
+/** The two competition entries, each with its Devpost text in the repo. */
+export const ENTRIES: readonly { name: string; href: string }[] = [
+  { name: "OpenCV AI Competition 2026", href: `${BLOB}/docs/submission/DEVPOST_OPENCV.md` },
+  { name: "Nebius × NVIDIA Global AI Hackathon, Physical AI track", href: `${BLOB}/docs/submission/DEVPOST_NEBIUS.md` },
+];
+
+/** Who may use what. */
+export const LICENCES: readonly { what: string; licence: string }[] = [
+  { what: "Sightline's code", licence: "GNU AGPL-3.0" },
+  { what: "Drone photos (HERIDAL, Božić-Štulić, Marušić & Gotovac, 2019)", licence: "CC BY 3.0" },
+  { what: "Photographs of the Eagle Peak search (NPS / Jacob W. Frank)", licence: "Public domain" },
+  { what: "Basemap", licence: "© OpenStreetMap contributors (ODbL)" },
+];
+
 const LIMITS = PRINCIPLES.find((p) => p.title.startsWith("Honest"))!.body;
 const NEVER = PRINCIPLES[0].body;
 const link = "text-text-2 underline underline-offset-2 hover:text-text";
 
 export function AboutSheet({ onClose }: { onClose: () => void }) {
   return (
-    <Sheet label="About Sightline" onClose={onClose} width="max-w-4xl">
+    <Sheet label="About Sightline" onClose={onClose} width="max-w-3xl">
       <article className="flex flex-col gap-8 px-5 pb-10 pt-6 lg:px-8">
         <header className="flex flex-col gap-3">
-          <Label>{HERO.eyebrow}</Label>
-          <h1 className="text-headline font-medium tracking-[-0.01em] text-text">{HERO.tagline}</h1>
-          <p className="text-body text-text-2">{HOME.line2}</p>
+          <Label>About</Label>
+          <h1 className="text-headline font-medium tracking-[-0.01em] text-text">Sightline</h1>
+          <p className="text-body text-text-2">{JUDGES.logline}</p>
         </header>
 
-        <PhotoRow />
-
-        <section aria-labelledby="about-how" className="flex flex-col gap-3">
-          <h2 id="about-how" className="text-title font-medium text-text">
-            How it works
+        <section aria-labelledby="about-who" className="flex flex-col gap-2">
+          <h2 id="about-who" className="text-title font-medium text-text">
+            Who built it
           </h2>
-          <Steps />
+          <p className="text-body text-text-2">
+            Daniel Rivera. {JUDGES.built} (
+            <a className={link} href={JUDGES.changedUrl} target="_blank" rel="noreferrer">
+              what changed since
+            </a>
+            ). Entered in:
+          </p>
+          <ul className="flex flex-col gap-1 text-small">
+            {ENTRIES.map((e) => (
+              <li key={e.name}>
+                <a className={link} href={e.href} target="_blank" rel="noreferrer">
+                  {e.name}
+                </a>
+              </li>
+            ))}
+          </ul>
         </section>
 
-        <section aria-labelledby="about-fits" className="flex flex-col gap-3">
-          <h2 id="about-fits" className="text-title font-medium text-text">
-            {HOME.how}
+        <section aria-labelledby="about-intake" className="flex flex-col gap-2">
+          <h2 id="about-intake" className="text-title font-medium text-text">
+            How photos get in
           </h2>
-          <Architecture />
+          <ul aria-labelledby="about-intake" className="flex flex-col gap-1.5 text-small text-text-2">
+            {INTAKE.map((p) => (
+              <li key={p.title} className="flex items-start gap-2">
+                <Icon name={p.icon} size={14} className="mt-[3px] shrink-0 text-text-3" />
+                {p.short}
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section aria-labelledby="about-colours" className="flex flex-col gap-3">
@@ -107,16 +143,36 @@ export function AboutSheet({ onClose }: { onClose: () => void }) {
           </p>
         </section>
 
+        <section aria-labelledby="about-licences" className="flex flex-col gap-2">
+          <h2 id="about-licences" className="text-title font-medium text-text">
+            Licences
+          </h2>
+          <dl className="grid gap-x-6 gap-y-1.5 text-small sm:grid-cols-[1fr_auto]">
+            {LICENCES.map((l) => (
+              <div key={l.what} className="contents">
+                <dt className="text-text-2">{l.what}</dt>
+                <dd className="text-text">{l.licence}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
         <footer className="flex flex-col gap-3 border-t border-line pt-5 text-small text-text-3">
           <p className="flex flex-wrap gap-x-5 gap-y-1">
             <a className={link} href="#">
-              Home: choose a search
+              Home page
             </a>
             <a className={link} href={REPORT_URL} target="_blank" rel="noreferrer">
               The report
             </a>
             <a className={link} href={FOOTER.codeUrl} target="_blank" rel="noreferrer">
               {FOOTER.code}
+            </a>
+            <a className={link} href={`${REPO_URL}/issues`} target="_blank" rel="noreferrer">
+              Questions and issues
+            </a>
+            <a className={link} href={LICENCE_URL} target="_blank" rel="noreferrer">
+              Licence
             </a>
             <a className={link} href={SAMPLE_PHOTOS_URL} download>
               Sample drone photos (.zip)

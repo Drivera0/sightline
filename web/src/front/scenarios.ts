@@ -1,4 +1,4 @@
-// "Choose a search": the demo's scenarios as the home page and the console's "Change scenario" sheet show
+// The guided simulation's scenarios, as the home page and the console's "Change scenario" sheet show
 // them. Each card's words come from its fixture (command/__fixtures__/scenarios/<seed>.json, and the demo
 // mission for the overdue hiker); scenarios.test.ts checks they still match. Kept here, small, so the home
 // page never loads a fixture. Every scenario runs on the demo's afternoon: the call at 13:30, the find
@@ -19,6 +19,9 @@ export interface ScenarioCard {
 }
 
 const LENGTH = "90 min of search · about 3 min guided";
+
+/** The search to start with: the demo mission itself, the one the guide was written on. */
+export const RECOMMENDED = "overdue-hiker";
 
 export const SCENARIO_CARDS: readonly ScenarioCard[] = [
   {
@@ -75,5 +78,5 @@ export function newShuffleSeed(): string {
 
 /** The card a seed belongs to: its preset, else Shuffle. */
 export function cardFor(seed: string | null | undefined): ScenarioCard {
-  return SCENARIO_CARDS.find((c) => c.seed === (seed || "overdue-hiker")) ?? SCENARIO_CARDS[SCENARIO_CARDS.length - 1]!;
+  return SCENARIO_CARDS.find((c) => c.seed === (seed || RECOMMENDED)) ?? SCENARIO_CARDS[SCENARIO_CARDS.length - 1]!;
 }
