@@ -61,25 +61,28 @@ describe("live map features", () => {
     expect(lines[3]).toBe("Drones (simulated): Drone 2 flying, battery 88%, link lost, last heard 5 min ago.");
   });
 
-  it("starts the floating legend as a pill with the update count; a click or L opens it, remembered", () => {
+  it("starts the one legend as a small pill, no update count; a click or L opens it, remembered", () => {
     localStorage.removeItem("sightline.mapLegend");
     const { unmount } = render(<FloatingLegend updates={502} />);
     const pill = screen.getByRole("button", { name: /Legend/ });
     expect(pill).toHaveAttribute("aria-expanded", "false"); // closed at any width the first time
-    expect(screen.getByText("502 map updates")).toBeInTheDocument();
+    expect(screen.queryByText(/map updates/)).toBeNull(); // the count is not news
     expect(screen.queryByRole("list", { name: "Map legend" })).toBeNull(); // hidden
     fireEvent.click(pill);
     expect(pill).toHaveAttribute("aria-expanded", "true");
     const list = screen.getByRole("list", { name: "Map legend" });
     expect(list.className).toContain("grid-rows-4"); // two columns, at most four lines
     expect(list.querySelectorAll("li").length).toBeLessThanOrEqual(8);
-    expect(screen.getByText(/SIM: simulated/)).toBeInTheDocument();
+    expect(screen.queryByText(/SIM/)).toBeNull(); // one disclosure chip in the header instead
+    expect(list).toHaveTextContent("Base camp");
+    expect(list).toHaveTextContent("Active drone leg");
     // The heat's own line above it: the three classes, both edges and the unshaded rest.
     const heat = screen.getByRole("list", { name: "Probability classes" });
     expect(heat).toHaveTextContent("Likeliest 50 · 80 · 90 % of probability");
     expect(heat).toHaveTextContent("50 % edge");
     expect(heat).toHaveTextContent("90 % edge");
     expect(heat).toHaveTextContent("No shading: outside 90 % of estimated probability");
+    expect(heat).toHaveTextContent("Hatched: not photographed yet");
     expect(localStorage.getItem("sightline.mapLegend")).toBe("open");
     unmount();
     expect(legendOpenAtStart()).toBe(true);

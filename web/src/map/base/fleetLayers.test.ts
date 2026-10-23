@@ -119,7 +119,7 @@ describe("a re-task animates out", () => {
     expect(trail.geometry.coordinates).toEqual([[-122.94, 49.37], [-122.94, 49.36]]);
     expect(retaskAnimating(seen, 1000 + CANCEL_FADE_MS - 1)).toBe(true);
     expect(retaskAnimating(seen, 1000 + CANCEL_FADE_MS)).toBe(false);
-    expect(legFeatures(fleet).map((f) => f.properties.id)).toEqual(["L2"]); // the steady legs are unchanged
+    expect(legFeatures(fleet).map((f) => [f.properties.id, f.properties.style])).toEqual([["L1", "past"], ["L3", "past"], ["L2", "flying"]]); // under the fade, the cut-short legs stay at 20 %
   });
 
   it("on a fresh page the diversion point is on the old leg, nearest the drone", () => {
