@@ -79,7 +79,14 @@ export const LIVE_IDS = {
 } as const;
 /** The probability surface: the raster (LIVE_IDS.heat) while it tweens, class fills and contours at rest. */
 export const LIVE_SURFACE_IDS = surfaceIds("live-heat-", LIVE_IDS.heat);
-const TWEEN_MS = 600;
+/**
+ * A change of the heat (a review answer, a clue, a photo) tweens cell by cell over this long (V3 §2), and
+ * the raster and the class fills crossfade in and out of it, so the surface visibly evolves, never swaps.
+ */
+export const HEAT_TWEEN_MS = 400;
+/** The crossfades: into the tween (the contours fade out) and out of it (the new fills and contours fade in). */
+export const HEAT_FADE_IN_MS = 150;
+export const HEAT_FADE_OUT_MS = 220;
 
 type Feature = { type: "Feature"; properties: Record<string, unknown>; geometry: { type: string; coordinates: unknown } };
 const fc = (features: Feature[]) => ({ type: "FeatureCollection" as const, features });
@@ -364,7 +371,14 @@ function LiveLayers({
       const src = map.getSource(LIVE_IDS.heat) as { play?: () => void; pause?: () => void } | undefined;
       src?.play?.();
       if (!playing) src?.pause?.();
-      setSurfaceMode(map, LIVE_SURFACE_IDS, playing ? "raster" : "vector");
+      // the tween over: the new fills go on the map now (held back while it ran, so nothing jumped)
+      if (!playing && heldSurface.current) {
+        pushSurface(map, LIVE_SURFACE_IDS, heldSurface.current);
+        heldSurface.current = null;
+      }
+      const palette = CONSOLE_PALETTES[appliedPalette.current ?? "dark"];
+      const fade = prefersReducedMotion() ? undefined : { ms: playing ? HEAT_FADE_IN_MS : HEAT_FADE_OUT_MS, palette, theme, opacity: 1 };
+      setSurfaceMode(map, LIVE_SURFACE_IDS, playing ? "raster" : "vector", fade);
     });
     if (map.isStyleLoaded()) install();
     else map.once("load", install);
@@ -399,16 +413,25 @@ function LiveLayers({
   }, [kinds]);
   const photographed = useMemo(() => (ready ? (base.photographed ? Uint8Array.from(base.photographed) : lookedAt(base, updates)) : null), [ready, base, updates]);
   const colors = useMemo(() => kindColors(CONSOLE_PALETTES[basemap], theme), [basemap, theme]);
+  // a new picture's fills wait for its tween to end (the raster draws the change meanwhile)
+  const heldSurface = useRef<ReturnType<typeof surfaceData> | null>(null);
+  const pushedKinds = useRef<typeof kinds>(null);
   useEffect(() => {
     if (!map || !kinds) return;
     surface.current = smoothSurface(base.grid, kinds, photographed, undefined, searched);
-    pushSurface(map, LIVE_SURFACE_IDS, surface.current);
+    const tweens = drawn.current && pushedKinds.current !== kinds && !prefersReducedMotion();
+    pushedKinds.current = kinds;
+    if (tweens) heldSurface.current = surface.current;
+    else {
+      heldSurface.current = null;
+      pushSurface(map, LIVE_SURFACE_IDS, surface.current);
+    }
   }, [map, base, kinds, photographed, searched]);
   useEffect(() => {
     if (!kinds) return;
     const pixels = kindPixels(smoothKinds(base.grid, kinds), colors);
     if (!drawn.current || prefersReducedMotion()) raster.show(pixels);
-    else raster.animate(pixels, { durationMs: TWEEN_MS });
+    else raster.animate(pixels, { durationMs: HEAT_TWEEN_MS });
     drawn.current = true;
   }, [raster, kinds, colors, base]);
 
