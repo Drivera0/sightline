@@ -118,10 +118,10 @@ describe("AppBar", () => {
     expect(onSelect).toHaveBeenCalledWith("photos");
   });
 
-  it("has no view switch and no button where there is nothing to switch or start", () => {
+  it("has no view switch and no button but the theme toggle where there is nothing to switch or start", () => {
     render(<AppBar />);
     expect(screen.queryByRole("navigation")).toBeNull();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([expect.stringMatching(/^Switch to the (light|dark) theme$/)]);
   });
 
   it("remembers the live mission that is open", () => {

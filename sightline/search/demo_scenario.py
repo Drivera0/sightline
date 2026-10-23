@@ -28,6 +28,7 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
+from typing import Any
 
 import numpy as np
 
@@ -149,8 +150,17 @@ def generate(
     grid: Grid,
     survey: list[tuple[float, float]] | None = None,
     day: str = "2026-10-24",
+    affinity: Any = None,
+    min_road_distance_m: float | None = None,
 ) -> DemoScenario:
-    """The scenario for ``seed`` on ``grid`` (``survey``: the flight's footprint corners, [lon, lat])."""
+    """The scenario for ``seed`` on ``grid`` (``survey``: the flight's footprint corners, [lon, lat]).
+
+    Optional, both off by default (the same seed then gives the same scenario as before):
+    ``affinity`` (a ``geo.terrain_affinity.TerrainAffinity``) draws the person from the prior
+    multiplied by the terrain, as a mission using it would; ``min_road_distance_m`` (needs
+    ``affinity``, which carries each cell's distance to a road) keeps the person at least that far
+    from a mapped road, since a subject within reach of a road is usually not lost. If no cell is
+    that far, the condition is dropped."""
     preset = next(((name, kind) for name, s, kind in PRESETS.values() if s == seed), None)
     rng = np.random.default_rng(seed)
     kind = preset[1] if preset else str(rng.choice(sorted(KINDS)))
@@ -165,7 +175,13 @@ def generate(
     seen = datetime.fromisoformat(f"{day}T{hour + 7:02d}:{minute:02d}:00+00:00")
     call = seen + timedelta(minutes=int(rng.integers(90, 241)))
 
-    p, _ = koester_prior(grid, lkp, category)
+    p, _ = koester_prior(grid, lkp, category, affinity=affinity)
+    if min_road_distance_m is not None:
+        if affinity is None:
+            raise ValueError("min_road_distance_m needs affinity (the road distances)")
+        far = affinity.far_from_roads(min_road_distance_m)
+        if np.any(p[far] > 0):
+            p = np.where(far, p, 0.0)
     idx = int(rng.choice(p.size, p=p / p.sum()))
     c = cell_center(grid, idx)
     jitter = rng.uniform(-0.4, 0.4, size=2) * grid.cell_m
@@ -197,7 +213,8 @@ def generate(
 
     camp = min(STAGING, key=lambda x: math.dist((x[1], x[2]), (lkp.lat, lkp.lon)))
     return DemoScenario(
-        seed=seed, name=name, kind=kind, category=category, prior_source=prior_source(category),
+        seed=seed, name=name, kind=kind, category=category,
+        prior_source=prior_source(category, affinity=affinity is not None),
         subject=subject, lkp=lkp, last_seen_at=seen.strftime("%Y-%m-%dT%H:%M:%SZ"),
         call_at=call.strftime("%Y-%m-%dT%H:%M:%SZ"),
         base_camp={"lat": camp[1], "lon": camp[2], "name": camp[0]},

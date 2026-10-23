@@ -8,7 +8,7 @@ Sightline is the brain of a drone search for a missing person: it finds the like
 
 **[Live demo](https://sightline-iota-sandy.vercel.app) · [Demo console, now](https://sightline-iota-sandy.vercel.app/#m/demo/map) · [Report](docs/report/OPENCV_REPORT.md) · [Architecture](docs/architecture/sightline-architecture.html) · [Run it](#reproduce-the-results-cpu-only-about-14-minutes)**
 
-**For judges:** open the [live site](https://sightline-iota-sandy.vercel.app) (the console at t0, the call) and press **Follow the search** (3 min); the Debrief at the end has "For judges: where to look, in order" ([`#m/demo?t=6&judges`](https://sightline-iota-sandy.vercel.app/#m/demo?t=6&judges); the old `#judges` redirects there). Answers to the questions we expect, with their evidence, in [docs/JUDGE_QA.md](docs/JUDGE_QA.md).
+**For judges:** open the [live site](https://sightline-iota-sandy.vercel.app) (the home page) and press **Follow a search** (3 min, the overdue hiker), or pick another search under "Choose a search"; the Debrief at the end has "For judges: where to look, in order" ([`#m/demo?t=6&judges`](https://sightline-iota-sandy.vercel.app/#m/demo?t=6&judges); the old `#judges` redirects there). Answers to the questions we expect, with their evidence, in [docs/JUDGE_QA.md](docs/JUDGE_QA.md).
 
 ![Sightline system architecture](docs/architecture/system.png)
 
@@ -57,7 +57,9 @@ The rows are not strictly comparable: the published ones do not state their matc
 
 ## What the demo shows
 
-The site is one console on a demo mission. The landing (`#`, which opens `#m/demo`) is the console at t0, the call, with a pitch bar; **Follow the search (3 min)** tells the search from the search manager's seat in seven moments, each with its own address (`#m/demo?t=0` to `?t=6`) and coach marks on the real panels (→ next, ← back, Space pauses the clock, Esc leaves the story at that mission time; **Skip to now** on the scrubber):
+The site opens on a home page (`#`): what Sightline is in two lines, four photographs of a real search, how it fits together, and **Choose a search**: Overdue hiker, Missing child, Despondent, Dementia walk-away and Shuffle, each with its setting, the clues it will throw and its length. **Start** opens the console on that scenario with the guided simulation on (`#m/demo?s=<seed>&guide=1`); **Just the console** opens it without (`#m/demo/map?s=<seed>`). The console names the scenario under the app bar, with **Change scenario**; the app bar has a dark/light toggle (the system's choice by default).
+
+The console on the demo mission is `#m/demo`: t0, the call, with a pitch bar; **Follow the search (3 min)** tells the search from the search manager's seat in seven moments, each with its own address (`#m/demo?t=0` to `?t=6`) and coach marks on the real panels (→ next, ← back, Space pauses the clock, Esc leaves the story at that mission time; **Skip to now** on the scrubber):
 
 0. **The call** (`?t=0`, the status line): "13:35. Last seen at 10:30. Four teams at base, the trailhead lot. Drone one up."
 1. **Photos land** (`?t=1`, the map and Needs you): 500 drone photos from a survey over Mount Seymour; the map dims where the drone has looked and brightens where it has not, and the first candidates wait in Needs you.
@@ -82,7 +84,7 @@ A live mission runs the same detector and map while the search happens, through 
 - **A simulated drone fleet** (labelled so everywhere) flies approved legs and sends its photos through the same API (`python -m sightline.search.fleet run`); `scripts/creek_run.py` runs the whole story: a team's clue → the agent re-tasks a drone → its photo shows the person → review → alert.
 - **A debrief** from the log: every proposal and who decided it, each sector's coverage and POD (`GET /missions/{id}/debrief.md`).
 
-Try the console without a server: **`#`** on the live site opens it on the demo mission at t0 and **`#m/demo/map`** at the end of its timeline (simulated data; the old `#m/demo/command` redirects there). The API runs on AWS between demos (`deploy/aws/`). The OpenCV report, with the measured numbers: [docs/report/OPENCV_REPORT.md](docs/report/OPENCV_REPORT.md).
+Try the console without a server: **`#m/demo`** on the live site opens it on the demo mission at t0 and **`#m/demo/map`** at the end of its timeline (simulated data; the old `#m/demo/command` redirects there). The API runs on AWS between demos (`deploy/aws/`). The OpenCV report, with the measured numbers: [docs/report/OPENCV_REPORT.md](docs/report/OPENCV_REPORT.md).
 
 ![The console on the demo mission at Where next (#m/demo?t=3): the agent's proposal for Team One waits for approval](docs/report/figures/one-console/t3-d.webp)
 
