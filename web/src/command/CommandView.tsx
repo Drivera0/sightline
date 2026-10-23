@@ -263,6 +263,7 @@ export function CommandView(p: CommandProps) {
           server={p.timeline}
           teams={p.teams}
           onConfirmClue={p.actions.confirmClue}
+          voicesKey={`${p.mission?.mission_id ?? ""}|${p.mission?.scenario_seed ?? p.mission?.name ?? ""}`}
           talk={<TalkBar teams={p.teams} onSend={(team, text) => p.actions.call(team, text)} voice={p.voice} />}
           clueForm={(close, at) => <ClueForm teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} onDone={close} at={at} />}
         />
