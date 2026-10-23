@@ -106,9 +106,13 @@ cache (`/cache/demo`). Screenshots: `docs/report/figures/one-console/`.
   `?after=`; entries grouped into chains by shared ids (perception → decision → action → approval), one line
   per step (span type, tool or model, input, output, ms), the proposal each chain led to and who decided, and
   a "which model did what" strip. The demo mission shows its own trace first (`__fixtures__/demo_trace.jsonl`,
-  from the generator: labelled Demo, fake models and scripted people named, and the one live answer replayed),
-  then two recorded runs copied from the repo (`demo_trace_avchain.jsonl`, a second look on another HERIDAL
-  photo, and `demo_trace_conditions.jsonl`, with the av-chain crops), labelled Recorded. The review rail's third
+  from the generator, with the one live answer replayed), then two earlier runs copied from the repo
+  (`demo_trace_avchain.jsonl`, a second look on another HERIDAL photo, and `demo_trace_conditions.jsonl`, with
+  the av-chain crops). The view names roles, not provenance: a run is "This flight" or "Earlier run", a model
+  is its name (the fixture's `fake/<model>` and `recorded/<model>` ids shown without the prefix), and a decider
+  is its role ("Search manager", `roleOf`). The trace's own strings keep the provenance (`fake/<model>`,
+  "Search manager (scripted for the demo fixture)"; a step's output shows them), and the header's disclosure
+  chip, the Debrief and About say it. The review rail's third
   card at Confirm is this flight's second look (`demoReview.ts`, "Second look · this flight"); Person on it pins a
   sighting at f0273-d02's place, like any candidate.
 

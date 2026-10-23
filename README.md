@@ -1,6 +1,6 @@
 # Sightline
 
-![Sightline demo console: a person approves the agent's proposal, then the mission clock runs on, teams go out, the simulated drones fly and B4 is searched at POD 60 %](docs/report/figures/demo.gif)
+![Sightline demo console: Team One's radio clue (three whistle blasts to the south-west) is confirmed and moves the map, the agent proposes sending Team One to sector C2, the proposal is approved on its card, and the teams go out while the drones fly their legs, Drone 2 flying on after it loses its link](docs/report/figures/demo.gif)
 
 *The console on the demo mission, 16 s, on the one console (#177): the agent's proposal approved at Where next (`#m/demo?t=3`), then the mission clock runs on, teams go out, the simulated drones fly and B4 is searched at POD 60 % (recorded from the local build by `scripts/demo_video/run.sh`; the mission, the drones and their links are simulated).*
 

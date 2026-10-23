@@ -113,19 +113,28 @@ cuts:
       - {slot: architecture, s: 10, captions: ["OpenCV 5 · Nemotron 3.5 Super VL", "Every model call: Nebius Token Factory"]}
       - {slot: close, s: 10, on_camera: true}
 
-# The README GIF: 16-20 s from the first candidate (in this order of preference) with enough moving in
-# it (mean frame-to-frame change >= min_motion, on 0-255 grey); the window's end is the frame within ±2 s
-# closest to its first, and the last half second fades back to the first frame, so it loops cleanly.
+# The README GIF: <= 16 s from the first candidate (in this order of preference) with enough moving in
+# it (mean frame-to-frame change >= min_motion, on 0-255 grey); the window's end is the frame within
+# -2 s .. +slack of duration_s closest to its first (never past max_s), and the last half second fades back
+# to the first frame, so it loops cleanly. Over max_mb it keeps fps and width and tries, in order, each
+# source (capture: the 4K recording, no camera moves, small frame diffs; program: the captioned program,
+# whose push-ins make it about 15 times larger), the window shortened by shorten_s, then fewer colours.
 gif:
-  duration_s: 18     # the loop's end is picked within +-2 s of this: never over 20 s
-  fps: 10
-  width: 800
+  duration_s: 16
+  max_s: 16          # the loop, after its half-second fade
+  min_s: 8
+  fps: 12
+  width: 960
   max_mb: 3
   min_motion: 0.5
-  # first choice: the 18 s that end with the run: the approval, the clock runs on, the teams go out, the
-  # drones fly their legs, drone two loses its link and drone three relays Team Two
+  sources: [capture, program]
+  shorten_s: [0, 3, 6]
+  colors: [256, 128, 64]
+  # first choice: next -> run: the visitor confirms Team One's radio clue, the agent proposes Team One
+  # for C2, the proposal is approved, and the drones fly (Drone 2 losing its link) as the teams go out
   candidates:
-    - {shot: run, end_aligned: true, min_motion: 0.05}   # a console holds still more than a scan
+    - {shot: next, offset_s: 7.3, min_motion: 0.05}   # a console holds still more than a scan
+    - {shot: run, end_aligned: true, min_motion: 0.05}
     - photos
     - confirm
     - fleet
