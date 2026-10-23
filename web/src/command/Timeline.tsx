@@ -51,7 +51,7 @@ export function Timeline({
     <section aria-label="Timeline" data-tour="timeline" className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-surface-solid">
       <div className="sl-panel-head">
         <h2>Timeline</h2>
-        <div role="group" aria-label="Show" className="flex items-center gap-1">
+        <div role="group" aria-label="Show" className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
           {FILTERS.map((f) => (
             <button
               key={f}
@@ -64,8 +64,9 @@ export function Timeline({
             </button>
           ))}
         </div>
-        <Button aria-expanded={adding} onClick={() => setAdding(!adding)} className="ml-auto h-7! px-3! text-caption! font-normal">
-          Add a clue
+        <Button aria-expanded={adding} onClick={() => setAdding(!adding)} aria-label="Add a clue" className="ml-auto h-7! px-3! text-caption! font-normal">
+          <span aria-hidden className="sm:hidden">+ Clue</span>
+          <span aria-hidden className="max-sm:hidden">Add a clue</span>
         </Button>
       </div>
       {adding && <div className="border-b border-line p-2">{clueForm(() => setAdding(false))}</div>}

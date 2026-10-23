@@ -71,8 +71,11 @@ export interface ReviewCard {
 function Card({ c, rank, answer, current, onAnswer }: { c: ReviewCard; rank: number; answer: LiveAnswer | undefined; current: boolean; onAnswer: (a: LiveAnswer) => void }) {
   const [shown, setShown] = useState(false);
   const el = useRef<HTMLLIElement>(null);
+  // J/K bring the current candidate into view; the first one does not pull its rail (Needs you) down on arrival
+  const first = useRef(true);
   useEffect(() => {
-    if (current) el.current?.scrollIntoView?.({ block: "nearest" });
+    if (current && !first.current) el.current?.scrollIntoView?.({ block: "nearest" });
+    first.current = false;
   }, [current]);
   return (
     <li ref={el} aria-label={`Candidate ${c.id}`} aria-current={current || undefined} data-candidate={c.id} className={`flex flex-col gap-2 rounded-lg border bg-surface-solid p-2.5 ${current ? "border-border" : "border-line"}`}>

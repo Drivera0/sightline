@@ -4,7 +4,7 @@
 // old conditions row and the KPI sentence. Built by lane A.
 import type { ReactNode } from "react";
 import type { Clue, Conditions, Mission, Team } from "../contract";
-import { KeyHint } from "../shell/components";
+import { DisclosureChip, KeyHint } from "../shell/components";
 import { Icon } from "../shell/icons";
 import type { Tz } from "../lib/time";
 import { daylightMin, duration, elapsedMin, flyWord, peopleOut } from "./console";
@@ -34,7 +34,10 @@ export function StatusLine({
   onConditions,
   conditionsId,
   menu,
+  disclose = false,
 }: {
+  /** Phones: the demo's disclosure chip lives here (the header has no room for it). */
+  disclose?: boolean;
   mission: Mission | null;
   conditions: Conditions | null;
   teams: readonly Team[];
@@ -56,6 +59,11 @@ export function StatusLine({
   const unconfirmed = clues.filter((c) => !c.confirmed).length;
   return (
     <section role="status" aria-label="Mission status" className="flex h-9 items-center gap-x-5 overflow-x-auto border-t border-line px-3 lg:px-4 [scrollbar-width:none]">
+      {disclose && (
+        <span className="inline-flex shrink-0 md:hidden">
+          <DisclosureChip />
+        </span>
+      )}
       <Item label="Elapsed" title={mission ? `Since the mission opened (${mission.created_at})` : undefined}>
         {elapsed === null ? "–" : duration(elapsed)}
       </Item>

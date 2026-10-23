@@ -173,7 +173,7 @@ export function AppBar({
   return (
     <>
       <header className="relative z-30 shrink-0 border-b border-line bg-bg">
-        <div className="flex h-12 items-center gap-3 px-3 lg:gap-4 lg:px-4">
+        <div className="flex h-12 min-w-0 items-center gap-3 overflow-hidden px-3 lg:gap-4 lg:px-4">
           <Brand />
           {mission && (
             <div role="group" className="flex min-w-0 items-center gap-2" aria-label="Mission">
@@ -182,7 +182,12 @@ export function AppBar({
                 {mission.name}
               </span>
               <ModeChip mode={mission.mode} />
-              {mission.disclose && <DisclosureChip className="max-xl:hidden" />}
+              {mission.disclose && (
+                // the pill's own display rule outranks a utility class: hide its wrapper on phones
+                <span className="hidden md:inline-flex">
+                  <DisclosureChip />
+                </span>
+              )}
               {mission.clock && !status && (
                 <span className="hidden whitespace-nowrap text-small text-text-2 sm:inline" title={mission.clockTitle ?? "Mission clock"}>
                   {mission.clock}

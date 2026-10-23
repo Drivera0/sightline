@@ -621,6 +621,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                 tz={clockZone.tz}
                 conditionsOpen={condOpen}
                 conditionsId={condId}
+                disclose={demo}
                 onConditions={conditionsData ? () => setCondOpen((o) => !o) : undefined}
                 menu={
                   <span className="text-caption text-text-3" title={barTitle}>

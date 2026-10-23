@@ -250,7 +250,7 @@ function PendingCard({
         </span>
       </div>
       <span className="text-small font-medium text-text">{isRecall(p) ? recallSummary(p.summary, drone?.battery_pct) : p.summary}</span>
-      <button type="button" title={open ? undefined : p.reason} className={`sl-tap self-stretch text-left text-small text-text-2 ${open ? "" : "line-clamp-1"}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button type="button" title={open ? undefined : p.reason} className={`self-stretch text-left text-small text-text-2 ${open ? "" : "line-clamp-1"}`} aria-expanded={open} onClick={() => setOpen(!open)}>
         {p.reason}
       </button>
       {clues && (
