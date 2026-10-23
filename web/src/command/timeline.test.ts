@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Clue, MissionEvent, Proposal, SectorTask, Team, TimelineEvent } from "../contract";
-import { buildTimeline, fromEvent, inFilter, teamOf } from "./timeline";
+import { buildTimeline, fromEvent, inFilter, plain, teamOf } from "./timeline";
 
 const AT = "2026-10-24T21:40:00Z";
 const TEAMS = [{ id: "T1", callsign: "Team One" }, { id: "T2", callsign: "Team Two" }] as Team[];
@@ -48,8 +48,16 @@ describe("the timeline", () => {
 
   it("shows the server's timeline, and the events it does not cover (a direct action just taken)", () => {
     const server: TimelineEvent[] = [{ id: "e9", at: AT, kind: "found", team: "Team One", sector: "C2", text: "Team One has the subject in C2", refs: [] }];
-    const t = buildTimeline([ev("e9", "radio.turn", turn("in", "Team One", "on scene")), ev("e1", "radio.turn", turn("in", "Team Two", "hello"))], TEAMS, server);
-    expect(t.map((e) => [e.id, e.kind, e.team])).toEqual([["e9", "found", "T1"], ["e1", "radio", "T2"]]); // e9 is the server's; e1 it has not sent
+    const t = buildTimeline([ev("e9", "radio.turn", turn("in", "Team One", "on scene")), ev("u1", "radio.turn", turn("in", "Team Two", "hello"))], TEAMS, server);
+    expect(t.map((e) => [e.id, e.kind, e.team])).toEqual([["u1", "radio", "T2"], ["e9", "found", "T1"]]); // e9 is the server's; u1 (the console's own) it has not sent
     expect(teamOf(TEAMS, "team two")).toBe("T2");
+  });
+});
+
+describe("the demo's per-line notes", () => {
+  it("are left to the one disclosure chip", () => {
+    expect(plain("Subject found by Team One in sector C2 (by Search manager (scripted for the demo fixture))")).toBe("Subject found by Team One in sector C2 (by Search manager)");
+    expect(plain("Sightline, Team One. Subject located, over. (typed for the demo fixture)")).toBe("Sightline, Team One. Subject located, over.");
+    expect(plain("Team Two heard via D3, just now (simulated relay)")).toBe("Team Two heard via D3, just now");
   });
 });

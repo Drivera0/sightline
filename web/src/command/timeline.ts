@@ -127,10 +127,13 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
   }
 }
 
+/** The demo's per-line notes ("scripted for the demo fixture", "simulated relay"): the one disclosure chip says it once. */
+export const plain = (text: string) => text.replace(/\s*\((?:scripted|typed) for the demo fixture\)/g, "").replace(/\s*\(simulated(?: [a-z ]+)?\)/g, "").trim();
+
 /** A server's timeline entry as the console shows it. */
 export function fromTimeline(e: TimelineEvent, i: number, teams: readonly Team[], turns: readonly RadioTurn[] = []): Entry {
   return entry({
-    id: e.id ?? `t${i}`, at: e.at, kind: e.kind, team: teamOf(teams, e.team), sector: e.sector ?? null, text: e.text, refs: e.refs ?? [],
+    id: e.id ?? `t${i}`, at: e.at, kind: e.kind, team: teamOf(teams, e.team), sector: e.sector ?? null, text: plain(e.text), refs: e.refs ?? [],
     turn: e.turn_id ? (turns.find((t) => t.id === e.turn_id) ?? null) : null,
   });
 }
@@ -147,7 +150,11 @@ export function buildTimeline(events: readonly MissionEvent[], teams: readonly T
   const derived = events.map((e) => fromEvent(e, teams)).filter((x): x is Entry => x !== null);
   const byId = new Map(derived.map((e) => [e.id, e]));
   for (const e of fromServer) if (!e.detail) e.detail = byId.get(e.id)?.detail ?? null;
-  const all = [...fromServer, ...derived.filter((e) => !known.has(e.id))];
+  // with a server timeline, the events add only what it cannot have yet: the console's own actions (the
+  // demo's are "u…"), or anything newer than its last line
+  const last = server.reduce((m, e) => (e.at > m ? e.at : m), "");
+  const fresh = (e: Entry) => !server.length || (!known.has(e.id) && (e.id.startsWith("u") || e.at > last));
+  const all = [...fromServer, ...derived.filter(fresh)];
   return merge(all.sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id)));
 }
 

@@ -305,7 +305,7 @@ describe("the demo mission: the story on the one console", () => {
     const card = await screen.findByLabelText("Proposal p003");
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
     expect(await screen.findByRole("dialog", { name: "The story, 4 of 5" })).toHaveTextContent("searched at POD 60 %");
-    expect(await screen.findByText("B4 searched at POD 60 % (Team Four)")).toBeInTheDocument();
+    expect(await screen.findByText(/Sector B4 searched at POD 60%/)).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Mission time" })).toBeInTheDocument(); // inside the story, the scrubber
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(await screen.findByRole("dialog", { name: "The story, 5 of 5" })).toBeInTheDocument();
