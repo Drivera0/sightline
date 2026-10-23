@@ -4,7 +4,8 @@
 // drone: status, battery, link, leg n/m; Task, Recall. Most overdue first. Drag a team's card onto a
 // sector on the map to assign it. Below, the sectors by POA, folded. Built by lane A.
 import { useState, type DragEvent, type ReactNode } from "react";
-import type { Drone, FleetState, Mission, MissionEvent, SectorTask, Team } from "../contract";
+import type { Drone, FleetState, Mission, MissionEvent, Proposal, SectorTask, Team } from "../contract";
+import { SectorPicker } from "./SectorPicker";
 import type { SectorNow } from "../lib/api";
 import type { FleetLinks } from "../lib/mission";
 import { useSelection } from "../lib/selection";
@@ -34,6 +35,9 @@ const pct = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)} %`;
 const btn = "sl-tap inline-flex h-7 items-center rounded-full border border-line px-2.5 text-caption text-text-2 hover:border-border hover:text-text disabled:opacity-40";
 
 export interface ResourceActions {
+  /** Task: the sector picked in the list (SectorPicker) for a team or a drone. */
+  onAssign?: (teamId: string, sector: string) => void;
+  onDroneLeg?: (sector: string, droneId: string) => void;
   onCall: (teamId: string) => void;
   onRecall: (teamId: string) => void;
   onRecallDrone: (droneId: string) => void;
@@ -51,7 +55,10 @@ export function Resources({
   actions,
   footer,
   glow = null,
+  proposals = [],
 }: {
+  /** The agent's pending proposals: Task's list puts its pick for a team or drone first. */
+  proposals?: readonly Proposal[];
   /** The team or drone the proposal in focus would send: its card glows violet (V3 §2). */
   glow?: string | null;
   /** Under the cards (a live mission's fleet controls for the simulated fleet). */
@@ -80,10 +87,10 @@ export function Resources({
       </h2>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
         {ordered.map(({ team, heard }) => (
-          <TeamCard key={team.id} team={team} heard={heard} task={tasks.find((x) => x.team_id === team.id && (x.state === "assigned" || x.state === "in_progress"))} base={mission?.base_camp} picking={picking?.id === team.id} glow={glow === team.id} actions={actions} />
+          <TeamCard key={team.id} team={team} heard={heard} task={tasks.find((x) => x.team_id === team.id && (x.state === "assigned" || x.state === "in_progress"))} base={mission?.base_camp} picking={picking?.id === team.id} glow={glow === team.id} actions={actions} picker={{ sectors, tasks, proposals }} />
         ))}
         {drones.map((d) => (
-          <DroneCard key={d.id} d={d} fleet={fleet} link={linkWord(links, d.id)} picking={picking?.id === d.id} glow={glow === d.id} onRecall={() => actions.onRecallDrone(d.id)} />
+          <DroneCard key={d.id} d={d} fleet={fleet} link={linkWord(links, d.id)} picking={picking?.id === d.id} glow={glow === d.id} onRecall={() => actions.onRecallDrone(d.id)} picker={{ sectors, tasks, proposals }} onLeg={actions.onDroneLeg} />
         ))}
         <SectorsByPoa tasks={tasks} sectors={sectors} teams={teams} />
         {footer}
@@ -99,7 +106,14 @@ function heardWords(h: Heard): [string, string] {
   return [`heard ${m} min`, h.due ? "text-caution" : "text-text-2"];
 }
 
-function TeamCard({ team, heard, task, base, picking, glow = false, actions }: { team: Team; heard: Heard; task?: SectorTask; base?: Mission["base_camp"]; picking: boolean; glow?: boolean; actions: ResourceActions }) {
+interface PickerData {
+  sectors: readonly SectorNow[];
+  tasks: readonly SectorTask[];
+  proposals: readonly Proposal[];
+}
+const stopPicking = () => useConsole.getState().pick(null);
+
+function TeamCard({ team, heard, task, base, picking, glow = false, actions, picker }: { team: Team; heard: Heard; task?: SectorTask; base?: Mission["base_camp"]; picking: boolean; glow?: boolean; actions: ResourceActions; picker?: PickerData }) {
   const selected = useSelection((s) => s.selectedTeamId === team.id);
   const [word, tone] = STATUS[heard.overdue && team.status !== "standby" ? "overdue" : team.status];
   const [heardText, heardClass] = heardWords(heard);
@@ -152,11 +166,24 @@ function TeamCard({ team, heard, task, base, picking, glow = false, actions }: {
           Recall
         </button>
       </div>
+      {picking && picker && actions.onAssign && (
+        <SectorPicker
+          kind="team"
+          id={team.id}
+          name={team.callsign}
+          {...picker}
+          onPick={(sector) => {
+            actions.onAssign?.(team.id, sector);
+            stopPicking();
+          }}
+          onClose={stopPicking}
+        />
+      )}
     </article>
   );
 }
 
-function DroneCard({ d, fleet, link, picking, glow = false, onRecall }: { d: Drone; fleet: FleetState | null; link: string; picking: boolean; glow?: boolean; onRecall: () => void }) {
+function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, onLeg }: { d: Drone; fleet: FleetState | null; link: string; picking: boolean; glow?: boolean; onRecall: () => void; picker?: PickerData; onLeg?: (sector: string, drone: string) => void }) {
   const [word, tone] = DRONE_STATUS[d.status];
   const leg = legOf(d, fleet);
   const sector = fleet?.legs.find((l) => l.id === d.leg_id)?.sector_id;
@@ -186,6 +213,19 @@ function DroneCard({ d, fleet, link, picking, glow = false, onRecall }: { d: Dro
           Recall
         </button>
       </div>
+      {picking && picker && onLeg && (
+        <SectorPicker
+          kind="drone"
+          id={d.id}
+          name={d.name}
+          {...picker}
+          onPick={(sector) => {
+            onLeg(sector, d.id);
+            stopPicking();
+          }}
+          onClose={stopPicking}
+        />
+      )}
     </article>
   );
 }

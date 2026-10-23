@@ -142,7 +142,11 @@ export function CommandView(p: CommandProps) {
   const focus = useConsole((s) => s.focus);
   const focusP = focus?.kind === "proposal" ? p.proposals.find((x) => x.id === focus.id && x.status === "pending") : undefined;
   const glow = focusP ? (focusP.target.team ?? focusP.target.drone ?? focusP.leg?.drone_id ?? null) : null;
-  const call = (teamId: string, draft?: string) => useConsole.getState().talk(teamId, draft ?? `${p.teams.find((x) => x.id === teamId)?.callsign ?? teamId}, Sightline. `);
+  // Call: the talk bar, addressed to that team, its cursor in the message (phones: scrolled to it)
+  const call = (teamId: string, draft?: string) => {
+    useConsole.getState().talk(teamId, draft ?? `${p.teams.find((x) => x.id === teamId)?.callsign ?? teamId}, Sightline. `);
+    if (typeof window !== "undefined" && window.innerWidth < 1024) document.querySelector("form[aria-label='Talk']")?.scrollIntoView?.({ block: "center" });
+  };
   // the timeline's height: taller by default, dragged by its handle, remembered (TimelineResize.tsx)
   const [timelineH, setTimelineH] = useTimelineHeight();
   const grid = wide
@@ -167,7 +171,8 @@ export function CommandView(p: CommandProps) {
           events={p.events}
           now={t}
           glow={glow}
-          actions={{ onCall: (id) => call(id), onRecall: p.actions.recall, onRecallDrone: p.actions.recallDrone }}
+          proposals={p.proposals}
+          actions={{ onCall: (id) => call(id), onRecall: p.actions.recall, onRecallDrone: p.actions.recallDrone, onAssign: p.actions.assign, onDroneLeg: p.actions.droneLeg }}
           footer={api && p.mission ? <FleetControls api={api} missionId={p.mission.mission_id} fleet={p.fleet} links={p.links} conditions={p.conditions} /> : undefined}
         />
       </div>

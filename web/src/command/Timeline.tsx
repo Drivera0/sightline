@@ -201,10 +201,15 @@ export function TalkBar({ teams, onSend, voice = null }: { teams: readonly Team[
   const [hint, setHint] = useState<string | null>(null);
   const field = useRef<HTMLInputElement>(null);
   const holding = useRef(false);
+  // Call on a card: the bar says who it is calling, in the team colour, for a moment
+  const [calling, setCalling] = useState(false);
   useEffect(() => {
-    if (!talkFocus) return;
+    if (!talkFocus) return undefined;
     setText(talkDraft);
     field.current?.focus();
+    setCalling(true);
+    const timer = window.setTimeout(() => setCalling(false), 2400);
+    return () => window.clearTimeout(timer);
   }, [talkFocus, talkDraft]);
   // Hold V to talk, unless typing in a field
   useEffect(() => {
@@ -245,7 +250,12 @@ export function TalkBar({ teams, onSend, voice = null }: { teams: readonly Team[
   };
   const recording = voice?.stage === "recording";
   return (
-    <form onSubmit={send} aria-label="Talk" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line p-2">
+    <form
+      onSubmit={send}
+      aria-label="Talk"
+      style={{ ["--c" as string]: "var(--c-team)" }}
+      className={`flex shrink-0 flex-wrap items-center gap-2 border-t border-line p-2 transition-colors ${calling ? "bg-[color-mix(in_srgb,var(--c-team)_10%,transparent)]" : ""}`}
+    >
       <button
         type="button"
         aria-pressed={recording}
@@ -261,8 +271,8 @@ export function TalkBar({ teams, onSend, voice = null }: { teams: readonly Team[
         {recording ? "Release to send" : voice?.stage === "sending" ? "Sending…" : voice?.stage === "speaking" ? "Speaking…" : "Hold to talk"} <KeyHint>V</KeyHint>
       </button>
       <label className="flex items-center gap-1.5 text-caption text-text-2">
-        to
-        <select aria-label="Recipient" value={to} onChange={(e) => useConsole.getState().setTalkTo(e.target.value)} className="h-8 rounded-sm border border-border bg-surface-strong px-2 text-small text-text">
+        {calling ? <span className="font-medium text-[var(--c-team)]">Calling</span> : "to"}
+        <select aria-label="Recipient" value={to} onChange={(e) => useConsole.getState().setTalkTo(e.target.value)} className={`h-8 rounded-sm border bg-surface-strong px-2 font-mono text-small text-text ${calling ? "sl-new border-[var(--c-team)]" : "border-border"}`}>
           {teams.map((t) => (
             <option key={t.id} value={t.id}>
               {t.callsign}
