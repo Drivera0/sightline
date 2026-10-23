@@ -1,0 +1,55 @@
+{
+ "note": "Written by scripts/make_distractor_fixture.py: the real second look on a licensed photo placed in the demo flight as a distractor, with the live VL model; the answer is kept word for word. Not the missing person.",
+ "kind": "backpack",
+ "image": "backpack.jpg",
+ "crop": "backpack-crop.jpg",
+ "size_px": [
+  1000,
+  427
+ ],
+ "detection": {
+  "box_px": [
+   78,
+   0,
+   928,
+   386
+  ],
+  "conf": 0.15,
+  "by": "hand",
+  "note": "placed by hand for the demo: the detector did not flag it (its best box over it scored 0.093); score set to the second look's floor 0.15"
+ },
+ "verdict": {
+  "id": "<verdict>",
+  "detection_id": "<frame>-d01",
+  "tools": [
+   "redetect_region"
+  ],
+  "relook_crops": [
+   "relook/f0001-d01-redetect_region.jpg"
+  ],
+  "person": "no",
+  "posture": "unknown",
+  "group_size": null,
+  "clothing": null,
+  "reason": "The centre shows a blue backpack with black straps and mesh, not a human shape.",
+  "model": "nvidia/Nemotron-3.5-Super-VL",
+  "ms": 1915,
+  "at": "2026-10-23T07:04:18.988Z",
+  "object": "backpack"
+ },
+ "answer": "{\n  \"person\": \"no\",\n  \"posture\": \"unknown\",\n  \"group_size\": null,\n  \"clothing\": null,\n  \"object\": \"backpack\",\n  \"reason\": \"The centre shows a blue backpack with black straps and mesh, not a human shape.\"\n}",
+ "model_call": {
+  "model": "nvidia/Nemotron-3.5-Super-VL",
+  "ms": 1683,
+  "tokens_in": 929,
+  "tokens_out": 62
+ },
+ "model_calls": 1,
+ "tools": [
+  "redetect_region"
+ ],
+ "proposals": [],
+ "credit": "Steve Bittinger, CC BY 2.0 (https://creativecommons.org/licenses/by/2.0), via Wikimedia Commons",
+ "source": "https://commons.wikimedia.org/wiki/File:Tent,_sleeping_bag,_and_backpack.jpg",
+ "view": "ground-level oblique (no licensed aerial photo of a pack was found)"
+}

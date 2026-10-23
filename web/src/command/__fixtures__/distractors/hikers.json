@@ -1,0 +1,55 @@
+{
+ "note": "Written by scripts/make_distractor_fixture.py: the real second look on a licensed photo placed in the demo flight as a distractor, with the live VL model; the answer is kept word for word. Not the missing person.",
+ "kind": "hikers",
+ "image": "hikers.jpg",
+ "crop": "hikers-crop.jpg",
+ "size_px": [
+  1000,
+  750
+ ],
+ "detection": {
+  "box_px": [
+   107,
+   208,
+   155,
+   257
+  ],
+  "conf": 0.681,
+  "by": "detector",
+  "note": "the detector's box (0.681) over the hikers"
+ },
+ "verdict": {
+  "id": "<verdict>",
+  "detection_id": "<frame>-d01",
+  "tools": [
+   "zoom_native"
+  ],
+  "relook_crops": [
+   "relook/f0001-d01-zoom_native.jpg"
+  ],
+  "person": "yes",
+  "posture": "standing",
+  "group_size": 1,
+  "clothing": "bright yellow-green jacket, dark trousers, dark hat",
+  "reason": "A human figure with head, torso, legs, and a backpack is visible standing on snow.",
+  "model": "nvidia/Nemotron-3.5-Super-VL",
+  "ms": 913,
+  "at": "2026-10-23T07:04:23.918Z",
+  "object": "backpack"
+ },
+ "answer": "{\n  \"person\": \"yes\",\n  \"posture\": \"standing\",\n  \"group_size\": 1,\n  \"clothing\": \"bright yellow-green jacket, dark trousers, dark hat\",\n  \"object\": \"backpack\",\n  \"reason\": \"A human figure with head, torso, legs, and a backpack is visible standing on snow.\"\n}",
+ "model_call": {
+  "model": "nvidia/Nemotron-3.5-Super-VL",
+  "ms": 906,
+  "tokens_in": 919,
+  "tokens_out": 75
+ },
+ "model_calls": 1,
+ "tools": [
+  "zoom_native"
+ ],
+ "proposals": [],
+ "credit": "NPS / Jacob W. Frank, public domain (U.S. federal government work), via Wikimedia Commons",
+ "source": "https://commons.wikimedia.org/wiki/File:Eagle_Peak_Search_%26_Rescue-_ground_team_searching_bowl_under_west_face_of_Eagle_Peak_(54018097082).jpg",
+ "view": "high oblique from well above (helicopter or ridge), two people on a snowfield"
+}
