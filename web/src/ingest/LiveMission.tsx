@@ -25,6 +25,8 @@ import { useConsole } from "../command/consoleStore";
 import { Briefings, useRadioVoice } from "../command/RadioLink";
 import { StatusLine } from "../command/StatusLine";
 import { MissionReport } from "../command/MissionReport";
+import { ScenarioMenu } from "../command/ScenarioMenu";
+import { DEFAULT_SEED, scenarioMission } from "../command/scenarios";
 import { stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
@@ -149,11 +151,10 @@ function storyFromRoute(route: MissionRoute): void {
   }
 }
 
-/** The demo mission's clock, the story's checkpoint and the view, as an address. */
-function demoHash(view: View, t: Checkpoint, tour: boolean, pitch: boolean): string {
-  if (pitch) return "#m/demo";
-  if (tour) return `#m/demo?t=${t}`;
-  return viewHash(DEMO_MISSION_ID, view, t >= 4 ? null : t);
+/** The demo mission's clock, the story's checkpoint, the view and the scenario, as an address. */
+function demoHash(view: View, t: Checkpoint, tour: boolean, pitch: boolean, seed: string | null = null): string {
+  const h = pitch ? "#m/demo" : tour ? `#m/demo?t=${t}` : viewHash(DEMO_MISSION_ID, view, t >= 4 ? null : t);
+  return seed ? `${h}${h.includes("?") ? "&" : "?"}s=${encodeURIComponent(seed)}` : h;
 }
 
 /** Each event the visitor's actions made on the demo console, under an id of its own (u0001…). */
@@ -178,6 +179,9 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const [demoData, setDemoData] = useState<{ full: DemoFull; bundle: CacheBundle } | null>(null);
   const [bundle, setBundle] = useState<CacheBundle | null>(null);
   const tab = useConsole((x) => x.tab);
+  // the demo's scenario (#m/demo?s=<seed>; none: the overdue hiker) and the mission as that scenario
+  const [seed, setSeed] = useState<string | null>(route.seed ?? null);
+  const [scenario, setScenario] = useState<DemoFull | null>(null);
 
   /** Bring a region of the console on screen (phones stack them) and put focus in it. */
   const show = useCallback((id: "console-needs" | "console-timeline" | "console-map" | "console-resources", focus?: string) => {
@@ -206,8 +210,9 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   }, [show]);
 
   // The address decides where the console opens: the landing, a checkpoint of the story, or a view.
-  const routeKey = `${missionId}|${route.view}|${route.t}|${JSON.stringify(route.open)}`;
+  const routeKey = `${missionId}|${route.view}|${route.t}|${JSON.stringify(route.open)}|${route.seed ?? ""}`;
   useEffect(() => {
+    if (demo && (route.seed ?? null) !== useSeedRef.current) pickScenario(route.seed ?? null, false);
     if (route.open.try) setTryOpen(true);
     if (route.open.log) setLogOpen(true);
     if (route.open.conditions) setCondOpen(true);
@@ -253,15 +258,26 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   }, [api, missionId, demo]);
   const cache = demo ? (demoData?.bundle ?? null) : bundle;
 
+  // The scenario: the generator's fixture for its seed, or derived from the demo mission (scenarios.ts).
+  useEffect(() => {
+    if (!demo || !demoData) return undefined;
+    let live = true;
+    const load = (fixture: unknown) => loadDemoMission(fetch, async () => fixture as never, Promise.resolve(demoData.bundle.map)).then(({ data, now }) => ({ data, now }));
+    void scenarioMission(demoData.full, seed, load).then((f) => live && setScenario(f));
+    return () => {
+      live = false;
+    };
+  }, [demo, demoData, seed]);
+
   // The demo mission at the story's clock, the visitor's own actions on top.
   const clockIso = storyClock(story);
   const derivedIds = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!demo || !demoData) return;
-    const state = demoAt(demoData.full, clockIso, story.user);
+    if (!demo || !scenario) return;
+    const state = demoAt(scenario, clockIso, story.user);
     derivedIds.current = new Set((state.events ?? []).map((e) => e.id));
     useMission.getState().useDemo(state, clockIso);
-  }, [demo, demoData, clockIso, story.user]);
+  }, [demo, scenario, clockIso, story.user]);
   // what the visitor does on the demo console is kept as events of their own, replayed when the clock moves
   useEffect(() => {
     if (!demo) return undefined;
@@ -309,17 +325,36 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   useEffect(() => {
     // only while the address is this mission's (the About sheet keeps #about over it)
     if (!demo || !story.started || !/^#m\/demo(\/|\?|$)/.test(window.location.hash)) return;
-    const want = demoHash(view, story.t, story.tour, story.pitch);
+    const want = demoHash(view, story.t, story.tour, story.pitch, seed);
     if (window.location.hash !== want) window.history.replaceState(null, "", want);
-  }, [demo, view, story.t, story.tour, story.pitch, story.started]);
+  }, [demo, view, story.t, story.tour, story.pitch, story.started, seed]);
 
-  // t3's gate: the visitor's approval of the story's proposal runs the clock to t4.
-  const storyProposal = STORY_PROPOSAL;
+  // t3's gate: the visitor's approval of the story's proposal runs the clock to t4. The story's proposal is
+  // the scenario's first assignment (the overdue hiker's p003), so the story works on any scenario.
+  const storyAssign = scenario?.data.proposals?.find((p) => p.kind === "assign_sector") ?? null;
+  const storyProposal = storyAssign?.id ?? STORY_PROPOSAL;
   useEffect(() => {
     if (!demo || !story.tour || story.t !== 3 || story.progress < 1) return;
     const decided = story.user.some((e) => e.type === "proposal.decided" && e.ref === storyProposal);
     if (decided) useStory.getState().seek(4, { animate: true });
   }, [demo, story.tour, story.t, story.progress, story.user, storyProposal]);
+
+  /** Load another scenario: the visitor's actions and answers go with the old one. */
+  const useSeedRef = useRef<string | null>(seed);
+  const pickScenario = useCallback((next: string | null, write = true) => {
+    const s = next === DEFAULT_SEED ? null : next;
+    useSeedRef.current = s;
+    stopAllDemoFlights();
+    useConsole.getState().reset();
+    useStory.setState({ user: [], answers: {}, tried: null });
+    setScenario(null);
+    setSeed(s);
+    if (write) {
+      const st = useStory.getState();
+      window.history.replaceState(null, "", demoHash(view, st.t, st.tour, st.pitch, s));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   const go = useCallback(
     (v: View) => {
@@ -374,7 +409,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
 
   const [conditionsData, conditionsWaiting] = useConditionsData(api, missionId, demo, s.conditions, s.fleet);
   // the demo console appears whole: its fixtures and its recorded conditions lookup in the same frame
-  const ready = !demo || (s.status === "demo" && !conditionsWaiting);
+  const ready = !demo || (s.status === "demo" && !conditionsWaiting && scenario !== null);
 
   // The map comes in once the console has painted with the mission's data: MapLibre's download, start-up
   // and first frame are the heaviest work on the page, and the panels (and their text) should not wait for them.
@@ -590,7 +625,12 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const barTitle = `Mission clock · ${utcLabel(barAt)}`;
   // a checkpoint's pre-mark (t3: the timeline) comes once, before its own mark
   const pre = demo && story.tour && !preSeen.includes(t) ? (CHECKPOINTS[t]?.pre ?? null) : null;
-  const mark = demo && story.tour ? (pre ?? CHECKPOINTS[t]?.mark) : null;
+  const baseMark = demo && story.tour ? (pre ?? CHECKPOINTS[t]?.mark) : null;
+  // t3's mark names the scenario's own proposal (its team and sector) and points at its card
+  const mark =
+    baseMark && !pre && t === 3 && storyAssign
+      ? { ...baseMark, text: `The clues moved the map: the agent proposes ${s.teams.find((x) => x.id === storyAssign.target.team)?.callsign ?? storyAssign.target.team} for ${storyAssign.target.sector}, says why, and waits for your approval.`, target: "[data-story-proposal]" }
+      : baseMark;
   const markIndex = CHECKPOINTS.filter((c) => c.mark && c.t <= t).length;
   const needsCount = s.proposals.filter((p) => p.status === "pending").length + reviewCount;
   const inStory = demo && (story.tour || story.playing);
@@ -626,9 +666,12 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                 disclose={demo}
                 onConditions={conditionsData ? () => setCondOpen((o) => !o) : undefined}
                 menu={
-                  <span className="text-caption text-text-3" title={barTitle}>
-                    {barClock}
-                  </span>
+                  <>
+                    {demo && <ScenarioMenu seed={seed} onPick={(x) => pickScenario(x)} disabled={story.tour} />}
+                    <span className="text-caption text-text-3" title={barTitle}>
+                      {barClock}
+                    </span>
+                  </>
                 }
               />
             ) : null
