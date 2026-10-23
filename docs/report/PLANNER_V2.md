@@ -67,6 +67,19 @@ argues for a larger grid on hiker missions. The dementia rings are tight (25 % w
 there the prior more than doubles the finds within 30 min. When the category is wrong, finds within
 30 min fall from 21.9 % to 15.7 %. The uniform blend limits that loss but does not remove it.
 
+**Update, 22 Oct: each ring's share now falls off with distance** (`prior.py`, `RING_EDGE`). Within a
+ring the density falls linearly from the inner radius to a quarter of that at the outer radius, and
+each ring keeps its share; the kernel is a choice made by hand, not tuned. The flat hiker prior above
+came from spreading each ring evenly by area. Re-run with the same seeds and canopy
+(`docs/evidence/planner_v2/20261022-rings/`; the person is drawn from the new rings too): hiker, 3
+drones, Koester blend 25.9 % found within 30 min (median 76 min) against 22.3 % uniform, where it was
+21.4 % for both; dementia, 3 drones, 50.0 % (median 30) against 23.1 %, was 52.8 % (28) against
+22.1 %; dementia, 1 drone, median 95 min, was 85; category wrong 15.3 % against 21.9 %, was 15.7 %.
+Tables (b) and (c) did not change. The fleet evaluation (`FLEET_V2.md`) uses the cache's uniform
+prior and gave identical numbers. `prior_mass_outside` now says where the outside share comes from;
+for the demo hiker it is 0.747: 0.607 of the rings past the 1 km grid's edge, 0.04 beyond the 95 %
+ring, 0.10 the uniform blend's half.
+
 ### (b) Team awareness (3 drones and 2 teams; teams search with POD 0.5 per pass)
 
 | Canopy | Clue | v1 (teams ignored, nearest team) | discount only | walking time only | v2 (both) |

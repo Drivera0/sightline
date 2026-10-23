@@ -25,8 +25,8 @@
   "found": {
    "team": "T1",
    "sector": "C2",
-   "lat": 49.370247,
-   "lon": -122.944206,
+   "lat": 49.370068,
+   "lon": -122.944275,
    "at": "2026-10-24T21:59:30Z"
   },
   "check_in_min": 30.0,
@@ -39,8 +39,8 @@
    "members": 3,
    "status": "searching",
    "position": {
-    "lat": 49.370247,
-    "lon": -122.944206
+    "lat": 49.370068,
+    "lon": -122.944275
    },
    "position_at": "2026-10-24T21:59:12Z",
    "note": null,
@@ -95,7 +95,7 @@
    "sector_id": "A1",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014361936313551732,
+   "poa": 0.013175122069357774,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -104,7 +104,7 @@
    "sector_id": "B1",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014370150157749765,
+   "poa": 0.015496557554232201,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -113,7 +113,7 @@
    "sector_id": "C1",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014370150157749765,
+   "poa": 0.01549655755423464,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -122,7 +122,7 @@
    "sector_id": "D1",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014361936313551732,
+   "poa": 0.013175122069363276,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -131,7 +131,7 @@
    "sector_id": "A2",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014370150157749765,
+   "poa": 0.015496557554231499,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -140,7 +140,7 @@
    "sector_id": "B2",
    "state": "in_progress",
    "team_id": "T2",
-   "poa": 0.014370150157749765,
+   "poa": 0.019161764614733016,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T21:51:00Z"
@@ -149,7 +149,7 @@
    "sector_id": "C2",
    "state": "in_progress",
    "team_id": "T1",
-   "poa": 0.014370150157749765,
+   "poa": 0.01916176461473811,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T21:48:00Z"
@@ -158,7 +158,7 @@
    "sector_id": "D2",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014370150157749765,
+   "poa": 0.015496557554238833,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -167,7 +167,7 @@
    "sector_id": "A3",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014370150157749765,
+   "poa": 0.015496557554233239,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -176,7 +176,7 @@
    "sector_id": "B3",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014370150157749765,
+   "poa": 0.01916176461473665,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -185,7 +185,7 @@
    "sector_id": "C3",
    "state": "assigned",
    "team_id": "T3",
-   "poa": 0.014370150157749765,
+   "poa": 0.01916176461474174,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T21:47:00Z"
@@ -194,7 +194,7 @@
    "sector_id": "D3",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014370150157749765,
+   "poa": 0.015496557554240573,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -203,7 +203,7 @@
    "sector_id": "A4",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014361936313551734,
+   "poa": 0.0131751220693617,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -212,7 +212,7 @@
    "sector_id": "B4",
    "state": "searched",
    "team_id": "T4",
-   "poa": 0.014370150157749765,
+   "poa": 0.015496557554237431,
    "pod": 0.6,
    "note": "trail and both ditches, thick salal on the east side",
    "updated_at": "2026-10-24T21:56:00Z"
@@ -221,7 +221,7 @@
    "sector_id": "C4",
    "state": "searched",
    "team_id": "T4",
-   "poa": 0.014370150157749765,
+   "poa": 0.01549655755423987,
    "pod": 0.4,
    "note": "steep; the gully not entered",
    "updated_at": "2026-10-24T21:50:00Z"
@@ -230,7 +230,7 @@
    "sector_id": "D4",
    "state": "proposed",
    "team_id": null,
-   "poa": 0.014361936313551734,
+   "poa": 0.013175122069367204,
    "pod": null,
    "note": null,
    "updated_at": "2026-10-24T20:30:00Z"
@@ -373,7 +373,7 @@
    "id": "p003",
    "kind": "assign_sector",
    "summary": "Assign sector C2 to Team One",
-   "reason": "C2 · 2.7 % of remaining probability, up from 1.4 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.",
+   "reason": "C2 · 3.5 % of remaining probability, up from 1.9 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.",
    "briefing": "Team One, Sightline. New assignment: sector C2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 54 min. Over.",
    "target": {
     "team": "T1",
@@ -393,7 +393,7 @@
    "id": "p004",
    "kind": "assign_sector",
    "summary": "Assign sector B2 to Team Two",
-   "reason": "B2 · 2.5 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 47% under tree cover (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
+   "reason": "B2 · 3.3 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 47% under tree cover (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
    "briefing": "Team Two, Sightline. New assignment: sector B2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 53 min. Over.",
    "target": {
     "team": "T2",
@@ -413,7 +413,7 @@
    "id": "p005",
    "kind": "assign_sector",
    "summary": "Assign sector C3 to Team Three",
-   "reason": "C3 · 2.4 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
+   "reason": "C3 · 3.2 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
    "briefing": "Team Three, Sightline. New assignment: sector C3. Look for: adult, red jacket, day hiker. Daylight left: 3 h 51 min. Over.",
    "target": {
     "team": "T3",
@@ -465,7 +465,7 @@
     "sector_id": "A1",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014361936313551732,
+    "poa": 0.013175122069357774,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -481,7 +481,7 @@
     "sector_id": "B1",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.015496557554232201,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -497,7 +497,7 @@
     "sector_id": "C1",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.01549655755423464,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -513,7 +513,7 @@
     "sector_id": "D1",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014361936313551732,
+    "poa": 0.013175122069363276,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -529,7 +529,7 @@
     "sector_id": "A2",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.015496557554231499,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -545,7 +545,7 @@
     "sector_id": "B2",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.019161764614733016,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -561,7 +561,7 @@
     "sector_id": "C2",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.01916176461473811,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -577,7 +577,7 @@
     "sector_id": "D2",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.015496557554238833,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -593,7 +593,7 @@
     "sector_id": "A3",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.015496557554233239,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -609,7 +609,7 @@
     "sector_id": "B3",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.01916176461473665,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -625,7 +625,7 @@
     "sector_id": "C3",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.01916176461474174,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -641,7 +641,7 @@
     "sector_id": "D3",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.015496557554240573,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -657,7 +657,7 @@
     "sector_id": "A4",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014361936313551734,
+    "poa": 0.0131751220693617,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -673,7 +673,7 @@
     "sector_id": "B4",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.015496557554237431,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -689,7 +689,7 @@
     "sector_id": "C4",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014370150157749765,
+    "poa": 0.01549655755423987,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -705,7 +705,7 @@
     "sector_id": "D4",
     "state": "proposed",
     "team_id": null,
-    "poa": 0.014361936313551734,
+    "poa": 0.013175122069367204,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T20:30:00Z"
@@ -920,7 +920,7 @@
     "clothing": "red top",
     "reason": "A person in a red top, beside the group in this photo (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 10,
+    "ms": 12,
     "at": "2026-10-24T21:01:45Z"
    }
   },
@@ -1017,7 +1017,7 @@
     "clothing": "red",
     "reason": "A red shape the size of a person lying under the trees, at the photo's edge (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 7,
+    "ms": 9,
     "at": "2026-10-24T21:10:39Z"
    }
   },
@@ -1148,7 +1148,7 @@
     "clothing": null,
     "reason": "Bare ground at the photo's edge; nothing shaped like a person (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 10,
+    "ms": 9,
     "at": "2026-10-24T21:12:36Z"
    }
   },
@@ -1170,7 +1170,7 @@
     "sector_id": "C4",
     "state": "assigned",
     "team_id": "T4",
-    "poa": 0.014370150157749765,
+    "poa": 0.01549655755423987,
     "pod": null,
     "note": "hasty search of the trail through C4",
     "updated_at": "2026-10-24T21:20:00Z"
@@ -1225,7 +1225,7 @@
     "sector_id": "C4",
     "state": "in_progress",
     "team_id": "T4",
-    "poa": 0.014370150157749765,
+    "poa": 0.01549655755423987,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T21:21:00Z"
@@ -1592,7 +1592,7 @@
     "id": "p003",
     "kind": "assign_sector",
     "summary": "Assign sector C2 to Team One",
-    "reason": "C2 · 2.7 % of remaining probability, up from 1.4 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.",
+    "reason": "C2 · 3.5 % of remaining probability, up from 1.9 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.",
     "briefing": "Team One, Sightline. New assignment: sector C2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 54 min. Over.",
     "target": {
      "team": "T1",
@@ -1619,7 +1619,7 @@
     "id": "p003",
     "kind": "assign_sector",
     "summary": "Assign sector C2 to Team One",
-    "reason": "C2 · 2.7 % of remaining probability, up from 1.4 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.",
+    "reason": "C2 · 3.5 % of remaining probability, up from 1.9 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.",
     "briefing": "Team One, Sightline. New assignment: sector C2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 54 min. Over.",
     "target": {
      "team": "T1",
@@ -1646,7 +1646,7 @@
     "sector_id": "C2",
     "state": "assigned",
     "team_id": "T1",
-    "poa": 0.014370150157749765,
+    "poa": 0.01916176461473811,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T21:43:00Z"
@@ -1704,7 +1704,7 @@
     "id": "p004",
     "kind": "assign_sector",
     "summary": "Assign sector B2 to Team Two",
-    "reason": "B2 · 2.5 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 47% under tree cover (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
+    "reason": "B2 · 3.3 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 47% under tree cover (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
     "briefing": "Team Two, Sightline. New assignment: sector B2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 53 min. Over.",
     "target": {
      "team": "T2",
@@ -1731,7 +1731,7 @@
     "id": "p004",
     "kind": "assign_sector",
     "summary": "Assign sector B2 to Team Two",
-    "reason": "B2 · 2.5 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 47% under tree cover (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
+    "reason": "B2 · 3.3 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 47% under tree cover (drone POD 0.46): a ground team adds the most here; Team Two is nearest (266 m, about 5 min on foot).",
     "briefing": "Team Two, Sightline. New assignment: sector B2. Look for: adult, red jacket, day hiker. Daylight left: 3 h 53 min. Over.",
     "target": {
      "team": "T2",
@@ -1758,7 +1758,7 @@
     "sector_id": "B2",
     "state": "assigned",
     "team_id": "T2",
-    "poa": 0.014370150157749765,
+    "poa": 0.019161764614733016,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T21:45:00Z"
@@ -1816,7 +1816,7 @@
     "id": "p005",
     "kind": "assign_sector",
     "summary": "Assign sector C3 to Team Three",
-    "reason": "C3 · 2.4 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
+    "reason": "C3 · 3.2 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
     "briefing": "Team Three, Sightline. New assignment: sector C3. Look for: adult, red jacket, day hiker. Daylight left: 3 h 51 min. Over.",
     "target": {
      "team": "T3",
@@ -1843,7 +1843,7 @@
     "id": "p005",
     "kind": "assign_sector",
     "summary": "Assign sector C3 to Team Three",
-    "reason": "C3 · 2.4 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
+    "reason": "C3 · 3.2 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (619 m, about 12 min on foot).",
     "briefing": "Team Three, Sightline. New assignment: sector C3. Look for: adult, red jacket, day hiker. Daylight left: 3 h 51 min. Over.",
     "target": {
      "team": "T3",
@@ -1870,7 +1870,7 @@
     "sector_id": "C3",
     "state": "assigned",
     "team_id": "T3",
-    "poa": 0.014370150157749765,
+    "poa": 0.01916176461474174,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T21:47:00Z"
@@ -1907,7 +1907,7 @@
     "sector_id": "C2",
     "state": "in_progress",
     "team_id": "T1",
-    "poa": 0.014370150157749765,
+    "poa": 0.01916176461473811,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T21:48:00Z"
@@ -1954,7 +1954,7 @@
     "asr_ms": null,
     "llm_ms": null,
     "tts_ms": null,
-    "at": "2026-10-23T00:24:59.739Z"
+    "at": "2026-10-23T02:07:49.090Z"
    }
   },
   {
@@ -1967,7 +1967,7 @@
     "sector_id": "C4",
     "state": "searched",
     "team_id": "T4",
-    "poa": 0.014370150157749765,
+    "poa": 0.01549655755423987,
     "pod": 0.4,
     "note": "steep; the gully not entered",
     "updated_at": "2026-10-24T21:50:00Z"
@@ -2098,7 +2098,7 @@
     "sector_id": "B4",
     "state": "assigned",
     "team_id": "T4",
-    "poa": 0.014370150157749765,
+    "poa": 0.015496557554237431,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T21:50:30Z"
@@ -2153,7 +2153,7 @@
     "sector_id": "B2",
     "state": "in_progress",
     "team_id": "T2",
-    "poa": 0.014370150157749765,
+    "poa": 0.019161764614733016,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T21:51:00Z"
@@ -2190,7 +2190,7 @@
     "sector_id": "B4",
     "state": "in_progress",
     "team_id": "T4",
-    "poa": 0.014370150157749765,
+    "poa": 0.015496557554237431,
     "pod": null,
     "note": null,
     "updated_at": "2026-10-24T21:51:30Z"
@@ -2463,7 +2463,7 @@
     "sector_id": "B4",
     "state": "searched",
     "team_id": "T4",
-    "poa": 0.014370150157749765,
+    "poa": 0.015496557554237431,
     "pod": 0.6,
     "note": "trail and both ditches, thick salal on the east side",
     "updated_at": "2026-10-24T21:56:00Z"
@@ -2770,8 +2770,8 @@
     "members": 3,
     "status": "searching",
     "position": {
-     "lat": 49.370247,
-     "lon": -122.944206
+     "lat": 49.370068,
+     "lon": -122.944275
     },
     "position_at": "2026-10-24T21:59:12Z",
     "note": null,
@@ -2791,8 +2791,8 @@
     "members": 3,
     "status": "searching",
     "position": {
-     "lat": 49.370247,
-     "lon": -122.944206
+     "lat": 49.370068,
+     "lon": -122.944275
     },
     "position_at": "2026-10-24T21:59:12Z",
     "note": null,
@@ -2826,8 +2826,8 @@
     "found": {
      "team": "T1",
      "sector": "C2",
-     "lat": 49.370247,
-     "lon": -122.944206,
+     "lat": 49.370068,
+     "lon": -122.944275,
      "at": "2026-10-24T21:59:30Z"
     },
     "by": "Search manager (scripted for the demo fixture)"
@@ -2838,7 +2838,7 @@
   {
    "sector_id": "A1",
    "label": "Alpha One",
-   "poa": 0.0139,
+   "poa": 0.0126,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -2866,7 +2866,7 @@
   {
    "sector_id": "B1",
    "label": "Bravo One",
-   "poa": 0.015,
+   "poa": 0.0161,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -2894,7 +2894,7 @@
   {
    "sector_id": "C1",
    "label": "Charlie One",
-   "poa": 0.0142,
+   "poa": 0.0151,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -2922,7 +2922,7 @@
   {
    "sector_id": "D1",
    "label": "Delta One",
-   "poa": 0.0138,
+   "poa": 0.0125,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -2950,7 +2950,7 @@
   {
    "sector_id": "A2",
    "label": "Alpha Two",
-   "poa": 0.0161,
+   "poa": 0.0173,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -2978,7 +2978,7 @@
   {
    "sector_id": "B2",
    "label": "Bravo Two",
-   "poa": 0.0257,
+   "poa": 0.0339,
    "drone_coverage": 0.374,
    "polygon": [
     [
@@ -3006,7 +3006,7 @@
   {
    "sector_id": "C2",
    "label": "Charlie Two",
-   "poa": 0.0272,
+   "poa": 0.0359,
    "drone_coverage": 0.384,
    "polygon": [
     [
@@ -3034,7 +3034,7 @@
   {
    "sector_id": "D2",
    "label": "Delta Two",
-   "poa": 0.0154,
+   "poa": 0.0166,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -3062,7 +3062,7 @@
   {
    "sector_id": "A3",
    "label": "Alpha Three",
-   "poa": 0.017,
+   "poa": 0.0182,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -3090,7 +3090,7 @@
   {
    "sector_id": "B3",
    "label": "Bravo Three",
-   "poa": 0.0169,
+   "poa": 0.022,
    "drone_coverage": 0.4,
    "polygon": [
     [
@@ -3118,7 +3118,7 @@
   {
    "sector_id": "C3",
    "label": "Charlie Three",
-   "poa": 0.0245,
+   "poa": 0.0323,
    "drone_coverage": 0.376,
    "polygon": [
     [
@@ -3146,7 +3146,7 @@
   {
    "sector_id": "D3",
    "label": "Delta Three",
-   "poa": 0.0149,
+   "poa": 0.016,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -3174,7 +3174,7 @@
   {
    "sector_id": "A4",
    "label": "Alpha Four",
-   "poa": 0.0149,
+   "poa": 0.0136,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -3202,7 +3202,7 @@
   {
    "sector_id": "B4",
    "label": "Bravo Four",
-   "poa": 0.0066,
+   "poa": 0.0071,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -3230,7 +3230,7 @@
   {
    "sector_id": "C4",
    "label": "Charlie Four",
-   "poa": 0.0094,
+   "poa": 0.0101,
    "drone_coverage": 0.0,
    "polygon": [
     [
@@ -3258,7 +3258,7 @@
   {
    "sector_id": "D4",
    "label": "Delta Four",
-   "poa": 0.0138,
+   "poa": 0.0125,
    "drone_coverage": 0.0,
    "polygon": [
     [

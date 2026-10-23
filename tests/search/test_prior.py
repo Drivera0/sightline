@@ -12,7 +12,7 @@ import pytest
 
 from sightline.contract import Grid, LatLon
 from sightline.search.grid import make_grid
-from sightline.search.prior import placeholder_prior, ring_prior
+from sightline.search.prior import RING_EDGE, _annulus_weight, placeholder_prior, ring_prior
 
 DEMO_LKP = LatLon(lat=49.37, lon=-122.945)
 SYNTHETIC_RINGS = [(100.0, 0.5), (400.0, 0.9)]
@@ -71,8 +71,9 @@ def test_ring_prior_mass_decreases_with_distance(grid: Grid) -> None:
     beyond = p[d_m > 400.0]
     assert inner.size > 0 and outer.size > 0 and beyond.size > 0
     assert inner.mean() > outer.mean() > beyond.mean()
-    # Within a ring the mass is uniform.
-    assert np.allclose(inner, inner[0]) and np.allclose(outer, outer[0])
+    # Spread evenly by area (edge = 1), the mass is the same in every cell of a ring.
+    even, _ = ring_prior(grid, DEMO_LKP, SYNTHETIC_RINGS, edge=1.0)
+    assert np.allclose(even[d_m <= 100.0], even[d_m <= 100.0][0])
 
 
 def test_ring_inside_grid_keeps_its_mass(grid: Grid) -> None:
@@ -96,11 +97,46 @@ def test_disc_discretisation_within_measured_tolerance(grid: Grid, radius_m: flo
 
 def test_ring_larger_than_grid_pushes_mass_outside(grid: Grid) -> None:
     # Disc of 2 km radius: the 1 km x 1 km grid holds 1e6 / (pi * 2000^2) of its area.
-    p, outside = ring_prior(grid, DEMO_LKP, [(2000.0, 1.0)])
+    p, outside = ring_prior(grid, DEMO_LKP, [(2000.0, 1.0)], edge=1.0)
     expected_in = 1e6 / (math.pi * 2000.0**2)
     assert p.sum() == pytest.approx(expected_in, rel=1e-9)
     assert outside == pytest.approx(1.0 - expected_in, rel=1e-9)
     assert np.allclose(p, p[0])
+    # With the falloff the grid (the disc's middle, where the kernel is near 1) holds more of the
+    # ring than its share of the area, and the rest is still outside, not dropped.
+    p, outside = ring_prior(grid, DEMO_LKP, [(2000.0, 1.0)])
+    assert expected_in < p.sum() < 1.0 and p.sum() + outside == pytest.approx(1.0, abs=1e-12)
+
+
+def test_falloff_within_a_ring(grid: Grid) -> None:
+    # Linear from 1 at the inner radius to RING_EDGE at the outer one: on a ray from the LKP the
+    # density falls inside each ring, and the outer edge of a ring is RING_EDGE of its inner edge.
+    p, _ = ring_prior(grid, DEMO_LKP, [(100.0, 0.5), (400.0, 0.9)])
+    d_m = _distances_m(grid)
+    ring1 = d_m <= 100.0
+    assert np.corrcoef(d_m[ring1], p[ring1])[0, 1] < -0.99
+    ring2 = (d_m > 100.0) & (d_m <= 400.0)
+    near, far = p[ring2][np.argmin(d_m[ring2])], p[ring2][np.argmax(d_m[ring2])]
+    t_near = (d_m[ring2].min() - 100.0) / 300.0
+    t_far = (d_m[ring2].max() - 100.0) / 300.0
+    expected = (1 - (1 - RING_EDGE) * t_far) / (1 - (1 - RING_EDGE) * t_near)
+    assert far / near == pytest.approx(expected, rel=1e-9)
+
+
+@pytest.mark.parametrize("edge", [0.25, 0.5, 1.0])
+def test_annulus_weight_is_the_kernel_integral(edge: float) -> None:
+    # The closed form against a fine numeric integral of w(r) 2 pi r over the annulus.
+    for a, b in ((0.0, 700.0), (700.0, 1900.0), (3600.0, 11300.0)):
+        r = np.linspace(a, b, 200_001)
+        w = 1 - (1 - edge) * (r - a) / (b - a)
+        numeric = np.trapezoid(w * 2 * np.pi * r, r)
+        assert _annulus_weight(a, b, edge) == pytest.approx(numeric, rel=1e-8)
+
+
+def test_edge_must_be_in_range(grid: Grid) -> None:
+    for edge in (0.0, -0.1, 1.5):
+        with pytest.raises(ValueError):
+            ring_prior(grid, DEMO_LKP, SYNTHETIC_RINGS, edge=edge)
 
 
 def test_unfound_fraction_goes_outside(grid: Grid) -> None:
@@ -178,6 +214,7 @@ from sightline.search.prior import (
     KOESTER_WEIGHT,
     QUARTILES,
     koester_prior,
+    prior_mass_outside,
     prior_source,
     subject_category,
 )
@@ -252,3 +289,28 @@ def test_blend_weight(grid: Grid) -> None:
 )
 def test_subject_category(subject: str | None, category: str | None) -> None:
     assert subject_category(subject) == category
+
+
+@pytest.mark.parametrize("category", [None, *sorted(CATEGORIES)])
+def test_prior_mass_outside_adds_up(grid: Grid, category: str | None) -> None:
+    # The demo's 1 km grid is smaller than every category's outer rings: what it leaves out is
+    # reported, and the parts add up to koester_prior's outside (the cells stay normalised).
+    p, outside = koester_prior(grid, DEMO_LKP, category)
+    parts = prior_mass_outside(grid, DEMO_LKP, category)
+    assert parts["total"] == pytest.approx(outside, abs=1e-12)
+    assert parts["beyond_rings"] + parts["off_grid"] + parts["uniform"] == pytest.approx(outside)
+    assert p.sum() + parts["total"] == pytest.approx(1.0, abs=1e-12)
+    if category is not None:
+        assert parts["beyond_rings"] == pytest.approx(KOESTER_WEIGHT * 0.05, abs=1e-9)
+        assert parts["off_grid"] > 0.3  # most of every category's rings lie past a 1 km grid
+
+
+def test_the_demo_grid_shows_the_hiker_rings() -> None:
+    # The demo's 1 km grid of 5 m cells lies inside the hiker's first ring (0.7 km). Spread evenly
+    # by area it was flat (39,990 of 40,000 cells equal); with the falloff the mass falls with
+    # distance from the LKP, so the map shows rings around it.
+    g = make_grid(DEMO_LKP, size_m=1000.0, cell_m=5.0)
+    p, _ = koester_prior(g, DEMO_LKP, "hiker/temperate_mountainous")
+    d = _distances_m(g)
+    assert np.unique(np.round(p, 15)).size > 1000
+    assert p[d < 50].mean() > 1.4 * p[(d > 450) & (d < 500)].mean()

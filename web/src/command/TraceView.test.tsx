@@ -58,7 +58,7 @@ describe("trace helpers", () => {
     expect(plannerRanked(entry({ kind: "tool_call", actor: "planner", output: { ranked: [{ sector: "B3", score_per_min: 0.02, evidence: "x" }], chosen: [] } }))).toEqual([
       { sector: "B3", score: 0.02, evidence: "x" },
     ]);
-    expect(outputSummary(planner)).toBe("ranked C2 0.015, B2 0.014, C3 0.014");
+    expect(outputSummary(planner)).toBe("ranked C2 0.019, B2 0.018, C3 0.018");
     const chain = chains(own).find((c) => c.entries.includes(planner))!;
     expect(plannedProposals(chain.entries, planner).map((e) => e.id)).toEqual(["t000027"]);
     expect(chain.stages).toEqual(["perception", "decision", "action", "approval"]);
@@ -116,7 +116,7 @@ describe("TraceView", () => {
     expect(step).toHaveTextContent("Decision");
     const ranked = within(step).getAllByRole("listitem");
     expect(ranked.map((li) => li.getAttribute("data-sector"))).toEqual(["C2", "B2", "C3"]);
-    expect(ranked[0]).toHaveTextContent("1. C2 score 0.0147: C2 · 2.7 % of remaining probability, up from 1.4 %: c001");
+    expect(ranked[0]).toHaveTextContent("1. C2 score 0.0194: C2 · 3.5 % of remaining probability, up from 1.9 %: c001");
     const link = within(step).getByRole("link", { name: "p003" });
     const target = document.getElementById(link.getAttribute("href")!.slice(1));
     expect(target).toHaveAttribute("aria-label", "Proposal t000027");

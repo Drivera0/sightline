@@ -900,7 +900,7 @@
     "clothing": null,
     "reason": "A pale shape among rocks; no head or limbs can be made out (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 9,
+    "ms": 10,
     "at": "2026-10-25T02:18:37Z"
    }
   },
@@ -925,7 +925,7 @@
     "clothing": "red top",
     "reason": "A person in a red top, beside the group in this photo (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 38,
+    "ms": 69,
     "at": "2026-10-25T02:34:45Z"
    }
   },
@@ -68975,6 +68975,12 @@
    1.25e-05,
    1.25e-05
   ],
-  "outside": 0.49999999999949796
+  "outside": 0.49999999999949796,
+  "prior_mass_outside": {
+   "beyond_rings": 0.0,
+   "off_grid": 0.0,
+   "uniform": 0.5,
+   "total": 0.5
+  }
  }
 }
