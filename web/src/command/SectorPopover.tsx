@@ -49,8 +49,11 @@ export function SectorPopover({
   const box = useRef<HTMLDivElement>(null);
   const agent = proposals.find((p) => p.status === "pending" && p.kind === "assign_sector" && p.target.sector === sector.sector_id);
   const pick = agent?.target.team;
-  const available = teams.filter((t) => t.status === "standby" || t.id === pick);
-  const ordered = [...available].sort((a, b) => Number(b.id === pick) - Number(a.id === pick));
+  // every team can be sent (a search manager re-tasks teams already out): the agent's pick, then those on
+  // standby, then the rest, each saying what it is doing now
+  const rank = (t: Team) => (t.id === pick ? 0 : t.status === "standby" ? 1 : t.status === "off_duty" ? 3 : 2);
+  const ordered = teams.filter((t) => t.status !== "off_duty" || t.id === pick).sort((a, b) => rank(a) - rank(b));
+  const busyIn = (t: Team) => (t.status === "standby" ? null : t.status);
   const assigned = task && (task.state === "assigned" || task.state === "in_progress") ? teams.find((t) => t.id === task.team_id) : undefined;
   const id = sector.sector_id;
   useEffect(() => {
@@ -85,13 +88,13 @@ export function SectorPopover({
         <div role="group" aria-label="Assign a team" className="flex flex-col gap-1.5">
           <span className="text-caption font-medium text-text-2">Assign a team</span>
           {ordered.length === 0 ? (
-            <span className="text-caption text-text-3">No team on standby: recall one first.</span>
+            <span className="text-caption text-text-3">No team on duty.</span>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {ordered.map((t) => (
                 <button key={t.id} type="button" className={`${chip} ${t.id === pick ? "border-accent/60" : ""}`} onClick={() => actions.assign(t.id, id)}>
                   {t.callsign}
-                  {t.id === pick && <span className="text-accent-soft">· agent's pick</span>}
+                  {t.id === pick ? <span className="text-accent-soft">· agent's pick</span> : busyIn(t) ? <span className="text-text-3">· {busyIn(t)}</span> : null}
                 </button>
               ))}
             </div>

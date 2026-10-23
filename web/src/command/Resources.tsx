@@ -68,7 +68,7 @@ export function Resources({
   const drones = [...(fleet?.drones ?? [])].sort((a, b) => a.battery_pct - b.battery_pct);
   const picking = useConsole((s) => s.picking);
   return (
-    <section aria-label="Resources" data-tour="tasks" className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-surface-solid">
+    <section aria-label="Resources" data-tour="tasks" className="flex min-h-0 flex-col overflow-hidden lg:flex-1 rounded-lg border border-line bg-surface-solid">
       <h2 className="sl-panel-head">
         Resources
         <span className="ml-auto whitespace-nowrap text-caption font-normal text-text-3" title={`${teams.length} teams, ${drones.length} drones. A team turns amber near the check-in interval and red past it (${checkIn} min, a planning choice for this mission).`}>

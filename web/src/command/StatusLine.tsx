@@ -59,6 +59,13 @@ export function StatusLine({
   const unconfirmed = clues.filter((c) => !c.confirmed).length;
   return (
     <section role="status" aria-label="Mission status" className="flex h-9 items-center gap-x-5 overflow-x-auto border-t border-line px-3 lg:px-4 [scrollbar-width:none]">
+      {/* the find leads the line: the first thing anyone should read, on a phone too */}
+      {found && (
+        <span data-tone="ok" className="sl-pill shrink-0" title={mission?.found ? `Found in ${mission.found.sector} by ${teams.find((t) => t.id === mission.found!.team)?.callsign ?? mission.found.team}` : undefined}>
+          <Icon name="found" size={12} />
+          Found{mission?.found ? ` · ${mission.found.sector}` : ""}
+        </span>
+      )}
       {disclose && (
         <span className="inline-flex shrink-0 md:hidden">
           <DisclosureChip />
@@ -110,14 +117,7 @@ export function StatusLine({
       <Item label="Out" title={`${out.people} people in ${out.teams} ${out.teams === 1 ? "team" : "teams"} in the field`}>
         {out.people} {out.people === 1 ? "person" : "people"}
       </Item>
-      {found ? (
-        <span data-tone="ok" className="sl-pill shrink-0" title={mission?.found ? `Found in ${mission.found.sector} by ${teams.find((t) => t.id === mission.found!.team)?.callsign ?? mission.found.team}` : undefined}>
-          <Icon name="found" size={12} />
-          Found{mission?.found ? ` · ${mission.found.sector}` : ""}
-        </span>
-      ) : (
-        <Item label="Subject">not found</Item>
-      )}
+      {!found && <Item label="Subject">not found</Item>}
       <Item label="Clues" tone={unconfirmed ? "caution" : undefined} title={unconfirmed ? `${unconfirmed} awaiting read-back` : undefined}>
         {clues.length}
         {unconfirmed ? ` (${unconfirmed} to confirm)` : ""}

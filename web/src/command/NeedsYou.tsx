@@ -60,7 +60,7 @@ export function NeedsYou({
   // phones: Needs you is its count, and expands on its tab (or a tap on the count)
   const open = useConsole((s) => s.tab === "needs");
   return (
-    <section aria-label="Needs you" data-tour="needs" className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-surface-solid">
+    <section aria-label="Needs you" data-tour="needs" className="flex min-h-0 flex-col overflow-hidden lg:flex-1 rounded-lg border border-line bg-surface-solid">
       <h2 className="sl-panel-head">
         Needs you
         <span className={`text-caption font-normal ${total ? "text-accent" : "text-text-3"}`}>{total ? `${total} waiting` : "nothing waiting"}</span>

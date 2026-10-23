@@ -164,7 +164,7 @@ describe("the command post", () => {
     const pop = screen.getByRole("dialog", { name: "Sector B3" });
     expect(pop).toHaveTextContent("POA 6.9 % · drone coverage 25 %");
     const teams = within(within(pop).getByRole("group", { name: "Assign a team" })).getAllByRole("button");
-    expect(teams.map((b) => b.textContent)).toEqual(["Team Four· agent's pick", "Team One"]);
+    expect(teams.map((b) => b.textContent)).toEqual(["Team Four· agent's pick", "Team One", "Team Two· assigned", "Team Three· searching"]); // teams already out can be re-tasked
     await userEvent.click(teams[1]!);
     expect(p.actions.assign).toHaveBeenCalledWith("T1", "B3");
     expect(screen.queryByRole("dialog")).toBeNull(); // done: the popover closes

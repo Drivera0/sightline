@@ -48,7 +48,7 @@ export function Timeline({
     useConsole.getState().talk(e.team, `${cs}, Sightline. `);
   };
   return (
-    <section aria-label="Timeline" data-tour="timeline" className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-surface-solid">
+    <section aria-label="Timeline" data-tour="timeline" className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-surface-solid">
       <div className="sl-panel-head">
         <h2>Timeline</h2>
         <div role="group" aria-label="Show" className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">

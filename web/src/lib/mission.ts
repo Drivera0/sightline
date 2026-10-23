@@ -393,6 +393,10 @@ export const useMission = create<MissionStore>((set, get) => {
           if (!is404(e)) return void set({ error: e instanceof Error ? e.message : String(e) });
         }
       }
+      // a team re-tasked from another sector leaves it open again
+      for (const t of get().tasks.filter((x) => x.team_id === teamId && x.sector_id !== sector && (x.state === "assigned" || x.state === "in_progress"))) {
+        await get().setTask(t.sector_id, { state: "proposed", team_id: null });
+      }
       await get().setTask(sector, { state: "assigned", team_id: teamId });
       await get().updateTeam(teamId, { status: "assigned" });
       if (!a) demoEvent("mission.note", `${by} assigned ${sector} to ${team?.callsign ?? teamId}`, sector, { action: "assign", by, team: teamId, sector });
