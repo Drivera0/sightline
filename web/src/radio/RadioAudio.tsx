@@ -45,9 +45,11 @@ export interface RadioAudioProps {
   /** Site base for the clips (default: Vite's BASE_URL). */
   base?: string;
   className?: string;
+  /** The words beside the speaker (e.g. "max-sm:sr-only": the icon alone on a phone). */
+  labelClassName?: string;
 }
 
-export function RadioAudio({ entries, base, className }: RadioAudioProps) {
+export function RadioAudio({ entries, base, className, labelClassName }: RadioAudioProps) {
   const [muted, setMuted] = useState(readMuted);
   const [playing, setPlaying] = useState<string | null>(null);
   const seen = useRef<Set<string> | null>(null);
@@ -144,8 +146,8 @@ export function RadioAudio({ entries, base, className }: RadioAudioProps) {
       onClick={toggle}
       data-playing={playing ?? undefined}
     >
-      <Icon name={muted ? "mute" : "speaker"} size={13} className="mr-1 inline-block align-[-2px]" />
-      {muted ? "Voices off" : playing ? "Voices on (playing)" : "Voices on"}
+      <Icon name={muted ? "mute" : "speaker"} size={13} className="inline-block align-[-2px]" />
+      <span className={`ml-1 ${labelClassName ?? ""}`}>{muted ? "Voices off" : playing ? "Voices on (playing)" : "Voices on"}</span>
     </button>
   );
 }

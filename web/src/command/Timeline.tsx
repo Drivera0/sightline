@@ -131,7 +131,7 @@ export function Timeline({
           ))}
         </div>
         {/* the radio's voices: a turn's clip plays when it lands (after the first click or key), one at a time */}
-        <RadioAudio key={voicesKey} entries={server} className="sl-tap ml-auto inline-flex h-7 shrink-0 items-center rounded-full border border-line px-2.5 text-caption text-text-2 hover:border-border hover:text-text aria-[pressed=false]:text-text-3" />
+        <RadioAudio key={voicesKey} entries={server} labelClassName="max-sm:sr-only" className="sl-tap ml-auto inline-flex h-7 shrink-0 items-center rounded-full border border-line px-2.5 text-caption text-text-2 hover:border-border hover:text-text aria-[pressed=false]:text-text-3" />
         <Button
           aria-expanded={adding}
           onClick={() => setAdding(!adding)}
