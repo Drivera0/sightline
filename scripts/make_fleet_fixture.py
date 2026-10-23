@@ -46,13 +46,43 @@ T2_NO_SIGNAL_AT = datetime.fromisoformat("2026-10-24T21:55:00+00:00")
 D2_LOST_AT = datetime.fromisoformat("2026-10-24T21:55:40+00:00")  # still lost at the demo's 22:00
 D3_DEGRADED_AT = datetime.fromisoformat("2026-10-24T21:58:30+00:00")  # still degraded at 22:00
 END = datetime.fromisoformat("2026-10-24T21:59:40+00:00")
+WIND_AT = datetime.fromisoformat("2026-10-24T21:57:00+00:00")  # gusts rise past the drones' limit
+STORY_T0 = datetime.fromisoformat(
+    "2026-10-24T20:30:00+00:00"
+)  # the story's call; a scenario shifts
+SCENARIOS = ROOT / "web/src/command/__fixtures__/scenarios"
+GUST_KMH = 52.0
+# The scripted conditions update (demo only, labelled so): a forecast-page quote in the shape a Tavily
+# lookup keeps, with the source named as the demo's script, never a real page.
+GUST_QUOTE = "Wind gusting to 52 km/h over the upper slopes this afternoon"
+GUST_SOURCE = "scripted for the demo scenario (not a real forecast)"
 
 
 def iso(t: datetime) -> str:
     return t.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument("--scenarios", action="store_true", help="also fly the four preset scenarios")
+    ap.add_argument("--only-scenarios", action="store_true", help="skip the story")
+    args = ap.parse_args(argv)
+    paths = [] if args.only_scenarios else [FIXTURE]
+    if args.scenarios or args.only_scenarios:
+        paths += sorted(SCENARIOS.glob("*.json"))
+    for path in paths:
+        rc = fly(path)
+        if rc:
+            return rc
+    return 0
+
+
+def fly(path: Path) -> int:
+    """One fixture's fleet: the story's (``demo_mission.json``) or a scenario's, on its own clock."""
     from fastapi.testclient import TestClient
     from PIL import Image
     from shapely.geometry import Point, Polygon
@@ -76,13 +106,21 @@ def main() -> int:
     from sightline.search.planner import PlannerConfig, candidate_legs
     from sightline.search.sectors import lattice_sectors
 
-    if not MAP.is_file() or not FIXTURE.is_file():
+    if not MAP.is_file() or not path.is_file():
         print(
-            f"need {MAP} (bash web/scripts/fetch-caches.sh) and {FIXTURE} (make_command_fixtures.py)"
+            f"need {MAP} (bash web/scripts/fetch-caches.sh) and {path} (make_command_fixtures.py)"
         )
         return 1
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(path.read_text())
+    story = path == FIXTURE
+    slug = "demo" if story else path.stem
+    # a scenario's afternoon is the story's, shifted to its own call (its t0)
+    shift = datetime.fromisoformat(fx["t0"]) - STORY_T0 if fx.get("t0") else timedelta(0)
+    start, retask_at, t2_at, d2_at, d3_at, end, wind_at = (t + shift for t in (
+        START, RETASK_AT, T2_NO_SIGNAL_AT, D2_LOST_AT, D3_DEGRADED_AT, END, WIND_AT))  # fmt: skip
     m = MapFile.model_validate_json(MAP.read_text())
+    if fx.get("prior"):  # a scenario's own prior around its own LKP
+        m = m.model_copy(update={"lkp": LatLon.model_validate(fx["prior"]["lkp"])})
     base = MapBase(contract_version=CONTRACT_VERSION, grid=m.grid, lkp=m.lkp, params=m.params,
                    prior=Distribution(p=m.prior.p, outside=m.prior.outside), canopy=m.canopy)  # fmt: skip
     layout = lattice_sectors(m.grid)
@@ -92,17 +130,24 @@ def main() -> int:
     t2_sector = next(
         sid for sid, p in poly.items() if p.contains(Point(t2.position.lon, t2.position.lat))
     )
-    bottle = next(c for c in fx["clues"] if "water bottle" in c["text"])
+    # D1 is re-tasked to the sector of the story's water bottle, or a scenario's last team clue
+    radio_clues = [c for c in fx["clues"] if c["source"] == "radio"] or fx["clues"]
+    bottle = next((c for c in fx["clues"] if "water bottle" in c["text"]), radio_clues[-1])
+    who = {t.id: t.callsign for t in teams}.get(bottle["reported_by"], "The public")
     retask_sector = next(
         sid for sid, p in poly.items() if p.contains(Point(bottle["lon"], bottle["lat"]))
     )
+    retask_why = (f"Team Two's water bottle is in sector {retask_sector} (scripted for the demo fixture)."
+                  if story else f"{who}'s {bottle['kind']} clue ({bottle['text']}) is in sector "
+                  f"{retask_sector} (scripted for the demo scenario).")  # fmt: skip
     # D2 and D3 open in the two sectors nearest Team Two's (not the clue's, where D1 is re-tasked)
     c2 = poly[t2_sector].centroid
-    near = sorted((sid for sid in poly if sid not in (t2_sector, retask_sector, "B2")),
+    first = "B2" if retask_sector != "B2" else "B3"
+    near = sorted((sid for sid in poly if sid not in (t2_sector, retask_sector, first)),
                   key=lambda sid: poly[sid].centroid.distance(c2))  # fmt: skip
-    opening = {"D1": "B2", "D2": near[0], "D3": near[1]}
+    opening = {"D1": first, "D2": near[0], "D3": near[1]}
 
-    clock = {"t": START}
+    clock = {"t": start}
     now = lambda: iso(clock["t"])
     lkp = m.lkp
     camp = fx["mission"].get("base_camp") or {"lat": lkp.lat, "lon": lkp.lon}
@@ -187,21 +232,27 @@ def main() -> int:
                 )
             stamp_new()
             done = set()
-            while clock["t"] < END:
+            recalls: list = []
+            gusty = None
+            while clock["t"] < end:
                 clock["t"] += timedelta(seconds=DT_S)
-                if clock["t"] >= RETASK_AT and "retask" not in done:
+                if clock["t"] >= retask_at and "retask" not in done:
                     d1 = next(x for x in store.state(mid)["fleet"].drones if x.id == "D1")
-                    approve(d1, retask_sector, "retask_drone",
-                            f"Team Two's water bottle is in sector {retask_sector} (scripted for the demo fixture).")  # fmt: skip
+                    approve(d1, retask_sector, "retask_drone", retask_why)
                     done.add("retask")
                     stamp_new()
-                if clock["t"] >= T2_NO_SIGNAL_AT and "t2" not in done:
+                if clock["t"] >= t2_at and "t2" not in done:
                     sim.set_link("T2", "no_signal", by="scenario")
                     done.add("t2")
-                if clock["t"] >= D2_LOST_AT and "d2" not in done:
+                if clock["t"] >= d2_at and "d2" not in done:
                     sim.set_link("D2", "lost", by="scenario")
                     done.add("d2")
-                if clock["t"] >= D3_DEGRADED_AT and "d3" not in done:
+                # the scenarios: gusts rise past the limit (the story keeps its fair afternoon)
+                if not story and clock["t"] >= wind_at and "wind" not in done:
+                    gusty, recalls = gusts_rise(store, mid, now())
+                    done.add("wind")
+                    stamp_new()
+                if clock["t"] >= d3_at and "d3" not in done:
                     sim.set_link("D3", "degraded", by="scenario")
                     done.add("d3")
                 sim.tick(DT_S)
@@ -239,6 +290,8 @@ def main() -> int:
     for k, e in enumerate(merged, 1):
         e["id"] = f"e{k:05d}"
     fx["events"] = merged
+    if gusty is not None:
+        wind(fx, gusty, recalls, iso(wind_at))
     fx["fleet"] = json.loads(fleet.model_dump_json())
     fx["feeds"] = feeds(fx["fleet"]["legs"])
     leg_photos(fx, events, frames, steps, stamps)  # first: the report counts the legs' map steps
@@ -252,7 +305,7 @@ def main() -> int:
 
         from sightline.mission.report import sector_pods
 
-        prior = json.loads((FIXTURE.parent / "demo_prior.json").read_text())
+        prior = fx.get("prior") or json.loads((FIXTURE.parent / "demo_prior.json").read_text())
         looks = [SimpleNamespace(kind="step", cells=s.cells) for s in m.steps]
         looks += [SimpleNamespace(kind=u["kind"], cells=u["cells"]) for u in fx["map_updates"]]
         pods = sector_pods(SimpleNamespace(prior=SimpleNamespace(p=prior["p"])), looks, layout)
@@ -283,7 +336,7 @@ def main() -> int:
                       timeline([MissionEvent.model_validate(e) for e in fx["events"]], teams_now, sector_of)]  # fmt: skip
     from sightline.radio.voices import attach_audio
 
-    attach_audio(fx["timeline"], "demo", ROOT / "web/public")  # the voices, when they still fit
+    attach_audio(fx["timeline"], slug, ROOT / "web/public")  # the voices, when they still fit
     fx["teams"] = [
         json.loads(team_now.model_dump_json()) if t["id"] == "T2" else t for t in fx["teams"]
     ]
@@ -291,13 +344,64 @@ def main() -> int:
         fx["note"] += (
             " The fleet (simulated drones, links, relays) is from scripts/make_fleet_fixture.py, a real run of sightline.search.fleet."
         )
-    FIXTURE.write_text(json.dumps(fx, indent=1, ensure_ascii=False) + "\n")
+    path.write_text(json.dumps(fx, indent=1, ensure_ascii=False) + "\n")
     legs = {x.id: (x.drone_id, x.sector_id, x.status) for x in fleet.legs}
     print("\n".join(log[-12:]))
     print(f"\nlegs: {legs}")
     print(f"drones: {[(d.id, d.status, round(d.battery_pct)) for d in fleet.drones]}")
-    print(f"{len(fleet_events)} fleet events; wrote {FIXTURE.relative_to(ROOT)}")
+    print(
+        f"{len(fleet_events)} fleet events, {len(recalls)} recall proposals; wrote {path.relative_to(ROOT)}"
+    )
     return 0
+
+
+def gusts_rise(store, mid: str, at: str):
+    """The scripted conditions update: gusts past the drones' limit, kept in the trace the way a
+    conditions lookup keeps a value (the quote, the source), then the agent on it: its recall
+    proposals (``loop._recall``). Returns ``(conditions, proposals)``."""
+    from sightline.agent import loop
+    from sightline.agent.trace import trace_call
+    from sightline.contract import Conditions
+
+    c = Conditions(
+        fetched_at=at, stale=False, area="Mount Seymour", sources=[GUST_SOURCE],
+        wind_kmh=28.0, gust_kmh=GUST_KMH, wind_dir_deg=290.0, precip_mm_h=None, precip_prob=None,
+        temp_c=9.0, visibility_km=None, sunset=None, civil_twilight_end=None, alerts=[],
+        flyable=False, flyable_until=None,
+        flyability_reason=f"gusts {GUST_KMH:.0f} km/h at or above the drones' limit of 43 km/h",
+        visibility_factor=1.0, exposure_band=None, exposure_note="",
+    )  # fmt: skip
+    trace_call(store, mid, actor="conditions", kind="tool_call",
+               summary=f"conditions update: gusts {GUST_KMH:.0f} km/h ({GUST_SOURCE})",
+               output={"source": GUST_SOURCE, "fields": {"gust_kmh": {
+                   "value": GUST_KMH, "quote": GUST_QUOTE, "url": None, "source": GUST_SOURCE}}})  # fmt: skip
+    store.put_conditions(mid, c)
+    loop._recalled.pop(mid, None)
+    out = loop.handle("conditions", store, mid, mid, client=None)
+    return c, [p.model_copy(update={"created_at": at}) for p in out if p.kind == "retask_drone"]
+
+
+def wind(fx: dict, c, recalls: list, at: str) -> None:
+    """The gusts and the agent's recall proposals into the fixture: the conditions (now), a
+    ``conditions.updated`` event, each recall as a pending proposal (ids after the fixture's own)
+    with its ``proposal.new`` event; events renumbered in time order."""
+    n = max((int(p["id"][1:]) for p in fx["proposals"]), default=0)
+    fx["conditions"] = c.model_dump(mode="json")
+    new = [{"id": "", "type": "conditions.updated", "at": at, "ref": None, "data": None,
+            "summary": f"conditions: gusts {GUST_KMH:.0f} km/h ({GUST_SOURCE}): not flyable"}]  # fmt: skip
+    ids = {}
+    for k, p in enumerate(recalls, 1):
+        d = p.model_dump(mode="json")
+        ids[d["id"]] = d["id"] = f"p{n + k:03d}"
+        fx["proposals"] = [x for x in fx["proposals"] if x["id"] != d["id"]] + [d]
+        new.append({"id": "", "type": "proposal.new", "at": at, "ref": d["id"], "data": d,
+                    "summary": f"agent proposes: {d['summary']}"})  # fmt: skip
+    fx["events"] = sorted(
+        [e for e in fx["events"] if e["type"] != "conditions.updated" or e["at"] != at] + new,
+        key=lambda e: e["at"],
+    )
+    for k, e in enumerate(fx["events"], 1):
+        e["id"] = f"e{k:05d}"
 
 
 # The "Drone feed" tile's clips (web/public/feed/, CREDITS.md there): public-domain U.S. Forest
@@ -339,7 +443,9 @@ def leg_photos(fx: dict, events: list, frames: list, steps: dict, stamps: dict) 
     prev = {p["frame_id"] for p in fx.get("leg_photos", [])}  # a re-run replaces its own
     old = [u for u in fx["map_updates"] if u.get("ref") not in prev]
     seq = max((u["seq"] for u in old), default=500)
-    first = 500  # the cache's photos are f0001..f0500
+    first = 500 + len(
+        fx.get("distractors") or []
+    )  # the cache's f0001..f0500, a scenario's distractors
     out, updates = [], []
     for k, f in enumerate(frames, 1):
         u = steps.get(f.id)

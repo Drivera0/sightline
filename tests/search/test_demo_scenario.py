@@ -61,7 +61,7 @@ def test_presets_fix_the_category_and_draw_a_whole_scenario(key: str) -> None:
     assert distance_to_road_m(s.lkp.lat, s.lkp.lon) >= MIN_ROAD_M - 10
     assert s.lkp_road_m == pytest.approx(distance_to_road_m(s.lkp.lat, s.lkp.lon), abs=0.1)
     assert distance_to_road_m(s.base_camp["lat"], s.base_camp["lon"]) < 15
-    assert s.base_camp["name"] == STAGING[0][0] or s.base_camp["name"].startswith("Road access")
+    assert s.base_camp["name"] in {x[0] for x in STAGING} and "demo" not in s.base_camp["name"]
     assert s.survey_launch["from"] == s.base_camp["name"] and s.survey_launch["transit_m"] > 0
     p, _ = koester_prior(
         GRID, s.lkp, s.category, affinity=aff

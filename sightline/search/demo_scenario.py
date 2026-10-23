@@ -12,8 +12,8 @@ source of chance):
   LKP; the uniform placeholder for a category with no checked distance rings);
 - **3 or 4 clues**, on the way from the LKP towards the person (as a person walking leaves them),
   of kinds that fit the category, each with a time, a reliability and who reported it;
-- the **base camp**: the trailhead lot (``STAGING``) or, when a road comes nearer the LKP, the
-  nearest point on that road (road access): where a team can drive to, and where the drones launch
+- the **base camp**: the staging point nearest the LKP (``STAGING``: the trailhead lot and three
+  stopping places on Mount Seymour Road): where a team can drive to, and where the drones launch
   from and fly out to the search area (``survey_launch``);
 - with ``min_road_distance_m`` (and ``affinity``, which carries each cell's distance to a road), the
   **last known point** too is at least that far from a road (``MIN_ROAD_M``, 300 m, for the demo's
@@ -49,13 +49,14 @@ from sightline.contract import Grid, LatLon
 from sightline.search.grid import cell_center, latlon_to_local_m, local_m_to_latlon
 from sightline.search.prior import koester_prior, prior_source
 
-# Where teams can stage on the demo map (Mount Seymour); the first is the story's trailhead lot.
-# Demo points, labelled so: not a survey of the real access points.
+# Where teams can stage on the demo map (Mount Seymour): the trailhead lot at the end of Mount
+# Seymour Road and three stopping places down the road, each on the basemap's road (within 2 m).
 STAGING: tuple[tuple[str, float, float], ...] = (
     ("Mount Seymour trailhead lot", 49.36585, -122.94840),
+    ("Viewpoint lot", 49.36416, -122.94832),
+    ("Creek bridge pull-out", 49.36186, -122.95080),
+    ("Power-line access", 49.36080, -122.95297),
 )
-ROAD_ACCESS = "Road access, {road} m from the last known point (demo point)"
-LOT_SLACK_M = 250.0  # the lot is the base camp unless a road comes this much nearer the LKP
 MIN_ROAD_M = 300.0  # the demo's presets and shuffle: LKP and person at least this far from a road
 DRONE_KMH = 36.0  # the drones' transit speed from base camp to the survey (an assumption, 10 m/s)
 
@@ -313,17 +314,9 @@ def _lkp(rng: np.random.Generator, grid: Grid, survey: list[tuple[float, float]]
 
 
 def base_camp(lkp: LatLon) -> dict:
-    """The trailhead lot, unless a road comes ``LOT_SLACK_M`` nearer the LKP: then that road's
-    nearest point (road access)."""
-    from sightline.geo.roads import nearest_road_point, roads
-
-    lot = STAGING[0]
-    if not roads():
-        return {"lat": lot[1], "lon": lot[2], "name": lot[0]}
-    lat, lon, d = nearest_road_point(lkp.lat, lkp.lon)
-    if _metres(lkp.lat, lkp.lon, lot[1], lot[2]) <= d + LOT_SLACK_M:
-        return {"lat": lot[1], "lon": lot[2], "name": lot[0]}
-    return {"lat": round(lat, 6), "lon": round(lon, 6), "name": ROAD_ACCESS.format(road=round(d))}
+    """The staging point nearest the LKP (``STAGING``: all on the road, where a team can drive to)."""
+    camp = min(STAGING, key=lambda x: _metres(lkp.lat, lkp.lon, x[1], x[2]))
+    return {"lat": camp[1], "lon": camp[2], "name": camp[0]}
 
 
 def _metres(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

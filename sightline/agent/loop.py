@@ -688,7 +688,8 @@ def conditions_source(store: Any, mission_id: str, c: Conditions, field: str) ->
         same = f.get("value") is not None and value is not None and abs(f["value"] - value) < 0.51
         if out.get("source") != OVERRIDE_SOURCE and same and f.get("quote"):
             url = f.get("url") or None
-            return {"quote": f["quote"], "url": url, "source": _domain(url) if url else "Tavily"}
+            label = f.get("source") or (_domain(url) if url else "Tavily")
+            return {"quote": f["quote"], "url": url, "source": label}
         break  # only the latest lookup counts
     return {"quote": None, "url": None, "source": "Tavily, no quote in the trace"}
 
