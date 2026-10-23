@@ -48,6 +48,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 import moves
+from story_facts import fill
 
 W, H = 1920, 1080
 MAX_LINE, MAX_LINES, MIN_LABEL_S = 42, 2, 1.2  # Netflix's timed-text limits, and the shortest label
@@ -132,9 +133,13 @@ def check_words(text: str, where: str, disclosure: bool = False) -> None:
     """Stops the run on a caption that calls an area done, or that breaks the story's disclosure rule (a
     card marked as the disclosure is the one place those words go)."""
     if NO_CLEAR.search(text):
-        raise SystemExit(f"{where} says {NO_CLEAR.search(text).group(0)!r}: a searched area is 'searched at POD x'")
+        raise SystemExit(
+            f"{where} says {NO_CLEAR.search(text).group(0)!r}: a searched area is 'searched at POD x'"
+        )
     if not disclosure and STORY_BANNED.search(text):
-        raise SystemExit(f"{where} says {STORY_BANNED.search(text).group(0)!r}: only the disclosure card says that")
+        raise SystemExit(
+            f"{where} says {STORY_BANNED.search(text).group(0)!r}: only the disclosure card says that"
+        )
 
 
 def wrap(text: str, sid: str) -> str:
@@ -158,7 +163,7 @@ def labels(spans: list[tuple], cfg: dict) -> list[tuple[float, float, str]]:
         lab = cfg["labels"].get(sid)
         if not lab and not (own and own[0]):
             continue
-        text = own[0] if own and own[0] else lab["text"]
+        text = fill(own[0] if own and own[0] else lab["text"])
         if lab and lab.get("number"):
             n += 1
             text = f"{n} · {text}"
@@ -326,7 +331,12 @@ def program(
 
 def burn(doc: dict, cfg: dict, d: Path, suffix: str, fps: float, height: int) -> None:
     font = fonts(cfg, d)
-    ass(timed(labels([(s["id"], *span(s)) for s in ran(doc["shots"])], cfg), cfg), cfg, d / "captions.ass", font)
+    ass(
+        timed(labels([(s["id"], *span(s)) for s in ran(doc["shots"])], cfg), cfg),
+        cfg,
+        d / "captions.ass",
+        font,
+    )
     vf = ass_filter("captions.ass", "fonts" if (d / "fonts").is_dir() else None)
     src, dst = f"master{suffix}.mp4", f"master{suffix}_captioned.mp4"
     print(f"  $ (in {d}) ffmpeg -i {src} -vf {vf} … {dst}", flush=True)
@@ -343,7 +353,14 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
     by_id = {s["id"]: s for s in ran(doc["shots"])}
     segs: list[dict] = []
     if spec.get("lead_black_s"):
-        segs.append({"kind": "black", "name": "on camera (open)", "s": float(spec["lead_black_s"]), "on_camera": True})
+        segs.append(
+            {
+                "kind": "black",
+                "name": "on camera (open)",
+                "s": float(spec["lead_black_s"]),
+                "on_camera": True,
+            }
+        )
     for item in spec["segments"]:
         item = {"shot": item} if isinstance(item, str) else item
         if "slot" in item:
@@ -354,7 +371,14 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
                 seg["captions"] = list(item["captions"])
             segs.append(seg)
         elif "card" in item:
-            segs.append({"kind": "card", "name": f"card: {item['card']}", "s": float(item["s"]), "text": item["text"]})
+            segs.append(
+                {
+                    "kind": "card",
+                    "name": f"card: {item['card']}",
+                    "s": float(item["s"]),
+                    "text": item["text"],
+                }
+            )
         elif item["shot"] in by_id:
             s = by_id[item["shot"]]
             a, b = span(s)
@@ -373,9 +397,18 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
                 seg["min_s"] = min(float(item["min_s"]), seg["s"])  # never trimmed below this
             segs.append(seg)
         else:
-            print(f"  {item['shot']}: not in the recording (skipped or failed), left out of the cut")
+            print(
+                f"  {item['shot']}: not in the recording (skipped or failed), left out of the cut"
+            )
     if spec.get("tail_black_s"):
-        segs.append({"kind": "black", "name": "on camera (close)", "s": float(spec["tail_black_s"]), "on_camera": True})
+        segs.append(
+            {
+                "kind": "black",
+                "name": "on camera (close)",
+                "s": float(spec["tail_black_s"]),
+                "on_camera": True,
+            }
+        )
     fixed = sum(x["s"] for x in segs if x["kind"] != "shot")
     moving = sum(x["s"] for x in segs if x["kind"] == "shot")
     room = spec["max_s"] - fixed - 0.5  # half a second of margin for frame rounding
@@ -407,7 +440,9 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
 def cut_events(segs: list[dict], cfg: dict) -> list[tuple]:
     """The cut's captions: each shot's label (or the cut's own), a slot's placeholder captions spread
     evenly over it, and the card, all checked (the disclosure card is the one place its words go)."""
-    shots = [(x["name"], x["at"], x["at"] + x["s"], x.get("label")) for x in segs if x["kind"] == "shot"]
+    shots = [
+        (x["name"], x["at"], x["at"] + x["s"], x.get("label")) for x in segs if x["kind"] == "shot"
+    ]
     events = [(*e, "Label") for e in timed(labels(shots, cfg), cfg)]
     for x in segs:
         if x["kind"] == "card":
@@ -415,11 +450,13 @@ def cut_events(segs: list[dict], cfg: dict) -> list[tuple]:
             if len(x["text"]) > 60 or "\n" in x["text"]:
                 raise SystemExit(f"{x['name']}: a card is one line of at most 60 characters")
             events.append((x["at"], x["at"] + x["s"], x["text"], "Card"))
-        caps = x.get("captions") or []
+        caps = [fill(c) for c in x.get("captions") or []]
         for i, c in enumerate(caps):
             check_words(c, x["name"])
             a = x["at"] + x["s"] * i / len(caps)
-            events += [(*e, "Label") for e in timed([(a, a + x["s"] / len(caps), wrap(c, x["name"]))], cfg)]
+            events += [
+                (*e, "Label") for e in timed([(a, a + x["s"] / len(caps), wrap(c, x["name"]))], cfg)
+            ]
     return sorted(events, key=lambda e: e[0])
 
 

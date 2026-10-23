@@ -67,6 +67,7 @@ for p in (str(ROOT), str(ROOT / "scripts"), str(HERE)):
         sys.path.insert(0, p)
 
 from captions import AAC, NO_CLEAR, STORY_BANNED, ass, export_x264, fonts, probe, span, ts
+from story_facts import fill
 
 ON_CAMERA = ("on camera (open)", "on camera (close)")
 _SENTENCE = re.compile(r"(?<=[.!?])\s+")
@@ -229,14 +230,14 @@ def plan(cfg: dict, run: Path, cut: str, engine: str) -> list[Line]:
                 )
             seg_s = min(seg_s, (b - s["in"]) / float(s.get("speed", 1.0)))
         if item.get("in_world"):
-            turns = [dict(t) for t in item["turns"]]
+            turns = [{**t, "text": fill(t["text"])} for t in item["turns"]]
             for t in turns:
                 check_line(f"{cut}/{key} ({t['who']})", t["text"], False)
             text = " ".join(t["text"] for t in turns)
             line = Line(cut, key, text, text, False, float(s["at"]), seg_s, turns=turns,
                         at_s=float(item.get("at_s", 0.0)))  # fmt: skip
         else:
-            text = " ".join(item["text"].split())
+            text = fill(" ".join(item["text"].split()))
             verbatim = bool(item.get("verbatim"))
             check_line(f"{cut}/{key}", text, verbatim)
             if len(sentences(text)) > 2 and not verbatim:

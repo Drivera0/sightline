@@ -30,8 +30,8 @@ Builds the site with `VITE_CACHE_DIR=demo` into the run folder, serves it with `
 |---|---|---|---|
 | `call` | t0 | `/`: the pitch bar, **Follow the search**; the first coach mark; the pointer over the status line (elapsed, daylight, flyable, out, subject) and the teams at base camp | 14 s |
 | `photos` | t1 | **Next**: the clock runs 6 s over drone one's survey, 500 photos land and the map changes under its legs; **Next**: the candidates waiting in Needs you | 22 s |
-| `confirm` | t2 | **Person** on #1 (f0336-d01) and #2 (f0127-d01); the grey bag (f0452-d01): **Not a person**; the 0.18 card (recorded-f0001-d01): its model chips, **Show the second look's images**, **Person**; the pin on the map | 34 s |
-| `trace` | | **Trace** in the view switch: the f0001-d01 chain, the pointer down its steps, the model call opened | 10 s |
+| `confirm` | t2 | **Person** on #1 (f0336-d01) and #2 (f0127-d01); the grey bag (f0452-d01): **Not a person**; the 0.17 card from this flight (f0273-d02, "Second look · this flight"): its model chips, **Show the second look's images**, **Person**; the pin on the map | 34 s |
+| `trace` | | **Trace** in the view switch: the f0273-d02 chain, the pointer down its steps, the model call opened | 10 s |
 | `next` | t3 | `#m/demo?t=3`: Team One's radio call and the clue it became on the timeline, the map's move toward it; **Next**: the proposal (Team One to C2) in Needs you, its reason; **Approve** | 22 s |
 | `run` | t4 | the clock runs 6 s: teams out, drones fly their legs; Drone 2's card (link lost), Drone 3's (link degraded), Team Two on the map | 18 s |
 | `fleet` | t4 | (the Nebius cut) the D2, D3 and Team Two markers' tooltips, "Team Two heard via D3" on the timeline | 14 s |

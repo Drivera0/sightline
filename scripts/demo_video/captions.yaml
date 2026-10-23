@@ -28,9 +28,9 @@ labels:
   next:    {text: "A radio clue moves the map. The agent\nproposes; nobody moves until approved"}
   run:     {text: "Drone two loses its link.\nDrone three relays Team Two"}
   fleet:   {text: "Each drone flies its approved leg,\nlink or no link"}
-  walk:    {text: "Team One walks C2,\nthe sector the clue raised"}
+  walk:    {text: "{story_team} walks {story_sector},\nthe sector the clue raised"}
   radio:   {text: "Radio: Parakeet hears the team,\nMagpie speaks the desk's reply"}
-  find:    {text: "Found in C2, 1 h 30 min after the call"}
+  find:    {text: "Found in {find_sector} by {find_team}"}
   debrief: {text: "The after-action report, written from\nthe timeline; what breaks first"}
   # the --live shots (record.py live_shots), not in the v2 cuts
   live_link: {text: "Fleet controls cut drone two's link;\na drone relays the cut-off team"}

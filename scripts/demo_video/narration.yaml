@@ -83,13 +83,13 @@ breaks: &breaks
     recall zero point eight six four, strict VOC, and twenty-eight of those forty-six are at two sites,
     MED and CAB. The second look is a small gain. The fleet and the approvals in the demo are simulated.
 
-# Team One's call and the desk's reply (the fixture's radio lines at 14:58), as they land on the timeline
+# The finding team's call and the desk's reply, read off the fixture (story_facts.py), as they land on the timeline
 radio: &radio
   in_world: true
   at_s: 3.5           # into the shot: the clock has run to the find and the call is on the timeline
   turns:
-    - {who: team, text: "Sightline, Team One. Subject located in Charlie Two, conscious and talking, over."}
-    - {who: desk, text: "Team One, Sightline. Copy subject located in Charlie Two. Stay with the subject, over."}
+    - {who: team, text: "{find_call}"}
+    - {who: desk, text: "{find_reply}"}
 
 cuts:
   opencv:
@@ -102,14 +102,14 @@ cuts:
     trace:
       text: "Every step is in the Trace: the model call, its verdict, and who approved it."
     next:
-      text: "Team One on the radio: a possible whistle, three blasts, to the south-west, and the map moves toward it. The agent proposes Team One for Charlie Two, its reason names that clue, and nobody moves until I approve."
+      text: "{clue_team} on the radio: a {clue_text}, and the map moves toward it. The agent proposes {story_team} for {story_sector_said}, its reason names that clue, and nobody moves until I approve."
     run:
       text: "The teams walk out and the drones fly their legs. Drone two loses its link and flies its approved leg on its own, and drone three relays Team Two, who has no signal."
     walk:
-      text: "Team One walks Charlie Two, the sector the clue raised."
+      text: "{story_team} walks {story_sector_said}, the sector the clue raised."
     radio: *radio
     find:
-      text: "Found, in Charlie Two, an hour and a half after the call."
+      text: "Found: {find_team}, in {find_sector_said}."
     debrief: *breaks
     "slot: architecture":
       text: "OpenCV 5 ranks the photos, Nemotron 3.5 Super VL takes the second look, and the map tells the planner where next. Nemotron 3 Nano writes the briefings, Parakeet and Magpie work the radio, Tavily reads the conditions, and every model call goes to Nebius Token Factory."
@@ -124,15 +124,15 @@ cuts:
     confirm:
       text: "Two are plainly people, and a grey bag is not. This one scored under the line, so Nemotron 3.5 Super VL on Nebius Token Factory took a second look, and I mark Person."
     next:
-      text: "A radio clue moves the map toward Charlie Two. The agent, on Nebius Token Factory, proposes Team One for it, and nobody moves until I approve."
+      text: "A radio clue moves the map toward {story_sector_said}. The agent, on Nebius Token Factory, proposes {story_team} for it, and nobody moves until I approve."
     run:
       text: "The teams walk out and the drones fly their legs. Drone two loses its link and flies its approved leg on its own, and drone three relays Team Two, who has no signal."
     fleet:
       text: "Each drone keeps to the leg I approved, link or no link, and Team Two's position still reaches the map through drone three."
     walk:
-      text: "Team One walks Charlie Two, the sector the clue raised."
+      text: "{story_team} walks {story_sector_said}, the sector the clue raised."
     radio: *radio
     find:
-      text: "Found, in Charlie Two, an hour and a half after the call."
+      text: "Found: {find_team}, in {find_sector_said}."
     "slot: architecture":
       text: "OpenCV 5 ranks the photos, Nemotron takes the second look, and every model call runs on Nebius Token Factory."

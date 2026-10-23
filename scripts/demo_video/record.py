@@ -49,6 +49,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from capture import FrameCapture
+from story_facts import facts
 
 ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "web"
@@ -97,6 +98,8 @@ CURSOR_JS = r"""
 })();
 """
 SYNC_COLORS = ("#ff00ff", "#00ff00")
+# The t2 card the second look rescued: this flight's 0.17 detection (web/src/command/demoReview.ts)
+SECOND_LOOK = "f0273-d02"
 
 # Scrolls the element's scrolling ancestor smoothly so the element (and the heading just above it) sits in
 # the upper part of it; else scrollIntoView.
@@ -690,9 +693,17 @@ def demo_shots(d: Director) -> None:
         d.pause(1.0)
         mark_next()
         wait_mark(r"second look caught it", 4)
-        rec = card("recorded-f0001-d01")
-        if rec.count() == 0:
-            raise RuntimeError("no second-look card (recorded-f0001-d01) at t2")
+        # the card whose second look rescued it (this flight's f0273-d02 since PR #201); any card with
+        # second-look images if the scenario names another
+        rec = d.first(
+            card(SECOND_LOOK),
+            p.locator("[data-candidate]").filter(
+                has=p.get_by_role("button", name=re.compile(r"Show the second look"))
+            ),
+            timeout=3,
+        )
+        if rec is None:
+            raise RuntimeError(f"no second-look card ({SECOND_LOOK}) at t2")
         d.to(rec.locator("img").first, 1.0)
         d.pause(1.0)
         chips = d.first(rec.get_by_label("Models"), timeout=1)
@@ -711,7 +722,7 @@ def demo_shots(d: Director) -> None:
         d.click(views("Trace"))
         d.pause(1.0)
         chain = d.first(
-            p.locator('article[aria-label^="Chain f0001-d01"]'),
+            p.locator(f'article[aria-label^="Chain {SECOND_LOOK}"]'),
             p.locator('article[aria-label^="Chain"]'),
             timeout=5,
         )
@@ -748,7 +759,9 @@ def demo_shots(d: Director) -> None:
         mark_next()
         wait_mark(r"agent proposes", 4)
         prop = d.first(
-            p.locator("[data-story-proposal]"), p.locator('[data-proposal="p003"]'), timeout=4
+            p.locator("[data-story-proposal]"),
+            p.locator("[data-proposal]").filter(has_text="Assign sector"),
+            timeout=4,
         )
         if prop is None:
             raise RuntimeError("no story proposal at t3")
@@ -786,16 +799,16 @@ def demo_shots(d: Director) -> None:
             d.pause(1.6)
 
     def walk():
-        """t4, the second mark: Team One walks C2, the sector the clue raised."""
+        """t4, the second mark: the story's team walks its sector (the fixture's first assignment)."""
         mark_next()
         wait_mark(r"walks", 4)
-        t1 = d.first(team_on_map("T1"), timeout=2)
+        t1 = d.first(team_on_map(facts().get("story_team_id", "T1")), timeout=2)
         if t1 is not None:
             d.to(t1, 1.2)
         d.pause(2.5)
 
     def radio():
-        """The radio, one turn: the timeline on Radio; the clock runs to t5 and Team One's call lands, then
+        """The radio, one turn: the timeline on Radio; the clock runs to t5 and the finding team's call lands, then
         the desk's reply (voiced in Magpie by narrate.py, in-world)."""
         tab = d.first(
             timeline().get_by_role("group", name="Show").get_by_role("button", name="Radio"),
@@ -809,13 +822,13 @@ def demo_shots(d: Director) -> None:
         wait_mark(r"Subject located|finds the subject", 6)
         call_in = d.first(
             timeline().locator(
-                'li[data-kind="radio"]', has_text=re.compile(r"^.*Sightline, Team One\. Subject")
+                'li[data-kind="radio"]', has_text=facts().get("find_call", "Subject located")[:40]
             ),
             timeout=2,
         )
         reply = d.first(
             timeline().locator(
-                'li[data-kind="radio"]', has_text=re.compile(r"Team One, Sightline\. Copy subject")
+                'li[data-kind="radio"]', has_text=facts().get("find_reply", "Copy subject")[:40]
             ),
             timeout=2,
         )
@@ -831,7 +844,7 @@ def demo_shots(d: Director) -> None:
             raise RuntimeError("the status line does not say Found at t5")
         d.to(found, 1.0)
         d.pause(1.8)
-        t1 = d.first(team_on_map("T1"), timeout=2)
+        t1 = d.first(team_on_map(facts().get("find_team_id", "T1")), timeout=2)
         if t1 is not None:
             d.to(t1, 1.2, 0.5, 0.5)
         d.pause(4.5)  # hold on the map
