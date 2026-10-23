@@ -16,7 +16,7 @@
 # The radio exchange is in-world: Team One's call and the desk's reply are always Magpie (the radio desk's
 # own voice and model), whatever engine narrates, placed `at_s` into the shot, with no narrator over them.
 
-engine: magpie        # the default; narrate.py --engine magpie|elevenlabs|kokoro, --voice <name>
+engine: kokoro        # the narrator Dan chose (am_michael); narrate.py --engine magpie|elevenlabs|kokoro, --voice <name>
 wpm: 150              # the budget a line is checked against before synthesis
 lead_s: 0.25          # a line starts this long after its shot
 gap_s: 0.25           # silence between two sentences of a line, and the least between two lines
@@ -24,7 +24,7 @@ max_overrun_s: 0.5    # a line longer than its shot by more than this loses its 
 lufs: -16             # loudness of the narration track (EBU R128, ffmpeg loudnorm, two passes)
 true_peak_db: -1.5
 
-# The voices. The narrator is not chosen yet: everything here works with any of them.
+# The voices. The narrator is Kokoro am_michael (chosen by ear 2026-10-22); the others stay available.
 engines:
   magpie:             # NVIDIA Magpie TTS through the radio desk's wrapper (sightline/radio/tts.py), NeMo env
     voice: en_female  # tts.py VOICES: Magpie baked speaker 0, Sightline's one voice
