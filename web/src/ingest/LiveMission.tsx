@@ -298,8 +298,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // assign plays through the guided search's engine (sim.ts)
   const [decides, setDecides] = useState(false);
   useEffect(() => {
-    if (demo && !guided && story.playing && !story.tour) setDecides(true);
-  }, [demo, guided, story.playing, story.tour]);
+    if (demo && !guided && story.playing) setDecides(true);
+  }, [demo, guided, story.playing]);
   const hold = demo && !guided && decides;
   const derivedIds = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -805,7 +805,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               review={review}
               reviewCount={reviewCount}
               reviewFrame={reviewFrame}
-              autoReview={!(demo && (story.tour || run.on))}
+              autoReview={!(demo && run.on)}
               briefings={briefings}
               storyProposal={run.on ? run.proposal : null}
               voice={voice}
