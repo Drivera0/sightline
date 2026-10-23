@@ -46,3 +46,11 @@ describe("Scrubber", () => {
     expect(onToggle).toHaveBeenCalled();
   });
 });
+
+describe("Scrubber in the story (judges 2026-10-23: a tap on a phone skipped t0 to t3)", () => {
+  it("lets only the next and earlier checkpoints be tapped", () => {
+    render(<Scrubber t={0} progress={1} playing={false} at={clockAt(0)} stepOnly onSeek={vi.fn()} onToggle={() => undefined} />);
+    const ticks = screen.getByRole("group", { name: "Mission time" }).querySelectorAll("li button");
+    expect([...ticks].map((b) => (b as HTMLButtonElement).disabled)).toEqual([false, false, true, true, true, true, true]);
+  });
+});
