@@ -12,7 +12,19 @@ source of chance):
   LKP; the uniform placeholder for a category with no checked distance rings);
 - **3 or 4 clues**, on the way from the LKP towards the person (as a person walking leaves them),
   of kinds that fit the category, each with a time, a reliability and who reported it;
-- the **base camp**: the staging point nearest the LKP (``STAGING``, demo points on this map).
+- the **base camp**: the trailhead lot (``STAGING``) or, when a road comes nearer the LKP, the
+  nearest point on that road (road access): where a team can drive to, and where the drones launch
+  from and fly out to the search area (``survey_launch``);
+- with ``min_road_distance_m`` (and ``affinity``, which carries each cell's distance to a road), the
+  **last known point** too is at least that far from a road (``MIN_ROAD_M``, 300 m, for the demo's
+  presets and shuffle: ``demo_affinity`` builds the affinity from the basemap); people go missing in
+  the terrain, not beside the car park;
+- the **distractors** (with ``frames``, the survey's photo centres in flight order): two or three
+  things a drone photo shows that look like a search but are not the person (``DISTRACTORS``: a
+  backpack, a fire ring, a shelter, other hikers), each next to a survey photo where it is
+  plausible (by a trail for the backpack, the fire ring and the hikers, off it for the shelter),
+  never near the person. The fixture adds each as an extra photo of the flight (real licensed
+  photos, ``web/public/cache-extras/distractors/``) with the live second look's verdict.
 
 Four named presets fix the seed and the category: "Overdue hiker", "Missing child", "Despondent",
 "Dementia walk-away". The prior has checked Koester distance rings only for hikers and dementia
@@ -28,6 +40,7 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
@@ -39,11 +52,23 @@ from sightline.search.prior import koester_prior, prior_source
 # Where teams can stage on the demo map (Mount Seymour); the first is the story's trailhead lot.
 # Demo points, labelled so: not a survey of the real access points.
 STAGING: tuple[tuple[str, float, float], ...] = (
-    ("Trailhead lot", 49.373, -122.949),
-    ("Forest road gate (demo point)", 49.3665, -122.9395),
-    ("Power-line access (demo point)", 49.3700, -122.9505),
-    ("Creek bridge pull-out (demo point)", 49.3740, -122.9420),
+    ("Mount Seymour trailhead lot", 49.36585, -122.94840),
 )
+ROAD_ACCESS = "Road access, {road} m from the last known point (demo point)"
+LOT_SLACK_M = 250.0  # the lot is the base camp unless a road comes this much nearer the LKP
+MIN_ROAD_M = 300.0  # the demo's presets and shuffle: LKP and person at least this far from a road
+DRONE_KMH = 36.0  # the drones' transit speed from base camp to the survey (an assumption, 10 m/s)
+
+# What a drone photo shows that looks like a search and is not the person: (kind, the review
+# answer the scripted image reviewer gives it, the object type of that answer, by a trail).
+DISTRACTORS: tuple[tuple[str, str, str | None, bool], ...] = (
+    ("backpack", "object", "backpack", True),
+    ("fire ring", "object", "fire ring", True),
+    ("shelter", "object", "shelter", False),
+    ("hikers", "not_subject", None, True),
+)
+TRAIL_M = 40.0  # "by a trail": a photo centre this close to a basemap path
+CLEAR_OF_PERSON_M = 120.0  # a distractor's photo is never this near the person
 
 KINDS = {
     # kind key: (category for the prior or None, subject line, clue texts by kind)
@@ -95,6 +120,17 @@ class ScenarioClue:
 
 
 @dataclass(frozen=True)
+class ScenarioDistractor:
+    kind: str  # "backpack" | "fire ring" | "shelter" | "hikers"
+    near_frame: str  # the survey photo it is placed after (its own photo is the next in flight)
+    lat: float
+    lon: float
+    review: str  # the image reviewer's answer: "object" or "not_subject"
+    object: str | None  # the object type for an "object" answer
+    trail_m: float  # metres from the photo centre to the nearest basemap trail
+
+
+@dataclass(frozen=True)
 class DemoScenario:
     seed: int
     name: str
@@ -108,6 +144,9 @@ class DemoScenario:
     base_camp: dict
     clues: list[ScenarioClue] = field(default_factory=list)
     person: LatLon | None = None  # truth: never in a mission file
+    lkp_road_m: float | None = None  # metres from the LKP to the nearest basemap road
+    survey_launch: dict | None = None  # {"from": base camp name, "transit_m", "transit_min"}
+    distractors: list[ScenarioDistractor] = field(default_factory=list)
 
     def public(self) -> dict:
         """Everything but where the person is."""
@@ -152,6 +191,7 @@ def generate(
     day: str = "2026-10-24",
     affinity: Any = None,
     min_road_distance_m: float | None = None,
+    frames: list[tuple[str, float, float]] | None = None,
 ) -> DemoScenario:
     """The scenario for ``seed`` on ``grid`` (``survey``: the flight's footprint corners, [lon, lat]).
 
@@ -160,15 +200,18 @@ def generate(
     multiplied by the terrain, as a mission using it would; ``min_road_distance_m`` (needs
     ``affinity``, which carries each cell's distance to a road) keeps the person at least that far
     from a mapped road, since a subject within reach of a road is usually not lost. If no cell is
-    that far, the condition is dropped."""
+    that far, the condition is dropped. With it the LKP is drawn that far from a road as well.
+    ``frames``: the survey photos' ``(id, lat, lon)`` in flight order, for the distractors."""
     preset = next(((name, kind) for name, s, kind in PRESETS.values() if s == seed), None)
     rng = np.random.default_rng(seed)
     kind = preset[1] if preset else str(rng.choice(sorted(KINDS)))
     category, subject, texts = KINDS[kind]
     name = preset[0] if preset else f"Random search (seed {seed})"
 
-    s, n, w, e = _bounds(survey, grid)
-    lkp = LatLon(lat=round(float(rng.uniform(s, n)), 6), lon=round(float(rng.uniform(w, e)), 6))
+    if min_road_distance_m is not None and affinity is None:
+        raise ValueError("min_road_distance_m needs affinity (the road distances)")
+    lkp = _lkp(rng, grid, survey, affinity if min_road_distance_m is not None else None,
+               min_road_distance_m)  # fmt: skip
 
     hour = int(rng.integers(9, 16))  # last seen between 09:00 and 15:59 local (UTC-7 in October)
     minute = int(rng.integers(0, 60))
@@ -177,8 +220,6 @@ def generate(
 
     p, _ = koester_prior(grid, lkp, category, affinity=affinity)
     if min_road_distance_m is not None:
-        if affinity is None:
-            raise ValueError("min_road_distance_m needs affinity (the road distances)")
         far = affinity.far_from_roads(min_road_distance_m)
         if np.any(p[far] > 0):
             p = np.where(far, p, 0.0)
@@ -211,12 +252,123 @@ def generate(
             reported_by="command" if clue_kind == "sighting" else f"T{int(rng.integers(1, 5))}",
         ))  # fmt: skip
 
-    camp = min(STAGING, key=lambda x: math.dist((x[1], x[2]), (lkp.lat, lkp.lon)))
+    camp = base_camp(lkp)
     return DemoScenario(
         seed=seed, name=name, kind=kind, category=category,
         prior_source=prior_source(category, affinity=affinity is not None),
         subject=subject, lkp=lkp, last_seen_at=seen.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        call_at=call.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        base_camp={"lat": camp[1], "lon": camp[2], "name": camp[0]},
-        clues=clues, person=person,
+        call_at=call.strftime("%Y-%m-%dT%H:%M:%SZ"), base_camp=camp,
+        clues=clues, person=person, lkp_road_m=round(float(road_m(lkp.lat, lkp.lon)), 1),
+        survey_launch=_launch(camp, survey),
+        distractors=pick_distractors(seed, frames or [], person),
     )  # fmt: skip
+
+
+def road_m(lat: float, lon: float) -> float:
+    """Metres to the nearest basemap road (``sightline/geo/roads.py``)."""
+    from sightline.geo.roads import distance_to_road_m
+
+    return distance_to_road_m(lat, lon)
+
+
+@lru_cache(maxsize=4)
+def _affinity_cached(grid_json: str) -> Any:
+    from sightline.geo.roads import BASEMAP
+    from sightline.geo.terrain_affinity import affinity_raster, features_from_pmtiles, grid_bbox
+
+    grid = Grid.model_validate_json(grid_json)
+    return affinity_raster(grid, features_from_pmtiles(BASEMAP, grid_bbox(grid)), "basemap")
+
+
+def demo_affinity(grid: Grid) -> Any:
+    """The terrain affinity of ``grid`` from the web's basemap (``geo.terrain_affinity``), for the
+    demo's presets and shuffle (with ``min_road_distance_m=MIN_ROAD_M``)."""
+    return _affinity_cached(grid.model_dump_json())
+
+
+def _lkp(rng: np.random.Generator, grid: Grid, survey: list[tuple[float, float]] | None,
+         affinity: Any = None, min_m: float | None = None) -> LatLon:  # fmt: skip
+    """A point inside the survey area (shrunk by a tenth). With ``min_m``: one whose cell is at least
+    that far from a road (``affinity.road_distance_m``), drawn again up to 400 times, then a cell of
+    the grid's middle half that is; none at all (a grid in a town): the first draw."""
+    from sightline.search.grid import cell_containing
+
+    s, n, w, e = _bounds(survey, grid)
+    first = None
+    for _ in range(400 if min_m is not None else 1):
+        p = LatLon(lat=round(float(rng.uniform(s, n)), 6), lon=round(float(rng.uniform(w, e)), 6))
+        first = first or p
+        if min_m is None:
+            return p
+        rc = cell_containing(grid, p)
+        if rc is not None and affinity.road_distance_m[rc[0] * grid.cols + rc[1]] >= min_m:
+            return p
+    d = affinity.road_distance_m.reshape(grid.rows, grid.cols)
+    r0, r1, c0, c1 = grid.rows // 4, 3 * grid.rows // 4, grid.cols // 4, 3 * grid.cols // 4
+    ok = [r * grid.cols + c for r in range(r0, r1) for c in range(c0, c1) if d[r, c] >= min_m]
+    if not ok:
+        return first
+    c = cell_center(grid, int(rng.choice(ok)))
+    return LatLon(lat=round(c.lat, 6), lon=round(c.lon, 6))
+
+
+def base_camp(lkp: LatLon) -> dict:
+    """The trailhead lot, unless a road comes ``LOT_SLACK_M`` nearer the LKP: then that road's
+    nearest point (road access)."""
+    from sightline.geo.roads import nearest_road_point, roads
+
+    lot = STAGING[0]
+    if not roads():
+        return {"lat": lot[1], "lon": lot[2], "name": lot[0]}
+    lat, lon, d = nearest_road_point(lkp.lat, lkp.lon)
+    if _metres(lkp.lat, lkp.lon, lot[1], lot[2]) <= d + LOT_SLACK_M:
+        return {"lat": lot[1], "lon": lot[2], "name": lot[0]}
+    return {"lat": round(lat, 6), "lon": round(lon, 6), "name": ROAD_ACCESS.format(road=round(d))}
+
+
+def _metres(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    kx = 111_320.0 * math.cos(math.radians((lat1 + lat2) / 2))
+    return math.hypot((lon2 - lon1) * kx, (lat2 - lat1) * 110_540.0)
+
+
+def _launch(camp: dict, survey: list[tuple[float, float]] | None) -> dict | None:
+    """The survey flight starts at the base camp and flies out to the search area: how far."""
+    if not survey:
+        return None
+    d = min(_metres(camp["lat"], camp["lon"], lat, lon) for lon, lat in survey)
+    return {"from": camp["name"], "transit_m": round(d),
+            "transit_min": round(d / (DRONE_KMH * 1000 / 60), 1)}  # fmt: skip
+
+
+def pick_distractors(
+    seed: int, frames: list[tuple[str, float, float]], person: LatLon | None
+) -> list[ScenarioDistractor]:
+    """Two or three of ``DISTRACTORS`` for this seed, each placed after a survey photo where it is
+    plausible and away from the person. Its own random stream (``[seed, 7]``), so the rest of the
+    scenario does not depend on it."""
+    if not frames:
+        return []
+    from sightline.geo.roads import distances_m, paths
+
+    rng = np.random.default_rng([seed, 7])
+    n = int(rng.integers(2, 4))
+    kinds = sorted(int(k) for k in rng.choice(len(DISTRACTORS), size=n, replace=False))
+    trail = distances_m([f[1] for f in frames], [f[2] for f in frames], paths())
+    used: list[int] = []
+    out = []
+    for k in kinds:
+        kind, review, obj, by_trail = DISTRACTORS[k]
+        ok = [
+            i for i, f in enumerate(frames)
+            if (trail[i] <= TRAIL_M) == by_trail
+            and (person is None or _metres(f[1], f[2], person.lat, person.lon) >= CLEAR_OF_PERSON_M)
+            and all(abs(i - j) > len(frames) // 10 for j in used)
+        ]  # fmt: skip
+        if not ok:
+            continue
+        i = int(rng.choice(ok))
+        used.append(i)
+        fid, lat, lon = frames[i]
+        out.append(ScenarioDistractor(kind=kind, near_frame=fid, lat=round(lat, 6), lon=round(lon, 6),
+                                      review=review, object=obj, trail_m=round(float(trail[i]), 1)))  # fmt: skip
+    return sorted(out, key=lambda d: d.near_frame)
