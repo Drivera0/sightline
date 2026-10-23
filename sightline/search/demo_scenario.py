@@ -52,7 +52,7 @@ from sightline.search.prior import koester_prior, prior_source
 # Where teams can stage on the demo map (Mount Seymour): the trailhead lot at the end of Mount
 # Seymour Road and three stopping places down the road, each on the basemap's road (within 2 m).
 STAGING: tuple[tuple[str, float, float], ...] = (
-    ("Mount Seymour trailhead lot", 49.36585, -122.94840),
+    ("Trailhead lot", 49.36585, -122.94840),
     ("Viewpoint lot", 49.36416, -122.94832),
     ("Creek bridge pull-out", 49.36186, -122.95080),
     ("Power-line access", 49.36080, -122.95297),

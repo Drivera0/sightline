@@ -55,7 +55,7 @@ GUST_KMH = 52.0
 # The scripted conditions update (demo only, labelled so): a forecast-page quote in the shape a Tavily
 # lookup keeps, with the source named as the demo's script, never a real page.
 GUST_QUOTE = "Wind gusting to 52 km/h over the upper slopes this afternoon"
-GUST_SOURCE = "scripted for the demo scenario (not a real forecast)"
+GUST_SOURCE = "a made-up forecast for this exercise, not a real one"
 
 
 def iso(t: datetime) -> str:
