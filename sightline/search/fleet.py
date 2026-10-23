@@ -327,7 +327,13 @@ class FramePool:
 
 
 def stamp(
-    crop: Crop, lat: float, lon: float, alt_m: float, yaw_deg: float, taken_at: str | None = None
+    crop: Crop,
+    lat: float,
+    lon: float,
+    alt_m: float,
+    yaw_deg: float,
+    taken_at: str | None = None,
+    description: str = "Sightline simulated fleet",
 ) -> bytes:
     """The crop as a JPEG with the EXIF/XMP pose lane B's ``read_pose`` reads, for this position;
     ``taken_at`` (ISO, UTC) goes in DateTimeOriginal: a photo synced late keeps its capture time."""
@@ -345,7 +351,7 @@ def stamp(
     exif.get_ifd(ExifTags.IFD.Exif)[41989] = round(f35)
     if taken_at:  # DateTimeOriginal, 'YYYY:MM:DD HH:MM:SS'
         exif.get_ifd(ExifTags.IFD.Exif)[0x9003] = taken_at[:19].replace("-", ":").replace("T", " ")
-    exif[0x010E] = "Sightline simulated fleet"  # ImageDescription: says so in every photo
+    exif[0x010E] = description  # ImageDescription: says what the photo is, in every photo
     yaw = ((yaw_deg + 180) % 360) - 180
     xmp = (
         f'<x:xmpmeta drone-dji:RelativeAltitude="+{alt_m:.1f}" drone-dji:GimbalYawDegree="{yaw:+.1f}"'
