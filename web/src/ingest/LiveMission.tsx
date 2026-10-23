@@ -293,14 +293,22 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const gOpts = useMemo(() => (guided ? guidedOptsFor(scenario, effSeed, guide!.choices, story.user) : null), [guided, scenario, effSeed, guide?.choices, story.user]);
   // the guided search's standing approval plays the agent's next picks as assignments of the visitor's
   const simUser = useMemo(() => (guided ? standingUser(scenario, effSeed, story.user, guide!.choices) : story.user), [guided, scenario, effSeed, story.user, guide?.choices]);
+  // the visitor decides (judges 2026-10-23): once they play the clock outside the story, the scenario's own
+  // approvals wait for them (missionTime.demoAt's hold) until another scenario is loaded, and what they
+  // assign plays through the guided search's engine (sim.ts)
+  const [decides, setDecides] = useState(false);
+  useEffect(() => {
+    if (demo && !guided && story.playing && !story.tour) setDecides(true);
+  }, [demo, guided, story.playing, story.tour]);
+  const hold = demo && !guided && decides;
   const derivedIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!demo || !scenario) return;
-    const at = demoAt(scenario, clockIso, simUser, gOpts);
+    const at = demoAt(scenario, clockIso, simUser, gOpts, { hold, seed: effSeed });
     const state = gOpts ? onMissionClock(at, costs) : at;
     derivedIds.current = new Set((state.events ?? []).map((e) => e.id));
     useMission.getState().useDemo(state, clockIso);
-  }, [demo, scenario, clockIso, simUser, gOpts, costs]);
+  }, [demo, scenario, clockIso, simUser, gOpts, costs, hold, effSeed]);
   // what the visitor does on the demo console is kept as events of their own, replayed when the clock moves
   useEffect(() => {
     if (!demo) return undefined;
@@ -354,6 +362,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     stopAllDemoFlights();
     useConsole.getState().reset();
     useNotify.getState().reset();
+    setDecides(false);
     useStory.setState({ user: [], answers: {}, tried: null });
     useDropped.setState({ cards: [], at: {}, status: null });
     // a new scenario in the guided search starts it again from the call
@@ -857,7 +866,15 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                 document.querySelector("figure[aria-label='Live map'], [data-testid='map-still']")?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
                 return usePick.getState().request();
               }}
-              onDecide={(pid, decision, by, reason, edits) => (run.on ? run.decide(pid, decision, by, reason, edits) : useMission.getState().decide(pid, decision, by, reason, edits))}
+              onDecide={(pid, decision, by, reason, edits) => {
+                if (run.on) return run.decide(pid, decision, by, reason, edits);
+                const p = s.proposals.find((x) => x.id === pid);
+                const done = useMission.getState().decide(pid, decision, by, reason, edits);
+                // while the visitor decides, an approved assignment sends the team (sim.ts plays the pass)
+                const team = edits?.team ?? p?.target.team;
+                if (hold && decision === "approve" && p?.kind === "assign_sector" && p.target.sector && team) return done.then(() => useMission.getState().assign(team, p.target.sector!));
+                return done;
+              }}
             />
           )}
         </main>

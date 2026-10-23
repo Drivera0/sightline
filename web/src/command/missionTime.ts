@@ -8,6 +8,7 @@
 import type { Clue, FleetState, MapBase, MapUpdate, MissionEvent, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { applyEvent, EMPTY, fleetLinksFromEvents, type MissionData } from "../lib/mission";
+import { teamOf } from "./timeline";
 import { LiveHeat, lookedAt } from "../search/live";
 import { agentPick, passesFrom, poaAfter, realOf, type Cost, type Pass, type Subject } from "./sim";
 
@@ -231,15 +232,29 @@ export function sectorsAt(base: MapBase, sectors: readonly SectorNow[], updates:
   });
 }
 
+export interface DemoOptions {
+  /**
+   * The visitor decides (guided or playing; judges 2026-10-23: p003 and p004 were approved "by Search
+   * manager" with no click): the scenario's own approvals are held, their proposals stay pending, and what
+   * followed from them (the team's tasks, its walk out, its radio, the find it made) does not happen unless
+   * the visitor assigns the team; then the guided search's engine plays it (sim.ts via `simulate`: the walk,
+   * the sweep, the seeded draw at POD, the find or the sector searched). One engine for both modes.
+   */
+  hold?: boolean;
+  /** The draws' seed (the scenario's), with `hold`. */
+  seed?: string;
+}
+
 /**
  * The demo mission as it stood at mission clock `clock`, with the visitor's own actions (`user`, events
  * the console made in demo mode) replayed on top where they had happened by then. Arrays keep the
- * fixtures' objects, so the map's incremental replay sees the same updates.
+ * fixtures' objects, so the map's incremental replay sees the same updates. A proposal the visitor
+ * decided is theirs alone: the scenario's own decision of it is not shown as well (it was logged twice).
  */
-export function demoAt(full: DemoFull, clock: string, user: readonly MissionEvent[] = [], guided: GuidedOpts | null = null): Partial<MissionData> {
+export function demoAt(full: DemoFull, clock: string, user: readonly MissionEvent[] = [], guided: GuidedOpts | null = null, opts: DemoOptions = {}): Partial<MissionData> {
   if (guided) return guidedAt(full, clock, user, guided);
-  const d = full.data;
   const c = ms(clock);
+  const d = holdFor(full.data, user, c, opts);
   const now = c >= ms(full.now);
   HOME = d.mission?.base_camp ? { lat: d.mission.base_camp.lat, lon: d.mission.base_camp.lon } : { ...TRAILHEAD };
   // the find, and when each team was last heard, as they stood at the clock
@@ -280,7 +295,56 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
     timeline: (d.timeline ?? []).filter((e) => ms(e.at) <= c),
     links: fleetLinksFromEvents(events),
   };
-  return user.filter((e) => ms(e.at) <= c).reduce(applyEvent, base);
+  const mine = user.filter((e) => ms(e.at) <= c);
+  const out = mine.reduce(applyEvent, base);
+  if (!opts.hold) return out;
+  // the visitor's assignments play through the guided search's engine
+  const sim = simulate(out, full, mine, c, opts.seed ?? "demo");
+  return { ...sim, sectors: d.mapBase ? sectorsAt(d.mapBase, sim.sectors, sim.mapUpdates) : sim.sectors };
+}
+
+const decidedBy = (user: readonly MissionEvent[], c: number) => new Set(user.filter((e) => e.type === "proposal.decided" && ms(e.at) <= c && e.ref).map((e) => e.ref as string));
+
+/**
+ * The fixtures with what the visitor decides taken out of the scenario's hands: a proposal the visitor
+ * decided loses the scenario's decision of it; with `hold`, every proposal the scenario decided by itself
+ * is pending and what followed from it is gone. Pure.
+ */
+export function holdFor(d: Partial<MissionData>, user: readonly MissionEvent[], c: number, opts: DemoOptions = {}): Partial<MissionData> {
+  const mine = decidedBy(user, c);
+  const held = new Set((d.proposals ?? []).filter((p) => p.decided_at && (mine.has(p.id) || (opts.hold && p.status !== "pending"))).map((p) => p.id));
+  if (!held.size) return d;
+  // a held assignment: the team and sector it sent, and from when
+  const heldAssign = (d.proposals ?? []).filter((p) => opts.hold && held.has(p.id) && !mine.has(p.id) && p.kind === "assign_sector" && p.target.team && p.target.sector);
+  const heldTeams = new Map(heldAssign.map((p) => [p.target.team as string, ms(p.decided_at as string)]));
+  const heldSectors = new Set(heldAssign.map((p) => `${p.target.team}|${p.target.sector}`));
+  const teamOfEvent = (e: { team?: string | null; ref?: string | null; data?: unknown; type?: string }) => {
+    const x = e.data as Record<string, unknown> | null | undefined;
+    return (e.team ?? (x?.team_id as string | undefined) ?? (e.type === "team.updated" ? e.ref : null) ?? null) as string | null;
+  };
+  const afterHeld = (team: string | null, at: string) => team !== null && heldTeams.has(team) && ms(at) >= heldTeams.get(team)!;
+  const found = d.mission?.found;
+  const findHeld = !!found && heldTeams.has(found.team);
+  const decidedHere = (refs: readonly (string | null | undefined)[]) => refs.some((r) => r && held.has(r));
+  const subjectLine = (text: string) => /subject located|subject found/i.test(text);
+  const events = (d.events ?? []).filter((e) => {
+    if (e.type === "proposal.decided" && e.ref && held.has(e.ref)) return false;
+    if (afterHeld(teamOfEvent({ ...e, team: null }), e.at)) return false;
+    if (e.type === "radio.turn" && afterHeld(teamOf(d.teams ?? [], (e.data as { callsign?: string } | null)?.callsign), e.at)) return false;
+    if (findHeld && (((e.data as { action?: string } | null)?.action === "found") || subjectLine(e.summary) || (e.type === "radio.turn" && subjectLine(JSON.stringify(e.data ?? ""))))) return false;
+    return true;
+  });
+  const timeline = (d.timeline ?? []).filter((e) => {
+    if (e.kind === "decision" && decidedHere(e.refs ?? [])) return false;
+    if (afterHeld(teamOf(d.teams ?? [], e.team ?? null), e.at)) return false;
+    if (findHeld && (e.kind === "found" || subjectLine(e.text))) return false;
+    return true;
+  });
+  const proposals = (d.proposals ?? []).map((p) => (held.has(p.id) ? { ...p, status: "pending" as const, decided_at: null, decided_by: null, decision_reason: null, edits: null } : p));
+  const tasks = (d.tasks ?? []).map((t) => (t.team_id && heldSectors.has(`${t.team_id}|${t.sector_id}`) ? { ...t, state: "proposed" as const, team_id: null, pod: null, note: null } : t));
+  const teams = (d.teams ?? []).map((t) => (heldTeams.has(t.id) ? { ...t, position: null, position_at: null, status: "standby" as const, last_heard_at: null } : t));
+  const mission = d.mission && findHeld ? { ...d.mission, found: null, status: "searching" as const } : d.mission;
+  return { ...d, events, timeline, proposals, tasks, teams, mission };
 }
 
 /** The checkpoint at or before a clock reading (where the scrubber's thumb sits). */
