@@ -107,7 +107,7 @@ export function Sourced({
       trigger={children}
       triggerClassName="cursor-help text-left [font:inherit] [color:inherit] underline decoration-text-3 decoration-dotted decoration-1 underline-offset-[0.2em] hover:decoration-text-2"
     >
-      <span className="block font-mono text-[11px] uppercase tracking-label text-text-3">Source</span>
+      <span className="block text-caption font-medium text-text-3">Source</span>
       {source}
     </Popover>
   );
@@ -120,7 +120,7 @@ export function InfoTip({ label, children, side, align }: { label: string; child
       label={label}
       side={side}
       align={align}
-      triggerClassName="inline-flex size-5 items-center justify-center rounded-full border border-border font-mono text-[11px] leading-none text-text-3 hover:border-text-2 hover:text-text"
+      triggerClassName="inline-flex size-5 items-center justify-center rounded-full border border-border text-caption leading-none text-text-3 hover:border-text-2 hover:text-text"
       trigger={<span aria-hidden="true">i</span>}
     >
       {children}

@@ -39,7 +39,7 @@ function Source({ f, lookup }: { f: Fact; lookup: Lookup | null }) {
   const page = s.url ?? lookup?.extracted[0] ?? null;
   return (
     <span className="flex flex-col gap-0.5">
-      <q className="font-mono text-text">{s.quote}</q>
+      <q className="text-text">{s.quote}</q>
       <span className="text-text-3">
         {s.url ? (
           <>
@@ -118,7 +118,7 @@ export function ConditionsPanel({
         {lookup && (
           <span className="text-caption text-text-3">
             Tavily: {lookup.searches.length} searches, {lookup.extracted.length} page{lookup.extracted.length === 1 ? "" : "s"} extracted · read by{" "}
-            <span className="font-mono text-text-2">{lookup.model ?? "a model"}</span>
+            <span className="text-text-2">{lookup.model ?? "a model"}</span>
             {lookup.ms !== null && ` in ${(lookup.ms / 1000).toFixed(1)} s`}
             {lookup.tokensIn !== null && ` (${lookup.tokensIn.toLocaleString("en")} tokens in)`}
           </span>
@@ -129,7 +129,7 @@ export function ConditionsPanel({
         {facts.map((f) => (
           <div role="group" key={f.id} className="flex flex-col gap-0.5 border-t border-line pt-2 text-caption" aria-label={f.label}>
             <dt className="text-text-3">{f.label}</dt>
-            <dd className="font-mono text-small text-text">{f.value}</dd>
+            <dd className="text-small text-text">{f.value}</dd>
             <dd>
               <Source f={f} lookup={lookup} />
             </dd>
@@ -154,7 +154,7 @@ export function ConditionsPanel({
                   </StatusPill>
                   <span className="text-text">{a.title}</span>
                   <span className="text-text-2">{a.text}</span>
-                  {quote && <q className="font-mono text-text-2">{quote}</q>}
+                  {quote && <q className="text-text-2">{quote}</q>}
                   {a.url && <Ext url={a.url} />}
                 </li>
               );

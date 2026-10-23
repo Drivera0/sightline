@@ -20,10 +20,12 @@ import type {
   SectorTask,
   Survey,
   Team,
+  TimelineEvent,
   Verdict,
 } from "../contract";
+import { sectorCells, sectorCentre } from "../search/sectorCells";
 import * as api from "./api";
-import type { Api, SectorNow } from "./api";
+import { ApiError, type Api, type SectorNow } from "./api";
 
 export const EVENT_TYPES: readonly MissionEvent["type"][] = [
   "photo.processed", "detection.new", "verdict", "map.updated", "proposal.new", "proposal.decided",
@@ -31,6 +33,8 @@ export const EVENT_TYPES: readonly MissionEvent["type"][] = [
   "mission.note",
 ];
 const MAX_EVENTS = 200;
+/** The timeline's own SSE kinds (contract TimelineEvent). */
+export const TIMELINE_KINDS: readonly TimelineEvent["kind"][] = ["radio", "clue", "detection", "decision", "checkin", "drone", "found"];
 
 // The simulated fleet's link model (sightline/search/fleet.py). Not contract models: the sim reports
 // link changes and relayed team positions as `mission.note` events (data `fleet_link` / `relay`), and
@@ -109,12 +113,14 @@ export interface MissionData {
   sectors: SectorNow[];
   /** The simulated fleet's link states and relayed team positions. */
   links: FleetLinks;
+  /** The server's timeline (GET /events, SSE kinds radio … found); empty: built from `events`. */
+  timeline: TimelineEvent[];
 }
 
 export const EMPTY: MissionData = {
   mission: null, tasks: [], teams: [], clues: [], proposals: [], verdicts: [], fleet: null,
   conditions: null, events: [], survey: null, detections: null, promoted: [], mapBase: null, mapUpdates: [], sectors: [],
-  links: NO_LINKS,
+  links: NO_LINKS, timeline: [],
 };
 
 function upsert<T>(list: readonly T[], item: T, key: (x: T) => string): T[] {
@@ -174,6 +180,12 @@ export function applyEvent(s: MissionData, ev: MissionEvent): MissionData {
     case "conditions.updated":
       if (data) next.conditions = data as Conditions;
       break;
+    case "mission.note": {
+      // the find (and any other change to the mission record) comes as a note carrying the mission
+      const m = (data as { mission?: Mission } | null)?.mission;
+      if (m) next.mission = m;
+      break;
+    }
     default:
       break;
   }
@@ -219,9 +231,59 @@ interface MissionStore extends MissionData {
   /** Re-read the sectors' POA and coverage (after the map changes; at most every 2 s). */
   refreshSectors: () => Promise<void>;
   updateTeam: (teamId: string, patch: Partial<Team>) => Promise<void>;
+  // The command post's direct actions: the search manager acts without the agent; each is logged to the
+  // timeline the way an approval is ("Search manager assigned C2 to Team One").
+  assign: (teamId: string, sector: string) => Promise<void>;
+  call: (teamId: string, text: string) => Promise<void>;
+  recall: (teamId: string) => Promise<void>;
+  searched: (sector: string, pod: number) => Promise<void>;
+  recheck: (sector: string) => Promise<void>;
+  found: (teamId: string, sector: string) => Promise<void>;
+  /** Send a drone over a sector: the demo flies one; a live mission approves the agent's leg for it. */
+  droneLeg: (sector: string, droneId?: string) => Promise<void>;
+  /** Bring a drone home: the demo lands it at base camp; a live mission approves the agent's recall for it. */
+  recallDrone: (droneId: string) => Promise<void>;
+  /** Confirm an unconfirmed clue: the read-back goes to the team that reported it. */
+  confirmClue: (clueId: string) => Promise<void>;
+  /** Demo only: an event as the server would have sent it, stamped with the demo's clock. */
+  emit: (type: MissionEvent["type"], summary: string, ref: string | null, data: unknown) => void;
 }
 
+/** Who acts on this console (the inbox's old "You are"; one name for the page). */
+export const OPERATOR_KEY = "sightline.operator";
+export function operatorName(): string {
+  try {
+    return globalThis.sessionStorage?.getItem(OPERATOR_KEY)?.trim() || "Search manager";
+  } catch {
+    return "Search manager";
+  }
+}
+
+/** A drone sees a 20 m circle under each photo; a look there misses a person about half the time. */
+export const DRONE_FOOTPRINT_M = 20;
+export const DRONE_POD = 0.5;
+
+/** A sweep over a sector's outline: east-west lines, `lines` of them, as [lon, lat] waypoints. */
+export function sweep(polygon: readonly [number, number][], lines = 8): [number, number][] {
+  const lons = polygon.map((p) => p[0]);
+  const lats = polygon.map((p) => p[1]);
+  const [w, e, s, n] = [Math.min(...lons), Math.max(...lons), Math.min(...lats), Math.max(...lats)];
+  const inset = (n - s) / (lines * 2);
+  const out: [number, number][] = [];
+  for (let i = 0; i < lines; i++) {
+    const lat = n - inset - (i * (n - s - 2 * inset)) / Math.max(1, lines - 1);
+    const row: [number, number][] = [[w + inset, lat], [e - inset, lat]];
+    out.push(...(i % 2 ? row.reverse() : row));
+  }
+  return out;
+}
+
+const is404 = (e: unknown) => e instanceof ApiError && (e.status === 404 || e.status === 405);
+
 let source: EventSourceLike | null = null;
+
+/** The demo's flights in progress (lib/demoFlight.ts registers the starter, so this module stays timer-free). */
+export const demoFlights: { start?: (legId: string) => void; stop?: (legId: string) => void } = {};
 let lastSectors = 0;
 let demoSeq = 0;
 
@@ -258,13 +320,19 @@ export const useMission = create<MissionStore>((set, get) => {
           api.getSectors(a, missionId).catch(() => [] as SectorNow[]),
         ]);
         const { events, ...rest } = state;
-        const links = await fetchLinks(a, missionId).catch(() => fleetLinksFromEvents(events));
-        set({ ...rest, events, survey, detections, mapBase, mapUpdates, sectors, promoted: [], links });
+        const [links, timeline] = await Promise.all([fetchLinks(a, missionId).catch(() => fleetLinksFromEvents(events)), api.getTimeline(a, missionId)]);
+        set({ ...rest, events, survey, detections, mapBase, mapUpdates, sectors, promoted: [], links, timeline });
         const Ctor = deps.EventSource ?? (globalThis.EventSource as unknown as EventSourceCtor);
         const es = new Ctor(api.eventsUrl(a, missionId, events.at(-1)?.id ?? null));
         source = es;
         es.onopen = () => set({ status: "live" });
         es.onerror = () => set({ status: "reconnecting" }); // EventSource retries with Last-Event-ID
+        for (const kind of TIMELINE_KINDS) {
+          es.addEventListener(kind, (e: MessageEvent) => {
+            const ev = JSON.parse(e.data as string) as TimelineEvent;
+            set((s) => (ev.id && s.timeline.some((x) => x.id === ev.id) ? s : { timeline: [...s.timeline, ev].slice(-MAX_EVENTS * 2) }));
+          });
+        }
         for (const type of EVENT_TYPES) {
           es.addEventListener(type, (e: MessageEvent) => {
             const ev = JSON.parse(e.data as string) as MissionEvent;
@@ -311,6 +379,186 @@ export const useMission = create<MissionStore>((set, get) => {
       } catch {
         /* the next map update tries again */
       }
+    },
+
+    assign: async (teamId, sector) => {
+      const a = get().api;
+      const team = get().teams.find((t) => t.id === teamId);
+      const by = operatorName();
+      if (a) {
+        try {
+          await api.assignTeam(a, mid(), teamId, sector);
+          return;
+        } catch (e) {
+          if (!is404(e)) return void set({ error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      // a team re-tasked from another sector leaves it open again
+      for (const t of get().tasks.filter((x) => x.team_id === teamId && x.sector_id !== sector && (x.state === "assigned" || x.state === "in_progress"))) {
+        await get().setTask(t.sector_id, { state: "proposed", team_id: null });
+      }
+      await get().setTask(sector, { state: "assigned", team_id: teamId });
+      await get().updateTeam(teamId, { status: "assigned" });
+      if (!a) demoEvent("mission.note", `${by} assigned ${sector} to ${team?.callsign ?? teamId}`, sector, { action: "assign", by, team: teamId, sector });
+    },
+
+    call: async (teamId, text) => {
+      const a = get().api;
+      const team = get().teams.find((t) => t.id === teamId);
+      if (a) {
+        try {
+          await api.callTeam(a, mid(), teamId, text);
+        } catch (e) {
+          set({ error: e instanceof Error ? e.message : String(e) });
+        }
+        return;
+      }
+      const callsign = team?.callsign ?? teamId;
+      const turn = (id: string, direction: "in" | "out", transcript: string) => ({
+        id, direction, callsign, transcript, reply: null, audio: null, state: direction === "out" ? "transmitted" : "answered",
+        actions: [], asr_ms: null, llm_ms: null, tts_ms: null, at: now(),
+      });
+      const n = demoSeq + 1;
+      demoEvent("radio.turn", `Sightline to ${callsign}: ${text}`, `u-r${n}`, turn(`u-r${n}`, "out", text));
+      // the demo's teams answer every call (a simulation: the disclosure chip says so)
+      demoEvent("radio.turn", `${callsign}: copy`, `u-r${n}a`, turn(`u-r${n}a`, "in", `Sightline, ${callsign}. Copy, over.`));
+    },
+
+    recall: async (teamId) => {
+      const a = get().api;
+      const team = get().teams.find((t) => t.id === teamId);
+      const by = operatorName();
+      if (a) {
+        try {
+          await api.recallTeam(a, mid(), teamId);
+          return;
+        } catch (e) {
+          if (!is404(e)) return void set({ error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      await get().updateTeam(teamId, { status: "returning" });
+      if (!a) {
+        demoEvent("mission.note", `${by} recalled ${team?.callsign ?? teamId} to base camp`, teamId, { action: "recall", by, team: teamId });
+        await get().call(teamId, "return to base camp, over.");
+      }
+    },
+
+    searched: async (sector, pod) => {
+      const a = get().api;
+      const task = get().tasks.find((t) => t.sector_id === sector);
+      const by = operatorName();
+      if (a) {
+        try {
+          await api.markSearched(a, mid(), sector, pod);
+          return;
+        } catch (e) {
+          if (!is404(e)) return void set({ error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      await get().setTask(sector, { state: "searched", team_id: task?.team_id ?? null, pod });
+      if (task?.team_id) await get().updateTeam(task.team_id, { status: "standby" });
+      if (a) return;
+      // the demo's map: the sector's ground evidence lowers its cells (a step at the POD, as the server does)
+      const base = get().mapBase;
+      const cells = base ? (sectorCells(base, get().sectors).get(sector) ?? []) : [];
+      if (base && cells.length) {
+        const seq = (get().mapUpdates.at(-1)?.seq ?? 0) + 1;
+        const u: MapUpdate = { seq, kind: "step", source: "ground", ref: sector, cells: cells.map((i) => [i, pod] as [number, number]), at: now() };
+        demoEvent("map.updated", `map update ${seq} (ground)`, sector, u);
+      }
+      demoEvent("mission.note", `${by} marked ${sector} searched at POD ${Math.round(pod * 100)} %`, sector, { action: "searched", by, sector, pod });
+    },
+
+    recheck: async (sector) => {
+      const a = get().api;
+      const by = operatorName();
+      if (a) {
+        try {
+          await api.recheckSector(a, mid(), sector);
+          return;
+        } catch (e) {
+          if (!is404(e)) return void set({ error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      await get().setTask(sector, { state: "proposed", team_id: null });
+      if (!a) demoEvent("mission.note", `${by} opened ${sector} for a recheck`, sector, { action: "recheck", by, sector });
+    },
+
+    found: async (teamId, sector) => {
+      const a = get().api;
+      const m = get().mission;
+      if (a) {
+        try {
+          const mission = await api.postFound(a, mid(), teamId, sector);
+          if (mission && typeof mission === "object" && "mission_id" in mission) set({ mission });
+        } catch (e) {
+          set({ error: e instanceof Error ? e.message : String(e) });
+        }
+        return;
+      }
+      if (!m) return;
+      const team = get().teams.find((t) => t.id === teamId);
+      const s = get().sectors.find((x) => x.sector_id === sector);
+      const at = team?.position ?? sectorCentre(s ?? {}) ?? m.area.lkp;
+      const mission: Mission = { ...m, status: "found", found: { team: teamId, sector, lat: at.lat, lon: at.lon, at: now() } };
+      demoEvent("mission.note", `Found: ${team?.callsign ?? teamId} has the subject in ${sector}`, sector, { action: "found", by: operatorName(), mission });
+    },
+
+    recallDrone: async (droneId) => {
+      const a = get().api;
+      if (a) {
+        const p = get().proposals.find((x) => x.status === "pending" && x.kind === "retask_drone" && x.target.drone === droneId && x.target.home !== undefined);
+        if (!p) return void set({ error: "No recall is proposed for this drone: the agent proposes one when conditions or the battery call for it." });
+        return get().decide(p.id, "approve", operatorName());
+      }
+      const fleet = get().fleet;
+      const d = fleet?.drones.find((x) => x.id === droneId);
+      if (!fleet || !d) return;
+      demoFlights.stop?.(d.leg_id ?? "");
+      const home = get().mission?.base_camp ?? null;
+      const next: FleetState = {
+        ...fleet,
+        legs: fleet.legs.map((l) => (l.id === d.leg_id ? { ...l, status: "cancelled" } : l)),
+        drones: fleet.drones.map((x) => (x.id === droneId ? { ...x, status: "idle", leg_id: null, position: home ? { lat: home.lat, lon: home.lon } : x.position } : x)),
+      };
+      demoEvent("fleet.updated", `${d.name} recalled to base camp by ${operatorName()}`, droneId, next);
+    },
+
+    droneLeg: async (sector, droneId) => {
+      const a = get().api;
+      if (a) {
+        const p = get().proposals.find((x) => x.status === "pending" && (x.kind === "drone_leg" || x.kind === "retask_drone") && (x.target.sector === sector || x.leg?.sector_id === sector));
+        if (!p) return void set({ error: `No drone leg is proposed for ${sector} yet: the agent proposes legs as photos and clues come in.` });
+        return get().decide(p.id, "approve", operatorName());
+      }
+      const fleet = get().fleet;
+      const s = get().sectors.find((x) => x.sector_id === sector);
+      if (!fleet || !s?.polygon?.length) return;
+      const busy = new Set(fleet.legs.filter((l) => l.status === "flying").map((l) => l.drone_id));
+      const drone = droneId ? fleet.drones.find((d) => d.id === droneId) : [...fleet.drones].filter((d) => !busy.has(d.id) && d.status !== "offline").sort((x, y) => y.battery_pct - x.battery_pct)[0];
+      if (!drone) return void set({ error: "Every drone is flying a leg: recall one or wait for a leg to end." });
+      const id = `L${String(fleet.legs.length + 1).padStart(3, "0")}`;
+      const leg = { id, drone_id: drone.id, sector_id: sector, waypoints: sweep(s.polygon), altitude_m: 50, est_minutes: 12, expected_clearance: 0, score_per_min: 0, reason: `sent by ${operatorName()}`, status: "flying" as const };
+      const next: FleetState = {
+        ...fleet,
+        // a drone re-tasked mid-leg leaves its old leg
+        legs: [...fleet.legs.map((l) => (l.id === drone.leg_id ? { ...l, status: "cancelled" as const } : l)), leg],
+        drones: fleet.drones.map((d) => (d.id === drone.id ? { ...d, status: "flying", leg_id: id } : d)),
+        updated_at: now(),
+      };
+      demoEvent("fleet.updated", `${id} for ${drone.name} over ${sector} (sent by ${operatorName()})`, id, next);
+      demoFlights.stop?.(drone.leg_id ?? "");
+      demoFlights.start?.(id);
+    },
+
+    emit: (type, summary, ref, data) => demoEvent(type, summary, ref, data),
+
+    confirmClue: async (clueId) => {
+      const c = get().clues.find((x) => x.id === clueId);
+      if (!c) return;
+      const team = get().teams.find((t) => t.id === c.reported_by || t.callsign === c.reported_by);
+      if (team) await get().call(team.id, `read back: ${c.text}. Confirm, over.`);
+      if (!get().api) demoEvent("clue.added", `${c.id} confirmed`, c.id, { ...c, confirmed: true });
     },
 
     updateTeam: async (teamId, patch) => {

@@ -1,27 +1,38 @@
-// B-T1: drone legs. Proposed (waiting in the approval inbox) faint and dashed; approved solid; flying
-// solid and thicker. Done legs are not drawn. A cancelled leg (a re-task) does not vanish: it fades out
-// over CANCEL_FADE_MS from when the map first saw it cancelled, and a short dashed trail runs from the
+// B-T1: drone legs. Proposed (waiting in Needs you) and approved-not-flown dashed; the flying leg solid;
+// flown and cut-short legs at 20 %. A cancelled leg (a re-task) fades from full to that over
+// CANCEL_FADE_MS from when the map first saw it cancelled, and a short dashed trail runs from the
 // diversion point to the drone's new leg while that leg is approved or flying (`retaskFeatures`).
 // Built by lane A for lane B (#74).
 import type { FleetState, Leg, Proposal } from "../../contract";
 import type { LonLat } from "./fleetMotion";
 import type { MissionFeature } from "./missionFeature";
 
-export type LegStyle = "proposed" | "approved" | "flying" | "cancelled" | "diverted";
+export type LegStyle = "proposed" | "approved" | "flying" | "cancelled" | "diverted" | "past";
 
 /** How long a cancelled leg takes to fade out (ms). */
 export const CANCEL_FADE_MS = 1500;
 
 const line = (id: string, style: LegStyle, coords: unknown, extra: Record<string, unknown> = {}): MissionFeature => ({
   type: "Feature",
-  properties: { kind: "leg", id, label: "", tone: style === "proposed" || style === "cancelled" || style === "diverted" ? "muted" : "accent", style, ...extra },
+  properties: { kind: "leg", id, label: "", tone: style === "proposed" || style === "cancelled" || style === "diverted" || style === "past" ? "muted" : "accent", style, ...extra },
   geometry: { type: "LineString", coordinates: coords },
 });
 
+/**
+ * The legs to draw: the active (flying) leg solid, approved legs not yet flown and proposed ones dashed,
+ * and every leg already flown or cut short ("past") at 20 %, so the map shows where the drones have been
+ * without a tangle of sweep lines.
+ */
 export function legFeatures(fleet: FleetState | null, proposals: readonly Proposal[] = []): MissionFeature[] {
-  const flown = (fleet?.legs ?? []).filter((l) => l.status === "approved" || l.status === "flying");
+  const legs = fleet?.legs ?? [];
+  const now = legs.filter((l) => l.status === "approved" || l.status === "flying");
+  const past = legs.filter((l) => l.status === "done" || l.status === "cancelled");
   const proposed = proposals.filter((p) => p.status === "pending" && p.leg);
-  return [...proposed.map((p) => line(p.leg!.id, "proposed", p.leg!.waypoints)), ...flown.map((l) => line(l.id, l.status as LegStyle, l.waypoints))];
+  return [
+    ...past.map((l) => line(l.id, "past", l.waypoints)),
+    ...proposed.map((p) => line(p.leg!.id, "proposed", p.leg!.waypoints)),
+    ...now.map((l) => line(l.id, l.status as LegStyle, l.waypoints)),
+  ];
 }
 
 /** The drone's leg that replaced a cancelled one: its next approved or flying leg. */

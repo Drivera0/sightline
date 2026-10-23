@@ -66,7 +66,7 @@ export function Scrubber({
           </svg>
         )}
       </button>
-      <span className="w-12 shrink-0 font-mono text-small text-text" title={`Mission clock, ${zoned(at)} (${utcLabel(at)})`} aria-live="off">
+      <span className="w-12 shrink-0 text-small text-text" title={`Mission clock, ${zoned(at)} (${utcLabel(at)})`} aria-live="off">
         {local(at)}
       </span>
       <div className="relative min-w-0 flex-1">

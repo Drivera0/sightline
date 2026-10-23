@@ -214,7 +214,7 @@ export function TryPhoto({ cache, dir, onResult }: { cache: CacheBundle; dir: st
             {kept.length > 0 && (
               <ul className="flex flex-wrap gap-1.5" aria-label="Detections">
                 {kept.map((b, i) => (
-                  <li key={i} className="rounded-full bg-accent/15 px-2.5 py-0.5 font-mono text-label text-accent-soft">
+                  <li key={i} className="rounded-full bg-accent/15 px-2.5 py-0.5 text-label text-accent-soft">
                     {b.conf.toFixed(2)}
                   </li>
                 ))}

@@ -7,14 +7,13 @@
 import type { Clue, FleetState, MapBase, MapUpdate, MissionEvent, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { applyEvent, EMPTY, fleetLinksFromEvents, type MissionData } from "../lib/mission";
-import { cellCenter } from "../map/heat/geometry";
 import { LiveHeat, lookedAt } from "../search/live";
 
 export type Checkpoint = 0 | 1 | 2 | 3 | 4 | 5;
 export const CHECKPOINTS_ALL: readonly Checkpoint[] = [0, 1, 2, 3, 4, 5];
 
 /** What the right-hand side of the console shows (the view switch). */
-export type StoryView = "map" | "photos" | "review" | "debrief";
+export type StoryView = "map" | "photos" | "debrief";
 
 export interface CheckpointDef {
   t: Checkpoint;
@@ -68,7 +67,7 @@ export const CHECKPOINTS: readonly CheckpointDef[] = [
     id: "confirm",
     label: "Confirm",
     at: `${DAY}21:31:00Z`,
-    view: "review",
+    view: "map",
     mark: { text: "A person confirms every candidate; the third scored only 0.18, and a second look caught it.", target: '[data-tour="review"]' },
   },
   {
@@ -79,7 +78,7 @@ export const CHECKPOINTS: readonly CheckpointDef[] = [
     view: "map",
     mark: { text: "The clues moved the map: the agent proposes Team One for C2, says why, and waits for your approval.", target: `[data-proposal="${STORY_PROPOSAL}"]` },
     gate: "approve",
-    pre: { text: "Clues move the map too: each confirmed clue changes where the person could be.", target: '[aria-label="Clue log"]' },
+    pre: { text: "Clues move the map too: each confirmed clue changes where the person could be.", target: '[data-tour="timeline"]' },
   },
   {
     t: 4,
@@ -87,7 +86,7 @@ export const CHECKPOINTS: readonly CheckpointDef[] = [
     label: "Run",
     at: `${DAY}22:00:00Z`,
     view: "map",
-    mark: { text: "Eighteen minutes on: teams are out, and B4 is searched at POD 60 %, lowered but never ruled out.", target: '[data-tour="tasks"]', aside: "Teams report by radio: open Radio." },
+    mark: { text: "Eighteen minutes on: teams are out, and B4 is searched at POD 60 %, lowered but never ruled out.", target: '[data-tour="tasks"]', aside: "Teams report by radio: hear them in the timeline." },
   },
   {
     t: 5,
@@ -154,6 +153,10 @@ function updateTimes(updates: readonly MapUpdate[]): number[] {
   });
 }
 
+type LL = { lat: number; lon: number };
+/** Where teams stage and drones launch and land: the mission's base camp (the trailhead lot by default). */
+let HOME: LL = { ...TRAILHEAD };
+
 const taskTime = (t: SectorTask) => ms(t.updated_at);
 const eventTime = (e: MissionEvent) => ms(e.at);
 
@@ -165,14 +168,12 @@ function proposalAt(p: Proposal, c: number): Proposal {
 
 /** A team before it goes out: on standby at the trailhead since the call. */
 function atTrailhead(t: Team): Team {
-  return { ...t, status: "standby", position: { ...TRAILHEAD }, position_at: checkpoint(0).at };
+  return { ...t, status: "standby", position: { ...HOME }, position_at: checkpoint(0).at };
 }
-
-type LL = { lat: number; lon: number };
 
 /** The point a fraction `f` (0..1) of the way along a path, by distance (flat earth; a few km). */
 export function alongPath(path: readonly LL[], f: number): LL {
-  if (path.length === 0) return { ...TRAILHEAD };
+  if (path.length === 0) return { ...HOME };
   if (path.length === 1 || f <= 0) return { ...path[0]! };
   const k = Math.cos((path[0]!.lat * Math.PI) / 180);
   const d = (a: LL, b: LL) => Math.hypot(b.lat - a.lat, (b.lon - a.lon) * k);
@@ -201,7 +202,7 @@ function teamsAt(teams: readonly Team[], tasks: readonly SectorTask[], c: number
     if (c < out || !t.position) return atTrailhead(t);
     const there = Math.max(out + WALK_MS, t.position_at ? ms(t.position_at) : 0);
     if (c >= there) return t;
-    return { ...t, position: alongPath([TRAILHEAD, t.position], (c - out) / (there - out)), position_at: iso(c) };
+    return { ...t, position: alongPath([HOME, t.position], (c - out) / (there - out)), position_at: iso(c) };
   });
 }
 
@@ -222,7 +223,7 @@ function fleetAt(fleet: FleetState | null | undefined, c: number, end: number): 
         const wps = (leg?.waypoints ?? []).map(([lon, lat]) => ({ lat, lon }));
         // along the leg's sweep lines as far as the waypoint nearest where it ends up, then there
         const near = wps.reduce((best, w, i) => (Math.hypot(w.lat - d.position!.lat, w.lon - d.position!.lon) < Math.hypot(wps[best]!.lat - d.position!.lat, wps[best]!.lon - d.position!.lon) ? i : best), 0);
-        const path = [{ ...TRAILHEAD }, ...wps.slice(0, wps.length ? near + 1 : 0), d.position];
+        const path = [{ ...HOME }, ...wps.slice(0, wps.length ? near + 1 : 0), d.position];
         return { ...d, status: "flying" as const, position: alongPath(path, f) };
       }),
     };
@@ -233,32 +234,12 @@ function fleetAt(fleet: FleetState | null | undefined, c: number, end: number): 
   return {
     ...fleet,
     legs: [],
-    drones: fleet.drones.map((d) => ({ ...d, status: "idle", leg_id: null, position: { ...TRAILHEAD } })),
+    drones: fleet.drones.map((d) => ({ ...d, status: "idle", leg_id: null, position: { ...HOME } })),
   };
 }
 
-/** Each sector's cells (its outline's bounding box on the grid), worked out once per map. */
-const sectorCellCache = new WeakMap<MapBase, Map<string, number[]>>();
-export function sectorCells(base: MapBase, sectors: readonly SectorNow[]): Map<string, number[]> {
-  let byId = sectorCellCache.get(base);
-  if (byId && sectors.every((s) => byId!.has(s.sector_id))) return byId;
-  byId = new Map();
-  const n = base.grid.rows * base.grid.cols;
-  const centers = Array.from({ length: n }, (_, i) => cellCenter(base.grid, i));
-  for (const s of sectors) {
-    if (!s.polygon?.length) continue;
-    const lons = s.polygon.map((p) => p[0]);
-    const lats = s.polygon.map((p) => p[1]);
-    const [w, e, south, north] = [Math.min(...lons), Math.max(...lons), Math.min(...lats), Math.max(...lats)];
-    const cells: number[] = [];
-    centers.forEach((p, i) => {
-      if (p.lon > w && p.lon < e && p.lat > south && p.lat < north) cells.push(i);
-    });
-    byId.set(s.sector_id, cells);
-  }
-  sectorCellCache.set(base, byId);
-  return byId;
-}
+export { sectorCells } from "../search/sectorCells";
+import { sectorCells } from "../search/sectorCells";
 
 /** One incremental replay per map, so scrubbing forward applies only the new updates. */
 const heatCache = new WeakMap<MapBase, LiveHeat>();
@@ -295,6 +276,11 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
   const d = full.data;
   const c = ms(clock);
   const now = c >= ms(full.now);
+  HOME = d.mission?.base_camp ? { lat: d.mission.base_camp.lat, lon: d.mission.base_camp.lon } : { ...TRAILHEAD };
+  // the find, and when each team was last heard, as they stood at the clock
+  const found = d.mission?.found && ms(d.mission.found.at) <= c ? d.mission.found : null;
+  const mission = d.mission ? { ...d.mission, found, status: found ? ("found" as const) : d.mission.status === "found" ? ("searching" as const) : d.mission.status } : d.mission;
+  const heardBy = (t: Team): Team => (t.last_heard_at && ms(t.last_heard_at) > c ? { ...t, last_heard_at: null } : t);
   const allTasks = d.tasks ?? [];
   const allUpdates = d.mapUpdates ?? [];
   const times = updateTimes(allUpdates);
@@ -313,8 +299,9 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
   const base: MissionData = {
     ...EMPTY,
     ...d,
+    mission: mission ?? null,
     tasks,
-    teams: now ? (d.teams ?? []).map((t) => (t.position ? t : atTrailhead(t))) : teamsAt(d.teams ?? [], allTasks, c),
+    teams: (now ? (d.teams ?? []).map((t) => (t.position ? t : atTrailhead(t))) : teamsAt(d.teams ?? [], allTasks, c)).map(heardBy),
     clues,
     proposals,
     fleet: now ? (d.fleet ?? null) : fleetAt(d.fleet, c, ms(full.now)),
@@ -322,6 +309,8 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
     mapUpdates,
     sectors,
     verdicts: [],
+    // the server's timeline, as it stood at the clock
+    timeline: (d.timeline ?? []).filter((e) => ms(e.at) <= c),
     links: fleetLinksFromEvents(events),
   };
   return user.filter((e) => ms(e.at) <= c).reduce(applyEvent, base);

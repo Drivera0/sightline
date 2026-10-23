@@ -69,7 +69,7 @@ export function RadioClip({ className = "" }: { className?: string }) {
       <audio ref={audio} src={RADIO_CLIP.src} preload="none" />
       <details className="text-small text-text-2">
         <summary className="sl-tap inline-flex cursor-pointer items-center text-text-3 hover:text-text-2">Transcript</summary>
-        <p className="mt-1 rounded-sm border border-line bg-surface-solid px-3 py-2 font-mono text-small text-text-2">{RADIO_CLIP.transcript}</p>
+        <p className="mt-1 rounded-sm border border-line bg-surface-solid px-3 py-2 text-small text-text-2">{RADIO_CLIP.transcript}</p>
       </details>
     </div>
   );

@@ -8,7 +8,7 @@ import "../shell/theme.css";
 import { useMission } from "../lib/mission";
 import type { AssignmentCard } from "../contract";
 import { AssignmentCardView } from "./AssignmentCardView";
-import { CommandView } from "./CommandView";
+import { CommandView, storeActions } from "./CommandView";
 import { DEMO_CACHE, loadDemoMission } from "./demoMission";
 import cardB3 from "./__fixtures__/card_sector_B3.json";
 import gpxB3 from "./__fixtures__/sample.gpx?url";
@@ -35,7 +35,7 @@ function Dev() {
   if (!now) return <p className="p-6 text-text-3">Loading the demo mission…</p>;
   const m = useMission.getState();
   return (
-    <main className="mx-auto max-w-5xl p-4 lg:p-8">
+    <main className="flex h-dvh flex-col p-3">
       <CommandView
         mission={s.mission}
         status={s.status}
@@ -45,9 +45,14 @@ function Dev() {
         teams={s.teams}
         clues={s.clues}
         proposals={s.proposals}
+        events={s.events}
+        fleet={s.fleet}
+        links={s.links}
         imageUrl={(rel) => `${DEMO_CACHE}/${rel}`}
-        onSetTask={(sector, body) => m.setTask(sector, body)}
-        onUpdateTeam={(id, patch) => m.updateTeam(id, patch)}
+        actions={storeActions()}
+        map={<div className="h-full rounded-lg border border-border" />}
+        review={null}
+        reviewCount={0}
         onAddClue={(draft) => m.addClue(draft)}
         onDecide={(pid, decision, by, reason, edits) => m.decide(pid, decision, by, reason, edits)}
         now={() => now}

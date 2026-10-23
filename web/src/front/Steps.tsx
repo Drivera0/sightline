@@ -54,7 +54,7 @@ export function Steps() {
             {PICTURES[i]}
           </svg>
           <span className="flex items-baseline gap-1.5 text-small font-medium text-text">
-            <span className="font-mono text-caption text-accent">{i + 1}</span>
+            <span className="text-caption text-accent">{i + 1}</span>
             {s.title}
           </span>
           <span className="text-caption text-text-2">{HOW_IT_WORKS_SHORT[i]}</span>

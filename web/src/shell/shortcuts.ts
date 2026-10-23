@@ -17,18 +17,23 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Views",
     shortcuts: [
-      { keys: ["1", "2", "3", "4", "5", "6"], description: "Map, Photos, Review, Trace, Debrief, Radio" },
+      { keys: ["1", "2", "4", "5"], description: "Map (the console), Photos, Trace, Debrief" },
+      { keys: ["3"], description: "Needs you: proposals, candidates to review, overdue teams" },
+      { keys: ["6"], description: "The radio: the timeline on Radio, the talk bar ready" },
       { keys: ["C"], description: "Back to the map" },
     ],
   },
   {
     title: "Console",
     shortcuts: [
-      { keys: ["Tab"], description: "Move to the next proposal, sector or team" },
+      { keys: ["Tab"], description: "Move to the next card, sector or team" },
       { keys: ["A"], description: "Approve the focused proposal" },
       { keys: ["X"], description: "Reject the focused proposal (asks for a one-line reason)" },
+      { keys: ["E"], description: "Edit the focused proposal before approving (team, briefing)" },
+      { keys: ["V"], description: "Hold to talk to the team picked in the talk bar" },
       { keys: ["W"], description: "Open or close the Conditions panel: sources, quotes, the flyability gate" },
       { keys: ["L"], description: "Open or close the map legend" },
+      { keys: ["Esc"], description: "Close the sector popover, cancel Task mode" },
     ],
   },
   {

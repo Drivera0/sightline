@@ -3,8 +3,10 @@
 //
 //   #                          → #m/demo (the landing: the console on the demo mission at t0, the pitch bar)
 //   #m/demo?t=0..5             the story at a checkpoint (the coach mark on; t0 is the landing)
-//   #m/<id>/<view>[?t=0..5]    a view of a mission: map (the console), photos, review, trace, debrief;
-//                              radio for phones; on the demo, ?t= sets the mission clock, none is "now"
+//   #m/<id>/<view>[?t=0..5]    a view of a mission: map (the console), photos, trace, debrief; on the
+//                              demo, ?t= sets the mission clock, none is "now"
+//   #m/<id>/map?needs          the console with Needs You in front (#m/<id>/review lands here)
+//   #m/<id>/map?radio          the console with the timeline on Radio and the talk bar ready (#m/<id>/radio)
 //   #m/<id>/map/conditions     the console with the Conditions panel open
 //   #m/<id>/trace?log          the trace view on its event log
 //   #m/<id>/debrief?judges     the debrief with "Where to look, in order" open (#judges: #m/demo?t=5&judges)
@@ -19,16 +21,14 @@
 
 import type { Checkpoint } from "../command/missionTime";
 
-export type View = "map" | "photos" | "review" | "trace" | "debrief" | "radio";
+export type View = "map" | "photos" | "trace" | "debrief";
 
 /** The view switch, in the order the work flows; each says in a few words what it shows (its tooltip). */
 export const VIEWS: readonly { id: View; label: string; key: string; what: string }[] = [
-  { id: "map", label: "Map", key: "M", what: "the map, the task board and the approvals waiting for you" },
-  { id: "photos", label: "Photos", key: "P", what: "the drone photos as they land, and Try a photo" },
-  { id: "review", label: "Review", key: "R", what: "candidates the detector flagged, for a person to confirm" },
-  { id: "trace", label: "Trace", key: "T", what: "every step the agent took, and the event log" },
-  { id: "debrief", label: "Debrief", key: "D", what: "what the mission did, the measured results and the exports" },
-  { id: "radio", label: "Radio", key: "O", what: "the radio desk: teams report here and briefings go out" },
+  { id: "map", label: "Map", key: "1", what: "the console: resources, the map, what needs you and the timeline" },
+  { id: "photos", label: "Photos", key: "2", what: "the drone photos as they land, and Try a photo" },
+  { id: "trace", label: "Trace", key: "4", what: "every step the agent took, and the event log" },
+  { id: "debrief", label: "Debrief", key: "5", what: "what the mission did, the measured results and the exports" },
 ];
 const VIEW_IDS: readonly string[] = VIEWS.map((v) => v.id);
 
@@ -40,8 +40,10 @@ export type Route =
       view: View | null;
       /** The demo mission's clock, at a checkpoint. */
       t: Checkpoint | null;
-      /** Something open on arrival: the Conditions panel, the event log, For judges, Try a photo. */
-      open: { conditions?: boolean; log?: boolean; judges?: boolean; try?: boolean };
+      /** Something open on arrival: the Conditions panel, the event log, For judges, Try a photo, Needs You, the radio. */
+      open: { conditions?: boolean; log?: boolean; judges?: boolean; try?: boolean; needs?: boolean; radio?: boolean };
+      /** The demo's scenario seed (`?s=`), when the address names one. */
+      seed?: string | null;
     }
   | { kind: "card"; id: string; sector: string }
   | { kind: "new" }
@@ -75,6 +77,9 @@ const OLD_VIEWS: Readonly<Record<string, string>> = {
   command: "map",
   approvals: "map",
   feed: "trace?log",
+  // the review folds into Needs You, the radio desk into the timeline's talk bar
+  review: "map?needs",
+  radio: "map?radio",
 };
 
 /** The address an old hash should be replaced with, or null when it is already the canonical one. */
@@ -110,8 +115,11 @@ export function routeFromHash(hash: string): Route {
     ...(q.has("log") ? { log: true } : {}),
     ...(q.has("judges") ? { judges: true } : {}),
     ...(q.has("try") ? { try: true } : {}),
+    ...(q.has("needs") ? { needs: true } : {}),
+    ...(q.has("radio") ? { radio: true } : {}),
   };
-  return { kind: "mission", id, view, t: id === "demo" ? t : null, open };
+  const seed = id === "demo" ? q.get("s") : null;
+  return { kind: "mission", id, view, t: id === "demo" ? t : null, open, ...(seed ? { seed } : {}) };
 }
 
 /** A mission view's address, with the demo's clock when it is not "now". */
