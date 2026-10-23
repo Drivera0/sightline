@@ -111,27 +111,52 @@ function crop(bitmap: ImageBitmap, [x0, y0, x1, y1]: [number, number, number, nu
   return c.toDataURL("image/jpeg", 0.85);
 }
 
-/** The sample pack: the release's photos when the build names them, else the demo survey's own. */
-async function samples(cache: CacheBundle | null, dir: string): Promise<Item[]> {
-  const url = import.meta.env.VITE_SAMPLE_PHOTOS_URL?.trim();
-  if (url && navigator.onLine) {
+/**
+ * The sample pack: 20 frames of the demo flight (f0256 to f0275, people in f0273) with their EXIF GPS,
+ * altitude and heading written, published as a release asset. VITE_SAMPLE_PHOTOS_URL can point at a copy
+ * (same origin works everywhere). GitHub's download redirect does not allow a page on another site to
+ * read it, so where it is blocked (or offline) the demo flight's own photos are used, with their recorded
+ * poses, and the page says so.
+ */
+export const SAMPLE_PACK_URL = "https://github.com/Drivera0/sightline/releases/download/sample-photos/sightline-sample-photos.zip";
+
+export async function unzipPhotos(buf: ArrayBuffer): Promise<Item[]> {
+  const { unzipSync } = await import("fflate");
+  const files = unzipSync(new Uint8Array(buf), { filter: (f) => /\.(jpe?g)$/i.test(f.name) && !f.name.startsWith("__MACOSX") });
+  return Object.entries(files)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(0, SAMPLE_COUNT)
+    .map(([name, data]) => ({ blob: new Blob([data as BlobPart], { type: "image/jpeg" }), name: name.split("/").pop() ?? name }));
+}
+
+async function samples(cache: CacheBundle | null, dir: string): Promise<{ items: Item[]; note: string | null }> {
+  const url = import.meta.env.VITE_SAMPLE_PHOTOS_URL?.trim() || SAMPLE_PACK_URL;
+  if (navigator.onLine) {
     try {
-      const j = (await (await fetch(url)).json()) as string[] | { photos: string[] };
-      const list = (Array.isArray(j) ? j : j.photos).slice(0, SAMPLE_COUNT);
-      return await Promise.all(list.map(async (u) => ({ blob: await (await fetch(u)).blob(), name: u.split("/").pop() ?? u })));
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(String(r.status));
+      if (/\.zip($|\?)/.test(url) || (r.headers.get("content-type") ?? "").includes("zip") || (r.headers.get("content-type") ?? "").includes("octet-stream")) {
+        const items = await unzipPhotos(await r.arrayBuffer());
+        if (items.length) return { items, note: null };
+      } else {
+        const j = (await r.json()) as string[] | { photos: string[] };
+        const list = (Array.isArray(j) ? j : j.photos).slice(0, SAMPLE_COUNT);
+        return { items: await Promise.all(list.map(async (u) => ({ blob: await (await fetch(u)).blob(), name: u.split("/").pop() ?? u }))), note: null };
+      }
     } catch {
-      /* offline or moved: the survey's own photos instead */
+      /* blocked, offline or moved: the survey's own photos instead */
     }
   }
-  if (!cache) return [];
+  if (!cache) return { items: [], note: "The sample pack could not be fetched, and the demo survey is not loaded yet." };
   const frames = [...cache.survey.frames].sort((a, b) => b.n_candidates - a.n_candidates || a.flight_index - b.flight_index).slice(0, SAMPLE_COUNT);
-  return Promise.all(
+  const items = await Promise.all(
     frames.map(async (f) => ({
       blob: await (await fetch(cacheUrl(dir, f.file))).blob(),
       name: `${f.id}.jpg`,
       pose: { lat: f.pose.lat, lon: f.pose.lon, heading: f.pose.heading_deg, relAlt: f.pose.alt_agl_m },
     })),
   );
+  return { items, note: "The sample pack could not be read from GitHub in this browser, so these are the demo flight's own photos, placed from their recorded poses." };
 }
 
 /** The drop zone at the top of the Photos view. */
@@ -175,16 +200,22 @@ export function PhotoDrop({ demo, cache, dir, api, missionId }: { demo: boolean;
           <input type="file" accept="image/jpeg,image/png" multiple className="sr-only" onChange={(e) => void take([...(e.target.files ?? [])])} />
         </label>
         {demo && (
-          <Button className="h-8!" disabled={busy || !cache} onClick={() => void samples(cache, dir).then((items) => processDemoPhotos(items, threshold))}>
+          <Button className="h-8!" disabled={busy || !cache} onClick={() =>
+            void samples(cache, dir).then(({ items, note: why }) => {
+              setNote(why);
+              return processDemoPhotos(items, threshold);
+            })
+          }>
             Load {SAMPLE_COUNT} sample photos
           </Button>
         )}
       </div>
-      {(status || note) && (
+      {status && (
         <p role="status" className="text-caption text-text-2">
-          {note ?? status}
+          {status}
         </p>
       )}
+      {note && <p className="text-caption text-caution">{note}</p>}
       <p className="text-caption text-text-3">{demo ? "Ranked in this browser; nothing leaves the page." : "Uploaded to this mission's server, which ranks and places them."}</p>
     </section>
   );

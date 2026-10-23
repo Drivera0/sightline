@@ -130,15 +130,24 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
 /** A server's timeline entry as the console shows it. */
 export function fromTimeline(e: TimelineEvent, i: number, teams: readonly Team[], turns: readonly RadioTurn[] = []): Entry {
   return entry({
-    id: e.id ?? `t${i}`, at: e.at, kind: e.kind, team: teamOf(teams, e.team), sector: e.sector ?? null, text: e.text, refs: e.refs,
+    id: e.id ?? `t${i}`, at: e.at, kind: e.kind, team: teamOf(teams, e.team), sector: e.sector ?? null, text: e.text, refs: e.refs ?? [],
     turn: e.turn_id ? (turns.find((t) => t.id === e.turn_id) ?? null) : null,
   });
 }
 
-/** The timeline, newest first: the server's when it sends one, else built from the mission's events. */
+/**
+ * The timeline, newest first: the server's entries where it sends them (each carries the id of the event it
+ * came from), and the mission's own events for the rest (a direct action just taken, the demo's moves).
+ */
 export function buildTimeline(events: readonly MissionEvent[], teams: readonly Team[], server: readonly TimelineEvent[] = []): Entry[] {
   const turns = events.filter((e) => e.type === "radio.turn" && e.data).map((e) => e.data as unknown as RadioTurn);
-  const all = server.length ? server.map((e, i) => fromTimeline(e, i, teams, turns)) : events.map((e) => fromEvent(e, teams)).filter((x): x is Entry => x !== null);
+  const fromServer = server.map((e, i) => fromTimeline(e, i, teams, turns));
+  const known = new Set(fromServer.map((e) => e.id));
+  // a radio entry from the server answers with its turn: keep the reply line the events give
+  const derived = events.map((e) => fromEvent(e, teams)).filter((x): x is Entry => x !== null);
+  const byId = new Map(derived.map((e) => [e.id, e]));
+  for (const e of fromServer) if (!e.detail) e.detail = byId.get(e.id)?.detail ?? null;
+  const all = [...fromServer, ...derived.filter((e) => !known.has(e.id))];
   return merge(all.sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id)));
 }
 

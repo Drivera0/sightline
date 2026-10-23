@@ -45,7 +45,7 @@ export function buildReport(s: Data, now: Date): MissionReport {
     lkp: m ? `${m.area.lkp.lat.toFixed(5)}, ${m.area.lkp.lon.toFixed(5)}` : "",
     subject: m?.subject ?? "not recorded",
     period: { from, to, minutes: Math.max(0, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 60000)) },
-    found: m?.found ? { by: callsign(m.found.team), sector: m.found.sector, at: m.found.at, where: `${m.found.lat.toFixed(5)}, ${m.found.lon.toFixed(5)}` } : null,
+    found: m?.found ? { by: callsign(m.found.team), sector: m.found.sector ?? "", at: m.found.at, where: `${m.found.lat.toFixed(5)}, ${m.found.lon.toFixed(5)}` } : null,
     events: keyEvents(entries).map((e) => ({ at: e.at, text: e.text })),
     searched: s.tasks.filter((t) => t.state === "searched").map((t) => ({ sector: t.sector_id, pod: t.pod ?? 0, team: t.team_id ? callsign(t.team_id) : null, note: t.note })),
     photos: s.mapUpdates.filter((u) => u.source === "frame").length,

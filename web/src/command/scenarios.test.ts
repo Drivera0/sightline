@@ -43,7 +43,7 @@ describe("scenarios", () => {
   it("the overdue hiker is the demo mission as it is", async () => {
     const s = await scenarioMission(full, null);
     expect(s.data.mapBase).toBe(mapBase);
-    expect(s.data.mission?.scenario_seed).toBe(DEFAULT_SEED);
+    expect(s.data.mission?.scenario_seed).toBe(1101);
   });
 
   it("another scenario moves the last known point and base camp, places its own clues, and sends the assignment to the likeliest open sector", () => {

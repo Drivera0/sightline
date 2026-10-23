@@ -12,6 +12,8 @@ import { BOARD_AT, sectorsAt } from "./missionTime";
 
 export interface Preset {
   seed: string;
+  /** The generator's seed for this scenario (Mission.scenario_seed). */
+  num: number;
   name: string;
   subject: string;
   /** The last known point's move from the demo's, in cells (rows south, columns east). */
@@ -28,11 +30,11 @@ export const DEFAULT_SEED = "overdue-hiker";
 
 export const PRESETS: readonly Preset[] = [
   {
-    seed: DEFAULT_SEED, name: "Overdue hiker", subject: "adult, red jacket, day hiker", shift: [0, 0], camp: [0, 0], spreadM: 0,
+    seed: DEFAULT_SEED, num: 1101, name: "Overdue hiker", subject: "adult, red jacket, day hiker", shift: [0, 0], camp: [0, 0], spreadM: 0,
     clues: [],
   },
   {
-    seed: "missing-child", name: "Missing child", subject: "child, 7, blue rain jacket, wandered from a picnic", shift: [-14, -18], camp: [8, -10], spreadM: 220,
+    seed: "missing-child", num: 2202, name: "Missing child", subject: "child, 7, blue rain jacket, wandered from a picnic", shift: [-14, -18], camp: [8, -10], spreadM: 220,
     clues: [
       { kind: "other", text: "parent last saw her by the picnic tables heading for the creek", at: [2, 4] },
       { kind: "object", text: "small blue mitten on the creek trail", at: [10, 14] },
@@ -41,7 +43,7 @@ export const PRESETS: readonly Preset[] = [
     ],
   },
   {
-    seed: "despondent", name: "Despondent", subject: "adult, 45, grey coat, left a note in the car", shift: [16, 18], camp: [-12, -14], spreadM: 380,
+    seed: "despondent", num: 3303, name: "Despondent", subject: "adult, 45, grey coat, left a note in the car", shift: [16, 18], camp: [-12, -14], spreadM: 380,
     clues: [
       { kind: "other", text: "note in the car mentions the viewpoint", at: [-8, -6] },
       { kind: "object", text: "grey scarf on the viewpoint bench", at: [6, 10] },
@@ -50,7 +52,7 @@ export const PRESETS: readonly Preset[] = [
     ],
   },
   {
-    seed: "dementia", name: "Dementia walk-away", subject: "adult, 78, dementia, slippers, walked from the care home", shift: [12, -16], camp: [-6, 8], spreadM: 160,
+    seed: "dementia", num: 4404, name: "Dementia walk-away", subject: "adult, 78, dementia, slippers, walked from the care home", shift: [12, -16], camp: [-6, 8], spreadM: 160,
     clues: [
       { kind: "other", text: "care home staff saw him at the back gate at 11:00", at: [-2, 2] },
       { kind: "object", text: "a slipper on the service road", at: [8, -4] },
@@ -67,7 +69,7 @@ export function presetFor(seed: string | null | undefined): Preset {
   const r = rng(seed!);
   const base = PRESETS[1 + Math.floor(r() * 3)]!;
   const j = () => Math.round((r() - 0.5) * 30);
-  return { ...base, seed: seed!, name: `Shuffled (${base.name.toLowerCase()})`, shift: [j(), j()], camp: [Math.round((r() - 0.5) * 30), Math.round((r() - 0.5) * 30)], spreadM: 150 + Math.round(r() * 300) };
+  return { ...base, seed: seed!, num: Math.floor(r() * 9000) + 1000, name: `Shuffled (${base.name.toLowerCase()})`, shift: [j(), j()], camp: [Math.round((r() - 0.5) * 30), Math.round((r() - 0.5) * 30)], spreadM: 150 + Math.round(r() * 300) };
 }
 
 /** A new random seed for Shuffle. */
@@ -209,7 +211,20 @@ export function deriveScenario(full: DemoFull, preset: Preset): DemoFull {
 
 function withSeed(full: DemoFull, preset: Preset): DemoFull {
   const m = full.data.mission;
-  return m ? { ...full, data: { ...full.data, mission: { ...m, scenario_seed: preset.seed } } } : full;
+  return m ? { ...full, data: { ...full.data, mission: { ...m, scenario_seed: preset.num } } } : full;
+}
+
+const ISO = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/;
+/** Every timestamp in a fixture moved by `ms`. */
+export function shiftTimes<T>(value: T, ms: number): T {
+  if (!ms) return value;
+  const walk = (v: unknown): unknown => {
+    if (typeof v === "string") return ISO.test(v) ? new Date(new Date(v).getTime() + ms).toISOString().replace(/\.\d+Z$/, "Z") : v;
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+    return v;
+  };
+  return walk(value) as T;
 }
 
 /** Scenario fixtures from the generator, when there are any (lazy: each its own chunk). */
@@ -224,7 +239,13 @@ export async function scenarioMission(full: DemoFull, seed: string | null | unde
   const file = FIXTURES[`./__fixtures__/scenarios/${preset.seed}.json`];
   if (file && load && preset.seed !== DEFAULT_SEED) {
     try {
-      return withSeed(await load((await file()).default), preset);
+      const fx = (await file()).default as { t0?: string; mission?: { created_at?: string } };
+      // a scenario keeps the demo's rhythm (the call, the flight 12 to 48 minutes later, the run at 90) on its
+      // own afternoon: move it onto the demo mission's, so the story's checkpoints fall at the same moments
+      const from = fx.t0 ?? fx.mission?.created_at;
+      const to = full.data.mission?.created_at;
+      const shifted = from && to ? shiftTimes(fx, new Date(to).getTime() - new Date(from).getTime()) : fx;
+      return withSeed(await load(shifted), preset);
     } catch {
       /* a broken fixture: derive it instead */
     }

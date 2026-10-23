@@ -49,6 +49,16 @@ describe("a drone photo's position", () => {
     expect(readPose(jpeg('<x:xmpmeta><rdf:Description drone-dji:RelativeAltitude="+48.5" drone-dji:FlightYawDegree="-30.2"/></x:xmpmeta>'))!.relAlt).toBe(48.5);
   });
 
+  it("reads DJI's fields from a comment segment too (the sample pack writes them there)", () => {
+    const base = new Uint8Array(jpeg());
+    const text = '<x:xmpmeta drone-dji:RelativeAltitude="+50.0" drone-dji:GimbalYawDegree="+90.0"/>';
+    const com = [0xff, 0xfe, ((text.length + 2) >> 8) & 255, (text.length + 2) & 255, ...[...text].map((c) => c.charCodeAt(0))];
+    const withCom = new Uint8Array([...base.slice(0, -2), ...com, 0xff, 0xd9]);
+    const p = readPose(withCom.buffer)!;
+    expect(p.relAlt).toBe(50);
+    expect(p.heading).toBe(90); // EXIF's image direction wins when both are there
+  });
+
   it("has no position without GPS, or for something that is not a JPEG", () => {
     expect(readPose(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer)).toBeNull();
     expect(readPose(new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer)).toBeNull();

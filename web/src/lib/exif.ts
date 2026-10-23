@@ -31,7 +31,11 @@ export function readPose(buf: ArrayBuffer): PhotoPose | null {
       const start = at + 4;
       const head = ascii(v, start, Math.min(29, len - 2));
       if (head.startsWith("Exif\0\0")) gps = readTiffGps(v, start + 6) ?? gps;
-      else if (head.startsWith("http://ns.adobe.com/xap/1.0/")) xmp = ascii(v, start, len - 2);
+      else if (head.startsWith("http://ns.adobe.com/xap/1.0/")) xmp = (xmp ?? "") + ascii(v, start, len - 2);
+    } else if (marker === 0xfe) {
+      // a comment segment: some tools write the XMP packet there (the sample pack does)
+      const text = ascii(v, at + 4, len - 2);
+      if (text.includes("drone-dji:")) xmp = (xmp ?? "") + text;
     }
     at += 2 + len;
   }

@@ -46,10 +46,10 @@ describe("the timeline", () => {
     expect(inFilter(t[0]!, "Decisions")).toBe(false);
   });
 
-  it("shows the server's timeline as it is when there is one", () => {
-    const server: TimelineEvent[] = [{ at: AT, kind: "found", team: "Team One", sector: "C2", text: "Team One has the subject in C2", refs: [] }];
-    const t = buildTimeline([ev("e1", "radio.turn", turn("in", "Team Two", "hello"))], TEAMS, server);
-    expect(t.map((e) => [e.kind, e.team, e.text])).toEqual([["found", "T1", "Team One has the subject in C2"]]);
+  it("shows the server's timeline, and the events it does not cover (a direct action just taken)", () => {
+    const server: TimelineEvent[] = [{ id: "e9", at: AT, kind: "found", team: "Team One", sector: "C2", text: "Team One has the subject in C2", refs: [] }];
+    const t = buildTimeline([ev("e9", "radio.turn", turn("in", "Team One", "on scene")), ev("e1", "radio.turn", turn("in", "Team Two", "hello"))], TEAMS, server);
+    expect(t.map((e) => [e.id, e.kind, e.team])).toEqual([["e9", "found", "T1"], ["e1", "radio", "T2"]]); // e9 is the server's; e1 it has not sent
     expect(teamOf(TEAMS, "team two")).toBe("T2");
   });
 });

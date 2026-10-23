@@ -309,6 +309,8 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
     mapUpdates,
     sectors,
     verdicts: [],
+    // the server's timeline, as it stood at the clock
+    timeline: (d.timeline ?? []).filter((e) => ms(e.at) <= c),
     links: fleetLinksFromEvents(events),
   };
   return user.filter((e) => ms(e.at) <= c).reduce(applyEvent, base);
