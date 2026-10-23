@@ -17,6 +17,7 @@ from the facts it was given (``write_briefing``). There is no ``dismiss_detectio
 | conditions   | mission id   | not flyable: ``retask_drone`` home for each flying drone (target ``home``), the reason quoting the Tavily fact and its page; re-plan when visibility drops below 0.6 |
 | leg_done     | leg id       | next ``drone_leg`` for that drone (and the leg's ``ledger`` record) |
 | tick         | mission id   | ``assign_sector`` for standby teams                            |
+| team_overdue | team id      | ``overdue_team``: an ``alert`` to call the team (target ``check: overdue_team``) |
 | subject_search / subject_set | mission id / proposal id | the bulletin tool (``subject_tool``): a ``Set subject profile`` proposal; after its approval, a re-plan |
 
 A repeated event makes no duplicate: a detection is verified once and promoted at most once, and a
@@ -883,6 +884,44 @@ def _assign_teams(
     return out
 
 
+OVERDUE_TEAM = "overdue_team"  # 1.3: an ``alert`` whose target has ``check``: not a new kind
+
+
+def _on_team_overdue(store, mission_id, team_id) -> list[Proposal]:
+    """An overdue team (``check_overdue``): one pending ``alert`` to call it, with how long it has
+    been silent and the mission's check-in interval. The briefing is a radio check, built in code
+    (no model: nothing to write but the call)."""
+    from datetime import datetime
+
+    state = store.state(mission_id)
+    team = next((t for t in state["teams"] if t.id == team_id), None)
+    if team is None or team.status != "overdue" or team.last_heard_at is None:
+        return []
+    earlier = [p for p in state["proposals"] if p.kind == "alert" and p.status == "pending"
+               and p.target.get("check") == OVERDUE_TEAM and p.target.get("team") == team_id]  # fmt: skip
+    if earlier:
+        return _repeat(store, mission_id, f"overdue {team_id}", team_id, earlier)
+    m = state["mission"]
+    silent = datetime.fromisoformat(now_iso()) - datetime.fromisoformat(team.last_heard_at)
+    minutes = round(silent.total_seconds() / 60)
+    return [
+        _add(
+            store,
+            mission_id,
+            kind="alert",
+            summary=f"{team.callsign} not heard for {minutes} min: call them",
+            reason=(
+                f"{team.callsign} was last heard at {_hhmm(team.last_heard_at)}, {minutes} min ago; "
+                f"the mission's check-in interval is {m.check_in_min:g} min."
+            ),
+            briefing=f"{team.callsign}, Sightline. Radio check: report your position and status, over.",
+            target={"team": team_id, "check": OVERDUE_TEAM},
+            evidence=[],
+            created_by="agent",
+        )
+    ]
+
+
 def _on_tick(store, mission_id, client) -> list[Proposal]:
     state = store.state(mission_id)
     return _assign_teams(store, mission_id, state, state["teams"], client)
@@ -925,6 +964,8 @@ def handle(
         return _on_fleet_join(store, mission_id)
     if event == "tick":
         return _on_tick(store, mission_id, client)
+    if event == "team_overdue":
+        return _on_team_overdue(store, mission_id, ref)
     if event in ("subject_search", "subject_set"):  # the bulletin tool (agent/subject_tool.py)
         from sightline.agent import subject_tool
 

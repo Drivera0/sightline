@@ -592,3 +592,44 @@ def test_the_event_stream_sends_each_events_timeline_lines_after_it() -> None:
         "event: map.updated",
     ]
     assert out[1].split("\n")[1] == "id: e00001" and '"kind":"clue"' in out[1]
+
+
+# --- the agent: overdue teams --------------------------------------------------------------------
+
+
+def test_an_overdue_team_gets_one_alert_to_call_it_traced(api, monkeypatch) -> None:
+    from sightline.agent import loop
+    from sightline.mission.command import check_overdue
+
+    client, store, _ = api
+    mid = mission(client)
+    t = _team(store, mid, "T3")
+    store.upsert_team(
+        mid, t.model_copy(update={"status": "searching", "last_heard_at": "2026-10-24T21:00:00Z"})
+    )
+    check_overdue(store, mid, "2026-10-24T21:32:00Z")
+    monkeypatch.setattr(loop, "now_iso", lambda: "2026-10-24T21:32:00Z")
+    (p,) = loop.handle("team_overdue", store, mid, "T3", client=None)
+    assert p.kind == "alert" and p.target == {"team": "T3", "check": "overdue_team"}
+    assert p.summary == "Team Three not heard for 32 min: call them"
+    assert "check-in interval is 30 min" in p.reason and "21:00 UTC" in p.reason
+    assert p.briefing.startswith("Team Three, Sightline. Radio check")
+    assert any(e.kind == "proposal" and p.id in e.refs for e in store.trace_entries(mid))
+    assert loop.handle("team_overdue", store, mid, "T3", client=None) == [p]  # no duplicate
+    # a team back in contact gets nothing
+    from sightline.mission.command import heard
+
+    heard(store, mid, "T3", "2026-10-24T21:33:00Z", None)
+    store.set_proposal_status(mid, p.id, "expired", by="test")
+    assert loop.handle("team_overdue", store, mid, "T3", client=None) == []
+
+
+def test_the_overdue_hook_only_enqueues(monkeypatch) -> None:
+    from sightline.agent import hooks
+
+    jobs = []
+    monkeypatch.setattr(
+        hooks, "_runner", type("R", (), {"submit": lambda self, j: jobs.append(j)})()
+    )
+    hooks.on_team_overdue(None, "m", "T3")
+    assert (jobs[0].event, jobs[0].ref) == ("team_overdue", "T3")
