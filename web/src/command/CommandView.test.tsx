@@ -197,7 +197,6 @@ describe("the command post", () => {
 
   it("the sectors by POA, folded under the resources; a row opens its popover", async () => {
     setup();
-    await userEvent.click(screen.getByText("Sectors by POA"));
     const rows = within(screen.getByRole("table", { name: "Sectors by POA" })).getAllByRole("row").slice(1);
     expect(rows.map((r) => r.getAttribute("aria-label"))).toEqual(["Sector B3", "Sector C2", "Sector D4"]);
     expect(rows[2]).toHaveTextContent("searched, POD 60 %");

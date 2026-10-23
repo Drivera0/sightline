@@ -230,18 +230,22 @@ function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, on
   );
 }
 
-/** The sectors by POA, folded (the old task board's facts, one row each); a row opens its popover on the map. */
+/** How many sectors show before "Show N more". */
+export const SECTORS_SHOWN = 5;
+
+/** The sectors by POA (the old task board's facts, one row each), the likeliest shown; a row opens its popover on the map. */
 function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[]; sectors: readonly SectorNow[]; teams: readonly Team[] }) {
   const [open, setOpen] = useState(false);
-  const rows = [...sectors].sort((a, b) => b.poa - a.poa);
+  const all = [...sectors].sort((a, b) => b.poa - a.poa);
+  const rows = open ? all : all.slice(0, SECTORS_SHOWN);
   const callsign = (id: string | null) => teams.find((t) => t.id === id)?.callsign ?? "";
   const STATE: Record<SectorTask["state"], string> = { proposed: "open", assigned: "assigned", in_progress: "searching", searched: "searched" };
   return (
-    <details className="mt-1 rounded-md border border-line" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
-      <summary className="sl-tap flex cursor-pointer items-center gap-2 px-2.5 py-2 text-small text-text-2">
-        Sectors by POA <span className="text-caption text-text-3">{rows.length}</span>
-      </summary>
-      {open && (
+    <section aria-label="Sectors by POA" className="mt-1 rounded-md border border-line">
+      <h3 className="flex items-center gap-2 px-2.5 py-2 text-small text-text-2">
+        Sectors by POA <span className="text-caption text-text-3">{all.length}</span>
+      </h3>
+      {(
         <table className="w-full text-caption" aria-label="Sectors by POA">
           <thead className="text-text-3">
             <tr>
@@ -279,6 +283,11 @@ function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[];
           </tbody>
         </table>
       )}
-    </details>
+      {all.length > SECTORS_SHOWN && (
+        <button type="button" onClick={() => setOpen(!open)} className="sl-tap w-full border-t border-line px-2.5 py-1.5 text-left text-caption text-text-2 underline underline-offset-2 hover:text-text">
+          {open ? "Show fewer" : `Show ${all.length - SECTORS_SHOWN} more`}
+        </button>
+      )}
+    </section>
   );
 }

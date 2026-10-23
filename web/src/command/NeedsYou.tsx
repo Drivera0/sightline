@@ -5,13 +5,12 @@
 // timeline. Once the subject is found the decisions about the search are moot: pending proposals and
 // candidates fold into one closed row ("16 items closed at 15:00, subject found", expandable); overdue teams
 // and read-backs stay, and so do the direct actions (a team may still be recalled). Built by lane A.
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { Clue, Drone, MissionEvent, Proposal, RadioTurn, Team } from "../contract";
 import { Icon } from "../shell/icons";
 import { useClock } from "../lib/time";
 import { ApprovalInbox, type Decide } from "./ApprovalInbox";
 import { needs } from "./console";
-import { useConsole } from "./consoleStore";
 
 const btn = "sl-tap inline-flex h-7 items-center rounded-full border border-line px-2.5 text-caption text-text-2 hover:border-border hover:text-text";
 
@@ -65,18 +64,15 @@ export function NeedsYou({
   const closedCount = closedProposals.length + closedReview;
   const pendingCount = found ? 0 : items.filter((i) => i.kind === "proposal").length;
   const total = items.reduce((n, i) => n + (found && (i.kind === "proposal" || i.kind === "review") ? 0 : i.kind === "review" ? i.count : 1), 0);
-  // phones: Needs you is its count, and expands on its tab (or a tap on the count)
-  const open = useConsole((s) => s.tab === "needs");
+
   return (
     <section aria-label="Needs you" data-tour="needs" className="flex min-h-0 flex-col overflow-hidden lg:flex-1 rounded-lg border border-line bg-surface-solid">
       <h2 className="sl-panel-head">
         Needs you
         <span className={`text-caption font-normal ${total ? "text-accent" : found ? "text-ok" : "text-text-3"}`}>{total ? `${total} waiting` : found ? "subject found" : "nothing waiting"}</span>
-        <button type="button" aria-expanded={open} onClick={() => useConsole.getState().setTab(open ? "map" : "needs")} className="sl-tap ml-auto text-caption font-normal text-text-2 lg:hidden">
-          {open ? "Hide" : "Show"}
-        </button>
       </h2>
-      <div aria-label="Approvals rail" className={`min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 ${open ? "flex" : "hidden lg:flex"}`}>
+      {/* never folded away: on a phone it scrolls inside a capped height, above the map */}
+      <div aria-label="Approvals rail" className="flex max-h-[60vh] min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 lg:max-h-none">
         {total === 0 && !found && <p className="px-1 py-2 text-small text-text-3">Nothing needs you. Proposals, candidates to review, overdue teams and clues to read back appear here.</p>}
         {found && (
           <ClosedOnFind
@@ -123,25 +119,27 @@ export function NeedsYou({
   );
 }
 
-/** What the find closed: one row, expandable to the proposals and the candidates it closed. */
+/** How many closed items show before "Show N more". */
+export const CLOSED_SHOWN = 2;
+
+/** What the find closed: one row, the first of what it closed under it, and "Show N more" for the rest. */
 export function ClosedOnFind({ proposals, reviewCount, count, at }: { proposals: readonly Proposal[]; reviewCount: number; count: number; at: string | null }) {
+  const [all, setAll] = useState(false);
   const head = count
     ? `${count} ${count === 1 ? "item" : "items"} closed${at ? ` at ${at}` : ""}, subject found`
     : `Subject found${at ? ` at ${at}` : ""}: nothing left to decide about the search`;
+  const lines = proposals.length + (reviewCount > 0 ? 1 : 0);
+  const shownProposals = all ? proposals : proposals.slice(0, CLOSED_SHOWN);
+  const showReview = reviewCount > 0 && (all || proposals.length < CLOSED_SHOWN);
   return (
-    <details aria-label="Closed: subject found" className="group rounded-md border border-ok/40 border-l-2 border-l-ok bg-bg/40 text-small">
-      <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-2.5 py-2 text-text [&::-webkit-details-marker]:hidden">
+    <section role="group" aria-label="Closed: subject found" className="rounded-md border border-ok/40 border-l-2 border-l-ok bg-bg/40 text-small">
+      <p className="flex min-h-9 items-center gap-2 px-2.5 py-2 text-text">
         <Icon name="found" className="shrink-0 text-ok" />
         <span className="flex-1">{head}</span>
-        {count > 0 && (
-          <span aria-hidden="true" className="text-text-3 transition-transform group-open:rotate-90">
-            ›
-          </span>
-        )}
-      </summary>
+      </p>
       {count > 0 && (
         <ul className="flex flex-col gap-1 border-t border-line px-2.5 py-2 text-caption text-text-2">
-          {proposals.map((p) => (
+          {shownProposals.map((p) => (
             <li key={p.id} className="flex items-baseline gap-2">
               <span className="font-mono text-text-3">{p.id}</span>
               <span className="min-w-0 flex-1 truncate" title={p.summary}>
@@ -150,7 +148,7 @@ export function ClosedOnFind({ proposals, reviewCount, count, at }: { proposals:
               <span className="shrink-0 text-text-3">closed: subject found</span>
             </li>
           ))}
-          {reviewCount > 0 && (
+          {showReview && (
             <li className="flex items-baseline gap-2">
               <span className="min-w-0 flex-1">
                 {reviewCount} {reviewCount === 1 ? "candidate" : "candidates"} to review
@@ -158,9 +156,16 @@ export function ClosedOnFind({ proposals, reviewCount, count, at }: { proposals:
               <span className="shrink-0 text-text-3">closed: subject found</span>
             </li>
           )}
+          {lines > CLOSED_SHOWN && (
+            <li>
+              <button type="button" onClick={() => setAll(!all)} className="sl-tap text-caption text-text-2 underline underline-offset-2 hover:text-text">
+                {all ? "Show fewer" : `Show ${lines - Math.min(lines, CLOSED_SHOWN)} more`}
+              </button>
+            </li>
+          )}
         </ul>
       )}
-    </details>
+    </section>
   );
 }
 

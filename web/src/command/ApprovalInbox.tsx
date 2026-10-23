@@ -30,6 +30,8 @@ const KIND_WORDS: Record<Proposal["kind"], string> = {
   alert: "Alert",
 };
 const IMAGE_EVIDENCE: readonly EvidenceRef["kind"][] = ["crop", "frame", "relook"];
+/** A reason longer than this shows two lines and a "Show the whole reason" link. */
+const REASON_SHORT = 140;
 
 /** A recall: a re-task whose leg flies the drone home (target `home`), proposed when conditions ground the drones. */
 export const isRecall = (p: Proposal) => p.kind === "retask_drone" && p.target.home !== undefined;
@@ -269,9 +271,12 @@ function PendingCard({
         </span>
       </div>
       <span className="text-small font-medium text-text">{isRecall(p) ? recallSummary(p.summary, drone?.battery_pct) : p.summary}</span>
-      <button type="button" title={open ? undefined : p.reason} className={`self-stretch text-left text-small text-text-2 ${open ? "" : "line-clamp-1"}`} aria-expanded={open} onClick={() => setOpen(!open)}>
-        {p.reason}
-      </button>
+      <p className={`text-small text-text-2 ${open || p.reason.length <= REASON_SHORT ? "" : "line-clamp-2"}`}>{p.reason}</p>
+      {p.reason.length > REASON_SHORT && (
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="sl-tap -mt-1 self-start text-caption text-text-2 underline underline-offset-2 hover:text-text">
+          {open ? "Show less" : "Show the whole reason"}
+        </button>
+      )}
       {clues && (
         <p aria-label="Clues behind it" className="text-small text-text-2">
           <span className="text-text-3">Clues behind it, from the map log: </span>
@@ -295,7 +300,7 @@ function PendingCard({
           )}
         </div>
       )}
-      {!editing && p.briefing && open && <p className="text-small text-text-2">Briefing: “{p.briefing}”</p>}
+      {!editing && p.briefing && <p className="text-small text-text-2">Briefing: “{p.briefing}”</p>}
       {editing && (
         <div role="group" className="flex flex-col gap-2" aria-label="Edit before approving">
           {p.kind === "assign_sector" && (
