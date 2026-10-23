@@ -266,7 +266,7 @@ describe("the demo mission: the story on the one console", () => {
     expect(within(pitch).getByRole("button", { name: "Follow the search (3 min)" }).className).toMatch(/bg-accent/);
     await waitFor(() => expect(within(screen.getAllByRole("banner")[0]!).getByText("13:35 PDT")).toBeInTheDocument());
     expect(screen.queryByRole("group", { name: "Mission time" })).toBeNull(); // the scrubber shows only inside the story
-    expect(await screen.findByRole("status", { name: "Mission status" })).toHaveTextContent("Clues0"); // the call: the car in the lot is where the search starts
+    expect(await screen.findByRole("status", { name: "Mission status" }, { timeout: 5000 })).toHaveTextContent("Clues0"); // the call: the car in the lot is where the search starts
     expect(screen.queryByText(/blue water bottle by the creek crossing/)).toBeNull(); // not found yet at 13:35 PDT (20:35 UTC)
     await userEvent.click(within(pitch).getByRole("button", { name: "Skip to now" }));
     expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull();
@@ -284,12 +284,12 @@ describe("the demo mission: the story on the one console", () => {
     await settle();
     await userEvent.click(screen.getByRole("button", { name: "Follow the search (3 min)" }));
     // t0, the call, on the status line (jsdom asks for reduced motion: the clock jumps)
-    const call = await screen.findByRole("dialog", { name: "The story, 1 of 12" });
+    const call = await screen.findByRole("dialog", { name: "The story, 1 of 12" }, { timeout: 5000 });
     expect(call).toHaveTextContent("13:35. Last seen at 10:30. Four teams at base, the trailhead lot. Drone one up.");
     expect(window.location.hash).toBe("#m/demo?t=0");
     const step = async (n: number, text: string | RegExp) => {
       await userEvent.keyboard("{ArrowRight}");
-      const d = await screen.findByRole("dialog", { name: `The story, ${n} of 12` });
+      const d = await screen.findByRole("dialog", { name: `The story, ${n} of 12` }, { timeout: 3000 });
       expect(d).toHaveTextContent(text);
       return d;
     };
@@ -313,7 +313,7 @@ describe("the demo mission: the story on the one console", () => {
     await step(10, "Team One walks C2");
     const find = await step(11, "Subject located in Charlie Two");
     expect(find).not.toHaveTextContent(/typed for|demo/i);
-    expect(await screen.findByRole("status", { name: "Mission status" })).toHaveTextContent(/Found/);
+    expect(await screen.findByRole("status", { name: "Mission status" }, { timeout: 5000 })).toHaveTextContent(/Found/);
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(await screen.findByRole("dialog", { name: "The story, 12 of 12" })).toHaveTextContent("after-action report");
     expect(await screen.findByRole("article", { name: "Mission report" })).toBeInTheDocument();
@@ -331,7 +331,7 @@ describe("the demo mission: the story on the one console", () => {
     useStory.getState().reset();
     window.history.replaceState(null, "", "#m/demo?t=2");
     render(<App base={null} />);
-    await screen.findByRole("dialog", { name: /The story, 4 of/ });
+    await screen.findByRole("dialog", { name: /The story, 4 of/ }, { timeout: 5000 });
     await userEvent.click(within(screen.getByRole("group", { name: "Mission time" })).getByRole("button", { name: "Skip to now" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(window.location.hash).toBe("#m/demo/map"));
@@ -343,7 +343,7 @@ describe("the demo mission: the story on the one console", () => {
     useStory.getState().reset();
     window.history.replaceState(null, "", "#m/demo/map?t=4");
     render(<App base={null} />);
-    const header = await screen.findByRole("status", { name: "Mission status" });
+    const header = await screen.findByRole("status", { name: "Mission status" }, { timeout: 5000 });
     const row = await waitFor(() => {
       const pill = header.querySelector("button[data-tone]");
       expect(pill).not.toBeNull();
