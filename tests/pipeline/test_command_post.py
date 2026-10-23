@@ -184,7 +184,7 @@ def test_last_heard_moves_with_a_position_report_a_clue_a_radio_turn_and_a_relay
     assert _team(store, mid, "T3").last_heard_at is not None
 
     turn = RadioTurn(id="r0001", direction="in", callsign="Team Four", transcript="Sightline, Team Four, radio check",
-                     reply="Team Four, Sightline. Loud and clear.", audio=None, state="answered", actions=[],
+                     reply="Team Four, Sightline. Copy, over.", audio=None, state="answered", actions=[],
                      asr_ms=None, llm_ms=None, tts_ms=None, at="2026-10-24T21:05:00Z")  # fmt: skip
     StoreMissionApi(store).record_turn(mid, turn)
     assert _team(store, mid, "T4").last_heard_at == "2026-10-24T21:05:00Z"

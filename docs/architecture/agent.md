@@ -102,6 +102,7 @@ sequenceDiagram
 | Action | A **proposal** with a reason, evidence and, for people in the field, a briefing written only from given facts: `promote_detection`, `drone_leg` / `retask_drone`, `assign_sector`, `alert` | `loop.py` |
 | Human | The search manager approves, edits or rejects; nothing happens before that | lane E inbox, lane D API |
 | Effect | Approved detections join the review queue; approved legs go to the fleet; approved briefings go to the radio | lane D |
+| Command post (v1.3) | A team out in the field not heard for the mission's check-in interval goes `overdue` and the agent proposes an `alert` to call it (`overdue_team`); the manager's direct actions (assign, call, recall, searched, recheck) log beside the approvals; once the mission is `found` the agent proposes nothing new | `loop.py` (`_on_team_overdue`), `mission/command.py` |
 | Tool choice (bulletin) | No lost-person category: Nemotron Nano decides whether to call `search_public_bulletin` and writes its query; Tavily search (trusted domains) → extract → profile with verbatim quotes, names redacted → one `Set subject profile` proposal; approval sets the category and the prior, then re-plans | `subject_tool.py`, `geo/subject.py` |
 
 ## One real chain: an OpenCV 5 result changes the decision
@@ -449,3 +450,23 @@ new evidence; highest remaining probability of the open sectors": nothing came i
 answers "why did the clue not move the team?" from the card itself. Tests:
 `tests/search/test_planner_evidence.py`, `tests/agent/test_planner_trace.py` (on the real store and
 API, through `GET /missions/{id}/trace`).
+
+## The command post (v1.3)
+
+Rules the agent follows since the command post (contract §15):
+
+- **Overdue teams.** The scheduler checks every team out in the field (assigned, searching, returning)
+  against `Mission.check_in_min` (default 30 min: no published ground-SAR interval exists; aviation flight
+  following uses 15–30 min). A team past it becomes `overdue` and the agent proposes one `alert` with
+  target `{"team": "T3", "check": "overdue_team"}`: "Team Three not heard for 32 min: call them", the
+  reason naming the last time heard and the interval, and a radio-check briefing built in code. A repeat
+  reuses the pending alert (a trace note says so). Not a new proposal kind: the contract's kinds stay.
+  Any radio turn, clue or position report from the team brings it back (`last_heard_at`).
+- **Direct actions sit beside the proposals.** Assigning a team, calling it, recalling it, marking a
+  sector searched at a POD or putting it back to recheck are the manager's own actions
+  (`sightline/mission/command.py`): each writes a `human` `decision` trace entry and a timeline line. A
+  direct assignment supersedes the agent's pending assignment for that team or sector. The agent is one
+  way of acting, not a gate.
+- **Found freezes proposals.** After `POST /found` the agent proposes nothing new; each event it is
+  given leaves a trace note ("Mission found: no new proposals").
+- **Launch point.** A recall flies a drone to its `home`, the mission's base camp unless set.
