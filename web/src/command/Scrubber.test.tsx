@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { clockAt } from "./missionTime";
-import { Scrubber, STORY_HINT } from "./Scrubber";
+import { Scrubber } from "./Scrubber";
 
 describe("Scrubber", () => {
   it("shows the seven checkpoints, marks the current one, seeks on a tick and tells the clock in local time, UTC on hover", async () => {
@@ -21,7 +21,7 @@ describe("Scrubber", () => {
     expect(screen.getByRole("button", { name: /Play the mission clock/ })).toBeDisabled();
   });
 
-  it("outside the story it plays on to the end, says so, and shows the hint when idle", async () => {
+  it("it plays on to the end, says so, and shows the hint when idle", async () => {
     const onToggle = vi.fn();
     const { rerender } = render(<Scrubber t={1} progress={1} playing={false} at={clockAt(1)} canPlay hint="Press Follow the search" onSeek={() => undefined} onToggle={onToggle} />);
     await userEvent.click(screen.getByRole("button", { name: /Play the mission clock to the end/ }));
@@ -31,12 +31,11 @@ describe("Scrubber", () => {
     expect(screen.getByRole("status", { name: "Mission clock status" })).toHaveTextContent("Playing · 13:35 → 15:00");
   });
 
-  it("inside the story: Skip to now, and the story's keys under it", async () => {
+  it("Skip to now goes to the end of the timeline", async () => {
     const onSkip = vi.fn();
-    render(<Scrubber t={3} progress={1} playing={false} at={clockAt(3)} hint={STORY_HINT} onSkip={onSkip} onSeek={() => undefined} onToggle={() => undefined} />);
+    render(<Scrubber t={3} progress={1} playing={false} at={clockAt(3)} onSkip={onSkip} onSeek={() => undefined} onToggle={() => undefined} />);
     await userEvent.click(screen.getByRole("button", { name: "Skip to now" }));
     expect(onSkip).toHaveBeenCalled();
-    expect(screen.getByRole("status", { name: "Mission clock status" })).toHaveTextContent("→ next · ← back · Space pauses the clock · Esc leaves the story");
   });
 
   it("pauses and resumes while the clock runs into a checkpoint", async () => {

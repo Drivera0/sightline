@@ -1,8 +1,8 @@
-// A coach mark on the real console (driver.js's pattern, hand-rolled: no dependency): a ring around one
-// element and a sentence or two beside it, Next and Back, skippable. Space pauses the mission clock, the
-// arrow keys step, Esc leaves the story and keeps the console at this mission time. A mark names its
-// element by a CSS selector, or by several in order of preference (the card it is about, else its panel);
-// a selector that starts with "group:" rings its first few matches together (two cards, a call and its clue).
+// The guided search's mark on the real console (driver.js's pattern, hand-rolled: no dependency): a ring
+// around the region a decision is about and a card beside it. A mark names its element by a CSS selector,
+// or by several in order of preference (the card it is about, else its panel); a selector that starts with
+// "group:" rings its first few matches together (two cards, a call and its clue). The old step-through
+// story's marks are gone: the walk-through is the guided search (GuideMark, below).
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isTyping } from "../lib/keys";
@@ -111,14 +111,6 @@ function union(boxes: readonly Box[]): Box | null {
   return { top, left, width: right - left, height: bottom - top };
 }
 
-/** Give focus back to the mark's anchor (made focusable from code if it is not), without scrolling. */
-function focusAnchor(target: Target) {
-  const el = findTarget(target);
-  if (!el) return;
-  if (el.tabIndex < 0 && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
-  el.focus({ preventScroll: true });
-}
-
 /** Where a mark's target is on screen, followed as it renders late, moves or scrolls; and what to keep clear of. */
 function useTargetBox(target: Target): { box: Box | null; avoid: Box[]; view: { w: number; h: number }; anchor: { current: Target } } {
   const [box, setBox] = useState<Box | null>(null);
@@ -211,130 +203,6 @@ function useTargetBox(target: Target): { box: Box | null; avoid: Box[]; view: { 
     };
   }, [targetKey]);
   return { box, avoid, view, anchor };
-}
-
-export function CoachMark({
-  text,
-  target,
-  index,
-  count,
-  gate,
-  aside,
-  onAside,
-  onNext,
-  onBack,
-  onExit,
-  onToggleClock,
-  last = false,
-}: {
-  text: string;
-  /** A CSS selector on the console, or several in order of preference. */
-  target: Target;
-  /** 1-based. */
-  index: number;
-  count: number;
-  /** The mark waits for an action on the console (in words: "Approve it on the card"); Skip moves on. */
-  gate?: string;
-  /** One more line under the sentence, with a way to act on it (t4: "Teams report by radio: open Radio."). */
-  aside?: string;
-  onAside?: () => void;
-  onNext: () => void;
-  onBack?: () => void;
-  onExit: () => void;
-  onToggleClock: () => void;
-  last?: boolean;
-}) {
-  const { box, avoid, view, anchor } = useTargetBox(target);
-  const card = useRef<HTMLDivElement>(null);
-  const primary = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    (primary.current ?? card.current)?.focus({ preventScroll: true });
-  }, [text]);
-
-  // When the story ends (Esc, Exit, Done), focus goes back to the panel the last mark pointed at, unless
-  // the visitor has already put it somewhere else (a view button, the map).
-  useEffect(
-    () => () => {
-      const now = document.activeElement;
-      if (!now || now === document.body) focusAnchor(anchor.current);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === "Escape") onExit();
-      else if (e.key === "ArrowRight" && !gate) onNext();
-      else if (e.key === "ArrowLeft") onBack?.();
-      else if (e.key === " " && !(e.target instanceof HTMLButtonElement)) onToggleClock();
-      else return;
-      e.preventDefault();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [gate, onNext, onBack, onExit, onToggleClock]);
-
-  const at = placeCard(box, view.w, view.h, card.current?.offsetHeight ?? 180, avoid);
-  return (
-    <>
-      {box && (
-        <div
-          aria-hidden
-          className="sl-ring pointer-events-none fixed z-40 rounded-lg border-2 border-accent shadow-[0_0_0_9999px_rgba(10,11,13,0.35)]"
-          style={{ top: box.top - 4, left: box.left - 4, width: box.width + 8, height: box.height + 8 }}
-        />
-      )}
-      <div
-        ref={card}
-        role="dialog"
-        aria-modal="false"
-        aria-label={`The story, ${index} of ${count}`}
-        tabIndex={-1}
-        key={text}
-        className={`sl-mark fixed z-50 flex flex-col gap-3 rounded-lg border border-accent/60 bg-surface-solid p-4 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] ${at ? "" : "inset-x-3 bottom-[4.5rem] sm:right-auto sm:left-1/2 sm:w-80 sm:-translate-x-1/2 lg:bottom-6"}`}
-        style={at ? { top: at.top, left: at.left, width: CARD_W } : undefined}
-      >
-        <span className="flex items-center gap-1.5" aria-hidden>
-          {Array.from({ length: count }, (_, i) => (
-            <span key={i} className={`h-1 rounded-full ${i + 1 === index ? "w-5 bg-accent" : i + 1 < index ? "w-2 bg-accent/50" : "w-2 bg-surface-strong"}`} />
-          ))}
-        </span>
-        <p className="text-body text-text" aria-live="polite">
-          {text}
-        </p>
-        {gate && <p className="text-small text-accent-soft">{gate}</p>}
-        {aside &&
-          (onAside ? (
-            <button type="button" onClick={onAside} className="sl-tap self-start text-left text-small text-accent-soft underline underline-offset-2 hover:text-text">
-              {aside}
-            </button>
-          ) : (
-            <p className="text-small text-text-2">{aside}</p>
-          ))}
-        <div className="flex flex-wrap items-center gap-2">
-          {gate ? (
-            <Button ref={primary} variant="ghost" onClick={onNext}>
-              Skip
-            </Button>
-          ) : (
-            <Button ref={primary} variant="primary" onClick={onNext}>
-              {last ? "Done" : "Next"}
-            </Button>
-          )}
-          {onBack && (
-            <Button variant="ghost" onClick={onBack}>
-              Back
-            </Button>
-          )}
-          <button type="button" onClick={onExit} className="sl-tap ml-auto text-small text-text-3 hover:text-text">
-            Exit the story <KeyHint>Esc</KeyHint>
-          </button>
-        </div>
-      </div>
-    </>
-  );
 }
 
 // ---- The guided search's mark (guide.ts): "Your call" or "Watch this", never both ----

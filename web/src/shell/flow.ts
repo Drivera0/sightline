@@ -6,8 +6,9 @@
 //   #m/demo?s=<seed>&guide=1   a scenario with its guided search started (a home card's Start): each decision
 //                              waits for the manager (command/guide.ts)
 //   #m/demo/map?s=<seed>       a scenario, just the console
-//   #m/demo?t=0..6             the story at a checkpoint, its coach mark on: 0 the call, 1 photos land,
-//                              2 confirm, 3 where next, 4 the run, 5 the find, 6 the debrief
+//   #m/demo?t=0..6             the console at a checkpoint's clock (no coach marks; it settles on
+//                              #m/demo/map?t=N): 0 the call, 1 photos land, 2 confirm, 3 where next,
+//                              4 the run, 5 the find, 6 the debrief
 //   #m/<id>/<view>[?t=0..6]    a view of a mission: map (the console), photos, trace, debrief; on the
 //                              demo, ?t= sets the mission clock, none is "now"
 //   #m/<id>/map?needs          the console with Needs You in front (#m/<id>/review lands here)

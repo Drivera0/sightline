@@ -175,44 +175,19 @@ describe("mission time: the demo mission's checkpoints", () => {
   });
 });
 
-describe("the story's clock", () => {
-  it("begins at the call with the marks on, steps beat by beat, and leaves the clock where it is on exit", () => {
+describe("the demo mission's clock", () => {
+  it("opens at a checkpoint with no marks (the walk-through is the guided search) and Skip to now goes to the end", () => {
     useStory.getState().reset();
-    useStory.getState().setBeats([1, 2, 3, 2, 2, 1, 1]);
-    useStory.getState().begin();
-    expect(useStory.getState()).toMatchObject({ t: 0, beat: 0, tour: true, pitch: false });
-    useStory.getState().next();
-    expect(useStory.getState()).toMatchObject({ t: 1, beat: 0 });
-    useStory.getState().setProgress(1);
-    useStory.getState().next(); // t1's second mark: the same clock
-    expect(useStory.getState()).toMatchObject({ t: 1, beat: 1, progress: 1 });
-    useStory.getState().next();
-    expect(useStory.getState()).toMatchObject({ t: 2, beat: 0 });
-    useStory.getState().previous(); // back to the last mark of t1
-    expect(useStory.getState()).toMatchObject({ t: 1, beat: 1, progress: 1 });
-    useStory.getState().exit();
-    expect(useStory.getState()).toMatchObject({ t: 1, tour: false });
+    useStory.getState().seek(3);
+    expect(useStory.getState()).toMatchObject({ t: 3, progress: 1, playing: false, pitch: false });
+    expect(useStory.getState()).not.toHaveProperty("tour");
     useStory.getState().skipToNow();
-    expect(useStory.getState()).toMatchObject({ t: LAST, progress: 1, tour: false });
-  });
-
-  it("steps over a checkpoint the scenario has no beat for, both ways, and t3's approval moves on whatever the beat", () => {
-    useStory.getState().reset();
-    useStory.getState().setBeats([1, 2, 3, 2, 1, 0, 1]); // no find
-    useStory.getState().seek(4, { tour: true });
-    useStory.getState().next();
-    expect(useStory.getState().t).toBe(6);
-    useStory.getState().previous();
-    expect(useStory.getState()).toMatchObject({ t: 4, beat: 0 });
-    useStory.getState().seek(3, { tour: true });
-    useStory.getState().nextCheckpoint();
-    expect(useStory.getState()).toMatchObject({ t: 4, beat: 0 });
-    useStory.getState().setBeats([1, 2, 3, 2, 2, 1, 1]);
+    expect(useStory.getState()).toMatchObject({ t: LAST, progress: 1 });
   });
 
   it("with reduced motion the scrubber's play jumps to the end", () => {
     useStory.getState().reset();
-    useStory.getState().seek(1, { tour: false });
+    useStory.getState().seek(1);
     useStory.getState().play(); // the tests have no matchMedia: reduced motion
     expect(useStory.getState()).toMatchObject({ t: LAST, progress: 1, playing: false, through: null });
   });
@@ -224,7 +199,7 @@ describe("the story's clock", () => {
       window.matchMedia = had;
     });
     useStory.getState().reset();
-    useStory.getState().seek(1, { tour: false });
+    useStory.getState().seek(1);
     useStory.getState().play();
     expect(useStory.getState()).toMatchObject({ t: 2, progress: 0, playing: true, through: clockAt(1) });
     useStory.getState().play(); // pause

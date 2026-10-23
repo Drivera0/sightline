@@ -20,19 +20,17 @@ checkpoints of its afternoon, told in Mount Seymour's local time (13:35 PDT the 
 14:31 confirm, 14:42 where next, 14:58 the run, 14:59 the find, 15:00 the debrief; the fixtures are dated in UTC,
 and the app bar and the scrubber show UTC on hover: `lib/time.ts`, `DEMO_TZ`) and `demoAt(full, clock, user)`, the
 fixtures as they stood at a clock reading with the visitor's own actions replayed on top (one data model: the same
-fixtures, filtered by their own times; every scenario keeps this rhythm). `storyCopy.ts` is what "Follow the
-search" says, read off the loaded scenario in the search manager's present-tense voice: twelve coach marks on the
-overdue hiker (the call; the survey and the first candidates; Person, Person, a grey bag, the second look; the
-radio clue and the proposal that names it; the lost link and relay, the team walking its sector; the find; the
-after-action report), each anchored to a real region by selectors in order of preference ("the first assignment",
-"the clue it names", "the found event", never fixed ids), a beat the scenario lacks left out, and none of
-demo/recorded/scripted/simulated in the words (the header's chip says it). `story.ts` holds the clock
-(checkpoint, beat, progress, playing), whether the marks are on, and the visitor's actions as events.
-`Scrubber.tsx` is the time control on the map, with Skip to now and the story's keys under it; `CoachMark.tsx`
-the marks (hand-rolled, no dependency: a ring on the real panel or on a "group:" of cards, a sentence or two,
-Next/Back/Exit, the arrow keys, Space, Esc; a panel it scrolled goes back when it moves on); `PitchBar.tsx` the
-landing's two lines. t3's proposal mark waits for the visitor's approval (the card says which clue raised the
-sector, `clueShift.ts`). Recording and stills: `docs/report/figures/command-post/story.webm`, `story-t0…t6.webp`.
+fixtures, filtered by their own times; every scenario keeps this rhythm). The walk-through is the guided
+search (below): "Follow the search" on the app bar and the pitch bar, and the home page's Start, open it. The
+old step-through story (twelve first-person coach marks, `?t=0` to `?t=6`) is retired: `?t=N` opens the console
+at that checkpoint's clock with no marks (it settles on `#m/demo/map?t=N`), so old links still land.
+`story.ts` holds that clock (checkpoint, progress, playing), the pitch bar and the visitor's actions as events,
+and the guided search's own clock (`useGuide`). `storyCopy.ts` keeps the scenario's roles the guided search
+anchors to (the first assignment, the clue it names, the console's regions, the grey bag, the banned words).
+`Scrubber.tsx` is the time control on the map while the clock plays (Space outside the guided search), with
+Skip to now, and the guided search's strip; `CoachMark.tsx` the guided search's mark (hand-rolled, no
+dependency: a ring on the real panel or on a "group:" of cards); `PitchBar.tsx` the landing's two lines.
+The old story's stills stay in `docs/report/figures/command-post/` as a record.
 
 | File | What |
 |---|---|
