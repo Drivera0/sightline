@@ -15,6 +15,7 @@ instance (it never unmounts while you stay on a mission), one clock.
 | `Logo.tsx` | `Brand`: the logo and the name, a link to `#about`. |
 | `ShortcutOverlay.tsx`, `shortcuts.ts` | `?`: About and the home page, then the story's keys, the views, the console's and the review's. |
 | `theme.css` | Tokens for both themes (Colour, below), type scale, the status pill, motion (sheets and the guided search's marks 200–300 ms; none under reduced motion). |
+| `notify.ts`, `toasts.tsx`, `notifyBell.tsx` | The notification centre: the store (toasts that merge by key, a log with an unread count), the toast stack (bottom right, 5 s, Show me) and the status line's bell. Which event becomes which toast is `command/notifications.ts`. |
 | `theme.ts`, `ThemeToggle.tsx` | Dark or light: the system's preference until the visitor picks one with the app bar's toggle, then remembered (`localStorage` `sightline.theme`). `index.html` sets `data-theme` before the first paint with the same rule. |
 
 ## Colour

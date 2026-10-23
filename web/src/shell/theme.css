@@ -554,7 +554,7 @@ body {
 @keyframes sl-slide-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 .sl-slide-in { animation: sl-slide-in var(--motion-in) var(--ease-out) both; }
 @keyframes sl-row-new {
-  0%, 30% { background: color-mix(in srgb, var(--c, var(--accent-soft)) 22%, transparent); }
+  0%, 30% { background: color-mix(in srgb, var(--c, var(--accent-soft)) 14%, transparent); }
   100% { background: transparent; }
 }
 .sl-row-new { animation: sl-row-new var(--motion-row) ease-out both; }

@@ -210,3 +210,42 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
   `demoMission.ts` (a team walks a sector, searched at POD, found if the subject is inside; the survey
   proposal at t0) were not on main, so the minimal rule lives here. Screenshots:
   `docs/report/figures/v3/guided-step-*.webp`.
+
+## Feedback, review and the visitor's decisions (v3 interaction, lane A)
+
+What changed after Dan's v3 review (`docs/report/figures/v3/`: review-frame, toast, proposal-glow, timeline-tall,
+heat-tween-1..3; 1440 and 390):
+
+- **Nothing changes silently.** Every mission event that is news becomes a toast (`shell/toasts.tsx`,
+  `shell/notify.ts`; the mapping is `notifications.ts`, tested): bottom right, 5 s, stacking (same key merges with
+  a count), one action ("Show me", `showMe.ts`). The status line has a bell with the unread count and the last
+  30. New timeline rows hold a highlight in their kind's colour for 3 s; new proposal cards slide in with a slow
+  ring; the map's clue ring fades over 2 s. A team past its check-in raises an alert toast too.
+- **The heat evolves.** A change tweens cell by cell over 400 ms; the new class fills and contours are held back
+  until the tween ends, then crossfade in (`map/heat/surface.ts` `setSurfaceMode(…, fade)`).
+- **The map follows Needs you** (`map/heat/focusLayers.ts`): a candidate in focus (clicked, J/K, the review frame)
+  outlines its photo's footprint and pulses its pin; a proposal in focus glows its sector and the team or drone
+  card violet; the map pans when the focus is near the edge; an assignment draws the team's route growing from
+  where it is, its last sector or base camp (`map/base/teamRoute.ts`). One pin popup at a time
+  (`map/base/onePopup.ts`).
+- **Review frame** (`ReviewFrame.tsx`): when candidates arrive where there were none, a toast says how many and
+  the first opens large (outside the guided story): the photo with the box, the crop, the AI second look, P/N/U,
+  moving on by itself. The second look is a button with its two model chips, a progress state and the result
+  inline (`review/SecondLook.tsx`).
+- **Timeline**: 20 rem by default, a handle to resize it (remembered), readable rows, a remembered filter with
+  counts, Add clue in its header; right-click or long-press the map adds a clue there (what, who reported,
+  reliability); the first radio call brings a one-time hint.
+- **Call and Task**: Call addresses the talk bar ("Calling Team Two"); Task lists the sectors by POA under the
+  card, the agent's pick first (`SectorPicker.tsx`). No folded lists: "Show N more" links instead.
+- **Two voices** (`RadioBubble.tsx`): what goes on the air is a teal radio bubble with mono callsigns ("Desk →
+  Team One"); what the agent tells you is a plain violet note ("Agent → you").
+- **The visitor decides** (`missionTime.demoAt(…, guided, { hold, seed })`, `holdFor`): a proposal the visitor
+  decided is logged once; once they play the clock outside the story, the scenario's own approvals wait for them
+  and what followed from them does not happen. What they assign then plays through the guided search's engine
+  (`sim.ts` via `simulate`: the walk, the sweep, the seeded draw at POD, the find or the sector searched), the one
+  engine for the free console and the guided search. Free mode labels the scenario's decisions "the scenario's
+  search manager". The map draws each new assignment's route (`focusLayers.ts`, `map/base/teamRoute.ts`).
+- **The judges' list (2026-10-23)**: team status from its tasks; overdue fires; POA at 15:00 from the map log;
+  Outside the grid N %; drones read "Drone 1"; Record find on the team card and in Needs you; the story's
+  scrubber steps one checkpoint on a phone; Replayed (not This flight) on stand-in model calls; survey and leg
+  photos apart; the strict 86.4 % leads People found. Held in `judges.test.ts` and the files' own tests.
