@@ -6,7 +6,7 @@
 // (the candidates stay in Needs you). The map pans to and pulses the candidate in view. Built by lane A.
 import { useEffect, useRef, useState } from "react";
 import { isTyping } from "../lib/keys";
-import { focusCandidate, reviewKeys, type LiveAnswer, type OnAnswer, type ReviewCard } from "../review/LiveReview";
+import { focusCandidate, ObjectPhotoBadge, reviewKeys, type LiveAnswer, type OnAnswer, type ReviewCard } from "../review/LiveReview";
 import { answerForKey, ObjectPicker, REVIEW_ANSWERS, usePickerKeys, type ObjectKind } from "../review/answers";
 import { SecondLook } from "../review/SecondLook";
 import { KeyHint } from "../shell/components";
@@ -152,7 +152,15 @@ export function ReviewFrame({
 
 /** The whole photo with the candidate's box on it; the crop alone when the photo is not known. */
 function Photo({ c }: { c: ReviewCard }) {
-  if (!c.photo || !c.size || !c.box) return <img src={c.crop} alt={`Crop of ${c.id}, large`} className="max-h-[60vh] w-full rounded-md object-contain" />;
+  // a distractor frame: a ground-level photo among the aerial ones, and the badge says so
+  const badge = c.distractor ? <ObjectPhotoBadge className="absolute top-2 left-2" /> : null;
+  if (!c.photo || !c.size || !c.box)
+    return (
+      <div className="relative">
+        <img src={c.crop} alt={`Crop of ${c.id}, large`} className="max-h-[60vh] w-full rounded-md object-contain" />
+        {badge}
+      </div>
+    );
   const [w, h] = c.size;
   const [x0, y0, x1, y1] = c.box;
   const pct = (v: number, of: number) => `${(100 * v) / of}%`;
@@ -164,6 +172,7 @@ function Photo({ c }: { c: ReviewCard }) {
         className="sl-new absolute rounded-[3px] border-2 border-accent"
         style={{ ["--c" as string]: "var(--accent)", left: pct(x0, w), top: pct(y0, h), width: pct(x1 - x0, w), height: pct(y1 - y0, h) }}
       />
+      {badge}
     </div>
   );
 }

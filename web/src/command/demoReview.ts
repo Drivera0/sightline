@@ -108,6 +108,7 @@ export function distractorCards(distractors: readonly DistractorFrame[] | undefi
         chips: verdictChips(v),
         ms: v?.ms,
         object: v?.object ?? d.object,
+        distractor: true,
         note: `Photo: ${d.credit}.`,
         photo: publicUrl(d.image),
         ...(size ? { size, box: d.box_px } : {}),

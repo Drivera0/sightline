@@ -81,12 +81,26 @@ export interface ReviewCard {
   note?: string;
   /** How long the second look took (ms), when it ran. */
   ms?: number;
+  /** A distractor frame (`fixture.distractors`): a ground-level photo of an object among the aerial ones. */
+  distractor?: boolean;
   /** What the second look thinks the thing is, when not a person (the object picker marks it). */
   object?: ObjectKind | null;
   /** The whole photo, its size in pixels and the candidate's box in it (the review frame shows them). */
   photo?: string;
   size?: [number, number];
   box?: [number, number, number, number];
+}
+
+/** What the "object photo" badge says on hover: why a ground-level photo is among the aerial ones. */
+export const OBJECT_PHOTO_TITLE = "An object photo: a ground-level picture of a thing a lost person might leave, placed among the drone's aerial photos";
+
+/** The badge on a distractor frame's photo. */
+export function ObjectPhotoBadge({ className = "" }: { className?: string }) {
+  return (
+    <span title={OBJECT_PHOTO_TITLE} className={`inline-flex items-center rounded-full border border-[color-mix(in_srgb,var(--clue)_55%,transparent)] bg-bg/85 px-2 py-px text-caption text-text ${className}`}>
+      object photo
+    </span>
+  );
 }
 
 /** One candidate: crop, score, verdict in words with its model chips, the answers (Object opens its type picker). */
@@ -108,6 +122,7 @@ function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }
             <span className="text-small text-text">{c.conf.toFixed(2)}</span>
             <span className="truncate font-mono text-caption text-text-3">{c.id}</span>
             {c.promoted && <Badge kind="info">Promoted</Badge>}
+            {c.distractor && <ObjectPhotoBadge />}
           </span>
           <Label className="truncate normal-case tracking-normal">{c.frame}</Label>
         </div>
