@@ -1,42 +1,34 @@
 // The demo mission's Photos and Review rails: the survey's photos and candidates as far as the mission
-// clock has got (the demo cache), plus one recorded second look. That one is real and recorded on another
-// HERIDAL photo (docs/architecture/av-chain): a 0.18 detection the queue would have dropped, OpenCV 5's
-// native-resolution zoom, Nemotron VL's verdict. It is labelled as recorded, and confirming it pins nothing.
+// clock has got (the demo cache), plus the one second look from this flight (#192): f0273-d02, a 0.17
+// detection the queue would have dropped, two people on a trail under the trees. Its second look is real:
+// OpenCV 5's native-resolution zoom of the photo and Nemotron VL's verdict, run live on 22 Oct 2026 by
+// scripts/make_second_look_fixture.py (`__fixtures__/second_look/`, the verdict word for word). Confirming
+// it pins a sighting where the photo puts it, like any other candidate.
 
 import type { CacheBundle, Frame, Verdict } from "../contract";
 import { verdictChips, verdictWords, type ReviewCard } from "../review/LiveReview";
-import cropUrl from "./__fixtures__/trace_crop.jpg?url";
-import zoomUrl from "./__fixtures__/trace_zoom_native.jpg?url";
+import secondLook from "./__fixtures__/second_look/verdict.json";
+import cropUrl from "./__fixtures__/second_look/f0273-d02-crop.jpg?url";
+import zoomUrl from "./__fixtures__/second_look/f0273-d02-zoom_native.jpg?url";
 
-export const RECORDED_ID = "recorded-f0001-d01";
+/** The detection the second look is on: a real near miss of the demo cache, so its pin has a place. */
+export const SECOND_LOOK_ID: string = secondLook.detection.id;
 
-/** The verdict as the trace recorded it (demo_trace_avchain.jsonl, t000004). */
-export const RECORDED_VERDICT: Verdict = {
-  id: "v0001",
-  detection_id: "f0001-d01",
-  tools: ["zoom_native"],
-  relook_crops: ["relook/f0001-d01-zoom_native.jpg"],
-  person: "yes",
-  posture: "lying",
-  group_size: 1,
-  clothing: "white top, dark pants",
-  reason: "A human shape with a head, torso, and limbs is visible lying on the ground.",
-  model: "nvidia/Nemotron-3.5-Super-VL",
-  ms: 1488,
-  at: "2026-10-21T00:33:25.917Z",
-};
+/** The verdict as the live run stored it (`second_look/verdict.json`, from its trace). */
+export const SECOND_LOOK_VERDICT = secondLook.verdict as Verdict;
 
-export function recordedCard(): ReviewCard {
+export function secondLookCard(): ReviewCard {
+  const v = SECOND_LOOK_VERDICT;
   return {
-    id: RECORDED_ID,
-    conf: 0.179,
+    id: SECOND_LOOK_ID,
+    conf: secondLook.detection.conf,
     crop: cropUrl,
-    frame: "Second look on HERIDAL photo train_ZRI_2061, not this flight",
-    words: verdictWords(RECORDED_VERDICT),
-    chips: verdictChips(RECORDED_VERDICT),
-    relook: [{ url: zoomUrl, name: "relook/f0001-d01-zoom_native.jpg" }],
+    frame: "Second look · this flight",
+    words: verdictWords(v),
+    chips: verdictChips(v),
+    relook: v.relook_crops.map((name) => ({ url: zoomUrl, name })),
     promoted: true,
-    note: "Below the 0.29 review threshold, so the queue would have dropped it; the agent promoted it after the second look. Recorded 21 Oct 2026; it has no place on this map.",
+    note: `Survey photo ${SECOND_LOOK_ID.slice(0, 5)}, below the 0.29 review threshold, so the queue would have dropped it; the agent promoted it after the second look (OpenCV 5 zoom, then Nemotron VL, a live call): "${v.reason}"`,
   };
 }
 
@@ -46,8 +38,8 @@ export function landedFrames(bundle: CacheBundle | null, count: number): Frame[]
   return [...bundle.survey.frames].sort((a, b) => a.flight_index - b.flight_index).slice(0, count);
 }
 
-/** The review queue at this moment: candidates in landed photos, most confident first; the recorded one third. */
-export function demoCards(bundle: CacheBundle | null, landed: readonly Frame[], imageUrl: (rel: string) => string, withRecorded: boolean): ReviewCard[] {
+/** The review queue at this moment: candidates in landed photos, most confident first; the second look from this flight third. */
+export function demoCards(bundle: CacheBundle | null, landed: readonly Frame[], imageUrl: (rel: string) => string, withSecondLook: boolean): ReviewCard[] {
   if (!bundle) return [];
   const ids = new Set(landed.map((f) => f.id));
   const threshold = bundle.detections.candidate_threshold;
@@ -64,7 +56,7 @@ export function demoCards(bundle: CacheBundle | null, landed: readonly Frame[], 
       words: null,
       note: undefined,
     }));
-  if (withRecorded) cards.splice(Math.min(2, cards.length), 0, recordedCard());
+  if (withSecondLook) cards.splice(Math.min(2, cards.length), 0, secondLookCard());
   return cards;
 }
 

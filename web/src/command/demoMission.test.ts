@@ -45,7 +45,8 @@ describe("demo mission", () => {
       expect(kinds).toContain("model_call");
       if (p.kind === "promote_detection") expect(kinds).toContain("tool_call"); // the OpenCV re-look
       if (p.status !== "pending") expect(kinds).toContain("decision");
-      for (const e of c!.entries.filter((x) => x.kind === "model_call")) expect(e.model).toMatch(/^fake\//);
+      // fakes, and the one live answer replayed word for word (second_look/verdict.json)
+      for (const e of c!.entries.filter((x) => x.kind === "model_call")) expect(e.model).toMatch(/^(fake|recorded)\//);
     }
   });
 

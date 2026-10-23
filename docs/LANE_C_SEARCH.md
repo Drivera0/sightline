@@ -53,7 +53,7 @@ Turn rings into cells:
 
 - Rings `[(r₁, c₁), (r₂, c₂), …]`, radius in metres and cumulative fraction found within it.
 - Ring k holds mass `c_k − c_{k−1}` spread uniformly over its annulus area.
-- A cell belongs to the ring containing its **centre**. In-grid cell mass = ring mass × (cell area / annulus area).
+- A cell belongs to the ring containing its **centre**. In-grid cell mass = ring mass × w(distance) × cell area / ∫ w over the annulus, w falling linearly from 1 at the inner radius to `RING_EDGE` (0.25) at the outer (22 Oct: an even spread by area left the 1 km demo grid flat); the part past the grid is in `outside` (`prior_mass_outside`).
 - Ring mass that falls outside the grid, plus `1 − c_last`, goes to `outside`.
 
 **Until the real numbers are in:** uniform over the grid with `outside = 0.5`, and the `map.json` notes say "placeholder prior". Never ship invented ring numbers.

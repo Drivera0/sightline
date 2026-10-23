@@ -47,7 +47,7 @@ describe("trace helpers", () => {
   it("puts a planner tool_call under decision, with its ranking and the proposal it produced", async () => {
     const { runs } = await loadDemoTrace();
     const own = runs[0]!.entries;
-    const planner = own.find((e) => e.id === "t000025")!;
+    const planner = own.find((e) => e.id === "t000023")!;
     expect(isPlannerCall(planner)).toBe(true);
     expect(stageOf(planner)).toBe("decision");
     // a tool_call that only looks (an OpenCV zoom) stays perception
@@ -58,9 +58,9 @@ describe("trace helpers", () => {
     expect(plannerRanked(entry({ kind: "tool_call", actor: "planner", output: { ranked: [{ sector: "B3", score_per_min: 0.02, evidence: "x" }], chosen: [] } }))).toEqual([
       { sector: "B3", score: 0.02, evidence: "x" },
     ]);
-    expect(outputSummary(planner)).toBe("ranked C2 0.015, B2 0.014, C3 0.014");
+    expect(outputSummary(planner)).toBe("ranked C2 0.019, B2 0.018, C3 0.018");
     const chain = chains(own).find((c) => c.entries.includes(planner))!;
-    expect(plannedProposals(chain.entries, planner).map((e) => e.id)).toEqual(["t000027"]);
+    expect(plannedProposals(chain.entries, planner).map((e) => e.id)).toEqual(["t000025"]);
     expect(chain.stages).toEqual(["perception", "decision", "action", "approval"]);
   });
 
@@ -95,7 +95,7 @@ describe("TraceView", () => {
     const outcome = within(chain).getByText(/p001 promote_detection → approved by a script, not a person/);
     expect(outcome.closest("[data-tone]")).toHaveAttribute("data-tone", "caution");
     expect(within(chain).getByRole("listitem", { name: "Approval t000006" }).querySelector("[data-tone]")).toHaveAttribute("data-tone", "caution");
-    expect(strip).toHaveTextContent("0 decided by a person · 11 scripted approvals (demo run)"); // the demo mission's 10 and the showcase's 1
+    expect(strip).toHaveTextContent("0 decided by a person · 10 scripted approvals (demo run)"); // the demo mission's 9 and the showcase's 1
     const step = within(chain).getByRole("listitem", { name: "Model t000003" });
     expect(step).toHaveTextContent("1.4 s");
     await userEvent.click(within(step).getByRole("button"));
@@ -112,14 +112,14 @@ describe("TraceView", () => {
   it("shows a planner step under Decision with its top three sectors and a link to the proposal it produced", async () => {
     const { runs } = await loadDemoTrace();
     render(<TraceView runs={runs} />);
-    const step = screen.getByRole("listitem", { name: "Tool t000025" });
+    const step = screen.getByRole("listitem", { name: "Tool t000023" });
     expect(step).toHaveTextContent("Decision");
     const ranked = within(step).getAllByRole("listitem");
     expect(ranked.map((li) => li.getAttribute("data-sector"))).toEqual(["C2", "B2", "C3"]);
-    expect(ranked[0]).toHaveTextContent("1. C2 score 0.0147: C2 · 2.7 % of remaining probability, up from 1.4 %: c001");
-    const link = within(step).getByRole("link", { name: "p003" });
+    expect(ranked[0]).toHaveTextContent("1. C2 score 0.0194: C2 · 3.5 % of remaining probability, up from 1.9 %: c001");
+    const link = within(step).getByRole("link", { name: "p002" });
     const target = document.getElementById(link.getAttribute("href")!.slice(1));
-    expect(target).toHaveAttribute("aria-label", "Proposal t000027");
+    expect(target).toHaveAttribute("aria-label", "Proposal t000025");
   });
 
   it('never says "clear"', async () => {

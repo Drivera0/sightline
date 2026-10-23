@@ -68,8 +68,11 @@ logs the cache's frame steps, the clues (`POST /clues`, so `LiveMap.clue_update`
 task updates; the agent's own `loop.handle` makes every proposal (the second look on the cache's near-miss
 detections, the planner's tick at 21:42 UTC); a scripted search manager and image reviewer decide them through
 `POST /decide`. The models are fakes and say so (`fake/<model>`: scripted VL answers, short briefings from the
-facts). Out: 4 teams, 16 tasks in every state, 4 clues (2 by radio, typed turns), 5 proposals (2 promotions,
-one pending with the second look's images in `__fixtures__/relook/`; 3 assignments), the 16 sectors' POA, and
+facts), but for the second look on f0273-d02 (#192): `scripts/make_second_look_fixture.py` ran it on this flight
+with the live VL model (`__fixtures__/second_look/`: trace, verdict, crop and zoom), and its answer is replayed
+word for word as `recorded/<model>`. Out: 4 teams, 16 tasks in every state, 4 clues (2 by radio, typed turns),
+4 proposals (the promotion of f0273-d02, pending with the second look's images in `__fixtures__/relook/`; 3
+assignments), the 16 sectors' POA, and
 `demo_trace.jsonl`, the mission's whole trace, so every proposal has its chain in the Trace view. The car in the
 trailhead lot is a mission note, not a clue: it marks where the search starts, and as a clue it would pull the
 map toward the corner sector A1. The script validates everything against the contract and refuses the word
@@ -103,8 +106,11 @@ cache (`/cache/demo`). Screenshots: `docs/report/figures/one-console/`.
   `?after=`; entries grouped into chains by shared ids (perception → decision → action → approval), one line
   per step (span type, tool or model, input, output, ms), the proposal each chain led to and who decided, and
   a "which model did what" strip. The demo mission shows its own trace first (`__fixtures__/demo_trace.jsonl`,
-  from the generator: labelled Demo, fake models and scripted people named), then two recorded runs copied from
-  the repo (`demo_trace_avchain.jsonl`, `demo_trace_conditions.jsonl`, the av-chain crops), labelled Recorded.
+  from the generator: labelled Demo, fake models and scripted people named, and the one live answer replayed),
+  then two recorded runs copied from the repo (`demo_trace_avchain.jsonl`, a second look on another HERIDAL
+  photo, and `demo_trace_conditions.jsonl`, with the av-chain crops), labelled Recorded. The review rail's third
+  card at Confirm is this flight's second look (`demoReview.ts`, "Second look · this flight"); Person on it pins a
+  sighting at f0273-d02's place, like any candidate.
 
 ## Load order (web audit, 2026-10-22)
 

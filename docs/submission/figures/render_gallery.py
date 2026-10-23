@@ -31,14 +31,15 @@ def esc(page: Page) -> None:
 
 def t2_card(page: Page) -> None:
     esc(page)
-    page.get_by_role("button", name="Show the second look's images").click()
-    # back to the top of the queue: #1 and #2 above, #3 with its second look's images open
-    page.evaluate("() => document.querySelectorAll('.overflow-y-auto').forEach((e) => { e.scrollTop = 0; })")
+    show = page.get_by_role("button", name="Show the second look's images").element_handle()
+    show.click()
+    # the queue scrolled to #3 (this flight's second look, its images open), under its pending promotion
+    show.evaluate("(e) => e.closest('li').scrollIntoView({ block: 'start' })")
 
 
 def trace_chain(page: Page) -> None:
-    # the recorded av-chain run (Nemotron VL on a val photo), below the demo mission's own trace
-    chain = page.get_by_role("article", name="Chain f0001-d01 · v0001 · p001")
+    # this flight's second look (f0273-d02) in the demo mission's own trace: Nemotron VL's live answer
+    chain = page.get_by_role("article", name="Chain f0273-d02 · v0002 · relook-f0273-d02 · p001")
     chain.locator("li[aria-label^=Model] button").first.click()
     chain.evaluate("(e) => e.scrollIntoView({ block: 'start' })")
 
@@ -68,7 +69,7 @@ def t5_debrief(page: Page) -> None:
 JOBS = [
     ("console-t0-the-call-pitch-bar.png", "#m/demo?t=0", None),
     ("photos-land-t1-each-photo-ranked-and-placed.png", "#m/demo?t=1", esc),
-    ("second-look-t2-a-018-candidate-opencv5-zoom-nemotron-vl.png", "#m/demo?t=2", t2_card),
+    ("second-look-t2-a-017-candidate-this-flight-opencv5-zoom-nemotron-vl.png", "#m/demo?t=2", t2_card),
     ("trace-which-model-did-what-second-look.png", "#m/demo/trace?t=2", trace_chain),
     ("run-t4-fleet-flying-b4-pod-60-conditions.png", "#m/demo?t=4", t4_conditions),
     ("debrief-t5-three-numbers-what-breaks-first.png", "#m/demo?t=5", t5_debrief),

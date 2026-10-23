@@ -14,10 +14,13 @@ near-miss detection in the cache (the second look: OpenCV re-look tools, then th
 planner's tick (``propose_assignments`` on the map as it stands, a briefing per assignment). Decisions go
 through ``POST /proposals/{pid}/decide``, as a scripted search manager and image reviewer (named so).
 
-**The models are fakes, and say so.** No model is called: the VL model's answers are scripted per
-detection from a person looking at the crop (``VL_ANSWERS``), and a briefing is its facts, one sentence
-each (``loop.template_briefing``, as ``scripts/agent_eval.py`` does). Both are traced under the model
-name ``fake/<model>`` with a reason that says so. The clock is the demo's afternoon (UTC in the files,
+**The models are fakes, and say so, but for one recorded answer.** No model is called: the VL model's
+answers are scripted per detection from a person looking at the crop (``VL_ANSWERS``), and a briefing is
+its facts, one sentence each (``loop.template_briefing``, as ``scripts/agent_eval.py`` does). Both are
+traced under the model name ``fake/<model>`` with a reason that says so. The one exception is the second
+look the story shows at Confirm (#192): ``scripts/make_second_look_fixture.py`` ran it on this flight's
+f0273-d02 with the live VL model, and its answer (``__fixtures__/second_look/verdict.json``) is replayed
+here word for word, traced as ``recorded/<model>`` with the recorded time and tokens. The clock is the demo's afternoon (UTC in the files,
 13:35 to 15:00 PDT on screen): every ``now`` the product reads is patched to it.
 
 Writes ``web/src/command/__fixtures__/demo_mission.json`` (mission, teams, tasks, clues, proposals,
@@ -81,19 +84,32 @@ BASE_CAMP = {**TRAILHEAD, "name": "Trailhead lot"}  # the base camp (demo_scenar
 SUBJECT = "adult, red jacket, day hiker"
 
 # The fake VL model's answer per near-miss detection (0.15 to 0.29: the verifier's band), from a
-# person looking at the crop in the cache's photo. f0273-d02 is a person in red beside the group in
-# f0273; f0396-d01 a red shape under the trees at the photo's top edge; f0049-d01 a pale shape in rock;
-# f0423-d01 the photo's edge, nothing in it.
+# person looking at the crop in the cache's photo. f0396-d01 is a red car parked under the trees at the
+# photo's top edge; f0049-d01 a pale shape in rock; f0423-d01 the photo's edge, nothing in it. f0273-d02
+# (two people on a trail under the trees, not in HERIDAL's labels) has the live model's answer instead
+# (``RECORDED``).
 VL_ANSWERS: dict[str, dict] = {
-    "f0273-d02": {"person": "yes", "posture": "standing", "group_size": 1, "clothing": "red top",
-                  "reason": "A person in a red top, beside the group in this photo"},
-    "f0396-d01": {"person": "yes", "posture": "lying", "group_size": 1, "clothing": "red",
-                  "reason": "A red shape the size of a person lying under the trees, at the photo's edge"},
+    "f0396-d01": {"person": "no", "posture": "unknown", "group_size": None, "clothing": None,
+                  "reason": "A red car parked under the trees at the photo's edge; nothing shaped like a person"},
     "f0049-d01": {"person": "unclear", "posture": "unknown", "group_size": None, "clothing": None,
                   "reason": "A pale shape among rocks; no head or limbs can be made out"},
     "f0423-d01": {"person": "no", "posture": "unknown", "group_size": None, "clothing": None,
                   "reason": "Bare ground at the photo's edge; nothing shaped like a person"},
 }  # fmt: skip
+
+
+SECOND_LOOK = FIX / "second_look/verdict.json"  # scripts/make_second_look_fixture.py, live model
+
+
+def recorded_answers() -> dict[str, dict]:
+    """The live second look's answer per detection, as ``make_second_look_fixture.py`` recorded it."""
+    if not SECOND_LOOK.is_file():
+        return {}
+    doc = json.loads(SECOND_LOOK.read_text())
+    return {doc["detection"]["id"]: {"text": doc["answer"], **doc["model_call"]}}
+
+
+RECORDED = recorded_answers()
 
 
 def iso(t: datetime) -> str:
@@ -163,6 +179,7 @@ class FakeModels:
 
     def __init__(self) -> None:
         self.next_vl: dict | None = None
+        self.recorded: dict | None = None  # a live answer, replayed word for word
 
     def chat(self, messages: list[dict], *, model: str, **kw: Any) -> Any:
         from sightline.agent.llm import ChatResult, last_user_text
@@ -173,6 +190,9 @@ class FakeModels:
             text = briefing(
                 json.JSONDecoder().raw_decode(prompt.rsplit("Facts:\n", 1)[1])[0]
             ) or template_briefing({})
+        elif self.recorded is not None:
+            r = self.recorded
+            return ChatResult(r["text"], [], f"recorded/{r['model']}", r["ms"], r["tokens_in"], r["tokens_out"])  # fmt: skip
         elif self.next_vl is not None:
             a = dict(self.next_vl)
             a["reason"] = f"{a['reason']} ({FAKE})."
@@ -470,6 +490,7 @@ def run(seed: int | None) -> None:
             store.emit(mid, what[1], what[2], ref=what[3])
         elif kind == "detection":
             models.next_vl = VL_ANSWERS.get(what[1])
+            models.recorded = RECORDED.get(what[1])
             out = loop.handle(
                 "detection", store, mid, what[1], client=models, detector=NoDetector()
             )
@@ -686,7 +707,7 @@ def run(seed: int | None) -> None:
     }
     if scn is not None:
         doc |= {"scenario": scn.public(), "t0": iso(T0), "flight": [iso(FLIGHT[0]), iso(FLIGHT[1])],
-                "prior": prior_doc(base)}  # fmt: skip
+                "prior": prior_doc(base, category)}  # fmt: skip
     out_events = []
     renumbered = {u.seq: v.seq for u, v in zip(rest, map_updates, strict=True)}
     for seen_ids, e in enumerate(sorted(events, key=lambda e: e.at), 1):
@@ -724,7 +745,7 @@ def run(seed: int | None) -> None:
         return
     OUT.write_text(text + "\n")
     TRACE.write_text(trace_text)
-    PRIOR.write_text(json.dumps(prior_doc(base), separators=(",", ":")) + "\n")
+    PRIOR.write_text(json.dumps(prior_doc(base, category), separators=(",", ":")) + "\n")
 
     print(f"wrote {OUT.relative_to(ROOT)}: {len(state['tasks'])} tasks, {len(state['clues'])} clues, "
           f"{len(proposals)} proposals, {len(out_events)} events, {len(map_updates)} map updates after the frames")  # fmt: skip
@@ -742,9 +763,14 @@ def run(seed: int | None) -> None:
     )
 
 
-def prior_doc(base: Any) -> dict:
-    """The map base's prior for the web (4 significant figures a cell; ``outside`` keeps the sum 1)."""
+def prior_doc(base: Any, category: str | None) -> dict:
+    """The map base's prior for the web (4 significant figures a cell; ``outside`` keeps the sum 1),
+    and where its ``outside`` comes from (``prior_mass_outside``: the 1 km grid is smaller than the
+    category's outer rings, so most of the rings' mass lies past its edge, reported, not dropped)."""
+    from sightline.search.prior import prior_mass_outside
+
     p = [float(f"{x:.4g}") for x in base.prior.p]
+    parts = prior_mass_outside(base.grid, base.lkp, category)
     return {
         "note": "Generated by scripts/make_command_fixtures.py: the demo map's prior over the whole grid, "
         "row-major like map.json's prior.p; the cache's map.json carries the uniform placeholder instead.",
@@ -752,6 +778,7 @@ def prior_doc(base: Any) -> dict:
         "lkp": base.lkp.model_dump(),
         "p": p,
         "outside": max(0.0, 1.0 - sum(p)),
+        "prior_mass_outside": {k: round(v, 4) for k, v in parts.items()},
     }
 
 

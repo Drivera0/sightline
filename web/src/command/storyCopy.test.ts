@@ -52,11 +52,11 @@ describe("the story on the overdue hiker", () => {
     expect(at(2).text).toMatch(/^The first two are plainly people: Person, Person/);
     expect(at(2, 1).text).toMatch(/Not a person/);
     expect(at(2, 2).text).toMatch(/second look caught it.*mark Person: the pin lands/);
-    expect(at(2, 2).target).toContain('[data-proposal="p002"]'); // the pending promotion, when the queue has no card for it
+    expect(at(2, 2).target).toContain('[data-proposal="p001"]'); // the pending promotion, when the queue has no card for it
   });
 
   it("t3, where next: the clue the first assignment names, by radio, then that proposal, which waits for approval", () => {
-    expect(storyProposal(overdue)?.id).toBe("p003");
+    expect(storyProposal(overdue)?.id).toBe("p002");
     expect(storyClue(overdue)?.id).toBe("c004"); // c001 and c004 raised C2; c004 came by radio, last
     expect(at(3).text).toBe("Team One on the radio: possible whistle, three blasts, to the south-west. I confirm it as a clue and the map moves toward it.");
     expect(at(3).target[0]).toBe('group:[data-tour="timeline"] li[data-kind="clue"], [data-tour="timeline"] li[data-kind="radio"]');

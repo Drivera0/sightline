@@ -41,10 +41,10 @@ export const NOW_AT = `${DAY}22:00:00Z`;
 /** Where everyone waits before the run: the trailhead lot, where the subject's car is (the call). */
 export const TRAILHEAD = { lat: 49.373, lon: -122.949 } as const;
 /**
- * The overdue hiker's first assignment (scripts/make_command_fixtures.py; p001 and p002 are the second
- * look's promotions). The story itself never names it: it reads the loaded scenario's first assignment.
+ * The overdue hiker's first assignment (scripts/make_command_fixtures.py; p001 is the second look's
+ * promotion). The story itself never names it: it reads the loaded scenario's first assignment.
  */
-export const STORY_PROPOSAL = "p003";
+export const STORY_PROPOSAL = "p002";
 /** The sector it proposes (the fixture's; missionTime.test checks the two agree). */
 export const STORY_SECTOR = "C2";
 

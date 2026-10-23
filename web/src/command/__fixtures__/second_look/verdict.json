@@ -1,0 +1,79 @@
+{
+ "note": "Written by scripts/make_second_look_fixture.py: the real second look on a near-miss detection of the demo's own flight, with the live VL model; the answer is kept word for word.",
+ "detection": {
+  "id": "f0273-d02",
+  "box_px": [
+   502,
+   173,
+   577,
+   252
+  ],
+  "conf": 0.173,
+  "crop": null,
+  "lat": 49.369921,
+  "lon": -122.9433,
+  "radius_m": 10.0
+ },
+ "verdict": {
+  "id": "v0001",
+  "detection_id": "f0273-d02",
+  "tools": [
+   "zoom_native"
+  ],
+  "relook_crops": [
+   "relook/f0273-d02-zoom_native.jpg"
+  ],
+  "person": "yes",
+  "posture": "standing",
+  "group_size": 2,
+  "clothing": "red jacket, blue top, dark trousers",
+  "reason": "Two human figures are visible, each with a head, torso, and limbs, one in a red jacket and blue top and another in a red top behind them.",
+  "model": "nvidia/Nemotron-3.5-Super-VL",
+  "ms": 1733,
+  "at": "2026-10-23T02:03:38.488Z"
+ },
+ "answer": "{\n  \"person\": \"yes\",\n  \"posture\": \"standing\",\n  \"group_size\": 2,\n  \"clothing\": \"red jacket, blue top, dark trousers\",\n  \"reason\": \"Two human figures are visible, each with a head, torso, and limbs, one in a red jacket and blue top and another in a red top behind them.\"\n}",
+ "model_call": {
+  "model": "nvidia/Nemotron-3.5-Super-VL",
+  "ms": 1723,
+  "tokens_in": 817,
+  "tokens_out": 79
+ },
+ "proposals": [
+  {
+   "id": "p001",
+   "kind": "promote_detection",
+   "summary": "Add f0273-d02 to the review queue: second look says likely a person",
+   "reason": "Detector confidence 0.17 is below the review threshold 0.29; the second look (zoom_native) says: Two human figures are visible, each with a head, torso, and limbs, one in a red jacket and blue top and another in a red top behind them.",
+   "briefing": null,
+   "target": {
+    "detection": "f0273-d02"
+   },
+   "leg": null,
+   "evidence": [
+    {
+     "kind": "crop",
+     "ref": "relook/f0273-d02-crop.jpg",
+     "caption": "detector confidence 0.17"
+    },
+    {
+     "kind": "relook",
+     "ref": "relook/f0273-d02-zoom_native.jpg",
+     "caption": "zoom_native"
+    },
+    {
+     "kind": "trace",
+     "ref": "v0001",
+     "caption": "second look: Two human figures are visible, each with a head, torso, and limbs, one in a red jacket and blue top and another in a red top behind them."
+    }
+   ],
+   "status": "pending",
+   "created_by": "verifier",
+   "created_at": "2026-10-23T02:03:38.517Z",
+   "decided_at": null,
+   "decided_by": null,
+   "decision_reason": null,
+   "edits": null
+  }
+ ]
+}
