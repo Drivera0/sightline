@@ -1,28 +1,51 @@
-# Burned-in step labels and the cuts, for scripts/demo_video/captions.py. Labels are short on-screen step
-# names, not narration (WIN_RESEARCH §8), at most two lines. A label with `number: true` gets "N · " in
-# front, counted over the shots that actually ran, so a skipped shot leaves no gap. A label never calls an
-# area done: a searched sector is "searched at POD x". Anything simulated says so.
+# Burned-in step labels, camera moves and the cuts, for scripts/demo_video/captions.py. Labels are short
+# on-screen step names, not narration (WIN_RESEARCH §8): at most two lines of 42 characters with the
+# number (captions.py wraps a long line at a space and stops on a label that would need a third), on
+# screen at least 1.2 s. A label with `number: true` gets "N · " in front, counted over the shots that
+# actually ran, so a skipped shot leaves no gap. A label never calls an area done: a searched sector is
+# "searched at POD x". Anything simulated or recorded says so.
 
 style:
-  # libass force_style for the subtitles filter: a small label in a dark box, bottom centre
+  # libass force_style for the subtitles filter: a small label in a dark box, bottom centre. Burned into
+  # the 1080p program after the camera moves, so the type stays sharp and still.
   force_style: "FontName=Inter,FontSize=10,PrimaryColour=&H00FFFFFF,BackColour=&H99000000,BorderStyle=3,Outline=4,Shadow=0,Alignment=2,MarginV=6"
   lead_in_s: 0.3   # label appears this long after the shot starts
   lead_out_s: 0.3  # and goes this long before it ends
 
 labels:
-  call:       {text: "Sightline · the call: a hiker overdue on Mount Seymour (demo mission)"}
-  photos:     {text: "Photos land · OpenCV 5 cv2.dnn ranks each one, 0.30 s per photo on a GPU\nReal HERIDAL photos on a simulated flight path", number: true}
-  confirm:    {text: "A person confirms each candidate · a 0.18 detection rescued by the second look\nOpenCV 5 zoom + Nemotron 3.5 Super VL (recorded run)", number: true}
-  trace:      {text: "The trace of that chain: tool call → model call → verdict → proposal → decision", number: true}
-  next:       {text: "Where next: the agent proposes, a person approves", number: true}
-  run:        {text: "The run: teams out, drones fly (simulated), B4 searched at POD 60 %", number: true}
-  conditions: {text: "Conditions with their sources: Tavily search, quotes read word for word", number: true}
-  fleet:      {text: "Degraded comms (simulated): D2 link lost, D3 degraded, Team Two relayed via D1", number: true}
-  radio:      {text: "The radio desk: Sightline's briefing in NVIDIA Magpie TTS (recorded)", number: true}
+  call:       {text: "Sightline · the call: a hiker overdue\non Mount Seymour (demo mission)"}
+  photos:     {text: "OpenCV 5 cv2.dnn ranks each photo\nReal HERIDAL photos, simulated flight path", number: true}
+  confirm:    {text: "Second look rescues a 0.18 detection\nOpenCV 5 + Nemotron 3.5 Super VL, recorded", number: true}
+  trace:      {text: "The trace: tool call → model call →\nverdict → proposal → decision", number: true}
+  next:       {text: "Where next: the agent proposes,\na person approves", number: true}
+  run:        {text: "Teams out, drones fly (simulated)\nB4 searched at POD 60 %", number: true}
+  conditions: {text: "Conditions with their sources:\nTavily search, quotes read word for word", number: true}
+  fleet:      {text: "Simulated comms: D2 link lost\nD3 degraded, Team Two relayed via D1", number: true}
+  radio:      {text: "The radio desk: Sightline's briefing\nin NVIDIA Magpie TTS (recorded)", number: true}
   results:    {text: "The debrief: the three numbers", number: true}
   breaks:     {text: "What breaks first, said up front", number: true}
-  live_link:  {text: "Live · Fleet controls cut a drone's link; drones relay a cut-off team (simulated fleet)", number: true}
-  recall:     {text: "Live · gusts 50 km/h (demo override) → no flying → the agent proposes a recall", number: true}
+  live_link:  {text: "Live · Fleet controls cut a link\ndrones relay a cut-off team (simulated)", number: true}
+  recall:     {text: "Live · gusts 50 km/h (demo override)\nno flying → the agent proposes a recall", number: true}
+
+# The program (master.mp4), rendered from the 4K master at this size (`--size 2560x1440` for the 1440p
+# upload). zoompan works on the master scaled up `upscale` times first: it rounds its crop to whole
+# pixels and shakes otherwise (ffmpeg trac #4298).
+program:
+  size: [1920, 1080]
+  upscale: 2
+
+# Camera moves and pacing per shot (moves.py). Coordinates are the 1920x1080 viewport's CSS pixels; times
+# are seconds into the shot as recorded.
+#   push_in: {x, y, scale, start, end}  zoom 1 -> scale about (x, y) from start to end, ease-in-out;
+#                                       `focus: click` = the shot's last click; default the centre, whole shot
+#   hold: true | {x, y, scale}          no move, or a still crop
+#   speed: 1.5 | [{start, end, rate}]   the shot, or a wait inside it, played faster (setpts, after the move)
+# `default` is for a shot without its own entry: a gentle push over the whole shot, so no full screen
+# stays still for long.
+moves:
+  default:    {push_in: {scale: 1.08}}
+  call:       {push_in: {focus: click, scale: 1.12}}   # towards the pitch bar's Follow the search
+  photos:     {push_in: {x: 1560, y: 540, scale: 1.08}, speed: [{start: 2.0, end: 7.0, rate: 1.5}]}  # the rail and the map; the clock's run to t1 at 1.5x
 
 # Silent cuts from the uncaptioned master with their own labels, in story order. A shot that didn't run is
 # left out. `slot` is a black gap for a slide or a clip Dan adds in the editor. When the screen shots don't
@@ -52,7 +75,7 @@ cuts:
     tail_black_s: 10
     segments:
       - {shot: call, speed: 2}
-      - {shot: confirm, speed: 1.5, label: "A 0.18 detection rescued by the second look\nNemotron 3.5 Super VL on Nebius Token Factory (recorded run)"}
+      - {shot: confirm, speed: 1.5, label: "0.18 rescued by Nemotron 3.5 Super VL\non Nebius Token Factory (recorded run)"}
       - {shot: run, speed: 1.5}
       - fleet
       - live_link
