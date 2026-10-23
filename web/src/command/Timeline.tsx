@@ -19,6 +19,46 @@ const TONE: Partial<Record<EntryKind, string>> = { clue: "text-warn", decision: 
 const btn = "sl-tap inline-flex h-6 items-center rounded-full border border-line px-2 text-caption text-text-2 hover:border-border hover:text-text";
 /** The newest this many; the Trace view's event log has them all. */
 export const TIMELINE_LIMIT = 120;
+/** Each kind's colour (theme.css, the v3 colour block): a new row's highlight is in it. */
+const KIND_COLOUR: Record<EntryKind, string> = {
+  radio: "var(--c-team)", checkin: "var(--c-team)", clue: "var(--c-clue)", detection: "var(--accent)", decision: "var(--c-proposal)",
+  drone: "var(--c-drone)", found: "var(--c-found)", note: "var(--text-2)",
+};
+/** How long a new row stays highlighted (ms; theme.css --motion-row). */
+export const ROW_NEW_MS = 3000;
+
+/**
+ * Which rows are new: those that came after the timeline first drew (not the ones it opened with), each
+ * for ROW_NEW_MS; `mark` highlights one on demand ("Show me").
+ */
+function useFreshRows(all: readonly Entry[]): { has: (id: string) => boolean; mark: (id: string) => void } {
+  const known = useRef<Set<string> | null>(null);
+  const since = useRef(new Map<string, number>());
+  const [, tick] = useState(0);
+  const now = Date.now();
+  if (known.current === null) known.current = new Set(all.map((e) => e.id));
+  else
+    for (const e of all)
+      if (!known.current.has(e.id)) {
+        known.current.add(e.id);
+        since.current.set(e.id, now);
+      }
+  const newest = Math.max(0, ...since.current.values());
+  useEffect(() => {
+    // drop the highlight once it has faded (reduced motion shows it still, so it must go)
+    const left = newest + ROW_NEW_MS - Date.now();
+    if (left <= 0) return undefined;
+    const timer = window.setTimeout(() => tick((n) => n + 1), left + 20);
+    return () => window.clearTimeout(timer);
+  }, [newest]);
+  return {
+    has: (id) => now - (since.current.get(id) ?? -Infinity) < ROW_NEW_MS,
+    mark: (id) => {
+      since.current.set(id, Date.now());
+      tick((n) => n + 1);
+    },
+  };
+}
 
 export function Timeline({
   events,
@@ -42,6 +82,18 @@ export function Timeline({
   const { time } = useClock();
   const all = useMemo(() => buildTimeline(events, teams, server), [events, teams, server]);
   const shown = all.filter((e) => inFilter(e, filter)).slice(0, TIMELINE_LIMIT);
+  const fresh = useFreshRows(all);
+  const list = useRef<HTMLOListElement>(null);
+  // "Show me" on a radio call: its row, brought into view and highlighted
+  const row = useConsole((s) => s.row);
+  useEffect(() => {
+    if (!row) return;
+    const e = all.find((x) => x.id === row.ref || x.refs.includes(row.ref));
+    if (!e) return;
+    fresh.mark(e.id);
+    requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-entry="${CSS.escape(e.id)}"]`)?.scrollIntoView?.({ block: "nearest" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row]);
   const reply = (e: Entry) => {
     if (!e.team) return;
     const cs = teams.find((t) => t.id === e.team)?.callsign ?? e.team;
@@ -70,10 +122,17 @@ export function Timeline({
         </Button>
       </div>
       {adding && <div className="border-b border-line p-2">{clueForm(() => setAdding(false))}</div>}
-      <ol aria-label="Timeline entries" className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
+      <ol ref={list} aria-label="Timeline entries" className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
         {shown.length === 0 && <li className="px-2 py-2 text-small text-text-3">Nothing here yet.</li>}
         {shown.map((e) => (
-          <li key={e.id} data-kind={e.kind} className="group flex items-start gap-2.5 rounded-sm px-2 py-0.5 hover:bg-surface">
+          <li
+            key={e.id}
+            data-kind={e.kind}
+            data-entry={e.id}
+            data-new={fresh.has(e.id) || undefined}
+            style={{ ["--c" as string]: KIND_COLOUR[e.kind] }}
+            className={`group flex items-start gap-2.5 rounded-sm px-2 py-0.5 hover:bg-surface ${fresh.has(e.id) ? "sl-row-new" : ""}`}
+          >
             <span className="w-11 shrink-0 pt-px text-caption text-text-3" title={e.at}>
               {time(e.at)}
             </span>

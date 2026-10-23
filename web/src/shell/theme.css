@@ -539,3 +539,38 @@ body {
   body:has(.sl-report) .sl-report * { visibility: visible; color: #000 !important; border-color: #999 !important; }
   body:has(.sl-report) .sl-report { position: absolute; inset: 0 auto auto 0; width: 100%; padding: 0; }
 }
+
+/* ---- v3 feedback and motion (V3 §2; interaction worker). Nothing appears instantly and nothing flashes:
+   new cards slide in (250 ms), new timeline rows hold a soft highlight that fades over 3 s, a new item
+   carries a slow ring that fades over 2 s, toasts rise in. Reduced motion: no movement, the highlight
+   simply shows and goes. ---- */
+:root {
+  --motion-in: 250ms;
+  --motion-ring: 2000ms;
+  --motion-row: 3000ms;
+  --motion-heat: 400ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes sl-slide-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.sl-slide-in { animation: sl-slide-in var(--motion-in) var(--ease-out) both; }
+@keyframes sl-row-new {
+  0%, 30% { background: color-mix(in srgb, var(--c, var(--accent-soft)) 22%, transparent); }
+  100% { background: transparent; }
+}
+.sl-row-new { animation: sl-row-new var(--motion-row) ease-out both; }
+/* a lasting ring: one slow swell and fade, twice, in the item's own colour (--c) */
+@keyframes sl-ring-fade {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c, var(--accent)) 70%, transparent); }
+  100% { box-shadow: 0 0 0 10px transparent; }
+}
+.sl-new { animation: sl-ring-fade var(--motion-ring) ease-out 2; }
+@keyframes sl-toast-rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+.sl-toast-rise { animation: sl-toast-rise var(--motion-in) var(--ease-out) both; }
+/* the focused proposal's team card and the review frame's focus: a steady violet glow */
+.sl-glow-proposal { box-shadow: 0 0 0 1px var(--c-proposal), 0 0 18px -2px color-mix(in srgb, var(--c-proposal) 60%, transparent); border-color: var(--c-proposal) !important; transition: box-shadow var(--motion-in) ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-slide-in, .sl-toast-rise, .sl-new { animation: none; }
+  .sl-row-new { animation: none; background: color-mix(in srgb, var(--c, var(--accent-soft)) 14%, transparent); }
+  .sl-glow-proposal { transition: none; }
+}
+/* ---- end of v3 feedback and motion ---- */

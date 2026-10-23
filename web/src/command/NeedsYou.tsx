@@ -91,7 +91,7 @@ export function NeedsYou({
           .filter((i) => i.kind === "overdue")
           .map((i) =>
             i.kind === "overdue" ? (
-              <article key={i.id} aria-label={`Overdue ${i.team.callsign}`} className="flex flex-col gap-1.5 rounded-md border border-alert/40 border-l-2 border-l-alert bg-bg/40 p-2.5">
+              <article key={i.id} aria-label={`Overdue ${i.team.callsign}`} className="sl-slide-in flex flex-col gap-1.5 rounded-md border border-alert/40 border-l-2 border-l-alert bg-bg/40 p-2.5">
                 <span className="flex items-center gap-2 text-small font-medium text-text">
                   <Icon name="team" className="text-alert" />
                   {i.team.callsign} not heard {i.min === null ? "yet" : `for ${Math.round(i.min)} min`}
@@ -166,7 +166,7 @@ export function ClosedOnFind({ proposals, reviewCount, count, at }: { proposals:
 
 function ReadBack({ clue, turn, who, onConfirm, onReply }: { clue: Clue | null; turn: RadioTurn | null; who: string; onConfirm?: () => void; onReply?: () => void }) {
   return (
-    <article aria-label="Awaiting read-back" className="flex flex-col gap-1.5 rounded-md border border-caution/40 border-l-2 border-l-caution bg-bg/40 p-2.5">
+    <article aria-label="Awaiting read-back" className="sl-slide-in flex flex-col gap-1.5 rounded-md border border-caution/40 border-l-2 border-l-caution bg-bg/40 p-2.5">
       <span className="flex items-center gap-2 text-small font-medium text-text">
         <Icon name="clue" className="text-caution" />
         {clue ? `Clue to confirm: ${clue.text}` : `Read-back to ${who}`}

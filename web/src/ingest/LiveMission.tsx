@@ -25,6 +25,7 @@ import { photoProgress, useMission } from "../lib/mission";
 import { clockWithZone, ClockZone, DEMO_TZ, utcLabel } from "../lib/time";
 import { CommandView, storeActions } from "../command/CommandView";
 import { useConsole } from "../command/consoleStore";
+import { useNotify } from "../shell/notify";
 import { Briefings, useRadioVoice } from "../command/RadioLink";
 import { StatusLine } from "../command/StatusLine";
 import { MissionReport } from "../command/MissionReport";
@@ -350,6 +351,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     useSeedRef.current = s;
     stopAllDemoFlights();
     useConsole.getState().reset();
+    useNotify.getState().reset();
     useStory.setState({ user: [], answers: {}, tried: null });
     useDropped.setState({ cards: [], at: {}, status: null });
     // a new scenario in the guided search starts it again from the call

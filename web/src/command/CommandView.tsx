@@ -19,6 +19,9 @@ import { NeedsYou } from "./NeedsYou";
 import { Resources } from "./Resources";
 import { SectorPopover, type SectorActions } from "./SectorPopover";
 import { ClueForm, Timeline, TalkBar, type TalkVoice } from "./Timeline";
+import { useEventToasts } from "./notifications";
+import { showMe } from "./showMe";
+import { ToastStack } from "../shell/toasts";
 
 /** The demo mission is dated at Mount Seymour; a live mission reads the browser's zone. */
 export const missionTz = (status: string): Tz => (status === "demo" ? DEMO_TZ : false);
@@ -115,6 +118,8 @@ export function CommandView(p: CommandProps) {
     return () => clearInterval(id);
   }, []);
   const tz = missionTz(p.status);
+  // what changed, said once: a toast (and the bell's log) for every event that is news (V3 §2)
+  useEventToasts(p.events, p.teams, p.mission?.status === "found" ? 0 : p.reviewCount);
   // the simulated fleet's demo controls (live missions only: they call the API)
   const api = useMission((s) => s.api);
   const t = now();
@@ -224,6 +229,7 @@ export function CommandView(p: CommandProps) {
         />
       </div>
       {p.cover && <div className="absolute inset-0 z-30 overflow-y-auto rounded-lg bg-bg">{p.cover}</div>}
+      <ToastStack onShow={showMe} />
     </div>
   );
 }

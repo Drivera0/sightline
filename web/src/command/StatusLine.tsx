@@ -9,6 +9,8 @@ import { Icon } from "../shell/icons";
 import type { Tz } from "../lib/time";
 import { daylightMin, duration, elapsedMin, flyWord, peopleOut } from "./console";
 import { isOverride } from "./conditions";
+import { NotifyBell } from "../shell/notifyBell";
+import { showMe } from "./showMe";
 
 /** The day's light at the start of a search, for the bar's full width (8 h). */
 const FULL_DAY_MIN = 8 * 60;
@@ -122,7 +124,10 @@ export function StatusLine({
         {clues.length}
         {unconfirmed ? ` (${unconfirmed} to confirm)` : ""}
       </Item>
-      {menu && <span className="ml-auto flex shrink-0 items-center gap-2">{menu}</span>}
+      <span className="ml-auto flex shrink-0 items-center gap-2">
+        <NotifyBell onShow={showMe} />
+        {menu}
+      </span>
     </section>
   );
 }

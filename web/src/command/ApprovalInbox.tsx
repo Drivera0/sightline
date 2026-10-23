@@ -130,6 +130,9 @@ export function ApprovalInbox({
 }) {
   const newestFirst = [...proposals].sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
   const pending = newestFirst.filter((p) => p.status === "pending");
+  // the proposals the inbox opened with are not new; one that comes later slides in with a slow ring
+  const known = useRef<Set<string> | null>(null);
+  if (known.current === null) known.current = new Set(proposals.map((p) => p.id));
 
   // After a decision the card leaves the list: bring the next pending card to the top of the rail (and
   // focus it, so A and X act on it), rather than leave the rail scrolled to the middle of a card.
@@ -175,6 +178,7 @@ export function ApprovalInbox({
           imageUrl={imageUrl}
           clues={p.kind === "assign_sector" ? clueNoteFor(p.reason, clueNote?.(p) ?? null) : null}
           story={p.id === story}
+          fresh={!known.current?.has(p.id)}
           cardRef={(el) => {
             if (el) cards.current.set(p.id, el);
             else cards.current.delete(p.id);
@@ -194,6 +198,7 @@ function PendingCard({
   imageUrl,
   clues = null,
   story = false,
+  fresh = false,
   cardRef,
 }: {
   p: Proposal;
@@ -205,6 +210,8 @@ function PendingCard({
   /** Which clues moved the sector's probability (from the map log), or null. */
   clues?: string | null;
   story?: boolean;
+  /** Came in after the inbox opened: it slides in with a slow ring. */
+  fresh?: boolean;
   cardRef?: (el: HTMLDivElement | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -241,7 +248,8 @@ function PendingCard({
       aria-label={`Proposal ${p.id}`}
       data-proposal={p.id}
       {...(story ? { "data-story-proposal": "" } : {})}
-      className="flex flex-col gap-2 rounded-md border border-line border-l-2 border-l-accent bg-bg/40 p-2.5 focus:outline focus:outline-accent"
+      style={{ ["--c" as string]: "var(--c-proposal)" }}
+      className={`flex flex-col gap-2 rounded-md border border-line border-l-2 border-l-[var(--c-proposal)] bg-bg/40 p-2.5 focus:outline focus:outline-[var(--c-proposal)] ${fresh ? "sl-slide-in sl-new" : ""}`}
     >
       <div className="flex items-center gap-2">
         <StatusPill tone="action">{kindWords(p)}</StatusPill>

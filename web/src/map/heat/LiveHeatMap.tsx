@@ -50,7 +50,7 @@ import { basemapStyle, chooseBasemapMode, readBasemapColors } from "../base/base
 import { MapProvider, useMap } from "../MapView";
 import { surfaceData } from "./classes";
 import { evidenceless, HATCH_KIND, searchedMask, smoothKinds, smoothSurface, wholeGridKinds } from "./smooth";
-import { cluesToFlash, type ClueSeen, FLASH_MS, flashFeatures, seenOf } from "./clueFlash";
+import { cluesToFlash, type ClueSeen, FLASH_MS, flashFeatures, ringAlpha, seenOf } from "./clueFlash";
 import { CLASS_ROWS, ContourGlyph, swatchColor } from "./Legend";
 import { basemapKind, basemapLabelLayer, type BasemapKind, CONSOLE_PALETTES, type HeatPalette, muteImagery } from "./palette";
 import { gridCorners, HeatRaster, kindColors, kindPixels, surfaceTheme } from "./raster";
@@ -554,8 +554,8 @@ function LiveLayers({
     if (fresh.length === 0 || prefersReducedMotion()) return undefined;
     if (!map.getSource(FLASH_ID)) {
       map.addSource(FLASH_ID, { type: "geojson", data: fc([]) as never });
-      map.addLayer({ id: `${FLASH_ID}-fill`, type: "fill", source: FLASH_ID, paint: { "fill-color": cssVar("--accent", "#ff7a1a"), "fill-opacity": 0 } });
-      map.addLayer({ id: `${FLASH_ID}-line`, type: "line", source: FLASH_ID, paint: { "line-color": cssVar("--accent", "#ff7a1a"), "line-width": 3, "line-opacity": 0 } });
+      map.addLayer({ id: `${FLASH_ID}-fill`, type: "fill", source: FLASH_ID, paint: { "fill-color": cssVar("--c-clue", "#f2b84b"), "fill-opacity": 0 } });
+      map.addLayer({ id: `${FLASH_ID}-line`, type: "line", source: FLASH_ID, filter: ["==", ["get", "kind"], "circle"], paint: { "line-color": cssVar("--c-clue", "#f2b84b"), "line-width": 2.5, "line-opacity": 0 } });
     }
     setData(map, FLASH_ID, flashFeatures(base, fresh, updates) as unknown as Feature[]);
     const start = performance.now();
@@ -563,12 +563,12 @@ function LiveLayers({
     const frame = (t: number) => {
       // (a frame's timestamp can be a little before `start`)
       const f = Math.min(1, Math.max(0, (t - start) / FLASH_MS));
-      // two quick pulses, then the fade
-      const k = 1 - f;
-      const a = Math.min(1, Math.max(0, k * (0.65 + 0.35 * Math.cos(f * 4 * Math.PI))));
-      map.setPaintProperty(`${FLASH_ID}-fill`, "fill-opacity", 0.6 * a);
+      // one ring in the clue's colour: it comes in over the first tenth, then fades slowly (no flashing)
+      const a = ringAlpha(f);
+      map.setPaintProperty(`${FLASH_ID}-fill`, "fill-opacity", 0.35 * a);
       map.setPaintProperty(`${FLASH_ID}-line`, "line-opacity", a);
-      if (k > 0) raf = requestAnimationFrame(frame);
+      map.setPaintProperty(`${FLASH_ID}-line`, "line-width", 2.5 + 3 * f);
+      if (f < 1) raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => {

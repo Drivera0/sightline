@@ -6,6 +6,9 @@ import type { Filter } from "./timeline";
 
 export type PhoneTab = "map" | "needs" | "timeline" | "more";
 
+/** What the search manager is looking at in Needs you: the map highlights it (V3 §2). */
+export type Focus = { kind: "candidate"; id: string } | { kind: "proposal"; id: string };
+
 export interface ConsoleState {
   /** The sector popover: its sector and the screen point it opens at (map coordinates, px). */
   sector: { id: string; x: number; y: number } | null;
@@ -19,6 +22,14 @@ export interface ConsoleState {
   /** What the talk bar starts with (Reply: "Team Two, Sightline. "). */
   talkDraft: string;
   tab: PhoneTab;
+  /** The candidate or proposal in focus (the map pans to it and highlights it). */
+  focus: Focus | null;
+  /** The large review frame: open, and on which candidate (null: the first waiting). */
+  review: { open: boolean; id: string | null };
+  /** The Add clue form, opened from the header, the map's right-click or a hint (bumped each time). */
+  clue: { open: boolean; at: { lat: number; lon: number } | null; n: number };
+  /** A timeline row to bring into view and highlight ("Show me" on a radio call), by entry id or ref. */
+  row: { ref: string; n: number } | null;
   openSector: (id: string, x: number, y: number) => void;
   closeSector: () => void;
   pick: (p: ConsoleState["picking"]) => void;
@@ -27,10 +38,21 @@ export interface ConsoleState {
   talk: (team: string, draft?: string) => void;
   setTalkTo: (team: string) => void;
   setTab: (t: PhoneTab) => void;
+  setFocus: (f: Focus | null) => void;
+  openReview: (id?: string | null) => void;
+  closeReview: () => void;
+  openClue: (at?: { lat: number; lon: number } | null) => void;
+  closeClue: () => void;
+  showRow: (ref: string) => void;
   reset: () => void;
 }
 
-const INITIAL = { sector: null, picking: null, filter: "All" as Filter, talkTo: null, talkFocus: 0, talkDraft: "", tab: "map" as PhoneTab };
+const INITIAL = { sector: null, picking: null, filter: "All" as Filter, talkTo: null, talkFocus: 0, talkDraft: "", tab: "map" as PhoneTab,
+  focus: null as Focus | null,
+  review: { open: false, id: null as string | null },
+  clue: { open: false, at: null as { lat: number; lon: number } | null, n: 0 },
+  row: null as { ref: string; n: number } | null,
+};
 
 export const useConsole = create<ConsoleState>((set) => ({
   ...INITIAL,
@@ -41,5 +63,11 @@ export const useConsole = create<ConsoleState>((set) => ({
   talk: (team, draft = "") => set((s) => ({ talkTo: team, talkFocus: s.talkFocus + 1, talkDraft: draft })),
   setTalkTo: (talkTo) => set({ talkTo }),
   setTab: (tab) => set({ tab }),
+  setFocus: (focus) => set({ focus }),
+  openReview: (id = null) => set({ review: { open: true, id } }),
+  closeReview: () => set((s) => ({ review: { ...s.review, open: false } })),
+  openClue: (at = null) => set((s) => ({ clue: { open: true, at, n: s.clue.n + 1 } })),
+  closeClue: () => set((s) => ({ clue: { ...s.clue, open: false, at: null } })),
+  showRow: (ref) => set((s) => ({ row: { ref, n: (s.row?.n ?? 0) + 1 }, filter: "All" })),
   reset: () => set({ ...INITIAL }),
 }));
