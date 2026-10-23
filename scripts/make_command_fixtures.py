@@ -442,8 +442,7 @@ def run(seed: int | None) -> None:
         "d": (0.0010, -0.0008),
         "reliability": "medium",
         "reported_by": "T1",
-        "source": "radio",
-        "confirmed_by_turn": "r0002",
+        "source": "form",  # the search manager types it in from the team's report
     }
     clue_bottle = {
         "kind": "object",
@@ -522,11 +521,22 @@ def run(seed: int | None) -> None:
         dict
     ] = []  # each team report: heard (awaiting), then confirmed by the manager
 
+    def radio_heard(turn: RadioTurn) -> None:
+        """A team's report waiting for the search manager: on the event feed and the timeline (the
+        team is heard); the manager's confirmation commits it into the trace (``confirm_clue``)."""
+        from sightline.mission.command import heard, team_id_for
+
+        tid = team_id_for(store.state(mid)["teams"], turn.callsign or "")
+        if tid is not None:
+            heard(store, mid, tid, turn.at, None)
+        store.emit(mid, "radio.turn", (turn.reply or turn.transcript)[:120], ref=turn.id,
+                   data=turn.model_dump(mode="json"))  # fmt: skip
+
     def draft_of(d: dict) -> dict:
         """The clue body of a fixture clue (``d``: offset from the LKP, or ``lat``/``lon``). A sound
         a team heard is a bearing from the team's position (contract 15.7): the arc's middle is the
-        clue's point and its range the distance there, a 20° half-width, 100 m deep (the range give
-        or take the clue's radius)."""
+        clue's point and its range the distance there, a 30° half-width, from the team out to twice
+        that distance (the clue's radius is the range: a sound gives a direction, hardly a distance)."""
         body = {k: v for k, v in d.items() if k not in ("d", "at_lkp", "confirmed_by_turn")}
         if "d" in d:
             body |= {"lat": round(lkp.lat + d["d"][0], 6), "lon": round(lkp.lon + d["d"][1], 6)}
@@ -539,7 +549,7 @@ def run(seed: int | None) -> None:
             de = (body["lon"] - o.lon) * 111_320.0 * math.cos(math.radians(o.lat))
             body |= {"origin": {"lat": o.lat, "lon": o.lon},
                      "bearing_deg": round(math.degrees(math.atan2(de, dn)) % 360.0, 1),
-                     "bearing_spread_deg": 20.0, "range_m": round(math.hypot(de, dn), 1), "radius_m": 100.0}  # fmt: skip
+                     "bearing_spread_deg": 30.0, "range_m": round(math.hypot(de, dn), 1), "radius_m": round(math.hypot(de, dn), 1)}  # fmt: skip
         return body
 
     first_map_update = None
@@ -552,11 +562,11 @@ def run(seed: int | None) -> None:
                                                        cells=s.cells, canopy=None, at=clock.iso_ms()))  # fmt: skip
             first_map_update = first_map_update or u.seq
         elif kind == "turn":
-            # a team reports a clue on the radio (typed at the desk: no speech, no model), recorded as
-            # the radio desk records it (radio/mount.py): awaiting the search manager's confirmation,
-            # with the clue it would be (contract 15.7); only the manager's action makes it a clue
+            # a team reports a clue on the radio (typed at the desk: no speech, no model): awaiting the
+            # search manager's confirmation, with the clue it would be (contract 15.7); only the
+            # manager's action makes it a clue
             rid, callsign, said, readback, d = what[1], what[2], what[3], what[4], what[5]
-            radio.record_turn(mid, RadioTurn(
+            radio_heard(RadioTurn(
                 id=rid, direction="in", callsign=callsign, transcript=f"{said} (typed for the demo fixture)",
                 reply=readback, audio=None, state="awaiting_confirm", actions=["draft clue"], asr_ms=None,
                 llm_ms=None, tts_ms=None, at=clock.iso_ms(), draft=draft_of(d)))  # fmt: skip
@@ -667,7 +677,7 @@ def run(seed: int | None) -> None:
                 rid = f"r{9000 + int(c.minutes * 10):05d}"
                 callsign = team_of(c.reported_by).callsign
                 d = {**body, "source": "radio", "confirmed_by_turn": rid, "at_lkp": False}
-                radio.record_turn(mid, RadioTurn(
+                radio_heard(RadioTurn(
                     id=rid, direction="in", callsign=c.reported_by,
                     transcript=f"Sightline, {callsign}. {c.text[:1].upper()}{c.text[1:]}, over. (typed for the demo fixture)",
                     reply=f"{callsign}, Sightline. Copy {c.kind}, {c.text}. Holding it for the search manager to confirm, over.", audio=None,
@@ -942,22 +952,18 @@ def story_schedule(
     later(50, ("assign", "T4", "C4", "hasty search of the trail through C4"))
     later(51, ("task", "C4", {"state": "in_progress", "team_id": "T4"}, None))
     later(51.2, ("team", "T4", {"status": "searching"}))
-    # Team One hears the whistle from the trail above the creek, north-east of where it came from:
+    # Team One hears the whistle from the top of C2 (a hasty look up the trail), to its south-west:
     # a sound is a bearing from where the team stood (contract 15.7)
     later(
         69.5,
         (
             "team",
             "T1",
-            {"position": {"lat": 49.37105, "lon": -122.94385}, "position_at": iso(at(69.5))},
+            {"position": {"lat": 49.3719, "lon": -122.9422}, "position_at": iso(at(69.5))},
         ),
     )
     later(56, ("place", "T4", "C4", (0.45, 0.4)))
     later(82, ("place", "T4", "B4", (0.3, 0.55)))
-    later(65.8, ("turn", "r0002", "Team One",
-                 "Sightline, Team One. Fresh boot prints heading east off the main trail, over.",
-                 "Team One, Sightline. Copy fresh boot prints heading east off the main trail. Holding it for the search manager to confirm, over.",
-                 clue_boots))  # fmt: skip
     later(66, ("clue", clue_boots))
     later(67.8, ("turn", "r0004", "Team Two",
                  "Sightline, Team Two. Blue water bottle by the creek crossing, over.",

@@ -58,8 +58,11 @@ def test_a_reported_clue_is_not_a_clue_until_the_manager_confirms_it(api) -> Non
     assert r.status_code == 201, r.text
     clue = store.state(mid)["clues"][0]
     assert clue.confirmed and clue.source == "radio" and clue.confirmed_by_turn == "r0007"
-    decision = [t for t in store.trace_entries(mid) if t.kind == "decision"][-1]
-    assert decision.actor == "human" and decision.output["action"] == "confirm_radio_clue"
+    act = [t for t in store.trace_entries(mid) if t.kind == "radio_turn"][-1]
+    assert act.actor == "human" and act.output["state"] == "committed"
+    assert "confirmed by Search manager" in act.output["actions"]
+    note = [e for e in store.events(mid) if (e.data or {}).get("decision")][-1]
+    assert note.data["decision"]["action"] == "confirm_radio_clue"
     assert validate_mission(store.root, mid) == []  # invariant 6: a committed turn behind it
     again = client.post(f"/missions/{mid}/turns/r0007/confirm_clue", json={"by": "Search manager"})
     assert again.status_code == 409
@@ -94,7 +97,6 @@ def test_a_sound_is_a_bearing_and_the_map_raises_its_arc(api) -> None:
             abs(off) <= 20.0 + 1e-6
             and abs(math.hypot(de, dn) - 300.0) <= clue.radius_m + grid.cell_m
         )
-
 
     assert len(cells) > 50
 

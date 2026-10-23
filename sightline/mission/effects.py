@@ -339,14 +339,17 @@ def confirm_radio_clue(
     hooks: Any = None,
 ) -> tuple[Clue, MapUpdate | None | str]:
     """The search manager confirms the clue a team reported on the radio (contract 15.7): the turn
-    (state ``awaiting_confirm`` with its ``draft``) is committed by this action, the draft (with any
-    ``edits``) becomes a confirmed radio clue, and the action is traced as a human decision. A
-    reported clue never becomes a clue without it."""
+    (state ``awaiting_confirm`` with its ``draft``, in the trace or the event log) is committed by
+    this action, and the draft (with any ``edits``) becomes a confirmed radio clue. The committed
+    turn is the action's trace entry (``actor`` human, ``actions`` "confirmed by <who>"); a
+    ``mission.note`` with ``data.decision`` puts it on the timeline. A reported clue never becomes a
+    clue without it."""
     from sightline.contract import ClueDraft, RadioTurn, TraceEntry
-    from sightline.mission.command import human_decision
 
     turns = [RadioTurn.model_validate(e.output) for e in store.trace_entries(mission_id)
              if e.kind == "radio_turn" and (e.output or {}).get("id") == turn_id]  # fmt: skip
+    turns += [RadioTurn.model_validate(e.data) for e in store.events(mission_id)
+              if e.type == "radio.turn" and (e.data or {}).get("id") == turn_id]  # fmt: skip
     if not turns:
         raise KeyError(f"no radio turn {turn_id}")
     if any(t.state == "committed" for t in turns):
@@ -366,10 +369,12 @@ def confirm_radio_clue(
     draft = ClueDraft.model_validate({**pending.draft.model_dump(), **(edits or {}),
                                       "source": "radio", "confirmed_by_turn": turn_id})  # fmt: skip
     clue, update = on_clue(store, mission_id, clue_from_draft(store, mission_id, draft), hooks)
-    human_decision(store, mission_id, "confirm_radio_clue",
-                   f"Clue {clue.id} ({clue.kind}: {clue.text}) confirmed from radio turn {turn_id}",
-                   by, team=clue.reported_by if clue.reported_by != "command" else None,
-                   extra={"clue": clue.id, "turn": turn_id})  # fmt: skip
+    team = clue.reported_by if clue.reported_by != "command" else None
+    data = {"action": "confirm_radio_clue", "by": by, "reason": None, "team": team, "sector": None,
+            "clue": clue.id, "turn": turn_id}  # fmt: skip
+    store.emit(mission_id, "mission.note",
+               f"Clue {clue.id} ({clue.kind}: {clue.text}) confirmed from radio turn {turn_id} (by {by})",
+               ref=team, data={"decision": data})  # fmt: skip
     return clue, update
 
 
