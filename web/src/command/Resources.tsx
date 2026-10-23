@@ -156,7 +156,7 @@ function TeamCard({ team, heard, task, base, picking, glow = false, actions, pic
       </div>
       <div className="flex items-center gap-3 text-caption">
         <span className={heardClass}>{heardText}</span>
-        {eta !== null && <span className="text-text-2">back ~{duration(eta)}</span>}
+        {eta !== null && inField && <span className="text-text-2">back ~{duration(eta)}</span>}
         <span className="ml-auto text-text-3">{team.members} people</span>
       </div>
       <div className="flex gap-1.5">
