@@ -98,6 +98,12 @@ class StoreMissionApi:
                 refs=[r for r in (turn.callsign,) if r],
             ),
         )
+        if turn.direction == "in" and turn.callsign:
+            from sightline.mission.command import heard, team_id_for
+
+            tid = team_id_for(self.store.state(mission_id)["teams"], turn.callsign)
+            if tid is not None:
+                heard(self.store, mission_id, tid, turn.at, None)  # the turn is in the timeline
         self.store.emit(
             mission_id,
             "radio.turn",

@@ -34,7 +34,7 @@ def _sim(**extra: object) -> dict[str, object]:
 
 
 def test_1_1_files_stay_readable() -> None:
-    assert CONTRACT_VERSION == "1.2" and "1.1" in get_args(ContractVersion)
+    assert CONTRACT_VERSION == "1.3" and "1.1" in get_args(ContractVersion)
 
 
 def test_new_fields_default_to_null_so_1_0_files_still_parse() -> None:

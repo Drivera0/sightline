@@ -190,6 +190,32 @@
       "title": "AssignmentCard",
       "type": "object"
     },
+    "BaseCamp": {
+      "additionalProperties": false,
+      "description": "1.3: where teams stage and drones launch from and return to.",
+      "properties": {
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lat",
+        "lon",
+        "name"
+      ],
+      "title": "BaseCamp",
+      "type": "object"
+    },
     "BaselineHuman": {
       "additionalProperties": false,
       "properties": {
@@ -695,7 +721,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -864,6 +891,17 @@
               "type": "null"
             }
           ]
+        },
+        "home": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LatLon"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -972,6 +1010,47 @@
         "at"
       ],
       "title": "FleetTelemetry",
+      "type": "object"
+    },
+    "Found": {
+      "additionalProperties": false,
+      "description": "1.3: where and when the person was found, and by which team.",
+      "properties": {
+        "team": {
+          "type": "string"
+        },
+        "sector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "team",
+        "sector",
+        "lat",
+        "lon",
+        "at"
+      ],
+      "title": "Found",
       "type": "object"
     },
     "Frame": {
@@ -1272,7 +1351,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -1327,7 +1407,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -1377,7 +1458,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -1539,7 +1621,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -1599,7 +1682,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -1642,6 +1726,54 @@
               "type": "null"
             }
           ]
+        },
+        "base_camp": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BaseCamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "default": "searching",
+          "enum": [
+            "searching",
+            "found",
+            "suspended"
+          ],
+          "type": "string"
+        },
+        "found": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Found"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "check_in_min": {
+          "default": 30.0,
+          "exclusiveMinimum": 0,
+          "maximum": 1440,
+          "type": "number"
+        },
+        "scenario_seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1708,6 +1840,9 @@
         },
         "radio_turn": {
           "$ref": "#/$defs/RadioTurn"
+        },
+        "timeline_entry": {
+          "$ref": "#/$defs/TimelineEntry"
         }
       },
       "required": [
@@ -1726,7 +1861,8 @@
         "card",
         "event",
         "trace",
-        "radio_turn"
+        "radio_turn",
+        "timeline_entry"
       ],
       "title": "MissionBundle",
       "type": "object"
@@ -2462,7 +2598,8 @@
           "enum": [
             "1.0",
             "1.1",
-            "1.2"
+            "1.2",
+            "1.3"
           ],
           "type": "string"
         },
@@ -2511,7 +2648,8 @@
             "assigned",
             "searching",
             "returning",
-            "off_duty"
+            "off_duty",
+            "overdue"
           ],
           "type": "string"
         },
@@ -2544,6 +2682,28 @@
               "type": "null"
             }
           ]
+        },
+        "last_heard_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "eta_min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -2556,6 +2716,117 @@
         "note"
       ],
       "title": "Team",
+      "type": "object"
+    },
+    "TimelineEntry": {
+      "additionalProperties": false,
+      "description": "1.3 (section 15): one line of the mission's one timeline, derived from its events\n(``sightline/mission/timeline.py``): radio turns and desk replies, clues, detections and second\nlooks, decisions (approvals and direct actions), check-ins, drone legs and links, the find.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "radio",
+            "clue",
+            "detection",
+            "decision",
+            "checkin",
+            "drone",
+            "found"
+          ],
+          "type": "string"
+        },
+        "team": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "drone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "turn_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "enum": [
+                "in",
+                "out"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "at",
+        "kind",
+        "text"
+      ],
+      "title": "TimelineEntry",
       "type": "object"
     },
     "TopCell": {

@@ -1,7 +1,7 @@
 """The API: live missions (contract §13, ``sightline/api/missions.py``) and the sprint-1 upload
 of a zip of drone photos that returns a cache (LANE_D section 6.6).
 
-    GET  /health            -> {"status": "ok", "contract_version": "1.2", "backend": "cv2" | "torch"}
+    GET  /health            -> {"status": "ok", "contract_version": "1.3", "backend": "cv2" | "torch"}
     /missions/...           -> the mission API, when ``create_app`` gets ``missions`` or ``mission_root``
     /missions/{id}/radio/...-> the radio desk on those missions, with ``radio="text"|"real"``
     GET  /cache/...         -> the cache folder as static files
@@ -69,6 +69,8 @@ def create_app(
     ``rate_limit``: (writes, seconds) per client IP, None for none, default ``SIGHTLINE_RATE_LIMIT``
     (``sightline/api/limits.py``: 600 per 60 s unless set; the tests set it off)."""
     cache_root.mkdir(parents=True, exist_ok=True)
+    from sightline.api.command import TAG_DOC as COMMAND_DOC
+    from sightline.api.command import command_router
     from sightline.api.exports import TAG_DOC, exports_router
     from sightline.api.similar import similar_router
 
@@ -77,6 +79,7 @@ def create_app(
         openapi_tags=[
             {"name": "missions", "description": "Live missions (contract §13)."},
             TAG_DOC,
+            COMMAND_DOC,
         ],
     )
     jobs: dict[str, dict] = {}
@@ -90,6 +93,7 @@ def create_app(
         app.include_router(missions_router)
         app.include_router(similar_router)
         app.include_router(exports_router)
+        app.include_router(command_router)
         if radio:  # the radio desk on the same missions (D-R4): "text" or "real" voices
             from sightline.radio.api import radio_router
             from sightline.radio.mount import radio_context

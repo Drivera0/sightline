@@ -59,8 +59,11 @@ describe("demo mission", () => {
       [1, "step", "frame", "f0001"],
       [2, "step", "frame", "f0002"],
     ]);
-    expect(ups.slice(2).map((u) => u.source)).toEqual(["clue", "clue", "clue", "clue", "ground", "ground"]);
-    expect(ups.slice(2).map((u) => u.seq)).toEqual([501, 502, 503, 504, 505, 506]); // after the cache's 500 frames
+    const after = ups.slice(2).filter((u) => u.seq > 500); // after the cache's 500 frames
+    expect(after.filter((u) => u.source !== "frame").map((u) => [u.seq, u.source])).toEqual([[501, "clue"], [502, "clue"], [503, "clue"], [504, "clue"], [505, "ground"], [506, "ground"]]);
+    // then the drone legs' photos, at their own capture times
+    expect(after.filter((u) => u.source === "frame")).toHaveLength(680);
+    expect(after.filter((u) => u.source === "frame").every((u) => u.seq > 506 && u.at >= "2026-10-24T21:50:00Z")).toBe(true);
     expect(data.mission?.mode).toBe("demo");
   });
 

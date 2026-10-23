@@ -1,4 +1,4 @@
-"""Pydantic v2 models of docs/01_CONTRACT.md (v1.2). The doc wins if the two disagree.
+"""Pydantic v2 models of docs/01_CONTRACT.md (v1.3). The doc wins if the two disagree.
 
 Only lane D edits this file. Rounding (contract section 2) happens at write time in `dump_json`,
 never inside the models.
@@ -14,12 +14,13 @@ from typing import Annotated, Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-CONTRACT_VERSION = "1.2"
+CONTRACT_VERSION = "1.3"
 # What readers accept. 1.1 only adds optional fields (map.params.prior_source,
 # metrics.search_sim.in_survey), so a 1.0 file is a valid 1.1 file with those fields null.
 # 1.2 only adds live-mission files (section 12); the static cache files are unchanged.
+# 1.3 only adds optional live-mission fields and models (the command post, section 15).
 # Everything the pipeline writes is stamped CONTRACT_VERSION.
-ContractVersion = Literal["1.0", "1.1", "1.2"]
+ContractVersion = Literal["1.0", "1.1", "1.2", "1.3"]
 
 Probability = Annotated[float, Field(ge=0.0, le=1.0)]
 FRAME_ID = r"^f\d{4}$"
@@ -378,6 +379,24 @@ class Manifest(_Model):
 # --- mission -------------------------------------------------------------------------------
 
 
+class BaseCamp(_Model):
+    """1.3: where teams stage and drones launch from and return to."""
+
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    name: str
+
+
+class Found(_Model):
+    """1.3: where and when the person was found, and by which team."""
+
+    team: str
+    sector: str | None
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    at: str
+
+
 class Mission(_Model):
     contract_version: ContractVersion
     mission_id: str
@@ -387,6 +406,15 @@ class Mission(_Model):
     mode: Literal["live", "demo", "replay"]
     last_seen_at: str | None
     subject: str | None
+    # 1.3 (section 15): null only in missions created before 1.3
+    base_camp: BaseCamp | None = None
+    status: Literal["searching", "found", "suspended"] = "searching"
+    found: Found | None = None  # set exactly when status is "found"
+    # a team out in the field not heard from for this long is overdue (a planning choice: no
+    # published ground-SAR interval; aviation flight following uses 15-30 min)
+    check_in_min: float = Field(default=30.0, gt=0, le=24 * 60)
+    # demo missions only: the seed of the generated scenario (sightline/search/demo_scenario.py)
+    scenario_seed: int | None = None
 
 
 # --- map (C) -------------------------------------------------------------------------------
@@ -448,10 +476,15 @@ class Team(_Model):
     id: str
     callsign: str
     members: int = Field(ge=1)
-    status: Literal["standby", "assigned", "searching", "returning", "off_duty"]
+    status: Literal["standby", "assigned", "searching", "returning", "off_duty", "overdue"]
     position: LatLon | None
     position_at: str | None
     note: str | None
+    # 1.3: the last radio turn, clue or position report from the team (not its position's time)
+    last_heard_at: str | None = None
+    # 1.3: minutes on foot to the current assignment (or back to base camp when recalled), the
+    # planner's straight-line walking estimate; null with no assignment
+    eta_min: float | None = None
 
 
 class ClueDraft(_Model):
@@ -496,6 +529,7 @@ class Drone(_Model):
     max_wind_kmh: float = Field(gt=0)
     status: Literal["idle", "flying", "returning", "charging", "offline"]
     leg_id: str | None
+    home: LatLon | None = None  # 1.3: where it launches from and returns to (the base camp)
 
 
 class Leg(_Model):
@@ -680,6 +714,27 @@ class RadioTurn(_Model):
     at: str
 
 
+TimelineKind = Literal["radio", "clue", "detection", "decision", "checkin", "drone", "found"]
+
+
+class TimelineEntry(_Model):
+    """1.3 (section 15): one line of the mission's one timeline, derived from its events
+    (``sightline/mission/timeline.py``): radio turns and desk replies, clues, detections and second
+    looks, decisions (approvals and direct actions), check-ins, drone legs and links, the find."""
+
+    id: str  # the event's id; a desk reply to a team's turn adds "-reply"
+    at: str
+    kind: TimelineKind
+    team: str | None = None
+    drone: str | None = None
+    sector: str | None = None
+    text: str
+    refs: list[str] = Field(default_factory=list)
+    turn_id: str | None = None  # radio: the turn, so the console can reply to it
+    direction: Literal["in", "out"] | None = None  # radio: from a team (in) or from the desk (out)
+    by: str | None = None  # decision: who decided
+
+
 class MissionBundle(_Model):
     """Root type used only to export the live-mission models (section 12) to the JSON Schema."""
 
@@ -699,6 +754,7 @@ class MissionBundle(_Model):
     event: MissionEvent
     trace: TraceEntry
     radio_turn: RadioTurn
+    timeline_entry: TimelineEntry
 
 
 # --- JSON schema and writing ---------------------------------------------------------------

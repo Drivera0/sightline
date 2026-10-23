@@ -71,7 +71,7 @@ def test_health_names_the_contract_and_backend(api) -> None:
     client, ctx, _ = api
     assert client.get("/health").json() == {
         "status": "ok",
-        "contract_version": "1.2",
+        "contract_version": "1.3",
         "backend": "cv2",
         "detector": None,  # nothing loaded yet: the first photo loads it
         "radio": False,  # not started with --radio

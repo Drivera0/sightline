@@ -90,8 +90,9 @@ def test_approving_a_recall_cancels_the_leg_and_flies_home(api) -> None:
     (p,) = loop.handle("conditions", store, mid, mid, client=None)
     assert p.kind == "retask_drone" and p.target["home"] == "recall" and p.status == "pending"
     assert "Gusts 50 km/h" in p.reason and "DJI Mavic 3E limit 43 km/h" in p.reason
-    # the launch point: where the drone was when the fleet joined
-    assert p.leg.waypoints[-1] == (DRONE["position"]["lon"], DRONE["position"]["lat"])
+    # the launch point: the drone's home, the mission's base camp (1.3; by default the LKP)
+    camp = store.get(mid).base_camp
+    assert p.leg.waypoints[-1] == (camp.lon, camp.lat)
     r = client.post(
         f"/missions/{mid}/proposals/{p.id}/decide", json={"decision": "approve", "by": "SM"}
     )

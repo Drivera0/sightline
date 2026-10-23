@@ -126,8 +126,9 @@ EXAMPLES: dict[type[BaseModel], dict] = {
 
 
 def test_version() -> None:
-    assert CONTRACT_VERSION == "1.2"
-    assert get_args(ContractVersion) == ("1.0", "1.1", "1.2")  # static 1.0/1.1 caches still load
+    assert CONTRACT_VERSION == "1.3"
+    # static 1.0/1.1 caches and 1.2 missions still load
+    assert get_args(ContractVersion) == ("1.0", "1.1", "1.2", "1.3")
 
 
 @pytest.mark.parametrize("model", list(EXAMPLES), ids=lambda m: m.__name__)
@@ -182,7 +183,7 @@ def test_every_live_model_is_in_the_typescript_contract() -> None:
             assert f"export interface {name} " in ts, (
                 f"{name} missing: run `pnpm gen:contract` in web/"
             )
-    assert '"1.0" | "1.1" | "1.2"' in ts
+    assert '"1.0" | "1.1" | "1.2" | "1.3"' in ts
 
 
 def test_a_field_called_title_survives_into_typescript() -> None:

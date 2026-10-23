@@ -144,10 +144,12 @@ export function frameTime(index: number, count: number): number {
 
 /** When an update becomes visible: frames by flight order, the clues and ground searches at their own time. */
 function updateTimes(updates: readonly MapUpdate[]): number[] {
-  const frames = updates.filter((u) => u.source === "frame").length;
+  // the survey flight's photos are spread over the flight; a leg's photos (after it) land at their own time
+  const legPhoto = (u: MapUpdate) => u.source === "frame" && ms(u.at) > ms(FLIGHT.end);
+  const frames = updates.filter((u) => u.source === "frame" && !legPhoto(u)).length;
   let k = 0;
   return updates.map((u) => {
-    if (u.source === "frame") return frameTime(k++, frames);
+    if (u.source === "frame" && !legPhoto(u)) return frameTime(k++, frames);
     return ms(u.at);
   });
 }

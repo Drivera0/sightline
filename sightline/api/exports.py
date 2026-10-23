@@ -10,6 +10,7 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
+from pydantic import BaseModel, Field
 
 from sightline.api.missions import _store
 from sightline.mission import effects
@@ -19,7 +20,8 @@ TAG = "exports"
 TAG_DOC = {
     "name": TAG,
     "description": "Standard SAR outputs a command post can file: ICS 204 Assignment List per "
-    "team, ICS 214 Activity Log, and GeoJSON that imports into CalTopo / SARTopo. Read-only.",
+    "team, ICS 214 Activity Log, ICS 309 Communications Log, GeoJSON that imports into CalTopo / "
+    "SARTopo (all read-only), and the timeline pushed to a D4H Operations Center incident log.",
 }
 
 exports_router = APIRouter(tags=[TAG])
@@ -121,3 +123,92 @@ def get_caltopo(mission_id: str, request: Request) -> Response:
         media_type="application/geo+json",
         headers={"Content-Disposition": f'attachment; filename="sightline-{mission_id}.geojson"'},
     )
+
+
+def _ics309(request: Request, mission_id: str) -> dict:
+    from sightline.geo.exports import ics309
+    from sightline.mission.timeline import mission_timeline
+
+    store = _store(request, mission_id)
+    return ics309(store.state(mission_id), mission_timeline(store, mission_id), now_iso())
+
+
+@exports_router.get(
+    "/missions/{mission_id}/ics309.md",
+    response_class=Response,
+    responses={200: {"content": {"text/markdown": {}}}},
+    summary="ICS 309 Communications Log for the mission (Markdown)",
+)
+def get_ics309_md(mission_id: str, request: Request) -> Response:
+    """FEMA ICS 309 (v3.1) blocks 1–5: every radio turn on the desk, oldest first: time, from,
+    to, message (a team's words as transcribed; the desk's replies and calls)."""
+    from sightline.geo.exports import ics309_markdown
+
+    return Response(
+        ics309_markdown(_ics309(request, mission_id)), media_type="text/markdown; charset=utf-8"
+    )
+
+
+@exports_router.get(
+    "/missions/{mission_id}/ics309.json", summary="ICS 309 Communications Log (JSON)"
+)
+def get_ics309_json(mission_id: str, request: Request) -> dict:
+    return _ics309(request, mission_id)
+
+
+class D4hPush(BaseModel):
+    org: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    incident_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    after: str | None = Field(default=None, pattern=r"^e\d+$")  # only the lines after this event
+
+
+@exports_router.post(
+    "/missions/{mission_id}/export/d4h", summary="Push the timeline to a D4H incident log"
+)
+def post_d4h(mission_id: str, body: D4hPush, request: Request) -> dict:
+    """Each timeline line as a D4H Operations Center log entry (``POST /api/v1/orgs/{org}/incidents/
+    {id}/logs``, ``{message, tags}``), oldest first. Needs ``D4H_API_TOKEN`` in the API's environment:
+    503 without it. A D4H error stops the push: 502 with how many lines went up. A write: it takes
+    the API's write token."""
+    from sightline.mission import d4h
+    from sightline.mission.timeline import mission_timeline
+
+    store = _store(request, mission_id)
+    lines = mission_timeline(store, mission_id)
+    if body.after:
+        n = int(body.after[1:])
+        lines = [x for x in lines if int(x.id.split("-")[0][1:]) > n]
+    teams = {t.id: t.callsign for t in store.state(mission_id)["teams"]}
+    try:
+        posted = d4h.push(lines, body.org, body.incident_id, teams)
+    except LookupError as e:
+        raise HTTPException(503, str(e)) from None
+    except d4h.D4hError as e:
+        raise HTTPException(502, f"{e} ({e.posted} lines posted before it)") from None
+    return {"posted": posted, "last_id": lines[-1].id.split("-")[0] if lines else body.after}
+
+
+@exports_router.get(
+    "/missions/{mission_id}/report.md",
+    response_class=Response,
+    responses={200: {"content": {"text/markdown": {}}}},
+    summary="After-action report (Markdown)",
+)
+def get_report_md(mission_id: str, request: Request) -> Response:
+    """The after-action report: incident, operational period, base camp, subject, key events (first
+    photo, each clue, each decision with who, the find), areas searched with their POD, photos and
+    reviews, drone legs and flight minutes, radio turns, the agent's proposals approved and rejected,
+    a limitations line and links to the ICS 204/214/309 and the CalTopo file. Written when the
+    mission is found (``report/after_action.md``); built fresh here on every request."""
+    from sightline.mission import report
+
+    store = _store(request, mission_id)
+    md = report.after_action_markdown(report.build(store, mission_id, now_iso()))
+    return Response(md, media_type="text/markdown; charset=utf-8")
+
+
+@exports_router.get("/missions/{mission_id}/report.json", summary="After-action report (JSON)")
+def get_report_json(mission_id: str, request: Request) -> dict:
+    from sightline.mission import report
+
+    return report.build(_store(request, mission_id), mission_id, now_iso())

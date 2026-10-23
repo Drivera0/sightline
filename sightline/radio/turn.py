@@ -487,6 +487,27 @@ def _unwrapped(briefing: str, who: str) -> str:
     return re.sub(r"[,.\s]*\b(over|out)\b[.!\s]*$", "", b, flags=re.IGNORECASE).rstrip(". ")
 
 
+def call_team(
+    mission_id: str,
+    team_id: str,
+    text: str,
+    session: RadioSession,
+    api: MissionApi,
+    tts: Tts | None = None,
+    action: str = "call",
+) -> TurnResult:
+    """The search manager calls a team from the console (1.3): "<Callsign>, Sightline. <text>,
+    over.", spoken by the desk as typed (made speakable). KeyError for a team the mission lacks."""
+    callsigns = {t["id"]: t["callsign"] for t in api.state(mission_id)["teams"]}
+    if team_id not in callsigns:
+        raise KeyError(f"no team {team_id}")
+    who = callsigns[team_id]
+    reply = f"{opening(who)} {speakable(_unwrapped(text, who))}, over."
+    turn = _turn(session, "out", team_id, "", reply, "transmitted", [action])
+    turn, out = _with_audio(turn, tts, reply)
+    return TurnResult(turn, out)
+
+
 def transmit(
     mission_id: str, proposal_id: str, session: RadioSession, api: MissionApi, tts: Tts | None
 ) -> TurnResult:

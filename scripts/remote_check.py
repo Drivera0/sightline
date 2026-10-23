@@ -84,7 +84,9 @@ def main(argv: list[str] | None = None) -> int:
     def health():
         status, _, body = req(f"{api}/health", timeout=15)
         h = json.loads(body)
-        assert status == 200 and h["contract_version"] == "1.2" and h["backend"] == "cv2", h
+        assert (
+            status == 200 and h["contract_version"] in ("1.2", "1.3") and h["backend"] == "cv2"
+        ), h
         return json.dumps(h)
 
     def cors():

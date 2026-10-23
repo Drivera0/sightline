@@ -113,7 +113,12 @@ def on_decision(store: MissionStore, mission_id: str, p: Proposal) -> None:
             )
         team = next((t for t in state["teams"] if t.id == team_id), None)
         if team is not None:
-            store.upsert_team(mission_id, team.model_copy(update={"status": "assigned"}))
+            from sightline.mission.command import eta_to
+
+            eta = eta_to(store, mission_id, team, sector_id)
+            store.upsert_team(
+                mission_id, team.model_copy(update={"status": "assigned", "eta_min": eta})
+            )
     elif p.kind == "retask_drone" and "home" in p.target:
         # a recall: the store already cancelled the drone's leg and approved the home leg (the
         # re-task path); the feed says so in words, with the reason it was approved on
@@ -145,14 +150,20 @@ TASK_MOVES: dict[str, set[str]] = {
 
 
 def on_task_update(
-    store: MissionStore, mission_id: str, task: SectorTask, hooks: Any = None
+    store: MissionStore,
+    mission_id: str,
+    task: SectorTask,
+    hooks: Any = None,
+    direct: bool = False,
 ) -> MapUpdate | None | str:
     """Save the task; a sector ``searched`` with a POD steps the map over its cells (C), then the
     agent re-plans (``on_task_searched``). Only the command view's moves are allowed (LANE_E §7.2,
-    ``TASK_MOVES``)."""
+    ``TASK_MOVES``), unless ``direct``: the search manager's own action (1.3, ``command.py``) may
+    mark any sector not yet searched as searched."""
     old = next((t for t in store.state(mission_id)["tasks"] if t.sector_id == task.sector_id), None)
     before = old.state if old else "proposed"
-    if task.state != before and task.state not in TASK_MOVES[before]:
+    allowed = TASK_MOVES[before] | ({"searched"} if direct and before != "searched" else set())
+    if task.state != before and task.state not in allowed:
         raise ValueError(f"sector {task.sector_id} can't go from {before} to {task.state}")
     if task.state == "searched" and task.pod is None:
         raise ValueError("a searched sector needs a POD")
@@ -180,6 +191,10 @@ def on_team_update(store: MissionStore, mission_id: str, team: Team, hooks: Any 
     old = next((t for t in store.state(mission_id)["teams"] if t.id == team.id), None)
     store.upsert_team(mission_id, team)
     if team.position is not None and (old is None or old.position != team.position):
+        from sightline.mission.command import heard
+
+        # a position report is a check-in (1.3): last heard, and back from overdue
+        team = heard(store, mission_id, team.id, team.position_at or now_iso(), "position report")
         _hook(hooks, "on_team_position", store, mission_id, team.id)
     return team
 
@@ -228,6 +243,10 @@ def on_clue(
 ) -> tuple[Clue, MapUpdate | None | str]:
     """Add the (confirmed) clue, reweight the map around it (C), then tell the agent."""
     clue = store.add_clue(mission_id, clue)
+    if any(t.id == clue.reported_by for t in store.state(mission_id)["teams"]):
+        from sightline.mission.command import heard
+
+        heard(store, mission_id, clue.reported_by, clue.at, None)  # the clue is the check-in
     update = _map(store, mission_id, lambda live: live.clue_update(clue))
     _hook(hooks, "on_clue", store, mission_id, clue.id)
     return clue, update
@@ -277,16 +296,50 @@ def on_fleet(store: MissionStore, mission_id: str, t: FleetTelemetry, hooks: Any
     if store.state(mission_id)["fleet"] is None:
         if not t.drones:
             raise ValueError("no fleet yet: send the drones first")
-        from sightline.contract import FleetState
+        from sightline.contract import FleetState, LatLon
 
-        drones = [d.model_copy(update={"leg_id": None}) for d in t.drones]
+        camp = store.get(mission_id).base_camp
+        home = LatLon(lat=camp.lat, lon=camp.lon) if camp else None
+        # each drone launches from and returns to the base camp unless it says otherwise (1.3)
+        drones = [d.model_copy(update={"leg_id": None, "home": d.home or home}) for d in t.drones]
         fleet = FleetState(
             simulated=all(d.simulated for d in drones), drones=drones, legs=[], updated_at=t.at
         )
         store.put_fleet(mission_id, fleet)
         _hook(hooks, "on_fleet_join", store, mission_id)
         return fleet
+    before = store.state(mission_id)["fleet"]
     fleet, done = store.merge_telemetry(mission_id, t)
+    _drone_notes(store, mission_id, before, fleet)
     for leg_id in done:
         _hook(hooks, "on_leg_done", store, mission_id, leg_id)
     return fleet
+
+
+BATTERY_MARKS = (50.0, 25.0)  # a timeline line when a drone's battery falls through each
+
+
+def _drone_notes(store: MissionStore, mission_id: str, before: Any, after: Any) -> None:
+    """Timeline lines for the fleet (1.3): a leg started or ended, a battery mark passed. Each is a
+    ``mission.note`` whose ``data.drone`` says what happened."""
+    old_legs = {x.id: x.status for x in before.legs}
+    names = {d.id: d.name for d in after.drones}
+    for leg in after.legs:
+        was = old_legs.get(leg.id)
+        if was == leg.status or leg.status not in ("flying", "done"):
+            continue
+        event = "leg_start" if leg.status == "flying" else "leg_end"
+        where = f"sector {leg.sector_id}" if leg.sector_id else "home"
+        verb = "started" if event == "leg_start" else "done"
+        name = names.get(leg.drone_id, leg.drone_id)
+        store.emit(mission_id, "mission.note", f"{name}: leg {leg.id} ({where}) {verb}", ref=leg.id,
+                   data={"drone": {"event": event, "drone": leg.drone_id, "leg": leg.id,
+                                   "sector": leg.sector_id}})  # fmt: skip
+    old_pct = {d.id: d.battery_pct for d in before.drones}
+    for d in after.drones:
+        prev = old_pct.get(d.id)
+        crossed = [m for m in BATTERY_MARKS if prev is not None and prev > m >= d.battery_pct]
+        if crossed:
+            store.emit(mission_id, "mission.note", f"{d.name}: battery {d.battery_pct:.0f} %",
+                       ref=d.id, data={"drone": {"event": "battery", "drone": d.id,
+                                                 "battery_pct": round(d.battery_pct, 1)}})  # fmt: skip

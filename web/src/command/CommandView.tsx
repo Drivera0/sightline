@@ -535,9 +535,10 @@ const STATUS_WORDS: Record<Team["status"], string> = {
   searching: "Searching",
   returning: "Returning",
   off_duty: "Off duty",
+  overdue: "Overdue",
 };
 
-const TEAM_TONE: Record<Team["status"], Tone> = { standby: "muted", assigned: "neutral", searching: "ok", returning: "caution", off_duty: "muted" };
+const TEAM_TONE: Record<Team["status"], Tone> = { standby: "muted", assigned: "neutral", searching: "ok", returning: "caution", off_duty: "muted", overdue: "alert" };
 
 export function TeamRoster({ teams, tasks, now }: { teams: readonly Team[]; tasks: readonly SectorTask[]; now: Date }) {
   const selected = useSelection((s) => s.selectedTeamId);

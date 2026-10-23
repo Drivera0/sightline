@@ -17,7 +17,7 @@ export interface CacheBundle {
   mission?: MissionBundle | null;
 }
 export interface Manifest {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   survey_id: string;
   generated_at: string;
   git_sha: string | null;
@@ -44,7 +44,7 @@ export interface StageResult {
   seconds: number;
 }
 export interface Survey {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   survey_id: string;
   simulated_path: boolean;
   area: Area;
@@ -88,7 +88,7 @@ export interface Pose {
   gsd_m: number;
 }
 export interface Detections {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   model: string;
   save_threshold: number;
   candidate_threshold: number;
@@ -114,7 +114,7 @@ export interface Detection {
   radius_m: number;
 }
 export interface MapFile {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   grid: Grid;
   lkp: LatLon;
   params: Params;
@@ -156,7 +156,7 @@ export interface TopCell {
   canopy: number | null;
 }
 export interface Metrics {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   detector: DetectorMetrics;
   baseline_human: BaselineHuman;
   ablations: Ablation[];
@@ -250,9 +250,10 @@ export interface MissionBundle {
   event: MissionEvent;
   trace: TraceEntry;
   radio_turn: RadioTurn;
+  timeline_entry: TimelineEntry;
 }
 export interface Mission {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   mission_id: string;
   name: string;
   area: Area;
@@ -260,9 +261,32 @@ export interface Mission {
   mode: "live" | "demo" | "replay";
   last_seen_at: string | null;
   subject: string | null;
+  base_camp?: BaseCamp | null;
+  status?: "searching" | "found" | "suspended";
+  found?: Found | null;
+  check_in_min?: number;
+  scenario_seed?: number | null;
+}
+/**
+ * 1.3: where teams stage and drones launch from and return to.
+ */
+export interface BaseCamp {
+  lat: number;
+  lon: number;
+  name: string;
+}
+/**
+ * 1.3: where and when the person was found, and by which team.
+ */
+export interface Found {
+  team: string;
+  sector: string | null;
+  lat: number;
+  lon: number;
+  at: string;
 }
 export interface MapBase {
-  contract_version: "1.0" | "1.1" | "1.2";
+  contract_version: "1.0" | "1.1" | "1.2" | "1.3";
   grid: Grid;
   lkp: LatLon;
   params: Params;
@@ -305,10 +329,12 @@ export interface Team {
   id: string;
   callsign: string;
   members: number;
-  status: "standby" | "assigned" | "searching" | "returning" | "off_duty";
+  status: "standby" | "assigned" | "searching" | "returning" | "off_duty" | "overdue";
   position: LatLon | null;
   position_at: string | null;
   note: string | null;
+  last_heard_at?: string | null;
+  eta_min?: number | null;
 }
 export interface ClueDraft {
   kind: "object" | "track" | "sighting" | "sound" | "other";
@@ -392,6 +418,7 @@ export interface Drone {
   max_wind_kmh: number;
   status: "idle" | "flying" | "returning" | "charging" | "offline";
   leg_id: string | null;
+  home?: LatLon | null;
 }
 export interface FleetTelemetry {
   drones: Drone[];
@@ -512,4 +539,22 @@ export interface RadioTurn {
   llm_ms: number | null;
   tts_ms: number | null;
   at: string;
+}
+/**
+ * 1.3 (section 15): one line of the mission's one timeline, derived from its events
+ * (``sightline/mission/timeline.py``): radio turns and desk replies, clues, detections and second
+ * looks, decisions (approvals and direct actions), check-ins, drone legs and links, the find.
+ */
+export interface TimelineEntry {
+  id: string;
+  at: string;
+  kind: "radio" | "clue" | "detection" | "decision" | "checkin" | "drone" | "found";
+  team?: string | null;
+  drone?: string | null;
+  sector?: string | null;
+  text: string;
+  refs?: string[];
+  turn_id?: string | null;
+  direction?: ("in" | "out") | null;
+  by?: string | null;
 }

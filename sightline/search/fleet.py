@@ -201,6 +201,8 @@ class Scenario:
     # no_signal?}]; the position is the simulator's truth for the team, sent only when relayed
     teams: tuple[dict, ...] = ()
     relay_radius_m: float = 300.0
+    # 1.3: the mission's base camp; drones with no ``home`` of their own launch from and return to it
+    base_camp: LatLon | None = None
 
     @classmethod
     def load(cls, name_or_path: str) -> Scenario:
@@ -220,6 +222,9 @@ class Scenario:
             links=tuple(d.get("links", ())),
             teams=tuple(d.get("teams", ())),
             relay_radius_m=d.get("relay_radius_m", 300.0),
+            base_camp=LatLon(lat=d["base_camp"]["lat"], lon=d["base_camp"]["lon"])
+            if d.get("base_camp")
+            else None,
         )
 
 
@@ -322,7 +327,13 @@ class FramePool:
 
 
 def stamp(
-    crop: Crop, lat: float, lon: float, alt_m: float, yaw_deg: float, taken_at: str | None = None
+    crop: Crop,
+    lat: float,
+    lon: float,
+    alt_m: float,
+    yaw_deg: float,
+    taken_at: str | None = None,
+    description: str = "Sightline simulated fleet",
 ) -> bytes:
     """The crop as a JPEG with the EXIF/XMP pose lane B's ``read_pose`` reads, for this position;
     ``taken_at`` (ISO, UTC) goes in DateTimeOriginal: a photo synced late keeps its capture time."""
@@ -340,7 +351,7 @@ def stamp(
     exif.get_ifd(ExifTags.IFD.Exif)[41989] = round(f35)
     if taken_at:  # DateTimeOriginal, 'YYYY:MM:DD HH:MM:SS'
         exif.get_ifd(ExifTags.IFD.Exif)[0x9003] = taken_at[:19].replace("-", ":").replace("T", " ")
-    exif[0x010E] = "Sightline simulated fleet"  # ImageDescription: says so in every photo
+    exif[0x010E] = description  # ImageDescription: says what the photo is, in every photo
     yaw = ((yaw_deg + 180) % 360) - 180
     xmp = (
         f'<x:xmpmeta drone-dji:RelativeAltitude="+{alt_m:.1f}" drone-dji:GimbalYawDegree="{yaw:+.1f}"'
@@ -477,7 +488,9 @@ class DroneSim:
         self.leg_status: dict[str, str] = {}
         self.photos = 0
         self.airframe = airframe
-        self.home = self._pos_m()  # the launch point: where it flies back to
+        # the launch point it flies back to: its ``home`` (the base camp), else where it starts
+        home = drone.home or scenario.base_camp
+        self.home = _to_m(scenario.lkp, home.lon, home.lat) if home else self._pos_m()
         self.returning = False
         self._wind_held = False
         self.link = "connected"  # set by the ground station's link model

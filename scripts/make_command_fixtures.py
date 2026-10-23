@@ -25,6 +25,26 @@ events, conditions, the 16 sectors' POA and drone coverage, and ``map_updates``:
 cache's frame steps), ``demo_trace.jsonl`` (the mission's whole trace) and the second look's images in
 ``__fixtures__/relook/``. Everything is validated against the contract; a fixture that says "clear" is
 refused. Everything here is a demo, labelled so on screen.
+
+**v1.3 (the command post).** The mission has a base camp (the trailhead lot); the search manager also
+acts directly (assigns Team Four, marks C4 and B4 searched at their POD, calls Team Three); every team
+carries ``last_heard_at`` and ``eta_min``; the fixture has the one ``timeline`` (radio, clue, detection,
+decision, checkin, drone, found) and ``photographed`` (the cells a photo has looked at, run-length,
+the veil flag); the prior is Koester's rings for the subject's category over the whole grid
+(``demo_prior.json``, the web's map base instead of the cache's uniform placeholder); and the story
+ends found: Team One radios that it has the subject in C2, at the sector's likeliest cell, and the
+search manager marks the mission found (``POST /found``), which writes the after-action report.
+
+    uv run python scripts/make_command_fixtures.py --scenarios     # also the four preset scenarios
+    uv run python scripts/make_command_fixtures.py --scenario 77   # one more, any seed
+
+**Scenarios** (``sightline/search/demo_scenario.py``): each writes ``__fixtures__/scenarios/<slug>.json``,
+the same shape as ``demo_mission.json`` plus ``scenario`` (what the seed drew, without the person's
+position), ``t0`` and ``flight`` (its own clock) and its own ``prior``: the LKP inside the survey, the
+category's prior, its clues at their times, the agent's assignments approved, and the team in the
+person's sector finding them (the search manager assigns one directly when the agent sent none there).
+The same seed draws the same scenario and the same story (only timings measured in the run differ).
+No trace and no fleet for a scenario.
 """
 
 from __future__ import annotations
@@ -43,15 +63,22 @@ sys.path.insert(0, str(ROOT))
 FIX = ROOT / "web/src/command/__fixtures__"
 OUT = FIX / "demo_mission.json"
 TRACE = FIX / "demo_trace.jsonl"
+PRESET_SLUG = {1101: "overdue-hiker", 2202: "missing-child", 3303: "despondent", 4404: "dementia"}
 RELOOK = FIX / "relook"
 CACHE = ROOT / "web/public/cache/demo"
+PRIOR = FIX / "demo_prior.json"
+SCENARIOS = FIX / "scenarios"
 T0 = datetime.fromisoformat("2026-10-24T20:30:00+00:00")
-FLIGHT = (T0 + timedelta(minutes=12), T0 + timedelta(minutes=48))  # missionTime.ts FLIGHT
+FLIGHT_MIN = (12, 48)  # the survey flight, minutes after the call (missionTime.ts FLIGHT)
+FLIGHT = (T0 + timedelta(minutes=12), T0 + timedelta(minutes=48))
 NOW = T0 + timedelta(minutes=90)
+FOUND_MIN = 89.5  # the find: the story's last event, before the demo's "now"
 MANAGER = "Search manager (scripted for the demo fixture)"
 REVIEWER = "Image reviewer (scripted for the demo fixture)"
 FAKE = "scripted for the demo fixture: no model was called"
 TRAILHEAD = {"lat": 49.373, "lon": -122.949}  # missionTime.ts TRAILHEAD: the lot, the subject's car
+BASE_CAMP = {**TRAILHEAD, "name": "Trailhead lot"}  # the base camp (demo_scenario.STAGING[0])
+SUBJECT = "adult, red jacket, day hiker"
 
 # The fake VL model's answer per near-miss detection (0.15 to 0.29: the verifier's band), from a
 # person looking at the crop in the cache's photo. f0273-d02 is a person in red beside the group in
@@ -77,6 +104,14 @@ def at(minutes: float) -> datetime:
     return T0 + timedelta(minutes=minutes)
 
 
+def rle(flags: list[int]) -> list[list[int]]:
+    import numpy as np
+
+    from sightline.search.coverage import runs
+
+    return runs(np.asarray(flags, dtype=np.int8))
+
+
 class Clock:
     """The demo's mission clock: every ``now`` the product reads, patched to this."""
 
@@ -90,13 +125,16 @@ class Clock:
         import sightline.agent.loop
         import sightline.agent.trace
         import sightline.agent.verify
+        import sightline.api.exports
         import sightline.api.missions
+        import sightline.mission.command
         import sightline.mission.effects
         import sightline.mission.store
         import sightline.search.live
 
         for mod in (sightline.agent.trace, sightline.agent.loop, sightline.agent.verify,
-                    sightline.mission.store, sightline.mission.effects, sightline.api.missions):  # fmt: skip
+                    sightline.mission.store, sightline.mission.effects, sightline.api.missions,
+                    sightline.mission.command, sightline.api.exports):  # fmt: skip
             mod.now_iso = self.iso_ms  # type: ignore[attr-defined]
         sightline.search.live._now = self.iso_ms  # type: ignore[attr-defined]
 
@@ -161,7 +199,35 @@ class NoHooks:
         return lambda *a, **k: None
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument("--scenarios", action="store_true", help="also write the four preset scenarios")
+    ap.add_argument(
+        "--scenario", action="append", default=[], help="a preset key or a seed (repeatable)"
+    )
+    ap.add_argument("--only-scenarios", action="store_true", help="skip the story")
+    args = ap.parse_args(argv)
+    from sightline.search.demo_scenario import PRESETS, preset_seed
+
+    if not (CACHE / "map.json").is_file():
+        print(f"no {CACHE}/map.json: run `bash web/scripts/fetch-caches.sh` first")
+        return 1
+    if not args.only_scenarios:
+        run(None)
+    seeds = [preset_seed(k) for k in PRESETS] if args.scenarios else []
+    seeds += [preset_seed(x) for x in args.scenario]
+    for seed in dict.fromkeys(seeds):
+        run(seed)
+    return 0
+
+
+def run(seed: int | None) -> None:
+    """The story (``seed`` None) or the scenario ``seed`` draws, through the mission API."""
+    global T0, FLIGHT, NOW
     from fastapi.testclient import TestClient
 
     from sightline.agent import loop
@@ -186,18 +252,34 @@ def main() -> int:
     )
     from sightline.geo.cards import sector_label
     from sightline.mission import MissionStore
+    from sightline.mission.command import likeliest_cell, sector_of
     from sightline.mission.queue import LocalQueue
+    from sightline.mission.timeline import timeline as make_timeline
     from sightline.radio.mount import StoreMissionApi
+    from sightline.search.demo_scenario import generate
+    from sightline.search.prior import koester_prior, prior_source, subject_category
     from sightline.search.sectors import lattice_sectors
 
-    if not (CACHE / "map.json").is_file():
-        print(f"no {CACHE}/map.json: run `bash web/scripts/fetch-caches.sh` first")
-        return 1
     m = MapFile.model_validate_json((CACHE / "map.json").read_text())
     survey = Survey.model_validate_json((CACHE / "survey.json").read_text())
     dets = Detections.model_validate_json((CACHE / "detections.json").read_text())
-    base = MapBase(contract_version=CONTRACT_VERSION, grid=m.grid, lkp=m.lkp, params=m.params,
-                   prior=Distribution(p=m.prior.p, outside=m.prior.outside), canopy=m.canopy)  # fmt: skip
+    scn = None
+    if seed is not None:
+        scn = generate(seed, m.grid, [c for f in survey.frames for c in f.footprint])
+        T0 = datetime.fromisoformat(scn.call_at)
+    else:
+        T0 = datetime.fromisoformat("2026-10-24T20:30:00+00:00")
+    FLIGHT = (T0 + timedelta(minutes=FLIGHT_MIN[0]), T0 + timedelta(minutes=FLIGHT_MIN[1]))
+    NOW = T0 + timedelta(minutes=90)
+    # the prior over the whole grid: Koester's rings for the subject's category around the LKP
+    # (the cache's own is the uniform placeholder); a scenario's LKP moves, the grid stays
+    lkp = scn.lkp if scn else m.lkp
+    subject = scn.subject if scn else SUBJECT
+    category = scn.category if scn else subject_category(subject)
+    pp, pout = koester_prior(m.grid, lkp, category)
+    params = m.params.model_copy(update={"prior_source": prior_source(category)})
+    base = MapBase(contract_version=CONTRACT_VERSION, grid=m.grid, lkp=lkp, params=params,
+                   prior=Distribution(p=[float(x) for x in pp], outside=float(pout)), canopy=m.canopy)  # fmt: skip
     layout = lattice_sectors(m.grid)
     clock = Clock()
     clock.patch()
@@ -206,14 +288,14 @@ def main() -> int:
     # no conditions lookup (Tavily): the demo's conditions are the fair-weather fixture, put in below
     sightline.api.missions._fetch_conditions = lambda: None  # type: ignore[attr-defined]
     models = FakeModels()
-    lkp = m.lkp
 
     tmp = Path(tempfile.mkdtemp(prefix="demo-mission-"))
     store = MissionStore(tmp / "missions")
     ctx = MissionContext(
         store, queue=LocalQueue(), detector_factory=lambda: NoDetector(), hooks=NoHooks()
     )
-    ctx.start()
+    # no ctx.start(): no photo is uploaded, and the scheduler (ticks, overdue checks on the real
+    # clock) would act at random moments of the run; the script calls the agent itself, in order
     app = create_app(cache_root=tmp / "c", data_root=tmp / "u", missions=ctx, rate_limit=None)
     http = TestClient(app)
     radio = StoreMissionApi(store)
@@ -226,11 +308,15 @@ def main() -> int:
 
     # --- the call (20:30): the mission, its map (the demo cache's), the teams at the trailhead lot ---
     clock.t = at(0)
+    camp = scn.base_camp if scn else BASE_CAMP
     mission = call("POST", "/missions", json={
-        "name": "Mount Seymour (demo)", "area_name": "Mount Seymour", "lkp": lkp.model_dump(),
-        "mode": "demo", "last_seen_at": iso(at(-180)), "subject": "adult, red jacket, day hiker"})  # fmt: skip
+        "name": f"{scn.name} (demo)" if scn else "Mount Seymour (demo)", "area_name": "Mount Seymour",
+        "lkp": lkp.model_dump(), "mode": "demo", "last_seen_at": scn.last_seen_at if scn else iso(at(-180)),
+        "subject": subject, "base_camp": camp})  # fmt: skip
     mid = mission["mission_id"]
     store.put_map_base(mid, base)
+    if scn is not None:
+        store.update_mission(mid, scenario_seed=scn.seed)
     for k, d in enumerate(survey.frames):
         store.append_frame(mid, d.model_copy(update={"rank": k + 1}), (CACHE / d.file).read_bytes())
     store.set_frames(mid, survey.frames)
@@ -241,14 +327,18 @@ def main() -> int:
         store.events(mid)
     )  # the cache's own candidates: in the cache, not the mission's feed
     clock.tick(30)
-    store.emit(mid, "mission.note", "the subject's car is in the Mount Seymour trailhead lot: the search starts there (where they set off, not a clue on the map)")  # fmt: skip
+    if scn is None:
+        store.emit(mid, "mission.note", "the subject's car is in the Mount Seymour trailhead lot: the search starts there (where they set off, not a clue on the map)")  # fmt: skip
+    else:
+        store.emit(mid, "mission.note", f"Demo scenario: {scn.name} (seed {scn.seed}); {scn.prior_source} prior")  # fmt: skip
+    here = {"lat": camp["lat"], "lon": camp["lon"]}
     for tid in ("T1", "T2", "T3", "T4"):
-        # Teams One and Four are at the lot; Two and Three check in later (off duty until then)
+        # Teams One and Four are at the base camp; Two and Three check in later (off duty until then)
         status = "off_duty" if tid in ("T2", "T3") else "standby"
         call(
             "PATCH",
             f"/missions/{mid}/teams/{tid}",
-            json={"position": TRAILHEAD, "position_at": iso(at(1)), "status": status},
+            json={"position": here, "position_at": iso(at(1)), "status": status},
         )
     fair = json.loads((ROOT / "tests/geo/fixtures/conditions_clear.json").read_text())["conditions"]
 
@@ -308,63 +398,25 @@ def main() -> int:
     }
     clue_whistle = {"kind": "sound", "text": "possible whistle, three blasts, to the south-west", "d": (-0.0006, -0.0012),
                     "reliability": "low", "reported_by": "T1", "source": "radio", "confirmed_by_turn": "r0007"}  # fmt: skip
-    later(40, ("clue", clue_lake))
-    later(
-        50,
-        (
-            "task",
-            "C4",
-            {"state": "assigned", "team_id": "T4"},
-            "Team Four: hasty search of the trail through C4 (search manager)",
-        ),
-    )
-    later(51, ("task", "C4", {"state": "in_progress", "team_id": "T4"}, None))
-    later(51.2, ("team", "T4", {"status": "searching"}))
-    later(56, ("place", "T4", "C4", (0.45, 0.4)))
-    later(82, ("place", "T4", "B4", (0.3, 0.55)))
-    later(66, ("clue", clue_boots))
-    later(
-        67.8,
-        (
-            "turn",
-            "r0004",
-            "Team Two",
-            "Sightline, Team Two. Blue water bottle by the creek crossing, over.",
-            "Team Two, Sightline. Copy a blue water bottle by the creek crossing, logging it as a clue. Confirm, over.",
-        ),
-    )
-    later(68, ("clue", clue_bottle))
-    later(
-        69.8,
-        (
-            "turn",
-            "r0007",
-            "Team One",
-            "Sightline, Team One. Possible whistle, three blasts, to the south-west, over.",
-            "Team One, Sightline. Copy a possible whistle, three blasts, south-west, low reliability. Confirm, over.",
-        ),
-    )
-    later(70, ("clue", clue_whistle))
-    later(60, ("conditions",))
-    later(
-        72, ("tick",)
-    )  # 21:42, Where next: the planner on the map with the clues (Team One on standby)
-    later(73, ("decide", "T1", "approve", None))
-    later(73.5, ("checkin", "T2"))  # Team Two checks in at the lot: its next sector
-    later(75, ("decide", "T2", "approve", None))
-    later(75.5, ("checkin", "T3"))
-    later(77, ("decide", "T3", "approve", None))
-    later(78, ("task_team", "T1", "in_progress"))
-    later(80, ("searched", "C4", 0.4, "steep; the gully not entered"))
-    later(80.5, ("task", "B4", {"state": "assigned", "team_id": "T4"}, None))
-    later(81, ("task_team", "T2", "in_progress"))
-    later(81.5, ("task", "B4", {"state": "in_progress", "team_id": "T4"}, None))
-    later(86, ("searched", "B4", 0.6, "trail and both ditches, thick salal on the east side"))
-    later(86.5, ("team", "T4", {"status": "standby"}))
-    later(85, ("position", "T1"))
-    later(88, ("position", "T2"))
-    later(84, ("position", "T3"))
+    if scn is not None:
+        scenario_schedule(scn, later)
+        later(60, ("conditions",))
+        later(72, ("tick",))
+        later(73, ("decide_all",))
+        later(73.5, ("checkin", "T2"))
+        later(74.5, ("decide_all",))
+        later(75.5, ("checkin", "T3"))
+        later(76.5, ("decide_all",))
+        later(78, ("start_all",))
+        later(80, ("finder",))
+        later(84, ("position_all",))
+        later(88.8, ("found_turn",))
+        later(89.2, ("found_position",))
+        later(FOUND_MIN, ("found",))
+    else:
+        story_schedule(later, clue_lake, clue_boots, clue_bottle, clue_whistle)
     schedule.sort(key=lambda x: (x[0], x[1]))
+    person: dict = {}  # the find: the scenario's person, or the story's C2 likeliest cell
 
     def team_of(tid: str) -> Team:
         return next(t for t in store.state(mid)["teams"] if t.id == tid)
@@ -384,6 +436,17 @@ def main() -> int:
         lons, lats = [p[0] for p in poly], [p[1] for p in poly]
         return {"lat": round(min(lats) + (max(lats) - min(lats)) * f[0], 6),
                 "lon": round(min(lons) + (max(lons) - min(lons)) * f[1], 6)}  # fmt: skip
+
+    def finder() -> tuple[str, str]:
+        """(team, sector) for the find: the story's Team One in C2; in a scenario, the team the
+        agent sent to the person's sector, else Team Four, assigned there by the search manager."""
+        if scn is None:
+            return "T1", "C2"
+        sid = sector_of(store, mid, scn.person.lat, scn.person.lon) or "C2"
+        task = task_of(sid)
+        if task.team_id:
+            return task.team_id, sid
+        return "T4", sid
 
     reviewed: list[tuple[datetime, str]] = []
     first_map_update = None
@@ -427,6 +490,91 @@ def main() -> int:
             if note:
                 clock.tick()
                 store.emit(mid, "mission.note", note, ref=sid)
+        elif kind == "assign":  # the search manager's direct action (1.3)
+            call("POST", f"/missions/{mid}/teams/{what[1]}/assign",
+                 json={"sector": what[2], "reason": what[3], "by": MANAGER})  # fmt: skip
+        elif kind == "call":  # the desk calls a team (1.3)
+            call(
+                "POST",
+                f"/missions/{mid}/teams/{what[1]}/call",
+                json={"text": what[2], "by": MANAGER},
+            )
+        elif kind == "sighted":  # a scenario's clue as it is reported
+            c = what[1]
+            body = {"kind": c.kind, "text": c.text, "lat": c.lat, "lon": c.lon,
+                    "reliability": c.reliability, "reported_by": c.reported_by}  # fmt: skip
+            if c.reported_by.startswith("T"):
+                rid = f"r{9000 + int(c.minutes * 10):05d}"
+                callsign = team_of(c.reported_by).callsign
+                radio.record_turn(mid, RadioTurn(
+                    id=rid, direction="in", callsign=c.reported_by,
+                    transcript=f"Sightline, {callsign}. {c.text[:1].upper()}{c.text[1:]}, over. (typed for the demo fixture)",
+                    reply=f"{callsign}, Sightline. Copy {c.kind}, {c.text}. Confirm, over.", audio=None,
+                    state="committed", actions=["log clue"], asr_ms=None, llm_ms=None, tts_ms=None,
+                    at=clock.iso_ms()))  # fmt: skip
+                clock.tick()
+                body |= {"source": "radio", "confirmed_by_turn": rid}
+            else:
+                body |= {"source": "form"}
+            clue = call("POST", f"/missions/{mid}/clues", json=body)
+            loop.handle("clue", store, mid, clue["id"], client=models)
+        elif kind == "decide_all":
+            for p in store.state(mid)["proposals"]:
+                if p.kind == "assign_sector" and p.status == "pending":
+                    call("POST", f"/missions/{mid}/proposals/{p.id}/decide",
+                         json={"decision": "approve", "by": MANAGER, "reason": None})  # fmt: skip
+                    clock.tick()
+        elif kind == "start_all":
+            for task in store.state(mid)["tasks"]:
+                if task.state == "assigned" and task.team_id:
+                    call("POST", f"/missions/{mid}/tasks/{task.sector_id}",
+                         json={"state": "in_progress", "team_id": task.team_id})  # fmt: skip
+                    call(
+                        "PATCH",
+                        f"/missions/{mid}/teams/{task.team_id}",
+                        json={"status": "searching"},
+                    )
+        elif kind == "finder":
+            team, sid = finder()
+            if task_of(sid).team_id is None:
+                call("POST", f"/missions/{mid}/teams/{team}/assign", json={
+                    "sector": sid, "by": MANAGER,
+                    "reason": "the clues lead there and no team has it (scripted for the demo fixture)"})  # fmt: skip
+                clock.tick()
+                call(
+                    "POST",
+                    f"/missions/{mid}/tasks/{sid}",
+                    json={"state": "in_progress", "team_id": team},
+                )
+                call("PATCH", f"/missions/{mid}/teams/{team}", json={"status": "searching"})
+        elif kind == "position_all":
+            for task in store.state(mid)["tasks"]:
+                if task.state == "in_progress" and task.team_id:
+                    call("PATCH", f"/missions/{mid}/teams/{task.team_id}",
+                         json={"position": sector_point(task.sector_id, (0.5, 0.5)), "position_at": clock.iso_ms()})  # fmt: skip
+                    clock.tick()
+        elif kind == "found_turn":
+            team, sid = finder()
+            callsign = team_of(team).callsign
+            words = " ".join(w.capitalize() for w in sector_label(sid).split())
+            radio.record_turn(mid, RadioTurn(
+                id="r0010" if scn is None else "r9999", direction="in", callsign=team,
+                transcript=f"Sightline, {callsign}. Subject located in {words}, conscious and talking, over. (typed for the demo fixture)",
+                reply=f"{callsign}, Sightline. Copy subject located in {words}. Stay with the subject, over.",
+                audio=None, state="answered", actions=[], asr_ms=None, llm_ms=None, tts_ms=None,
+                at=clock.iso_ms()))  # fmt: skip
+        elif kind == "found_position":
+            team, sid = finder()
+            if scn is not None:
+                person.update(scn.person.model_dump())
+            else:
+                person.update(likeliest_cell(store, mid, sid).model_dump())
+            call("PATCH", f"/missions/{mid}/teams/{team}",
+                 json={"position": {k: round(v, 6) for k, v in person.items()}, "position_at": clock.iso_ms()})  # fmt: skip
+        elif kind == "found":
+            team, sid = finder()
+            call("POST", f"/missions/{mid}/found", json={"team": team, "sector": sid,
+                 "lat": round(person["lat"], 6), "lon": round(person["lon"], 6), "by": MANAGER})  # fmt: skip
         elif kind == "team":
             call("PATCH", f"/missions/{mid}/teams/{what[1]}", json=what[2])
         elif kind == "conditions":
@@ -446,13 +594,10 @@ def main() -> int:
                 "POST", f"/missions/{mid}/tasks/{sid}", json={"state": what[2], "team_id": what[1]}
             )
             call("PATCH", f"/missions/{mid}/teams/{what[1]}", json={"status": "searching"})
-        elif kind == "searched":
+        elif kind == "searched":  # the search manager marks it, with the team's POD (1.3)
             sid, pod, note = what[1], what[2], what[3]
-            call(
-                "POST",
-                f"/missions/{mid}/tasks/{sid}",
-                json={"state": "searched", "team_id": "T4", "pod": pod, "note": note},
-            )
+            call("POST", f"/missions/{mid}/sectors/{sid}/searched",
+                 json={"pod": pod, "team": "T4", "note": note, "by": MANAGER})  # fmt: skip
             loop.handle("task_searched", store, mid, sid, client=models)
         elif kind == "place":
             call(
@@ -506,16 +651,18 @@ def main() -> int:
         e for e in store.events(mid)[:seeded] if e.type in ("mission.note", "task.updated")
     ] + events
     trace = store.trace_entries(mid)
-    mission_out = Mission.model_validate({**state["mission"].model_dump(), "mission_id": "demo"})
+    slug = "demo" if scn is None else f"demo-{seed}"
+    mission_out = Mission.model_validate({**state["mission"].model_dump(), "mission_id": slug})
     proposals = state["proposals"]
 
     # the second look's images, for the demo's Trace view and inbox (the store's relook/ folder)
-    if RELOOK.exists():
-        shutil.rmtree(RELOOK)
-    RELOOK.mkdir(parents=True)
-    src = tmp / "missions" / mid / "relook"
-    for f in sorted(src.glob("*.jpg")) if src.is_dir() else []:
-        shutil.copy(f, RELOOK / f.name)
+    if scn is None:
+        if RELOOK.exists():
+            shutil.rmtree(RELOOK)
+        RELOOK.mkdir(parents=True)
+        src = tmp / "missions" / mid / "relook"
+        for f in sorted(src.glob("*.jpg")) if src.is_dir() else []:
+            shutil.copy(f, RELOOK / f.name)
 
     def dump(xs: list) -> list:
         return [x.model_dump(mode="json") for x in xs]
@@ -532,11 +679,20 @@ def main() -> int:
         "events": [],
         "sectors": sectors,
         "map_updates": dump(map_updates),
+        # 1.3: the cells a photo has looked at (run-length [value, count], row-major): a veil flag,
+        # never a limit on the probability, which covers the whole grid (demo_prior.json)
+        "photographed": rle([int(i in stepped) for i in range(m.grid.rows * m.grid.cols)]),
+        "timeline": [],
     }
+    if scn is not None:
+        doc |= {"scenario": scn.public(), "t0": iso(T0), "flight": [iso(FLIGHT[0]), iso(FLIGHT[1])],
+                "prior": prior_doc(base)}  # fmt: skip
     out_events = []
     renumbered = {u.seq: v.seq for u, v in zip(rest, map_updates, strict=True)}
     for seen_ids, e in enumerate(sorted(events, key=lambda e: e.at), 1):
         patch: dict[str, Any] = {"id": f"e{seen_ids:05d}"}
+        if e.data and e.data.get("mission_id") == mid:  # the run's random id: the fixture's own
+            patch["data"] = {**e.data, "mission_id": slug}
         if e.type == "map.updated" and e.data:
             # the update itself is in map_updates (renumbered after the cache's frames): one copy
             seq = renumbered[e.data["seq"]]
@@ -544,15 +700,31 @@ def main() -> int:
         e = MissionEvent.model_validate({**e.model_dump(), **patch})
         out_events.append(e.model_dump(mode="json"))
     doc["events"] = out_events
+    where = lambda lat, lon: sector_of(store, mid, lat, lon)
+    doc["timeline"] = [
+        x.model_dump(mode="json")
+        for x in make_timeline(
+            [MissionEvent.model_validate(e) for e in out_events], state["teams"], where
+        )
+    ]
     text = json.dumps(doc, indent=1, ensure_ascii=False)
     trace_text = "".join(
         TraceEntry.model_validate(x.model_dump()).model_dump_json() + "\n" for x in trace
     )
     for name, body in (("fixture", text), ("trace", trace_text)):
         assert not re.search(r"\bclear(s|ed|ing)?\b", body, re.IGNORECASE), f"the {name} says clear"
+    assert state["mission"].status == "found", "the story must end found"
+    shutil.rmtree(tmp, ignore_errors=True)
+    if scn is not None:
+        SCENARIOS.mkdir(parents=True, exist_ok=True)
+        out = SCENARIOS / f"{PRESET_SLUG.get(seed, f'seed-{seed}')}.json"
+        out.write_text(text + "\n")
+        print(f"wrote {out.relative_to(ROOT)}: {scn.name}, seed {seed}, {len(state['clues'])} clues, "
+              f"found by {state['mission'].found.team} in {state['mission'].found.sector}")  # fmt: skip
+        return
     OUT.write_text(text + "\n")
     TRACE.write_text(trace_text)
-    shutil.rmtree(tmp, ignore_errors=True)
+    PRIOR.write_text(json.dumps(prior_doc(base), separators=(",", ":")) + "\n")
 
     print(f"wrote {OUT.relative_to(ROOT)}: {len(state['tasks'])} tasks, {len(state['clues'])} clues, "
           f"{len(proposals)} proposals, {len(out_events)} events, {len(map_updates)} map updates after the frames")  # fmt: skip
@@ -568,7 +740,83 @@ def main() -> int:
             for x in sorted(sectors, key=lambda x: -x["poa"])
         ],
     )
-    return 0
+
+
+def prior_doc(base: Any) -> dict:
+    """The map base's prior for the web (4 significant figures a cell; ``outside`` keeps the sum 1)."""
+    p = [float(f"{x:.4g}") for x in base.prior.p]
+    return {
+        "note": "Generated by scripts/make_command_fixtures.py: the demo map's prior over the whole grid, "
+        "row-major like map.json's prior.p; the cache's map.json carries the uniform placeholder instead.",
+        "prior_source": base.params.prior_source,
+        "lkp": base.lkp.model_dump(),
+        "p": p,
+        "outside": max(0.0, 1.0 - sum(p)),
+    }
+
+
+def story_schedule(
+    later: Any, clue_lake: dict, clue_boots: dict, clue_bottle: dict, clue_whistle: dict
+) -> None:
+    """The story's own afternoon (the clues, the manager's moves, the radio), around the shared ones."""
+    later(40, ("clue", clue_lake))
+    later(50, ("assign", "T4", "C4", "hasty search of the trail through C4"))
+    later(51, ("task", "C4", {"state": "in_progress", "team_id": "T4"}, None))
+    later(51.2, ("team", "T4", {"status": "searching"}))
+    later(56, ("place", "T4", "C4", (0.45, 0.4)))
+    later(82, ("place", "T4", "B4", (0.3, 0.55)))
+    later(66, ("clue", clue_boots))
+    later(
+        67.8,
+        (
+            "turn",
+            "r0004",
+            "Team Two",
+            "Sightline, Team Two. Blue water bottle by the creek crossing, over.",
+            "Team Two, Sightline. Copy a blue water bottle by the creek crossing, logging it as a clue. Confirm, over.",
+        ),
+    )
+    later(68, ("clue", clue_bottle))
+    later(
+        69.8,
+        (
+            "turn",
+            "r0007",
+            "Team One",
+            "Sightline, Team One. Possible whistle, three blasts, to the south-west, over.",
+            "Team One, Sightline. Copy a possible whistle, three blasts, south-west, low reliability. Confirm, over.",
+        ),
+    )
+    later(70, ("clue", clue_whistle))
+    later(60, ("conditions",))
+    later(
+        72, ("tick",)
+    )  # 21:42, Where next: the planner on the map with the clues (Team One on standby)
+    later(73, ("decide", "T1", "approve", None))
+    later(73.5, ("checkin", "T2"))  # Team Two checks in at the lot: its next sector
+    later(75, ("decide", "T2", "approve", None))
+    later(75.5, ("checkin", "T3"))
+    later(77, ("decide", "T3", "approve", None))
+    later(78, ("task_team", "T1", "in_progress"))
+    later(80, ("searched", "C4", 0.4, "steep; the gully not entered"))
+    later(80.5, ("assign", "T4", "B4", None))
+    later(81, ("task_team", "T2", "in_progress"))
+    later(81.5, ("task", "B4", {"state": "in_progress", "team_id": "T4"}, None))
+    later(86, ("searched", "B4", 0.6, "trail and both ditches, thick salal on the east side"))
+    later(86.5, ("team", "T4", {"status": "standby"}))
+    later(85, ("position", "T1"))
+    later(88, ("position", "T2"))
+    later(84, ("position", "T3"))
+    later(79, ("call", "T3", "Team Three, Sightline. Report when you reach the creek, over."))
+    later(88.8, ("found_turn",))
+    later(89.2, ("found_position",))
+    later(FOUND_MIN, ("found",))
+
+
+def scenario_schedule(scn: Any, later: Any) -> None:
+    """A scenario's clues at their times (the rest of its afternoon is shared with the story)."""
+    for c in scn.clues:
+        later(c.minutes, ("sighted", c))
 
 
 if __name__ == "__main__":

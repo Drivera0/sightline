@@ -1,0 +1,419 @@
+"""The command post's own actions (contract §15, v1.3): what a search manager does directly, beside
+approving the agent's proposals. Each one changes the mission through ``MissionStore``, writes a
+``human``/``decision`` trace entry (who, what, why) and a ``mission.note`` event whose ``data`` says
+what was done, so the timeline, the ICS 214 and the audit show the agent's proposals and the direct
+actions side by side.
+
+A sector is never "done": searched means lowered by the POD the team reports; recheck puts it back on
+the board with the map as it is.
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime
+from typing import Any
+
+import numpy as np
+
+from sightline.contract import Found, LatLon
+from sightline.mission.store import MissionStore, now_iso
+
+log = logging.getLogger(__name__)
+OUT = ("assigned", "searching", "returning")  # a team out in the field: it can be overdue
+
+
+def _t(iso: str) -> datetime:
+    return datetime.fromisoformat(iso)
+
+
+class ActionError(ValueError):
+    """An action that can't be done now (the API's 409), with the reason."""
+
+
+def human_decision(
+    store: MissionStore,
+    mission_id: str,
+    action: str,
+    summary: str,
+    by: str,
+    *,
+    reason: str | None = None,
+    team: str | None = None,
+    sector: str | None = None,
+    extra: dict | None = None,
+    emit: bool = True,
+) -> dict:
+    """The trace entry and (``emit``) the event for one direct action; returns its data."""
+    from sightline.agent.trace import trace_call
+
+    data = {"action": action, "by": by, "reason": reason, "team": team, "sector": sector,
+            **(extra or {})}  # fmt: skip
+    refs = [r for r in (team, sector) if r]
+    trace_call(store, mission_id, actor="human", kind="decision", summary=f"{summary} (by {by})",
+               output=data, refs=refs)  # fmt: skip
+    if emit:
+        store.emit(mission_id, "mission.note", f"{summary} (by {by})", ref=team or sector,
+                   data={"decision": data})  # fmt: skip
+    return data
+
+
+def likeliest_cell(store: MissionStore, mission_id: str, sector: str) -> LatLon:
+    """The centre of the sector's most probable cell on the live map now."""
+    from sightline.mission.effects import _layout
+    from sightline.search.grid import cell_center
+
+    layout = _layout(store, mission_id)
+    if layout is None or sector not in {s.id for s in layout.sectors}:
+        raise KeyError(f"no sector {sector}")
+    live = store.live(mission_id)
+    cells = np.asarray(layout.cells_of(sector), dtype=int)
+    p = live.p()[0]
+    return cell_center(live.base.grid, int(cells[int(np.argmax(p[cells]))]))
+
+
+def sector_of(store: MissionStore, mission_id: str, lat: float, lon: float) -> str | None:
+    """The lattice sector holding a point, or None outside the grid (or before sectors exist)."""
+    from sightline.mission.effects import _layout
+    from sightline.search.grid import cell_containing
+
+    layout = _layout(store, mission_id)
+    if layout is None:
+        return None
+    grid = store.live(mission_id).base.grid
+    rc = cell_containing(grid, LatLon(lat=lat, lon=lon))
+    if rc is None:
+        return None
+    return layout.sectors[int(layout.cell_sector[rc[0] * grid.cols + rc[1]])].id
+
+
+def team_of(store: MissionStore, mission_id: str, team_id: str) -> Any:
+    t = next((t for t in store.state(mission_id)["teams"] if t.id == team_id), None)
+    if t is None:
+        raise KeyError(f"no team {team_id}")
+    return t
+
+
+def mark_found(
+    store: MissionStore,
+    mission_id: str,
+    team_id: str,
+    sector: str | None,
+    lat: float | None,
+    lon: float | None,
+    by: str,
+) -> Any:
+    """The person is found: ``Mission.status`` becomes ``found`` with who, where and when. With no
+    position, the sector's likeliest cell on the map (where the team was sent to look). From then on
+    the agent proposes nothing new."""
+    m = store.get(mission_id)
+    if m.status == "found":
+        raise ActionError("the mission is already found")
+    team = team_of(store, mission_id, team_id)
+    if lat is None or lon is None:
+        if sector is None:
+            raise ValueError("give a sector or a position")
+        p = likeliest_cell(store, mission_id, sector)
+        lat, lon = p.lat, p.lon
+    elif sector is None:
+        sector = sector_of(store, mission_id, lat, lon)
+    at = now_iso()
+    found = Found(team=team_id, sector=sector, lat=round(lat, 6), lon=round(lon, 6), at=at)
+    m = store.update_mission(mission_id, status="found", found=found)
+    where = f"sector {sector}" if sector else "outside the sectors"
+    summary = f"Subject found by {team.callsign} in {where}"
+    human_decision(store, mission_id, "found", summary, by, team=team_id, sector=sector,
+                   extra={"lat": found.lat, "lon": found.lon}, emit=False)  # fmt: skip
+    store.emit(mission_id, "mission.note", f"{summary} (by {by})", ref=team_id,
+               data={"found": found.model_dump(), "by": by})  # fmt: skip
+    try:  # the after-action report, kept with the mission the moment it is found
+        from sightline.mission import report
+
+        report.write(store, mission_id, at)
+    except Exception:
+        log.exception("after-action report for %s failed", mission_id)
+    return m
+
+
+# --- last heard, ETA, overdue -------------------------------------------------------------------
+
+
+def team_id_for(teams: list[Any], who: str) -> str | None:
+    """A team's id from its id or its callsign ("T2" or "Team Two"), else None."""
+    w = who.strip().lower()
+    return next((t.id for t in teams if w in (t.id.lower(), t.callsign.lower())), None)
+
+
+def _was(store: MissionStore, mission_id: str, team_id: str) -> str:
+    """The status a team had before it went overdue (its last overdue check-in says)."""
+    for ev in reversed(store.events(mission_id)):
+        c = (ev.data or {}).get("checkin") if ev.type == "mission.note" else None
+        if c and c.get("team") == team_id and c.get("overdue"):
+            return c.get("was") or "searching"
+    return "searching"
+
+
+def heard(store: MissionStore, mission_id: str, team_id: str, at: str, how: str | None) -> Any:
+    """The team was heard at ``at`` (a radio turn, a clue, a position report, a relay):
+    ``last_heard_at`` moves forward, and an overdue team is back in contact (its status before).
+    ``how``: the check-in event's words ("position report"); None when the turn or clue is already
+    the timeline's entry. Returns the team."""
+    team = team_of(store, mission_id, team_id)
+    last = team.last_heard_at
+    update: dict[str, Any] = {}
+    if last is None or _t(at) >= _t(last):
+        update["last_heard_at"] = at
+    back = team.status == "overdue"
+    if back:
+        update["status"] = _was(store, mission_id, team_id)
+    if update:
+        team = team.model_copy(update=update)
+        store.upsert_team(mission_id, team)
+    if how or back:
+        text = f"{team.callsign}: {how or 'heard'}" + (", back in contact" if back else "")
+        store.emit(mission_id, "mission.note", text, ref=team_id,
+                   data={"checkin": {"team": team_id, "at": at, "how": how, "overdue": False,
+                                     "back_in_contact": back}})  # fmt: skip
+    return team
+
+
+def eta_to(store: MissionStore, mission_id: str, team: Any, sector_id: str | None) -> float | None:
+    """Minutes on foot from the team (its last position, else the base camp) to the sector, or back
+    to the base camp with no sector (the planner's walking estimate); None without a map."""
+    from sightline.mission.effects import _layout
+    from sightline.search.planner import walk_minutes
+
+    try:
+        grid = store.live(mission_id).base.grid
+    except ValueError:
+        return None
+    m = store.get(mission_id)
+    camp = LatLon(lat=m.base_camp.lat, lon=m.base_camp.lon) if m.base_camp else m.area.lkp
+    at = team.position or camp
+    if sector_id is None:
+        return round(walk_minutes(grid, at, camp))
+    layout = _layout(store, mission_id)
+    sector = next((s for s in layout.sectors if s.id == sector_id), None) if layout else None
+    return None if sector is None else round(walk_minutes(grid, at, sector))
+
+
+def check_overdue(store: MissionStore, mission_id: str, now: str, hooks: Any = None) -> list[str]:
+    """Teams out in the field (assigned, searching, returning) not heard for longer than the
+    mission's ``check_in_min`` become ``overdue``: a check-in event says for how long, and the agent
+    hears (``hooks.on_team_overdue``). Returns the teams that went overdue now."""
+    m = store.get(mission_id)
+    if m.status == "found":
+        return []
+    out = []
+    for t in store.state(mission_id)["teams"]:
+        if t.status not in OUT or t.last_heard_at is None:
+            continue
+        minutes = (_t(now) - _t(t.last_heard_at)).total_seconds() / 60
+        if minutes <= m.check_in_min:
+            continue
+        store.upsert_team(mission_id, t.model_copy(update={"status": "overdue"}))
+        store.emit(mission_id, "mission.note",
+                   f"{t.callsign} not heard for {minutes:.0f} min (check-in every {m.check_in_min:g} min)",
+                   ref=t.id, data={"checkin": {"team": t.id, "overdue": True, "minutes": round(minutes),
+                                               "was": t.status, "last_heard_at": t.last_heard_at}})  # fmt: skip
+        out.append(t.id)
+        if hooks is not None:
+            try:
+                hooks.on_team_overdue(store, mission_id, t.id)
+            except Exception:
+                log.exception("hooks.on_team_overdue failed")
+    return out
+
+
+# --- direct actions ----------------------------------------------------------------------------
+
+
+def _task(store: MissionStore, mission_id: str, sector: str) -> Any:
+    t = next((t for t in store.state(mission_id)["tasks"] if t.sector_id == sector), None)
+    if t is None:
+        raise KeyError(f"no sector {sector}")
+    return t
+
+
+def _release(
+    store: MissionStore, mission_id: str, team_id: str, keep: str | None, why: str
+) -> None:
+    """The team's other sectors not yet searched go back on the board (``proposed``), with why."""
+    for t in store.state(mission_id)["tasks"]:
+        if t.team_id == team_id and t.state in ("assigned", "in_progress") and t.sector_id != keep:
+            store.upsert_task(mission_id, t.model_copy(update={
+                "state": "proposed", "team_id": None, "note": why, "updated_at": now_iso()}))  # fmt: skip
+
+
+def _supersede(store: MissionStore, mission_id: str, team_id: str, sector: str | None) -> list[str]:
+    """Pending ``assign_sector`` proposals for this team (or this sector) give way to the manager's
+    own choice."""
+    out = []
+    for p in store.state(mission_id)["proposals"]:
+        t = p.target
+        if (
+            p.status == "pending"
+            and p.kind == "assign_sector"
+            and (t.get("team") == team_id or (sector is not None and t.get("sector") == sector))
+        ):
+            store.set_proposal_status(mission_id, p.id, "superseded", by="command")
+            out.append(p.id)
+    return out
+
+
+def assign(store: MissionStore, mission_id: str, team_id: str, sector: str, by: str,
+           reason: str | None = None) -> dict:  # fmt: skip
+    """Assign a team to a sector without the agent: the sector's task → ``assigned`` to the team,
+    the team's other open sectors back on the board, the team ``assigned`` with its walking ETA,
+    and pending agent assignments for that team or sector superseded."""
+    team = team_of(store, mission_id, team_id)
+    task = _task(store, mission_id, sector)
+    if task.state == "searched":
+        raise ActionError(f"sector {sector} is searched (POD {task.pod:g}): recheck it first")
+    if task.state == "in_progress" and task.team_id != team_id:
+        raise ActionError(f"sector {sector} is being searched by {task.team_id}")
+    _release(
+        store,
+        mission_id,
+        team_id,
+        sector,
+        f"{team.callsign} reassigned to {sector} before it was searched",
+    )
+    store.upsert_task(mission_id, task.model_copy(update={
+        "state": "assigned" if task.state != "in_progress" else "in_progress", "team_id": team_id,
+        "pod": None, "note": reason or task.note, "updated_at": now_iso()}))  # fmt: skip
+    eta = eta_to(store, mission_id, team, sector)
+    store.upsert_team(mission_id, team.model_copy(update={"status": "assigned", "eta_min": eta}))
+    gone = _supersede(store, mission_id, team_id, sector)
+    return human_decision(store, mission_id, "assign", f"{team.callsign} assigned to sector {sector}",
+                          by, reason=reason, team=team_id, sector=sector,
+                          extra={"eta_min": eta, "superseded": gone})  # fmt: skip
+
+
+def recall(store: MissionStore, mission_id: str, team_id: str, by: str,
+           reason: str | None = None) -> dict:  # fmt: skip
+    """Bring a team back to base camp: ``returning``, with the walking ETA back; its sectors not yet
+    searched go back on the board."""
+    team = team_of(store, mission_id, team_id)
+    _release(store, mission_id, team_id, None, f"{team.callsign} recalled before it was searched")
+    eta = eta_to(store, mission_id, team, None)
+    store.upsert_team(mission_id, team.model_copy(update={"status": "returning", "eta_min": eta}))
+    _supersede(store, mission_id, team_id, None)
+    return human_decision(store, mission_id, "recall", f"{team.callsign} recalled to base camp", by,
+                          reason=reason, team=team_id, extra={"eta_min": eta})  # fmt: skip
+
+
+def searched(store: MissionStore, mission_id: str, sector: str, pod: float, by: str,
+             team_id: str | None = None, note: str | None = None, hooks: Any = None) -> Any:  # fmt: skip
+    """Mark a sector searched at a POD: the map lowers its cells by that POD (never to nothing), the
+    team that searched it is back on standby, the agent re-plans. Returns the map update."""
+    from sightline.mission import effects
+
+    task = _task(store, mission_id, sector)
+    if task.state == "searched":
+        raise ActionError(
+            f"sector {sector} is already searched (POD {task.pod:g}): recheck it first"
+        )
+    who = team_id or task.team_id
+    new = task.model_copy(update={"state": "searched", "team_id": who, "pod": pod, "note": note,
+                                  "updated_at": now_iso()})  # fmt: skip
+    update = effects.on_task_update(store, mission_id, new, hooks, direct=True)
+    if who is not None:
+        team = team_of(store, mission_id, who)
+        if team.status in ("assigned", "searching", "overdue"):
+            store.upsert_team(
+                mission_id, team.model_copy(update={"status": "standby", "eta_min": None})
+            )
+    human_decision(store, mission_id, "searched",
+                   f"Sector {sector} searched at POD {pod:.0%}: its probability lowered by that",
+                   by, reason=note, team=who, sector=sector, extra={"pod": pod})  # fmt: skip
+    return update
+
+
+def recheck(store: MissionStore, mission_id: str, sector: str, by: str,
+            reason: str | None = None) -> dict:  # fmt: skip
+    """Put a searched sector back on the board (``proposed``) to be searched again; the map keeps
+    what the search lowered."""
+    task = _task(store, mission_id, sector)
+    if task.state != "searched":
+        raise ActionError(f"sector {sector} is {task.state}, not searched")
+    store.upsert_task(mission_id, task.model_copy(update={
+        "state": "proposed", "team_id": None, "pod": None, "note": reason, "updated_at": now_iso()}))  # fmt: skip
+    return human_decision(store, mission_id, "recheck", f"Sector {sector} back on the board to recheck",
+                          by, reason=reason, sector=sector, extra={"last_pod": task.pod})  # fmt: skip
+
+
+def call(store: MissionStore, mission_id: str, team_id: str, text: str, by: str, radio: Any = None,
+         reply_to: str | None = None) -> dict:  # fmt: skip
+    """The manager calls a team: the radio desk speaks it (``radio``: the ``RadioContext`` when the
+    desk is mounted, so audio chunks come back) and the turn is recorded like any desk turn (trace
+    and ``radio.turn`` event). Without the desk the turn is recorded with no audio."""
+    from sightline.radio.mount import StoreMissionApi
+    from sightline.radio.turn import RadioSession, call_team
+
+    team = team_of(store, mission_id, team_id)
+    if radio is not None:
+        result = call_team(mission_id, team_id, text, radio.session(mission_id), radio.api)
+        turn, chunks = radio.speak_chunked(mission_id, result.turn)
+        if radio.on_turn is not None:
+            radio.on_turn(mission_id, turn)
+    else:
+        api = StoreMissionApi(store)
+        n = sum(e.kind == "radio_turn" for e in store.trace_entries(mission_id))
+        result = call_team(mission_id, team_id, text, RadioSession(counter=n), api)
+        turn, chunks = result.turn, []
+        api.record_turn(mission_id, turn)
+    human_decision(store, mission_id, "call", f"Call to {team.callsign}: {text}", by, team=team_id,
+                   extra={"turn_id": turn.id, "reply_to": reply_to}, emit=False)  # fmt: skip
+    return {"turn_id": turn.id, "reply": turn.reply, "audio_chunks": chunks, "at": turn.at}
+
+
+# --- demo scenarios ------------------------------------------------------------------------------
+
+
+def apply_scenario(store: MissionStore, mission_id: str, seed: int, by: str) -> Any:
+    """A demo mission becomes the scenario ``seed`` draws (``demo_scenario.generate``): its last
+    known point (inside the survey), subject, time last seen, base camp and the prior around the new
+    LKP on the same grid (the photos land where they did). Only before the search starts (no map
+    update yet). Returns the scenario; where the person is never leaves this function's caller."""
+    from sightline.contract import Area, BaseCamp, Distribution
+    from sightline.search.demo_scenario import generate
+    from sightline.search.prior import koester_prior, prior_source
+
+    m = store.get(mission_id)
+    if m.mode != "demo":
+        raise ActionError("a generated scenario is for demo missions only")
+    if store.map_updates(mission_id):
+        raise ActionError(
+            "choose the scenario before the search starts: the map already has updates"
+        )
+    live = store.live(mission_id)
+    grid = live.base.grid
+    corners = [c for f in store.survey(mission_id).frames for c in f.footprint]
+    scn = generate(seed, grid, corners)
+    p, out = koester_prior(grid, scn.lkp, scn.category)
+    params = live.base.params.model_copy(update={"prior_source": prior_source(scn.category)})
+    store.put_map_base(mission_id, live.base.model_copy(update={
+        "lkp": scn.lkp, "params": params,
+        "prior": Distribution(p=[float(x) for x in p], outside=float(out))}))  # fmt: skip
+    store.update_mission(mission_id, area=Area(name=m.area.name, lkp=scn.lkp), subject=scn.subject,
+                         last_seen_at=scn.last_seen_at, base_camp=BaseCamp(**scn.base_camp),
+                         scenario_seed=seed)  # fmt: skip
+    camp = LatLon(lat=scn.base_camp["lat"], lon=scn.base_camp["lon"])
+    for t in store.state(mission_id)["teams"]:
+        store.upsert_team(
+            mission_id, t.model_copy(update={"position": camp, "position_at": now_iso()})
+        )
+    from sightline.mission.effects import _layout
+
+    layout = _layout(store, mission_id)
+    if layout is not None:
+        poa = store.live(mission_id).sector_poa(layout)
+        for t in store.state(mission_id)["tasks"]:
+            if t.state == "proposed":
+                store.upsert_task(
+                    mission_id, t.model_copy(update={"poa": min(1.0, poa[t.sector_id])})
+                )
+    human_decision(store, mission_id, "scenario", f"Demo scenario: {scn.name} (seed {seed})", by,
+                   extra={"scenario": scn.public()})  # fmt: skip
+    return scn

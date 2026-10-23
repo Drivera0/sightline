@@ -1,9 +1,9 @@
-# 01 · The Data Contract (v1.2)
+# 01 · The Data Contract (v1.3)
 
 > **Read this before writing any code that reads or writes the cache.**
 > This file is the single source of truth for every file the lanes exchange.
 > If your code and this file disagree, this file wins. Change it only by team agreement (see §10).
-> §5–§9 are the static cache files; §12–§14 (v1.2) are live missions, the mission API and the in-process interfaces.
+> §5–§9 are the static cache files; §12–§14 (v1.2) are live missions, the mission API and the in-process interfaces; §15 (v1.3) adds the command post: base camp, found, last heard, direct actions, one timeline, ICS 309 and the D4H log push.
 
 ---
 
@@ -33,7 +33,7 @@ Rules that follow from this:
 | File paths in JSON | Relative to the cache folder root, forward slashes, e.g. `"frames/f0042.jpg"`. |
 | Floats in JSON | Lat/lon: 6 decimals. In `map.json`: step `pod`, `canopy` and `top_cells.p` to 4 decimals, but **`prior` and `final` probabilities unrounded** (full float64; cell values are around 1e-4, so rounding would break the sum checks). Everything else: 3 decimals. |
 | Missing values | `null`, never omitted, never `NaN`. |
-| Version | Every top-level JSON file the pipeline writes has `"contract_version": "1.2"`. Readers also accept `"1.0"` and `"1.1"`: 1.1 only adds optional fields, which read as `null` in a 1.0 file, and 1.2 only adds live-mission files (§12). |
+| Version | Every top-level JSON file the pipeline writes has `"contract_version": "1.3"`. Readers also accept `"1.0"`–`"1.2"`: 1.1 only adds optional fields, which read as `null` in a 1.0 file, 1.2 only adds live-mission files (§12), and 1.3 only adds optional live-mission fields and models (§15). |
 
 ---
 
@@ -70,7 +70,7 @@ Written last by the pipeline. Used for debugging and for the website's "about th
 
 ```json
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "survey_id": "seymour-demo",
   "generated_at": "2026-11-07T18:30:00Z",
   "git_sha": "a1b2c3d",
@@ -105,7 +105,7 @@ One entry per frame. **Writers:** D (frame list, flight order, ranking) using B'
 
 ```json
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "survey_id": "seymour-demo",
   "simulated_path": true,
   "area": {
@@ -162,7 +162,7 @@ All detections for all frames, in one file. **Writers:** D, using A's detector o
 
 ```json
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "model": "yolo11s-heridal-tiled-hn",
   "save_threshold": 0.05,
   "candidate_threshold": 0.25,
@@ -214,7 +214,7 @@ The search grid. **Writer:** D, using C's functions. The website replays the ste
 
 ```json
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "grid": {
     "origin_nw": {"lat": 49.374492, "lon": -122.951898},
     "cell_m": 20,
@@ -284,7 +284,7 @@ Everything the metrics screen and the pitch quote. **Writers:** D, from A's, C's
 
 ```json
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "detector": {
     "model": "yolo11s-heridal-tiled-hn",
     "test_images": 101,
@@ -357,6 +357,7 @@ All zeros above are placeholders; the sample cache uses plausible fake numbers, 
 
 - **1.1** (additive, agreed by lanes C and D): `map.json` `params.prior_source: string | null`; `metrics.json` `search_sim.in_survey: {trials, methods} | null`. Writers stamp `"1.1"`; readers accept `"1.0"` and `"1.1"`.
 - **1.2** (2026-10-21, additive): live missions (§12–§14): mission files, `MapUpdate` (step + reweight), verdicts, tasks, teams, clues, proposals, fleet, conditions, assignment cards, events, agent trace, radio turns; the mission API; the in-process interfaces. The static cache files (§5–§9) are unchanged: writers stamp `"1.2"`, readers accept `"1.0"`–`"1.2"`. Merged from the v1.2 draft by lane A for lane D (issue #51).
+- **1.3** (2026-10-22, additive): the command post (§15): `Mission.base_camp`, `status`, `found`, `check_in_min`; `Drone.home`; `Team.last_heard_at`, `eta_min` and the `overdue` status; direct actions; one timeline (`TimelineEntry`); ICS 309; the D4H log push. Every new field is optional with a default, so a 1.2 mission still loads. Writers stamp `"1.3"`, readers accept `"1.0"`–`"1.3"`.
 
 **Frozen at hour 3.** After that, only additive changes (new optional fields) unless the whole team agrees.
 
@@ -690,7 +691,7 @@ All JSON bodies are the models above. Errors: `{"detail": str}` with 4xx. No aut
 | `GET /missions/{id}/debrief.md` | — | markdown from C's `debrief()` | E debrief button |
 | `GET /missions/{id}/files/{path}` | — | frames, crops, relook crops, radio audio | web |
 | `/missions/{id}/radio/...` | see `LANE_E_OPS_VOICE.md` §8.3 | | E |
-| `GET /health` | — | `{"status":"ok", "contract_version":"1.2", "backend": "cv2"\|"torch"}` | smoke test |
+| `GET /health` | — | `{"status":"ok", "contract_version":"1.3", "backend": "cv2"\|"torch"}` | smoke test |
 
 Fleet in v1.2 is simulated only: legs are approved through proposals; there is no "fly" endpoint for real hardware.
 
@@ -785,3 +786,90 @@ def on_leg_done(store: MissionStore, mission_id: str, leg_id: str) -> None: ...
 ```
 
 Hooks must return fast: D's pipeline calls them on a background worker; the agent does its work asynchronously, gets the map with `store.live(mission_id)`, and reports only through `MissionStore`.
+
+## 15. Command post: v1.3 additions, 2026-10-22
+
+Additive: every new field has a default, so a 1.2 mission file still loads; writers stamp `"1.3"`. The
+console builds against these names (`web/src/contract.ts` is generated). Code:
+`sightline/mission/command.py` (the actions), `sightline/mission/timeline.py`, `sightline/mission/report.py`,
+`sightline/mission/d4h.py`, `sightline/search/demo_scenario.py`, `sightline/api/command.py`; tests:
+`tests/pipeline/test_command_post.py`, `tests/search/test_demo_scenario.py`,
+`tests/pipeline/test_demo_fixture_v13.py`.
+
+### 15.1 Models
+
+| Field | Type | Meaning |
+|---|---|---|
+| `Mission.base_camp` | `{lat, lon, name}` | Where teams stage and drones launch from and return to. Settable on `POST /missions`; default the LKP, named "Base camp (last known point)". New teams start there (`position`, not a report). |
+| `Mission.status` | `"searching" \| "found" \| "suspended"` | Default `searching`. `found` only through `POST /found`. |
+| `Mission.found` | `{team, sector, lat, lon, at} \| null` | Set exactly when `status` is `found`. |
+| `Mission.check_in_min` | number, default 30 | A team out in the field (assigned, searching, returning) not heard for longer is `overdue`. A planning choice: no published ground-SAR interval; aviation flight following uses 15–30 min. |
+| `Mission.scenario_seed` | int \| null | Demo missions only: the seed of the generated scenario. |
+| `Drone.home` | `LatLon \| null` | Launch and return point; the base camp unless the drone says otherwise (set when the fleet joins). A recall flies there. |
+| `Team.last_heard_at` | ISO \| null | The last radio turn from the team, clue it reported, position report or relay. Not `position_at`. |
+| `Team.eta_min` | number \| null | Minutes on foot to the current assignment (straight line at the planner's 3 km/h, an assumption); when recalled, back to base camp; null with no assignment. |
+| `Team.status` | adds `"overdue"` | Past `check_in_min`; any check-in brings the team back to its status before. |
+| `TimelineEntry` | `{id, at, kind, team?, drone?, sector?, text, refs, turn_id?, direction?, by?}` | One line of the timeline (15.3). |
+
+### 15.2 Endpoints (writes take the write token)
+
+| Method and path | Body | Does |
+|---|---|---|
+| `POST /missions` | adds `base_camp?` | as before, plus the base camp |
+| `POST /missions/{id}/found` | `{team, sector?, lat?, lon?, by?}` | `status` → `found`; no position: the sector's likeliest cell on the map now. Traced as a human `decision` (`action: found`), a `mission.note` with `data.found`, the after-action report written to `report/after_action.md`. The agent proposes nothing new after it. 409 when already found. |
+| `POST /missions/{id}/teams/{team}/assign` | `{sector, reason?, by?}` | The sector's task → `assigned` to the team; the team's other open sectors back to `proposed`; team `assigned` with `eta_min`; pending agent `assign_sector` for that team or sector `superseded`. 409 for a searched sector (recheck first). |
+| `POST /missions/{id}/teams/{team}/call` | `{text, reply_to?, by?}` | The radio desk speaks "<Callsign>, Sightline. <text>, over." Returns `{turn_id, reply, audio_chunks, at}` (no audio without the desk mounted). The turn is a `radio.turn` event like any desk turn. |
+| `POST /missions/{id}/teams/{team}/recall` | `{reason?, by?}` | Team → `returning`, `eta_min` to base camp; its open sectors back to `proposed`. |
+| `POST /missions/{id}/sectors/{sector}/searched` | `{pod, team?, note?, by?}` | The task → `searched` at `pod` (0 < pod ≤ 0.9) from any state not searched; the map lowers the sector's cells by that POD (never to zero); the team back on standby; the agent re-plans. 409 when already searched. |
+| `POST /missions/{id}/sectors/{sector}/recheck` | `{reason?, by?}` | A searched sector back to `proposed`; the map keeps the step. |
+| `POST /missions/{id}/scenario` | `{seed? \| preset?, by?}` | Demo missions only, before the first map update: the generated scenario (15.5). Returns it without the person's position. |
+| `GET /missions/{id}/events` | `?format=json` or `Accept: application/json`; `after` | The timeline as a JSON list. Without them: the SSE stream as before; `?timeline=1` adds `event: timeline` messages (same id as the event they come from). |
+| `GET /missions/{id}/coverage` | | `{cells, photographed_cells, photographed}`: run-length `[value, count]` row-major, 1 = a photo has looked at the cell. A veil flag: the probability covers the whole grid. |
+| `GET /missions/{id}/ics309.md`, `.json` | | ICS 309 Communications Log from the timeline's radio lines (`docs/EXPORTS.md`). |
+| `POST /missions/{id}/export/d4h` | `{org, incident_id, after?}` | Each timeline line to D4H Operations Center `POST /api/v1/orgs/{org}/incidents/{id}/logs` as `{message, tags}`, with `D4H_API_TOKEN` from the environment; 503 without it, 502 on a D4H error. |
+| `GET /missions/{id}/report.md`, `.json` | | The after-action report, built now. |
+
+Every direct action writes a `human` / `decision` trace entry (`output`: `action`, `by`, `reason`,
+`team`, `sector` and the action's own fields) and a `mission.note` with `data.decision` (the find:
+`data.found`; a call: the `radio.turn` event). The ICS 214 lists them as "Direct action: …".
+
+### 15.3 The timeline
+
+Derived from the events, never stored. Kinds:
+
+| Kind | From |
+|---|---|
+| `radio` | `radio.turn`: a team's turn as transcribed (`direction: "in"`) and the desk's reply (`id` + `-reply`, `direction: "out"`), a transmitted briefing or a call (`out`). `turn_id` names the turn; `at` is when it was said. |
+| `clue` | `clue.added` (`team` when a team reported it, `sector` from its position) |
+| `detection` | `detection.new` (candidates, promotions), `verdict` (second looks) |
+| `decision` | `proposal.decided` approved or rejected (`by`), and every direct action |
+| `checkin` | position reports, relays (`drone` = the first relay), team links, overdue and back in contact |
+| `drone` | leg approved, leg started and done, link lost or degraded or back, recall, battery under 50 % and 25 % |
+| `found` | the find |
+
+### 15.4 The agent
+
+An overdue team gets one pending `alert` with target `{"team": <id>, "check": "overdue_team"}` ("Team
+Three not heard for 32 min: call them") and a radio-check briefing; not a new proposal kind. Once the
+mission is found, `handle` proposes nothing and leaves a trace note.
+
+### 15.5 Demo scenarios and the probability surface
+
+`demo_scenario.generate(seed, grid, survey)` is deterministic (seed → the same scenario, field for
+field): the LKP inside the survey area, the lost-person category and subject, the time last seen and the
+call, where the person is (drawn from the prior; never sent to the API), 3–4 clues on the way from the
+LKP to the person with times, reliability and who reported them, and the base camp (the nearest
+staging point). Presets: `overdue-hiker` 1101, `missing-child` 2202, `despondent` 3303, `dementia` 4404.
+Only hiker and dementia have checked Koester distance rings; the other two use the labelled uniform
+placeholder prior and say so in `prior_source`.
+
+The prior is defined over the whole mission grid (Koester rings around the LKP when the subject names a
+category); clues raise the cells around them; photographed cells lower by their POD. "Not yet
+photographed" is the `coverage` flag, never a reason to leave a cell out.
+
+### 15.6 Fleet and photos
+
+The simulated fleet posts each tick's photos at the end of that tick, in order along the path, so the
+map steps under the drone as it flies; `photo.processed` carries `taken_at` (EXIF DateTimeOriginal).
+The demo fixture's `leg_photos` lists each leg photo (frame, drone, leg, capture time, position,
+footprint, map update seq) and its step is in `map_updates` at its capture time.

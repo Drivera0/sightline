@@ -21,13 +21,14 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, File, Header, HTTPException, Query, Request, Response, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
 
 from sightline.api.limits import MAX_PHOTO_BYTES, photo_type_problem, safe_filename
 from sightline.api.sse import event_stream
 from sightline.contract import (
+    BaseCamp,
     ClueDraft,
     FleetTelemetry,
     LatLon,
@@ -217,16 +218,19 @@ class NewMission(BaseModel):
     last_seen_at: str | None = None
     subject: str | None = None
     mode: Literal["live", "demo", "replay"] = "live"
+    base_camp: BaseCamp | None = None  # 1.3; default: the last known point
 
 
 @missions_router.post("/missions", status_code=201)
 def create_mission(body: NewMission, request: Request) -> dict:
-    """A mission with its map (placeholder prior until C-L1), teams T1–T4 on standby, and the
-    sector tasks once C's lattice sectors exist."""
+    """A mission with its map (placeholder prior until C-L1), teams T1–T4 on standby at the base
+    camp, and the sector tasks once C's lattice sectors exist."""
     store = _ctx(request).store
     m = store.create(
-        body.name, body.area_name, body.lkp, body.mode, body.last_seen_at, body.subject
-    )
+        body.name, body.area_name, body.lkp, body.mode, body.last_seen_at, body.subject,
+        base_camp=body.base_camp,
+    )  # fmt: skip
+    camp = LatLon(lat=m.base_camp.lat, lon=m.base_camp.lon)
     store.put_map_base(m.mission_id, start_map_base(body.lkp, subject=body.subject))
     for tid, callsign in DEFAULT_TEAMS:
         store.upsert_team(
@@ -236,8 +240,8 @@ def create_mission(body: NewMission, request: Request) -> dict:
                 callsign=callsign,
                 members=TEAM_MEMBERS,
                 status="standby",
-                position=None,
-                position_at=None,
+                position=camp,  # staged at the base camp (not a report: last_heard_at stays null)
+                position_at=m.created_at,
                 note=None,
             ),
         )
@@ -278,19 +282,55 @@ def get_state(mission_id: str, request: Request) -> dict:
     return _dump(_store(request, mission_id).state(mission_id))
 
 
-@missions_router.get("/missions/{mission_id}/events")
+@missions_router.get("/missions/{mission_id}/events", response_model=None)
 async def get_events(
     mission_id: str,
     request: Request,
     last_event_id: Annotated[str | None, Header()] = None,
     after: Annotated[str | None, Query()] = None,  # EventSource can't set headers on first connect
-) -> StreamingResponse:
+    format: Annotated[Literal["sse", "json"] | None, Query()] = None,
+    accept: Annotated[str | None, Header()] = None,
+    timeline: Annotated[bool, Query()] = False,
+) -> Response:
+    """The mission's event stream (SSE): every ``MissionEvent``. With ``?timeline=1`` (1.3) each
+    event is followed by its ``timeline`` lines (``event: timeline``, ``TimelineEntry``, same id);
+    opt-in, so readers that expect only ``MissionEvent`` data are unchanged. With ``?format=json``
+    (or ``Accept: application/json`` without ``text/event-stream``): the whole timeline as a JSON
+    list, oldest first; ``after`` keeps only the lines after that event id."""
+    from sightline.mission import timeline as tl
+
     store = _store(request, mission_id)
+    wants_json = format == "json" or (
+        format is None
+        and "application/json" in (accept or "")
+        and "text/event-stream" not in (accept or "")
+    )
+    if wants_json:
+        lines = tl.mission_timeline(store, mission_id)
+        if after:
+            n = _event_no(after)
+            lines = [x for x in lines if _event_no(x.id.split("-")[0]) > n]
+        return JSONResponse(_dump(lines))
+    cache: dict[str, Any] = {}
+
+    def lines_of(ev: Any) -> list:
+        if "ctx" not in cache or ev.type in ("team.updated", "mission.note"):
+            cache["ctx"] = tl.for_store(store, mission_id)  # teams change; sectors don't
+        return tl.entries(ev, *cache["ctx"])
+
     return StreamingResponse(
-        event_stream(store.subscribe(mission_id, last_event_id or after)),
+        event_stream(
+            store.subscribe(mission_id, last_event_id or after),
+            timeline=lines_of if timeline else None,
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+def _event_no(event_id: str) -> int:
+    digits = event_id.lstrip("e")
+    return int(digits) if digits.isdigit() else 0
 
 
 # --- photos -------------------------------------------------------------------------------
@@ -382,6 +422,21 @@ def get_map_base(mission_id: str, request: Request) -> dict:
         return _dump(store.live(mission_id).base)
     except ValueError as e:
         raise HTTPException(404, str(e)) from e
+
+
+@missions_router.get("/missions/{mission_id}/coverage")
+def get_coverage(mission_id: str, request: Request) -> dict:
+    """Which cells a photo has looked at (1.3): ``photographed`` as runs ``[value, count]`` over the
+    grid's cells in row-major order (1 = photographed, 0 = not yet). The probability covers the whole
+    grid; this is only a flag the map can draw as a veil over ground no photo has seen."""
+    from sightline.search.coverage import photographed_runs
+
+    store = _store(request, mission_id)
+    try:
+        live = store.live(mission_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    return photographed_runs(live)
 
 
 @missions_router.get("/missions/{mission_id}/sectors")
@@ -622,6 +677,9 @@ def post_fleet_relay(mission_id: str, body: FleetRelay, request: Request) -> dic
         raise HTTPException(404, "no such team")
     store.upsert_team(mission_id, team.model_copy(
         update={"position": LatLon(lat=body.lat, lon=body.lon), "position_at": body.heard_at}))  # fmt: skip
+    from sightline.mission.command import heard
+
+    heard(store, mission_id, team.id, body.heard_at, None)  # the relay note is the check-in
     relay = {**body.model_dump(), "callsign": body.callsign or team.callsign}
     ev = store.emit(mission_id, "mission.note", relay_summary(relay), ref=body.team_id,
                     data={"relay": relay, "simulated": True})  # fmt: skip

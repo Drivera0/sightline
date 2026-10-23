@@ -120,6 +120,36 @@ def test_the_sim_flies_an_approved_leg_through_the_api(world) -> None:
     assert any("L1 done" in x for x in lines)
 
 
+def test_photos_land_tick_by_tick_along_the_leg_with_their_capture_times(world) -> None:
+    """Heat under the drone (1.3): each tick's photos go up at the end of that tick, in order along
+    the path, so the map steps under the drone as it flies, not all at once when the leg is done;
+    each frame's ``photo.processed`` carries its capture time."""
+    from datetime import datetime, timedelta
+
+    http, ctx, store, _hooks, mid, _bodies, tmp = world
+    clock = {"t": datetime(2026, 10, 24, 21, 50)}
+    sim = FleetSim(http, mid, _scenario(), time_scale=1.0, photo_every_m=15, pool=Pool(tmp),
+                   now=lambda: clock["t"].strftime("%Y-%m-%dT%H:%M:%SZ"), out=lambda s: None)  # fmt: skip
+    sim.register()
+    _leg_over_hidden(store, mid)
+    posted = []
+    for _ in range(40):
+        clock["t"] += timedelta(seconds=1)
+        sim.tick(1.0)
+        ctx.queue.join()
+        posted.append(len(store.survey(mid).frames))
+    steps = [b - a for a, b in zip([0, *posted], posted, strict=False)]
+    assert posted[-1] == 5 and max(steps) <= 2  # a photo or two per tick, never the leg at once
+    assert sum(1 for x in steps if x) >= 3
+    done = [e for e in store.events(mid) if e.type == "photo.processed"]
+    taken = [e.data["taken_at"] for e in done]
+    assert (
+        taken == sorted(taken) and len(set(taken)) >= 3 and taken[0].startswith("2026-10-24T21:5")
+    )
+    frame_steps = [u for u in store.map_updates(mid) if u.source == "frame"]
+    assert [u.ref for u in frame_steps] == [f.id for f in store.survey(mid).frames]
+
+
 def test_photos_carry_a_pose_read_pose_reads_back(tmp_path: Path) -> None:
     crop = Pool(tmp_path).negatives[0]
     p = tmp_path / "s.jpg"

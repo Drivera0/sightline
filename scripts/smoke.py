@@ -174,7 +174,7 @@ def main() -> int:
                             f"server didn't start (see {tmp / 'server.log'})"
                         ) from None
                     time.sleep(0.3)
-            assert h["contract_version"] == "1.2" and h["backend"] == "fake", h
+            assert h["contract_version"] == "1.3" and h["backend"] == "fake", h
             return f"contract {h['contract_version']}, backend {h['backend']}"
 
         def create():

@@ -76,3 +76,8 @@ def on_tick(store: Any, mission_id: str) -> None:
 def on_subject_set(store: Any, mission_id: str, proposal_id: str) -> None:
     """A subject profile was approved (the prior now has its category): re-plan the drones."""
     _submit("subject_set", store, mission_id, proposal_id)
+
+
+def on_team_overdue(store: Any, mission_id: str, team_id: str) -> None:
+    """A team out in the field went overdue (1.3): an ``alert`` to call it (``overdue_team``)."""
+    _submit("team_overdue", store, mission_id, team_id)
