@@ -15,7 +15,6 @@ import { buildTimeline, FILTERS, inFilter, type Entry, type EntryKind } from "./
 const ICON: Record<EntryKind, IconName> = {
   radio: "radio", clue: "clue", detection: "detection", decision: "decision", checkin: "checkin", drone: "drone", found: "found", note: "note",
 };
-const TONE: Partial<Record<EntryKind, string>> = { clue: "text-warn", decision: "text-accent-soft", found: "text-ok", radio: "text-text" };
 const btn = "sl-tap inline-flex h-6 items-center rounded-full border border-line px-2 text-caption text-text-2 hover:border-border hover:text-text";
 /** The newest this many; the Trace view's event log has them all. */
 export const TIMELINE_LIMIT = 120;
@@ -83,6 +82,7 @@ export function Timeline({
   const all = useMemo(() => buildTimeline(events, teams, server), [events, teams, server]);
   const shown = all.filter((e) => inFilter(e, filter)).slice(0, TIMELINE_LIMIT);
   const fresh = useFreshRows(all);
+  const counts = useMemo(() => Object.fromEntries(FILTERS.map((f) => [f, all.filter((e) => inFilter(e, f)).length])) as Record<(typeof FILTERS)[number], number>, [all]);
   const list = useRef<HTMLOListElement>(null);
   // "Show me" on a radio call: its row, brought into view and highlighted
   const row = useConsole((s) => s.row);
@@ -113,6 +113,11 @@ export function Timeline({
               className={`sl-tap h-6 rounded-full px-2.5 text-caption font-normal ${filter === f ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--border)]" : "text-text-2 hover:text-text"}`}
             >
               {f}
+              {f !== "All" && (
+                <span aria-hidden className="ml-1 text-text-3">
+                  {counts[f]}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -131,16 +136,16 @@ export function Timeline({
             data-entry={e.id}
             data-new={fresh.has(e.id) || undefined}
             style={{ ["--c" as string]: KIND_COLOUR[e.kind] }}
-            className={`group flex items-start gap-2.5 rounded-sm px-2 py-0.5 hover:bg-surface ${fresh.has(e.id) ? "sl-row-new" : ""}`}
+            className={`group flex items-start gap-3 rounded-sm border-b border-line px-2 py-1.5 last:border-b-0 hover:bg-surface ${fresh.has(e.id) ? "sl-row-new" : ""}`}
           >
-            <span className="w-11 shrink-0 pt-px text-caption text-text-3" title={e.at}>
+            <span className="w-12 shrink-0 pt-0.5 text-caption text-text-3" title={e.at}>
               {time(e.at)}
             </span>
-            <Icon name={ICON[e.kind]} size={14} className={`mt-[3px] shrink-0 ${TONE[e.kind] ?? "text-text-3"}`} />
+            <Icon name={ICON[e.kind]} size={15} className="mt-[3px] shrink-0 text-[var(--c)]" />
             <span className="min-w-0 flex-1">
               <span className={`text-small ${e.kind === "note" ? "text-text-2" : "text-text"}`}>{e.text}</span>
               {e.repeats > 1 && <span className="ml-1.5 text-caption text-text-3" title={`${e.repeats} times; the newest shown`}>×{e.repeats}</span>}
-              {e.detail && <span className="block truncate text-caption text-text-3" title={e.detail}>{e.detail}</span>}
+              {e.detail && <span className="block line-clamp-2 text-caption text-text-3" title={e.detail}>{e.detail}</span>}
             </span>
             <span className="flex shrink-0 gap-1">
               {e.kind === "radio" && e.team && (

@@ -22,6 +22,7 @@ import { ClueForm, Timeline, TalkBar, type TalkVoice } from "./Timeline";
 import { useEventToasts } from "./notifications";
 import { showMe } from "./showMe";
 import { ToastStack } from "../shell/toasts";
+import { TimelineHandle, useTimelineHeight } from "./TimelineResize";
 
 /** The demo mission is dated at Mount Seymour; a live mission reads the browser's zone. */
 export const missionTz = (status: string): Tz => (status === "demo" ? DEMO_TZ : false);
@@ -142,11 +143,13 @@ export function CommandView(p: CommandProps) {
   const focusP = focus?.kind === "proposal" ? p.proposals.find((x) => x.id === focus.id && x.status === "pending") : undefined;
   const glow = focusP ? (focusP.target.team ?? focusP.target.drone ?? focusP.leg?.drone_id ?? null) : null;
   const call = (teamId: string, draft?: string) => useConsole.getState().talk(teamId, draft ?? `${p.teams.find((x) => x.id === teamId)?.callsign ?? teamId}, Sightline. `);
+  // the timeline's height: taller by default, dragged by its handle, remembered (TimelineResize.tsx)
+  const [timelineH, setTimelineH] = useTimelineHeight();
   const grid = wide
-    ? "lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] lg:grid-rows-[minmax(0,1fr)_15rem]"
-    : "lg:grid-cols-[17rem_minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)_15rem]";
+    ? "lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]"
+    : "lg:grid-cols-[17rem_minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]";
   return (
-    <div role="group" aria-label="Command view" className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
+    <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
       {p.conditionsOpen && p.conditionsData && (
         // over the console, under the status line (the map keeps its place); W or Esc closes it
         <div className="absolute inset-x-0 top-0 z-30 max-h-[75vh] overflow-y-auto rounded-lg shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]">
@@ -223,7 +226,8 @@ export function CommandView(p: CommandProps) {
           />
         )}
       </div>
-      <div id="console-timeline" className={`order-3 flex h-[28rem] min-h-0 flex-col lg:order-none lg:h-auto ${wide ? "lg:col-span-2" : "lg:col-span-3"}`}>
+      <div id="console-timeline" className={`relative order-3 flex h-[28rem] min-h-0 flex-col lg:order-none lg:h-auto ${wide ? "lg:col-span-2" : "lg:col-span-3"}`}>
+        <TimelineHandle height={timelineH} onResize={setTimelineH} />
         <Timeline
           events={p.events}
           server={p.timeline}

@@ -2,7 +2,18 @@
 // Task button has put the map in pick-a-sector mode, the timeline's filter, who the talk bar is addressed to,
 // and the phone's tab. One store so the map, the cards and the timeline can hand each other work. Built by lane A.
 import { create } from "zustand";
-import type { Filter } from "./timeline";
+import { FILTERS, type Filter } from "./timeline";
+
+/** The timeline's filter stays as this browser left it (V3 §3: filters are sticky). */
+export const FILTER_KEY = "sightline.timelineFilter";
+function savedFilter(): Filter {
+  try {
+    const v = globalThis.localStorage?.getItem(FILTER_KEY);
+    return (FILTERS as readonly string[]).includes(v ?? "") ? (v as Filter) : "All";
+  } catch {
+    return "All";
+  }
+}
 
 export type PhoneTab = "map" | "needs" | "timeline" | "more";
 
@@ -47,7 +58,7 @@ export interface ConsoleState {
   reset: () => void;
 }
 
-const INITIAL = { sector: null, picking: null, filter: "All" as Filter, talkTo: null, talkFocus: 0, talkDraft: "", tab: "map" as PhoneTab,
+const INITIAL = { sector: null, picking: null, filter: savedFilter(), talkTo: null, talkFocus: 0, talkDraft: "", tab: "map" as PhoneTab,
   focus: null as Focus | null,
   review: { open: false, id: null as string | null },
   clue: { open: false, at: null as { lat: number; lon: number } | null, n: 0 },
@@ -59,7 +70,14 @@ export const useConsole = create<ConsoleState>((set) => ({
   openSector: (id, x, y) => set({ sector: { id, x, y } }),
   closeSector: () => set({ sector: null }),
   pick: (picking) => set({ picking, sector: null }),
-  setFilter: (filter) => set({ filter }),
+  setFilter: (filter) => {
+    try {
+      globalThis.localStorage?.setItem(FILTER_KEY, filter);
+    } catch {
+      /* private mode: this page only */
+    }
+    set({ filter });
+  },
   talk: (team, draft = "") => set((s) => ({ talkTo: team, talkFocus: s.talkFocus + 1, talkDraft: draft })),
   setTalkTo: (talkTo) => set({ talkTo }),
   setTab: (tab) => set({ tab }),
@@ -69,5 +87,5 @@ export const useConsole = create<ConsoleState>((set) => ({
   openClue: (at = null) => set((s) => ({ clue: { open: true, at, n: s.clue.n + 1 } })),
   closeClue: () => set((s) => ({ clue: { ...s.clue, open: false, at: null } })),
   showRow: (ref) => set((s) => ({ row: { ref, n: (s.row?.n ?? 0) + 1 }, filter: "All" })),
-  reset: () => set({ ...INITIAL }),
+  reset: () => set({ ...INITIAL, filter: savedFilter() }),
 }));
