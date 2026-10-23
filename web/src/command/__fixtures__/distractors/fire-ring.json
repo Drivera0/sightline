@@ -1,0 +1,55 @@
+{
+ "note": "Written by scripts/make_distractor_fixture.py: the real second look on a licensed photo placed in the demo flight as a distractor, with the live VL model; the answer is kept word for word. Not the missing person.",
+ "kind": "fire ring",
+ "image": "fire-ring.jpg",
+ "crop": "fire-ring-crop.jpg",
+ "size_px": [
+  1000,
+  750
+ ],
+ "detection": {
+  "box_px": [
+   45,
+   40,
+   925,
+   700
+  ],
+  "conf": 0.15,
+  "by": "hand",
+  "note": "placed by hand for the demo: the detector did not flag it (it gave no box over it at 0.05); score set to the second look's floor 0.15"
+ },
+ "verdict": {
+  "id": "<verdict>",
+  "detection_id": "<frame>-d01",
+  "tools": [
+   "zoom_native"
+  ],
+  "relook_crops": [
+   "relook/f0001-d01-zoom_native.jpg"
+  ],
+  "person": "no",
+  "posture": "unknown",
+  "group_size": null,
+  "clothing": null,
+  "reason": "The centre shows a ring of stones with ash and sticks, which is a fire ring, not a human shape.",
+  "model": "nvidia/Nemotron-3.5-Super-VL",
+  "ms": 1610,
+  "at": "2026-10-23T07:04:20.797Z",
+  "object": "fire ring"
+ },
+ "answer": "{\n  \"person\": \"no\",\n  \"posture\": \"unknown\",\n  \"group_size\": null,\n  \"clothing\": null,\n  \"object\": \"fire ring\",\n  \"reason\": \"The centre shows a ring of stones with ash and sticks, which is a fire ring, not a human shape.\"\n}",
+ "model_call": {
+  "model": "nvidia/Nemotron-3.5-Super-VL",
+  "ms": 1602,
+  "tokens_in": 919,
+  "tokens_out": 68
+ },
+ "model_calls": 1,
+ "tools": [
+  "zoom_native"
+ ],
+ "proposals": [],
+ "credit": "Walter Siegmund, CC BY 2.5, via Wikimedia Commons",
+ "source": "https://commons.wikimedia.org/wiki/File:Campfire_scar_08319.JPG",
+ "view": "close top-down (camera pointing straight down, not drone altitude)"
+}

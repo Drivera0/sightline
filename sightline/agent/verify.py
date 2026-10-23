@@ -50,9 +50,13 @@ VERDICT_SCHEMA: dict = {
         "posture": {"type": "string", "enum": ["standing", "sitting", "lying", "unknown"]},
         "group_size": {"type": ["integer", "null"], "minimum": 1},
         "clothing": {"type": ["string", "null"]},
+        "object": {
+            "type": ["string", "null"],
+            "enum": ["backpack", "fire ring", "shelter", "other", None],
+        },
         "reason": {"type": "string"},
     },
-    "required": ["person", "posture", "group_size", "clothing", "reason"],
+    "required": ["person", "posture", "group_size", "clothing", "object", "reason"],
     "additionalProperties": False,
 }
 RESPONSE_FORMAT = {
@@ -100,12 +104,17 @@ def choose_tools(det: Any, meta: dict[str, float]) -> list[str]:
 
 
 def parse_verdict(text: str) -> dict | None:
-    """The model's JSON reply checked against ``VERDICT_SCHEMA``; ``None`` if it doesn't fit."""
+    """The model's JSON reply checked against ``VERDICT_SCHEMA``; ``None`` if it doesn't fit. A
+    reply without ``object`` (prompts before verify-v3, recorded answers) reads as ``object`` null."""
     try:
         data = json.loads(_FENCE.sub("", text.strip()))
     except json.JSONDecodeError:
         return None
+    if isinstance(data, dict) and "object" not in data:
+        data = {**data, "object": None}
     if not isinstance(data, dict) or set(data) != set(VERDICT_SCHEMA["required"]):
+        return None
+    if data["object"] not in VERDICT_SCHEMA["properties"]["object"]["enum"]:
         return None
     props = VERDICT_SCHEMA["properties"]
     if data["person"] not in props["person"]["enum"]:
@@ -284,6 +293,7 @@ def verify(
             "posture": "unknown",
             "group_size": None,
             "clothing": None,
+            "object": None,
             "reason": why,
         }
         if failure:
@@ -307,6 +317,7 @@ def verify(
         group_size=answer["group_size"],
         clothing=_no_clear(answer["clothing"]),
         reason=_no_clear(answer["reason"]) or "",
+        object=answer["object"],
         model=used_model,
         ms=round((time.perf_counter() - start) * 1000),
         at=now_iso(),
@@ -317,7 +328,8 @@ def verify(
         mission_id,
         actor="verifier",
         kind="verdict",
-        summary=f"{detection_id}: person {verdict.person}",
+        summary=f"{detection_id}: person {verdict.person}"
+        + (f", object: {verdict.object}" if verdict.object else ""),
         output=verdict.model_dump(),
         refs=[detection_id, verdict.id],
     )

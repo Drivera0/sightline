@@ -252,14 +252,38 @@ def on_clue(
     return clue, update
 
 
+REVIEW_ANSWERS = ("person", "not_person", "not_subject", "unsure", "object")
+OBJECTS = ("backpack", "fire ring", "shelter", "other")
+REVIEW_WORDS = {"person": "a person", "not_person": "not a person", "unsure": "unsure",
+                "not_subject": "a person, not the subject", "object": "an object"}  # fmt: skip
+
+
 def on_review(
-    store: MissionStore, mission_id: str, detection_id: str, answer: str, hooks: Any = None
+    store: MissionStore,
+    mission_id: str,
+    detection_id: str,
+    answer: str,
+    hooks: Any = None,
+    *,
+    object: str | None = None,
+    by: str = "image reviewer",
 ) -> MapUpdate | None | str:
-    """A reviewer's answer: the map changes around the detection (C), then the agent hears."""
-    if answer not in ("person", "not_person", "unsure"):
-        raise ValueError("answer must be person, not_person or unsure")
+    """A reviewer's answer: the map changes around the detection (C), then the agent hears.
+
+    v1.3 (contract 15.7) adds two answers. ``not_subject``: a person, not the missing one (the
+    photo's look around it counts, as for ``not_person``). ``object`` with ``object`` (backpack,
+    fire ring, shelter, other): a thing the person may have left becomes a **clue candidate**
+    (kind ``object``, ``source`` "review", not confirmed; the map counts it as low reliability
+    until a team confirms it). Every answer is traced as a human decision and is a timeline line."""
+    if answer not in REVIEW_ANSWERS:
+        raise ValueError(f"answer must be one of {', '.join(REVIEW_ANSWERS)}")
+    if (answer == "object") != (object is not None):
+        raise ValueError('an "object" answer needs object (backpack, fire ring, shelter, other)')
+    if object is not None and object not in OBJECTS:
+        raise ValueError(f"object must be one of {', '.join(OBJECTS)}")
     det, frame = store.get_detection(mission_id, detection_id)
-    from sightline.contract import LatLon
+    from sightline.agent.trace import trace_call
+    from sightline.contract import Clue, LatLon
 
     update = _map(
         store,
@@ -268,15 +292,117 @@ def on_review(
             detection_id, frame.id, LatLon(lat=det.lat, lon=det.lon), det.radius_m, answer
         ),
     )
+    words = REVIEW_WORDS[answer] + (f" ({object})" if object else "")
+    data: dict[str, Any] = {"answer": answer, "detection": detection_id, "by": by}
+    clue = None
+    if answer == "object":
+        draft = Clue(kind="object", text=f"{object} seen in drone photo {frame.id} (image review)",
+                     lat=det.lat, lon=det.lon, radius_m=max(det.radius_m, 10.0), reliability="low",
+                     reported_by="command", source="review", detection_id=detection_id,
+                     id="", at=now_iso(), confirmed=False)  # fmt: skip
+        clue = store.add_clue(mission_id, draft)
+        data |= {"object": object, "clue": clue.id}
+    trace_call(store, mission_id, actor="human", kind="decision",
+               summary=f"Review of {detection_id}: {words} (by {by})",
+               output={"action": "review", **data}, refs=[r for r in (detection_id, data.get("clue")) if r])  # fmt: skip
     store.emit(
         mission_id,
         "mission.note",
-        f"review {detection_id}: {answer}",
+        f"review {detection_id}: {words}" + (f", clue candidate {clue.id}" if clue else ""),
         ref=detection_id,
-        data={"answer": answer},
+        data=data,
     )
+    if clue is not None:
+        clue_map = _map(store, mission_id, lambda live: live.clue_update(clue))
+        update = update if update is not None else clue_map
+        _hook(hooks, "on_clue", store, mission_id, clue.id)
     _hook(hooks, "on_review", store, mission_id, detection_id, answer)
     return update
+
+
+def bearing_point(origin: Any, bearing_deg: float, distance_m: float) -> tuple[float, float]:
+    """(lat, lon) ``distance_m`` from ``origin`` along ``bearing_deg`` (flat earth: a few hundred m)."""
+    import math
+
+    b = math.radians(bearing_deg)
+    lat = origin.lat + distance_m * math.cos(b) / 110_540.0
+    lon = origin.lon + distance_m * math.sin(b) / (111_320.0 * math.cos(math.radians(origin.lat)))
+    return round(lat, 6), round(lon, 6)
+
+
+def confirm_radio_clue(
+    store: MissionStore,
+    mission_id: str,
+    turn_id: str,
+    by: str,
+    edits: dict | None = None,
+    hooks: Any = None,
+) -> tuple[Clue, MapUpdate | None | str]:
+    """The search manager confirms the clue a team reported on the radio (contract 15.7): the turn
+    (state ``awaiting_confirm`` with its ``draft``, in the trace or the event log) is committed by
+    this action, and the draft (with any ``edits``) becomes a confirmed radio clue. The committed
+    turn is the action's trace entry (``actor`` human, ``actions`` "confirmed by <who>"); a
+    ``mission.note`` with ``data.decision`` puts it on the timeline. A reported clue never becomes a
+    clue without it."""
+    from sightline.contract import ClueDraft, RadioTurn, TraceEntry
+
+    turns = [RadioTurn.model_validate(e.output) for e in store.trace_entries(mission_id)
+             if e.kind == "radio_turn" and (e.output or {}).get("id") == turn_id]  # fmt: skip
+    turns += [RadioTurn.model_validate(e.data) for e in store.events(mission_id)
+              if e.type == "radio.turn" and (e.data or {}).get("id") == turn_id]  # fmt: skip
+    if not turns:
+        raise KeyError(f"no radio turn {turn_id}")
+    if any(t.state == "committed" for t in turns):
+        raise ValueError(f"radio turn {turn_id} is already confirmed")
+    pending = next((t for t in reversed(turns) if t.state == "awaiting_confirm" and t.draft), None)
+    if pending is None:
+        raise ValueError(f"radio turn {turn_id} has no clue awaiting confirmation")
+    at = now_iso()
+    committed = pending.model_copy(update={
+        "state": "committed", "transcript": "", "reply": None, "audio": None, "at": at,
+        "actions": ["log clue", f"confirmed by {by}"], "asr_ms": None, "llm_ms": None, "tts_ms": None})  # fmt: skip
+    store.trace(mission_id, TraceEntry(
+        id="", at=at, actor="human", kind="radio_turn",
+        summary=f"in {pending.callsign or '?'}: committed (clue confirmed by {by})",
+        input=None, output=committed.model_dump(mode="json"), model=None, ms=None,
+        tokens_in=None, tokens_out=None, refs=[r for r in (pending.callsign, turn_id) if r]))  # fmt: skip
+    draft = ClueDraft.model_validate({**pending.draft.model_dump(), **(edits or {}),
+                                      "source": "radio", "confirmed_by_turn": turn_id})  # fmt: skip
+    clue, update = on_clue(store, mission_id, clue_from_draft(store, mission_id, draft), hooks)
+    team = clue.reported_by if clue.reported_by != "command" else None
+    data = {"action": "confirm_radio_clue", "by": by, "reason": None, "team": team, "sector": None,
+            "clue": clue.id, "turn": turn_id}  # fmt: skip
+    store.emit(mission_id, "mission.note",
+               f"Clue {clue.id} ({clue.kind}: {clue.text}) confirmed from radio turn {turn_id} (by {by})",
+               ref=team, data={"decision": data})  # fmt: skip
+    return clue, update
+
+
+def on_clue_confirm(
+    store: MissionStore,
+    mission_id: str,
+    clue_id: str,
+    reliability: str,
+    by: str,
+    team: str | None = None,
+    hooks: Any = None,
+) -> tuple[Any, MapUpdate | None | str]:
+    """A team confirmed a clue candidate on the ground: it becomes a clue at ``reliability`` and
+    the map moves from the candidate's low factor to that one. Traced as a human decision."""
+    from sightline.mission.command import human_decision
+
+    clue = next((c for c in store.state(mission_id)["clues"] if c.id == clue_id), None)
+    if clue is None:
+        raise KeyError(f"no clue {clue_id}")
+    if clue.confirmed:
+        raise ValueError(f"clue {clue_id} is already confirmed")
+    update = _map(store, mission_id, lambda live: live.clue_confirm_update(clue, reliability))
+    new = store.update_clue(mission_id, clue_id, confirmed=True, reliability=reliability)
+    human_decision(store, mission_id, "confirm_clue",
+                   f"Clue {clue_id} confirmed on the ground ({reliability} reliability)", by,
+                   team=team, extra={"clue": clue_id, "reliability": reliability})  # fmt: skip
+    _hook(hooks, "on_clue", store, mission_id, clue_id)
+    return new, update
 
 
 def on_conditions(

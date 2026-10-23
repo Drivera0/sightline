@@ -4,7 +4,6 @@ search every time, presets fix the category, and the person's position never rea
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 
 import pytest
@@ -13,9 +12,19 @@ from fastapi.testclient import TestClient
 from sightline.api.app import create_app
 from sightline.api.missions import MissionContext
 from sightline.contract import LatLon
+from sightline.geo.roads import distance_to_road_m
 from sightline.mission import MissionStore, validate_mission
 from sightline.mission.queue import LocalQueue
-from sightline.search.demo_scenario import PRESETS, STAGING, generate, preset_seed
+from sightline.search.demo_scenario import (
+    DISTRACTORS,
+    MIN_ROAD_M,
+    PRESETS,
+    STAGING,
+    demo_affinity,
+    generate,
+    pick_distractors,
+    preset_seed,
+)
 from sightline.search.grid import make_grid
 from sightline.search.prior import koester_prior
 from tests.fixtures.drone_photos import LKP
@@ -33,21 +42,60 @@ def test_the_same_seed_gives_the_same_scenario_field_for_field() -> None:
 @pytest.mark.parametrize("key", list(PRESETS))
 def test_presets_fix_the_category_and_draw_a_whole_scenario(key: str) -> None:
     name, seed, kind = PRESETS[key]
-    s = generate(preset_seed(key), GRID, SURVEY)
+    aff = demo_affinity(GRID)  # the basemap's roads, as the demo's presets use them
+    s = generate(preset_seed(key), GRID, SURVEY, affinity=aff, min_road_distance_m=MIN_ROAD_M)
     assert s.name == name and s.kind == kind and preset_seed(name) == seed
     assert 49.3685 <= s.lkp.lat <= 49.3715 and -122.9471 <= s.lkp.lon <= -122.9429  # in the survey
     assert 3 <= len(s.clues) <= 4
     assert [c.minutes for c in s.clues] == sorted(c.minutes for c in s.clues)
     assert s.last_seen_at < s.call_at
-    nearest = min(STAGING, key=lambda x: math.dist((x[1], x[2]), (s.lkp.lat, s.lkp.lon)))
-    assert s.base_camp["name"] == nearest[0]
-    p, _ = koester_prior(GRID, s.lkp, s.category)  # the person is drawn where the prior has mass
+    # deeper in the terrain: the LKP's and the person's cells at least 300 m from any road (the
+    # affinity's raster); the LKP within a cell of that by the exact distance; base camp on a road
     from sightline.search.grid import cell_containing
 
+    def cell_road_m(p: LatLon) -> float:
+        r, c = cell_containing(GRID, p)
+        return float(aff.road_distance_m[r * GRID.cols + c])
+
+    assert cell_road_m(s.lkp) >= MIN_ROAD_M and cell_road_m(s.person) >= MIN_ROAD_M
+    assert distance_to_road_m(s.lkp.lat, s.lkp.lon) >= MIN_ROAD_M - 10
+    assert s.lkp_road_m == pytest.approx(distance_to_road_m(s.lkp.lat, s.lkp.lon), abs=0.1)
+    assert distance_to_road_m(s.base_camp["lat"], s.base_camp["lon"]) < 15
+    assert s.base_camp["name"] in {x[0] for x in STAGING} and "demo" not in s.base_camp["name"]
+    assert s.survey_launch["from"] == s.base_camp["name"] and s.survey_launch["transit_m"] > 0
+    p, _ = koester_prior(
+        GRID, s.lkp, s.category, affinity=aff
+    )  # the person: where the prior has mass
     r, c = cell_containing(GRID, s.person)
     assert p[r * GRID.cols + c] > 0
     if s.category is None:
-        assert s.prior_source == "placeholder"  # no checked rings for this category: said so
+        assert "placeholder" in s.prior_source  # no checked rings for this category: said so
+
+
+FRAMES = [(f"f{k + 1:04d}", 49.3686 + 0.0028 * (k % 10) / 10, -122.9470 + 0.0040 * (k // 10) / 10)
+          for k in range(100)]  # fmt: skip
+
+
+def test_each_scenario_throws_two_or_three_distractors_where_they_fit() -> None:
+    s = generate(1101, GRID, SURVEY, frames=FRAMES)
+    assert s == generate(1101, GRID, SURVEY, frames=FRAMES)  # deterministic, distractors too
+    # the distractors have their own random stream: the rest of the scenario is the same without them
+    bare = generate(1101, GRID, SURVEY)
+    assert bare.distractors == [] and (bare.lkp, bare.person, bare.clues) == (
+        s.lkp,
+        s.person,
+        s.clues,
+    )
+    kinds = {k for k, *_ in DISTRACTORS}
+    for seed in (1101, 2202, 3303, 4404, 7, 8):
+        ds = pick_distractors(seed, FRAMES, generate(seed, GRID, SURVEY).person)
+        assert 1 <= len(ds) <= 3 and len({d.kind for d in ds}) == len(ds)
+        for d in ds:
+            assert d.kind in kinds and d.near_frame in {f[0] for f in FRAMES}
+            assert (d.review, d.object) in {("object", "backpack"), ("object", "fire ring"),
+                                            ("object", "shelter"), ("not_subject", None)}  # fmt: skip
+            assert (d.trail_m <= 40.0) == (d.kind != "shelter")
+    assert "distractors" in s.public() and "person" not in s.public()
 
 
 def test_the_public_scenario_leaves_the_person_out() -> None:

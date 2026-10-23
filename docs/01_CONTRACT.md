@@ -873,3 +873,37 @@ The simulated fleet posts each tick's photos at the end of that tick, in order a
 map steps under the drone as it flies; `photo.processed` carries `taken_at` (EXIF DateTimeOriginal).
 The demo fixture's `leg_photos` lists each leg photo (frame, drone, leg, capture time, position,
 footprint, map update seq) and its step is in `map_updates` at its capture time.
+
+### 15.7 Distractors, radio clues, bearings, voices (V3 simulation content, 2026-10-23)
+
+Additive, defaults everywhere; contract version stays 1.3.
+
+| Field / endpoint | Meaning |
+|---|---|
+| `Verdict.object` | `"backpack" \| "fire ring" \| "shelter" \| "other" \| null`. The second look (`verify-v3`: v2's person rules word for word plus this field) names a thing a lost person may have left or used. Advice only. |
+| `POST /missions/{id}/reviews` | `answer` adds `not_subject` (a person, not the missing one: the map counts the look like `not_person`) and `object` (needs `object`): a **clue candidate** (`kind` object, `source` `"review"`, `confirmed` false, `detection_id`); the map counts it as low reliability whatever it says. `by` names the reviewer. Every answer is a human `decision` trace entry and a `detection` timeline line ("review f0502-d01: an object (backpack), clue candidate c002"). 422 for an object answer without a known type. |
+| `POST /missions/{id}/clues/{clue}/confirm` | `{reliability?, by, team?}`: a team confirmed a clue candidate on the ground; the map moves from the low factor to that reliability's (a ratio reweight). 409 if already confirmed. |
+| `RadioTurn.draft` | The clue a team reported, waiting for the search manager (state `awaiting_confirm`). |
+| `POST /missions/{id}/turns/{turn}/confirm_clue` | `{by, edits?}`: the search manager confirms it. The committed turn (actor `human`, actions "confirmed by …") goes into the trace; the clue is added (`source` radio, `confirmed_by_turn`); a `mission.note` with `data.decision` (`action: confirm_radio_clue`) puts it on the timeline. A team's report never becomes a clue without it. 409 if already confirmed, 404 for no such turn. |
+| `ClueDraft.origin`, `bearing_deg`, `bearing_spread_deg`, `range_m` | A sound a team heard is a bearing from where the team stood: true bearing (0 = north) toward the sound, half the arc's angle, and how far it seemed; the arc reaches `range_m` give or take `radius_m`. `lat`/`lon` is the arc's middle. The map raises the arc's cells instead of a circle. The console draws the arc. |
+| `TimelineEntry.audio` | Demo fixtures only: the radio line's clip under the site (`voices/<scenario>/<turn>.mp3`, the desk's `<turn>-desk.mp3`). Teams speak in Magpie speakers 1–4 (one per team), the desk in 0. |
+
+Demo fixtures (`scripts/make_command_fixtures.py`, `make_fleet_fixture.py`, `make_voice_fixture.py`):
+
+- `distractors` (scenarios): each photo the scenario throws (`f0501` on): kind, frame, detection, box, score
+  and how the box came (the detector's, or placed by hand at the band's floor with a note), the live
+  verdict (`person`, `object`, `reason`, model), the image reviewer's answer and the clue candidate.
+  Images and credits in `web/public/cache-extras/distractors/`.
+- `radio_clues`: each clue a team reported on the radio, `heard_at` (awaiting) and `confirmed_at` / `by`.
+- `feeds`: one per drone leg for the "Drone feed" tile: `clip`, `poster`, `start_s` in its 10 s loop,
+  `label` "drone feed (public-domain footage, not this flight)", `credit`. Clips in `web/public/feed/`.
+- `report`: the after-action report as the server builds it (`sightline/mission/report.py`): last seen,
+  every sector's final POD (prior-weighted, from every look the map counted), each drone leg with its
+  minutes and photos.
+- Scenarios fly the simulated fleet too, and their gusts rise past the drones' limit (52 km/h, a scripted
+  conditions update labelled so) at the run's 87th minute: the agent's recall proposals stay pending.
+
+Scenario placement (`demo_scenario.generate(..., affinity, min_road_distance_m)`): the presets and the
+shuffle put the LKP and the person at least 300 m from a basemap road (`MIN_ROAD_M`, the terrain affinity's
+road distances); the base camp is the staging point nearest the LKP, all on Mount Seymour Road
+(`STAGING`); `lkp_road_m` and `survey_launch` (base camp, transit metres and minutes) are in the scenario.

@@ -317,6 +317,7 @@ export interface Verdict {
   model: string;
   ms: number;
   at: string;
+  object?: ("backpack" | "fire ring" | "shelter" | "other") | null;
 }
 export interface SectorTask {
   sector_id: string;
@@ -347,8 +348,13 @@ export interface ClueDraft {
   radius_m?: number | null;
   reliability?: "low" | "medium" | "high";
   reported_by: string;
-  source: "form" | "radio";
+  source: "form" | "radio" | "review";
   confirmed_by_turn?: string | null;
+  detection_id?: string | null;
+  origin?: LatLon | null;
+  bearing_deg?: number | null;
+  bearing_spread_deg?: number | null;
+  range_m?: number | null;
 }
 export interface Clue {
   kind: "object" | "track" | "sighting" | "sound" | "other";
@@ -359,8 +365,13 @@ export interface Clue {
   radius_m: number;
   reliability?: "low" | "medium" | "high";
   reported_by: string;
-  source: "form" | "radio";
+  source: "form" | "radio" | "review";
   confirmed_by_turn?: string | null;
+  detection_id?: string | null;
+  origin?: LatLon | null;
+  bearing_deg?: number | null;
+  bearing_spread_deg?: number | null;
+  range_m?: number | null;
   id: string;
   at: string;
   confirmed: boolean;
@@ -541,6 +552,7 @@ export interface RadioTurn {
   llm_ms: number | null;
   tts_ms: number | null;
   at: string;
+  draft?: ClueDraft | null;
 }
 /**
  * 1.3 (section 15): one line of the mission's one timeline, derived from its events
@@ -559,6 +571,7 @@ export interface TimelineEntry {
   turn_id?: string | null;
   direction?: ("in" | "out") | null;
   by?: string | null;
+  audio?: string | null;
 }
 /** The console's name for a timeline line (the generated TimelineEntry). */
 export type TimelineEvent = TimelineEntry;

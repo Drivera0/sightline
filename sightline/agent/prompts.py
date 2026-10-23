@@ -6,7 +6,7 @@ result can always be traced back to the exact wording.
 
 from __future__ import annotations
 
-VERIFY_VERSION = "verify-v2"  # chosen on val over v1 (docs/LANE_A_ML.md §6.8)
+VERIFY_VERSION = "verify-v3"  # v2 (chosen on val over v1, docs/LANE_A_ML.md §6.8) + object
 
 VERIFY_SYSTEM = (
     "You are checking crops from search-and-rescue drone photos taken 40-65 m above ground. "
@@ -35,10 +35,25 @@ VERIFY_SYSTEM_V2 = (
     "answer `unclear`."
 )
 
-# version -> (system prompt, user prompt); the user prompt is shared.
+# v3 (contract 15.7): v2's person rules word for word, plus one field: when there is no person, the
+# thing a lost person may have left or used (a backpack, a fire ring, a shelter) is named, so the
+# reviewer can make it a clue candidate. The person answer is v2's; only `object` is new.
+VERIFY_SYSTEM_V3 = (
+    VERIFY_SYSTEM_V2 + " Also say what object is at the centre when it is not a person: "
+    "`backpack` (a backpack or bag), `fire ring` (a ring of stones or the remains of a campfire), "
+    "`shelter` (a tent, tarp or lean-to), `other` (another thing a person carried or left), or "
+    "null (nothing made by people: rock, wood, plants, ground, shadow)."
+)
+VERIFY_USER_V3 = VERIFY_USER.replace(
+    "(visible colours and garments, or null), ",
+    "(visible colours and garments, or null), object (backpack/fire ring/shelter/other, or null), ",
+)
+
+# version -> (system prompt, user prompt)
 VERIFY_PROMPTS = {
     "verify-v1": (VERIFY_SYSTEM, VERIFY_USER),
     "verify-v2": (VERIFY_SYSTEM_V2, VERIFY_USER),
+    "verify-v3": (VERIFY_SYSTEM_V3, VERIFY_USER_V3),
 }
 
 VERIFY_RETRY = "That reply was not a valid JSON object for the schema. Reply with only the JSON."

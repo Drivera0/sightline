@@ -442,6 +442,10 @@ class MapUpdate(_Model):
 # --- detections second look (A) --------------------------------------------------------------
 
 
+VerdictObject = Literal["backpack", "fire ring", "shelter", "other"]
+ReviewAnswer = Literal["person", "not_person", "not_subject", "unsure", "object"]
+
+
 class Verdict(_Model):
     id: str
     detection_id: str
@@ -455,6 +459,8 @@ class Verdict(_Model):
     model: str
     ms: int
     at: str
+    # v1.3 (section 15.7): not a person, but a thing a lost person may have left or used
+    object: VerdictObject | None = None
 
 
 # --- operations ------------------------------------------------------------------------------
@@ -496,8 +502,20 @@ class ClueDraft(_Model):
     radius_m: float | None = Field(default=None, gt=0)
     reliability: Literal["low", "medium", "high"] = "medium"
     reported_by: str
-    source: Literal["form", "radio"]
+    source: Literal["form", "radio", "review"]
     confirmed_by_turn: str | None = None
+    # v1.3 (section 15.7): an image reviewer's "object" answer: the detection it came from. Such a
+    # clue is a candidate (confirmed False, low reliability) until a team confirms it on the ground.
+    detection_id: str | None = None
+    # v1.3 (section 15.7): a sound a team heard is a bearing from where the team stood, not a point:
+    # ``origin`` (the team's position), ``bearing_deg`` (true, 0 = north, where the sound came from),
+    # ``bearing_spread_deg`` (half the arc's angle) and ``range_m`` (how far away it seemed; the arc is
+    # that far give or take ``radius_m``). ``lat``/``lon`` is the arc's middle (``range_m`` along the
+    # bearing); the map raises the arc's cells instead of a circle.
+    origin: LatLon | None = None
+    bearing_deg: float | None = Field(default=None, ge=0, lt=360)
+    bearing_spread_deg: float | None = Field(default=None, gt=0, le=90)
+    range_m: float | None = Field(default=None, gt=0, le=5000)
 
 
 class Clue(ClueDraft):
@@ -712,6 +730,9 @@ class RadioTurn(_Model):
     llm_ms: int | None
     tts_ms: int | None
     at: str
+    # v1.3 (section 15.7): the clue a team reported, waiting for the search manager to confirm it
+    # (state "awaiting_confirm"); ``POST /missions/{id}/turns/{turn}/confirm_clue`` makes it a clue
+    draft: ClueDraft | None = None
 
 
 TimelineKind = Literal["radio", "clue", "detection", "decision", "checkin", "drone", "found"]
@@ -733,6 +754,7 @@ class TimelineEntry(_Model):
     turn_id: str | None = None  # radio: the turn, so the console can reply to it
     direction: Literal["in", "out"] | None = None  # radio: from a team (in) or from the desk (out)
     by: str | None = None  # decision: who decided
+    audio: str | None = None  # radio: the spoken line, a path under the site (demo fixtures only)
 
 
 class MissionBundle(_Model):

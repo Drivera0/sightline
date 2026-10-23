@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { PRESETS } from "../command/scenarios";
 import { cardFor, newShuffleSeed, SCENARIO_CARDS } from "./scenarios";
 
-const fixture = (name: string) => JSON.parse(readFileSync(join(__dirname, "../command/__fixtures__", name), "utf8")) as { clues: { text: string }[]; mission: { subject: string; base_camp: { name: string } } };
+const fixture = (name: string) => JSON.parse(readFileSync(join(__dirname, "../command/__fixtures__", name), "utf8")) as { clues: { text: string; source: string }[]; mission: { subject: string; base_camp: { name: string } } };
 
 describe("the scenario cards", () => {
   it("has the four presets and Shuffle, in the console's order", () => {
@@ -16,7 +16,8 @@ describe("the scenario cards", () => {
     const files: Record<string, string> = { "overdue-hiker": "demo_mission.json", "missing-child": "scenarios/missing-child.json", despondent: "scenarios/despondent.json", dementia: "scenarios/dementia.json" };
     for (const card of SCENARIO_CARDS.slice(0, 4)) {
       const fx = fixture(files[card.seed]!);
-      expect(card.clues).toEqual(fx.clues.map((c) => c.text));
+      // the scenario's own clues: an image review's clue candidates (distractors, contract 15.7) are not on the card
+      expect(card.clues).toEqual(fx.clues.filter((c) => c.source !== "review").map((c) => c.text));
       expect(card.subject.toLowerCase().split(", ").sort()).toEqual(fx.mission.subject.toLowerCase().split(", ").sort());
       expect(card.setting.toLowerCase()).toContain(fx.mission.base_camp.name.replace(" (demo point)", "").toLowerCase());
     }

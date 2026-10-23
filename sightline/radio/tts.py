@@ -24,7 +24,12 @@ MAGPIE = "nvidia/magpie_tts_multilingual_357m"
 # to all five on a radio line: speaker 0 is Sightline's one voice. Parakeet heard 0, 1, 3 and 4 word for
 # word; speaker 2 dropped most of the line. Samples: data/radio/voices/ (not committed).
 SIGHTLINE_SPEAKER = 0
-VOICES = {"en_female": SIGHTLINE_SPEAKER, "en_male": SIGHTLINE_SPEAKER}
+# The teams' voices in the demo fixtures (V3 simulation content): Magpie's other four speakers, one per
+# team, so a listener can tell who is talking; the desk stays speaker 0. Speaker 2 dropped words in the
+# spike, so every clip is checked with Parakeet (scripts/make_voice_fixture.py).
+TEAM_SPEAKERS = {"T1": 1, "T2": 2, "T3": 3, "T4": 4}
+VOICES = {"en_female": SIGHTLINE_SPEAKER, "en_male": SIGHTLINE_SPEAKER, "desk": SIGHTLINE_SPEAKER,
+          **TEAM_SPEAKERS}  # fmt: skip
 
 
 @dataclass(frozen=True)

@@ -43,7 +43,7 @@ describe("the roles on another scenario: the missing child", () => {
     expect(new Date(found.at).getTime()).toBeGreaterThan(new Date(clockAt(4)).getTime());
     expect(new Date(found.at).getTime()).toBeLessThan(new Date(clockAt(5)).getTime());
     expect(demoAt(missingChild, clockAt(4)).mission!.found).toBeNull();
-    expect(demoAt(missingChild, clockAt(5)).mission!).toMatchObject({ status: "found", found: { sector: "B3" } });
+    expect(demoAt(missingChild, clockAt(5)).mission!).toMatchObject({ status: "found", found: { sector: "B2" } });
     const s3 = demoAt(missingChild, clockAt(3));
     expect(s3.proposals!.find((p) => p.id === storyProposal(missingChild)!.id)!.status).toBe("pending");
     expect(storyClue(missingChild)?.text).toBe("a juice box, half full");

@@ -67,10 +67,10 @@ describe("the guided search's injects", () => {
     expect(triage.cards!.map((c) => c.id)).toEqual(["f0336-d01", STORY_NOT_A_PERSON, SECOND_LOOK_ID]);
   });
 
-  it("leaves the fleet's decisions out of a scenario without drones", () => {
+  it("runs the fleet's decisions and the gust recall on the missing child (every scenario flies the fleet)", () => {
     const list = injects({ full: missingChild, seed: "missing-child", user: [], choices: [], queue });
     // its radio clue comes in before the photos are reviewed: the injects keep the mission's order
-    expect(list.map((i) => i.id)).toEqual(["clue", "triage", "assign"]);
+    expect(list.map((i) => i.id)).toEqual(["survey", "clue", "triage", "assign", "link", "wind"]);
   });
 
   it("writes every prompt verb first, the key last, without first person or the banned words", () => {

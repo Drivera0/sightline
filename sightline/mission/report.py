@@ -50,6 +50,73 @@ def _flight_minutes(fleet: Any, events: list[Any]) -> tuple[float, str]:
     return round(sum(x.est_minutes for x in legs), 1), "planned minutes of the legs flown"
 
 
+def sector_pods(base: Any, updates: list[Any], layout: Any) -> dict[str, float]:
+    """Each sector's cumulative probability of detection from every look the map counted (photo
+    steps, reviews, ground searches): per cell 1 − Π(1 − pod), then the sector's mean weighted by the
+    prior. A planning figure (the POD each look was given), never "done"."""
+    import numpy as np
+
+    miss = np.ones(len(base.prior.p))
+    for u in updates:
+        if u.kind == "step":
+            for i, pod in u.cells:
+                miss[int(i)] *= 1.0 - float(pod)
+    prior = np.asarray(base.prior.p, dtype=float)
+    out = {}
+    for s in layout.sectors:
+        cells = np.asarray(layout.cells_of(s.id), dtype=int)
+        w = prior[cells]
+        pod = 1.0 - miss[cells]
+        out[s.id] = round(float((w * pod).sum() / w.sum()) if w.sum() > 0 else float(pod.mean()), 3)
+    return out
+
+
+def leg_rows(fleet: Any, events: list[Any], frames: list[Any]) -> list[dict]:
+    """Every drone leg: drone, sector, status, minutes (from its start and end reports, else its
+    planned minutes, and which) and the photos its drone took while it flew."""
+    if not fleet:
+        return []
+    starts: dict[str, str] = {}
+    ends: dict[str, str] = {}
+    for ev in events:
+        d = (ev.data or {}).get("drone") if ev.type == "mission.note" else None
+        if d and d.get("leg"):
+            if d.get("event") == "leg_start":
+                starts.setdefault(d["leg"], ev.at)
+            elif d.get("event") == "leg_end":
+                ends[d["leg"]] = ev.at
+    taken = {e.ref: (e.data or {}).get("taken_at") or e.at for e in events
+             if e.type == "photo.processed" and e.ref}  # fmt: skip
+    names = {d.id: d.name for d in fleet.drones}
+    rows = []
+    for leg in fleet.legs:
+        a = _t(starts.get(leg.id))
+        b = _t(ends.get(leg.id))
+        if b is None and a is not None and leg.status == "cancelled":
+            # a re-tasked leg ends where the drone's next leg starts
+            later = sorted(t for t in (_t(starts.get(x.id)) for x in fleet.legs
+                                       if x.drone_id == leg.drone_id and x.id != leg.id) if t and t > a)  # fmt: skip
+            b = later[0] if later else None
+        measured = a is not None and b is not None
+        minutes = round((b - a).total_seconds() / 60, 1) if measured else round(leg.est_minutes, 1)
+        photos = 0
+        if a is not None:
+            for f in frames:
+                t = _t(taken.get(f.id))
+                if (
+                    f.source.image.startswith(f"SIM_{leg.drone_id}_")
+                    and t
+                    and a <= t
+                    and (b is None or t <= b)
+                ):
+                    photos += 1
+        rows.append({"leg": leg.id, "drone": names.get(leg.drone_id, leg.drone_id),
+                     "sector": leg.sector_id, "status": leg.status, "minutes": minutes,
+                     "minutes_from": "reported" if measured else "planned", "photos": photos,
+                     "from": starts.get(leg.id), "to": b.strftime("%Y-%m-%dT%H:%M:%SZ") if b else None})  # fmt: skip
+    return rows
+
+
 def after_action(
     state: dict,
     trace: list[Any],
@@ -59,9 +126,12 @@ def after_action(
     now: str,
     prior_source: str | None = None,
     frames: int | None = None,
+    pods: dict[str, float] | None = None,
+    legs_detail: list[dict] | None = None,
 ) -> dict:
     """The report as JSON: one key per section. ``frames``: the survey's frame count (the photos
-    processed), else the ``photo.processed`` events are counted."""
+    processed), else the ``photo.processed`` events are counted. ``pods``: each sector's final POD
+    (``sector_pods``); ``legs_detail``: every drone leg (``leg_rows``)."""
     m = state["mission"]
     teams = {t.id: t.callsign for t in state["teams"]}
     found = m.found
@@ -126,6 +196,25 @@ def after_action(
         "key_events": log,
         "searched": searched,
         "drone_coverage": coverage,
+        "sectors": [
+            {
+                "sector": s["sector_id"],
+                "label": s["label"],
+                "poa": s["poa"],
+                "drone_coverage": s["drone_coverage"],
+                "pod": (pods or {}).get(s["sector_id"]),
+                "ground": next(
+                    (
+                        {"team": x["team"], "pod": x["pod"]}
+                        for x in searched
+                        if x["sector"] == s["sector_id"]
+                    ),
+                    None,
+                ),
+            }
+            for s in sorted(sectors, key=lambda s: s["sector_id"])
+        ],
+        "legs": legs_detail or [],
         "photos": {
             "processed": len(photos) if frames is None else frames,
             "candidates": len(candidates),
@@ -178,6 +267,8 @@ def after_action_markdown(r: dict) -> str:
         "",
         "## Subject",
         "",
+        f"Last seen: **{ics_time(subj['last_seen_at']) if subj['last_seen_at'] else 'not recorded'}**.",
+        "",
         _table(
             ["Profile", "Last seen", "Last known point", "Prior"],
             [[subj["profile"], ics_time(subj["last_seen_at"]), f"{lkp['lat']:.5f}, {lkp['lon']:.5f}",
@@ -200,6 +291,27 @@ def after_action_markdown(r: dict) -> str:
         "Drone photo coverage by sector (share of its cells a photo looked at): "
         + (", ".join(f"{s['sector']} {s['drone_coverage']:.0%}" for s in r["drone_coverage"] if s["drone_coverage"])
            or "none") + ".",
+        "",
+        "## Every sector at the end",
+        "",
+        ("POD: the sector's cumulative probability of detection from every look the map counted (drone "
+        "photos, reviews, ground teams), weighted by the prior; a planning figure, never a sector done."),
+        "",
+        _table(["Sector", "Final POD", "Drone coverage", "Ground team (POD)", "POA now"],
+               [[s["sector"], f"{s['pod']:.0%}" if s["pod"] is not None else BLANK,
+                 f"{s['drone_coverage']:.0%}",
+                 f"{s['ground']['team']} ({s['ground']['pod']:.0%})" if s["ground"] else BLANK,
+                 f"{s['poa']:.1%}"] for s in r["sectors"]])
+        if r["sectors"]
+        else "No sectors.",
+        "",
+        "## Drone legs",
+        "",
+        _table(["Leg", "Drone", "Sector", "Status", "Minutes", "Photos"],
+               [[x["leg"], x["drone"], x["sector"] or BLANK, x["status"],
+                 f"{x['minutes']:g} ({x['minutes_from']})", x["photos"]] for x in r["legs"]])
+        if r["legs"]
+        else "No drone legs.",
         "",
         "## Photos, drones, radio, decisions",
         "",
@@ -251,14 +363,21 @@ def build(store: Any, mission_id: str, now: str) -> dict:
     from sightline.mission import effects
     from sightline.mission.timeline import mission_timeline
 
+    state, events = store.state(mission_id), store.events(mission_id)
+    frames = store.survey(mission_id).frames
+    pods = None
     try:
-        prior = store.live(mission_id).base.params.prior_source
+        base = store.live(mission_id).base
+        prior = base.params.prior_source
+        layout = effects._layout(store, mission_id)
+        if layout is not None:
+            pods = sector_pods(base, store.map_updates(mission_id), layout)
     except ValueError:
         prior = None
     return after_action(
-        store.state(mission_id), store.trace_entries(mission_id), store.events(mission_id),
+        state, store.trace_entries(mission_id), events,
         mission_timeline(store, mission_id), effects.sector_overview(store, mission_id), now, prior,
-        len(store.survey(mission_id).frames),
+        len(frames), pods, leg_rows(state["fleet"], events, frames),
     )  # fmt: skip
 
 

@@ -98,6 +98,9 @@ def entries(
                      refs=[r for r in (ev.ref,) if r])]  # fmt: skip
     if ev.type != "mission.note":
         return []
+    if d.get("answer") and d.get("detection"):  # a reviewer's answer (contract 15.7)
+        return [line("detection", ev.summary, by=d.get("by"),
+                     refs=[r for r in (d["detection"], d.get("clue")) if r])]  # fmt: skip
     if d.get("found"):
         f = d["found"]
         return [line("found", ev.summary, team=f.get("team"), sector=f.get("sector"),

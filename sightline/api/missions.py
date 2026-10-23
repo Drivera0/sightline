@@ -500,19 +500,63 @@ def get_file(mission_id: str, rel_path: str, request: Request) -> Response:
 
 class Review(BaseModel):
     detection_id: str
-    answer: Literal["person", "not_person", "unsure"]
+    answer: Literal["person", "not_person", "not_subject", "unsure", "object"]
+    object: Literal["backpack", "fire ring", "shelter", "other"] | None = None  # with "object"
+    by: str = Field(default="image reviewer", max_length=80)
 
 
 @missions_router.post("/missions/{mission_id}/reviews")
 def post_review(mission_id: str, body: Review, request: Request) -> Any:
     store = _store(request, mission_id)
     try:
-        r = effects.on_review(
-            store, mission_id, body.detection_id, body.answer, _ctx(request).hooks
-        )
+        r = effects.on_review(store, mission_id, body.detection_id, body.answer,
+                              _ctx(request).hooks, object=body.object, by=body.by)  # fmt: skip
     except KeyError as e:
         raise HTTPException(404, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
     return _map_result(r)
+
+
+class RadioClueConfirm(BaseModel):
+    by: str = Field(max_length=80)
+    edits: dict[str, Any] | None = None  # changes to the draft before it becomes a clue
+
+
+@missions_router.post("/missions/{mission_id}/turns/{turn_id}/confirm_clue", status_code=201)
+def confirm_radio_clue(
+    mission_id: str, turn_id: str, body: RadioClueConfirm, request: Request
+) -> dict:
+    """The search manager confirms the clue a team reported on the radio (contract 15.7)."""
+    store = _store(request, mission_id)
+    try:
+        clue, r = effects.confirm_radio_clue(store, mission_id, turn_id, body.by, body.edits,
+                                             _ctx(request).hooks)  # fmt: skip
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from e
+    return {**_dump(clue), "map": _map_result(r)}
+
+
+class ClueConfirm(BaseModel):
+    reliability: Literal["low", "medium", "high"] = "medium"
+    by: str = Field(max_length=80)
+    team: str | None = Field(default=None, max_length=40)
+
+
+@missions_router.post("/missions/{mission_id}/clues/{clue_id}/confirm")
+def confirm_clue(mission_id: str, clue_id: str, body: ClueConfirm, request: Request) -> dict:
+    """A clue candidate (an image reviewer's "object") confirmed by a team on the ground."""
+    store = _store(request, mission_id)
+    try:
+        clue, r = effects.on_clue_confirm(store, mission_id, clue_id, body.reliability, body.by,
+                                          body.team, _ctx(request).hooks)  # fmt: skip
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from e
+    return {**_dump(clue), "map": _map_result(r)}
 
 
 class Decision(BaseModel):

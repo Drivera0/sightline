@@ -176,3 +176,42 @@ def test_choose_tools_by_failure_mode() -> None:
 )
 def test_parse_verdict(text: str, ok: bool) -> None:
     assert (parse_verdict(text) is not None) == ok
+
+
+# --- contract 15.7: the object a second look names when it is not a person ---------------------
+
+BACKPACK = dict(YES, person="no", posture="unknown", group_size=None, clothing=None,
+                object="backpack", reason="A dark backpack on the ground; no person.")  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    "text,obj",
+    [
+        (json.dumps(BACKPACK), "backpack"),
+        (json.dumps(dict(BACKPACK, object="fire ring")), "fire ring"),
+        (json.dumps(dict(BACKPACK, object=None)), None),
+        (json.dumps(YES), None),  # a reply without the field (before verify-v3): no object
+        (json.dumps(dict(BACKPACK, object="car")), "rejected"),
+    ],
+)
+def test_parse_verdict_reads_the_object(text: str, obj: str | None) -> None:
+    parsed = parse_verdict(text)
+    if obj == "rejected":
+        assert parsed is None
+    else:
+        assert parsed is not None and parsed["object"] == obj
+
+
+def test_an_object_verdict_is_stored_and_traced() -> None:
+    from sightline.agent import prompts
+
+    store, mid = _mission()
+    client = FakeChatClient(default=json.dumps(BACKPACK))
+    v = verify(store, mid, "f0001-d01", client, _CentreDetector())
+    assert (v.person, v.object) == ("no", "backpack")
+    assert store.trace_entries(mid)[-1].summary == "f0001-d01: person no, object: backpack"
+    assert prompts.VERIFY_VERSION == "verify-v3"
+    system, user = prompts.VERIFY_PROMPTS["verify-v3"]
+    assert system.startswith(prompts.VERIFY_SYSTEM_V2)  # v2's person rules, word for word
+    assert "object (backpack/fire ring/shelter/other, or null)" in user
+    assert "object" in client.calls[0]["response_format"]["json_schema"]["schema"]["required"]
