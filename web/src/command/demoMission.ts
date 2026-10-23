@@ -84,7 +84,7 @@ export async function loadDemoMission(
   };
 }
 
-/** The second look's images: the demo mission's own (`__fixtures__/relook/`, from the generator's run) and the recorded av-chain's two. */
+/** The second look's images: the demo mission's own (`__fixtures__/relook/`, from the generator's run; f0273-d02's are this flight's live second look) and the recorded av-chain's two (another HERIDAL photo). */
 const RELOOK_IMAGES: Record<string, string> = {
   ...Object.fromEntries(
     Object.entries(import.meta.glob<string>("./__fixtures__/relook/*.jpg", { query: "?url", import: "default", eager: true })).map(([path, url]) => [
@@ -103,13 +103,14 @@ export function demoImageUrl(rel: string): string {
 
 /** The label the demo mission's own trace carries: run through the product, with fake models, scripted people. */
 export const DEMO_TRACE_LABEL =
-  "This demo mission's own trace: the mission API and the agent's code, run offline by scripts/make_command_fixtures.py with fake models (scripted VL answers and briefings) and a scripted search manager and image reviewer";
+  "This demo mission's own trace: the mission API and the agent's code, run offline by scripts/make_command_fixtures.py with fake models (scripted VL answers and briefings) and a scripted search manager and image reviewer; the second look on f0273-d02 replays Nemotron VL's live answer word for word (recorded/…, scripts/make_second_look_fixture.py)";
 
 /**
  * The demo's Trace tab: the demo mission's own trace first (`__fixtures__/demo_trace.jsonl`, written by
  * `scripts/make_command_fixtures.py` with the fixture: every proposal in it has its chain, from the tool
- * and model calls to the scripted decision), then two recorded runs copied as they were: the showcase
- * chain (`docs/architecture/av-chain`: a 0.18 detection on a val photo, a second look with zoom_native,
+ * and model calls to the decision, or the pending one: f0273-d02's second look, Nemotron VL's live answer
+ * on this flight replayed word for word), then two recorded runs copied as they were: an earlier second
+ * look on another photo (`docs/architecture/av-chain`: a 0.18 detection on a val photo, zoom_native,
  * Nemotron VL's verdict, the promotion, the approval) and a live conditions lookup
  * (`docs/evidence/conditions-live-20261021`: Tavily searches and the extraction).
  */
@@ -122,7 +123,7 @@ export async function loadDemoTrace(): Promise<{ runs: TraceRun[]; imageUrl: (re
   return {
     runs: [
       { label: DEMO_TRACE_LABEL, source: "web/src/command/__fixtures__/demo_trace.jsonl", mode: "demo", entries: parseTrace(own.default) },
-      { label: "Recorded 21 Oct 2026: a second look on a val photo", source: "docs/architecture/av-chain/trace.jsonl", entries: parseTrace(chain.default) },
+      { label: "Recorded 21 Oct 2026: a second look on another HERIDAL photo (val), not this flight", source: "docs/architecture/av-chain/trace.jsonl", entries: parseTrace(chain.default) },
       { label: "Recorded 22 Oct 2026: a live conditions lookup", source: "docs/evidence/conditions-live-20261021/trace.jsonl", entries: parseTrace(conditions.default) },
     ],
     imageUrl: (rel) => RELOOK_IMAGES[rel] ?? null,

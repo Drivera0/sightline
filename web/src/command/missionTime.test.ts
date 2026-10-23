@@ -102,9 +102,9 @@ describe("mission time: the demo mission's checkpoints", () => {
     for (const x of s.sectors!) expect(x.poa).toBeCloseTo(0.5 / 16, 4);
   });
 
-  it("t2, confirm: the promotion is decided, the assignment not proposed yet", () => {
+  it("t2, confirm: the second look's promotion waits for a person, the assignment not proposed yet", () => {
     const s = at(2);
-    expect(s.proposals!.find((p) => p.id === "p001")?.status).toBe("approved"); // the second look's promotion
+    expect(s.proposals!.find((p) => p.id === "p001")?.status).toBe("pending"); // this flight's second look
     expect(s.proposals!.some((p) => p.id === STORY_PROPOSAL)).toBe(false);
     expect(s.tasks).toEqual([]);
   });

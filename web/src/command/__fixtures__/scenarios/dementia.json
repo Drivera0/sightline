@@ -303,7 +303,7 @@
    "id": "p001",
    "kind": "promote_detection",
    "summary": "Add f0273-d02 to the review queue: second look says likely a person",
-   "reason": "Detector confidence 0.17 is below the review threshold 0.29; the second look (zoom_native) says: A person in a red top, beside the group in this photo (scripted for the demo fixture: no model was called).",
+   "reason": "Detector confidence 0.17 is below the review threshold 0.29; the second look (zoom_native) says: Two human figures are visible, each with a head, torso, and limbs, one in a red jacket and blue top and another in a red top behind them.",
    "briefing": null,
    "target": {
     "detection": "f0273-d02"
@@ -323,54 +323,19 @@
     {
      "kind": "trace",
      "ref": "v0002",
-     "caption": "second look: A person in a red top, beside the group in this photo (scripted for the demo fixture: no model was called)."
-    }
-   ],
-   "status": "approved",
-   "created_by": "verifier",
-   "created_at": "2026-10-24T23:07:45Z",
-   "decided_at": "2026-10-24T23:16:40Z",
-   "decided_by": "Image reviewer (scripted for the demo fixture)",
-   "decision_reason": null,
-   "edits": null
-  },
-  {
-   "id": "p002",
-   "kind": "promote_detection",
-   "summary": "Add f0396-d01 to the review queue: second look says likely a person",
-   "reason": "Detector confidence 0.17 is below the review threshold 0.29; the second look (zoom_native) says: A red shape the size of a person lying under the trees, at the photo's edge (scripted for the demo fixture: no model was called).",
-   "briefing": null,
-   "target": {
-    "detection": "f0396-d01"
-   },
-   "leg": null,
-   "evidence": [
-    {
-     "kind": "crop",
-     "ref": "relook/f0396-d01-crop.jpg",
-     "caption": "detector confidence 0.17"
-    },
-    {
-     "kind": "relook",
-     "ref": "relook/f0396-d01-zoom_native.jpg",
-     "caption": "zoom_native"
-    },
-    {
-     "kind": "trace",
-     "ref": "v0003",
-     "caption": "second look: A red shape the size of a person lying under the trees, at the photo's edge (scripted for the demo fixture: no model was called)."
+     "caption": "second look: Two human figures are visible, each with a head, torso, and limbs, one in a red jacket and blue top and another in a red top behind them."
     }
    ],
    "status": "pending",
    "created_by": "verifier",
-   "created_at": "2026-10-24T23:16:39Z",
+   "created_at": "2026-10-24T23:07:45Z",
    "decided_at": null,
    "decided_by": null,
    "decision_reason": null,
    "edits": null
   },
   {
-   "id": "p003",
+   "id": "p002",
    "kind": "assign_sector",
    "summary": "Assign sector B3 to Team One",
    "reason": "B3 · 65.6 % of remaining probability, up from 16.8 %: c004 (a cardigan on a fence) and c003 (shuffling prints on the gravel) raised it; 130 photos here lowered it; 51% under tree cover (drone POD 0.42): a ground team adds the most here.",
@@ -390,7 +355,7 @@
    "edits": null
   },
   {
-   "id": "p004",
+   "id": "p003",
    "kind": "assign_sector",
    "summary": "Assign sector B2 to Team Four",
    "reason": "B2 · 2.0 % of remaining probability, down from 3.3 %: c003 (shuffling prints on the gravel) raised it; c004 (a cardigan on a fence) and 127 photos here lowered it; 47% under tree cover (drone POD 0.46): a ground team adds the most here.",
@@ -410,7 +375,7 @@
    "edits": null
   },
   {
-   "id": "p005",
+   "id": "p004",
    "kind": "assign_sector",
    "summary": "Assign sector C3 to Team Two",
    "reason": "C3 · 1.0 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Two is nearest (538 m, about 11 min on foot).",
@@ -430,7 +395,7 @@
    "edits": null
   },
   {
-   "id": "p006",
+   "id": "p005",
    "kind": "assign_sector",
    "summary": "Assign sector A3 to Team Three",
    "reason": "A3 · 0.7 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (127 m, about 3 min on foot).",
@@ -915,7 +880,7 @@
     "clothing": null,
     "reason": "A pale shape among rocks; no head or limbs can be made out (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 14,
+    "ms": 10,
     "at": "2026-10-24T22:51:37Z"
    }
   },
@@ -936,11 +901,11 @@
     ],
     "person": "yes",
     "posture": "standing",
-    "group_size": 1,
-    "clothing": "red top",
-    "reason": "A person in a red top, beside the group in this photo (scripted for the demo fixture: no model was called).",
-    "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 11,
+    "group_size": 2,
+    "clothing": "red jacket, blue top, dark trousers",
+    "reason": "Two human figures are visible, each with a head, torso, and limbs, one in a red jacket and blue top and another in a red top behind them.",
+    "model": "recorded/nvidia/Nemotron-3.5-Super-VL",
+    "ms": 7,
     "at": "2026-10-24T23:07:45Z"
    }
   },
@@ -954,7 +919,7 @@
     "id": "p001",
     "kind": "promote_detection",
     "summary": "Add f0273-d02 to the review queue: second look says likely a person",
-    "reason": "Detector confidence 0.17 is below the review threshold 0.29; the second look (zoom_native) says: A person in a red top, beside the group in this photo (scripted for the demo fixture: no model was called).",
+    "reason": "Detector confidence 0.17 is below the review threshold 0.29; the second look (zoom_native) says: Two human figures are visible, each with a head, torso, and limbs, one in a red jacket and blue top and another in a red top behind them.",
     "briefing": null,
     "target": {
      "detection": "f0273-d02"
@@ -974,7 +939,7 @@
      {
       "kind": "trace",
       "ref": "v0002",
-      "caption": "second look: A person in a red top, beside the group in this photo (scripted for the demo fixture: no model was called)."
+      "caption": "second look: Two human figures are visible, each with a head, torso, and limbs, one in a red jacket and blue top and another in a red top behind them."
      }
     ],
     "status": "pending",
@@ -1115,7 +1080,7 @@
    "id": "e00035",
    "type": "verdict",
    "at": "2026-10-24T23:16:39Z",
-   "summary": "second look on f0396-d01: yes",
+   "summary": "second look on f0396-d01: no",
    "ref": "f0396-d01",
    "data": {
     "id": "v0003",
@@ -1126,124 +1091,18 @@
     "relook_crops": [
      "relook/f0396-d01-zoom_native.jpg"
     ],
-    "person": "yes",
-    "posture": "lying",
-    "group_size": 1,
-    "clothing": "red",
-    "reason": "A red shape the size of a person lying under the trees, at the photo's edge (scripted for the demo fixture: no model was called).",
+    "person": "no",
+    "posture": "unknown",
+    "group_size": null,
+    "clothing": null,
+    "reason": "A red car parked under the trees at the photo's edge; nothing shaped like a person (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 9,
+    "ms": 72,
     "at": "2026-10-24T23:16:39Z"
    }
   },
   {
    "id": "e00036",
-   "type": "proposal.new",
-   "at": "2026-10-24T23:16:39Z",
-   "summary": "Add f0396-d01 to the review queue: second look says likely a person",
-   "ref": "p002",
-   "data": {
-    "id": "p002",
-    "kind": "promote_detection",
-    "summary": "Add f0396-d01 to the review queue: second look says likely a person",
-    "reason": "Detector confidence 0.17 is below the review threshold 0.29; the second look (zoom_native) says: A red shape the size of a person lying under the trees, at the photo's edge (scripted for the demo fixture: no model was called).",
-    "briefing": null,
-    "target": {
-     "detection": "f0396-d01"
-    },
-    "leg": null,
-    "evidence": [
-     {
-      "kind": "crop",
-      "ref": "relook/f0396-d01-crop.jpg",
-      "caption": "detector confidence 0.17"
-     },
-     {
-      "kind": "relook",
-      "ref": "relook/f0396-d01-zoom_native.jpg",
-      "caption": "zoom_native"
-     },
-     {
-      "kind": "trace",
-      "ref": "v0003",
-      "caption": "second look: A red shape the size of a person lying under the trees, at the photo's edge (scripted for the demo fixture: no model was called)."
-     }
-    ],
-    "status": "pending",
-    "created_by": "verifier",
-    "created_at": "2026-10-24T23:16:39Z",
-    "decided_at": null,
-    "decided_by": null,
-    "decision_reason": null,
-    "edits": null
-   }
-  },
-  {
-   "id": "e00037",
-   "type": "proposal.decided",
-   "at": "2026-10-24T23:16:40Z",
-   "summary": "p001 approved by Image reviewer (scripted for the demo fixture)",
-   "ref": "p001",
-   "data": {
-    "id": "p001",
-    "kind": "promote_detection",
-    "summary": "Add f0273-d02 to the review queue: second look says likely a person",
-    "reason": "Detector confidence 0.17 is below the review threshold 0.29; the second look (zoom_native) says: A person in a red top, beside the group in this photo (scripted for the demo fixture: no model was called).",
-    "briefing": null,
-    "target": {
-     "detection": "f0273-d02"
-    },
-    "leg": null,
-    "evidence": [
-     {
-      "kind": "crop",
-      "ref": "relook/f0273-d02-crop.jpg",
-      "caption": "detector confidence 0.17"
-     },
-     {
-      "kind": "relook",
-      "ref": "relook/f0273-d02-zoom_native.jpg",
-      "caption": "zoom_native"
-     },
-     {
-      "kind": "trace",
-      "ref": "v0002",
-      "caption": "second look: A person in a red top, beside the group in this photo (scripted for the demo fixture: no model was called)."
-     }
-    ],
-    "status": "approved",
-    "created_by": "verifier",
-    "created_at": "2026-10-24T23:07:45Z",
-    "decided_at": "2026-10-24T23:16:40Z",
-    "decided_by": "Image reviewer (scripted for the demo fixture)",
-    "decision_reason": null,
-    "edits": null
-   }
-  },
-  {
-   "id": "e00038",
-   "type": "detection.new",
-   "at": "2026-10-24T23:16:40Z",
-   "summary": "f0273-d02 promoted to the review queue",
-   "ref": "f0273-d02",
-   "data": {
-    "id": "f0273-d02",
-    "box_px": [
-     502,
-     173,
-     577,
-     252
-    ],
-    "conf": 0.173,
-    "crop": null,
-    "lat": 49.369921,
-    "lon": -122.9433,
-    "radius_m": 10.0,
-    "promoted_by": "p001"
-   }
-  },
-  {
-   "id": "e00039",
    "type": "verdict",
    "at": "2026-10-24T23:18:36Z",
    "summary": "second look on f0423-d01: no",
@@ -1263,12 +1122,12 @@
     "clothing": null,
     "reason": "Bare ground at the photo's edge; nothing shaped like a person (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 8,
+    "ms": 10,
     "at": "2026-10-24T23:18:36Z"
    }
   },
   {
-   "id": "e00040",
+   "id": "e00037",
    "type": "photo.processed",
    "at": "2026-10-24T23:24:01Z",
    "summary": "f0500 processed (the flight ends)",
@@ -1276,7 +1135,7 @@
    "data": null
   },
   {
-   "id": "e00041",
+   "id": "e00038",
    "type": "team.updated",
    "at": "2026-10-24T23:25:54Z",
    "summary": "Team Four: standby",
@@ -1297,7 +1156,7 @@
    }
   },
   {
-   "id": "e00042",
+   "id": "e00039",
    "type": "radio.turn",
    "at": "2026-10-24T23:25:54Z",
    "summary": "Team Four, Sightline. Copy track, shuffling prints on the gravel. Confirm, over.",
@@ -1320,7 +1179,7 @@
    }
   },
   {
-   "id": "e00043",
+   "id": "e00040",
    "type": "clue.added",
    "at": "2026-10-24T23:25:55Z",
    "summary": "track: shuffling prints on the gravel",
@@ -1342,7 +1201,7 @@
    }
   },
   {
-   "id": "e00044",
+   "id": "e00041",
    "type": "team.updated",
    "at": "2026-10-24T23:25:55Z",
    "summary": "Team Four: standby",
@@ -1363,7 +1222,7 @@
    }
   },
   {
-   "id": "e00045",
+   "id": "e00042",
    "type": "map.updated",
    "at": "2026-10-24T23:25:55Z",
    "summary": "map update 503 (clue)",
@@ -1371,7 +1230,7 @@
    "data": null
   },
   {
-   "id": "e00046",
+   "id": "e00043",
    "type": "team.updated",
    "at": "2026-10-24T23:35:30Z",
    "summary": "Team One: standby",
@@ -1392,7 +1251,7 @@
    }
   },
   {
-   "id": "e00047",
+   "id": "e00044",
    "type": "radio.turn",
    "at": "2026-10-24T23:35:30Z",
    "summary": "Team One, Sightline. Copy object, a cardigan on a fence. Confirm, over.",
@@ -1415,7 +1274,7 @@
    }
   },
   {
-   "id": "e00048",
+   "id": "e00045",
    "type": "clue.added",
    "at": "2026-10-24T23:35:31Z",
    "summary": "object: a cardigan on a fence",
@@ -1437,7 +1296,7 @@
    }
   },
   {
-   "id": "e00049",
+   "id": "e00046",
    "type": "team.updated",
    "at": "2026-10-24T23:35:31Z",
    "summary": "Team One: standby",
@@ -1458,7 +1317,7 @@
    }
   },
   {
-   "id": "e00050",
+   "id": "e00047",
    "type": "map.updated",
    "at": "2026-10-24T23:35:31Z",
    "summary": "map update 504 (clue)",
@@ -1466,7 +1325,7 @@
    "data": null
   },
   {
-   "id": "e00051",
+   "id": "e00048",
    "type": "conditions.updated",
    "at": "2026-10-24T23:36:00Z",
    "summary": "conditions for Mount Seymour",
@@ -1497,13 +1356,13 @@
    }
   },
   {
-   "id": "e00052",
+   "id": "e00049",
    "type": "proposal.new",
    "at": "2026-10-24T23:48:00Z",
    "summary": "Assign sector B3 to Team One",
-   "ref": "p003",
+   "ref": "p002",
    "data": {
-    "id": "p003",
+    "id": "p002",
     "kind": "assign_sector",
     "summary": "Assign sector B3 to Team One",
     "reason": "B3 · 65.6 % of remaining probability, up from 16.8 %: c004 (a cardigan on a fence) and c003 (shuffling prints on the gravel) raised it; 130 photos here lowered it; 51% under tree cover (drone POD 0.42): a ground team adds the most here.",
@@ -1524,13 +1383,13 @@
    }
   },
   {
-   "id": "e00053",
+   "id": "e00050",
    "type": "proposal.new",
    "at": "2026-10-24T23:48:00Z",
    "summary": "Assign sector B2 to Team Four",
-   "ref": "p004",
+   "ref": "p003",
    "data": {
-    "id": "p004",
+    "id": "p003",
     "kind": "assign_sector",
     "summary": "Assign sector B2 to Team Four",
     "reason": "B2 · 2.0 % of remaining probability, down from 3.3 %: c003 (shuffling prints on the gravel) raised it; c004 (a cardigan on a fence) and 127 photos here lowered it; 47% under tree cover (drone POD 0.46): a ground team adds the most here.",
@@ -1551,13 +1410,13 @@
    }
   },
   {
-   "id": "e00054",
+   "id": "e00051",
    "type": "proposal.decided",
    "at": "2026-10-24T23:49:00Z",
-   "summary": "p003 approved by Search manager (scripted for the demo fixture)",
-   "ref": "p003",
+   "summary": "p002 approved by Search manager (scripted for the demo fixture)",
+   "ref": "p002",
    "data": {
-    "id": "p003",
+    "id": "p002",
     "kind": "assign_sector",
     "summary": "Assign sector B3 to Team One",
     "reason": "B3 · 65.6 % of remaining probability, up from 16.8 %: c004 (a cardigan on a fence) and c003 (shuffling prints on the gravel) raised it; 130 photos here lowered it; 51% under tree cover (drone POD 0.42): a ground team adds the most here.",
@@ -1578,7 +1437,7 @@
    }
   },
   {
-   "id": "e00055",
+   "id": "e00052",
    "type": "task.updated",
    "at": "2026-10-24T23:49:00Z",
    "summary": "sector B3: assigned",
@@ -1594,7 +1453,7 @@
    }
   },
   {
-   "id": "e00056",
+   "id": "e00053",
    "type": "team.updated",
    "at": "2026-10-24T23:49:00Z",
    "summary": "Team One: assigned",
@@ -1615,13 +1474,13 @@
    }
   },
   {
-   "id": "e00057",
+   "id": "e00054",
    "type": "proposal.decided",
    "at": "2026-10-24T23:49:01Z",
-   "summary": "p004 approved by Search manager (scripted for the demo fixture)",
-   "ref": "p004",
+   "summary": "p003 approved by Search manager (scripted for the demo fixture)",
+   "ref": "p003",
    "data": {
-    "id": "p004",
+    "id": "p003",
     "kind": "assign_sector",
     "summary": "Assign sector B2 to Team Four",
     "reason": "B2 · 2.0 % of remaining probability, down from 3.3 %: c003 (shuffling prints on the gravel) raised it; c004 (a cardigan on a fence) and 127 photos here lowered it; 47% under tree cover (drone POD 0.46): a ground team adds the most here.",
@@ -1642,7 +1501,7 @@
    }
   },
   {
-   "id": "e00058",
+   "id": "e00055",
    "type": "task.updated",
    "at": "2026-10-24T23:49:01Z",
    "summary": "sector B2: assigned",
@@ -1658,7 +1517,7 @@
    }
   },
   {
-   "id": "e00059",
+   "id": "e00056",
    "type": "team.updated",
    "at": "2026-10-24T23:49:01Z",
    "summary": "Team Four: assigned",
@@ -1679,7 +1538,7 @@
    }
   },
   {
-   "id": "e00060",
+   "id": "e00057",
    "type": "team.updated",
    "at": "2026-10-24T23:49:30Z",
    "summary": "Team Two: standby",
@@ -1700,13 +1559,13 @@
    }
   },
   {
-   "id": "e00061",
+   "id": "e00058",
    "type": "proposal.new",
    "at": "2026-10-24T23:49:30Z",
    "summary": "Assign sector C3 to Team Two",
-   "ref": "p005",
+   "ref": "p004",
    "data": {
-    "id": "p005",
+    "id": "p004",
     "kind": "assign_sector",
     "summary": "Assign sector C3 to Team Two",
     "reason": "C3 · 1.0 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Two is nearest (538 m, about 11 min on foot).",
@@ -1727,13 +1586,13 @@
    }
   },
   {
-   "id": "e00062",
+   "id": "e00059",
    "type": "proposal.decided",
    "at": "2026-10-24T23:50:30Z",
-   "summary": "p005 approved by Search manager (scripted for the demo fixture)",
-   "ref": "p005",
+   "summary": "p004 approved by Search manager (scripted for the demo fixture)",
+   "ref": "p004",
    "data": {
-    "id": "p005",
+    "id": "p004",
     "kind": "assign_sector",
     "summary": "Assign sector C3 to Team Two",
     "reason": "C3 · 1.0 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Two is nearest (538 m, about 11 min on foot).",
@@ -1754,7 +1613,7 @@
    }
   },
   {
-   "id": "e00063",
+   "id": "e00060",
    "type": "task.updated",
    "at": "2026-10-24T23:50:30Z",
    "summary": "sector C3: assigned",
@@ -1770,7 +1629,7 @@
    }
   },
   {
-   "id": "e00064",
+   "id": "e00061",
    "type": "team.updated",
    "at": "2026-10-24T23:50:30Z",
    "summary": "Team Two: assigned",
@@ -1791,7 +1650,7 @@
    }
   },
   {
-   "id": "e00065",
+   "id": "e00062",
    "type": "team.updated",
    "at": "2026-10-24T23:51:30Z",
    "summary": "Team Three: standby",
@@ -1812,13 +1671,13 @@
    }
   },
   {
-   "id": "e00066",
+   "id": "e00063",
    "type": "proposal.new",
    "at": "2026-10-24T23:51:30Z",
    "summary": "Assign sector A3 to Team Three",
-   "ref": "p006",
+   "ref": "p005",
    "data": {
-    "id": "p006",
+    "id": "p005",
     "kind": "assign_sector",
     "summary": "Assign sector A3 to Team Three",
     "reason": "A3 · 0.7 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (127 m, about 3 min on foot).",
@@ -1839,13 +1698,13 @@
    }
   },
   {
-   "id": "e00067",
+   "id": "e00064",
    "type": "proposal.decided",
    "at": "2026-10-24T23:52:30Z",
-   "summary": "p006 approved by Search manager (scripted for the demo fixture)",
-   "ref": "p006",
+   "summary": "p005 approved by Search manager (scripted for the demo fixture)",
+   "ref": "p005",
    "data": {
-    "id": "p006",
+    "id": "p005",
     "kind": "assign_sector",
     "summary": "Assign sector A3 to Team Three",
     "reason": "A3 · 0.7 % of remaining probability: no new evidence; highest remaining probability of the open sectors; 50% under tree cover (drone POD 0.43): a ground team adds the most here; Team Three is nearest (127 m, about 3 min on foot).",
@@ -1866,7 +1725,7 @@
    }
   },
   {
-   "id": "e00068",
+   "id": "e00065",
    "type": "task.updated",
    "at": "2026-10-24T23:52:30Z",
    "summary": "sector A3: assigned",
@@ -1882,7 +1741,7 @@
    }
   },
   {
-   "id": "e00069",
+   "id": "e00066",
    "type": "team.updated",
    "at": "2026-10-24T23:52:30Z",
    "summary": "Team Three: assigned",
@@ -1903,7 +1762,7 @@
    }
   },
   {
-   "id": "e00070",
+   "id": "e00067",
    "type": "task.updated",
    "at": "2026-10-24T23:54:00Z",
    "summary": "sector B2: in_progress",
@@ -1919,7 +1778,7 @@
    }
   },
   {
-   "id": "e00071",
+   "id": "e00068",
    "type": "team.updated",
    "at": "2026-10-24T23:54:00Z",
    "summary": "Team Four: searching",
@@ -1940,7 +1799,7 @@
    }
   },
   {
-   "id": "e00072",
+   "id": "e00069",
    "type": "task.updated",
    "at": "2026-10-24T23:54:00Z",
    "summary": "sector A3: in_progress",
@@ -1956,7 +1815,7 @@
    }
   },
   {
-   "id": "e00073",
+   "id": "e00070",
    "type": "team.updated",
    "at": "2026-10-24T23:54:00Z",
    "summary": "Team Three: searching",
@@ -1977,7 +1836,7 @@
    }
   },
   {
-   "id": "e00074",
+   "id": "e00071",
    "type": "task.updated",
    "at": "2026-10-24T23:54:00Z",
    "summary": "sector B3: in_progress",
@@ -1993,7 +1852,7 @@
    }
   },
   {
-   "id": "e00075",
+   "id": "e00072",
    "type": "team.updated",
    "at": "2026-10-24T23:54:00Z",
    "summary": "Team One: searching",
@@ -2014,7 +1873,7 @@
    }
   },
   {
-   "id": "e00076",
+   "id": "e00073",
    "type": "task.updated",
    "at": "2026-10-24T23:54:00Z",
    "summary": "sector C3: in_progress",
@@ -2030,7 +1889,7 @@
    }
   },
   {
-   "id": "e00077",
+   "id": "e00074",
    "type": "team.updated",
    "at": "2026-10-24T23:54:00Z",
    "summary": "Team Two: searching",
@@ -2051,7 +1910,7 @@
    }
   },
   {
-   "id": "e00078",
+   "id": "e00075",
    "type": "team.updated",
    "at": "2026-10-25T00:00:00Z",
    "summary": "Team Four: searching",
@@ -2072,7 +1931,7 @@
    }
   },
   {
-   "id": "e00079",
+   "id": "e00076",
    "type": "team.updated",
    "at": "2026-10-25T00:00:00Z",
    "summary": "Team Four: searching",
@@ -2093,7 +1952,7 @@
    }
   },
   {
-   "id": "e00080",
+   "id": "e00077",
    "type": "mission.note",
    "at": "2026-10-25T00:00:00Z",
    "summary": "Team Four: position report",
@@ -2109,7 +1968,7 @@
    }
   },
   {
-   "id": "e00081",
+   "id": "e00078",
    "type": "team.updated",
    "at": "2026-10-25T00:00:01Z",
    "summary": "Team Three: searching",
@@ -2130,7 +1989,7 @@
    }
   },
   {
-   "id": "e00082",
+   "id": "e00079",
    "type": "team.updated",
    "at": "2026-10-25T00:00:01Z",
    "summary": "Team Three: searching",
@@ -2151,7 +2010,7 @@
    }
   },
   {
-   "id": "e00083",
+   "id": "e00080",
    "type": "mission.note",
    "at": "2026-10-25T00:00:01Z",
    "summary": "Team Three: position report",
@@ -2167,7 +2026,7 @@
    }
   },
   {
-   "id": "e00084",
+   "id": "e00081",
    "type": "team.updated",
    "at": "2026-10-25T00:00:02Z",
    "summary": "Team One: searching",
@@ -2188,7 +2047,7 @@
    }
   },
   {
-   "id": "e00085",
+   "id": "e00082",
    "type": "team.updated",
    "at": "2026-10-25T00:00:02Z",
    "summary": "Team One: searching",
@@ -2209,7 +2068,7 @@
    }
   },
   {
-   "id": "e00086",
+   "id": "e00083",
    "type": "mission.note",
    "at": "2026-10-25T00:00:02Z",
    "summary": "Team One: position report",
@@ -2225,7 +2084,7 @@
    }
   },
   {
-   "id": "e00087",
+   "id": "e00084",
    "type": "team.updated",
    "at": "2026-10-25T00:00:03Z",
    "summary": "Team Two: searching",
@@ -2246,7 +2105,7 @@
    }
   },
   {
-   "id": "e00088",
+   "id": "e00085",
    "type": "team.updated",
    "at": "2026-10-25T00:00:03Z",
    "summary": "Team Two: searching",
@@ -2267,7 +2126,7 @@
    }
   },
   {
-   "id": "e00089",
+   "id": "e00086",
    "type": "mission.note",
    "at": "2026-10-25T00:00:03Z",
    "summary": "Team Two: position report",
@@ -2283,7 +2142,7 @@
    }
   },
   {
-   "id": "e00090",
+   "id": "e00087",
    "type": "team.updated",
    "at": "2026-10-25T00:04:48Z",
    "summary": "Team One: searching",
@@ -2304,7 +2163,7 @@
    }
   },
   {
-   "id": "e00091",
+   "id": "e00088",
    "type": "radio.turn",
    "at": "2026-10-25T00:04:48Z",
    "summary": "Team One, Sightline. Copy subject located in Bravo Three. Stay with the subject, over.",
@@ -2325,7 +2184,7 @@
    }
   },
   {
-   "id": "e00092",
+   "id": "e00089",
    "type": "team.updated",
    "at": "2026-10-25T00:05:12Z",
    "summary": "Team One: searching",
@@ -2346,7 +2205,7 @@
    }
   },
   {
-   "id": "e00093",
+   "id": "e00090",
    "type": "team.updated",
    "at": "2026-10-25T00:05:12Z",
    "summary": "Team One: searching",
@@ -2367,7 +2226,7 @@
    }
   },
   {
-   "id": "e00094",
+   "id": "e00091",
    "type": "mission.note",
    "at": "2026-10-25T00:05:12Z",
    "summary": "Team One: position report",
@@ -2383,7 +2242,7 @@
    }
   },
   {
-   "id": "e00095",
+   "id": "e00092",
    "type": "mission.note",
    "at": "2026-10-25T00:05:30Z",
    "summary": "Subject found by Team One in sector B3 (by Search manager (scripted for the demo fixture))",
@@ -40530,7 +40389,7 @@
    "team": null,
    "drone": null,
    "sector": null,
-   "text": "second look on f0396-d01: yes",
+   "text": "second look on f0396-d01: no",
    "refs": [
     "f0396-d01",
     "v0003"
@@ -40540,38 +40399,7 @@
    "by": null
   },
   {
-   "id": "e00037",
-   "at": "2026-10-24T23:16:40Z",
-   "kind": "decision",
-   "team": null,
-   "drone": null,
-   "sector": null,
-   "text": "Image reviewer (scripted for the demo fixture) approved verifier p001: Add f0273-d02 to the review queue: second look says likely a person",
-   "refs": [
-    "p001"
-   ],
-   "turn_id": null,
-   "direction": null,
-   "by": "Image reviewer (scripted for the demo fixture)"
-  },
-  {
-   "id": "e00038",
-   "at": "2026-10-24T23:16:40Z",
-   "kind": "detection",
-   "team": null,
-   "drone": null,
-   "sector": "C3",
-   "text": "f0273-d02 promoted to the review queue",
-   "refs": [
-    "f0273-d02",
-    "p001"
-   ],
-   "turn_id": null,
-   "direction": null,
-   "by": null
-  },
-  {
-   "id": "e00039",
+   "id": "e00036",
    "at": "2026-10-24T23:18:36Z",
    "kind": "detection",
    "team": null,
@@ -40587,7 +40415,7 @@
    "by": null
   },
   {
-   "id": "e00042",
+   "id": "e00039",
    "at": "2026-10-24T23:25:54Z",
    "kind": "radio",
    "team": "T4",
@@ -40602,7 +40430,7 @@
    "by": null
   },
   {
-   "id": "e00042-reply",
+   "id": "e00039-reply",
    "at": "2026-10-24T23:25:54Z",
    "kind": "radio",
    "team": "T4",
@@ -40617,7 +40445,7 @@
    "by": null
   },
   {
-   "id": "e00043",
+   "id": "e00040",
    "at": "2026-10-24T23:25:55Z",
    "kind": "clue",
    "team": "T4",
@@ -40632,7 +40460,7 @@
    "by": null
   },
   {
-   "id": "e00047",
+   "id": "e00044",
    "at": "2026-10-24T23:35:30Z",
    "kind": "radio",
    "team": "T1",
@@ -40647,7 +40475,7 @@
    "by": null
   },
   {
-   "id": "e00047-reply",
+   "id": "e00044-reply",
    "at": "2026-10-24T23:35:30Z",
    "kind": "radio",
    "team": "T1",
@@ -40662,7 +40490,7 @@
    "by": null
   },
   {
-   "id": "e00048",
+   "id": "e00045",
    "at": "2026-10-24T23:35:31Z",
    "kind": "clue",
    "team": "T1",
@@ -40677,13 +40505,28 @@
    "by": null
   },
   {
-   "id": "e00054",
+   "id": "e00051",
    "at": "2026-10-24T23:49:00Z",
    "kind": "decision",
    "team": "T1",
    "drone": null,
    "sector": "B3",
-   "text": "Search manager (scripted for the demo fixture) approved agent p003: Assign sector B3 to Team One",
+   "text": "Search manager (scripted for the demo fixture) approved agent p002: Assign sector B3 to Team One",
+   "refs": [
+    "p002"
+   ],
+   "turn_id": null,
+   "direction": null,
+   "by": "Search manager (scripted for the demo fixture)"
+  },
+  {
+   "id": "e00054",
+   "at": "2026-10-24T23:49:01Z",
+   "kind": "decision",
+   "team": "T4",
+   "drone": null,
+   "sector": "B2",
+   "text": "Search manager (scripted for the demo fixture) approved agent p003: Assign sector B2 to Team Four",
    "refs": [
     "p003"
    ],
@@ -40692,13 +40535,13 @@
    "by": "Search manager (scripted for the demo fixture)"
   },
   {
-   "id": "e00057",
-   "at": "2026-10-24T23:49:01Z",
+   "id": "e00059",
+   "at": "2026-10-24T23:50:30Z",
    "kind": "decision",
-   "team": "T4",
+   "team": "T2",
    "drone": null,
-   "sector": "B2",
-   "text": "Search manager (scripted for the demo fixture) approved agent p004: Assign sector B2 to Team Four",
+   "sector": "C3",
+   "text": "Search manager (scripted for the demo fixture) approved agent p004: Assign sector C3 to Team Two",
    "refs": [
     "p004"
    ],
@@ -40707,13 +40550,13 @@
    "by": "Search manager (scripted for the demo fixture)"
   },
   {
-   "id": "e00062",
-   "at": "2026-10-24T23:50:30Z",
+   "id": "e00064",
+   "at": "2026-10-24T23:52:30Z",
    "kind": "decision",
-   "team": "T2",
+   "team": "T3",
    "drone": null,
-   "sector": "C3",
-   "text": "Search manager (scripted for the demo fixture) approved agent p005: Assign sector C3 to Team Two",
+   "sector": "A3",
+   "text": "Search manager (scripted for the demo fixture) approved agent p005: Assign sector A3 to Team Three",
    "refs": [
     "p005"
    ],
@@ -40722,22 +40565,7 @@
    "by": "Search manager (scripted for the demo fixture)"
   },
   {
-   "id": "e00067",
-   "at": "2026-10-24T23:52:30Z",
-   "kind": "decision",
-   "team": "T3",
-   "drone": null,
-   "sector": "A3",
-   "text": "Search manager (scripted for the demo fixture) approved agent p006: Assign sector A3 to Team Three",
-   "refs": [
-    "p006"
-   ],
-   "turn_id": null,
-   "direction": null,
-   "by": "Search manager (scripted for the demo fixture)"
-  },
-  {
-   "id": "e00080",
+   "id": "e00077",
    "at": "2026-10-25T00:00:00Z",
    "kind": "checkin",
    "team": "T4",
@@ -40752,7 +40580,7 @@
    "by": null
   },
   {
-   "id": "e00083",
+   "id": "e00080",
    "at": "2026-10-25T00:00:01Z",
    "kind": "checkin",
    "team": "T3",
@@ -40767,7 +40595,7 @@
    "by": null
   },
   {
-   "id": "e00086",
+   "id": "e00083",
    "at": "2026-10-25T00:00:02Z",
    "kind": "checkin",
    "team": "T1",
@@ -40782,7 +40610,7 @@
    "by": null
   },
   {
-   "id": "e00089",
+   "id": "e00086",
    "at": "2026-10-25T00:00:03Z",
    "kind": "checkin",
    "team": "T2",
@@ -40797,7 +40625,7 @@
    "by": null
   },
   {
-   "id": "e00091",
+   "id": "e00088",
    "at": "2026-10-25T00:04:48Z",
    "kind": "radio",
    "team": "T1",
@@ -40812,7 +40640,7 @@
    "by": null
   },
   {
-   "id": "e00091-reply",
+   "id": "e00088-reply",
    "at": "2026-10-25T00:04:48Z",
    "kind": "radio",
    "team": "T1",
@@ -40827,7 +40655,7 @@
    "by": null
   },
   {
-   "id": "e00094",
+   "id": "e00091",
    "at": "2026-10-25T00:05:12Z",
    "kind": "checkin",
    "team": "T1",
@@ -40842,7 +40670,7 @@
    "by": null
   },
   {
-   "id": "e00095",
+   "id": "e00092",
    "at": "2026-10-25T00:05:30Z",
    "kind": "found",
    "team": "T1",

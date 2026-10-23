@@ -100,7 +100,7 @@ def test_ics204_fills_every_block_from_the_card_and_trace(tmp_path: Path) -> Non
     assert f["communications"][0]["primary_contact"].startswith("radio Channel 2")
     trace = {e.id: e for e in store.trace_entries(mid)}
     assert f["prepared_by"]["name"] == "Search manager (scripted for the demo fixture)"
-    assert trace[f["prepared_by"]["trace_entry"]].output["proposal"] == "p003"
+    assert trace[f["prepared_by"]["trace_entry"]].output["proposal"] == "p002"
     md = ics204_markdown(f)
     for block in ("1. Incident Name", "2. Operational Period", "3. Branch", "4. Operations Personnel",
                   "5. Resources Assigned", "6. Work Assignments", "7. Special Instructions",
@@ -156,19 +156,20 @@ def test_ics214_logs_decisions_clues_and_searched_sectors(tmp_path: Path) -> Non
     mid = seed_demo(store)
     f = ics214(store.state(mid), store.trace_entries(mid), store.events(mid), NOW)
     what = [r["what"] for r in f["activity_log"]]
-    assert "Assignment approved: Assign sector C2 to Team One (p003)" in what
-    assert any(w.startswith("Promotion to the review queue approved") for w in what)
+    assert "Assignment approved: Assign sector C2 to Team One (p002)" in what
+    # the second look's promotion (p001) waits for a person: not an activity yet
+    assert not any(w.startswith("Promotion to the review queue") for w in what)
     assert sum(w.startswith("Clue logged") for w in what) == 4
     assert (
         "Sector B4 searched at POD 0.6: trail and both ditches, thick salal on the east side"
         in what
     )
-    assert not any("p002" in w for w in what)  # pending: not an activity yet
+    assert not any("p001" in w for w in what)  # pending: not an activity yet
     times = [r["at"] for r in f["activity_log"]]
     assert times == sorted(times)  # oldest first (all whole-second UTC here)
     who = {r["what"]: r["who"] for r in f["activity_log"]}
     assert (
-        who["Assignment approved: Assign sector C2 to Team One (p003)"]
+        who["Assignment approved: Assign sector C2 to Team One (p002)"]
         == "Search manager (scripted for the demo fixture)"
     )
     md = ics214_markdown(f)

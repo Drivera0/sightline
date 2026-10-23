@@ -305,7 +305,7 @@ describe("the demo mission: the story on the one console", () => {
     expect(gate).toHaveTextContent("Approve it on the card");
     await userEvent.keyboard("{ArrowRight}"); // the gate: the arrow does not move it on
     expect(screen.getByRole("dialog", { name: "The story, 8 of 12" })).toBeInTheDocument();
-    const card = await screen.findByLabelText("Proposal p003");
+    const card = await screen.findByLabelText("Proposal p002");
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
     expect(await screen.findByRole("dialog", { name: "The story, 9 of 12" })).toHaveTextContent("Drone two loses its link");
     expect(screen.getByRole("group", { name: "Mission time" })).toBeInTheDocument(); // inside the story, the scrubber
@@ -368,13 +368,13 @@ describe("the demo mission: the story on the one console", () => {
     // at 15:00 the subject is found and the proposal is closed; at 14:42 it still waits for a person
     useStory.getState().seek(3);
     await settle();
-    const card = (await screen.findByText("Add f0396-d01 to the review queue: second look says likely a person")).closest("[aria-label^='Proposal']") as HTMLElement;
+    const card = (await screen.findByText("Add f0273-d02 to the review queue: second look says likely a person")).closest("[aria-label^='Proposal']") as HTMLElement;
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
-    const status = () => useMission.getState().proposals.find((p) => p.id === "p002")?.status;
+    const status = () => useMission.getState().proposals.find((p) => p.id === "p001")?.status;
     expect(status()).toBe("approved");
     useStory.getState().seek(2);
     await settle();
-    expect(status()).toBe("pending"); // proposed at 14:10 PDT; the visitor approved it at 14:42, not yet at 14:31
+    expect(status()).toBe("pending"); // proposed at 14:01 PDT; the visitor approved it at 14:42, not yet at 14:31
     useStory.getState().seek(6);
     await settle();
     expect(status()).toBe("approved");
