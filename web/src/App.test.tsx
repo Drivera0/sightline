@@ -41,11 +41,11 @@ describe("App: one console behind every address", () => {
     open("");
     window.location.hash = "#about";
     const sheet = await screen.findByRole("dialog", { name: "About Sightline" });
-    expect(screen.getByRole("region", { name: "Choose a search" })).toBeInTheDocument(); // the home page behind it
+    expect(screen.getByRole("region", { name: "Guided simulation" })).toBeInTheDocument(); // the home page behind it
     await userEvent.click(within(sheet).getByRole("button", { name: /Close/ }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "About Sightline" })).toBeNull());
     expect(window.location.hash).toBe("");
-    expect(screen.getByRole("region", { name: "Choose a search" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Guided simulation" })).toBeInTheDocument();
   });
 
   it.each([

@@ -38,7 +38,7 @@ export function ScenarioBanner({ seed, name, area, clock, disabled = false }: { 
       {open && (
         <Sheet label="Choose a search" onClose={() => setOpen(false)} width="max-w-3xl">
           <div className="flex flex-col gap-4 px-5 pb-10 pt-5">
-            <p className="text-small text-text-2">Same mountain, same photos, a different search. Start runs the guided simulation; Just the console opens it with nothing in the way.</p>
+            <p className="text-small text-text-2">Same mountain, same photos, a different search. Start the simulation walks you through it; Open the console only opens it with nothing in the way.</p>
             <ScenarioCards current={seed} onPick={() => setOpen(false)} />
           </div>
         </Sheet>

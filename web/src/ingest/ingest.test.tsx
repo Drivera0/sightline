@@ -377,7 +377,7 @@ describe("the demo mission: the story on the one console", () => {
     render(<App base={null} />);
     window.location.hash = "#about";
     const sheet = await screen.findByRole("dialog", { name: "About Sightline" });
-    expect(sheet).toHaveTextContent("How it works");
+    expect(sheet).toHaveTextContent("How photos get in");
     expect(sheet).toHaveTextContent("HERIDAL");
     expect(screen.getByLabelText("Command view")).toBeInTheDocument(); // the console stays behind it
     await userEvent.keyboard("{Escape}");

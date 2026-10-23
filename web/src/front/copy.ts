@@ -38,6 +38,32 @@ export const HOW_IT_WORKS_SHORT = [
   "It shows where to look next. The search manager approves.",
 ] as const;
 
+/**
+ * How photos get in, and whether it is live: three paths, one line each, with an icon from the shared
+ * set (shell/icons.tsx). `short` is the About sheet's line. The 70 px / 15 px line is the README's.
+ */
+export const INTAKE = [
+  {
+    icon: "base",
+    title: "After landing",
+    body: "Pull the card and drop the photos onto the console, or into a folder the command-post laptop watches:",
+    code: "python -m sightline.client watch FOLDER",
+    short: "After landing: the card's photos, dropped on the console or into a watched folder.",
+  },
+  {
+    icon: "drone",
+    title: "During the flight, when there is signal",
+    body: "The same client watches the controller's download folder and sends each photo as it lands, so the map moves while the drone is still up.",
+    short: "During the flight, with signal: each photo is sent as it lands.",
+  },
+  {
+    icon: "detection",
+    title: "Not live video",
+    body: "Sightline reads geotagged stills, not a video feed: a hiker is about 70 px wide in a still and about 15 px in a video frame.",
+    short: "Not live video: geotagged stills, where a hiker is about 70 px wide instead of 15.",
+  },
+] as const;
+
 export const WHO_ITS_FOR = [
   {
     title: "Search manager",
