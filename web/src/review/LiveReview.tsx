@@ -1,5 +1,6 @@
 // The Review view: the console's right rail of candidates, most confident first, each with the second
-// look's verdict in words and which models made it, and Person / Not a person / Unsure. One list for a
+// look's verdict in words and which models made it, and the answers (answers.tsx: Person, Not a person,
+// Not the subject, Object with its type, Unsure). One list for a
 // live mission (answers go to POST /reviews through useMission, LANE_D §5.5 D-Q1), the demo mission (a
 // Person pins a sighting on the map) and Try a photo (your own photo's boxes, at the top).
 
@@ -18,11 +19,15 @@ export function focusCandidate(id: string | null): void {
 import type { Detection, Detections, Survey, Verdict } from "../contract";
 import { Badge, EmptyState, Label } from "../shell/components";
 import { SecondLook } from "./SecondLook";
+import { answerForKey, ObjectPicker, REVIEW_ANSWERS, usePickerKeys, type LiveAnswer, type ObjectKind } from "./answers";
 
 /** While the large review frame is open it owns P/N/U and J/K; the rail's own keys stand down. */
 export const reviewKeys = { frameOpen: false };
 
-export type LiveAnswer = "person" | "not_person" | "unsure";
+export type { LiveAnswer, ObjectKind } from "./answers";
+
+/** How a candidate is answered: the answer, and with "object" its type. */
+export type OnAnswer = (id: string, answer: LiveAnswer, object?: ObjectKind) => void;
 
 /** "relook/f0003-d01-zoom_native.jpg" → "zoom native": which OpenCV 5 tool made the image. */
 export function relookName(rel: string): string {
@@ -34,8 +39,9 @@ export function relookName(rel: string): string {
 /** "Second look: likely a person · lying down · red jacket", or "Second look: unclear". Always words. */
 export function verdictWords(v: Verdict | undefined): string | null {
   if (!v) return null;
-  if (v.person === "unclear") return "Second look: unclear";
-  if (v.person === "no") return "Second look: probably not a person";
+  const thing = v.object && v.object !== "other" ? ` · looks like a ${v.object}` : "";
+  if (v.person === "unclear") return `Second look: unclear${thing}`;
+  if (v.person === "no") return `Second look: probably not a person${thing}`;
   const parts = ["Second look: likely a person"];
   if (v.posture !== "unknown") parts.push(v.posture === "lying" ? "lying down" : v.posture);
   if (v.group_size && v.group_size > 1) parts.push(`${v.group_size} people`);
@@ -58,12 +64,6 @@ export function liveReviewItems(detections: Detections | null, promoted: readonl
     .sort((a, b) => b.conf - a.conf || a.id.localeCompare(b.id));
 }
 
-const ANSWERS: { id: LiveAnswer; label: string }[] = [
-  { id: "person", label: "Person" },
-  { id: "not_person", label: "Not a person" },
-  { id: "unsure", label: "Unsure" },
-];
-
 export interface ReviewCard {
   id: string;
   conf: number;
@@ -81,14 +81,16 @@ export interface ReviewCard {
   note?: string;
   /** How long the second look took (ms), when it ran. */
   ms?: number;
+  /** What the second look thinks the thing is, when not a person (the object picker marks it). */
+  object?: ObjectKind | null;
   /** The whole photo, its size in pixels and the candidate's box in it (the review frame shows them). */
   photo?: string;
   size?: [number, number];
   box?: [number, number, number, number];
 }
 
-/** One candidate: crop, score, verdict in words with its model chips, the three answers. */
-function Card({ c, rank, answer, current, onAnswer, onPick }: { c: ReviewCard; rank: number; answer: LiveAnswer | undefined; current: boolean; onAnswer: (a: LiveAnswer) => void; onPick?: () => void }) {
+/** One candidate: crop, score, verdict in words with its model chips, the answers (Object opens its type picker). */
+function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }: { c: ReviewCard; rank: number; answer: LiveAnswer | undefined; current: boolean; picking: boolean; onPicking: (on: boolean) => void; onAnswer: (a: LiveAnswer, object?: ObjectKind) => void; onPick?: () => void }) {
   const el = useRef<HTMLLIElement>(null);
   // J/K bring the current candidate into view; the first one does not pull its rail (Needs you) down on arrival
   const was = useRef(current);
@@ -112,18 +114,20 @@ function Card({ c, rank, answer, current, onAnswer, onPick }: { c: ReviewCard; r
       </div>
       <SecondLook c={c} />
       <div className="flex flex-wrap gap-1.5">
-        {ANSWERS.map((a) => (
+        {REVIEW_ANSWERS.map((a) => (
           <button
             key={a.id}
             type="button"
-            aria-pressed={answer === a.id}
-            onClick={() => onAnswer(a.id)}
-            className={`sl-tap rounded-full border px-3 py-0.5 text-small ${answer === a.id ? (a.id === "person" ? "border-ok bg-ok/10 text-text" : "border-accent text-text") : "border-border text-text-2 hover:text-text"}`}
+            aria-pressed={answer === a.id || (a.id === "object" && picking)}
+            title={`${a.title} (${a.key})`}
+            onClick={() => (a.id === "object" ? onPicking(!picking) : onAnswer(a.id))}
+            className={`sl-tap rounded-full border px-3 py-0.5 text-small ${answer === a.id || (a.id === "object" && picking) ? (a.id === "person" ? "border-ok bg-ok/10 text-text" : a.id === "object" ? "border-[var(--clue)] text-text" : "border-accent text-text") : "border-border text-text-2 hover:text-text"}`}
           >
             {a.label}
           </button>
         ))}
       </div>
+      {picking && <ObjectPicker suggested={c.object} onPick={(o) => onAnswer("object", o)} onCancel={() => onPicking(false)} />}
       {c.note && <p className="text-caption text-text-3">{c.note}</p>}
     </li>
   );
@@ -138,7 +142,7 @@ export function ReviewRail({
 }: {
   cards: readonly ReviewCard[];
   answers: Readonly<Record<string, LiveAnswer>>;
-  onAnswer: (id: string, answer: LiveAnswer) => void;
+  onAnswer: OnAnswer;
   /** Above the queue: your own photo from Try a photo. */
   top?: ReactNode;
   empty?: string;
@@ -147,6 +151,14 @@ export function ReviewRail({
   // J/K (or the arrows) move through the queue, P/N/U answer the current candidate (LANE_D §9.2)
   const [cur, setCur] = useState(0);
   const at = Math.min(cur, Math.max(0, cards.length - 1));
+  // the candidate whose object type picker is open (Object, or O on the current one)
+  const [picking, setPicking] = useState<string | null>(null);
+  const answer = (id: string, a: LiveAnswer, object?: ObjectKind) => {
+    setPicking(null);
+    if (object) onAnswer(id, a, object);
+    else onAnswer(id, a);
+  };
+  usePickerKeys(picking !== null && !reviewKeys.frameOpen, (o) => picking && answer(picking, "object", o), () => setPicking(null));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (reviewKeys.frameOpen || isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey || cards.length === 0) return;
@@ -159,15 +171,16 @@ export function ReviewRail({
         setCur(Math.max(at - 1, 0));
         focusCandidate(cards[Math.max(at - 1, 0)]?.id ?? null);
       }
-      else if (id && (k === "p" || k === "n" || k === "u")) {
-        onAnswer(id, k === "p" ? "person" : k === "n" ? "not_person" : "unsure");
+      else if (id && answerForKey(k) === "object") setPicking(id);
+      else if (id && answerForKey(k)) {
+        answer(id, answerForKey(k)!);
         setCur(Math.min(at + 1, cards.length - 1));
       } else return;
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cards, at, onAnswer]);
+  }, [cards, at, onAnswer]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <section aria-label="Review" data-tour="review" className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between px-1">
@@ -190,7 +203,9 @@ export function ReviewRail({
               rank={i + 1}
               answer={answers[c.id]}
               current={i === at}
-              onAnswer={(a) => onAnswer(c.id, a)}
+              picking={picking === c.id}
+              onPicking={(on) => setPicking(on ? c.id : null)}
+              onAnswer={(a, o) => answer(c.id, a, o)}
               onPick={() => {
                 setCur(i);
                 focusCandidate(c.id);
@@ -226,6 +241,7 @@ export function liveCards(
       relook: v?.relook_crops.map((rel) => ({ url: imageUrl(rel), name: rel })),
       promoted: promoted.includes(d.id),
       ms: v?.ms,
+      object: v?.object ?? null,
       ...(f ? { photo: imageUrl(f.file), size: [f.width_px, f.height_px] as [number, number], box: d.box_px } : {}),
     };
   });
@@ -246,7 +262,7 @@ export function LiveReview({
   verdicts: readonly Verdict[];
   promoted: readonly string[];
   imageUrl: (rel: string) => string;
-  onAnswer: (detectionId: string, answer: LiveAnswer) => void;
+  onAnswer: OnAnswer;
   top?: ReactNode;
 }) {
   const [answers, setAnswers] = useState<Record<string, LiveAnswer>>({});
@@ -256,9 +272,10 @@ export function LiveReview({
       cards={cards}
       answers={answers}
       top={top}
-      onAnswer={(id, a) => {
+      onAnswer={(id, a, o) => {
         setAnswers((x) => ({ ...x, [id]: a }));
-        onAnswer(id, a);
+        if (o) onAnswer(id, a, o);
+        else onAnswer(id, a);
       }}
     />
   );

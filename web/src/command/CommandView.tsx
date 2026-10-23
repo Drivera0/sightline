@@ -27,7 +27,7 @@ import { TimelineHandle, useTimelineHeight } from "./TimelineResize";
 import { ReviewFrame } from "./ReviewFrame";
 import { DroneFeed } from "./DroneFeed";
 import { useSelection } from "../lib/selection";
-import type { LiveAnswer, ReviewCard } from "../review/LiveReview";
+import type { LiveAnswer, OnAnswer, ReviewCard } from "../review/LiveReview";
 
 /** The demo mission is dated at Mount Seymour; a live mission reads the browser's zone. */
 export const missionTz = (status: string): Tz => (status === "demo" ? DEMO_TZ : false);
@@ -106,7 +106,7 @@ export interface CommandProps {
   review: ReactNode;
   reviewCount: number;
   /** The candidates for the large review frame, their answers, and how to answer (V3 §3). */
-  reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: (id: string, a: LiveAnswer) => void };
+  reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: OnAnswer };
   /** Open the review frame by itself when the first candidates arrive (off inside the guided story). */
   autoReview?: boolean;
   briefings?: ReactNode;

@@ -9,7 +9,7 @@ import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
 import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent, Proposal, TraceEntry } from "../contract";
 import { clueLine, clueShifts } from "../command/clueShift";
-import { candidatePosition, demoCards, landedFrames } from "../command/demoReview";
+import { candidatePosition, demoCards, distractorCards, landedFrames, objectClue } from "../command/demoReview";
 import { checkpoint, demoAt, LAST, type Checkpoint, type DemoFull } from "../command/missionTime";
 import { PhotoStrip, PhotosRail } from "../command/PhotosRail";
 import { PitchBar } from "../command/PitchBar";
@@ -49,7 +49,7 @@ import { Button, modeOf, Page, Panel, Stat } from "../shell/components";
 import { DEMO_CONSOLE_HASH, guideHash, viewHash, type Route, type View } from "../shell/flow";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS } from "../shell/shortcuts";
-import { liveCards, liveReviewItems, ReviewRail, type LiveAnswer } from "../review/LiveReview";
+import { liveCards, liveReviewItems, ReviewRail, type LiveAnswer, type ObjectKind } from "../review/LiveReview";
 import { UploadPanel, WatchPanel } from "./UploadPanel";
 
 // Split from the first bundle (the landing paints without them): the map with MapLibre, the views a
@@ -551,10 +551,24 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const frameCount = s.mapUpdates.filter((u) => u.source === "frame").length;
   const landed = demo ? landedFrames(cache, frameCount) : null;
   // the demo's queue: photos dropped in this browser first, then the survey's candidates at this clock
-  const cards = demo ? [...dropped.cards, ...demoCards(cache, landed ?? [], imageUrl, new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime())] : [];
-  const answerDemo = (id: string, a: LiveAnswer) => {
+  // the scenario's distractor frames (licensed ground-level photos of objects placed in the flight) join the
+  // queue once their second look is on the timeline, and stay until the visitor answers them
+  const distractors = demo ? distractorCards(s.distractors, s.timeline, s.events) : [];
+  const cards = demo ? [...dropped.cards, ...distractors, ...demoCards(cache, landed ?? [], imageUrl, new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime())] : [];
+  const answerDemo = (id: string, a: LiveAnswer, object?: ObjectKind) => {
     answerRef.current = answerDemo;
     useStory.getState().answer(id, a);
+    if (a === "object") {
+      // an object: the clue candidate the server would make (contract 15.7), low reliability until a team confirms it
+      const mine = dropped.at[id];
+      const d = s.distractors?.find((x) => x.detection_id === id);
+      const at = d ? { lat: d.lat, lon: d.lon } : mine ? { lat: mine.lat, lon: mine.lon } : candidatePosition(cache, id);
+      if (at && !s.clues.some((c) => c.detection_id === id)) {
+        const clue = objectClue(id, object ?? "other", at, d?.clue ?? `o-${id}`, clockIso);
+        useMission.getState().emit("clue.added", `object: ${clue.text}`, clue.id, clue);
+      }
+      return;
+    }
     if (a !== "person") return;
     const mine = dropped.at[id];
     const at = mine ? { lat: mine.lat, lon: mine.lon, frame: mine.photo, conf: mine.conf } : candidatePosition(cache, id);
@@ -635,9 +649,9 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const reviewCount = demo ? (run.on ? run.cards(cards) : cards).filter((c) => !story.answers[c.id]).length + (story.tried ? 1 : 0) : liveReviewItems(s.detections, s.promoted).length;
   // a live mission's queue (one list for the rail and the review frame, one set of answers)
   const live = demo ? [] : liveCards(s.detections, s.survey, s.verdicts, s.promoted, (rel) => fileUrl(api, missionId, rel));
-  const answerLive = (id: string, a: LiveAnswer) => {
+  const answerLive = (id: string, a: LiveAnswer, object?: ObjectKind) => {
     setLiveAnswers((x) => ({ ...x, [id]: a }));
-    void useMission.getState().review(id, a);
+    void useMission.getState().review(id, a, object);
   };
   const review =
     reviewCount > 0 || tried ? (
