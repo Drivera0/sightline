@@ -70,6 +70,7 @@ export function PhotosRail({
   playing,
   imageUrl,
   live,
+  drop,
   tryPanel,
   tryOpen,
   onTry,
@@ -84,6 +85,8 @@ export function PhotosRail({
   imageUrl: (rel: string) => string;
   /** A live mission's progress and upload panels. */
   live?: ReactNode;
+  /** The drop zone: a drone's photos, ranked and placed (PhotoDrop). */
+  drop?: ReactNode;
   tryPanel: ReactNode;
   tryOpen: boolean;
   onTry: () => void;
@@ -92,6 +95,7 @@ export function PhotosRail({
   const share = landed && total ? landed.length / total : 0;
   return (
     <section aria-label="Photos" data-tour="photos" className="flex flex-col gap-3">
+      {drop}
       <div className="flex items-baseline justify-between gap-2 px-1">
         <span className="text-caption font-medium text-text-2">
           Photos <span className="font-normal text-text-3">· from the drone, newest first</span>

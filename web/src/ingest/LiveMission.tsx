@@ -26,6 +26,7 @@ import { Briefings, useRadioVoice } from "../command/RadioLink";
 import { StatusLine } from "../command/StatusLine";
 import { MissionReport } from "../command/MissionReport";
 import { ScenarioMenu } from "../command/ScenarioMenu";
+import { PhotoDrop, useDropped } from "../command/PhotoDrop";
 import { DEFAULT_SEED, scenarioMission } from "../command/scenarios";
 import { stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
@@ -179,6 +180,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const [demoData, setDemoData] = useState<{ full: DemoFull; bundle: CacheBundle } | null>(null);
   const [bundle, setBundle] = useState<CacheBundle | null>(null);
   const tab = useConsole((x) => x.tab);
+  const dropped = useDropped();
   // the demo's scenario (#m/demo?s=<seed>; none: the overdue hiker) and the mission as that scenario
   const [seed, setSeed] = useState<string | null>(route.seed ?? null);
   const [scenario, setScenario] = useState<DemoFull | null>(null);
@@ -347,6 +349,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     stopAllDemoFlights();
     useConsole.getState().reset();
     useStory.setState({ user: [], answers: {}, tried: null });
+    useDropped.setState({ cards: [], at: {}, status: null });
     setScenario(null);
     setSeed(s);
     if (write) {
@@ -480,11 +483,13 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // ---- the rails ----
   const frameCount = s.mapUpdates.filter((u) => u.source === "frame").length;
   const landed = demo ? landedFrames(cache, frameCount) : null;
-  const cards = demo ? demoCards(cache, landed ?? [], imageUrl, new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime()) : [];
+  // the demo's queue: photos dropped in this browser first, then the survey's candidates at this clock
+  const cards = demo ? [...dropped.cards, ...demoCards(cache, landed ?? [], imageUrl, new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime())] : [];
   const answerDemo = (id: string, a: LiveAnswer) => {
     useStory.getState().answer(id, a);
     if (a !== "person" || id === RECORDED_ID) return;
-    const at = candidatePosition(cache, id);
+    const mine = dropped.at[id];
+    const at = mine ? { lat: mine.lat, lon: mine.lon, frame: mine.photo, conf: mine.conf } : candidatePosition(cache, id);
     if (at && !s.clues.some((c) => c.text.includes(id))) {
       void useMission.getState().addClue({
         kind: "sighting",
@@ -538,6 +543,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       tryPanel={tryPanel}
       tryOpen={tryOpen}
       onTry={() => setTryOpen(!tryOpen)}
+      drop={<PhotoDrop demo={demo} cache={cache} dir={DEMO_DIR} api={api} missionId={missionId} />}
       live={
         demo ? undefined : (
           <>

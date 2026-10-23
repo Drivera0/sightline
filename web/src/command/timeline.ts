@@ -117,6 +117,7 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
       const action = d?.action as string | undefined;
       if (action === "found") return entry({ id: e.id, at: e.at, kind: "found", sector: e.ref, team: (d?.mission as { found?: { team?: string } })?.found?.team ?? null, text: e.summary });
       if (action) return entry({ id: e.id, at: e.at, kind: "decision", sector: (d?.sector as string) ?? null, team: (d?.team as string) ?? null, refs: e.ref ? [e.ref] : [], text: e.summary });
+      if (d?.photo) return entry({ id: e.id, at: e.at, kind: "drone", refs: e.ref ? [e.ref] : [], text: e.summary });
       if (d?.relay) return entry({ id: e.id, at: e.at, kind: "checkin", team: (d.relay as { team_id?: string }).team_id ?? null, text: e.summary.replace(/ \(simulated relay\)$/, "") });
       if (d?.fleet_link) return entry({ id: e.id, at: e.at, kind: "drone", text: e.summary.replace(/ \(simulated link model\)/, "") });
       return entry({ id: e.id, at: e.at, kind: "note", refs: e.ref ? [e.ref] : [], text: e.summary });
