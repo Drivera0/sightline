@@ -55,6 +55,14 @@ POD_DECIMALS = 4
 MIN_STEP_POD = 0.001
 # Heuristics (labelled): how much a clue or worsening exposure moves the probability.
 CLUE_FACTOR = {"low": 1.5, "medium": 3.0, "high": 6.0}
+
+
+def effective_reliability(clue: Clue) -> str:
+    """The reliability the map gives a clue: a clue candidate from the image review (an "object"
+    answer, not yet confirmed by a team) is low, whatever it says."""
+    return "low" if clue.source == "review" and not clue.confirmed else clue.reliability
+
+
 SHELTER_FACTOR = {"high": 1.5, "severe": 2.0}
 SHELTER_CANOPY = 0.5
 _BANDS = ["low", "moderate", "high", "severe"]
@@ -172,14 +180,14 @@ class LiveMap:
     ) -> MapUpdate | None:
         """A reviewer's answer. "not_person": the area around it was looked at; "person": that
         photo's look around it didn't count; "unsure": nothing changes."""
-        if answer == "unsure":
+        if answer in ("unsure", "object"):  # an object becomes a clue candidate (its own update)
             return None
         cells = cells_within_radius(self.base.grid, at, radius_m)
-        if answer == "not_person":
+        if answer in ("not_person", "not_subject"):  # a person there, but not the one we look for
             pod = min(self.base.params.review_pod, self.base.params.pod_cap)
             return _update("step", "review", detection_id, [(i, pod) for i in cells])
         if answer != "person":
-            raise ValueError("answer must be person, not_person or unsure")
+            raise ValueError("answer must be person, not_person, not_subject, unsure or object")
         looked = self._frame_pods.get(frame_id, {})
         undo = [
             (i, round(1.0 / (1.0 - looked[i]), POD_DECIMALS)) for i in cells if looked.get(i, 0) > 0
@@ -192,20 +200,46 @@ class LiveMap:
         return _update("step", "ground", sector_id, [(int(i), q) for i in sector_cells])
 
     def clue_update(self, clue: Clue) -> MapUpdate:
-        """A confirmed clue raises the probability around it (heuristic factors)."""
-        f = CLUE_FACTOR[clue.reliability]
-        near = set(
-            cells_within_radius(self.base.grid, LatLon(lat=clue.lat, lon=clue.lon), clue.radius_m)
-        )
-        ring = (
-            set(
-                cells_within_radius(
-                    self.base.grid, LatLon(lat=clue.lat, lon=clue.lon), 2 * clue.radius_m
-                )
-            )
-            - near
-        )
+        """A confirmed clue raises the probability around it (heuristic factors). A clue candidate
+        from the image review (``source`` "review", not confirmed) counts as low reliability."""
+        f = CLUE_FACTOR[effective_reliability(clue)]
+        near, ring = self._clue_cells(clue)
         cells = [(i, f) for i in near] + [(i, round(math.sqrt(f), POD_DECIMALS)) for i in ring]
+        return _update("reweight", "clue", clue.id, cells)
+
+    def _clue_cells(self, clue: Clue) -> tuple[list[int], list[int]]:
+        """(near, ring) cells of a clue: the radius and twice it; for a bearing (a sound heard by a
+        team, contract 15.7) the uncertainty arc: within the spread of the bearing from its origin,
+        ``range_m`` away give or take the clue's radius; no ring."""
+        grid = self.base.grid
+        if clue.bearing_deg is not None and clue.origin is not None and clue.range_m:
+            spread = clue.bearing_spread_deg or 20.0
+            near = []
+            for i in cells_within_radius(grid, clue.origin, clue.range_m + clue.radius_m):
+                c = cell_center(grid, i)
+                dn = (c.lat - clue.origin.lat) * 110_540.0
+                de = (c.lon - clue.origin.lon) * 111_320.0 * math.cos(math.radians(clue.origin.lat))
+                if abs(math.hypot(de, dn) - clue.range_m) > clue.radius_m:
+                    continue
+                off = (math.degrees(math.atan2(de, dn)) - clue.bearing_deg + 180.0) % 360.0 - 180.0
+                if abs(off) <= spread:
+                    near.append(i)
+            return sorted(near), []
+        at = LatLon(lat=clue.lat, lon=clue.lon)
+        near_set = set(cells_within_radius(grid, at, clue.radius_m))
+        ring = set(cells_within_radius(grid, at, 2 * clue.radius_m)) - near_set
+        return sorted(near_set), sorted(ring)
+
+    def clue_confirm_update(self, clue: Clue, reliability: str) -> MapUpdate | None:
+        """A team confirmed a clue candidate on the ground at ``reliability``: the cells around it
+        go from the candidate's low factor to that reliability's (the ratio, same rings)."""
+        before = CLUE_FACTOR[effective_reliability(clue)]
+        f = CLUE_FACTOR[reliability] / before
+        if f == 1.0:
+            return None
+        near, ring = self._clue_cells(clue)
+        cells = [(i, round(f, POD_DECIMALS)) for i in near]
+        cells += [(i, round(math.sqrt(f), POD_DECIMALS)) for i in ring]
         return _update("reweight", "clue", clue.id, cells)
 
     def conditions_update(self, c: Conditions) -> MapUpdate | None:

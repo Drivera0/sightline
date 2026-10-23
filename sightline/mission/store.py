@@ -569,12 +569,14 @@ class MissionStore:
 
     def add_clue(self, mission_id: str, clue: Clue) -> Clue:
         """Assigns the id and sets ``confirmed``: a form clue is confirmed; a radio clue only with
-        ``confirmed_by_turn`` (the readback's "affirmative"), else ValueError (the API's 422)."""
+        ``confirmed_by_turn`` (the readback's "affirmative"), else ValueError (the API's 422); a
+        review clue (an image reviewer's "object") is a candidate: not confirmed."""
         if clue.source == "radio" and not clue.confirmed_by_turn:
             raise ValueError("a radio clue needs confirmed_by_turn (readback, then affirmative)")
         with self._lock(mission_id) as d:
+            confirmed = clue.source != "review"
             clue = Clue.model_validate(
-                {**clue.model_dump(), "id": self.next_id(mission_id, "c"), "confirmed": True}
+                {**clue.model_dump(), "id": self.next_id(mission_id, "c"), "confirmed": confirmed}
             )
             self._save_list(d, "clues.json", [*self._load_list(d, "clues.json", Clue), clue])
             self.emit(
@@ -585,6 +587,21 @@ class MissionStore:
                 data=clue.model_dump(),
             )
             return clue
+
+    def update_clue(self, mission_id: str, clue_id: str, **fields: Any) -> Clue:
+        """Change a clue's fields (a candidate confirmed on the ground); emits ``clue.added`` with
+        the clue as it is now, so clients replace it."""
+        with self._lock(mission_id) as d:
+            clues = self._load_list(d, "clues.json", Clue)
+            k = next((i for i, c in enumerate(clues) if c.id == clue_id), None)
+            if k is None:
+                raise KeyError(f"no clue {clue_id}")
+            clues[k] = Clue.model_validate({**clues[k].model_dump(), **fields})
+            self._save_list(d, "clues.json", clues)
+            c = clues[k]
+            self.emit(mission_id, "clue.added", f"{c.kind}: {c.text} (confirmed)", ref=c.id,
+                      data=c.model_dump())  # fmt: skip
+            return c
 
     def put_fleet(self, mission_id: str, fleet: FleetState) -> None:
         with self._lock(mission_id) as d:
