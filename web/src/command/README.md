@@ -103,8 +103,12 @@ cache (`/cache/demo`). Screenshots: `docs/report/figures/one-console/`.
   `?after=`; entries grouped into chains by shared ids (perception → decision → action → approval), one line
   per step (span type, tool or model, input, output, ms), the proposal each chain led to and who decided, and
   a "which model did what" strip. The demo mission shows its own trace first (`__fixtures__/demo_trace.jsonl`,
-  from the generator: labelled Demo, fake models and scripted people named), then two recorded runs copied from
-  the repo (`demo_trace_avchain.jsonl`, `demo_trace_conditions.jsonl`, the av-chain crops), labelled Recorded.
+  from the generator), then two earlier runs copied from the repo (`demo_trace_avchain.jsonl`,
+  `demo_trace_conditions.jsonl`, the av-chain crops). The view names roles, not provenance: a run is "This
+  flight" or "Earlier run", a model is its name (the fixture's `fake/<model>` id shown without `fake/`), and a
+  decider is its role ("Search manager", `roleOf`). The trace's own strings keep the provenance (`fake/<model>`,
+  "Search manager (scripted for the demo fixture)"; a step's output shows them), and the header's disclosure
+  chip, the Debrief and About say it.
 
 ## Load order (web audit, 2026-10-22)
 

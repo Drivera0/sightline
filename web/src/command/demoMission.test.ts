@@ -36,7 +36,11 @@ describe("demo mission", () => {
   it("every proposal has its chain in the demo's own trace: the calls that led to it, the proposal, the decision", async () => {
     const { runs } = await loadDemoTrace();
     const own = runs[0]!;
-    expect(own.label).toMatch(/fake models/);
+    // the view names roles and models; the data still says the models are fakes and the people scripted
+    expect(own.entries.filter((e) => e.model !== null).every((e) => e.model!.startsWith("fake/"))).toBe(true);
+    const by = own.entries.filter((e) => e.kind === "decision").map((e) => (e.output as { by: string }).by);
+    expect(by.length).toBeGreaterThan(0);
+    expect(by.every((b) => /\(scripted for the demo fixture\)$/.test(b))).toBe(true);
     const groups = chains(own.entries);
     for (const p of fixture.proposals) {
       const c = groups.find((g) => g.entries.some((e) => e.kind === "proposal" && e.refs.includes(p.id)));

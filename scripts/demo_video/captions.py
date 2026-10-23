@@ -19,8 +19,9 @@ script):
   order, black at the start and the end for the on-camera clips, black slots where a slide goes, cut
   from ``master.mp4`` with their own labels (``cut_<name>.srt``, numbered in the cut's order);
   ``cut_<name>.json`` lists every segment with its source and output times;
-- ``demo.gif``: 16-20 s for the README (fps 10, 800 px wide, one palette, <= 3 MB), first and last frame
-  matched so it loops.
+- ``demo.gif``: <= 16 s for the README (12 fps, 960 px wide, one palette, <= 3 MB), from the 4K
+  recording without the camera moves (the program's push-ins change every pixel, about 15 times the size),
+  first and last frame matched so it loops; over 3 MB it tries a shorter window, then fewer colours.
 
 ``--size 2560x1440`` writes the same files with a ``_1440p`` suffix (the program rendered at that size).
 Each step is skipped when its output is newer than its inputs (``--force`` redoes it).
@@ -36,6 +37,7 @@ import subprocess
 import sys
 import textwrap
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -356,71 +358,125 @@ def frames(video: Path, start: float, dur: float, fps: int = 10, size: tuple[int
     return np.frombuffer(raw, np.uint8).reshape(-1, size[1], size[0]).astype(float)
 
 
-def pick_loop(doc: dict, cfg: dict, video: Path) -> tuple[float, float, str, float]:
+def gif_source(
+    doc: dict, d: Path, name: str
+) -> tuple[Path, Callable[[dict], tuple[float, float]], float, str]:
+    """(video, a shot's span in it, its length, filters to put first) for a GIF source: ``capture`` is the
+    4K recording itself (no camera moves, so a frame differs from the one before only where the page
+    changed, and the GIF's frame diffs stay small; the sync mark painted out), ``program`` the captioned
+    program (its push-ins change every pixel of every frame: several times the size at the same width)."""
+    if name == "capture":
+        pre = f"{doc['delogo']}," if doc.get("delogo") else ""
+        return d / doc["video"], lambda s: (s["start_s"], s["end_s"]), float(doc["total_s"]), pre
+    total = float(doc.get("program", {}).get("total_s", doc["total_s"]))
+    return d / "master_captioned.mp4", span, total, ""
+
+
+def pick_loop(
+    doc: dict,
+    cfg: dict,
+    video: Path,
+    at: Callable[[dict], tuple[float, float]] = span,
+    total: float | None = None,
+) -> tuple[float, float, str, float]:
     """(start, duration, shot, end match): the first candidate, in the config's order of preference, with
-    enough happening in its window; its end is the frame within duration ±2 s closest to its first frame
-    (the GIF then fades that end into the first frame, so the loop has no jump). A candidate is a shot id
-    or ``{shot, end_aligned, min_motion}``: ``end_aligned`` takes the window that ends with the shot (a
-    short shot then keeps the screen before it instead of running into the next page)."""
+    enough happening in its window; its end is the frame within duration -2 s .. +slack closest to its
+    first frame, never past ``max_s`` (the GIF then fades that end into the first frame, so the loop has
+    no jump). A candidate is a shot id or ``{shot, end_aligned, offset_s, min_motion}``: ``end_aligned``
+    takes the window that ends with the shot (a short shot then keeps the screen before it instead of
+    running into the next page); ``offset_s`` starts the window that far into the shot (a moment inside
+    a long shot: `next` from its clue card on)."""
     g = cfg["gif"]
-    total = doc.get("program", {}).get("total_s", doc["total_s"])
+    total = doc.get("program", {}).get("total_s", doc["total_s"]) if total is None else total
     by_id = {s["id"]: s for s in ran(doc["shots"])}
+    fade = 0.5
     for c in g["candidates"]:
         c = {"shot": c} if isinstance(c, str) else c
         sid = c["shot"]
         s = by_id.get(sid)
         if not s:
             continue
-        a, b = span(s)
+        a, b = at(s)
         dur = g["duration_s"]
-        start, slack = a + 0.5, 2.0
+        start, slack = a + c.get("offset_s", 0.5), 2.0
         if c.get("end_aligned"):
             start, slack = max(0.0, b - 0.3 - dur), 0.0
+        slack = min(slack, g.get("max_s", 20) + fade - dur)
         if start + dur + slack > total:
             continue
         f = frames(video, start, dur + slack)
         if len(f) < 10 * (dur - 2):
             continue
         motion = float(abs(f[1:] - f[:-1]).mean())
-        lo, hi = 10 * (dur - 2), min(len(f), 10 * (dur + slack))
+        lo, hi = int(10 * (dur - 2)), min(len(f), int(10 * (dur + slack)) + 1)
         score, i = min((float(abs(f[k] - f[0]).mean()), k) for k in range(lo, hi))
         print(
             f"  gif candidate {sid:10} start {start:6.1f}  motion {motion:5.2f}  end match {score:5.2f} at {i / 10:.1f} s"
         )
         if motion >= c.get("min_motion", g.get("min_motion", 0.5)):
             return start, i / 10, sid, score
-    start = span(next(iter(by_id.values())))[0] if by_id else 0.0
+    start = at(next(iter(by_id.values())))[0] if by_id else 0.0
     return start, float(g["duration_s"]), "first shot", float("nan")
 
 
-def gif(doc: dict, cfg: dict, d: Path) -> None:
+def encode_gif(
+    src: Path, out: Path, start: float, dur: float, fps: int, width: int, colors: int, pre: str = ""
+) -> float:
+    """One GIF of `dur` s of `src` from `start`, palette-optimised (one palette from the frames' changes,
+    ordered dither, only the changed rectangle of each frame stored); its size in MB."""
+    fade = 0.5
+    # the window from just after its half-second mark, its own first half second (and a frame) faded in
+    # over its end: the last frame is the window at `fade` exactly and the loop goes on at the frame after
+    # it, so it has no jump (fading back to frame 0 replayed half a second)
+    head = fade + 1 / fps
+    graph = (
+        f"[0:v]{pre}trim=0:{dur:.3f},setpts=PTS-STARTPTS,fps={fps},scale={width}:-2:flags=lanczos,split[a][h];"
+        f"[a]trim=start={head:.3f},setpts=PTS-STARTPTS[body];"
+        f"[h]trim=0:{head:.3f},setpts=PTS-STARTPTS[head];"
+        f"[body][head]xfade=transition=fade:duration={fade}:offset={dur - head - fade:.3f},split[x][y];"
+        f"[x]palettegen=max_colors={colors}:stats_mode=diff[p];"
+        "[y][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+    )
+    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", str(src),
+         "-filter_complex", graph, "-loop", "0", str(out)])  # fmt: skip
+    return out.stat().st_size / 1e6
+
+
+def gif(doc: dict, cfg: dict, d: Path) -> bool:
+    """``demo.gif`` at the config's fps and width (12 fps, 960 px). Over ``max_mb`` it tries, in order,
+    each source (``sources``), a shorter window (``shorten_s``: trimmed from the end) and fewer colours,
+    keeping fps and width; false (and the last try left there) if none fits."""
     g = cfg["gif"]
-    src = d / "master_captioned.mp4"
-    start, dur, sid, score = pick_loop(doc, cfg, src)
     out = d / "demo.gif"
     fade = 0.5
-    for fps, width in ((g["fps"], g["width"]), (8, 720), (8, 640), (6, 560)):
-        # the window from just after its half-second mark, its own first half second (and a frame)
-        # faded in over its end: the last frame is the window at `fade` exactly and the loop goes on
-        # at the frame after it, so it has no jump (fading back to frame 0 replayed half a second)
-        head = fade + 1 / fps
-        graph = (
-            f"[0:v]trim=0:{dur:.3f},setpts=PTS-STARTPTS,fps={fps},scale={width}:-1:flags=lanczos,split[a][h];"
-            f"[a]trim=start={head:.3f},setpts=PTS-STARTPTS[body];"
-            f"[h]trim=0:{head:.3f},setpts=PTS-STARTPTS[head];"
-            f"[body][head]xfade=transition=fade:duration={fade}:offset={dur - head - fade:.3f},split[x][y];"
-            "[x]palettegen=stats_mode=diff[p];[y][p]paletteuse=dither=bayer:bayer_scale=5"
-        )
-        run(["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", str(src),
-             "-filter_complex", graph, "-loop", "0", str(out)])  # fmt: skip
-        mb = out.stat().st_size / 1e6
-        if mb < g["max_mb"]:
-            break
-        print(f"  {mb:.1f} MB is over {g['max_mb']} MB: smaller")
-    meta = {"gif": out.name, "shot": sid, "source_start_s": round(start, 3), "duration_s": round(dur - fade, 3), "end_match": round(score, 3),
-            "fps": fps, "width": width, "mb": round(out.stat().st_size / 1e6, 2)}  # fmt: skip
-    (d / "gif.json").write_text(json.dumps(meta, indent=2) + "\n")
-    print(f"  {out}: {meta['mb']} MB, {dur - fade:.1f} s from '{sid}' at {start:.1f} s")
+    fps, width, limit = g["fps"], g["width"], g["max_mb"]
+    meta: dict = {}
+    for name in g.get("sources", ["program"]):
+        src, at, total, pre = gif_source(doc, d, name)
+        if not src.exists():
+            continue
+        start, dur, sid, score = pick_loop(doc, cfg, src, at, total)
+        for cut in g.get("shorten_s", [0]):
+            if dur - cut - fade < g.get("min_s", 8):
+                break
+            for colors in g.get("colors", [256]):
+                mb = encode_gif(src, out, start, dur - cut, fps, width, colors, pre)
+                meta = {"gif": out.name, "source": name, "shot": sid, "source_start_s": round(start, 3),
+                        "duration_s": round(dur - cut - fade, 3), "end_match": round(score, 3) if cut == 0 else None,
+                        "fps": fps, "width": width, "colors": colors, "mb": round(mb, 2)}  # fmt: skip
+                if mb <= limit:
+                    (d / "gif.json").write_text(json.dumps(meta, indent=2) + "\n")
+                    print(
+                        f"  {out}: {mb:.2f} MB, {dur - cut - fade:.1f} s from '{sid}' at {start:.1f} s ({name}, {colors} colours)"
+                    )
+                    return True
+                print(
+                    f"  {name} {dur - cut - fade:.1f} s, {colors} colours: {mb:.1f} MB is over {limit} MB"
+                )
+    if meta:
+        (d / "gif.json").write_text(json.dumps(meta, indent=2) + "\n")
+    print(f"  {out}: no try fits in {limit} MB at {fps} fps, {width} px", file=sys.stderr)
+    return False
 
 
 # --- main -------------------------------------------------------------------------------------------
@@ -482,7 +538,7 @@ def main(argv: list[str] | None = None) -> int:
                 cut(d, name, plan_cut(doc, spec), cfg, size, fps)
     if "gif" in steps and need(d / "demo.gif", d / "master_captioned.mp4", cfgp):
         print("demo.gif")
-        gif(doc, cfg, d)
+        gif(doc, cfg, d)  # over max_mb it says so; run.sh --publish then refuses to copy it
     if args.sample:
         sample(doc, d, args.sample, fps)
     return 0

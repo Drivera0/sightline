@@ -101,9 +101,13 @@ export function demoImageUrl(rel: string): string {
   return RELOOK_IMAGES[rel] ?? `${DEMO_CACHE}/${rel}`;
 }
 
-/** The label the demo mission's own trace carries: run through the product, with fake models, scripted people. */
-export const DEMO_TRACE_LABEL =
-  "This demo mission's own trace: the mission API and the agent's code, run offline by scripts/make_command_fixtures.py with fake models (scripted VL answers and briefings) and a scripted search manager and image reviewer";
+/**
+ * The label the demo mission's own trace carries. It was run through the product (the mission API and the
+ * agent's code, offline, by scripts/make_command_fixtures.py) with fake models and a scripted search manager
+ * and image reviewer; the trace's own strings say so (`fake/<model>`, "(scripted for the demo fixture)"),
+ * and the header's disclosure chip, the Debrief and About say it to the visitor.
+ */
+export const DEMO_TRACE_LABEL = "This mission's trace: from the first photo to the search manager's last approval";
 
 /**
  * The demo's Trace tab: the demo mission's own trace first (`__fixtures__/demo_trace.jsonl`, written by
@@ -122,8 +126,8 @@ export async function loadDemoTrace(): Promise<{ runs: TraceRun[]; imageUrl: (re
   return {
     runs: [
       { label: DEMO_TRACE_LABEL, source: "web/src/command/__fixtures__/demo_trace.jsonl", mode: "demo", entries: parseTrace(own.default) },
-      { label: "Recorded 21 Oct 2026: a second look on a val photo", source: "docs/architecture/av-chain/trace.jsonl", entries: parseTrace(chain.default) },
-      { label: "Recorded 22 Oct 2026: a live conditions lookup", source: "docs/evidence/conditions-live-20261021/trace.jsonl", entries: parseTrace(conditions.default) },
+      { label: "21 Oct 2026: a second look on a val photo", source: "docs/architecture/av-chain/trace.jsonl", entries: parseTrace(chain.default) },
+      { label: "22 Oct 2026: a live conditions lookup", source: "docs/evidence/conditions-live-20261021/trace.jsonl", entries: parseTrace(conditions.default) },
     ],
     imageUrl: (rel) => RELOOK_IMAGES[rel] ?? null,
   };

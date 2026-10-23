@@ -10,10 +10,11 @@ import {
   ACTOR_ROLE,
   chainModels,
   chains,
+  deciderOf,
   imagesOf,
   inputSummary,
   isPlannerCall,
-  isScripted,
+  modelName,
   modelUse,
   msOf,
   outputSummary,
@@ -64,7 +65,7 @@ export function TraceView({ runs, imageUrl, empty }: { runs: readonly TraceRun[]
   }
   return (
     <section aria-label="Trace" className="flex flex-col gap-4">
-      <ModelStrip entries={all} chainCount={runs.reduce((n, r) => n + chains(r.entries).length, 0)} />
+      <ModelStrip runs={runs} chainCount={runs.reduce((n, r) => n + chains(r.entries).length, 0)} />
       {runs.map((run, i) => (
         <RunView key={run.source ?? i} run={run} runKey={`r${i}`} imageUrl={imageUrl} />
       ))}
@@ -72,25 +73,51 @@ export function TraceView({ runs, imageUrl, empty }: { runs: readonly TraceRun[]
   );
 }
 
-function ModelStrip({ entries, chainCount }: { entries: readonly TraceEntry[]; chainCount: number }) {
-  const { models, tools } = modelUse(entries);
+/**
+ * Which run a trace is, in the visitor's words: "This flight" (the mission on screen: the live one's own
+ * trace, or the demo mission's) or "Earlier run" (a run copied from the repo, such as the second look on
+ * the val photo). Where each came from is the run's source path and the header's disclosure chip.
+ */
+export function runWords(run: TraceRun): string {
+  return run.label === null || run.mode === "demo" ? "This flight" : "Earlier run";
+}
+
+/** Decisions by who made them, as roles: "10 by Search manager · 1 by Image reviewer". */
+function decidedBy(entries: readonly TraceEntry[]): string {
+  const by = new Map<string, number>();
+  for (const e of entries) {
+    if (e.kind !== "decision") continue;
+    const who = deciderOf(e) ?? "a person";
+    by.set(who, (by.get(who) ?? 0) + 1);
+  }
+  return [...by.entries()].sort((a, b) => b[1] - a[1]).map(([who, n]) => `${n} by ${who}`).join(" · ");
+}
+
+function ModelStrip({ runs, chainCount }: { runs: readonly TraceRun[]; chainCount: number }) {
+  const entries = runs.flatMap((r) => r.entries);
+  const { tools } = modelUse(entries);
+  // each model once per run, with the run it was called in
+  const models = runs.flatMap((r, i) => modelUse(r.entries).models.map((m) => ({ ...m, run: runWords(r), key: `r${i}-${m.model}` })));
   const proposals = entries.filter((e) => e.kind === "proposal").length;
-  const decided = entries.filter((e) => e.kind === "decision" && !isScripted(e)).length;
-  const scripted = entries.filter(isScripted).length;
+  const decisions = entries.filter((e) => e.kind === "decision").length;
   return (
     <div role="group" aria-label="Which model did what" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-small font-medium text-text">Which model did what</span>
         <span className="text-caption text-text-3">
-          {entries.length} steps · {chainCount} {chainCount === 1 ? "chain" : "chains"} · {proposals} {proposals === 1 ? "proposal" : "proposals"} · {decided} decided by a person
-          {scripted > 0 && <span className="text-caution"> · {scripted} scripted approval{scripted === 1 ? "" : "s"} (demo run)</span>}
+          {entries.length} steps · {chainCount} {chainCount === 1 ? "chain" : "chains"} · {proposals} {proposals === 1 ? "proposal" : "proposals"} · {decisions}{" "}
+          {decisions === 1 ? "decision" : "decisions"}
+          {decisions > 0 && `: ${decidedBy(entries)}`}
         </span>
       </div>
       <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {models.map((m) => (
-          <li key={m.model} className="flex flex-col gap-0.5 rounded-sm border border-line px-3 py-2">
-            <span className="truncate text-small text-text" title={m.model}>
-              {m.model}
+          <li key={m.key} data-run={m.run} className="flex flex-col gap-0.5 rounded-sm border border-line px-3 py-2">
+            <span className="flex min-w-0 items-baseline justify-between gap-2">
+              <span className="truncate text-small text-text" title={modelName(m.model)}>
+                {modelName(m.model)}
+              </span>
+              <span className="shrink-0 rounded-full border border-line bg-surface-strong px-2 py-px text-caption text-text-2">{m.run}</span>
             </span>
             <span className="text-caption text-text-2">
               {m.actors.map((a) => `${a}: ${ACTOR_ROLE[a]}`).join("; ")}
@@ -119,7 +146,7 @@ function RunView({ run, runKey, imageUrl }: { run: TraceRun; runKey: string; ima
     <div role="group" className="flex flex-col gap-3" aria-label={run.label ?? "This mission's trace"}>
       {run.label && (
         <div className="flex flex-wrap items-center gap-2">
-          <ModeChip mode={run.mode ?? "replay"} />
+          <ModeChip mode={run.mode ?? "replay"}>{runWords(run)}</ModeChip>
           <span className="text-small text-text">{run.label}</span>
           {run.source && <code className="font-mono text-caption text-text-3">{run.source}</code>}
         </div>
@@ -133,9 +160,8 @@ function RunView({ run, runKey, imageUrl }: { run: TraceRun; runKey: string; ima
 
 function outcomeWords(o: Outcome): [Tone, string] {
   if (o.status === null) return ["action", `${o.proposal} ${o.kind}: waiting for a person`];
-  // a scripted approval (a demo run) is amber, so it never reads as a person's decision
-  if (o.scripted) return ["caution", `${o.proposal} ${o.kind} → ${o.status} by a script, not a person: ${o.by}`];
-  return [o.status === "approved" ? "ok" : "muted", `${o.proposal} ${o.kind} → ${o.status}${o.by ? ` by ${o.by}` : ""}`];
+  // the role, as the console names it ("Search manager"); the full `by` stays in the decision step's output
+  return [o.status === "approved" ? "ok" : "muted", `${o.proposal} ${o.kind} → ${o.status}${o.role ? ` by ${o.role}` : ""}`];
 }
 
 /** The element id of a step, for a link from the planner step to the proposal it produced. */
@@ -340,7 +366,7 @@ function Step({
       >
         <span className="text-caption text-text-3">{stage ?? ""}</span>
         <span>
-          <StatusPill tone={isScripted(e) ? "caution" : SPAN_TONE[e.kind]} dot={false} title={isScripted(e) ? "Scripted approval for a demo run, not a person's decision" : undefined}>
+          <StatusPill tone={SPAN_TONE[e.kind]} dot={false} title={deciderOf(e) ?? undefined}>
             {SPAN_WORDS[e.kind]}
           </StatusPill>
         </span>

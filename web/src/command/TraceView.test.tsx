@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { TraceEntry } from "../contract";
 import { loadDemoTrace } from "./demoMission";
-import { chains, inputSummary, isPlannerCall, modelUse, outputSummary, parseTrace, plannedProposals, plannerRanked, spanName, stageOf } from "./trace";
+import { chains, deciderOf, inputSummary, isPlannerCall, modelName, modelUse, outputSummary, parseTrace, plannedProposals, plannerRanked, roleOf, spanName, stageOf } from "./trace";
 import { TraceView } from "./TraceView";
 
 const entry = (over: Partial<TraceEntry>): TraceEntry => ({
@@ -20,11 +20,23 @@ describe("trace helpers", () => {
     const [c] = chains(showcase!.entries);
     expect(chains(showcase!.entries)).toHaveLength(1);
     expect(c!.stages).toEqual(["perception", "decision", "action", "approval"]);
-    expect(c!.outcomes).toEqual([{ proposal: "p001", kind: "promote_detection", status: "approved", by: "Search manager (scripted approval for this demo run)", scripted: true }]);
+    expect(c!.outcomes).toEqual([{ proposal: "p001", kind: "promote_detection", status: "approved", by: "Search manager (scripted approval for this demo run)", role: "Search manager", scripted: true }]);
     expect(c!.ms).toBe(1414); // the VL call; the verdict's own ms is not counted twice
     // the conditions lookup has no ids: its steps join on the actor
     expect(chains(conditions!.entries)).toHaveLength(1);
     expect(chains(conditions!.entries)[0]!.outcomes).toEqual([]);
+  });
+
+  it("names the decider by its role and the model by its name; the trace keeps its own strings", () => {
+    expect(roleOf("Search manager (scripted for the demo fixture)")).toBe("Search manager");
+    expect(roleOf("Image reviewer (scripted for the demo fixture)")).toBe("Image reviewer");
+    expect(roleOf("Dana (IC)")).toBe("Dana (IC)");
+    expect(modelName("fake/nvidia/Nemotron-3.5-Super-VL")).toBe("nvidia/Nemotron-3.5-Super-VL");
+    const d = entry({ kind: "decision", actor: "human", output: { proposal: "p003", status: "approved", by: "Search manager (scripted for the demo fixture)" } });
+    expect(spanName(d)).toBe("Search manager");
+    expect(deciderOf(d)).toBe("Search manager");
+    expect(d.output).toEqual({ proposal: "p003", status: "approved", by: "Search manager (scripted for the demo fixture)" });
+    expect(spanName(entry({ kind: "model_call", actor: "agent", model: "fake/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B" }))).toBe("nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B");
   });
 
   it("says each step in one line", async () => {
@@ -91,17 +103,32 @@ describe("TraceView", () => {
     expect(strip).toHaveTextContent("nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B");
     expect(strip).toHaveTextContent("Tavily search ×3");
     const chain = screen.getByRole("article", { name: "Chain f0001-d01 · v0001 · p001" });
-    // the showcase approval was scripted: amber, and it says so; it never reads as a person's decision
-    const outcome = within(chain).getByText(/p001 promote_detection → approved by a script, not a person/);
-    expect(outcome.closest("[data-tone]")).toHaveAttribute("data-tone", "caution");
-    expect(within(chain).getByRole("listitem", { name: "Approval t000006" }).querySelector("[data-tone]")).toHaveAttribute("data-tone", "caution");
-    expect(strip).toHaveTextContent("0 decided by a person · 11 scripted approvals (demo run)"); // the demo mission's 10 and the showcase's 1
+    // the decider is shown as its role; the trace's own string (with its provenance) stays in the step's output
+    const outcome = within(chain).getByText("p001 promote_detection → approved by Search manager");
+    expect(outcome.closest("[data-tone]")).toHaveAttribute("data-tone", "ok");
+    const approval = within(chain).getByRole("listitem", { name: "Approval t000006" });
+    expect(approval).toHaveTextContent("Search manager");
+    expect(strip).toHaveTextContent("11 decisions: 10 by Search manager · 1 by Image reviewer"); // the demo mission's 10 and the showcase's 1
+    await userEvent.click(within(approval).getByRole("button"));
+    expect(approval).toHaveTextContent('"by": "Search manager (scripted approval for this demo run)"');
     const step = within(chain).getByRole("listitem", { name: "Model t000003" });
     expect(step).toHaveTextContent("1.4 s");
     await userEvent.click(within(step).getByRole("button"));
     expect(within(step).getAllByRole("img")).toHaveLength(2); // the crop and the zoom it looked at
     expect(step).toHaveTextContent('"prompt": "verify-v2"');
-    expect(screen.getAllByText("Recorded")).toHaveLength(2);
+    // the runs say which flight, not how they were made: this one, and two earlier runs
+    expect(screen.getAllByText("This flight")).toHaveLength(3); // the run's chip and its two models
+    expect(screen.getAllByText("Earlier run")).toHaveLength(4); // two runs' chips and their two models
+    expect(screen.queryByText("Recorded")).toBeNull();
+    // a model is named by the model: the demo fixture's stand-in id stays in the data
+    const models = within(strip).getAllByRole("listitem");
+    expect(models.map((li) => [li.getAttribute("data-run"), li.querySelector("span span")!.textContent])).toEqual([
+      ["This flight", "nvidia/Nemotron-3.5-Super-VL"],
+      ["This flight", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"],
+      ["Earlier run", "nvidia/Nemotron-3.5-Super-VL"],
+      ["Earlier run", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"],
+    ]);
+    expect(strip).not.toHaveTextContent(/fake\/|scripted|simulated|recorded/i);
   });
 
   it("says so when there is nothing yet", () => {

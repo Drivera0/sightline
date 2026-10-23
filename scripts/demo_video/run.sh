@@ -56,8 +56,15 @@ echo "== gif"
 
 if [[ $publish == 1 ]]; then
   size=$(stat -c %s "$out/demo.gif")
+  if (( size > 3000000 )) && [[ "${FORCE:-0}" != 1 ]]; then
+    # an older, larger GIF counts as fresh: remake it with the current tries (12 fps, 960 px from the
+    # recording without the camera moves; then a shorter window; then fewer colours) before giving up
+    echo "== gif: $out/demo.gif is $((size / 1000)) kB (limit 3 MB): remaking it"
+    "${py[@]}" scripts/demo_video/captions.py "$out" --only gif --force
+    size=$(stat -c %s "$out/demo.gif")
+  fi
   if (( size > 3000000 )); then
-    echo "not publishing: $out/demo.gif is $((size / 1000000)) MB (limit 3 MB)" >&2
+    echo "not publishing: $out/demo.gif is $((size / 1000)) kB (limit 3 MB) after every try (see $out/gif.json)" >&2
     exit 1
   fi
   mkdir -p docs/report/figures

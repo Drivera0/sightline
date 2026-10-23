@@ -115,14 +115,36 @@ export function stageOf(e: TraceEntry): Stage {
 const words = (s: string) => s.replace(/^nvidia\//, "");
 const short = (s: string, n = 120) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+/**
+ * A model as the visitor reads it: "nvidia/Nemotron-3.5-Super-VL". The trace keeps its own id (the demo
+ * fixture's stand-in is "fake/<model>", and a step's input and output still show it); the header's
+ * disclosure chip, the Debrief and About say what is simulated, so a step names the model.
+ */
+export const modelName = (m: string) => m.replace(/^fake\//, "");
+
+/**
+ * Who decided, as the console names the role ("Search manager", the operator chip's word). The demo
+ * fixture's decider is "Search manager (scripted for the demo fixture)" in the trace, and that string stays
+ * there (a step's output shows it); the view shows the role.
+ */
+export function roleOf(by: string): string {
+  return by.replace(/\s*\([^()]*\bscripted\b[^()]*\)\s*$/i, "").trim() || by;
+}
+
+/** A decision's decider as a role ("Search manager"), or null when the entry does not say. */
+export function deciderOf(e: TraceEntry): string | null {
+  const o = e.output;
+  return e.kind === "decision" && isObj(o) && typeof o.by === "string" ? roleOf(o.by) : null;
+}
+
 /** The tool or model a step used: "zoom_native", "Tavily search (forecast)", "nvidia/Nemotron-3.5-Super-VL". */
 export function spanName(e: TraceEntry): string {
   const o = isObj(e.output) ? e.output : {};
-  if (e.kind === "model_call") return e.model ?? e.actor;
+  if (e.kind === "model_call") return e.model ? modelName(e.model) : e.actor;
   if (e.kind === "tool_call") return e.summary.split(/ on |: /)[0] ?? e.summary;
-  if (e.kind === "verdict") return typeof o.model === "string" ? o.model : e.actor;
+  if (e.kind === "verdict") return typeof o.model === "string" ? modelName(o.model) : e.actor;
   if (e.kind === "proposal") return typeof o.kind === "string" ? o.kind : "proposal";
-  if (e.kind === "decision") return typeof o.by === "string" ? o.by : e.actor;
+  if (e.kind === "decision") return typeof o.by === "string" ? roleOf(o.by) : e.actor;
   return e.actor;
 }
 
@@ -211,18 +233,14 @@ export function imagesOf(e: TraceEntry): string[] {
 
 const SCRIPTED = /\bscripted\b/i;
 
-/** A decision a script made for a demo run ("scripted approval"), not a person. */
-export function isScripted(e: TraceEntry): boolean {
-  const o = e.output;
-  return e.kind === "decision" && (SCRIPTED.test(e.summary) || (isObj(o) && typeof o.by === "string" && SCRIPTED.test(o.by)));
-}
-
 export interface Outcome {
   proposal: string;
   kind: string;
   status: string | null;
   by: string | null;
-  /** Approved by a script for a demo run, not by a person: shown in amber, never as a real decision. */
+  /** `by` as the role the visitor reads ("Search manager"). */
+  role: string | null;
+  /** Decided by a script for a demo run: the data says so in `by`; the view shows the role. */
   scripted: boolean;
 }
 
@@ -361,7 +379,7 @@ export function chains(entries: readonly TraceEntry[]): Chain[] {
         const pid = String(o.proposal ?? e.refs.find((r) => /^p\d/.test(r)) ?? "");
         const d = es.find((x) => x.kind === "decision" && isObj(x.output) && (x.output as Obj).proposal === pid)?.output as Obj | undefined;
         const by = d && typeof d.by === "string" ? d.by : null;
-        return { proposal: pid, kind: String(o.kind ?? ""), status: d ? String(d.status) : null, by, scripted: by !== null && SCRIPTED.test(by) };
+        return { proposal: pid, kind: String(o.kind ?? ""), status: d ? String(d.status) : null, by, role: by === null ? null : roleOf(by), scripted: by !== null && SCRIPTED.test(by) };
       });
     return {
       id: es[0]!.id,
@@ -394,7 +412,7 @@ export function modelUse(entries: readonly TraceEntry[]): { models: ModelUse[]; 
   const tools = new Map<string, number>();
   for (const e of entries) {
     if (e.kind === "model_call" && e.model) {
-      const m = models.get(e.model) ?? { model: e.model, name: words(e.model), calls: 0, actors: [], ms: 0, tokensIn: 0, tokensOut: 0 };
+      const m = models.get(e.model) ?? { model: e.model, name: words(modelName(e.model)), calls: 0, actors: [], ms: 0, tokensIn: 0, tokensOut: 0 };
       m.calls += 1;
       if (!m.actors.includes(e.actor)) m.actors.push(e.actor);
       m.ms += e.ms ?? 0;
