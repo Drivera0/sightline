@@ -413,6 +413,8 @@ class Mission(_Model):
     # a team out in the field not heard from for this long is overdue (a planning choice: no
     # published ground-SAR interval; aviation flight following uses 15-30 min)
     check_in_min: float = Field(default=30.0, gt=0, le=24 * 60)
+    # demo missions only: the seed of the generated scenario (sightline/search/demo_scenario.py)
+    scenario_seed: int | None = None
 
 
 # --- map (C) -------------------------------------------------------------------------------

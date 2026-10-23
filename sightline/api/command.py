@@ -7,6 +7,7 @@ Writes, so they take the write token when the API has one (``sightline/api/auth.
     POST /missions/{id}/teams/{team}/recall           {reason?, by?}
     POST /missions/{id}/sectors/{sector}/searched     {pod, team?, note?, by?}
     POST /missions/{id}/sectors/{sector}/recheck      {reason?, by?}
+    POST /missions/{id}/scenario                      {seed? | preset?, by?}   demo missions only
 
 409: the action doesn't fit the mission now (the reason says why); 404: no such team or sector.
 """
@@ -138,3 +139,28 @@ def post_recheck(mission_id: str, sector: str, body: RecallBody, request: Reques
     """Put a searched sector back on the board to search again (the map keeps its step)."""
     store = _store(request, mission_id)
     return _run(lambda: command.recheck(store, mission_id, sector, body.by, body.reason))
+
+
+class ScenarioBody(BaseModel):
+    seed: int | None = Field(default=None, ge=0, le=2**31 - 1)
+    preset: str | None = Field(default=None, max_length=40)  # "overdue-hiker", "Missing child", ...
+    by: str = By
+
+
+@command_router.post("/missions/{mission_id}/scenario")
+def post_scenario(mission_id: str, body: ScenarioBody, request: Request) -> dict:
+    """Demo missions only, before the search starts: a generated scenario (the same seed gives the
+    same search): last known point inside the survey, category and subject, time last seen, base
+    camp, the prior around the new LKP, and the clue schedule a demo player can post. Where the
+    person is stays out of the answer. One of ``seed`` or ``preset``; neither: a random seed."""
+    import secrets
+
+    from sightline.search.demo_scenario import preset_seed
+
+    store = _store(request, mission_id)
+    if body.preset is not None:
+        seed = _run(lambda: preset_seed(body.preset))
+    else:
+        seed = body.seed if body.seed is not None else secrets.randbelow(2**31)
+    scn = _run(lambda: command.apply_scenario(store, mission_id, seed, body.by))
+    return scn.public()

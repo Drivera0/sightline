@@ -265,6 +265,7 @@ export interface Mission {
   status?: "searching" | "found" | "suspended";
   found?: Found | null;
   check_in_min?: number;
+  scenario_seed?: number | null;
 }
 /**
  * 1.3: where teams stage and drones launch from and return to.

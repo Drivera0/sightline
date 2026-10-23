@@ -360,3 +360,54 @@ def call(store: MissionStore, mission_id: str, team_id: str, text: str, by: str,
     human_decision(store, mission_id, "call", f"Call to {team.callsign}: {text}", by, team=team_id,
                    extra={"turn_id": turn.id, "reply_to": reply_to}, emit=False)  # fmt: skip
     return {"turn_id": turn.id, "reply": turn.reply, "audio_chunks": chunks, "at": turn.at}
+
+
+# --- demo scenarios ------------------------------------------------------------------------------
+
+
+def apply_scenario(store: MissionStore, mission_id: str, seed: int, by: str) -> Any:
+    """A demo mission becomes the scenario ``seed`` draws (``demo_scenario.generate``): its last
+    known point (inside the survey), subject, time last seen, base camp and the prior around the new
+    LKP on the same grid (the photos land where they did). Only before the search starts (no map
+    update yet). Returns the scenario; where the person is never leaves this function's caller."""
+    from sightline.contract import Area, BaseCamp, Distribution
+    from sightline.search.demo_scenario import generate
+    from sightline.search.prior import koester_prior, prior_source
+
+    m = store.get(mission_id)
+    if m.mode != "demo":
+        raise ActionError("a generated scenario is for demo missions only")
+    if store.map_updates(mission_id):
+        raise ActionError(
+            "choose the scenario before the search starts: the map already has updates"
+        )
+    live = store.live(mission_id)
+    grid = live.base.grid
+    corners = [c for f in store.survey(mission_id).frames for c in f.footprint]
+    scn = generate(seed, grid, corners)
+    p, out = koester_prior(grid, scn.lkp, scn.category)
+    params = live.base.params.model_copy(update={"prior_source": prior_source(scn.category)})
+    store.put_map_base(mission_id, live.base.model_copy(update={
+        "lkp": scn.lkp, "params": params,
+        "prior": Distribution(p=[float(x) for x in p], outside=float(out))}))  # fmt: skip
+    store.update_mission(mission_id, area=Area(name=m.area.name, lkp=scn.lkp), subject=scn.subject,
+                         last_seen_at=scn.last_seen_at, base_camp=BaseCamp(**scn.base_camp),
+                         scenario_seed=seed)  # fmt: skip
+    camp = LatLon(lat=scn.base_camp["lat"], lon=scn.base_camp["lon"])
+    for t in store.state(mission_id)["teams"]:
+        store.upsert_team(
+            mission_id, t.model_copy(update={"position": camp, "position_at": now_iso()})
+        )
+    from sightline.mission.effects import _layout
+
+    layout = _layout(store, mission_id)
+    if layout is not None:
+        poa = store.live(mission_id).sector_poa(layout)
+        for t in store.state(mission_id)["tasks"]:
+            if t.state == "proposed":
+                store.upsert_task(
+                    mission_id, t.model_copy(update={"poa": min(1.0, poa[t.sector_id])})
+                )
+    human_decision(store, mission_id, "scenario", f"Demo scenario: {scn.name} (seed {seed})", by,
+                   extra={"scenario": scn.public()})  # fmt: skip
+    return scn
