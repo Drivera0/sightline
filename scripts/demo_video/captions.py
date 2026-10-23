@@ -10,15 +10,17 @@ script):
   camera move (``moves``: a slow push-in by default) and speed-up rendered from the 4K frames
   (``moves.py``), lanczos down to the output; uncaptioned. The shots' times in it go back into
   shots.json (``program_start_s`` / ``program_end_s``) for the labels, the cuts and the narration;
-- ``captions.srt``: one short burned-in step label per shot that ran (not narration), at most 42
-  characters a line, two lines, on screen at least 1.2 s;
-- ``master_captioned.mp4``: the program with the labels burned in after the move, so they stay sharp and
-  still; the export profile (H.264 High, BT.709, 8 Mbit/s at 30 fps or 12 at 60 for 1080p, YouTube's
+- ``captions.srt`` / ``captions.ass``: one short burned-in caption per shot that ran (not narration), at
+  most 42 characters a line, two lines, on screen at least 1.2 s, in the site's type (Geist, copied into
+  ``fonts/`` for libass); never demo/recorded/scripted/simulated, never "clear" or "rule out";
+- ``master_captioned.mp4``: the program with the captions burned in after the move, so they stay sharp
+  and still; the export profile (H.264 High, BT.709, 8 Mbit/s at 30 fps or 12 at 60 for 1080p, YouTube's
   table, ``+faststart``);
-- ``cut_opencv.mp4`` (<= 5:00) and ``cut_nebius.mp4`` (<= 3:00): silent cuts in each video's story
-  order, black at the start and the end for the on-camera clips, black slots where a slide goes, cut
-  from ``master.mp4`` with their own labels (``cut_<name>.srt``, numbered in the cut's order);
-  ``cut_<name>.json`` lists every segment with its source and output times;
+- ``cut_opencv.mp4`` (<= 4:30) and ``cut_nebius.mp4`` (<= 2:50): silent cuts in each video's story
+  order: black slots for footage, the owner on camera and slides made elsewhere (with placeholder
+  captions), the disclosure card rendered here, and the shots, cut from ``master.mp4`` with their own
+  captions (``cut_<name>.srt`` / ``.ass``); ``cut_<name>.json`` lists every segment with its source and
+  output times;
 - ``demo.gif``: 16-20 s for the README (fps 10, 800 px wide, one palette, <= 3 MB), first and last frame
   matched so it loops.
 
@@ -31,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -42,8 +45,10 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 import moves
+from story_facts import fill
 
 W, H = 1920, 1080
 MAX_LINE, MAX_LINES, MIN_LABEL_S = 42, 2, 1.2  # Netflix's timed-text limits, and the shortest label
@@ -116,7 +121,25 @@ def probe(video: Path, entries: str = "stream=width,height,r_frame_rate:format=d
             "duration": float(j.get("format", {}).get("duration", 0.0))}  # fmt: skip
 
 
-# --- (0) the labels ---------------------------------------------------------------------------------
+# --- (0) the captions ------------------------------------------------------------------------------
+
+# Inside the story nothing says what kind of search it is: the disclosure card says it once (storyCopy.ts
+# STORY_BANNED, the same words). Never an area called clear or ruled out, anywhere.
+STORY_BANNED = re.compile(r"\b(demo|demos|recorded|scripted|simulated|simulation)\b", re.IGNORECASE)
+NO_CLEAR = re.compile(r"clear|\brul(?:e|ed|es|ing) out\b", re.IGNORECASE)
+
+
+def check_words(text: str, where: str, disclosure: bool = False) -> None:
+    """Stops the run on a caption that calls an area done, or that breaks the story's disclosure rule (a
+    card marked as the disclosure is the one place those words go)."""
+    if NO_CLEAR.search(text):
+        raise SystemExit(
+            f"{where} says {NO_CLEAR.search(text).group(0)!r}: a searched area is 'searched at POD x'"
+        )
+    if not disclosure and STORY_BANNED.search(text):
+        raise SystemExit(
+            f"{where} says {STORY_BANNED.search(text).group(0)!r}: only the disclosure card says that"
+        )
 
 
 def wrap(text: str, sid: str) -> str:
@@ -133,37 +156,109 @@ def wrap(text: str, sid: str) -> str:
 
 def labels(spans: list[tuple], cfg: dict) -> list[tuple[float, float, str]]:
     """(start, end, text) for each (shot id, start, end[, text]) in the order they play, numbered in that
-    order; a span's own text (a cut's `label`) replaces the shot's. A label is at most two lines."""
+    order when the label asks for it; a span's own text (a cut's `label`) replaces the shot's. A label is
+    at most two lines, never says "clear", and never says demo/recorded/scripted/simulated."""
     out, n = [], 0
     for sid, a, b, *own in spans:
         lab = cfg["labels"].get(sid)
-        if not lab:
+        if not lab and not (own and own[0]):
             continue
-        text = own[0] if own and own[0] else lab["text"]
-        if lab.get("number"):
+        text = fill(own[0] if own and own[0] else lab["text"])
+        if lab and lab.get("number"):
             n += 1
             text = f"{n} · {text}"
-        if "clear" in text.lower():
-            raise SystemExit(
-                f"label for {sid} says 'clear': a searched area is 'searched at POD x'"
-            )
+        check_words(text, f"label for {sid}")
         out.append((a, b, wrap(text, sid)))
     return out
 
 
-def srt(spans: list[tuple], cfg: dict, path: Path) -> None:
+def timed(events: list[tuple], cfg: dict) -> list[tuple]:
+    """Each (start, end, text[, style]) with the lead-in and lead-out, and never shorter than 1.2 s."""
     st = cfg["style"]
-    lines = []
-    for i, (a, b, text) in enumerate(labels(spans, cfg), 1):
+    out = []
+    for a, b, text, *style in events:
         start, end = a + st["lead_in_s"], b - st["lead_out_s"]
-        end = max(end, start + MIN_LABEL_S)  # never a flash: a short shot's label runs on a little
-        lines += [str(i), f"{ts(start)} --> {ts(end)}", text, ""]
+        out.append((start, max(end, start + MIN_LABEL_S), text, *style))
+    return out
+
+
+def srt(spans: list[tuple], cfg: dict, path: Path) -> None:
+    write_srt_events(timed(labels(spans, cfg), cfg), path)
+
+
+def write_srt_events(events: list[tuple], path: Path) -> None:
+    lines = []
+    for i, (a, b, text, *_) in enumerate(events, 1):
+        lines += [str(i), f"{ts(a)} --> {ts(b)}", text, ""]
     path.write_text("\n".join(lines))
-    print(f"  wrote {path} ({sum('-->' in x for x in lines)} labels)")
+    print(f"  wrote {path} ({len(events)} captions)")
 
 
 def write_srt(doc: dict, cfg: dict, path: Path) -> None:
     srt([(s["id"], *span(s)) for s in ran(doc["shots"])], cfg, path)
+
+
+# --- the type: the site's face, rendered by libass ---------------------------------------------------
+
+
+def fonts(cfg: dict, d: Path) -> str:
+    """Copies the site's font files into `<d>/fonts` (libass's fontsdir) and returns the face to ask for:
+    the site's (Geist) when its files are there, else the fallback (Inter, from the system)."""
+    st = cfg["style"]
+    src = ROOT / st.get("fonts_from", "")
+    dst = d / "fonts"
+    files = sorted(src.glob("*latin-wght-normal.woff2")) if src.is_dir() else []
+    if not files:
+        return st.get("fallback_font", "Inter")
+    dst.mkdir(exist_ok=True)
+    for f in files:
+        if not (dst / f.name).exists():
+            shutil.copy(f, dst / f.name)
+    return st.get("font", "Geist")
+
+
+def ass_time(t: float) -> str:
+    cs = round(max(0.0, t) * 100)
+    h, cs = divmod(cs, 360_000)
+    m, cs = divmod(cs, 6000)
+    s, cs = divmod(cs, 100)
+    return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+
+def ass(events: list[tuple], cfg: dict, path: Path, font: str) -> None:
+    """An .ass file on a 1920x1080 canvas with three styles: Label (the lower third, a dark box), Card
+    (the disclosure card, centred, faded in and out) and Credit (narrate.py's, above the label). Each event
+    is (start, end, text[, style])."""
+    st = cfg["style"]
+    lab, card, credit = st.get("label", {}), st.get("card", {}), st.get("credit", {})
+    box = lab.get("box", "&H99000000")
+    fmt = ("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, "
+           "Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
+           "MarginL, MarginR, MarginV, Encoding")  # fmt: skip
+    rows = [
+        "[Script Info]", "ScriptType: v4.00+", "PlayResX: 1920", "PlayResY: 1080", "WrapStyle: 2",
+        "ScaledBorderAndShadow: yes", "", "[V4+ Styles]", fmt,
+        (f"Style: Label,{font},{lab.get('size', 34)},&H00FFFFFF,&H00FFFFFF,{box},{box},0,0,0,0,100,100,0,0,3,"
+         f"{lab.get('outline', 10)},0,2,60,60,{lab.get('margin_v', 40)},1"),
+        f"Style: Card,{font},{card.get('size', 58)},&H00F2F2F2,&H00F2F2F2,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,120,120,0,1",
+        (f"Style: Credit,{font},{credit.get('size', 26)},&H00E6E6E6,&H00E6E6E6,{box},{box},0,0,0,0,100,100,0,0,3,"
+         f"{max(4, lab.get('outline', 10) - 4)},0,2,60,60,{credit.get('margin_v', 112)},1"),
+        "", "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ]  # fmt: skip
+    for a, b, text, *style in events:
+        name = style[0] if style else "Label"
+        body = text.replace("\n", "\\N")
+        if name == "Card":
+            body = "{\\fad(400,400)}" + body
+        rows.append(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},{name},,0,0,0,,{body}")
+    path.write_text("\n".join(rows) + "\n")
+
+
+def ass_filter(name: str, fontsdir: str | None) -> str:
+    """The ass filter for a run-folder relative .ass (run ffmpeg from that folder: the filter's own
+    quoting doesn't take a full path)."""
+    return f"ass={name}" + (f":fontsdir={fontsdir}" if fontsdir else "")
 
 
 # --- (a) the program: moves and pacing from the 4K master --------------------------------------------
@@ -234,14 +329,15 @@ def program(
     os.utime(master)  # newer than the shots.json it just wrote: the step stays fresh
 
 
-def subtitles(cfg: dict, name: str) -> str:
-    """The subtitles filter for a run-folder relative .srt (run ffmpeg from the run folder: the filter's
-    own quoting doesn't take a full path)."""
-    return f"subtitles={name}:force_style='{cfg['style']['force_style']}'"
-
-
-def burn(cfg: dict, d: Path, suffix: str, fps: float, height: int) -> None:
-    vf = subtitles(cfg, "captions.srt")
+def burn(doc: dict, cfg: dict, d: Path, suffix: str, fps: float, height: int) -> None:
+    font = fonts(cfg, d)
+    ass(
+        timed(labels([(s["id"], *span(s)) for s in ran(doc["shots"])], cfg), cfg),
+        cfg,
+        d / "captions.ass",
+        font,
+    )
+    vf = ass_filter("captions.ass", "fonts" if (d / "fonts").is_dir() else None)
     src, dst = f"master{suffix}.mp4", f"master{suffix}_captioned.mp4"
     print(f"  $ (in {d}) ffmpeg -i {src} -vf {vf} … {dst}", flush=True)
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vf", vf, "-an", *export_x264(fps, height), dst],
@@ -252,14 +348,37 @@ def burn(cfg: dict, d: Path, suffix: str, fps: float, height: int) -> None:
 
 
 def plan_cut(doc: dict, spec: dict) -> list[dict]:
-    """The segments in order: shots (source in/out in master.mp4, speed) and black slots, fitted to
-    max_s."""
+    """The segments in order: shots (source in/out in master.mp4, speed), black slots (footage, the owner
+    on camera, a slide made elsewhere; with placeholder captions) and title cards, fitted to max_s."""
     by_id = {s["id"]: s for s in ran(doc["shots"])}
-    segs: list[dict] = [{"kind": "black", "name": "on camera (open)", "s": spec["lead_black_s"]}]
+    segs: list[dict] = []
+    if spec.get("lead_black_s"):
+        segs.append(
+            {
+                "kind": "black",
+                "name": "on camera (open)",
+                "s": float(spec["lead_black_s"]),
+                "on_camera": True,
+            }
+        )
     for item in spec["segments"]:
         item = {"shot": item} if isinstance(item, str) else item
         if "slot" in item:
-            segs.append({"kind": "black", "name": f"slot: {item['slot']}", "s": float(item["s"])})
+            seg = {"kind": "black", "name": f"slot: {item['slot']}", "s": float(item["s"])}
+            if item.get("on_camera"):
+                seg["on_camera"] = True
+            if item.get("captions"):
+                seg["captions"] = list(item["captions"])
+            segs.append(seg)
+        elif "card" in item:
+            segs.append(
+                {
+                    "kind": "card",
+                    "name": f"card: {item['card']}",
+                    "s": float(item["s"]),
+                    "text": item["text"],
+                }
+            )
         elif item["shot"] in by_id:
             s = by_id[item["shot"]]
             a, b = span(s)
@@ -277,8 +396,20 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
             if item.get("min_s"):
                 seg["min_s"] = min(float(item["min_s"]), seg["s"])  # never trimmed below this
             segs.append(seg)
-    segs.append({"kind": "black", "name": "on camera (close)", "s": spec["tail_black_s"]})
-    fixed = sum(x["s"] for x in segs if x["kind"] == "black")
+        else:
+            print(
+                f"  {item['shot']}: not in the recording (skipped or failed), left out of the cut"
+            )
+    if spec.get("tail_black_s"):
+        segs.append(
+            {
+                "kind": "black",
+                "name": "on camera (close)",
+                "s": float(spec["tail_black_s"]),
+                "on_camera": True,
+            }
+        )
+    fixed = sum(x["s"] for x in segs if x["kind"] != "shot")
     moving = sum(x["s"] for x in segs if x["kind"] == "shot")
     room = spec["max_s"] - fixed - 0.5  # half a second of margin for frame rounding
     if moving > room > 0:
@@ -306,16 +437,42 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
     return segs
 
 
+def cut_events(segs: list[dict], cfg: dict) -> list[tuple]:
+    """The cut's captions: each shot's label (or the cut's own), a slot's placeholder captions spread
+    evenly over it, and the card, all checked (the disclosure card is the one place its words go)."""
+    shots = [
+        (x["name"], x["at"], x["at"] + x["s"], x.get("label")) for x in segs if x["kind"] == "shot"
+    ]
+    events = [(*e, "Label") for e in timed(labels(shots, cfg), cfg)]
+    for x in segs:
+        if x["kind"] == "card":
+            check_words(x["text"], x["name"], disclosure=x["name"] == "card: disclosure")
+            if len(x["text"]) > 60 or "\n" in x["text"]:
+                raise SystemExit(f"{x['name']}: a card is one line of at most 60 characters")
+            events.append((x["at"], x["at"] + x["s"], x["text"], "Card"))
+        caps = [fill(c) for c in x.get("captions") or []]
+        for i, c in enumerate(caps):
+            check_words(c, x["name"])
+            a = x["at"] + x["s"] * i / len(caps)
+            events += [
+                (*e, "Label") for e in timed([(a, a + x["s"] / len(caps), wrap(c, x["name"]))], cfg)
+            ]
+    return sorted(events, key=lambda e: e[0])
+
+
 def cut(d: Path, name: str, segs: list[dict], cfg: dict, size: tuple[int, int], fps: float) -> None:
-    """The segments from the uncaptioned program, then this cut's own labels burned in: numbered in the
-    cut's order and timed to its (sped-up, trimmed) segments, so a step number never runs backwards."""
+    """The segments from the uncaptioned program, then this cut's own captions and card burned in (the
+    site's type through libass), timed to its (sped-up, trimmed) segments. Also `cut_<name>.srt`, the same
+    captions for the editor."""
     w, h = size
-    srt([(x["name"], x["at"], x["at"] + x["s"], x.get("label")) for x in segs if x["kind"] == "shot"], cfg,
-        d / f"cut_{name}.srt")  # fmt: skip
+    events = cut_events(segs, cfg)
+    write_srt_events(events, d / f"cut_{name}.srt")
+    font = fonts(cfg, d)
+    ass(events, cfg, d / f"cut_{name}.ass", font)
     parts, labels_ = [], []
     for i, x in enumerate(segs):
         lab = f"v{i}"
-        if x["kind"] == "black":
+        if x["kind"] in ("black", "card"):
             parts.append(
                 f"color=c=black:s={w}x{h}:r={fps:g}:d={x['s']:.3f},format=yuv420p,setsar=1[{lab}]"
             )
@@ -324,10 +481,8 @@ def cut(d: Path, name: str, segs: list[dict], cfg: dict, size: tuple[int, int], 
                 f"[0:v]trim=start={x['in']:.3f}:end={x['out']:.3f},setpts=(PTS-STARTPTS)/{x['speed']},fps={fps:g},format=yuv420p,setsar=1[{lab}]"
             )
         labels_.append(f"[{lab}]")
-    graph = (
-        ";".join(parts)
-        + f";{''.join(labels_)}concat=n={len(segs)}:v=1:a=0[c];[c]{subtitles(cfg, f'cut_{name}.srt')}[out]"
-    )
+    vf = ass_filter(f"cut_{name}.ass", "fonts" if (d / "fonts").is_dir() else None)
+    graph = ";".join(parts) + f";{''.join(labels_)}concat=n={len(segs)}:v=1:a=0[c];[c]{vf}[out]"
     out = d / f"cut_{name}.mp4"
     print(f"  $ (in {d}) ffmpeg -i master.mp4 -filter_complex … {out.name}", flush=True)
     subprocess.run(
@@ -472,7 +627,7 @@ def main(argv: list[str] | None = None) -> int:
         d / f"master{suffix}_captioned.mp4", d / f"master{suffix}.mp4", d / "captions.srt"
     ):
         print(f"master{suffix}_captioned.mp4")
-        burn(cfg, d, suffix, fps, size[1])
+        burn(doc, cfg, d, suffix, fps, size[1])
     if suffix:  # the cuts and the GIF are made from the 1080p program
         return 0
     if "cuts" in steps:

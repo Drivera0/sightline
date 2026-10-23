@@ -1,31 +1,40 @@
-# Burned-in step labels, camera moves and the cuts, for scripts/demo_video/captions.py. Labels are short
-# on-screen step names, not narration (WIN_RESEARCH §8): at most two lines of 42 characters with the
-# number (captions.py wraps a long line at a space and stops on a label that would need a third), on
-# screen at least 1.2 s. A label with `number: true` gets "N · " in front, counted over the shots that
-# actually ran, so a skipped shot leaves no gap. A label never calls an area done: a searched sector is
-# "searched at POD x". Anything simulated or recorded says so.
+# Burned-in captions, the disclosure card, camera moves and the two cuts, for scripts/demo_video/captions.py
+# (shot list v2: the seven-beat story of PR #200 told in three acts). A caption is a short lower-third line
+# in the site's type (Geist), not narration: at most two lines of 42 characters (captions.py wraps a long
+# line at a space and stops on one that would need a third), on screen at least 1.2 s. A model's name
+# appears when that model acts. Inside the story nothing says demo, recorded, scripted or simulated: the
+# disclosure card at the start says it once (captions.py refuses those words anywhere else), and nothing
+# ever calls an area "clear" or "ruled out" (a searched sector is "searched at POD x").
 
 style:
-  # libass force_style for the subtitles filter: a small label in a dark box, bottom centre. Burned into
-  # the 1080p program after the camera moves, so the type stays sharp and still.
-  force_style: "FontName=Inter,FontSize=10,PrimaryColour=&H00FFFFFF,BackColour=&H99000000,BorderStyle=3,Outline=4,Shadow=0,Alignment=2,MarginV=6"
-  lead_in_s: 0.3   # label appears this long after the shot starts
+  # The site's face: Geist (web/node_modules/@fontsource-variable/geist, copied into the run folder for
+  # libass); Inter when it isn't there. Sizes are pixels on the 1920x1080 frame (PlayRes 1920x1080).
+  font: Geist
+  fallback_font: Inter
+  fonts_from: web/node_modules/@fontsource-variable/geist/files
+  label: {size: 34, margin_v: 40, box: "&H99000000", outline: 10}   # lower third, a dark box
+  card: {size: 58}                                                   # the disclosure card, centred
+  credit: {size: 26, margin_v: 112}                                  # narrate.py's credit, above the label
+  lead_in_s: 0.3   # a caption appears this long after its shot starts
   lead_out_s: 0.3  # and goes this long before it ends
 
+# One caption per shot, keyed by the shot ids in shots.json (record.py). `number: true` would put "N · "
+# in front, counted over the shots that ran; v2 is a story, so nothing is numbered.
 labels:
-  call:       {text: "Sightline · the call: a hiker overdue\non Mount Seymour (demo mission)"}
-  photos:     {text: "OpenCV 5 cv2.dnn ranks each photo\nReal HERIDAL photos, simulated flight path", number: true}
-  confirm:    {text: "Second look rescues a 0.18 detection\nOpenCV 5 + Nemotron 3.5 Super VL, recorded", number: true}
-  trace:      {text: "The trace: tool call → model call →\nverdict → proposal → decision", number: true}
-  next:       {text: "Where next: the agent proposes,\na person approves", number: true}
-  run:        {text: "Teams out, drones fly (simulated)\nB4 searched at POD 60 %", number: true}
-  conditions: {text: "Conditions with their sources:\nTavily search, quotes read word for word", number: true}
-  fleet:      {text: "Simulated comms: D2 link lost\nD3 degraded, Team Two relayed via D1", number: true}
-  radio:      {text: "The radio desk: Sightline's briefing\nin NVIDIA Magpie TTS (recorded)", number: true}
-  results:    {text: "The debrief: the three numbers", number: true}
-  breaks:     {text: "What breaks first, said up front", number: true}
-  live_link:  {text: "Live · Fleet controls cut a link\ndrones relay a cut-off team (simulated)", number: true}
-  recall:     {text: "Live · gusts 50 km/h (demo override)\nno flying → the agent proposes a recall", number: true}
+  call:    {text: "Mount Seymour, 13:35: a hiker is overdue.\nFour teams and three drones at base"}
+  photos:  {text: "OpenCV 5 ranks each photo as it lands,\n0.30 s per photo on a GPU"}
+  confirm: {text: "A person confirms every candidate.\nSecond look: Nemotron 3.5 Super VL"}
+  trace:   {text: "The Trace: the model call, the verdict\nand who approved it"}
+  next:    {text: "A radio clue moves the map. The agent\nproposes; nobody moves until approved"}
+  run:     {text: "Drone two loses its link.\nDrone three relays Team Two"}
+  fleet:   {text: "Each drone flies its approved leg,\nlink or no link"}
+  walk:    {text: "{story_team} walks {story_sector},\nthe sector the clue raised"}
+  radio:   {text: "Radio: Parakeet hears the team,\nMagpie speaks the desk's reply"}
+  find:    {text: "Found in {find_sector} by {find_team}"}
+  debrief: {text: "The after-action report, written from\nthe timeline; what breaks first"}
+  # the --live shots (record.py live_shots), not in the v2 cuts
+  live_link: {text: "Fleet controls cut drone two's link;\na drone relays the cut-off team"}
+  recall:    {text: "Gusts past the drones' limit:\nthe agent proposes a recall"}
 
 # The program (master.mp4), rendered from the 4K master at this size (`--size 2560x1440` for the 1440p
 # upload). zoompan works on the master scaled up `upscale` times first: it rounds its crop to whole
@@ -34,55 +43,75 @@ program:
   size: [1920, 1080]
   upscale: 2
 
-# Camera moves and pacing per shot (moves.py). Coordinates are the 1920x1080 viewport's CSS pixels; times
-# are seconds into the shot as recorded.
+# Camera moves and pacing per shot (moves.py): a slow push-in on the panel being used. Coordinates are
+# the 1920x1080 viewport's CSS pixels (the map is about x 300-1560, y 100-815; Needs you x 1575-1905;
+# Resources x 12-282; the timeline y 830-1020); times are seconds into the shot as recorded.
 #   push_in: {x, y, scale, start, end}  zoom 1 -> scale about (x, y) from start to end, ease-in-out;
 #                                       `focus: click` = the shot's last click; default the centre, whole shot
 #   hold: true | {x, y, scale}          no move, or a still crop
-#   speed: 1.5 | [{start, end, rate}]   the shot, or a wait inside it, played faster (setpts, after the move)
-# `default` is for a shot without its own entry: a gentle push over the whole shot, so no full screen
-# stays still for long.
+#   speed: [{start, end, rate}]         a wait inside the shot played faster (setpts, before the move);
+#                                       only on waits, never on the voice or the thing being shown
 moves:
-  default:    {push_in: {scale: 1.08}}
-  call:       {push_in: {focus: click, scale: 1.12}}   # towards the pitch bar's Follow the search
-  photos:     {push_in: {x: 1560, y: 540, scale: 1.08}, speed: [{start: 2.0, end: 7.0, rate: 1.5}]}  # the rail and the map; the clock's run to t1 at 1.5x
+  default: {push_in: {scale: 1.06}}
+  call:    {push_in: {x: 330, y: 120, scale: 1.14, start: 4.0}}           # the status line and the coach mark at t0
+  photos:  {push_in: {x: 928, y: 420, scale: 1.12, start: 1.0, end: 12.0}}  # the map under drone one's survey
+  confirm: {push_in: {x: 1740, y: 470, scale: 1.12, start: 0.5, end: 8.0}}  # Needs you: Person, Person, Not a person, the second look
+  trace:   {push_in: {x: 960, y: 300, scale: 1.08}}                       # the chain's steps
+  next:    {push_in: {x: 1000, y: 700, scale: 1.08, start: 0.5}}          # the timeline's radio clue, then the proposal
+  run:     {push_in: {x: 150, y: 640, scale: 1.12, start: 6.5}}           # the drone cards in Resources
+  fleet:   {push_in: {x: 880, y: 420, scale: 1.16}}                       # the markers: D2, D3, Team Two
+  walk:    {push_in: {x: 990, y: 380, scale: 1.16}}                       # Team One in C2
+  radio:   {push_in: {x: 600, y: 930, scale: 1.14, start: 0.5}}           # the timeline on Radio
+  find:    {push_in: {x: 990, y: 400, scale: 1.18, start: 1.0, end: 7.0}} # Found, then the map holds on the find
+  debrief: {push_in: {x: 1270, y: 420, scale: 1.08, start: 1.0}}          # the after-action report
 
-# Silent cuts from the uncaptioned master with their own labels, in story order. A shot that didn't run is
-# left out. `slot` is a black gap for a slide or a clip Dan adds in the editor. When the screen shots don't
-# fit, each is trimmed from its tail by the same factor. `speed` plays a shot faster. A segment can carry
-# its own `label` for this cut (it replaces the shot's label above) and a `min_s` it is never trimmed below.
+# The two cuts from the uncaptioned program, in story order, each with its own captions. Segments:
+#   <shot id> | {shot, speed, label, min_s}       a recorded shot (`label` replaces its caption here)
+#   {slot: <name>, s, on_camera, captions: [...]} black, for footage, the owner on camera or a slide made
+#                                                 elsewhere; `captions` are spread evenly over it (placeholders)
+#   {card: <name>, s, text}                       a title card rendered here: centred, the site's type, faded
+# A shot that didn't run is left out. When the shots don't fit `max_s`, each is trimmed from its tail by
+# the same factor (never below its min_s). `lead_black_s` / `tail_black_s` (default 0) add black at the ends.
 cuts:
   opencv:
-    max_s: 300
-    lead_black_s: 12   # Dan on camera
-    tail_black_s: 10   # Dan on camera, close
+    max_s: 270     # <= 4:30
     segments:
+      # Act 1, the call (0:00-0:35)
+      - {slot: cold open, s: 8, on_camera: true}        # real footage: searchers in forest, a drone lifting off
+      - {card: disclosure, s: 3, text: "A simulated search on real aerial photographs"}
+      - {slot: owner on camera, s: 10, on_camera: true} # one sentence of stakes
       - call
+      # Act 2, the search
       - photos
       - confirm
       - trace
       - next
       - run
-      - conditions
-      - results
-      - {shot: breaks, min_s: 12}   # never trimmed below 12 s: the three lines stay up >= 6 s
-      - {slot: evidence index, s: 30}
-      - {slot: reproduce in 5 min, s: 30}
-      - {slot: limits, s: 20}
-  nebius:
-    max_s: 180
-    lead_black_s: 10
-    tail_black_s: 10
-    segments:
-      - {shot: call, speed: 2}
-      - {shot: confirm, speed: 1.5, label: "0.18 rescued by Nemotron 3.5 Super VL\non Nebius Token Factory (recorded run)"}
-      - {shot: run, speed: 1.5}
-      - fleet
-      - live_link
-      - {shot: recall, speed: 1.25}     # the Tavily moment: gusts -> no-fly -> recall, the cited source on the card
+      - walk
       - radio
-      - {shot: breaks, min_s: 12}
-      - {slot: architecture, s: 15}
+      - {shot: find, min_s: 13}                         # the payoff: Found, then 4 s held on the map (never trimmed)
+      # Act 3, the debrief
+      - {shot: debrief, min_s: 22}                      # the three "what breaks first" lines are read here
+      - {slot: architecture, s: 20, captions: ["Photos → OpenCV 5 detector (cv2.dnn)", "Second look: Nemotron 3.5 Super VL", "Briefings: Nemotron 3 Nano", "Radio: Parakeet hears, Magpie speaks", "Every model call: Nebius Token Factory", "Conditions and bulletins: Tavily"]}
+      - {slot: proof, s: 15}                            # one slide: reproduce in 5 min, the evidence index, the unseen score
+      - {slot: close, s: 10, on_camera: true}
+  nebius:
+    max_s: 170     # <= 2:50
+    segments:
+      - {slot: cold open, s: 8, on_camera: true}
+      - {card: disclosure, s: 3, text: "A simulated search on real aerial photographs"}
+      - {slot: owner on camera, s: 10, on_camera: true} # says "it runs on Nebius Token Factory"
+      - {shot: call, speed: 1.5}
+      - {shot: photos, speed: 1.25, label: "OpenCV 5 ranks each photo as it lands;\nbatch detection on a Nebius Serverless Job"}
+      - {shot: confirm, speed: 1.25, label: "Second look: Nemotron 3.5 Super VL\non Nebius Token Factory"}
+      - {shot: next, speed: 1.25, label: "The agent on Nebius Token Factory\nproposes; nobody moves until approved"}
+      - run
+      - fleet
+      - walk
+      - {shot: radio, min_s: 16.5}                      # never trimmed: the in-world exchange needs it
+      - {shot: find, min_s: 13}                         # never trimmed: the 4 s hold on the map
+      - {slot: architecture, s: 10, captions: ["OpenCV 5 · Nemotron 3.5 Super VL", "Every model call: Nebius Token Factory"]}
+      - {slot: close, s: 10, on_camera: true}
 
 # The README GIF: 16-20 s from the first candidate (in this order of preference) with enough moving in
 # it (mean frame-to-frame change >= min_motion, on 0-255 grey); the window's end is the frame within ±2 s
@@ -93,8 +122,8 @@ gif:
   width: 800
   max_mb: 3
   min_motion: 0.5
-  # first choice: the 18 s that end with the run: the visitor approves Team One for A1, the clock runs
-  # on, the teams go out, the simulated drones fly and B4 is searched at POD 60 %
+  # first choice: the 18 s that end with the run: the approval, the clock runs on, the teams go out, the
+  # drones fly their legs, drone two loses its link and drone three relays Team Two
   candidates:
     - {shot: run, end_aligned: true, min_motion: 0.05}   # a console holds still more than a scan
     - photos
