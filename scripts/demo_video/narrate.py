@@ -6,7 +6,10 @@
 Runs in the NeMo environment (``docs/feedback/radio.md``, "How to reproduce"): Magpie through the radio
 desk's own wrapper (``sightline.radio.tts.MagpieTts``, its speaker) and Parakeet through
 ``sightline.radio.asr.ParakeetAsr``. From the run folder's ``cut_<name>.mp4`` + ``cut_<name>.json`` (each
-segment's place in the cut) and ``narration.yaml`` next to this script, into ``<run>/narrated/``:
+segment's place in the cut), ``shots.json`` (each shot's place in the program after captions.py's camera
+moves and speed-ups: ``program_start_s`` / ``program_end_s``; a line gets the time its shot has after the
+speed-up, and a cut made before the program's timings is refused) and ``narration.yaml`` next to this
+script, into ``<run>/narrated/``:
 
 - ``clips/<cut>_<shot>.wav``: each line, sentence by sentence, the best of ``takes`` Magpie samples by
   Parakeet's word errors (the shortest when tied). A line that runs past its shot by more than
@@ -16,7 +19,8 @@ segment's place in the cut) and ``narration.yaml`` next to this script, into ``<
   line before), the on-camera open and close silent, normalised to ``lufs`` with ffmpeg ``loudnorm``;
 - ``cut_<cut>_narrated.mp4``: the cut with that track as AAC and the narration credit burned in over its
   first narrated shot, above the step label, in ``captions.py``'s caption style. Burning it re-encodes
-  the video once (x264 CRF 18, as ``captions.py``); ``--no-credit`` copies the video stream instead;
+  the video once (``captions.py``'s export profile); ``--no-credit`` copies the video stream instead;
+  the audio is AAC 192 kbit/s, 48 kHz;
 - ``narration_<cut>.srt``: the spoken lines, timed to the audio;
 - ``narration_report.md`` + ``narration.json``: per line the text, seconds available, seconds used, takes,
   and the listen-check: Parakeet transcribes each line back out of the finished mp4's audio and the word
@@ -48,7 +52,7 @@ for p in (str(ROOT), str(ROOT / "scripts"), str(HERE)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from captions import X264, ts
+from captions import AAC, export_x264, probe, span, ts
 
 ON_CAMERA = ("on camera (open)", "on camera (close)")
 _SENTENCE = re.compile(r"(?<=[.!?])\s+")
@@ -169,6 +173,7 @@ def plan(cfg: dict, run: Path, cut: str) -> list[Line]:
     ``wpm``."""
     segs = json.loads((run / f"cut_{cut}.json").read_text())["segments"]
     by_key = {s["name"]: s for s in segs}
+    shots = {s["id"]: s for s in json.loads((run / "shots.json").read_text())["shots"]}
     lines = []
     for key, item in cfg["cuts"][cut].items():
         if key in ON_CAMERA:
@@ -182,8 +187,17 @@ def plan(cfg: dict, run: Path, cut: str) -> list[Line]:
         if len(sentences(text)) > 2 and not item.get("verbatim"):
             raise SystemExit(f"{cut}/{key}: more than two sentences")
         s = by_key[key]
+        seg_s = float(s["s"])
+        if key in shots:  # a shot: its time after the program's speed-up, from shots.json
+            a, b = span(shots[key])
+            if not (a - 0.05 <= s["in"] and s["out"] <= b + 0.05):
+                raise SystemExit(
+                    f"cut_{cut}.json has {key} at {s['in']:.2f}-{s['out']:.2f} s but shots.json has it at "
+                    f"{a:.2f}-{b:.2f} s in the program: rerun captions.py --only cuts"
+                )
+            seg_s = min(seg_s, (b - s["in"]) / float(s.get("speed", 1.0)))
         line = Line(cut, key, text, item.get("say") or respell(text, cfg.get("respell", {})),
-                    bool(item.get("verbatim")), float(s["at"]), float(s["s"]))  # fmt: skip
+                    bool(item.get("verbatim")), float(s["at"]), seg_s)  # fmt: skip
         est = len(line.say.split()) / cfg["wpm"] * 60
         if est > line.available:
             print(f"  warning: {cut}/{key}: {len(line.say.split())} words is about {est:.1f} s at "
@@ -354,12 +368,12 @@ def mux(run: Path, cut: str, out: Path, cfg: dict, credit: bool) -> Path:
     if credit:
         cap = yaml.safe_load((HERE / "captions.yaml").read_text())["style"]["force_style"]
         style = re.sub(r"MarginV=\d+", f"MarginV={cfg['credit']['margin_v']}", cap)
-        venc = ["-vf", f"subtitles=credit_{cut}.srt:force_style='{style}'", *X264]
+        info = probe(video)
+        venc = ["-vf", f"subtitles=credit_{cut}.srt:force_style='{style}'", *export_x264(info["fps"], info["h"])]  # fmt: skip
     else:
         venc = ["-c:v", "copy", "-movflags", "+faststart"]
     sh(["ffmpeg", "-v", "error", "-y", "-i", str(video), "-i", f"narration_{cut}.wav",
-        "-map", "0:v:0", "-map", "1:a:0", *venc, "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
-        "-shortest", dst.name], cwd=out)  # fmt: skip
+        "-map", "0:v:0", "-map", "1:a:0", *venc, *AAC, "-shortest", dst.name], cwd=out)  # fmt: skip
     return dst
 
 
