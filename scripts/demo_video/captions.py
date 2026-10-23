@@ -1,19 +1,28 @@
 """From a recorded run (record.py) to the files for the editor and the README:
 
-    uv run --extra video python scripts/demo_video/captions.py runs/video/<timestamp> [--only srt,mp4,burn,cuts,gif] [--force]
+    uv run --extra video python scripts/demo_video/captions.py runs/video/<timestamp> [--only mp4,srt,burn,cuts,gif] [--force]
+    uv run --extra video python scripts/demo_video/captions.py runs/video/<timestamp> --size 2560x1440   # the 1440p upload
 
-In the run folder, from ``master.webm`` + ``shots.json`` + ``captions.yaml`` (next to this script):
+In the run folder, from the 4K master (``master_4k.mp4``) + ``shots.json`` + ``captions.yaml`` (next to this
+script):
 
-- ``captions.srt``: one short burned-in step label per shot that ran (not narration);
-- ``master.mp4``: the recording as H.264, CRF 18, 30 fps, the sync mark painted out;
-- ``master_captioned.mp4``: the same with the labels burned in;
+- ``master.mp4``: the program, 1920x1080 at the master's frame rate: the sync mark painted out, each shot's
+  camera move (``moves``: a slow push-in by default) and speed-up rendered from the 4K frames
+  (``moves.py``), lanczos down to the output; uncaptioned. The shots' times in it go back into
+  shots.json (``program_start_s`` / ``program_end_s``) for the labels, the cuts and the narration;
+- ``captions.srt``: one short burned-in step label per shot that ran (not narration), at most 42
+  characters a line, two lines, on screen at least 1.2 s;
+- ``master_captioned.mp4``: the program with the labels burned in after the move, so they stay sharp and
+  still; the export profile (H.264 High, BT.709, 8 Mbit/s at 30 fps or 12 at 60 for 1080p, YouTube's
+  table, ``+faststart``);
 - ``cut_opencv.mp4`` (<= 5:00) and ``cut_nebius.mp4`` (<= 3:00): silent cuts in each video's story
-  order, black at the start and the end for the on-camera clips, black slots where a
-  slide goes, cut from ``master.mp4`` with their own labels (``cut_<name>.srt``, numbered in the cut's
-  order); ``cut_<name>.json`` lists every segment with its source and output times;
+  order, black at the start and the end for the on-camera clips, black slots where a slide goes, cut
+  from ``master.mp4`` with their own labels (``cut_<name>.srt``, numbered in the cut's order);
+  ``cut_<name>.json`` lists every segment with its source and output times;
 - ``demo.gif``: 16-20 s for the README (fps 10, 800 px wide, one palette, <= 3 MB), first and last frame
   matched so it loops.
 
+``--size 2560x1440`` writes the same files with a ``_1440p`` suffix (the program rendered at that size).
 Each step is skipped when its output is newer than its inputs (``--force`` redoes it).
 """
 
@@ -21,20 +30,54 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 import sys
+import textwrap
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
 
 HERE = Path(__file__).resolve().parent
-FPS = 30
+sys.path.insert(0, str(HERE))
+import moves
+
 W, H = 1920, 1080
+MAX_LINE, MAX_LINES, MIN_LABEL_S = 42, 2, 1.2  # Netflix's timed-text limits, and the shortest label
+COLOR = [
+    "-color_primaries",
+    "bt709",
+    "-color_trc",
+    "bt709",
+    "-colorspace",
+    "bt709",
+    "-color_range",
+    "tv",
+]
+# the program's pieces: near-lossless, encoded again once for the export
+MEZZANINE = ["-c:v", "libx264", "-preset", "fast", "-crf", "10", "-pix_fmt", "yuv420p", *COLOR]
 
 
-def run(cmd: list[str]) -> None:
+def export_x264(fps: float = 60, height: int = 1080) -> list[str]:
+    """The upload profile: H.264 High, yuv420p, BT.709, YouTube's recommended SDR bitrates (1080p: 8
+    Mbit/s at 24-30 fps, 12 at 48-60; 1440p: 16 / 24), a VBV cap at 1.5x, ``+faststart``."""
+    hi = fps > 30
+    mbit = {1080: (8, 12), 1440: (16, 24), 2160: (45, 68)}.get(height, (8, 12))[hi]
+    return ["-c:v", "libx264", "-preset", "slow", "-profile:v", "high", "-b:v", f"{mbit}M",
+            "-maxrate", f"{mbit * 1.5:g}M", "-bufsize", f"{mbit * 2}M", "-pix_fmt", "yuv420p", *COLOR,
+            "-movflags", "+faststart"]  # fmt: skip
+
+
+X264 = export_x264()  # the 1080p60 profile (narrate.py re-encodes with it)
+AAC = ["-c:a", "aac", "-b:a", "192k", "-ar", "48000"]
+
+
+def run(cmd: list[str], cwd: Path | None = None) -> None:
     print("  $ " + " ".join(cmd if len(" ".join(cmd)) < 400 else [*cmd[:6], "…"]), flush=True)
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, cwd=cwd)
 
 
 def fresh(out: Path, *inputs: Path) -> bool:
@@ -51,11 +94,41 @@ def ts(t: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
+def span(s: dict) -> tuple[float, float]:
+    """A shot's (start, end) in master.mp4: after the moves and the speed-up when the program step has
+    run, else as recorded."""
+    if "program_start_s" in s:
+        return s["program_start_s"], s["program_end_s"]
+    return s["start_s"], s["end_s"]
+
+
 def ran(shots: list[dict]) -> list[dict]:
-    return [s for s in shots if s["status"] == "ok" and s["end_s"] - s["start_s"] > 0.5]
+    return [s for s in shots if s["status"] == "ok" and span(s)[1] - span(s)[0] > 0.5]
+
+
+def probe(video: Path, entries: str = "stream=width,height,r_frame_rate:format=duration") -> dict:
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", entries, "-of", "json",
+                        str(video)], capture_output=True, text=True, check=True)  # fmt: skip
+    j = json.loads(r.stdout)
+    st = (j.get("streams") or [{}])[0]
+    num, _, den = st.get("r_frame_rate", "0/1").partition("/")
+    return {"w": st.get("width"), "h": st.get("height"), "fps": float(num) / float(den or 1),
+            "duration": float(j.get("format", {}).get("duration", 0.0))}  # fmt: skip
 
 
 # --- (0) the labels ---------------------------------------------------------------------------------
+
+
+def wrap(text: str, sid: str) -> str:
+    """At most MAX_LINES lines of MAX_LINE characters: the label's own line breaks kept, a long line
+    wrapped at a space; a label that still doesn't fit stops the run (rewrite it in captions.yaml)."""
+    lines = [ln for part in text.split("\n") for ln in (textwrap.wrap(part, MAX_LINE) or [""])]
+    if len(lines) > MAX_LINES:
+        raise SystemExit(
+            f"label for {sid} needs {len(lines)} lines of <= {MAX_LINE} characters "
+            f"(at most {MAX_LINES}): {text!r}"
+        )
+    return "\n".join(lines)
 
 
 def labels(spans: list[tuple], cfg: dict) -> list[tuple[float, float, str]]:
@@ -67,8 +140,6 @@ def labels(spans: list[tuple], cfg: dict) -> list[tuple[float, float, str]]:
         if not lab:
             continue
         text = own[0] if own and own[0] else lab["text"]
-        if text.count("\n") > 1:
-            raise SystemExit(f"label for {sid} has more than two lines")
         if lab.get("number"):
             n += 1
             text = f"{n} · {text}"
@@ -76,7 +147,7 @@ def labels(spans: list[tuple], cfg: dict) -> list[tuple[float, float, str]]:
             raise SystemExit(
                 f"label for {sid} says 'clear': a searched area is 'searched at POD x'"
             )
-        out.append((a, b, text))
+        out.append((a, b, wrap(text, sid)))
     return out
 
 
@@ -84,50 +155,83 @@ def srt(spans: list[tuple], cfg: dict, path: Path) -> None:
     st = cfg["style"]
     lines = []
     for i, (a, b, text) in enumerate(labels(spans, cfg), 1):
-        lines += [str(i), f"{ts(a + st['lead_in_s'])} --> {ts(b - st['lead_out_s'])}", text, ""]
+        start, end = a + st["lead_in_s"], b - st["lead_out_s"]
+        end = max(end, start + MIN_LABEL_S)  # never a flash: a short shot's label runs on a little
+        lines += [str(i), f"{ts(start)} --> {ts(end)}", text, ""]
     path.write_text("\n".join(lines))
     print(f"  wrote {path} ({sum('-->' in x for x in lines)} labels)")
 
 
 def write_srt(doc: dict, cfg: dict, path: Path) -> None:
-    srt([(s["id"], s["start_s"], s["end_s"]) for s in ran(doc["shots"])], cfg, path)
+    srt([(s["id"], *span(s)) for s in ran(doc["shots"])], cfg, path)
 
 
-# --- (a, b) the masters -----------------------------------------------------------------------------
-
-X264 = [
-    "-c:v",
-    "libx264",
-    "-preset",
-    "medium",
-    "-crf",
-    "18",
-    "-pix_fmt",
-    "yuv420p",
-    "-movflags",
-    "+faststart",
-]
+# --- (a) the program: moves and pacing from the 4K master --------------------------------------------
 
 
-def remux(doc: dict, d: Path) -> None:
-    vf = f"{doc.get('delogo', 'null')},fps={FPS},format=yuv420p"
-    run(
-        [
-            "ffmpeg",
-            "-v",
-            "error",
-            "-y",
-            "-i",
-            str(d / doc["video"]),
-            "-vf",
-            vf,
-            "-an",
-            *X264,
-            "-r",
-            str(FPS),
-            str(d / "master.mp4"),
-        ]
-    )
+def program(
+    doc: dict, cfg: dict, d: Path, size: tuple[int, int], suffix: str, shots_path: Path
+) -> None:
+    """master.mp4 from the recorded master: each piece (a shot, or the frames between two) rendered on
+    its own, in parallel, then joined without re-encoding. Writes the shots' program times back into
+    shots.json."""
+    src = d / doc["video"]
+    info = probe(src)
+    fps = round(doc.get("fps") or info["fps"])
+    total = info["duration"] or doc["total_s"]
+    pcfg = cfg.get("program", {})
+    upscale = float(pcfg.get("upscale", 2))
+    pieces = moves.plan(doc["shots"], total, cfg)
+    tmp = d / f"program{suffix}"
+    tmp.mkdir(exist_ok=True)
+    jobs = []
+    for i, p in enumerate(pieces):
+        out = tmp / f"{i:03d}_{p.name}.mp4"
+        vf = moves.filters(p, size, fps, upscale, doc.get("delogo"))
+        cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{p.src_start:.3f}", "-t", f"{p.src_s:.3f}", "-i", str(src),
+               "-vf", vf, "-an", *MEZZANINE, "-fps_mode", "passthrough", str(out)]  # fmt: skip
+        jobs.append((p, out, cmd))
+    t0 = time.monotonic()
+    workers = max(1, min(len(jobs), (os.cpu_count() or 4) // 6))
+    print(f"  {len(jobs)} pieces at {size[0]}x{size[1]} {fps} fps, {workers} at a time (zoompan on the master x{upscale:g})", flush=True)  # fmt: skip
+    with ThreadPoolExecutor(workers) as ex:
+        for f in [ex.submit(subprocess.run, cmd, check=True) for _, _, cmd in jobs]:
+            f.result()
+    listing = tmp / "pieces.ffconcat"
+    listing.write_text("ffconcat version 1.0\n" + "".join(f"file '{o.name}'\n" for _, o, _ in jobs))
+    master = d / f"master{suffix}.mp4"
+    run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy",
+         "-movflags", "+faststart", str(master)])  # fmt: skip
+    # the shots' places in the program, from the pieces' actual lengths (frame-rounded)
+    t, at = 0.0, {}
+    for p, out, _ in jobs:
+        n = probe(out)["duration"]
+        if p.name != "gap":
+            at[p.name] = (round(t, 3), round(t + n, 3), p)
+        t += n
+    shutil.rmtree(tmp, ignore_errors=True)
+    took = time.monotonic() - t0
+    print(f"  {master.name}: {t:.1f} s from {total:.1f} s recorded, rendered in {took:.0f} s ({t * fps / max(took, 1e-3):.1f} frames/s)")  # fmt: skip
+    if suffix:  # a second size: the timings are the same, shots.json already has them
+        return
+    for s in doc["shots"]:
+        if s["id"] in at:
+            a, b, p = at[s["id"]]
+            s["program_start_s"], s["program_end_s"] = a, b
+            s["move"] = p.move
+            s["speed"] = [list(r) for r in p.speed]
+        else:  # skipped before it ran: zero length where the next piece starts
+            s["program_start_s"] = s["program_end_s"] = None
+    nxt = 0.0
+    for s in reversed(doc["shots"]):
+        if s["program_start_s"] is None:
+            s["program_start_s"] = s["program_end_s"] = nxt
+        else:
+            nxt = s["program_start_s"]
+    doc["program"] = {"video": master.name, "size": list(size), "fps": fps, "total_s": round(t, 3),
+                      "source": doc["video"], "upscale": upscale}  # fmt: skip
+    shots_path.write_text(json.dumps(doc, indent=2) + "\n")
+    os.utime(master)  # newer than the shots.json it just wrote: the step stays fresh
 
 
 def subtitles(cfg: dict, name: str) -> str:
@@ -136,33 +240,20 @@ def subtitles(cfg: dict, name: str) -> str:
     return f"subtitles={name}:force_style='{cfg['style']['force_style']}'"
 
 
-def burn(cfg: dict, d: Path) -> None:
+def burn(cfg: dict, d: Path, suffix: str, fps: float, height: int) -> None:
     vf = subtitles(cfg, "captions.srt")
-    print(f"  $ (in {d}) ffmpeg -i master.mp4 -vf {vf} … master_captioned.mp4", flush=True)
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-v",
-            "error",
-            "-y",
-            "-i",
-            "master.mp4",
-            "-vf",
-            vf,
-            "-an",
-            *X264,
-            "master_captioned.mp4",
-        ],
-        cwd=d,
-        check=True,
-    )
+    src, dst = f"master{suffix}.mp4", f"master{suffix}_captioned.mp4"
+    print(f"  $ (in {d}) ffmpeg -i {src} -vf {vf} … {dst}", flush=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vf", vf, "-an", *export_x264(fps, height), dst],
+                   cwd=d, check=True)  # fmt: skip
 
 
 # --- (d) the cuts -----------------------------------------------------------------------------------
 
 
 def plan_cut(doc: dict, spec: dict) -> list[dict]:
-    """The segments in order: shots (source in/out, speed) and black slots, fitted to max_s."""
+    """The segments in order: shots (source in/out in master.mp4, speed) and black slots, fitted to
+    max_s."""
     by_id = {s["id"]: s for s in ran(doc["shots"])}
     segs: list[dict] = [{"kind": "black", "name": "on camera (open)", "s": spec["lead_black_s"]}]
     for item in spec["segments"]:
@@ -171,9 +262,16 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
             segs.append({"kind": "black", "name": f"slot: {item['slot']}", "s": float(item["s"])})
         elif item["shot"] in by_id:
             s = by_id[item["shot"]]
+            a, b = span(s)
             speed = float(item.get("speed", 1.0))
-            seg = {"kind": "shot", "name": s["id"], "in": s["start_s"], "out": s["end_s"], "speed": speed,
-                   "s": (s["end_s"] - s["start_s"]) / speed}  # fmt: skip
+            seg = {
+                "kind": "shot",
+                "name": s["id"],
+                "in": a,
+                "out": b,
+                "speed": speed,
+                "s": (b - a) / speed,
+            }
             if item.get("label"):
                 seg["label"] = item["label"]  # this cut's own label for the shot
             if item.get("min_s"):
@@ -208,9 +306,10 @@ def plan_cut(doc: dict, spec: dict) -> list[dict]:
     return segs
 
 
-def cut(d: Path, name: str, segs: list[dict], cfg: dict) -> None:
-    """The segments from the uncaptioned master, then this cut's own labels burned in: numbered in the
+def cut(d: Path, name: str, segs: list[dict], cfg: dict, size: tuple[int, int], fps: float) -> None:
+    """The segments from the uncaptioned program, then this cut's own labels burned in: numbered in the
     cut's order and timed to its (sped-up, trimmed) segments, so a step number never runs backwards."""
+    w, h = size
     srt([(x["name"], x["at"], x["at"] + x["s"], x.get("label")) for x in segs if x["kind"] == "shot"], cfg,
         d / f"cut_{name}.srt")  # fmt: skip
     parts, labels_ = [], []
@@ -218,11 +317,11 @@ def cut(d: Path, name: str, segs: list[dict], cfg: dict) -> None:
         lab = f"v{i}"
         if x["kind"] == "black":
             parts.append(
-                f"color=c=black:s={W}x{H}:r={FPS}:d={x['s']:.3f},format=yuv420p,setsar=1[{lab}]"
+                f"color=c=black:s={w}x{h}:r={fps:g}:d={x['s']:.3f},format=yuv420p,setsar=1[{lab}]"
             )
         else:
             parts.append(
-                f"[0:v]trim=start={x['in']:.3f}:end={x['out']:.3f},setpts=(PTS-STARTPTS)/{x['speed']},fps={FPS},format=yuv420p,setsar=1[{lab}]"
+                f"[0:v]trim=start={x['in']:.3f}:end={x['out']:.3f},setpts=(PTS-STARTPTS)/{x['speed']},fps={fps:g},format=yuv420p,setsar=1[{lab}]"
             )
         labels_.append(f"[{lab}]")
     graph = (
@@ -233,7 +332,7 @@ def cut(d: Path, name: str, segs: list[dict], cfg: dict) -> None:
     print(f"  $ (in {d}) ffmpeg -i master.mp4 -filter_complex … {out.name}", flush=True)
     subprocess.run(
         ["ffmpeg", "-v", "error", "-y", "-i", "master.mp4", "-filter_complex", graph, "-map", "[out]",
-         "-an", *X264, out.name],
+         "-an", *export_x264(fps, h), out.name],
         cwd=d,
         check=True,
     )  # fmt: skip
@@ -264,7 +363,7 @@ def pick_loop(doc: dict, cfg: dict, video: Path) -> tuple[float, float, str, flo
     or ``{shot, end_aligned, min_motion}``: ``end_aligned`` takes the window that ends with the shot (a
     short shot then keeps the screen before it instead of running into the next page)."""
     g = cfg["gif"]
-    total = doc["total_s"]
+    total = doc.get("program", {}).get("total_s", doc["total_s"])
     by_id = {s["id"]: s for s in ran(doc["shots"])}
     for c in g["candidates"]:
         c = {"shot": c} if isinstance(c, str) else c
@@ -272,10 +371,11 @@ def pick_loop(doc: dict, cfg: dict, video: Path) -> tuple[float, float, str, flo
         s = by_id.get(sid)
         if not s:
             continue
+        a, b = span(s)
         dur = g["duration_s"]
-        start, slack = s["start_s"] + 0.5, 2.0
+        start, slack = a + 0.5, 2.0
         if c.get("end_aligned"):
-            start, slack = max(0.0, s["end_s"] - 0.3 - dur), 0.0
+            start, slack = max(0.0, b - 0.3 - dur), 0.0
         if start + dur + slack > total:
             continue
         f = frames(video, start, dur + slack)
@@ -289,7 +389,7 @@ def pick_loop(doc: dict, cfg: dict, video: Path) -> tuple[float, float, str, flo
         )
         if motion >= c.get("min_motion", g.get("min_motion", 0.5)):
             return start, i / 10, sid, score
-    start = next(iter(by_id.values()))["start_s"] if by_id else 0.0
+    start = span(next(iter(by_id.values())))[0] if by_id else 0.0
     return start, float(g["duration_s"]), "first shot", float("nan")
 
 
@@ -311,25 +411,8 @@ def gif(doc: dict, cfg: dict, d: Path) -> None:
             f"[body][head]xfade=transition=fade:duration={fade}:offset={dur - head - fade:.3f},split[x][y];"
             "[x]palettegen=stats_mode=diff[p];[y][p]paletteuse=dither=bayer:bayer_scale=5"
         )
-        run(
-            [
-                "ffmpeg",
-                "-v",
-                "error",
-                "-y",
-                "-ss",
-                f"{start:.3f}",
-                "-t",
-                f"{dur:.3f}",
-                "-i",
-                str(src),
-                "-filter_complex",
-                graph,
-                "-loop",
-                "0",
-                str(out),
-            ]
-        )
+        run(["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", str(src),
+             "-filter_complex", graph, "-loop", "0", str(out)])  # fmt: skip
         mb = out.stat().st_size / 1e6
         if mb < g["max_mb"]:
             break
@@ -349,14 +432,27 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("run", type=Path, help="the run folder record.py wrote")
     ap.add_argument("--config", type=Path, default=HERE / "captions.yaml")
-    ap.add_argument("--only", default="srt,mp4,burn,cuts,gif", help="comma-separated steps")
+    ap.add_argument("--only", default="mp4,srt,burn,cuts,gif", help="comma-separated steps")
     ap.add_argument("--force", action="store_true", help="redo steps whose outputs are fresh")
+    ap.add_argument(
+        "--size", help="the program's size, e.g. 2560x1440 (default: captions.yaml's program.size)"
+    )
+    ap.add_argument(
+        "--sample", metavar="SHOT", help="also cut 10 s of the captioned program from SHOT"
+    )
     args = ap.parse_args(argv)
     d: Path = args.run
-    doc = json.loads((d / "shots.json").read_text())
-    cfg = yaml.safe_load(args.config.read_text())
+    shots_path, cfgp = d / "shots.json", args.config
+    doc = json.loads(shots_path.read_text())
+    cfg = yaml.safe_load(cfgp.read_text())
     steps = set(args.only.split(","))
-    shots, cfgp = d / "shots.json", args.config
+    size = (
+        tuple(int(v) for v in args.size.split("x"))
+        if args.size
+        else tuple(cfg.get("program", {}).get("size", (W, H)))
+    )
+    suffix = "" if size == (W, H) else f"_{size[1]}p"
+    src = d / doc["video"]
 
     def need(out: Path, *inputs: Path) -> bool:
         if args.force or not fresh(out, *inputs):
@@ -364,24 +460,44 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  fresh: {out.name}")
         return False
 
-    if "srt" in steps and need(d / "captions.srt", shots, cfgp):
+    if "mp4" in steps and need(d / f"master{suffix}.mp4", src, cfgp):
+        print(f"master{suffix}.mp4")
+        program(doc, cfg, d, size, suffix, shots_path)
+        doc = json.loads(shots_path.read_text())
+    fps = (doc.get("program") or {}).get("fps") or probe(d / f"master{suffix}.mp4")["fps"]
+    if "srt" in steps and need(d / "captions.srt", shots_path, cfgp):
         print("captions.srt")
         write_srt(doc, cfg, d / "captions.srt")
-    if "mp4" in steps and need(d / "master.mp4", d / doc["video"]):
-        print("master.mp4")
-        remux(doc, d)
-    if "burn" in steps and need(d / "master_captioned.mp4", d / "master.mp4", d / "captions.srt"):
-        print("master_captioned.mp4")
-        burn(cfg, d)
+    if "burn" in steps and need(
+        d / f"master{suffix}_captioned.mp4", d / f"master{suffix}.mp4", d / "captions.srt"
+    ):
+        print(f"master{suffix}_captioned.mp4")
+        burn(cfg, d, suffix, fps, size[1])
+    if suffix:  # the cuts and the GIF are made from the 1080p program
+        return 0
     if "cuts" in steps:
         for name, spec in cfg["cuts"].items():
-            if need(d / f"cut_{name}.mp4", d / "master.mp4", shots, cfgp):
+            if need(d / f"cut_{name}.mp4", d / "master.mp4", shots_path, cfgp):
                 print(f"cut_{name}.mp4")
-                cut(d, name, plan_cut(doc, spec), cfg)
+                cut(d, name, plan_cut(doc, spec), cfg, size, fps)
     if "gif" in steps and need(d / "demo.gif", d / "master_captioned.mp4", cfgp):
         print("demo.gif")
         gif(doc, cfg, d)
+    if args.sample:
+        sample(doc, d, args.sample, fps)
     return 0
+
+
+def sample(doc: dict, d: Path, sid: str, fps: float, seconds: float = 10.0) -> None:
+    """``sample_<shot>.mp4``: `seconds` of the captioned program from the shot's start, to judge a move."""
+    s = next((x for x in doc["shots"] if x["id"] == sid), None)
+    if s is None:
+        raise SystemExit(f"no shot {sid} in shots.json")
+    a = span(s)[0]
+    out = d / f"sample_{sid}.mp4"
+    run(["ffmpeg", "-v", "error", "-y", "-ss", f"{a:.3f}", "-t", f"{seconds:.3f}", "-i", "master_captioned.mp4",
+         "-an", *export_x264(fps, 1080), out.name], cwd=d)  # fmt: skip
+    print(f"  {out.name}: {seconds:.0f} s of '{sid}' from {a:.1f} s")
 
 
 if __name__ == "__main__":

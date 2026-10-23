@@ -1,6 +1,6 @@
 # Demo video pipeline
 
-One command records the whole demo flow as a 1080p master, burns in short step labels, cuts the OpenCV (≤ 5:00) and Nebius (≤ 3:00) videos from it, and makes the README GIF (≤ 20 s, ≤ 3 MB). The shot lists follow WIN_RESEARCH §8, on the one console of PR #171: the landing at t0, the mission-time story's coach marks t1–t5, the Trace, Conditions, the simulated fleet, the radio desk and the Debrief. The selectors are roles and labels, and a shot whose element isn't there is skipped (or failed) with the reason in `shots.json`.
+One command records the whole demo flow as a 4K master (the 1920×1080 viewport at device scale 2, captured frame by frame), renders the camera moves and speed-ups from it down to a 1080p program, burns in short step labels, cuts the OpenCV (≤ 5:00) and Nebius (≤ 3:00) videos from it, and makes the README GIF (≤ 20 s, ≤ 3 MB). The shot lists follow WIN_RESEARCH §8, on the one console of PR #171: the landing at t0, the mission-time story's coach marks t1–t5, the Trace, Conditions, the simulated fleet, the radio desk and the Debrief. The selectors are roles and labels, and a shot whose element isn't there is skipped (or failed) with the reason in `shots.json`.
 
 ```bash
 uv sync --extra video                 # playwright==1.64.0 + pyyaml (not in the default deps)
@@ -14,12 +14,12 @@ Needs `web/node_modules` (`pnpm install` in `web/`), the demo cache in `web/publ
 
 | Step | Script | Output in the run folder |
 |---|---|---|
-| record | `record.py` | `master.webm` (Playwright `recordVideo`, 1920×1080), `shots.json`, `snaps/NN_<shot>.png` (last frame of each shot) |
-| captions | `captions.py --only srt,mp4,burn` | `captions.srt`, `master.mp4` (H.264, CRF 18, 30 fps), `master_captioned.mp4` |
+| record | `record.py` (+ `capture.py`) | `master_4k.mp4` (3840×2160, H.264 CRF 16, BT.709, 60 or 30 fps), `shots.json`, `frame_times.json`, `snaps/NN_<shot>.png` (last frame of each shot) |
+| program, captions | `captions.py --only mp4,srt,burn` (+ `moves.py`) | `master.mp4` (1920×1080 program: moves and speed-ups, uncaptioned), `captions.srt`, `master_captioned.mp4` (export profile) |
 | cuts | `captions.py --only cuts` | `cut_opencv.mp4` (≤ 5:00), `cut_nebius.mp4` (≤ 3:00), `cut_<name>.srt` (the cut's own labels), `cut_<name>.json` (every segment: source in/out, output time) |
 | gif | `captions.py --only gif` | `demo.gif` (fps 10, 800 px, one palette, ≤ 3 MB, ≤ 20 s, loops), `gif.json` |
 
-`run.sh` runs them in that order. It is idempotent: a run folder with `master.webm` and `shots.json` is not recorded again (`--out <folder>` to finish or redo one), and each later step is skipped while its output is newer than its inputs (`FORCE=1` redoes them). `--publish` also copies the GIF to `docs/report/figures/demo.gif` if it is at most 3 MB; without it nothing outside `runs/` (gitignored) is written. Other flags go to `record.py`.
+`run.sh` runs them in that order (`--1440` adds `master_1440p.mp4` and `master_1440p_captioned.mp4` for the upload). It is idempotent: a run folder whose `shots.json` names a recording that is there is not recorded again (`--out <folder>` to finish or redo one), and each later step is skipped while its output is newer than its inputs (`FORCE=1` redoes them). `--publish` also copies the GIF to `docs/report/figures/demo.gif` if it is at most 3 MB; without it nothing outside `runs/` (gitignored) is written. Other flags go to `record.py`.
 
 ## Recording (`record.py`)
 
@@ -43,17 +43,30 @@ Builds the site with `VITE_CACHE_DIR=demo` into the run folder, serves it with `
 
 None of the demo shots needs an API: the demo mission is fixtures plus the demo cache, and it already holds the degraded links and Team Two's relay (`fleet`). The two live shots need one (below).
 
-Determinism: fixed 1920×1080 viewport and video at scale 1, dark scheme, `prefers-reduced-motion: no-preference`, time zone America/Vancouver, locale en-US, and the page clock started at the demo mission fixture's `now` (2026-10-24T22:00Z; `--no-clock` turns it off; not pinned with `--live`, whose mission carries real times). Eased mouse moves take a fixed wall time however slow the renderer is, with pauses between actions; every on-camera action is a click. Headless Chromium records no cursor, so the recorder draws one (and a ring on each click) on top of the page; the site is untouched.
+Determinism: fixed 1920×1080 viewport at device scale 2, dark scheme, `prefers-reduced-motion: no-preference`, time zone America/Vancouver, locale en-US, and the page clock started at the demo mission fixture's `now` (2026-10-24T22:00Z; `--no-clock` turns it off; not pinned with `--live`, whose mission carries real times). Mouse moves follow a slightly bowed cubic Bézier, eased in and out (cubic), and take a fixed wall time however slow the renderer is; every on-camera action is a click, with 300 ms of settle before and after it. Headless Chromium records no cursor, so the recorder draws one (an SVG arrow, and a ring on each click that eases out) on top of the page; both are vectors, so they are as sharp as the text at 2×. The site is untouched. Each click's place goes into its shot's `extra.clicks` (`push_in: {focus: click}` uses it).
 
-**Shot times are read off the video.** Under load the recording's clock drifts from wall time (10–15 % on this machine), so wall-clock timestamps don't line up with the video. The recorder shows a 12-px mark near the bottom-right corner, magenta or green during a shot and black between shots, reads it back from `master.webm` after recording and writes those video times into `shots.json` (`"sync": "mark"`; the wall times are kept under `extra`). `captions.py` paints the mark out (`delogo`) when it makes `master.mp4`. If the mark can't be read, the wall times are scaled to the video's length and `"sync"` says `"scaled"`.
+`--shots call,photos` records just those shots; `--landing '/#m/demo?t=0'` opens the call there instead of `/`.
+
+### Capture
+
+Playwright's `recordVideo` encodes VP8 at a fixed ~1 Mbit/s and scales the viewport to fit 800×800 ([microsoft/playwright#31424](https://github.com/microsoft/playwright/issues/31424)); that was the soft, smeared look of the earlier runs. `record.py` no longer uses it. `capture.py` starts `page.screencast` (CDP `Page.startScreencast`) with JPEG frames at quality 95 and the frame size of the device pixels. Chromium is launched with `--force-device-scale-factor=2`; with the context's scale alone the screencast sends the 1920×1080 viewport, not 3840×2160. A writer thread puts each frame on disk with Chromium's own timestamp. After the recording, ffmpeg turns them into a constant-frame-rate master: the concat demuxer holds each frame until the next, then H.264 High at CRF 16, yuv420p, converted from the JPEGs' full-range BT.601 to BT.709 and tagged so. Encoding after the recording leaves every core to the renderer.
+
+Chromium sends a frame only when the page changes, so the rate that matters is the rate while something moves. `record.py` prints it, as one over the median gap between frames less than 0.25 s apart, and keeps it in `shots.json` under `capture` with every frame's time in `frame_times.json`. `--fps auto` (the default) makes the master 60 fps when that rate is at least 45, else 30. Here Chromium has no GPU (WSL2: SwiftShader, llvmpipe), and the screencast's readback of a 4K surface is the limit. A probe that repaints every animation frame measured about 60 fps at scale 1, 40 at 1.33, 29 at 1.5 and 14 to 20 at 2. On the console itself it measured 15 to 20 fps at scale 2 (Node and Python clients alike), so the 4K master comes out at 30 fps. `--scale 1.5` (2880×1620, about 30 fps) or `--scale 1` (60 fps, no supersampling) trade sharpness for motion; a machine with a GPU should reach 60 at 2. The director waits with `page.wait_for_timeout`, never `time.sleep`, because the sync Playwright client only delivers (and acks) frames inside its own calls.
+
+**Shot times are read off the video.** The recorder shows a 12 px mark near the bottom-right corner, magenta or green during a shot and black between shots. It reads the mark back from the master after recording (at the master's scale; a white frame before the first paint is not a shot) and writes those video times into `shots.json` (`"sync": "mark"`; the wall times are kept under `extra`). `captions.py` paints the mark out (`delogo`, scaled to the master) when it renders the program. If the mark can't be read, the shots' wall-clock times are placed against the frames' own capture times (`"clock"`), else the wall times are scaled to the video's length (`"scaled"`).
 
 `shots.json`:
 
 ```json
-{"video": "master.webm", "total_s": 238.6, "sync": "mark", "page_clock": null,
- "shots": [{"id": "confirm", "target_s": 20, "start_s": 26.0, "end_s": 47.0, "status": "ok", "note": "", "mode": "demo"},
+{"video": "master_4k.mp4", "size": [3840, 2160], "scale": 2.0, "fps": 30, "total_s": 238.6, "sync": "mark",
+ "capture": {"frames": 3100, "moving_fps": 18.0, "moving_p90_fps": 20.0, ...}, "page_clock": null,
+ "program": {"video": "master.mp4", "size": [1920, 1080], "fps": 30, "total_s": 231.2, ...},
+ "shots": [{"id": "confirm", "target_s": 20, "start_s": 26.0, "end_s": 47.0, "status": "ok", "note": "", "mode": "demo",
+            "program_start_s": 24.9, "program_end_s": 45.9, "move": {"kind": "push_in", ...}, "speed": []},
            {"id": "recall", "status": "skipped", "note": "http://127.0.0.1:8000 is unreachable (...)", ...}]}
 ```
+
+`start_s` / `end_s` are in the recorded master; `program_start_s` / `program_end_s` (written by `captions.py`) are in `master.mp4`, after the speed-ups, and are what the labels, the cuts and `narrate.py` use.
 
 ### Live flow
 
@@ -69,9 +82,29 @@ After the demo shots, `--live` sets up a fresh mission off camera with the creek
 
 `--serve-local` runs `python -m sightline.pipeline serve --radio text` with the agent and Tavily faked (`SIGHTLINE_FAKE_LLM=1`, `SIGHTLINE_FAKE_TAVILY=1`), its missions under `<run>/api/`, the cv2 detector from `web/public/models/sightline-detector-v2.onnx`. With the fake Tavily the live mission's conditions start as "flyability unknown"; the gusts override is what says no flying. `run.sh` passes `--extra conditions`. Never point it at AWS for a rehearsal: start AWS only for the real recording (and run `scripts/remote_check.py` first).
 
+## Camera moves and pacing (`captions.py --only mp4`, `moves.py`, `captions.yaml`)
+
+The program, `master.mp4`, is rendered from the 4K master. Each shot, and the frames between two shots, is a piece rendered by its own ffmpeg (several at a time) and joined without re-encoding. Pieces are near-lossless (CRF 10), and the export encodes them once more. `captions.yaml`'s `moves` section sets, per shot (coordinates in the 1920×1080 viewport's CSS pixels, times in the shot's recorded seconds):
+
+```yaml
+moves:
+  default: {push_in: {scale: 1.08}}                     # any shot without its own entry: a slow centred push over the shot
+  call:    {push_in: {focus: click, scale: 1.12}}       # towards the shot's last click (Follow the search)
+  photos:  {push_in: {x: 1560, y: 540, scale: 1.08}, speed: [{start: 2.0, end: 7.0, rate: 1.5}]}
+  results: {hold: true}                                 # no move ({x, y, scale}: a still crop)
+```
+
+- `push_in: {x, y, scale, start, end}` zooms from 1 to `scale` about (x, y) between `start` and `end` (default the whole shot), eased in and out (cubic). The point stays where it is on screen while the rest grows, so the frame never leaves the picture. It is ffmpeg `zoompan` on the master scaled up `program.upscale` times (2: 7680×4320). zoompan rounds its crop to whole pixels and shakes on a slow move unless the input is upscaled first (ffmpeg trac #4298). zoompan scales the crop to 2× the output, then lanczos takes it to 1080p.
+- `speed`: a number (the whole shot) or `[{start, end, rate}]` (a wait inside it), applied with `setpts` (then `fps`). It runs before the move, because ffmpeg's `fps` filter must not follow `zoompan`: zoompan ends its stream at a timestamp in the wrong time base and `fps` pads hundreds of seconds. The move's times are mapped through the speed-up, so the move still lands where the recording says.
+- The labels are burned in after all this, on the 1080p program, so they stay sharp and still.
+
+The shots' places in the program go back into `shots.json` (`program_start_s`, `program_end_s`, `move`, `speed`). The labels, the cuts, the GIF and `narrate.py` read those, so a speed-up never puts a narration line over the wrong shot. `--size 2560x1440` renders the same program at 1440p (`master_1440p.mp4`, `master_1440p_captioned.mp4`) for a sharper upload; `--sample <shot>` cuts 10 s of the captioned program from that shot (`sample_<shot>.mp4`) to judge a move.
+
+**Export profile** (`master_captioned.mp4`, the cuts, the narrated cuts): H.264 High, yuv420p, BT.709 tags, YouTube's recommended SDR bitrates (1080p: 8 Mbit/s at 30 fps, 12 at 60; 1440p: 16 / 24), VBV cap 1.5×, `-movflags +faststart`; AAC 192 kbit/s, 48 kHz for the narration.
+
 ## Captions and cuts (`captions.py`, `captions.yaml`)
 
-`captions.yaml` holds the burned-in labels: one short step name per shot, at most two lines, not narration. Numbers are counted over the shots that actually ran, so a skipped shot leaves no gap. A label never calls an area done (`captions.py` refuses one that does); a searched sector is "searched at POD x"; anything simulated or recorded says so. The style is libass `force_style` (Inter, small, dark box, bottom centre).
+`captions.yaml` holds the burned-in labels: one short step name per shot, not narration. A label is at most two lines of 42 characters with its number (`captions.py` wraps a long line at a space and refuses a label that would need a third) and stays on screen at least 1.2 s. Numbers are counted over the shots that actually ran, so a skipped shot leaves no gap. A label never calls an area done (`captions.py` refuses one that does); a searched sector is "searched at POD x"; anything simulated or recorded says so. The style is libass `force_style` (Inter, small, dark box, bottom centre).
 
 The cuts are made from `master.mp4` with their own labels burned in (`cut_<name>.srt`: numbered in the cut's order and timed to its sped-up segments, so a step number never runs backwards; a segment's `label` replaces the shot's for that cut), silent, with black at the start and end for the on-camera clips:
 
@@ -93,9 +126,19 @@ Voices both cuts with NVIDIA Magpie TTS, the radio desk's model and speaker (`si
 
 `narration.yaml` holds one line per shot (keyed by the shot ids in `shots.json`, or `slot: <name>` for the OpenCV cut's three slides and the Nebius architecture slot), at most two sentences, sized at 150 words a minute, numbers as words, every model by name and everything simulated said so; the "what breaks first" lines are read word for word (`verbatim`). The on-camera open and close stay silent. `respell` is what Magpie is given for names it says wrong ("OpenCV 5" came out as "OpenZvy"; "Open CV five" is heard right).
 
-For each line Magpie speaks each sentence (250 ms apart), up to `takes` samples, and keeps the one Parakeet hears best; a line over its shot by more than 0.5 s loses its second sentence and is listed in a warning to rewrite. The lines start 250 ms into their shots (never on top of the line before), the track is normalised to −16 LUFS (ffmpeg `loudnorm`, two passes) and muxed as AAC into `cut_<name>_narrated.mp4`, with "Narration: NVIDIA Magpie TTS" burned in over the first narrated shot just above its step label (one re-encode, CRF 18 as `captions.py`; `--no-credit` copies the video stream). Also `narration_<name>.srt` (the spoken lines), `clips/`, and `narration_report.md` / `narration.json`: per line the text, seconds available and used, and the listen-check, Parakeet on each line cut back out of the finished mp4's audio, as word error rate with numbers spelled out on both sides (the script says "sixty percent", Parakeet writes "60%").
+For each line Magpie speaks each sentence (250 ms apart), up to `takes` samples, and keeps the one Parakeet hears best; a line over its shot by more than 0.5 s loses its second sentence and is listed in a warning to rewrite. The lines start 250 ms into their shots (never on top of the line before), the track is normalised to −16 LUFS (ffmpeg `loudnorm`, two passes) and muxed as AAC into `cut_<name>_narrated.mp4`, with "Narration: NVIDIA Magpie TTS" burned in over the first narrated shot just above its step label (one re-encode in `captions.py`'s export profile; `--no-credit` copies the video stream). Each line's time comes from `cut_<name>.json` (its place in the cut) checked against `shots.json`'s program times (after the speed-ups); a cut older than those times is refused with "rerun captions.py --only cuts". Also `narration_<name>.srt` (the spoken lines), `clips/`, and `narration_report.md` / `narration.json`: per line the text, seconds available and used, and the listen-check, Parakeet on each line cut back out of the finished mp4's audio, as word error rate with numbers spelled out on both sides (the script says "sixty percent", Parakeet writes "60%").
 
-## Last run (live, `--serve-local`, this machine, 2026-10-22, after #177)
+## Capture test (this machine, 2026-10-22, the new capture)
+
+```bash
+uv run --extra video python scripts/demo_video/record.py --out runs/video/capture-test --shots call,photos --landing '/#m/demo?t=0'
+uv run --extra video python scripts/demo_video/captions.py runs/video/capture-test --only mp4,srt,burn --sample call
+uv run --extra video python scripts/demo_video/captions.py runs/video/capture-test --only mp4,burn --size 2560x1440
+```
+
+`runs/video/capture-test/`: `call` and `photos` (t0, **Follow the search**, t1), 27.3 s recorded. Capture: 177 frames at 3840×2160, 15 fps median while the page moved (20 at p90), so the master is 30 fps. `master_4k.mp4` is 4.6 MB (1.3 Mbit/s at CRF 16) and took 71 s to encode. The program (`call` pushes 1.0 → 1.12 towards Follow the search; `photos` pushes 1.08 and plays the clock's run at 1.5×) is 25.7 s and rendered in 13 s. `master_captioned.mp4` is 21.8 MB (6.8 Mbit/s), `sample_call.mp4` (10 s) is 8.7 MB (7.0 Mbit/s) and `master_1440p_captioned.mp4` is 41.8 MB (13.0 Mbit/s). Frames for comparing sharpness: `frame_4k.png`, `frame_1080p.png` (the program, with its move and label), `frame_1080p_nomove.png` and `old_frame_1080p_recordVideo.png` (the same moment of `final5-20261022-140255`).
+
+## Last run (live, `--serve-local`, this machine, 2026-10-22, after #177, recorded with `recordVideo`)
 
 `runs/video/final4-20261022-122829/`: 236.6 s master; shot times from the sync mark, nothing skipped or failed:
 
