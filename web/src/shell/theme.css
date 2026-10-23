@@ -573,4 +573,10 @@ body {
   .sl-row-new { animation: none; background: color-mix(in srgb, var(--c, var(--accent-soft)) 14%, transparent); }
   .sl-glow-proposal { transition: none; }
 }
+/* the second look's progress: the bar fills over the run's own time (inline animation-duration) */
+@keyframes sl-progress { from { width: 0; } to { width: 100%; } }
+.sl-progress { animation: sl-progress 1200ms linear both; }
+@media (prefers-reduced-motion: reduce) {
+  .sl-progress { animation: none; width: 100%; opacity: 0.6; }
+}
 /* ---- end of v3 feedback and motion ---- */
