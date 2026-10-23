@@ -1,8 +1,9 @@
-"""Record the demo flow as one 1920x1080 screen recording, shot by shot (WIN_RESEARCH §8).
+"""Record the demo flow as one 1920x1080 screen recording at device scale 2, shot by shot (WIN_RESEARCH §8).
 
     uv run --extra video python scripts/demo_video/record.py                       # the demo story
     uv run --extra video python scripts/demo_video/record.py --live --serve-local  # + the simulated fleet live
     uv run --extra video python scripts/demo_video/record.py --live --api http://127.0.0.1:8000
+    uv run --extra video python scripts/demo_video/record.py --shots call,photos   # just those shots
 
 Builds the site (``VITE_CACHE_DIR=demo``), serves it with ``vite preview`` on port 5202 (started and
 stopped by PID by this script), drives Chromium through the one console (PR #171): the landing at t0
@@ -10,9 +11,12 @@ with the pitch bar, the mission-time story's coach marks t1-t5, the Trace, the C
 simulated fleet, the radio desk and the Debrief, with eased mouse moves and clicks, and writes into the
 run folder:
 
-- ``master.webm``: the recording (Playwright ``recordVideo``, 1920x1080);
+- ``master_4k.mp4``: the recording, 3840x2160 (the 1920x1080 viewport at device scale 2), captured frame
+  by frame with ``page.screencast`` and encoded by ffmpeg (``capture.py``: H.264 CRF 16, BT.709), at 60 fps
+  when the renderer keeps up and 30 when it can't (``--fps``); not Playwright's ``recordVideo``, which
+  encodes VP8 at about 1 Mbit/s and scales to fit 800x800;
 - ``shots.json``: every shot's id, target duration and actual start/end in the recording, and whether
-  it ran, was skipped (an element that isn't there, the API down) or failed;
+  it ran, was skipped (an element that isn't there, the API down) or failed; the capture's frame rate;
 - ``snaps/<NN>_<shot>.png``: the last frame of each shot, to check a run without watching it.
 
 Deterministic where the app allows: a fixed viewport and scale, a fixed time zone and locale, motion
@@ -42,6 +46,9 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from capture import FrameCapture
+
 ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "web"
 FIXTURE = WEB / "src/command/__fixtures__/demo_mission.json"
@@ -49,30 +56,31 @@ PORT = 5202
 SIZE = {"width": 1920, "height": 1080}
 
 # A visible pointer: headless Chromium records no cursor, so the page gets one drawn on top (and a ring
-# on each click). Injected by the recorder only; the site itself is untouched.
+# on each click). Injected by the recorder only; the site itself is untouched. Both are vectors, drawn at
+# the device scale (crisp at 2x), moved with a sub-pixel translate3d; the ring eases out on a cubic.
 CURSOR_JS = r"""
 (() => {
   const install = () => {
     if (document.getElementById("__demo_cursor")) return;
     const c = document.createElement("div");
     c.id = "__demo_cursor";
-    c.innerHTML = '<svg width="28" height="28" viewBox="0 0 28 28"><path d="M4 2 L4 22 L9.5 17 L13 25.5 L16.5 24 L13 16 L20.5 16 Z" fill="#fff" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+    c.innerHTML = '<svg width="30" height="30" viewBox="0 0 28 28" shape-rendering="geometricPrecision"><path d="M4 2 L4 22 L9.5 17 L13 25.5 L16.5 24 L13 16 L20.5 16 Z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>';
     Object.assign(c.style, {position: "fixed", left: "0", top: "0", zIndex: "2147483647", pointerEvents: "none",
-      transform: "translate(-100px,-100px)", filter: "drop-shadow(0 1px 2px rgba(0,0,0,.5))"});
+      transform: "translate3d(-100px,-100px,0)", willChange: "transform", filter: "drop-shadow(0 1px 1.5px rgba(0,0,0,.45))"});
     document.documentElement.appendChild(c);
-    window.addEventListener("mousemove", (e) => { c.style.transform = `translate(${e.clientX - 4}px,${e.clientY - 2}px)`; }, true);
+    window.addEventListener("mousemove", (e) => { c.style.transform = `translate3d(${e.clientX - 4.3}px,${e.clientY - 2.1}px,0)`; }, true);
     window.addEventListener("mousedown", (e) => {
       const r = document.createElement("div");
       Object.assign(r.style, {position: "fixed", left: `${e.clientX - 18}px`, top: `${e.clientY - 18}px`, width: "36px", height: "36px",
-        borderRadius: "50%", border: "3px solid rgba(255,196,0,.95)", zIndex: "2147483646", pointerEvents: "none",
-        transition: "transform .45s ease-out, opacity .45s ease-out"});
+        borderRadius: "50%", border: "2.5px solid rgba(255,196,0,.95)", boxSizing: "border-box", zIndex: "2147483646", pointerEvents: "none",
+        transition: "transform .5s cubic-bezier(.33,1,.68,1), opacity .5s cubic-bezier(.33,1,.68,1)"});
       document.documentElement.appendChild(r);
-      requestAnimationFrame(() => { r.style.transform = "scale(1.8)"; r.style.opacity = "0"; });
-      setTimeout(() => r.remove(), 600);
+      requestAnimationFrame(() => requestAnimationFrame(() => { r.style.transform = "scale(1.8)"; r.style.opacity = "0"; }));
+      setTimeout(() => r.remove(), 650);
     }, true);
     // The sync mark: a 12 px square near the bottom-right corner, black between shots and magenta or
-    // green (alternating) during one. The recording's own clock drifts from wall time when the renderer is
-    // busy, so shot times are read back off the video from this mark, then it is painted out (delogo).
+    // green (alternating) during one. Shot times are read back off the video from this mark, then it is
+    // painted out (delogo).
     const m = document.createElement("div");
     m.id = "__demo_sync";
     Object.assign(m.style, {position: "fixed", right: "2px", bottom: "2px", width: "12px", height: "12px",
@@ -88,8 +96,15 @@ CURSOR_JS = r"""
 })();
 """
 SYNC_COLORS = ("#ff00ff", "#00ff00")
-SYNC_BOX = (1906, 1066, 12)  # x, y, size of the mark in the 1920x1080 frame
-DELOGO = "delogo=x=1903:y=1063:w=16:h=16"  # paints the mark out (captions.py applies it)
+SYNC_BOX = (1906, 1066, 12)  # x, y, size of the mark in CSS px (the 1920x1080 viewport)
+
+
+def delogo(k: float) -> str:
+    """Paints the mark out of a video `k` times the viewport's size (captions.py applies it)."""
+    return f"delogo=x={round(1903 * k)}:y={round(1063 * k)}:w={round(16 * k)}:h={round(16 * k)}"
+
+
+DELOGO = delogo(1)
 
 
 # --- the servers -----------------------------------------------------------------------------------
@@ -242,22 +257,30 @@ def probe_fps(video: Path) -> float:
     return float(num) / float(den or 1)
 
 
+def probe_width(video: Path) -> int:
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width",
+                        "-of", "csv=p=0", str(video)], capture_output=True, text=True, check=True)  # fmt: skip
+    return int(r.stdout.strip().split(",")[0])
+
+
 def read_sync(video: Path) -> list[tuple[float, float]]:
     """The (start, end) in video seconds of every coloured run of the sync mark, in order."""
     import numpy as np
 
-    x, y, n = SYNC_BOX
-    c = 4  # the middle 4x4 of the mark: clear of the codec's edge bleed
+    k = probe_width(video) / SIZE["width"]  # 2 for the 4K master
+    x, y, n = (round(v * k) for v in SYNC_BOX)
+    c = round(4 * k)  # the middle of the mark: clear of the codec's edge bleed
     crop = f"crop={c}:{c}:{x + (n - c) // 2}:{y + (n - c) // 2}"
     raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(video), "-vf", crop, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
                          capture_output=True, check=True).stdout  # fmt: skip
     px = (
         np.frombuffer(raw, np.uint8).reshape(-1, c * c, 3).mean(axis=1)
     )  # one mean colour per frame
-    ref = np.array([[0, 0, 0], [255, 0, 255], [0, 255, 0]], float)
+    # white too: a blank page before the first paint is not a shot (it is nearer magenta than black)
+    ref = np.array([[0, 0, 0], [255, 0, 255], [0, 255, 0], [255, 255, 255]], float)
     labels = np.argmin(
         ((px[:, None, :] - ref[None]) ** 2).sum(-1), axis=1
-    )  # 0 black, 1 magenta, 2 green
+    )  # 0 black, 1 magenta, 2 green, 3 white
     fps = probe_fps(video)
     runs: list[tuple[int, int, int]] = []  # label, first frame, last frame
     for i, lab in enumerate(labels):
@@ -269,13 +292,16 @@ def read_sync(video: Path) -> list[tuple[float, float]]:
     return [
         (round(a / fps, 3), round((b + 1) / fps, 3))
         for lab, a, b in runs
-        if lab != 0 and b - a >= 2
+        if lab in (1, 2) and b - a >= 2
     ]
 
 
-def align(shots: list[Shot], video: Path, total_wall: float) -> str:
+def align(
+    shots: list[Shot], video: Path, total_wall: float, cap: FrameCapture | None = None
+) -> str:
     """Rewrites the shots' start/end from wall time to video time. Returns how: "mark" (read off the
-    video) or "scaled" (the mark didn't read cleanly: wall times scaled to the video's length)."""
+    video), "clock" (the mark didn't read cleanly: the shots' wall-clock times against the frames' own
+    capture times) or "scaled" (neither: wall times scaled to the video's length)."""
     marked = [s for s in shots if s.extra.get("marked")]
     for s in shots:
         s.extra["wall_start_s"], s.extra["wall_end_s"] = s.start_s, s.end_s
@@ -288,6 +314,15 @@ def align(shots: list[Shot], video: Path, total_wall: float) -> str:
         for s, (a, b) in zip(marked, runs, strict=True):
             s.start_s, s.end_s = a, b
         how = "mark"
+    elif cap is not None and cap.ts and all("epoch_start" in s.extra for s in marked):
+        print(
+            f"sync mark: {len(runs)} runs for {len(marked)} shots; using the frames' clock",
+            flush=True,
+        )
+        for s in marked:
+            s.start_s = cap.video_time(s.extra["epoch_start"])
+            s.end_s = cap.video_time(s.extra["epoch_end"])
+        how = "clock"
     else:
         print(
             f"sync mark: {len(runs)} runs for {len(marked)} shots; scaling wall times instead",
@@ -343,6 +378,9 @@ class Director:
         self.x, self.y = SIZE["width"] / 2, SIZE["height"] / 2
         self.marked = 0
         self.color = "#000"
+        self.current: Shot | None = None
+        self.only: set[str] | None = None  # --shots: record just these
+        self.landing = "/"  # where the call shot opens (--landing)
 
     def now(self) -> float:
         return round(time.monotonic() - self.t0, 3)
@@ -355,24 +393,38 @@ class Director:
 
     # pacing and the pointer
     def pause(self, s: float) -> None:
-        time.sleep(s)
+        """Waits in Playwright (not time.sleep), so the screencast's frames keep arriving and being acked."""
+        if s > 0:
+            self.page.wait_for_timeout(s * 1000)
 
     def move(self, x: float, y: float, duration: float = 0.7) -> None:
-        """An eased move that takes `duration` of wall time however slow the page is (each mouse event is
-        a round trip to a busy renderer, so the step count adapts instead of the length)."""
+        """An eased move along a cubic curve that takes `duration` of wall time however slow the page is
+        (each mouse event is a round trip to a busy renderer, so the step count adapts instead of the
+        length): ease-in-out cubic in time, a cubic Bezier in space bowed slightly, like a hand."""
         x0, y0 = self.x, self.y
         dist = math.hypot(x - x0, y - y0)
         if dist < 2:
             return
+        bow = min(40.0, dist * 0.08)
+        nx, ny = (
+            (y0 - y) / dist * bow,
+            (x - x0) / dist * bow,
+        )  # the normal, always bowing upward-ish
+        if ny > 0:
+            nx, ny = -nx, -ny
+        c1 = (x0 + (x - x0) / 3 + nx, y0 + (y - y0) / 3 + ny)
+        c2 = (x0 + 2 * (x - x0) / 3 + nx, y0 + 2 * (y - y0) / 3 + ny)
         start = time.monotonic()
         while True:
             k = min(1.0, (time.monotonic() - start) / duration)
             e = ease(k)
-            bow = math.sin(math.pi * e) * min(40.0, dist * 0.08)  # a slight arc, like a hand
-            self.page.mouse.move(x0 + (x - x0) * e, y0 + (y - y0) * e - bow)
+            u = 1 - e
+            px = u**3 * x0 + 3 * u * u * e * c1[0] + 3 * u * e * e * c2[0] + e**3 * x
+            py = u**3 * y0 + 3 * u * u * e * c1[1] + 3 * u * e * e * c2[1] + e**3 * y
+            self.page.mouse.move(px, py)
             if k >= 1.0:
                 break
-            time.sleep(1 / 60)
+            self.pause(1 / 60)
         self.x, self.y = x, y
 
     def to(
@@ -390,13 +442,18 @@ class Director:
         self.move(x, y, duration)
         return x, y
 
-    def click(self, locator, duration: float = 0.7, settle: float = 0.35) -> None:
+    def click(self, locator, duration: float = 0.7, settle: float = 0.3) -> None:
+        """Move, settle 300 ms, press, settle at least 300 ms (Visual language: a deliberate pointer)."""
         self.to(locator, duration)
-        self.pause(0.15)
+        self.pause(0.3)
+        if self.current is not None:  # where the clicks are: captions.py can push in on them
+            self.current.extra.setdefault("clicks", []).append(
+                [round(self.now() - (self.current.start_s or 0), 2), round(self.x), round(self.y)]
+            )
         self.page.mouse.down()
         self.pause(0.08)
         self.page.mouse.up()
-        self.pause(settle)
+        self.pause(max(0.3, settle))
 
     def type(self, locator, text: str, per_key: float = 0.055) -> None:
         self.click(locator, 0.6, 0.15)
@@ -426,7 +483,7 @@ class Director:
                     pass
             if time.monotonic() >= end:
                 return None
-            time.sleep(0.15)
+            self.pause(0.15)
 
     # one shot
     def shot(
@@ -439,6 +496,8 @@ class Director:
         skip: str | None = None,
     ) -> Shot:
         s = Shot(sid, target_s, mode=mode)
+        if self.only is not None and sid not in self.only:
+            return s  # not asked for: not in shots.json at all
         self.shots.append(s)
         s.start_s = self.now()
         if skip:
@@ -450,7 +509,9 @@ class Director:
         self.sync(self.color)
         s.start_s = self.now()
         s.extra["marked"] = True
+        s.extra["epoch_start"] = time.time()
         self.marked += 1
+        self.current = s
         try:
             fn()
             # hold the last frame to the target length
@@ -463,6 +524,8 @@ class Director:
         except Exception as e:  # noqa: BLE001 - one broken shot must not lose the recording
             s.status, s.note = "failed", f"{type(e).__name__}: {str(e).splitlines()[0][:300]}"
         s.end_s = self.now()
+        s.extra["epoch_end"] = time.time()
+        self.current = None
         self.color = "#000"
         self.sync(self.color)
         self.pause(0.25)  # a few black-mark frames between shots
@@ -518,7 +581,7 @@ def demo_shots(d: Director) -> None:
 
     def call():
         """t0: the landing, the pitch bar over the console at the call."""
-        d.goto(d.base + "/")
+        d.goto(d.base + d.landing)
         pitch = d.first(
             p.get_by_role("region", name="Sightline"),
             p.locator('section[aria-label="Sightline"]'),
@@ -860,7 +923,7 @@ def live_shots(d: Director, api: str, mission: str | None) -> None:
             # the relay: a drone within the relay radius of Team Two carries its position
             end = time.monotonic() + 8
             while not run.sim.gcs.relays and time.monotonic() < end:
-                time.sleep(0.3)
+                d.pause(0.3)
             team = d.first(
                 p.locator("figure[aria-label='Live map'] [aria-label^='Team Two']"), timeout=2
             )
@@ -952,6 +1015,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--keep-dist", action="store_true", help="keep the built site in the run folder"
     )
+    ap.add_argument("--scale", type=float, default=2.0,
+                    help="device scale: the frames are 1920x1080 times this (default 2: 3840x2160)")  # fmt: skip
+    ap.add_argument("--fps", choices=("auto", "60", "30"), default="auto",
+                    help="the master's frame rate; auto: 60 when the capture keeps up while the page moves, else 30")  # fmt: skip
+    ap.add_argument("--quality", type=int, default=95, help="the screencast's JPEG quality (default 95)")  # fmt: skip
+    ap.add_argument("--keep-frames", action="store_true", help="keep the captured JPEGs (frames/)")
+    ap.add_argument("--shots", help="comma-separated shot ids to record (default: all)")
+    ap.add_argument("--landing", default="/", help="where the call shot opens, e.g. '/#m/demo?t=0'")
     args = ap.parse_args(argv)
     if args.live and not (args.api or args.serve_local):
         ap.error("--live needs --api (or --serve-local)")
@@ -978,12 +1049,17 @@ def main(argv: list[str] | None = None) -> int:
             dist = build_site(out, api if args.live else None, log)
         site = start_site(args.server, dist, api if args.live else None, log)
         base = f"http://127.0.0.1:{PORT}"
+        k = args.scale
+        cap_size = (round(SIZE["width"] * k), round(SIZE["height"] * k))
         with sync_playwright() as pw:
+            # the forced scale makes the browser's own surface 2x, so the screencast's frames are too
+            # (with the context's scale alone they come down at the viewport's 1920x1080)
             browser = pw.chromium.launch(
-                headless=not args.headed, args=["--hide-scrollbars", "--force-color-profile=srgb"]
-            )
+                headless=not args.headed,
+                args=["--hide-scrollbars", "--force-color-profile=srgb", f"--force-device-scale-factor={k:g}"],
+            )  # fmt: skip
             ctx = browser.new_context(
-                viewport=SIZE, screen=SIZE, device_scale_factor=1, record_video_dir=str(out / "raw"), record_video_size=SIZE,
+                viewport=SIZE, screen=SIZE, device_scale_factor=k,
                 reduced_motion="no-preference", color_scheme="dark", timezone_id="America/Vancouver", locale="en-US",
             )  # fmt: skip
             ctx.add_init_script(CURSOR_JS)
@@ -991,24 +1067,51 @@ def main(argv: list[str] | None = None) -> int:
             if pinned:
                 page.clock.install(time=fixed_now)  # runs on from the fixture's now
             d = Director(page, base, out)
-            print("recording", flush=True)
+            d.only = set(args.shots.split(",")) if args.shots else None
+            d.landing = args.landing
+            cap = FrameCapture(page, out / "frames", cap_size, args.quality)
+            cap.start()
+            print(f"recording at {cap_size[0]}x{cap_size[1]}", flush=True)
             demo_shots(d)
             if args.live:
                 live_shots(d, api, args.mission)
             d.pause(1.5)  # a beat on the last frame
             total = d.now()
-            video = page.video
-            ctx.close()  # finishes the video file
-            raw = Path(video.path())
+            cap.stop()
+            ctx.close()
             browser.close()
-        shutil.move(raw, out / "master.webm")
-        shutil.rmtree(out / "raw", ignore_errors=True)
-        sync = align(d.shots, out / "master.webm", total)
+        st = cap.stats()
+        fps = int(args.fps) if args.fps != "auto" else (60 if st["moving_fps"] >= 45 else 30)
+        got = cap.frame_size() if cap.ts else (0, 0)
+        if got != cap_size:
+            print(
+                f"warning: the frames are {got[0]}x{got[1]}, not {cap_size[0]}x{cap_size[1]}",
+                flush=True,
+            )
+        print(f"capture: {st['frames']} frames in {st['span_s']:.1f} s; while the page moves "
+              f"{st['moving_fps']:.1f} fps (p90 {st['moving_p90_fps']:.0f}, over {st['moving_s']:.0f} s of motion); "
+              f"master at {fps} fps", flush=True)  # fmt: skip
+        name = "master_4k.mp4" if got == (3840, 2160) else f"master_{got[1]}p.mp4"
+        t_enc = time.monotonic()
+        cap.encode(out / name, fps, log)
+        print(f"encoded {name} in {time.monotonic() - t_enc:.0f} s", flush=True)
+        cap.save_times(out / "frame_times.json")
+        if not args.keep_frames:
+            shutil.rmtree(out / "frames", ignore_errors=True)
+        sync = align(d.shots, out / name, total, cap)
         duration = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
-                                         str(out / "master.webm")], capture_output=True, text=True, check=True).stdout)  # fmt: skip
+                                         str(out / name)], capture_output=True, text=True, check=True).stdout)  # fmt: skip
         doc = {
-            "video": "master.webm",
-            "size": [SIZE["width"], SIZE["height"]],
+            "video": name,
+            "size": list(got),
+            "viewport": [SIZE["width"], SIZE["height"]],
+            "scale": k,
+            "fps": fps,
+            "capture": {
+                **st,
+                "quality": args.quality,
+                "method": "page.screencast (CDP Page.startScreencast), JPEG",
+            },
             "mode": "live" if args.live else "demo",
             "recorded_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "page_clock": fixed_now if pinned else None,
@@ -1017,12 +1120,14 @@ def main(argv: list[str] | None = None) -> int:
             "total_s": round(duration, 3),
             "wall_total_s": total,
             "sync": sync,
-            "delogo": DELOGO,
+            "delogo": delogo(got[0] / SIZE["width"] if got[0] else k),
             "shots": [asdict(s) for s in d.shots],
         }
         (out / "shots.json").write_text(json.dumps(doc, indent=2) + "\n")
+        mb = (out / name).stat().st_size / 1e6
         print(
-            f"\n{out / 'master.webm'}  ({duration:.1f} s of video, shot times read by {sync}; {time.monotonic() - t_wall:.0f} s wall)"
+            f"\n{out / name}  ({duration:.1f} s of video, {mb:.1f} MB, {mb * 8 / max(duration, 0.1):.1f} Mbit/s; "
+            f"shot times read by {sync}; {time.monotonic() - t_wall:.0f} s wall)"
         )
         for s in d.shots:
             print(
