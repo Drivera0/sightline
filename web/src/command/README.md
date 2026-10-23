@@ -6,11 +6,11 @@ Lane E's folder. Lane E has no owner yet, so lane A built **E-07, the approval i
 ## One console (lane A, the one-console redesign)
 
 The console is the whole site (`web/src/shell/README.md` has the addresses). `ingest/LiveMission.tsx` mounts
-it for a live mission and for the demo mission alike: `CommandView` with the map in the middle, the task
-board and teams on the left, the view's rail on the right, the clue log along the bottom. The views change
-the rail, never the map: **Map** (the approval inbox, an Open Radio button under it), **Radio** (the radio desk), **Photos**
+it for a live mission and for the demo mission alike: `CommandView` with the map in the middle (the
+command post: resources, Needs you, the timeline; "The command post" below). The views change
+the rail, never the map: **Map** (the command post, below; the radio desk is its talk bar), **Photos**
 (`PhotosRail.tsx`: the survey's photos as they land, or a live mission's upload and watch command; Try a
-photo), **Review** (`review/LiveReview.tsx`'s `ReviewRail`: candidates with the second look's verdict and
+photo), **Review** (now in Needs you: `review/LiveReview.tsx`'s `ReviewRail`, candidates with the second look's verdict and
 model chips, your own photo on top), **Debrief** (`Debrief.tsx`, a wide panel: the mission so far, the
 measured results with how each is measured, what breaks first, For judges, the links) and **Trace** (a sheet
 over the console: the agent's trace or the event log).
@@ -108,3 +108,45 @@ whole once its fixtures and recorded conditions are in (nothing moves as they ar
 that frame has painted (`afterPaint` in `ingest/LiveMission.tsx`), or when the About sheet over it closes.
 Before/after scores: `docs/report/figures/audit/`.
 
+
+
+## The command post (lane A, 2026-10-22)
+
+The console is laid out the way a SAR command post works (`.documents/COMMAND_POST.md` §5): one screen,
+four regions, every action logged to one timeline.
+
+- **Status line** (`StatusLine.tsx`, the header's second row): elapsed time, daylight left (a bar that
+  shrinks), flyability as one word with its gate time (the reason on hover, the Conditions panel behind `W`),
+  people out, found or not, clues; the demo's scenario menu and the clock on the right. It replaces the
+  conditions row and the KPI sentence.
+- **Resources** (`Resources.tsx`, left): a T-card per team (status, sector, "heard N min" from its last radio
+  turn or check-in, amber near the check-in interval and red past it, back in ~N min) and per drone (battery,
+  link, leg n/m); Call (addresses the talk bar), Task (pick a sector on the map), Recall. Most overdue first.
+  Drag a card onto a sector to assign. The sectors by POA fold below.
+- **Map** (centre, about 55 % of 1440 px): click a sector for its popover (`SectorPopover.tsx`: assign any
+  team, the agent's pick first; send a drone leg; mark searched at a POD of at most 90 %; recheck; record the
+  find). Base camp, one icon set, only the active leg solid. The scrubber shows only inside the story.
+- **Needs you** (`NeedsYou.tsx`, right): decisions only. The agent's proposals (`ApprovalInbox.tsx`, a
+  one-line reason, A/X/E), candidates to review (the review queue lives here now), teams past their check-in,
+  clues awaiting read-back, a live radio's briefings to send (`RadioLink.tsx`).
+- **Timeline** (`Timeline.tsx`, `timeline.ts`, bottom): one stream, All / Radio / Clues / Drone / Decisions,
+  Reply on radio entries, Confirm on clues awaiting read-back, Show on map; repeats merge. The talk bar is
+  the radio desk: hold `V` (a live radio server) or type, to the team picked. Add a clue is here.
+- **Direct actions** (`lib/mission.ts`): assign, call, recall, searched, recheck, found, drone leg, confirm a
+  clue. A live mission calls `POST /missions/{id}/teams/{team}/assign|call|recall`,
+  `/sectors/{sector}/searched|recheck` and `/found` (falling back to the task and team calls on a server
+  without them); the demo does each in memory and logs it ("Search manager assigned B3 to Team Two"), and its
+  drone legs fly from base camp photo by photo (`lib/demoFlight.ts`), lowering the map under them.
+- **Scenarios** (`scenarios.ts`, `ScenarioMenu.tsx`): four presets and shuffled seeds (`#m/demo?s=<seed>`).
+  The generator's `__fixtures__/scenarios/<seed>.json` is used when it exists; until then a scenario is
+  derived from the demo mission (its last known point, prior, base camp, clues and assignments).
+- **Photos** (`PhotoDrop.tsx`, `lib/exif.ts`): drop a drone's photos on the demo and they are read (EXIF GPS,
+  DJI altitude and heading), ranked by the in-browser detector, placed, and their candidates go to Needs
+  you; "Load 20 sample photos" uses `VITE_SAMPLE_PHOTOS_URL` or the demo survey's own photos. A live mission
+  uploads the drop.
+- **After-action report** (`report.ts`, `MissionReport.tsx`): once the subject is found the Debrief is the
+  mission report, with Report, ICS 204/214/309, CalTopo and Print; the measured results follow it.
+
+The demo fixture has none of the command post's fields yet; `demoMission.ts` gives the mission its base camp
+(the trailhead lot), status and a 30-minute check-in until the regenerated fixture carries them. Screenshots and
+the cold-user checklist: `docs/report/figures/command-post/`.
