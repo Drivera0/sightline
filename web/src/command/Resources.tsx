@@ -285,6 +285,11 @@ function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[];
           </tbody>
         </table>
       )}
+      {all.length > 0 && (
+        <p className="border-t border-line px-2.5 py-1.5 text-caption text-text-3" title="The sectors tile the 1 km search grid; the rest of the probability is outside it.">
+          Outside the grid (rest of the world): <span className="text-text-2">{Math.round(Math.max(0, 1 - all.reduce((n, s) => n + s.poa, 0)) * 100)} %</span>
+        </p>
+      )}
       {all.length > SECTORS_SHOWN && (
         <button type="button" onClick={() => setOpen(!open)} className="sl-tap w-full border-t border-line px-2.5 py-1.5 text-left text-caption text-text-2 underline underline-offset-2 hover:text-text">
           {open ? "Show fewer" : `Show ${all.length - SECTORS_SHOWN} more`}

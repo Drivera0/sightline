@@ -36,7 +36,7 @@ import { stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
-import { withTaskStatus } from "../command/console";
+import { outsideGrid, withTaskStatus } from "../command/console";
 import type { ConditionsData } from "../command/ConditionsPanel";
 import type { TraceRun } from "../command/TraceView";
 import type { TriedPhoto } from "../detect/TryPhoto";
@@ -735,6 +735,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                 conditionsOpen={condOpen}
                 conditionsId={condId}
                 disclose={demo}
+                outside={outsideGrid(s.sectors)}
                 onConditions={conditionsData ? () => setCondOpen((o) => !o) : undefined}
                 menu={
                   <>

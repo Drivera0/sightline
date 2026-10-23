@@ -151,5 +151,15 @@ export function needs(
   return out;
 }
 
+/**
+ * The probability outside the search grid ("rest of the world"): what the sectors do not hold. The sectors
+ * tile the grid, so this is 1 − their POA; null with no sectors. The prior puts most of it outside on
+ * purpose (a 1 km grid around the last known point; judges 2026-10-23: the POA summed to 25 % unexplained).
+ */
+export function outsideGrid(sectors: readonly { poa: number }[]): number | null {
+  if (!sectors.length) return null;
+  return Math.min(1, Math.max(0, 1 - sectors.reduce((n, s) => n + s.poa, 0)));
+}
+
 /** The drone's link in one word. */
 export const linkWord = (links: FleetLinks, id: string) => links.drones[id]?.link ?? "connected";

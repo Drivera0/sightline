@@ -1,7 +1,7 @@
 // What three cold judges found on the live site (2026-10-23), each fixed and held here.
 import { describe, expect, it } from "vitest";
 import type { MissionEvent, SectorTask, Team } from "../contract";
-import { heard, withTaskStatus } from "./console";
+import { heard, outsideGrid, withTaskStatus } from "./console";
 import { overdueToast } from "./notifications";
 
 const team = (id: string, status: Team["status"], last: string | null = null): Team => ({ id, callsign: `Team ${id}`, members: 3, status, position: null, position_at: null, note: null, last_heard_at: last });
@@ -15,6 +15,11 @@ describe("judges 2026-10-23", () => {
     expect(overdueToast(out, 72, 30)).toMatchObject({ tone: "alert", title: "Team T3 is overdue", body: expect.stringContaining("Not heard for 72 min, past the 30-minute check-in") });
     // at base camp there is no check-in to keep
     expect(heard(team("T3", "standby", "2026-10-24T20:48:00Z"), [], NOW, 30).overdue).toBe(false);
+  });
+
+  it("(7) the probability outside the grid is shown, so the sectors' POA adds up", () => {
+    expect(outsideGrid([{ poa: 0.1 }, { poa: 0.15 }])).toBeCloseTo(0.75);
+    expect(outsideGrid([])).toBeNull();
   });
 
   it("(4) a team's status follows its tasks: assigned, searching", () => {

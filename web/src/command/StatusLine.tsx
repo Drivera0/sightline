@@ -37,7 +37,10 @@ export function StatusLine({
   conditionsId,
   menu,
   disclose = false,
+  outside = null,
 }: {
+  /** The probability outside the search grid (console.outsideGrid), shown so the sectors' POA adds up. */
+  outside?: number | null;
   /** Phones: the demo's disclosure chip lives here (the header has no room for it). */
   disclose?: boolean;
   mission: Mission | null;
@@ -120,6 +123,11 @@ export function StatusLine({
         {out.people} {out.people === 1 ? "person" : "people"}
       </Item>
       {!found && <Item label="Subject">not found</Item>}
+      {outside !== null && (
+        <Item label="Outside the grid" title="The probability the subject is outside the 1 km search grid (the rest of the world). The sectors hold the rest; together they make 100 %.">
+          {Math.round(outside * 100)} %
+        </Item>
+      )}
       <Item label="Clues" tone={unconfirmed ? "caution" : undefined} title={unconfirmed ? `${unconfirmed} awaiting read-back` : undefined}>
         {clues.length}
         {unconfirmed ? ` (${unconfirmed} to confirm)` : ""}
