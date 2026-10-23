@@ -55,8 +55,8 @@ approved briefing waits in the radio's outbound queue until the operator presses
 
 ![The console at t0](figures/one-console/t0-d.webp)
 
-*The landing (`#`): the console on the demo mission at t0, the call, with a two-line pitch and Follow the search; the
-DEMO chip and SIM labels say what is simulated, and the About sheet (`#about`) says who it is for and how photos get in.*
+*The landing (`#`): the console on the demo mission at t0, the call, with the pitch and Follow the search, Koester's rings
+around the last known point; the Demo and "Simulation on real aerial photographs" chips say what is simulated.*
 
 ![The console on a live mission](../architecture/screens/command-view.png)
 
