@@ -570,7 +570,7 @@ export interface LiveHeatMapProps {
   onReady?: () => void;
 }
 
-const TEAM_WORDS: Record<Team["status"], string> = { standby: "standby", assigned: "assigned", searching: "searching", returning: "returning", off_duty: "off duty" };
+const TEAM_WORDS: Record<Team["status"], string> = { standby: "standby", assigned: "assigned", searching: "searching", returning: "returning", off_duty: "off duty", overdue: "overdue" };
 const pctWords = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
 
 /**

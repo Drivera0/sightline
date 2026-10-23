@@ -128,7 +128,7 @@ describe("mission time: the demo mission's checkpoints", () => {
     expect(b4.pod).toBe(0.6);
     expect(s.teams!.filter((t) => t.status === "searching")).toHaveLength(2);
     expect(s.fleet!.drones.some((d) => d.status === "flying")).toBe(true);
-    expect(s.mapUpdates).toHaveLength(16); // 10 frames, 4 clues, 2 ground searches
+    expect(s.mapUpdates).toHaveLength(696); // 10 frames, 4 clues, 2 ground searches, the legs' 680 photos
   });
 
   it("on the way into t4, C4's search lands first, B4's late in the run", () => {
