@@ -1,4 +1,4 @@
-// B-T1: drone markers. On the map: the short id ("D2") and battery next to the dot, a "SIM" chip on a
+// B-T1: drone markers. On the map: "Drone 2" (never "D2", which reads as a sector) and battery next to the dot, a "SIM" chip on a
 // simulated drone, and a ring for the link (the simulated link model, lib/mission.ts FleetLinks): ok,
 // degraded or lost. The full line (name, simulated, battery, the link in words, how long ago a lost
 // drone was last heard) is the feature's `label`: the hover/focus tooltip and the map's text summary
@@ -36,9 +36,16 @@ export function droneFeatures(fleet: FleetState | null, links: Readonly<Record<s
         d.battery_pct < 25 ? "warn" : "drone", d.position!.lon, d.position!.lat,
         `${name}\n${d.status} · battery ${battery} %\n${words || LINK_WORD.connected}${d.simulated ? " (simulated link model)" : ""}`); // prettier-ignore
       f.properties.link = link;
-      f.properties.short = d.id; // "D2": the drone ids are short already
+      // "Drone 2", never "D2": the sectors are named D1 to D4 too (judges 2026-10-23)
+      f.properties.short = droneShort(d);
       f.properties.battery = `${battery}%`;
       f.properties.sim = d.simulated;
       return f;
     });
+}
+
+/** A drone on the map, by name: "Drone 2" from "D2", else its own name. Never "D2", which reads as sector D2. */
+export function droneShort(d: Pick<FleetState["drones"][number], "id" | "name">): string {
+  const n = /^D(\d{1,2})$/i.exec(d.id)?.[1];
+  return n ? `Drone ${Number(n)}` : d.name;
 }
