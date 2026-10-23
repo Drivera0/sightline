@@ -43,7 +43,7 @@ export interface Note extends NoteDraft {
 /** How long a toast stays (ms), unless the pointer is on it. */
 export const TOAST_MS = 5000;
 /** The most toasts on screen at once; older ones leave for the log. */
-export const TOAST_MAX = 4;
+export const TOAST_MAX = 3;
 /** The log behind the bell keeps this many. */
 export const LOG_MAX = 30;
 

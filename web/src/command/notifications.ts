@@ -109,7 +109,9 @@ export function freshEvents(seen: ReadonlySet<string> | null, events: readonly M
  * Watch the mission's events: each new one that is news becomes a toast. `onHint`: the first radio call
  * that lands on this console, once per browser, gets the "add a clue" hint.
  */
-export function useEventToasts(events: readonly MissionEvent[], teams: readonly Team[], waiting: number): void {
+export function useEventToasts(events: readonly MissionEvent[], teams: readonly Team[], waiting: number, proposals: readonly Proposal[] = []): void {
+  const proposalsRef = useRef(proposals);
+  proposalsRef.current = proposals;
   const seen = useRef<Set<string> | null>(null);
   const teamsRef = useRef(teams);
   teamsRef.current = teams;
@@ -120,6 +122,8 @@ export function useEventToasts(events: readonly MissionEvent[], teams: readonly 
     const push = useNotify.getState().push;
     for (const e of fresh) {
       const t = toastFor(e, teamsRef.current);
+      // a proposal already decided by the time it is seen (the demo's script, another console) is not news
+      if (t && e.type === "proposal.new" && proposalsRef.current.find((p) => p.id === e.ref)?.status !== undefined && proposalsRef.current.find((p) => p.id === e.ref)?.status !== "pending") continue;
       if (t) push(t);
       if (e.type === "radio.turn" && t && !hintShown()) {
         markHint();

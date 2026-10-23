@@ -61,7 +61,7 @@ function Toast({ note, held, onShow }: { note: Note; held: boolean; onShow: (tar
       role="status"
       data-toast={note.key}
       style={{ ["--c" as string]: TONE_VAR[note.tone] }}
-      className="sl-toast-rise pointer-events-auto flex items-start gap-2.5 rounded-md border border-border border-l-[3px] border-l-[var(--c)] bg-surface-solid/95 p-2.5 pr-2 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)] backdrop-blur"
+      className="sl-toast-rise pointer-events-auto flex items-start gap-2 rounded-md border border-border border-l-[3px] border-l-[var(--c)] bg-surface-solid/95 px-2.5 py-2 pr-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)] backdrop-blur"
     >
       <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-[var(--c)]" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -69,7 +69,7 @@ function Toast({ note, held, onShow }: { note: Note; held: boolean; onShow: (tar
           {note.title}
           {note.count > 1 && <span className="ml-1.5 text-caption font-normal text-text-3">×{note.count}</span>}
         </p>
-        {note.body && <p className="text-caption text-text-2">{note.body}</p>}
+        {note.body && <p className="line-clamp-2 text-caption text-text-2">{note.body}</p>}
         {note.target && (
           <button
             type="button"
@@ -77,7 +77,7 @@ function Toast({ note, held, onShow }: { note: Note; held: boolean; onShow: (tar
               onShow(note.target);
               dismiss();
             }}
-            className="sl-tap mt-1 self-start rounded-full border border-[color-mix(in_srgb,var(--c)_55%,transparent)] px-2.5 py-0.5 text-caption text-text hover:bg-[color-mix(in_srgb,var(--c)_14%,transparent)]"
+            className="sl-tap mt-0.5 self-start rounded-full border border-[color-mix(in_srgb,var(--c)_55%,transparent)] px-2.5 py-0.5 text-caption text-text hover:bg-[color-mix(in_srgb,var(--c)_14%,transparent)]"
           >
             {note.action ?? "Show me"}
           </button>

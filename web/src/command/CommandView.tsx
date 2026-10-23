@@ -119,7 +119,7 @@ export function CommandView(p: CommandProps) {
   }, []);
   const tz = missionTz(p.status);
   // what changed, said once: a toast (and the bell's log) for every event that is news (V3 §2)
-  useEventToasts(p.events, p.teams, p.mission?.status === "found" ? 0 : p.reviewCount);
+  useEventToasts(p.events, p.teams, p.mission?.status === "found" ? 0 : p.reviewCount, p.proposals);
   // the simulated fleet's demo controls (live missions only: they call the API)
   const api = useMission((s) => s.api);
   const t = now();
@@ -137,6 +137,10 @@ export function CommandView(p: CommandProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [picking]);
+  // the proposal in focus in Needs you: the team (or drone) it would send glows on its card
+  const focus = useConsole((s) => s.focus);
+  const focusP = focus?.kind === "proposal" ? p.proposals.find((x) => x.id === focus.id && x.status === "pending") : undefined;
+  const glow = focusP ? (focusP.target.team ?? focusP.target.drone ?? focusP.leg?.drone_id ?? null) : null;
   const call = (teamId: string, draft?: string) => useConsole.getState().talk(teamId, draft ?? `${p.teams.find((x) => x.id === teamId)?.callsign ?? teamId}, Sightline. `);
   const grid = wide
     ? "lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] lg:grid-rows-[minmax(0,1fr)_15rem]"
@@ -159,6 +163,7 @@ export function CommandView(p: CommandProps) {
           links={p.links}
           events={p.events}
           now={t}
+          glow={glow}
           actions={{ onCall: (id) => call(id), onRecall: p.actions.recall, onRecallDrone: p.actions.recallDrone }}
           footer={api && p.mission ? <FleetControls api={api} missionId={p.mission.mission_id} fleet={p.fleet} links={p.links} conditions={p.conditions} /> : undefined}
         />

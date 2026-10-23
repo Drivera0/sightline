@@ -54,6 +54,7 @@ import { cluesToFlash, type ClueSeen, FLASH_MS, flashFeatures, ringAlpha, seenOf
 import { CLASS_ROWS, ContourGlyph, swatchColor } from "./Legend";
 import { basemapKind, basemapLabelLayer, type BasemapKind, CONSOLE_PALETTES, type HeatPalette, muteImagery } from "./palette";
 import { gridCorners, HeatRaster, kindColors, kindPixels, surfaceTheme } from "./raster";
+import { type CandidatePlace, useFocusLayers } from "./focusLayers";
 import { ensureSurfaceLayers, pushSurface, setSurfaceMode, setSurfacePalette, surfaceIds } from "./surface";
 
 // The one glyph set the site serves (public/basemap/fonts). A symbol layer without "text-font" asks for
@@ -165,6 +166,7 @@ function LiveLayers({
   mission = null,
   tasks = [],
   actions,
+  candidateAt,
   onBasemap,
   onEvidence,
   onReady,
@@ -405,7 +407,11 @@ function LiveLayers({
   // the classes over the whole search area (the prior is known everywhere); what no photo has seen yet
   // the ground a search lowered (photos or a ground team that found nobody): darker and cooler under the classes
   const searched = useMemo(() => (ready ? searchedMask(base.prior.p.length, updates) : null), [ready, base, updates]);
-  const kinds = useMemo(() => (ready ? wholeGridKinds(heat.sync(updates).p, null, searched) : null), [ready, heat, updates, searched]);
+  const fresh = useMemo(() => (ready ? wholeGridKinds(heat.sync(updates).p, null, searched) : null), [ready, heat, updates, searched]);
+  // the same picture again (the demo reloads its state on every action) is not a change: no tween
+  const lastKinds = useRef<typeof fresh>(null);
+  if (fresh !== lastKinds.current && !sameKinds(fresh, lastKinds.current)) lastKinds.current = fresh;
+  const kinds = lastKinds.current;
   useEffect(() => {
     if (kinds) onEvidence?.(!evidenceless(kinds));
     // a notification only
@@ -703,6 +709,9 @@ function LiveLayers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, selectedClue]);
 
+  // What Needs you has in focus (a candidate, a proposal) and a new assignment's route (focusLayers.ts)
+  useFocusLayers(map, ready, { sectors, proposals, tasks, teams, mission, candidateAt });
+
   // A pick asked for elsewhere on the page (the clue form): B's onPick answers it.
   useEffect(() => {
     if (!pending || !ready) return undefined;
@@ -861,6 +870,8 @@ export interface LiveHeatMapProps {
   tasks?: readonly { sector_id: string; state: string; team_id: string | null }[];
   /** The console's direct actions: a click in Task mode and a dropped T-card assign through these. */
   actions?: { assign: (team: string, sector: string) => void; droneLeg: (sector: string, drone?: string) => void };
+  /** Where a candidate is (its pin and its photo's footprint): the map highlights the one in focus. */
+  candidateAt?: (id: string) => CandidatePlace | null;
 }
 
 const TEAM_WORDS: Record<Team["status"], string> = { standby: "standby", assigned: "assigned", searching: "searching", returning: "returning", off_duty: "off duty", overdue: "overdue" };
@@ -1119,4 +1130,12 @@ export function MapLegend({ columns = false }: { columns?: boolean }) {
       ))}
     </ul>
   );
+}
+
+/** Two cell-kind pictures are the same (or both missing). */
+export function sameKinds(a: ArrayLike<number> | null, b: ArrayLike<number> | null): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }

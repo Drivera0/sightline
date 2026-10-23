@@ -5,6 +5,16 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isTyping } from "../lib/keys";
+import { useSelection } from "../lib/selection";
+
+/** Put a candidate in focus: the map outlines its photo and pulses its pin (V3 §2). */
+export function focusCandidate(id: string | null): void {
+  try {
+    useSelection.getState().selectDetection(id);
+  } catch {
+    /* a photo dropped in this browser has no survey id */
+  }
+}
 import type { Detection, Detections, Survey, Verdict } from "../contract";
 import { Badge, EmptyState, Label } from "../shell/components";
 
@@ -68,7 +78,7 @@ export interface ReviewCard {
 }
 
 /** One candidate: crop, score, verdict in words with its model chips, the three answers. */
-function Card({ c, rank, answer, current, onAnswer }: { c: ReviewCard; rank: number; answer: LiveAnswer | undefined; current: boolean; onAnswer: (a: LiveAnswer) => void }) {
+function Card({ c, rank, answer, current, onAnswer, onPick }: { c: ReviewCard; rank: number; answer: LiveAnswer | undefined; current: boolean; onAnswer: (a: LiveAnswer) => void; onPick?: () => void }) {
   const [shown, setShown] = useState(false);
   const el = useRef<HTMLLIElement>(null);
   // J/K bring the current candidate into view; the first one does not pull its rail (Needs you) down on arrival
@@ -78,7 +88,7 @@ function Card({ c, rank, answer, current, onAnswer }: { c: ReviewCard; rank: num
     was.current = current;
   }, [current]);
   return (
-    <li ref={el} aria-label={`Candidate ${c.id}`} aria-current={current || undefined} data-candidate={c.id} className={`sl-slide-in flex flex-col gap-2 rounded-lg border bg-surface-solid p-2.5 ${current ? "border-border" : "border-line"}`}>
+    <li ref={el} aria-label={`Candidate ${c.id}`} aria-current={current || undefined} data-candidate={c.id} onClick={onPick} className={`sl-slide-in flex flex-col gap-2 rounded-lg border bg-surface-solid p-2.5 ${current ? "border-border" : "border-line"}`}>
       <div className="flex gap-3">
         <img loading="lazy" decoding="async" width={80} height={80} src={c.crop} alt={`Crop of ${c.id}`} className="size-20 shrink-0 rounded-sm object-cover" />
         <div className="flex min-w-0 flex-col gap-1">
@@ -160,8 +170,13 @@ export function ReviewRail({
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey || cards.length === 0) return;
       const k = e.key.toLowerCase();
       const id = cards[at]?.id;
-      if (k === "j" || e.key === "ArrowDown") setCur(Math.min(at + 1, cards.length - 1));
-      else if (k === "k" || e.key === "ArrowUp") setCur(Math.max(at - 1, 0));
+      if (k === "j" || e.key === "ArrowDown") {
+        setCur(Math.min(at + 1, cards.length - 1));
+        focusCandidate(cards[Math.min(at + 1, cards.length - 1)]?.id ?? null);
+      } else if (k === "k" || e.key === "ArrowUp") {
+        setCur(Math.max(at - 1, 0));
+        focusCandidate(cards[Math.max(at - 1, 0)]?.id ?? null);
+      }
       else if (id && (k === "p" || k === "n" || k === "u")) {
         onAnswer(id, k === "p" ? "person" : k === "n" ? "not_person" : "unsure");
         setCur(Math.min(at + 1, cards.length - 1));
@@ -187,7 +202,18 @@ export function ReviewRail({
       ) : (
         <ol className="flex flex-col gap-2">
           {cards.map((c, i) => (
-            <Card key={c.id} c={c} rank={i + 1} answer={answers[c.id]} current={i === at} onAnswer={(a) => onAnswer(c.id, a)} />
+            <Card
+              key={c.id}
+              c={c}
+              rank={i + 1}
+              answer={answers[c.id]}
+              current={i === at}
+              onAnswer={(a) => onAnswer(c.id, a)}
+              onPick={() => {
+                setCur(i);
+                focusCandidate(c.id);
+              }}
+            />
           ))}
         </ol>
       )}

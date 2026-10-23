@@ -492,6 +492,19 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     },
     onRestart: restartGuide,
   });
+  // where a candidate is, for the map's focus: a dropped photo's place, the demo cache's, or the live mission's
+  const candidateAt = (id: string) => {
+    const mine = dropped.at[id];
+    if (mine) return { lat: mine.lat, lon: mine.lon, footprint: null };
+    const frames = demo ? cache?.survey.frames : s.survey?.frames;
+    const footprint = frames?.find((f) => f.id === id.slice(0, 5))?.footprint ?? null;
+    if (demo) {
+      const at = candidatePosition(cache, id);
+      return at ? { lat: at.lat, lon: at.lon, footprint } : null;
+    }
+    const det = s.detections?.frames[id.slice(0, 5)]?.find((d) => d.id === id);
+    return det && det.lat !== null && det.lon !== null ? { lat: det.lat, lon: det.lon, footprint } : null;
+  };
   // which clues moved each sector, from the map log: a line on an assignment's card (clueShift.ts)
   const shifts = useMemo(() => (s.mapBase && s.sectors.length ? clueShifts(s.mapBase, s.mapUpdates, s.sectors, s.clues) : null), [s.mapBase, s.mapUpdates, s.sectors, s.clues]);
   const clueNote = (p: Proposal) => clueLine(shifts?.get(String(p.target.sector ?? "")));
@@ -791,7 +804,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                     {mapOn && (
                       <div className="absolute inset-0">
                         <Suspense fallback={null}>
-                          <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} fill onReady={onMapReady} />
+                          <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} candidateAt={candidateAt} fill onReady={onMapReady} />
                         </Suspense>
                       </div>
                     )}
@@ -803,7 +816,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                   </div>
                 ) : mapOn ? (
                   <Suspense fallback={MAP_FRAME}>
-                    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} fill />
+                    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} candidateAt={candidateAt} fill />
                   </Suspense>
                 ) : (
                   MAP_FRAME

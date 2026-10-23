@@ -50,7 +50,10 @@ export function Resources({
   now,
   actions,
   footer,
+  glow = null,
 }: {
+  /** The team or drone the proposal in focus would send: its card glows violet (V3 §2). */
+  glow?: string | null;
   /** Under the cards (a live mission's fleet controls for the simulated fleet). */
   footer?: ReactNode;
   mission: Mission | null;
@@ -77,10 +80,10 @@ export function Resources({
       </h2>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
         {ordered.map(({ team, heard }) => (
-          <TeamCard key={team.id} team={team} heard={heard} task={tasks.find((x) => x.team_id === team.id && (x.state === "assigned" || x.state === "in_progress"))} base={mission?.base_camp} picking={picking?.id === team.id} actions={actions} />
+          <TeamCard key={team.id} team={team} heard={heard} task={tasks.find((x) => x.team_id === team.id && (x.state === "assigned" || x.state === "in_progress"))} base={mission?.base_camp} picking={picking?.id === team.id} glow={glow === team.id} actions={actions} />
         ))}
         {drones.map((d) => (
-          <DroneCard key={d.id} d={d} fleet={fleet} link={linkWord(links, d.id)} picking={picking?.id === d.id} onRecall={() => actions.onRecallDrone(d.id)} />
+          <DroneCard key={d.id} d={d} fleet={fleet} link={linkWord(links, d.id)} picking={picking?.id === d.id} glow={glow === d.id} onRecall={() => actions.onRecallDrone(d.id)} />
         ))}
         <SectorsByPoa tasks={tasks} sectors={sectors} teams={teams} />
         {footer}
@@ -96,7 +99,7 @@ function heardWords(h: Heard): [string, string] {
   return [`heard ${m} min`, h.due ? "text-caution" : "text-text-2"];
 }
 
-function TeamCard({ team, heard, task, base, picking, actions }: { team: Team; heard: Heard; task?: SectorTask; base?: Mission["base_camp"]; picking: boolean; actions: ResourceActions }) {
+function TeamCard({ team, heard, task, base, picking, glow = false, actions }: { team: Team; heard: Heard; task?: SectorTask; base?: Mission["base_camp"]; picking: boolean; glow?: boolean; actions: ResourceActions }) {
   const selected = useSelection((s) => s.selectedTeamId === team.id);
   const [word, tone] = STATUS[heard.overdue && team.status !== "standby" ? "overdue" : team.status];
   const [heardText, heardClass] = heardWords(heard);
@@ -113,7 +116,8 @@ function TeamCard({ team, heard, task, base, picking, actions }: { team: Team; h
       data-team={team.id}
       draggable
       onDragStart={onDrag}
-      className={`flex cursor-grab flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 active:cursor-grabbing ${picking ? "border-accent" : heard.overdue ? "border-alert/50" : selected ? "border-border" : "border-line"}`}
+      className={`flex cursor-grab flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 active:cursor-grabbing ${picking ? "border-accent" : heard.overdue ? "border-alert/50" : selected ? "border-border" : "border-line"} ${glow ? "sl-glow-proposal" : ""}`}
+      data-glow={glow || undefined}
       title="Drag onto a sector on the map to assign"
     >
       <div className="flex items-center gap-2">
@@ -152,13 +156,13 @@ function TeamCard({ team, heard, task, base, picking, actions }: { team: Team; h
   );
 }
 
-function DroneCard({ d, fleet, link, picking, onRecall }: { d: Drone; fleet: FleetState | null; link: string; picking: boolean; onRecall: () => void }) {
+function DroneCard({ d, fleet, link, picking, glow = false, onRecall }: { d: Drone; fleet: FleetState | null; link: string; picking: boolean; glow?: boolean; onRecall: () => void }) {
   const [word, tone] = DRONE_STATUS[d.status];
   const leg = legOf(d, fleet);
   const sector = fleet?.legs.find((l) => l.id === d.leg_id)?.sector_id;
   const linkTone = link === "connected" ? "text-text-2" : link === "degraded" ? "text-caution" : "text-alert";
   return (
-    <article aria-label={`Drone ${d.name}`} data-drone={d.id} className={`flex flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 ${picking ? "border-accent" : "border-line"}`}>
+    <article aria-label={`Drone ${d.name}`} data-drone={d.id} data-glow={glow || undefined} className={`flex flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 ${picking ? "border-accent" : "border-line"} ${glow ? "sl-glow-proposal" : ""}`}>
       <div className="flex items-center gap-2">
         <Icon name="drone" className="text-text-2" />
         <button type="button" onClick={() => useSelection.getState().selectDrone(d.id)} className="sl-tap min-w-0 truncate text-left text-small font-medium text-text hover:underline">

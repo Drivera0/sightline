@@ -5,12 +5,13 @@
 // outbound queue; nothing is transmitted from here. Keys act on the focused card only. The person acting is
 // the console's one name (lib/mission operatorName). Built by lane A for lane E (issue #70).
 
-import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Drone, EvidenceRef, Proposal, Team } from "../contract";
 import { KeyHint, StatusPill } from "../shell/components";
 import { operatorName } from "../lib/mission";
 import { clueNoteFor } from "./clueShift";
 import { domain, OVERRIDE_SOURCE } from "./conditions";
+import { useConsole } from "./consoleStore";
 
 export type Decide = (
   pid: string,
@@ -239,17 +240,27 @@ function PendingCard({
     if ((e.key === "e" || e.key === "E") && canEdit) setEditing((v) => !v);
   };
   const canEdit = p.kind === "assign_sector" || p.briefing !== null;
+  // in focus, the map glows its sector and the team's card glows violet; a new one takes the focus if it is free
+  const focused = useConsole((s) => s.focus?.kind === "proposal" && s.focus.id === p.id);
+  const take = () => useConsole.getState().setFocus({ kind: "proposal", id: p.id });
+  useEffect(() => {
+    if (fresh && !useConsole.getState().focus) take();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
       ref={cardRef}
       tabIndex={0}
       onKeyDown={keys}
+      onFocus={take}
+      onClick={take}
+      data-focused={focused || undefined}
       aria-label={`Proposal ${p.id}`}
       data-proposal={p.id}
       {...(story ? { "data-story-proposal": "" } : {})}
       style={{ ["--c" as string]: "var(--c-proposal)" }}
-      className={`flex flex-col gap-2 rounded-md border border-line border-l-2 border-l-[var(--c-proposal)] bg-bg/40 p-2.5 focus:outline focus:outline-[var(--c-proposal)] ${fresh ? "sl-slide-in sl-new" : ""}`}
+      className={`flex flex-col gap-2 rounded-md border border-line border-l-2 border-l-[var(--c-proposal)] bg-bg/40 p-2.5 focus:outline focus:outline-[var(--c-proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused ? "sl-glow-proposal" : ""}`}
     >
       <div className="flex items-center gap-2">
         <StatusPill tone="action">{kindWords(p)}</StatusPill>
