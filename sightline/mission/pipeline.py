@@ -115,6 +115,21 @@ def read_photo_pose(path: Path) -> Pose:
     return info.pose
 
 
+def read_taken_at(path: Path) -> str | None:
+    """When the photo was taken: EXIF DateTimeOriginal as ISO UTC (the simulated fleet writes UTC;
+    a camera's local time is passed on as written), or None. A photo synced late keeps it, so the
+    map can place each look at its own time along the leg (1.3)."""
+    try:
+        with Image.open(path) as im:
+            raw = im.getexif().get_ifd(0x8769).get(0x9003)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(raw, str) or len(raw) < 19:
+        return None
+    d, t = raw[:10].replace(":", "-"), raw[11:19]
+    return f"{d}T{t}Z"
+
+
 def display_frame(path: Path) -> tuple[bytes, float, float]:
     """The 1000×750 display frame as JPEG bytes, and the scale from original to frame pixels."""
     with Image.open(path) as im:
@@ -317,6 +332,7 @@ def ingest_photo(
         "near_misses": len(near),
         "map": map_note,
         "detector": detect_note or "ok",
+        "taken_at": read_taken_at(orig),  # 1.3: the capture time, when the photo has one
         "ms": ms,
         "total_ms": sum(ms.values()),
     }
