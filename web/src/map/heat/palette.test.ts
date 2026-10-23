@@ -71,17 +71,21 @@ describe("palette by basemap", () => {
   it("satellite: the YlOrRd subset, denser for likelier; dark: magma's upper range, lighter for likelier", () => {
     const s = HEAT_PALETTES.satellite;
     expect([s.low.color, s.mid.color, s.top.color]).toEqual(["#fed976", "#fd8d3c", "#e31a1c"]);
-    expect([s.low.alpha, s.mid.alpha, s.top.alpha]).toEqual([0.3, 0.45, 0.6]);
+    // a fifth under the first cut (0.30 / 0.45 / 0.60), so the ground reads through
+    expect([s.low.alpha, s.mid.alpha, s.top.alpha]).toEqual([0.24, 0.36, 0.48]);
     expect(s.contour50.color).toBe("#bd0026");
     const d = HEAT_PALETTES.dark;
     expect([d.low.color, d.mid.color, d.top.color]).toEqual(["#8c2981", "#de4968", "#fe9f6d"]);
-    // Alpha one step (+0.1) above the satellite classes on the dark ground.
-    for (const k of ["low", "mid", "top"] as const) expect(d[k].alpha).toBeCloseTo(s[k].alpha + 0.1, 9);
+    // Alpha a step (+0.08) above the satellite classes on the dark ground.
+    for (const k of ["low", "mid", "top"] as const) expect(d[k].alpha).toBeCloseTo(s[k].alpha + 0.08, 9);
     expect(d.contour50.color).toBe("#fcfdbf");
-    // The 90 % edge is dashed, the 50 % edge solid, on both.
+    // Only two lines, both solid: the 50 % edge at 1.5 px, the 90 % edge a faint 1 px; no casing.
     for (const p of [s, d]) {
-      expect(p.contour90.dash).toBeDefined();
+      expect(p.contour90.dash).toBeUndefined();
       expect(p.contour50.dash).toBeUndefined();
+      expect([p.contour50.width, p.contour90.width]).toEqual([1.5, 1]);
+      expect(p.contour90.opacity).toBeLessThan(0.5);
+      expect(p.casing.opacity).toBe(0);
     }
   });
 

@@ -63,6 +63,7 @@ export function ContourGlyph({ line, casing, className = "" }: { line: LineStyle
         x2="20"
         y2="3"
         stroke={line.color}
+        strokeOpacity={line.opacity ?? 1}
         strokeWidth={line.width}
         strokeDasharray={line.dash ? line.dash.map((d) => d * line.width).join(" ") : undefined}
       />

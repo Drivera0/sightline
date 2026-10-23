@@ -6,7 +6,7 @@
 // idea: mute the basemap, not the data). Dark vector basemap: lightness inverted, so lighter means
 // likelier on a dark ground, from the upper range of matplotlib's magma (van der Walt & Smith 2015);
 // low-alpha yellow over dark grey turns olive, magma's purples do not. Fill opacity stays between
-// 0.30 and 0.70 with a solid outline at the class edges, the range over which a transparent overlay
+// 0.24 and 0.56 (a fifth under the first cut, so the ground reads through) with a line at the class edges, the range over which a transparent overlay
 // and the map under it both stay readable (Hombeck et al., IEEE VIS 2020).
 import type { Map } from "maplibre-gl";
 import { CELL } from "./classes";
@@ -25,6 +25,8 @@ export interface LineStyle {
   width: number;
   /** Dash pattern in line widths; none for a solid line. */
   dash?: number[];
+  /** Line opacity (1 when left out). */
+  opacity?: number;
 }
 
 export interface HeatPalette {
@@ -33,7 +35,7 @@ export interface HeatPalette {
   top: FillStyle;
   mid: FillStyle;
   low: FillStyle;
-  /** The edge of the likeliest 50 % (solid) and of the 90 % region (dashed). */
+  /** The edge of the likeliest 50 % (1.5 px) and, faint, of the 90 % region (1 px); both solid. */
   contour50: LineStyle;
   contour90: LineStyle;
   /** A thin dark line under each contour: it reads on pale imagery and on the pale classes. */
@@ -43,21 +45,21 @@ export interface HeatPalette {
 export const HEAT_PALETTES: Record<BasemapKind, HeatPalette> = {
   satellite: {
     kind: "satellite",
-    top: { color: "#e31a1c", alpha: 0.6 },
-    mid: { color: "#fd8d3c", alpha: 0.45 },
-    low: { color: "#fed976", alpha: 0.3 },
+    top: { color: "#e31a1c", alpha: 0.48 },
+    mid: { color: "#fd8d3c", alpha: 0.36 },
+    low: { color: "#fed976", alpha: 0.24 },
     contour50: { color: "#bd0026", width: 1.5 },
-    contour90: { color: "#ffffff", width: 1, dash: [3, 2] },
-    casing: { color: "#0a0b0d", width: 0.5, opacity: 0.9 },
+    contour90: { color: "#ffffff", width: 1, opacity: 0.45 },
+    casing: { color: "#0a0b0d", width: 0, opacity: 0 },
   },
   dark: {
     kind: "dark",
-    top: { color: "#fe9f6d", alpha: 0.7 },
-    mid: { color: "#de4968", alpha: 0.55 },
-    low: { color: "#8c2981", alpha: 0.4 },
+    top: { color: "#fe9f6d", alpha: 0.56 },
+    mid: { color: "#de4968", alpha: 0.44 },
+    low: { color: "#8c2981", alpha: 0.32 },
     contour50: { color: "#fcfdbf", width: 1.5 },
-    contour90: { color: "#ffffff", width: 1, dash: [3, 2] },
-    casing: { color: "#0a0b0d", width: 0.5, opacity: 0.9 },
+    contour90: { color: "#ffffff", width: 1, opacity: 0.4 },
+    casing: { color: "#0a0b0d", width: 0, opacity: 0 },
   },
 };
 
