@@ -9,7 +9,7 @@ import { diskFetch } from "../lib/diskFetch";
 import { LiveReview, liveReviewItems, relookName, verdictWords } from "../review/LiveReview";
 import { EMPTY, useMission } from "../lib/mission";
 import type { Route } from "../shell/flow";
-import { SAFETY_FRAME } from "../radio/RadioDesk";
+import { useConsole } from "../command/consoleStore";
 import { LiveMission } from "./LiveMission";
 import { NewSearch } from "./NewSearch";
 import { batches, hostLabel, photoFiles, uploadCommand } from "./upload";
@@ -195,19 +195,32 @@ describe("a live mission's console", () => {
         : new Promise(() => {})) as unknown as typeof fetch,
   });
 
-  it("says when the server has no radio desk (#m/<id>/radio, for phones)", async () => {
+  it("the radio is the timeline's talk bar: #m/<id>/radio opens the console on Radio (D-R3: one step away)", async () => {
     vi.stubGlobal("fetch", () => new Promise(() => {}));
-    render(<LiveMission api={withHealth(false)} missionId="a1b2c3d4" route={missionRoute("a1b2c3d4", "radio")} />);
-    expect(await screen.findByText(/radio desk isn't running on this server/)).toBeInTheDocument();
+    useConsole.getState().reset();
+    render(<LiveMission api={withHealth(false)} missionId="a1b2c3d4" route={{ ...missionRoute("a1b2c3d4", "map"), open: { radio: true } }} />);
+    expect(useConsole.getState().filter).toBe("Radio");
+    expect(screen.queryByRole("button", { name: "Open Radio" })).toBeNull();
+    for (const nav of screen.getAllByRole("navigation", { name: "Mission views" })) expect(within(nav).queryByRole("button", { name: "Radio" })).toBeNull();
+    useConsole.getState().reset();
   });
 
-  it("keeps the radio one labelled step away: a Radio view, and Open Radio under the approvals (D-R3)", async () => {
+  it("6 is the radio and 3 is Needs you: the old views' keys still work", async () => {
     vi.stubGlobal("fetch", () => new Promise(() => {}));
-    render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" route={missionRoute("a1b2c3d4", "map")} />);
-    expect(within(screen.getByRole("region", { name: "Radio" })).getByText(/teams report here/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Open Radio" }));
-    expect(await screen.findByText(SAFETY_FRAME)).toBeInTheDocument();
-    for (const nav of screen.getAllByRole("navigation", { name: "Mission views" })) expect(within(nav).getByRole("button", { name: "Radio" })).toHaveAttribute("aria-pressed", "true");
+    useConsole.getState().reset();
+    render(<LiveMission api={withHealth(true)} missionId="a1b2c3d4" route={missionRoute("a1b2c3d4", "trace")} />);
+    await new Promise((r) => setTimeout(r, 20));
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    await userEvent.keyboard("6");
+    expect(useConsole.getState().filter).toBe("Radio");
+    expect(window.location.hash).toBe("#m/a1b2c3d4/map");
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Message"))); // the talk bar is ready
+    (document.activeElement as HTMLElement).blur();
+    await userEvent.keyboard("4");
+    await userEvent.keyboard("3");
+    expect(useConsole.getState().tab).toBe("needs");
+    expect(window.location.hash).toBe("#m/a1b2c3d4/map");
+    useConsole.getState().reset();
   });
 
   it("links the mission's own debrief in the Debrief view, and shows the event log in the Trace view", async () => {
@@ -252,12 +265,12 @@ describe("the demo mission: the story on the one console", () => {
     expect(within(pitch).getByRole("heading", { level: 1 })).toHaveTextContent("The brain of a drone search.");
     expect(within(pitch).getByRole("button", { name: "Follow the search (3 min)" }).className).toMatch(/bg-accent/);
     await waitFor(() => expect(within(screen.getAllByRole("banner")[0]!).getByText("13:35 PDT")).toBeInTheDocument());
-    expect(await screen.findByRole("group", { name: "Mission time" })).toBeInTheDocument();
-    expect(await screen.findByText("No clues yet.")).toBeInTheDocument(); // the call: the car in the lot is where the search starts
-    expect(screen.queryByText("blue water bottle by the creek crossing")).toBeNull(); // not found yet at 13:35 PDT (20:35 UTC)
+    expect(screen.queryByRole("group", { name: "Mission time" })).toBeNull(); // the scrubber shows only inside the story
+    expect(await screen.findByRole("status", { name: "Mission status" })).toHaveTextContent("Clues0"); // the call: the car in the lot is where the search starts
+    expect(screen.queryByText(/blue water bottle by the creek crossing/)).toBeNull(); // not found yet at 13:35 PDT (20:35 UTC)
     await userEvent.click(within(pitch).getByRole("button", { name: "Skip to now" }));
     expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull();
-    expect(await screen.findByText("blue water bottle by the creek crossing")).toBeInTheDocument();
+    expect((await screen.findAllByText(/blue water bottle by the creek crossing/)).length).toBeGreaterThan(0);
     expect(within(screen.getAllByRole("banner")[0]!).getByText("15:00 PDT")).toBeInTheDocument();
     expect(window.location.hash).toBe("#m/demo/map");
   });
@@ -277,12 +290,12 @@ describe("the demo mission: the story on the one console", () => {
     expect(window.location.hash).toBe("#m/demo?t=1");
     await userEvent.keyboard("{ArrowRight}");
     expect(await screen.findByRole("dialog", { name: "The story, 2 of 5" })).toHaveTextContent("second look");
-    const review = screen.getByRole("region", { name: "Review" });
+    const review = within(screen.getByRole("region", { name: "Needs you" })).getByRole("region", { name: "Review" });
     const recorded = within(review).getByLabelText("Candidate recorded-f0001-d01");
     expect(within(recorded).getByLabelText("Models")).toHaveTextContent("OpenCV 5 zoom native");
     expect(within(recorded).getByLabelText("Models")).toHaveTextContent("Nemotron-3.5-Super-VL");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    // t3: first the clue log, once ("Clues move the map too"), then the gate waits for the visitor's approval
+    // t3: first the timeline, once ("Clues move the map too"), then the gate waits for the visitor's approval
     const clues = await screen.findByRole("dialog", { name: "The story, 3 of 5" });
     expect(clues).toHaveTextContent("Clues move the map too");
     await userEvent.keyboard("{ArrowRight}");
@@ -292,7 +305,8 @@ describe("the demo mission: the story on the one console", () => {
     const card = await screen.findByLabelText("Proposal p003");
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
     expect(await screen.findByRole("dialog", { name: "The story, 4 of 5" })).toHaveTextContent("searched at POD 60 %");
-    expect(await screen.findByText("POD 60%")).toBeInTheDocument();
+    expect(await screen.findByText("B4 searched at POD 60 % (Team Four)")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Mission time" })).toBeInTheDocument(); // inside the story, the scrubber
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(await screen.findByRole("dialog", { name: "The story, 5 of 5" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Debrief" })).toHaveTextContent("What breaks first");
@@ -309,13 +323,13 @@ describe("the demo mission: the story on the one console", () => {
     useStory.getState().reset();
     window.history.replaceState(null, "", "#m/demo/map?t=4");
     render(<App base={null} />);
-    const header = await screen.findByRole("region", { name: "Mission header" });
+    const header = await screen.findByRole("status", { name: "Mission status" });
     const row = await waitFor(() => {
-      const pill = header.querySelector("[data-tone]");
+      const pill = header.querySelector("button[data-tone]");
       expect(pill).not.toBeNull();
       return pill!;
     });
-    await userEvent.click(await screen.findByRole("button", { name: /Sources and quotes/ }));
+    await userEvent.keyboard("w"); // W opens the Conditions panel
     const panel = await screen.findByRole("region", { name: "Conditions" });
     const verdict = await waitFor(() => panel.querySelector("[data-tone]")!);
     expect(row).toHaveTextContent(/^Flyable/); // 22:00 UTC is 15:00 in Vancouver: daylight, light wind
@@ -348,12 +362,12 @@ describe("the demo mission: the story on the one console", () => {
     useStory.getState().reset();
     window.history.replaceState(null, "", "#judges");
     const { unmount } = render(<App base={null} />);
-    expect(screen.getAllByRole("button", { name: "Debrief", pressed: true })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Debrief", pressed: true })).toHaveLength(1);
     expect((await screen.findByText("For judges: where to look, in order")).closest("details")).toHaveAttribute("open");
     unmount();
     window.history.replaceState(null, "", "#try");
     render(<App base={null} />);
-    expect(screen.getAllByRole("button", { name: "Photos", pressed: true })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Photos", pressed: true })).toHaveLength(1);
     expect(await screen.findByRole("button", { name: "Hide Try a photo" })).toHaveAttribute("aria-expanded", "true");
   });
 

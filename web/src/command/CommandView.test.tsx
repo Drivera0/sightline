@@ -1,80 +1,206 @@
-// LANE_E §9 tests 2 (task states; POD in (0, 0.9]), the roster, the clue form, the header.
-import { render, screen, within } from "@testing-library/react";
+// The command post console (COMMAND_POST.md §5): the four regions, the T-cards, Needs you, the timeline and
+// its talk bar, the sector popover (LANE_E §9 test 2: POD in (0, 0.9]), the clue form (test 5), the status line.
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
-import type { Conditions, Mission, Proposal, SectorTask, Team } from "../contract";
-import { clueProblem, CommandView, missionStatus, type CommandProps } from "./CommandView";
-import { clock, zone } from "../lib/time";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Clue, Conditions, Mission, MissionEvent, Proposal, SectorTask, Team } from "../contract";
+import { NO_LINKS } from "../lib/mission";
+import { CommandView, type CommandProps, type ConsoleActions } from "./CommandView";
+import { useConsole } from "./consoleStore";
+import { StatusLine } from "./StatusLine";
+import { clueProblem } from "./Timeline";
 
 const NOW = new Date("2026-10-24T22:00:00Z");
 const task = (sector_id: string, state: SectorTask["state"], team_id: string | null = null, pod: number | null = null): SectorTask => ({
   sector_id, state, team_id, poa: 0.05, pod, note: null, updated_at: "2026-10-24T21:20:00Z",
 });
-const team = (id: string, callsign: string, status: Team["status"] = "standby"): Team => ({ id, callsign, members: 3, status, position: null, position_at: null, note: null });
-const mission = { mission_id: "a1b2c3d4", name: "Seymour — missing hiker" } as Mission;
+const team = (id: string, callsign: string, status: Team["status"] = "standby", heard: string | null = null): Team => ({
+  id, callsign, members: 3, status, position: null, position_at: null, note: null, last_heard_at: heard,
+});
+const mission = { mission_id: "a1b2c3d4", name: "Seymour — missing hiker", created_at: "2026-10-24T20:30:00Z", check_in_min: 30, base_camp: { lat: 49.373, lon: -122.949, name: "Trailhead lot" }, area: { name: "Seymour", lkp: { lat: 49.37, lon: -122.945 } } } as Mission;
 const conditions = {
   fetched_at: "2026-10-24T21:50:00Z", wind_kmh: 18, gust_kmh: 30, precip_mm_h: 0.4, civil_twilight_end: "2026-10-25T00:40:00Z",
-  flyable: true, flyable_until: "2026-10-25T00:40:00Z", flyability_reason: "", alerts: [{ kind: "closure", title: "Lower Seymour trail closed", text: "", url: "" }],
+  flyable: true, flyable_until: "2026-10-25T00:40:00Z", flyability_reason: "gusts under the limit", alerts: [{ kind: "closure", title: "Lower Seymour trail closed", text: "", url: "" }],
 } as unknown as Conditions;
+const square = (w: number, s: number): [number, number][] => [[w, s + 0.002], [w + 0.003, s + 0.002], [w + 0.003, s], [w, s], [w, s + 0.002]];
+const radio = (id: string, callsign: string, text: string, at: string): MissionEvent => ({
+  id, type: "radio.turn", at, summary: text, ref: id,
+  data: { id, direction: "in", callsign, transcript: text, reply: `${callsign}, Sightline. Copy.`, audio: null, state: "committed", actions: [], asr_ms: null, llm_ms: null, tts_ms: null, at },
+});
+const proposal = (over: Partial<Proposal> = {}): Proposal => ({
+  id: "p003", kind: "assign_sector", summary: "Assign sector C2 to Team One", reason: "C2 holds 5.5 % of the probability.", briefing: null,
+  target: { team: "T1", sector: "C2" }, evidence: [], status: "pending", created_by: "planner", created_at: "2026-10-24T21:42:00Z",
+  decided_at: null, decided_by: null, decision_reason: null, edits: null, ...over,
+});
+
+function actions(): ConsoleActions {
+  return { assign: vi.fn(), droneLeg: vi.fn(), searched: vi.fn(), recheck: vi.fn(), found: vi.fn(), call: vi.fn(), recall: vi.fn(), recallDrone: vi.fn(), confirmClue: vi.fn() };
+}
 
 function setup(over: Partial<CommandProps> = {}) {
   const props: CommandProps = {
-    mission, status: "live", conditions, imageUrl: (r) => r, proposals: [], clues: [],
+    mission, status: "live", conditions, imageUrl: (r) => r, proposals: [], clues: [], events: [], fleet: null, links: NO_LINKS,
     tasks: [task("B3", "proposed"), task("C2", "assigned", "T2"), task("A1", "in_progress", "T3"), task("D4", "searched", "T4", 0.6)],
-    sectors: [{ sector_id: "B3", label: "Bravo Three", poa: 0.069, drone_coverage: 0.25 }],
-    teams: [team("T1", "Team One"), team("T2", "Team Two", "assigned"), team("T3", "Team Three", "searching"), team("T4", "Team Four")],
-    onSetTask: vi.fn(), onUpdateTeam: vi.fn(), onAddClue: vi.fn(), onDecide: vi.fn(), now: () => NOW, ...over,
+    sectors: [
+      { sector_id: "B3", label: "Bravo Three", poa: 0.069, drone_coverage: 0.25, polygon: square(-122.95, 49.37) },
+      { sector_id: "C2", label: "Charlie Two", poa: 0.055, drone_coverage: 0, polygon: square(-122.947, 49.37) },
+      { sector_id: "D4", label: "Delta Four", poa: 0.012, drone_coverage: 0, polygon: square(-122.944, 49.37) },
+    ],
+    teams: [team("T1", "Team One", "standby", "2026-10-24T21:58:00Z"), team("T2", "Team Two", "assigned", "2026-10-24T21:50:00Z"), team("T3", "Team Three", "searching", "2026-10-24T21:20:00Z"), team("T4", "Team Four", "standby", "2026-10-24T21:56:00Z")],
+    actions: actions(), onAddClue: vi.fn(), onDecide: vi.fn(), now: () => NOW, map: <div>the map</div>, review: null, reviewCount: 0, ...over,
   };
   render(<CommandView {...props} />);
   return props;
 }
 
-describe("CommandView", () => {
-  it("shows each sector's state in words, with the live POA and coverage", () => {
+beforeEach(() => useConsole.getState().reset());
+
+describe("the command post", () => {
+  it("has the four regions: resources, the map, Needs you and the timeline with its talk bar", () => {
     setup();
-    const b3 = screen.getByLabelText("Sector B3");
-    expect(b3).toHaveTextContent("Bravo Three");
-    expect(b3).toHaveTextContent("6.9%");
-    expect(b3).toHaveTextContent("drone coverage 25%");
-    expect(screen.getByLabelText("Sector C2")).toHaveTextContent("Assigned to Team Two");
-    expect(screen.getByLabelText("Sector A1")).toHaveTextContent("In progress · Team Three · 40 min");
-    expect(screen.getByLabelText("Sector D4")).toHaveTextContent("Searched at POD 60%");
+    const view = screen.getByLabelText("Command view");
+    for (const name of ["Resources", "Needs you", "Timeline"]) expect(within(view).getByRole("region", { name })).toBeInTheDocument();
+    expect(view).toHaveTextContent("the map");
+    expect(within(view).getByRole("form", { name: "Talk" })).toBeInTheDocument();
+    // what was cut: the task board as a list, the KPI sentence, the clue log panel, "You are"
+    expect(screen.queryByLabelText("Task board")).toBeNull();
+    expect(screen.queryByLabelText("Clue log")).toBeNull();
+    expect(screen.queryByLabelText("Your name")).toBeNull();
+    expect(view).not.toHaveTextContent(/approvals waiting ·/);
   });
 
-  it("assigns a standby team, starts, and marks searched with a POD of at most 90%", async () => {
+  it("T-cards: heard N min from the last radio turn or check-in, most overdue first, past the check-in in red", () => {
+    setup();
+    const cards = within(screen.getByRole("region", { name: "Resources" })).getAllByRole("article");
+    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Team Team Three", "Team Team Two", "Team Team Four", "Team Team One"]);
+    expect(cards[0]).toHaveTextContent("not heard 40 min");
+    expect(cards[0]).toHaveTextContent("Overdue");
+    expect(cards[0]).toHaveTextContent("A1");
+    expect(cards[3]).toHaveTextContent("heard 2 min");
+  });
+
+  it("T-cards: Call addresses the talk bar to the team, Task picks a sector, Recall goes through", async () => {
     const p = setup();
-    await userEvent.click(within(screen.getByLabelText("Sector B3")).getByRole("button", { name: "Assign team…" }));
-    await userEvent.click(within(screen.getByLabelText("Sector B3")).getByRole("button", { name: "Team One" }));
-    expect(p.onSetTask).toHaveBeenCalledWith("B3", { state: "assigned", team_id: "T1" });
-    expect(p.onUpdateTeam).toHaveBeenCalledWith("T1", { status: "assigned" });
-    await userEvent.click(within(screen.getByLabelText("Sector C2")).getByRole("button", { name: "Start" }));
-    expect(p.onSetTask).toHaveBeenCalledWith("C2", { state: "in_progress", team_id: "T2" });
-    await userEvent.click(within(screen.getByLabelText("Sector A1")).getByRole("button", { name: "Mark searched…" }));
-    const entry = screen.getByLabelText("POD entry");
-    expect(within(entry).getByLabelText("POD")).toHaveAttribute("max", "0.9"); // never 100%
-    expect(entry).toHaveTextContent("it never removes it");
-    await userEvent.click(within(entry).getByRole("button", { name: "High 70%" }));
-    expect(p.onSetTask).toHaveBeenCalledWith("A1", { state: "searched", team_id: "T3", pod: 0.7, note: null });
-    await userEvent.click(within(screen.getByLabelText("Sector D4")).getByRole("button", { name: "Reopen" }));
-    expect(p.onSetTask).toHaveBeenCalledWith("D4", { state: "proposed", team_id: null });
+    const one = screen.getByRole("article", { name: "Team Team Two" });
+    await userEvent.click(within(one).getByRole("button", { name: "Call" }));
+    expect(useConsole.getState().talkTo).toBe("T2");
+    expect(screen.getByLabelText("Message")).toHaveValue("Team Two, Sightline. ");
+    expect(screen.getByLabelText("Recipient")).toHaveValue("T2");
+    await userEvent.click(within(one).getByRole("button", { name: "Task" }));
+    expect(useConsole.getState().picking).toEqual({ kind: "team", id: "T2" });
+    expect(screen.getByRole("status")).toHaveTextContent("Click a sector for Team Two");
+    await userEvent.click(within(one).getByRole("button", { name: "Recall" }));
+    expect(p.actions.recall).toHaveBeenCalledWith("T2");
   });
 
-  it("header: the planning heuristics say they are heuristics (B-W2)", () => {
-    setup({ conditions: { ...conditions, visibility_factor: 0.6, exposure_band: "moderate" } as Conditions });
-    const h = screen.getByLabelText("Mission header");
-    expect(h).toHaveTextContent("visibility ×0.6 (heuristic)");
-    expect(h).toHaveTextContent("exposure moderate (planning heuristic)");
-  });
-
-  it("header: conditions in words, with the alert", () => {
+  it("selects a team from its card (the live map flies to it)", async () => {
     setup();
-    const h = screen.getByLabelText("Mission header");
-    expect(h).toHaveTextContent("wind 18 km/h, gusts 30");
-    expect(h).toHaveTextContent("daylight 2 h 40 m");
-    expect(h).toHaveTextContent("Lower Seymour trail closed");
+    const { useSelection } = await import("../lib/selection");
+    const card = screen.getByRole("article", { name: "Team Team Two" });
+    await userEvent.click(within(card).getByRole("button", { name: "Team Two" }));
+    expect(useSelection.getState().selectedTeamId).toBe("T2");
+    await userEvent.click(within(card).getByRole("button", { name: "Team Two" }));
+    expect(useSelection.getState().selectedTeamId).toBeNull();
   });
 
-  it("adds a clue at a team's position", async () => {
+  it("drone cards: battery, link and leg n/m; Task and Recall", async () => {
+    const fleet = {
+      simulated: true, updated_at: "", drones: [{ id: "D1", name: "Drone 1", simulated: true, position: null, altitude_m: 50, speed_ms: 8, battery_pct: 22, max_wind_kmh: 40, status: "flying", leg_id: "L004" }],
+      legs: [{ id: "L001", drone_id: "D1", sector_id: "B2", waypoints: [], status: "done" }, { id: "L004", drone_id: "D1", sector_id: "C3", waypoints: [], status: "flying" }],
+    } as unknown as CommandProps["fleet"];
+    const p = setup({ fleet, links: { drones: { D1: { link: "degraded", since: null, last_heard_at: null } }, teams: {} } });
+    const card = screen.getByRole("article", { name: "Drone Drone 1" });
+    expect(card).toHaveTextContent("battery 22 %");
+    expect(card).toHaveTextContent("link degraded");
+    expect(card).toHaveTextContent("leg 2/2");
+    expect(card).toHaveTextContent("C3");
+    await userEvent.click(within(card).getByRole("button", { name: "Recall" }));
+    expect(p.actions.recallDrone).toHaveBeenCalledWith("D1");
+  });
+
+  it("Needs you holds decisions only: proposals, overdue teams, clues to read back", async () => {
+    const clue = { id: "c005", kind: "object", text: "glove by the bridge", lat: 49.37, lon: -122.94, radius_m: 30, reported_by: "T4", source: "radio", confirmed: false, at: "2026-10-24T21:59:00Z" } as Clue;
+    const p = setup({ proposals: [proposal(), proposal({ id: "p001", status: "approved" })], clues: [clue] });
+    const needs = screen.getByRole("region", { name: "Needs you" });
+    expect(within(needs).getByLabelText("Proposal p003")).toBeInTheDocument();
+    expect(within(needs).queryByLabelText("Proposal p001")).toBeNull();
+    expect(within(needs).getByRole("article", { name: "Overdue Team Three" })).toHaveTextContent("Team Three not heard for 40 min");
+    const back = within(needs).getByRole("article", { name: "Awaiting read-back" });
+    expect(back).toHaveTextContent("glove by the bridge");
+    await userEvent.click(within(back).getByRole("button", { name: "Confirm" }));
+    expect(p.actions.confirmClue).toHaveBeenCalledWith("c005");
+    expect(needs).toHaveTextContent("3 waiting");
+  });
+
+  it("the timeline: one stream, filter chips, Reply on a radio turn fills the talk bar, Send calls the team", async () => {
+    const events = [
+      radio("e1", "Team Two", "Blue water bottle by the creek crossing, over.", "2026-10-24T21:37:48Z"),
+      { id: "e2", type: "task.updated", at: "2026-10-24T21:56:00Z", summary: "", ref: "D4", data: task("D4", "searched", "T4", 0.6) } as unknown as MissionEvent,
+    ];
+    const p = setup({ events });
+    const tl = screen.getByRole("region", { name: "Timeline" });
+    expect(within(tl).getByText("D4 searched at POD 60 % (Team Four)")).toBeInTheDocument();
+    await userEvent.click(within(tl).getByRole("button", { name: "Clues" }));
+    expect(within(tl).queryByText(/D4 searched/)).toBeNull();
+    await userEvent.click(within(tl).getByRole("button", { name: "Radio" }));
+    expect(within(tl).getByText(/D4 searched/)).toBeInTheDocument(); // a team's report is a check-in
+    await userEvent.click(within(tl).getByRole("button", { name: "Reply" }));
+    expect(screen.getByLabelText("Recipient")).toHaveValue("T2");
+    await userEvent.type(screen.getByLabelText("Message"), "copy, carry on east.");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(p.actions.call).toHaveBeenCalledWith("T2", "Team Two, Sightline. copy, carry on east.");
+  });
+
+  it("hold V with no radio server: the talk bar says to type, and V never fires while typing", async () => {
+    setup();
+    await userEvent.keyboard("{v>}{/v}");
+    expect(screen.getByRole("form", { name: "Talk" })).toHaveTextContent("on the demo, type the call");
+  });
+
+  it("the sector popover: the agent's pick first, a drone leg, searched at a POD of at most 90 %, the find", async () => {
+    const p = setup({ proposals: [proposal({ target: { team: "T4", sector: "B3" } })] });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 800 });
+    act(() => useConsole.getState().openSector("B3", 100, 100));
+    const pop = screen.getByRole("dialog", { name: "Sector B3" });
+    expect(pop).toHaveTextContent("POA 6.9 % · drone coverage 25 %");
+    const teams = within(within(pop).getByRole("group", { name: "Assign a team" })).getAllByRole("button");
+    expect(teams.map((b) => b.textContent)).toEqual(["Team Four· agent's pick", "Team One"]);
+    await userEvent.click(teams[1]!);
+    expect(p.actions.assign).toHaveBeenCalledWith("T1", "B3");
+    await userEvent.click(within(pop).getByRole("button", { name: "Send a drone leg" }));
+    expect(p.actions.droneLeg).toHaveBeenCalledWith("B3");
+    const pod = within(pop).getByRole("group", { name: "POD entry" });
+    expect(within(pod).getByLabelText("POD")).toHaveAttribute("max", "0.9"); // never 100 %
+    expect(pod).toHaveTextContent("it never removes it");
+    await userEvent.click(within(pod).getByRole("button", { name: "High 70 %" }));
+    expect(p.actions.searched).toHaveBeenCalledWith("B3", 0.7);
+    act(() => useConsole.getState().openSector("A1", 100, 100));
+    act(() => useConsole.getState().openSector("D4", 100, 100));
+    const d4 = screen.getByRole("dialog", { name: "Sector D4" });
+    await userEvent.click(within(d4).getByRole("button", { name: "Recheck" }));
+    expect(p.actions.recheck).toHaveBeenCalledWith("D4");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("records the find from the sector a team is in", async () => {
+    const p = setup();
+    act(() => useConsole.getState().openSector("C2", 100, 100));
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Sector C2" })).getByRole("button", { name: "Found: Team Two has the subject" }));
+    expect(p.actions.found).toHaveBeenCalledWith("T2", "C2");
+  });
+
+  it("the sectors by POA, folded under the resources; a row opens its popover", async () => {
+    setup();
+    await userEvent.click(screen.getByText("Sectors by POA"));
+    const rows = within(screen.getByRole("table", { name: "Sectors by POA" })).getAllByRole("row").slice(1);
+    expect(rows.map((r) => r.getAttribute("aria-label"))).toEqual(["Sector B3", "Sector C2", "Sector D4"]);
+    expect(rows[2]).toHaveTextContent("searched, POD 60 %");
+    await userEvent.click(within(rows[0]!).getByRole("button"));
+    expect(useConsole.getState().sector?.id).toBe("B3");
+  });
+
+  it("adds a clue at a team's position, from the timeline", async () => {
     const p = setup();
     await userEvent.click(screen.getByRole("button", { name: "Add a clue" }));
     await userEvent.type(screen.getByLabelText("What"), "blue backpack by the creek");
@@ -83,22 +209,13 @@ describe("CommandView", () => {
     expect(p.onAddClue).toHaveBeenCalledWith(expect.objectContaining({ kind: "object", text: "blue backpack by the creek", at_team_position: true, reported_by: "T2", source: "form" }));
   });
 
-  it("selects a team from the roster (the live map flies to it)", async () => {
-    setup();
-    const { useSelection } = await import("../lib/selection");
-    await userEvent.click(within(screen.getByRole("region", { name: "Teams" })).getByRole("button", { name: "Team Two" }));
-    expect(useSelection.getState().selectedTeamId).toBe("T2");
-    await userEvent.click(within(screen.getByRole("region", { name: "Teams" })).getByRole("button", { name: "Team Two" }));
-    expect(useSelection.getState().selectedTeamId).toBeNull();
-  });
-
   it("checks a clue before sending it (test 5)", async () => {
     expect(clueProblem("", "team", "", "", "")).toBe("Say what was found.");
     expect(clueProblem("pack", "latlon", "91", "-122", "")).toMatch(/Latitude/);
     expect(clueProblem("pack", "latlon", "49.3", "", "")).toMatch(/Longitude/);
     expect(clueProblem("pack", "latlon", "49.3", "-122.9", "-5")).toMatch(/radius/);
     expect(clueProblem("pack", "latlon", "49.3", "-122.9", "40")).toBeNull();
-    const p = setup();
+    const p = setup({ onPickOnMap: vi.fn().mockResolvedValue({ lat: 49.3731234, lon: -122.9357654 }) });
     await userEvent.click(screen.getByRole("button", { name: "Add a clue" }));
     await userEvent.type(screen.getByLabelText("What"), "boot print");
     await userEvent.selectOptions(screen.getByLabelText("Where"), "latlon");
@@ -107,94 +224,55 @@ describe("CommandView", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Latitude must be a number from -90 to 90.");
     expect(p.onAddClue).not.toHaveBeenCalled();
-    await userEvent.clear(screen.getByLabelText("Latitude"));
-    await userEvent.type(screen.getByLabelText("Latitude"), "49.37");
-    await userEvent.type(screen.getByLabelText("Radius (m)"), "40");
-    await userEvent.click(screen.getByRole("button", { name: "Add" }));
-    expect(p.onAddClue).toHaveBeenCalledWith(expect.objectContaining({ lat: 49.37, lon: -122.9, radius_m: 40 }));
-  });
-
-  it("fills the clue's lat/lon from a pick on the map (B-M3)", async () => {
-    const p = setup({ onPickOnMap: vi.fn().mockResolvedValue({ lat: 49.3731234, lon: -122.9357654 }) });
-    await userEvent.click(screen.getByRole("button", { name: "Add a clue" }));
-    await userEvent.type(screen.getByLabelText("What"), "boot print");
-    await userEvent.selectOptions(screen.getByLabelText("Where"), "latlon");
     await userEvent.click(screen.getByRole("button", { name: "Pick on map" }));
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(p.onAddClue).toHaveBeenCalledWith(expect.objectContaining({ lat: 49.373123, lon: -122.935765, at_team_position: false, reported_by: "command" }));
   });
 
-  it("links each assigned or in-progress sector to its assignment card (E-09)", () => {
-    setup({ tasks: [task("B3", "assigned"), task("C2", "in_progress"), task("A1", "proposed")], cardHref: (s) => `#card/${s}` });
-    expect(screen.getAllByRole("link", { name: "Card" }).map((a) => a.getAttribute("href"))).toEqual(["#card/B3", "#card/C2"]);
-  });
-
-  it("shows the five likeliest unassigned sectors, the rest on request", async () => {
-    const tasks = Array.from({ length: 13 }, (_, i) => task(`X${i}`, "proposed"));
-    const sectors = tasks.map((t, i) => ({ sector_id: t.sector_id, label: t.sector_id, poa: 0.01 * (i + 1), drone_coverage: 0 }));
-    setup({ tasks, sectors });
-    const col = screen.getByLabelText("Proposed");
-    expect(within(col).getAllByLabelText(/^Sector X/).map((c) => c.getAttribute("aria-label"))).toEqual(["Sector X12", "Sector X11", "Sector X10", "Sector X9", "Sector X8"]);
-    expect(col).toHaveTextContent("Proposed (13)");
-    await userEvent.click(within(col).getByRole("button", { name: "Show 8 more" }));
-    expect(within(col).getAllByLabelText(/^Sector X/)).toHaveLength(13);
-  });
-
-  it("says what needs a person in one status line above the map", () => {
-    const proposal = (id: string, kind: Proposal["kind"], status: Proposal["status"] = "pending") => ({ id, kind, status }) as Proposal;
-    const items = missionStatus(
-      [proposal("p1", "drone_leg"), proposal("p2", "alert"), proposal("p3", "assign_sector", "approved")],
-      [team("T1", "One", "searching"), team("T2", "Two", "assigned"), team("T3", "Three", "returning"), team("T4", "Four")],
-      [task("A1", "in_progress", "T1"), task("B2", "searched", "T2", 0.5)],
-      [],
-    );
-    expect(items.map((i) => i.text).join(" · ")).toBe("2 approvals waiting · next drone leg ready · 3 teams out · 1 sector in progress · 1 searched · 0 clues");
-    expect(items[0]!.tone).toBe("action"); // orange: needs a person
-    setup({ map: <div>map</div> });
-    expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("no approvals waiting");
-  });
-
-  it("console: each sector is one line; the row expands to the details", async () => {
-    setup({ map: <div>map</div> });
-    const b3 = screen.getByRole("group", { name: "Sector B3" });
-    expect(b3).toHaveAttribute("title", "Proposed · drone coverage 25%");
-    await userEvent.click(within(b3).getByRole("button", { expanded: false }));
-    expect(b3).toHaveTextContent("Bravo Three · POA 6.9% · drone coverage 25%");
-  });
-
-  it("console: the views' rail in place of the approvals, a cover over it all, the map still mounted", () => {
-    setup({ map: <div>the map</div>, rightRail: <p>photos rail</p>, cover: <p>the trace</p>, overMap: <p>scrubber</p> });
+  it("the views' rail in place of Needs you, a cover over it all, the map still mounted", () => {
+    setup({ rightRail: <p>photos rail</p>, cover: <p>the trace</p>, overMap: <p>scrubber</p> });
     const view = screen.getByLabelText("Command view");
     expect(within(view).getByRole("complementary", { name: "View" })).toHaveTextContent("photos rail");
-    expect(within(view).queryByRole("complementary", { name: "Approvals" })).toBeNull();
+    expect(within(view).queryByRole("region", { name: "Needs you" })).toBeNull();
     expect(view).toHaveTextContent("the map");
     expect(view).toHaveTextContent("scrubber");
     expect(view).toHaveTextContent("the trace");
-    expect(view).not.toHaveTextContent("Desktop recommended"); // the bottom bar replaces the note
-  });
-
-  it("demo: the header clock tells Mount Seymour's local time with its zone, UTC on hover", () => {
-    setup({ status: "demo" });
-    expect(screen.getByLabelText("Mission header")).toHaveTextContent("15:00 PDT");
-    expect(screen.getByTitle("Mission clock · 22:00 UTC")).toHaveTextContent("15:00 PDT");
-  });
-
-  it("live: the header clock names the browser's zone too, so a bare 03:37 never shows", () => {
-    setup({ status: "live" });
-    const d = new Date("2026-10-24T22:00:00Z");
-    const label = `${clock(d, false)} ${zone(d, false)}`;
-    expect(zone(d, false)).not.toBe("");
-    expect(screen.getByLabelText("Mission header")).toHaveTextContent(label);
   });
 
   it("the shortcut overlay lists the console's keys", async () => {
     const { SHORTCUT_GROUPS } = await import("../shell/shortcuts");
     const console_ = SHORTCUT_GROUPS.find((g) => g.title === "Console");
-    expect(console_?.shortcuts.flatMap((s) => s.keys)).toEqual(["Tab", "A", "X", "W", "L"]);
+    expect(console_?.shortcuts.flatMap((s) => s.keys)).toEqual(["Tab", "A", "X", "E", "V", "W", "L", "Esc"]);
+    const views = SHORTCUT_GROUPS.find((g) => g.title === "Views");
+    expect(views?.shortcuts.flatMap((s) => s.keys)).toEqual(["1", "2", "4", "5", "3", "6", "C"]);
   });
 
   it('never says "clear"', () => {
-    setup();
+    setup({ proposals: [proposal()] });
+    act(() => useConsole.getState().openSector("B3", 100, 100));
     expect(document.body.textContent).not.toMatch(/\bclear(s|ed|ing)?\b/i);
+    expect(document.body.textContent).not.toMatch(/\brul(e|ed) out\b/i);
+  });
+});
+
+describe("the status line", () => {
+  const line = (over: Partial<Parameters<typeof StatusLine>[0]> = {}) =>
+    render(<StatusLine mission={mission} conditions={conditions} teams={[team("T1", "One", "searching"), team("T2", "Two", "returning"), team("T3", "Three")]} clues={[]} now={NOW} tz={true} onConditions={vi.fn()} {...over} />);
+
+  it("says how long the search has run, daylight left, flyability in one word with its gate, people out, found or not, clues", () => {
+    line();
+    const s = screen.getByRole("status", { name: "Mission status" });
+    expect(s).toHaveTextContent("Elapsed1 h 30 min");
+    expect(s).toHaveTextContent("Daylight2 h 40 min left");
+    expect(within(s).getByRole("button", { name: /Flyable to 00:40/ })).toHaveAttribute("title", expect.stringContaining("gusts under the limit"));
+    expect(s).toHaveTextContent("Lower Seymour trail closed");
+    expect(s).toHaveTextContent("Out6 people");
+    expect(s).toHaveTextContent("Subjectnot found");
+    expect(s).toHaveTextContent("Clues0");
+  });
+
+  it("says Found, and where", () => {
+    line({ mission: { ...mission, status: "found", found: { team: "T1", sector: "C2", lat: 0, lon: 0, at: "" } } });
+    expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("Found · C2");
   });
 });
