@@ -1,5 +1,5 @@
-// LANE_E §9 test 4: the approval inbox. Reject needs a reason; edits go with the approval; decided
-// proposals say who and when; keys act on the focused card only.
+// LANE_E §9 test 4: the proposals in Needs you. Reject needs a reason; edits go with the approval; decided
+// proposals leave for the timeline; keys act on the focused card only.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -35,15 +35,24 @@ describe("ApprovalInbox", () => {
     expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Proposal p002", "Proposal p001"]);
     expect(within(cards[0]!).getByAltText("photo f0005")).toHaveAttribute("src", "/f/crops/f0005-d01.jpg");
     expect(within(cards[0]!).getByText("leg L002")).toBeInTheDocument();
-    expect(screen.getByText("Approvals · 2 waiting")).toBeInTheDocument();
+    expect(within(cards[1]!).getByText("or do it yourself: click B3 on the map")).toBeInTheDocument();
   });
 
-  it("approves as the person named in the header", async () => {
+  it("approves as the console's one name (no name field on the card)", async () => {
+    sessionStorage.setItem("sightline.operator", "Dana");
     const onDecide = setup([p({})]);
-    await userEvent.type(screen.getByLabelText("Your name"), "Dana");
+    expect(screen.queryByLabelText("Your name")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Approve/ }));
     expect(onDecide).toHaveBeenCalledWith("p001", "approve", "Dana", undefined, undefined);
-    expect(sessionStorage.getItem("sightline.operator")).toBe("Dana");
+  });
+
+  it("shows the reason on one line, the rest on a click", async () => {
+    setup([p({ reason: "Sector B3 holds 6.9% of the probability. A long second sentence the card keeps folded." })]);
+    const why = screen.getByRole("button", { name: /Sector B3 holds/ });
+    expect(why.className).toMatch(/line-clamp-1/);
+    await userEvent.click(why);
+    expect(why).toHaveAttribute("aria-expanded", "true");
+    expect(why.className).not.toMatch(/line-clamp-1/);
   });
 
   it("a rejection needs a reason", async () => {
@@ -58,7 +67,7 @@ describe("ApprovalInbox", () => {
 
   it("edits the team and the briefing before approving", async () => {
     const onDecide = setup([p({})]);
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Edit/ }));
     await userEvent.selectOptions(screen.getByLabelText("Team"), "T2");
     const text = screen.getByLabelText(/Briefing/);
     await userEvent.clear(text);
@@ -73,7 +82,8 @@ describe("ApprovalInbox", () => {
     const onDecide = setup([p({ id: "p001" }), p({ id: "p002", created_at: "2026-10-24T21:41:00Z" })]);
     fireEvent.keyDown(screen.getByLabelText("Proposal p001"), { key: "a" });
     expect(onDecide).toHaveBeenCalledWith("p001", "approve", "Search manager", undefined, undefined);
-    fireEvent.keyDown(screen.getByLabelText("Your name"), { key: "a" });
+    fireEvent.keyDown(screen.getByLabelText("Proposal p002"), { key: "e" }); // E: edit
+    fireEvent.keyDown(screen.getByLabelText(/Briefing/), { key: "a" });
     expect(onDecide).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(screen.getByLabelText("Proposal p002"), { key: "x" });
     expect(screen.getByLabelText("Why reject")).toBeInTheDocument();
@@ -114,20 +124,17 @@ describe("ApprovalInbox", () => {
   it("with nothing waiting, says what will appear and links the feed", () => {
     render(<ApprovalInbox proposals={[]} teams={TEAMS} onDecide={vi.fn()} imageUrl={(r) => r} feedHref="#m/demo/feed" />);
     const empty = screen.getByLabelText("Nothing waiting");
-    expect(empty).toHaveTextContent("Proposals appear here when the agent has evidence; they need a person's approval.");
+    expect(empty).toHaveTextContent("No proposals waiting.");
     expect(within(empty).getByRole("link", { name: "See what the agent is doing in the feed" })).toHaveAttribute("href", "#m/demo/feed");
   });
 
-  it("decided proposals collapse below, saying who decided and when", () => {
+  it("decided proposals leave Needs you (the timeline says who decided and when)", () => {
     setup([
       p({ id: "p001", status: "approved", decided_by: "Dana", decided_at: AT }),
       p({ id: "p002", status: "rejected", decided_by: "Dana", decided_at: AT, decision_reason: "duplicate" }),
     ]);
-    expect(screen.getByText("Nothing waiting. Proposals appear here when the agent has evidence; they need a person's approval.")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Proposal p00/)).toBeNull();
     expect(screen.queryByRole("link", { name: /feed/ })).toBeNull(); // no feed to link to
-    const decided = screen.getByLabelText("Decided proposals");
-    expect(decided).toHaveTextContent(/Approved by Dana at/);
-    expect(decided).toHaveTextContent(/Rejected by Dana at .*: duplicate/);
   });
 
   it('never says "clear"', () => {

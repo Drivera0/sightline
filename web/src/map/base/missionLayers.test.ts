@@ -46,14 +46,14 @@ describe("live-mission layers", () => {
     ]);
   });
 
-  it("legs: proposed (pending in the inbox) faint, approved and flying drawn, done and cancelled not", () => {
+  it("legs: flown and cut-short ones past (20 %), proposed and approved dashed, the flying one solid", () => {
     const fleet = { drones: [], legs: [
       { id: "L1", status: "flying", waypoints: ring }, { id: "L2", status: "done", waypoints: ring },
       { id: "L3", status: "approved", waypoints: ring }, { id: "L4", status: "cancelled", waypoints: ring },
     ] } as unknown as FleetState;
     const proposals = [{ status: "pending", leg: { id: "L5", waypoints: ring } }, { status: "rejected", leg: { id: "L6", waypoints: ring } }] as unknown as Proposal[];
     expect(legFeatures(fleet, proposals).map((f) => [f.properties.id, f.properties.style])).toEqual([
-      ["L5", "proposed"], ["L1", "flying"], ["L3", "approved"],
+      ["L2", "past"], ["L4", "past"], ["L5", "proposed"], ["L1", "flying"], ["L3", "approved"],
     ]);
   });
 

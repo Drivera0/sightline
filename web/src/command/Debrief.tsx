@@ -2,7 +2,7 @@
 // page: what this mission did so far, the numbers that matter with how each is measured (ResultsSummary),
 // what breaks first, "Where to look, in order" for judges, and the links: the report, the trace, the code.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Metrics } from "../contract";
 import type { MissionData } from "../lib/mission";
 import { HONESTY, JUDGE_LINKS, JUDGES, REPORT_URL, REPO_URL } from "../front/judges";
@@ -36,7 +36,10 @@ export function Debrief({
   traceHref,
   liveDebriefUrl,
   exports,
+  report,
 }: {
+  /** Once the subject is found: the mission report, above the measured results. */
+  report?: ReactNode;
   missionName: string;
   so: Pick<MissionData, "mapUpdates" | "tasks" | "clues" | "proposals">;
   /** The detector's and the map's measured results (the demo survey's metrics.json); null while loading. */
@@ -52,19 +55,24 @@ export function Debrief({
 }) {
   return (
     <section aria-label="Debrief" data-tour="debrief" className="sl-sheet flex flex-col gap-6 rounded-lg border border-line bg-surface-solid p-4 lg:p-5">
-      <header className="flex flex-col gap-2">
-        <Label>Debrief</Label>
-        <h1 className="text-title font-medium text-text">{missionName}</h1>
-        <p className="text-small text-text-2">{missionSoFar(so)}</p>
-        {liveDebriefUrl && <LiveDebrief url={liveDebriefUrl} />}
-        {exports && <Exports missionUrl={exports.missionUrl} teams={exports.teams} />}
-      </header>
+      {report ?? (
+        <header className="flex flex-col gap-2">
+          <Label>Debrief</Label>
+          <h1 className="text-title font-medium text-text">{missionName}</h1>
+          <p className="text-small text-text-2">{missionSoFar(so)}</p>
+          {liveDebriefUrl && <LiveDebrief url={liveDebriefUrl} />}
+          {exports && <Exports missionUrl={exports.missionUrl} teams={exports.teams} />}
+        </header>
+      )}
 
-      {metrics ? <ResultsSummary metrics={metrics} cellM={cellM} surveyId={surveyId} /> : <p className="text-small text-text-3">Loading the measured results…</p>}
+      {report && <h2 className="border-t border-line pt-4 text-small font-medium text-text print:hidden">The detector and the map, measured</h2>}
+      <div className={report ? "print:hidden" : undefined}>
+        {metrics ? <ResultsSummary metrics={metrics} cellM={cellM} surveyId={surveyId} /> : <p className="text-small text-text-3">Loading the measured results…</p>}
+      </div>
 
       <details open={judgesOpen} className="group rounded-lg border border-line" data-tour="judges">
         <summary className="flex cursor-pointer list-none items-center gap-3 rounded-lg p-3 hover:bg-surface-strong [&::-webkit-details-marker]:hidden">
-          <span aria-hidden className="font-mono text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none">
+          <span aria-hidden className="text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none">
             ›
           </span>
           <span className="text-body text-text">For judges: where to look, in order</span>
@@ -74,7 +82,7 @@ export function Debrief({
           <ol className="flex flex-col divide-y divide-line">
             {JUDGE_LINKS.map((l, i) => (
               <li key={l.label} className="flex items-baseline gap-3 py-2 text-small">
-                <span className="w-4 shrink-0 font-mono text-text-3">{i + 1}</span>
+                <span className="w-4 shrink-0 text-text-3">{i + 1}</span>
                 <span className="flex min-w-0 flex-col">
                   <a
                     href={l.href}
@@ -85,7 +93,7 @@ export function Debrief({
                   </a>
                   <span className="text-text-2">{l.proves}</span>
                 </span>
-                {l.time && <span className="ml-auto shrink-0 font-mono text-caption text-text-3">{l.time}</span>}
+                {l.time && <span className="ml-auto shrink-0 text-caption text-text-3">{l.time}</span>}
               </li>
             ))}
           </ol>

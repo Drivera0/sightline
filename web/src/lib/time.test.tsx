@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { MissionEvent, Proposal } from "../contract";
-import { ApprovalInbox } from "../command/ApprovalInbox";
+import { Timeline } from "../command/Timeline";
 import { EventFeed } from "../command/EventFeed";
 import { clock, clockWithZone, ClockZone, DEMO_TZ, utcLabel, zone } from "./time";
 
@@ -26,19 +26,20 @@ describe("the mission pages' clock", () => {
     expect(zone(new Date(), true)).toBe("UTC");
   });
 
-  it("formats the approvals' decided time like the feed beside it (no 12-hour 03:01 PM)", () => {
+  it("formats a decision's time in the timeline like the event log beside it (no 12-hour 03:01 PM)", () => {
     const decided = {
       id: "p001", kind: "alert", status: "approved", summary: "Sound heard near the creek", reason: "r", target: {}, evidence: [],
       briefing: null, created_by: "agent", created_at: "2026-10-24T14:50:00Z", decided_by: "Ana", decided_at: AT, decision_reason: null, edits: null,
     } as unknown as Proposal;
-    const ev = { id: "e00001", type: "proposal.decided", at: AT, summary: "p001 approved by Ana", ref: "p001", data: null } as MissionEvent;
+    const ev = { id: "e00001", type: "proposal.decided", at: AT, summary: "p001 approved by Ana", ref: "p001", data: decided } as unknown as MissionEvent;
     render(
       <ClockZone.Provider value={{ tz: true }}>
-        <ApprovalInbox proposals={[decided]} teams={[]} onDecide={() => undefined} imageUrl={(r) => r} />
+        <Timeline events={[ev]} teams={[]} onConfirmClue={() => undefined} talk={null} clueForm={() => null} />
         <EventFeed events={[ev]} />
       </ClockZone.Provider>,
     );
-    expect(screen.getByText(/Approved by Ana at 15:01/)).toBeInTheDocument();
+    expect(screen.getByText(/Ana approved agent p001/)).toBeInTheDocument();
+    expect(screen.getByText("15:01")).toBeInTheDocument();
     expect(screen.getByText("15:01:09")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\d{2}:\d{2} [AP]M/);
   });

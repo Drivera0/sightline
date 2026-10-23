@@ -4,7 +4,7 @@
 
 import type { ReactNode } from "react";
 import type { Frame } from "../contract";
-import { Badge, Label } from "../shell/components";
+import { Label } from "../shell/components";
 
 /** How many of the newest photos are shown as pictures (each is a full survey photo). */
 export const PHOTO_TILES = 12;
@@ -35,10 +35,10 @@ export function PhotoStrip({
   return (
     <section aria-label="Photos landing" data-tour="photos" className="flex flex-col gap-1.5 rounded-lg border border-line bg-surface-solid p-2 lg:hidden">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-mono text-small text-text">
+        <span className="text-small text-text">
           {landed.length} <span className="text-text-3">of {total} placed</span>
         </span>
-        <span className="font-mono text-caption text-text-2">
+        <span className="text-caption text-text-2">
           {candidates} {candidates === 1 ? "candidate" : "candidates"}
         </span>
       </div>
@@ -53,7 +53,7 @@ export function PhotoStrip({
           {newest.map((f) => (
             <li key={f.id} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-surface-strong">
               {!playing && <img src={imageUrl(f.file)} alt={`Survey photo ${f.id}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
-              <span className="absolute bottom-0 left-0.5 font-mono text-[10px] leading-tight text-text-2">{f.id}</span>
+              <span className="absolute bottom-0 left-0.5 font-mono text-caption text-text-2">{f.id}</span>
               {f.n_candidates > 0 && <span aria-label="Has a candidate" className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-accent ring-1 ring-bg" />}
             </li>
           ))}
@@ -70,6 +70,7 @@ export function PhotosRail({
   playing,
   imageUrl,
   live,
+  drop,
   tryPanel,
   tryOpen,
   onTry,
@@ -84,6 +85,8 @@ export function PhotosRail({
   imageUrl: (rel: string) => string;
   /** A live mission's progress and upload panels. */
   live?: ReactNode;
+  /** The drop zone: a drone's photos, ranked and placed (PhotoDrop). */
+  drop?: ReactNode;
   tryPanel: ReactNode;
   tryOpen: boolean;
   onTry: () => void;
@@ -92,6 +95,7 @@ export function PhotosRail({
   const share = landed && total ? landed.length / total : 0;
   return (
     <section aria-label="Photos" data-tour="photos" className="flex flex-col gap-3">
+      {drop}
       <div className="flex items-baseline justify-between gap-2 px-1">
         <span className="text-caption font-medium text-text-2">
           Photos <span className="font-normal text-text-3">· from the drone, newest first</span>
@@ -105,10 +109,10 @@ export function PhotosRail({
         <div className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-3">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="font-mono text-small text-text">
+              <span className="text-small text-text">
                 {landed.length} <span className="text-text-3">of {total} placed</span>
               </span>
-              <span className="font-mono text-caption text-text-2">
+              <span className="text-caption text-text-2">
                 {candidates} {candidates === 1 ? "candidate" : "candidates"}
               </span>
             </div>
@@ -117,14 +121,6 @@ export function PhotosRail({
               <progress className="sr-only" max={total} value={landed.length} aria-label="Photos placed on the map" />
             </div>
           </div>
-          <p className="text-caption text-text-3">
-            One survey flight, its photos off the card after landing. Each one is ranked by the detector and placed on the map, which updates where
-            the person could still be.
-          </p>
-          <span className="flex flex-wrap gap-1.5">
-            <Badge kind="simulated">Simulated flight path</Badge>
-            <Badge kind="info">Real HERIDAL photos</Badge>
-          </span>
           {newest.length === 0 ? (
             <p className="text-small text-text-3">No photos yet: the drone is still flying.</p>
           ) : (

@@ -1,13 +1,14 @@
-// The approval inbox (LANE_E §7.2, E-07): every agent proposal waits here for a person. Pending first,
-// newest on top; decided ones collapse below with who decided and when. Approve (A), Reject (X, needs a
-// one-line reason), Edit before approving (the team for an assignment, the briefing text). An approved
-// briefing goes to the radio's outbound queue; nothing is transmitted from here. Keys act on the focused
-// card only. Built by lane A for lane E (issue #70).
+// The agent's proposals in Needs You (LANE_E §7.2, E-07; COMMAND_POST.md §5): each waits here for a
+// person, newest on top, with a one-line reason (the rest on a click). Approve (A), Reject (X, needs a
+// one-line reason), Edit before approving (E: the team for an assignment, the briefing text). Decided ones
+// leave for the timeline ("Search manager approved agent p003"). An approved briefing goes to the radio's
+// outbound queue; nothing is transmitted from here. Keys act on the focused card only. The person acting is
+// the console's one name (lib/mission operatorName). Built by lane A for lane E (issue #70).
 
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Drone, EvidenceRef, Proposal, Team } from "../contract";
-import { Label, Panel, StatusPill } from "../shell/components";
-import { useClock } from "../lib/time";
+import { KeyHint, StatusPill } from "../shell/components";
+import { operatorName } from "../lib/mission";
 import { clueNoteFor } from "./clueShift";
 import { domain, OVERRIDE_SOURCE } from "./conditions";
 
@@ -104,17 +105,6 @@ export function bringToTop(el: HTMLElement): void {
   rail.scrollTop += el.getBoundingClientRect().top - rail.getBoundingClientRect().top;
 }
 
-const OPERATOR_KEY = "sightline.operator";
-
-function loadOperator(): string {
-  try {
-    return globalThis.sessionStorage?.getItem(OPERATOR_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-
 export function ApprovalInbox({
   proposals,
   teams,
@@ -123,6 +113,7 @@ export function ApprovalInbox({
   imageUrl,
   feedHref,
   clueNote,
+  story = null,
 }: {
   proposals: readonly Proposal[];
   teams: readonly Team[];
@@ -134,20 +125,11 @@ export function ApprovalInbox({
   feedHref?: string;
   /** The clues behind an assignment's sector, from the map log (clueShift.ts); null when none moved it. */
   clueNote?: (p: Proposal) => string | null;
+  /** The proposal the story's coach mark points at (`data-story-proposal`). */
+  story?: string | null;
 }) {
-  const { time } = useClock();
-  const [operator, setOperator] = useState(loadOperator);
-  const saveOperator = (name: string) => {
-    setOperator(name);
-    try {
-      globalThis.sessionStorage?.setItem(OPERATOR_KEY, name);
-    } catch {
-      /* private mode: the name still works for this page */
-    }
-  };
   const newestFirst = [...proposals].sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
   const pending = newestFirst.filter((p) => p.status === "pending");
-  const decided = newestFirst.filter((p) => p.status !== "pending");
 
   // After a decision the card leaves the list: bring the next pending card to the top of the rail (and
   // focus it, so A and X act on it), rather than leave the rail scrolled to the middle of a card.
@@ -171,24 +153,10 @@ export function ApprovalInbox({
   };
 
   return (
-    <section aria-label="Approval inbox" className="flex flex-col gap-3">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <Label className={pending.length ? "text-accent!" : undefined}>Approvals · {pending.length} waiting</Label>
-        <label className="flex items-center gap-2 text-small text-text-2">
-          You are
-          <input
-            aria-label="Your name"
-            className="sl-tap w-44 rounded-sm border border-border bg-surface-strong px-2 py-1 text-small text-text"
-            placeholder="Search manager"
-            value={operator}
-            onChange={(e) => saveOperator(e.target.value)}
-          />
-        </label>
-        <p className="basis-full text-caption text-text-3">The agent's proposals, with its reasons. Nothing happens until a person approves.</p>
-      </header>
-      {pending.length === 0 && (
-        <div role="group" aria-label="Nothing waiting" className="flex flex-col gap-1.5 rounded-sm border border-dashed border-line px-3 py-4 text-small">
-          <p className="text-text-2">Nothing waiting. Proposals appear here when the agent has evidence; they need a person's approval.</p>
+    <section aria-label="Approval inbox" className="flex flex-col gap-2">
+      {pending.length === 0 && feedHref !== undefined && (
+        <div role="group" aria-label="Nothing waiting" className="flex flex-col gap-1.5 rounded-md border border-dashed border-line px-3 py-3 text-small">
+          <p className="text-text-2">No proposals waiting.</p>
           {feedHref && (
             <a href={feedHref} className="sl-tap self-start text-accent-soft underline underline-offset-2 hover:text-text">
               See what the agent is doing in the feed
@@ -202,35 +170,17 @@ export function ApprovalInbox({
           p={p}
           teams={teams}
           drone={drones.find((d) => d.id === p.target.drone)}
-          by={operator.trim() || "Search manager"}
+          by={operatorName()}
           onDecide={decide}
           imageUrl={imageUrl}
           clues={p.kind === "assign_sector" ? clueNoteFor(p.reason, clueNote?.(p) ?? null) : null}
+          story={p.id === story}
           cardRef={(el) => {
             if (el) cards.current.set(p.id, el);
             else cards.current.delete(p.id);
           }}
         />
       ))}
-      {decided.length > 0 && (
-        <details className="flex flex-col gap-1">
-          <summary className="sl-tap flex cursor-pointer items-center text-small text-text-2">Decided ({decided.length})</summary>
-          <ul className="flex flex-col gap-1 pt-2" aria-label="Decided proposals">
-            {decided.map((p) => (
-              <li key={p.id} className="flex flex-wrap gap-2 text-small">
-                <StatusPill tone={p.status === "approved" ? "ok" : "muted"} dot={false}>{p.status}</StatusPill>
-                <span className="text-text">{p.summary}</span>
-                {p.decided_by && (
-                  <span className="text-text-3">
-                    {p.status === "approved" ? "Approved" : p.status === "rejected" ? "Rejected" : p.status} by {p.decided_by} at {p.decided_at ? time(p.decided_at) : ""}
-                    {p.decision_reason ? `: ${p.decision_reason}` : ""}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
     </section>
   );
 }
@@ -243,6 +193,7 @@ function PendingCard({
   onDecide,
   imageUrl,
   clues = null,
+  story = false,
   cardRef,
 }: {
   p: Proposal;
@@ -253,6 +204,7 @@ function PendingCard({
   imageUrl: (rel: string) => string;
   /** Which clues moved the sector's probability (from the map log), or null. */
   clues?: string | null;
+  story?: boolean;
   cardRef?: (el: HTMLDivElement | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -277,19 +229,29 @@ function PendingCard({
     if (e.target !== e.currentTarget) return; // typing in a field inside the card
     if (e.key === "a" || e.key === "A") approve();
     if (e.key === "x" || e.key === "X") setRejecting(true);
+    if ((e.key === "e" || e.key === "E") && canEdit) setEditing((v) => !v);
   };
+  const canEdit = p.kind === "assign_sector" || p.briefing !== null;
 
   return (
-    <Panel ref={cardRef} tabIndex={0} onKeyDown={keys} aria-label={`Proposal ${p.id}`} data-proposal={p.id} className="flex flex-col gap-2 border-l-2 border-l-accent bg-surface-solid p-3 focus:outline focus:outline-accent">
-      <div className="flex flex-wrap items-center gap-2">
+    <div
+      ref={cardRef}
+      tabIndex={0}
+      onKeyDown={keys}
+      aria-label={`Proposal ${p.id}`}
+      data-proposal={p.id}
+      {...(story ? { "data-story-proposal": "" } : {})}
+      className="flex flex-col gap-2 rounded-md border border-line border-l-2 border-l-accent bg-bg/40 p-2.5 focus:outline focus:outline-accent"
+    >
+      <div className="flex items-center gap-2">
         <StatusPill tone="action">{kindWords(p)}</StatusPill>
-        <span className="text-body text-text">{isRecall(p) ? recallSummary(p.summary, drone?.battery_pct) : p.summary}</span>
-        <span className="ml-auto font-mono text-caption text-text-3">
-          {p.id} · {p.created_by}
+        <span className="ml-auto font-mono text-caption text-text-3" title={`proposed by the ${p.created_by}`}>
+          {p.id}
         </span>
       </div>
-      <button type="button" className="sl-tap self-start text-left text-small text-text-2" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? p.reason : `${p.reason.slice(0, 140)}${p.reason.length > 140 ? "…" : ""}`}
+      <span className="text-small font-medium text-text">{isRecall(p) ? recallSummary(p.summary, drone?.battery_pct) : p.summary}</span>
+      <button type="button" title={open ? undefined : p.reason} className={`self-stretch text-left text-small text-text-2 ${open ? "" : "line-clamp-1"}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+        {p.reason}
       </button>
       {clues && (
         <p aria-label="Clues behind it" className="text-small text-text-2">
@@ -314,7 +276,7 @@ function PendingCard({
           )}
         </div>
       )}
-      {!editing && p.briefing && <p className="text-small text-text-2">Briefing: “{p.briefing}”</p>}
+      {!editing && p.briefing && open && <p className="text-small text-text-2">Briefing: “{p.briefing}”</p>}
       {editing && (
         <div role="group" className="flex flex-col gap-2" aria-label="Edit before approving">
           {p.kind === "assign_sector" && (
@@ -358,21 +320,22 @@ function PendingCard({
           </button>
         </form>
       )}
-      <div className="flex gap-2">
-        <button type="button" onClick={approve} className="sl-tap rounded-full border border-accent bg-accent/15 px-4 py-1.5 text-small text-text">
-          Approve <span className="font-mono text-text-3">A</span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button type="button" onClick={approve} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full border border-accent bg-accent/15 px-3 text-small text-text">
+          Approve <KeyHint>A</KeyHint>
         </button>
         {!rejecting && (
-          <button type="button" onClick={() => setRejecting(true)} className="sl-tap rounded-full border border-border px-4 py-1.5 text-small text-text-2">
-            Reject <span className="font-mono text-text-3">X</span>
+          <button type="button" onClick={() => setRejecting(true)} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full border border-border px-3 text-small text-text-2">
+            Reject <KeyHint>X</KeyHint>
           </button>
         )}
-        {(p.kind === "assign_sector" || p.briefing !== null) && (
-          <button type="button" aria-pressed={editing} onClick={() => setEditing(!editing)} className="sl-tap rounded-full border border-border px-4 py-1.5 text-small text-text-2">
-            Edit
+        {canEdit && (
+          <button type="button" aria-pressed={editing} onClick={() => setEditing(!editing)} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full border border-border px-3 text-small text-text-2">
+            Edit <KeyHint>E</KeyHint>
           </button>
         )}
       </div>
-    </Panel>
+      {p.kind === "assign_sector" && p.target.sector && <p className="text-caption text-text-3">or do it yourself: click {p.target.sector} on the map</p>}
+    </div>
   );
 }

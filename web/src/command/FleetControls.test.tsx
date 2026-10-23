@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Conditions, Drone, FleetState } from "../contract";
 import type { Api } from "../lib/api";
 import { NO_LINKS, type FleetLinks } from "../lib/mission";
-import { MissionHeader } from "./CommandView";
+import { StatusLine } from "./StatusLine";
 import { conditionsFacts } from "./conditions";
 import { ConditionsPanel } from "./ConditionsPanel";
 import { FleetControls } from "./FleetControls";
@@ -59,10 +59,10 @@ describe("FleetControls", () => {
 });
 
 describe("a demo override on screen", () => {
-  it("is labelled in the header and the Conditions panel, with no Tavily quotes", () => {
-    render(<MissionHeader mission={null} status="live" conditions={OVERRIDE} now={new Date("2026-10-22T09:25:00Z")} />);
+  it("is labelled in the status line and the Conditions panel, with no Tavily quotes", () => {
+    render(<StatusLine mission={null} conditions={OVERRIDE} teams={[]} clues={[]} now={new Date("2026-10-22T09:25:00Z")} tz={true} />);
     expect(screen.getByText("Demo override")).toBeInTheDocument();
-    expect(screen.getByText(/gusts 50 km\/h · not flyable/)).toBeInTheDocument();
+    expect(screen.getByText("Not flyable").closest("[title]")).toHaveAttribute("title", expect.stringContaining("gusts 50 km/h"));
     const lookup = { searches: [], extracted: [], documents: [], fields: { gust_kmh: { value: 40, quote: "gusts 40", url: null } }, alertQuotes: [], model: null, ms: null, tokensIn: null, at: null };
     const gust = conditionsFacts(OVERRIDE, lookup).find((f) => f.id === "gust_kmh")!;
     expect(gust.source).toEqual({ kind: "computed", how: "override (demo): set by hand, not from Tavily" }); // never the old quote

@@ -2,7 +2,8 @@
 // the landing (`#m/demo`). Fixtures from `scripts/make_command_fixtures.py` (validated against the contract
 // there) plus the demo cache's map: its frame steps become the map log, then the clues and the ground searches.
 // Everything is a demo and says so on screen. Built by lane A for lane E (#70).
-import type { Conditions, MapBase, MapFile, MapUpdate } from "../contract";
+import type { Conditions, MapBase, MapFile, MapUpdate, Mission } from "../contract";
+import { TRAILHEAD } from "./missionTime";
 import type { MissionData } from "../lib/mission";
 import { parseTrace } from "./trace";
 import { latestLookup } from "./conditions";
@@ -32,23 +33,53 @@ export function cacheBase(map: MapFile): MapBase {
   return { contract_version, grid, lkp, params, prior, canopy };
 }
 
+/** A mission record from before the command post's fields, with their defaults. */
+export function withPostDefaults(m: Mission): Pick<Mission, "base_camp" | "status" | "found" | "check_in_min"> {
+  return {
+    base_camp: m.base_camp ?? { lat: TRAILHEAD.lat, lon: TRAILHEAD.lon, name: "Trailhead lot" },
+    status: m.status ?? "searching",
+    found: m.found ?? null,
+    check_in_min: m.check_in_min ?? 30,
+  };
+}
+
+/** A prior over the whole grid, as the generator writes it (`demo_prior.json`, a scenario's `prior`). */
+export interface DemoPrior {
+  lkp?: { lat: number; lon: number };
+  p: number[];
+  outside: number;
+}
+
+/** The map with the generator's prior (and its last known point) when it fits the grid; else as the cache has it. */
+export function withPrior(base: MapBase, prior: DemoPrior | null | undefined): MapBase {
+  if (!prior || prior.p.length !== base.grid.rows * base.grid.cols) return base;
+  return { ...base, lkp: prior.lkp ?? base.lkp, prior: { ...base.prior, p: prior.p, outside: prior.outside } };
+}
+
 export async function loadDemoMission(
   fetchFn: typeof fetch = fetch,
   fixture: () => Promise<Fixture> = async () => (await import("./__fixtures__/demo_mission.json")).default as unknown as Fixture,
   /** The demo cache's map when it is already loaded (the console loads the whole cache for its rails). */
   loaded?: Promise<MapFile>,
+  /** The prior over the whole grid (the generator's Koester rings, `demo_prior.json`); a scenario brings its own. */
+  priorFile: () => Promise<DemoPrior | null> = async () => (await import("./__fixtures__/demo_prior.json")).default as unknown as DemoPrior,
 ): Promise<{ data: Partial<MissionData>; now: string }> {
-  const [fx, map] = await Promise.all([
+  const [fx, map, prior] = await Promise.all([
     fixture(),
     loaded ?? fetchFn(`${DEMO_CACHE}/map.json`).then((r) => {
       if (!r.ok) throw new Error(`the demo map is missing (${r.status})`);
       return r.json() as Promise<MapFile>;
     }),
+    priorFile().catch(() => null),
   ]);
   const frames = cacheUpdates(map, fx.mission?.created_at ?? fx.now);
-  const { now, map_updates, ...rest } = fx;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { now, map_updates, photographed: _p, leg_photos: _l, scenario: _s, t0: _t, flight: _f, prior: own, ...rest } = fx as Fixture & Record<string, unknown>;
+  // The command post's fields (contract v1.2 draft) until the regenerated fixture carries them: base camp
+  // in the trailhead lot (where the subject's car is), still searching, a 30-minute check-in interval.
+  const mission = rest.mission ? { ...rest.mission, ...withPostDefaults(rest.mission) } : rest.mission;
   return {
-    data: { ...rest, verdicts: [], fleet: fx.fleet ?? null, mapBase: cacheBase(map), mapUpdates: [...frames, ...map_updates] },
+    data: { ...rest, mission, verdicts: [], fleet: fx.fleet ?? null, mapBase: withPrior(cacheBase(map), (own as DemoPrior | undefined) ?? prior), mapUpdates: [...frames, ...map_updates] },
     now,
   };
 }

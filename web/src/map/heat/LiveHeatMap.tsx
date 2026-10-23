@@ -6,7 +6,12 @@
 // fades out with a dashed trail to the new one (legLayer.ts), each drone's ring says its simulated
 // link (ok, degraded, lost), and dots travel along a drone's relay for a cut-off team (relayLayer.ts).
 // One requestAnimationFrame loop, only while something moves.
-// Labels: a drone shows only "D2 88%" and a SIM chip, a team only "T3"; their full lines (name, battery,
+// One icon set (shell/icons.tsx, map/base/iconImages.ts): drone, team, clue, base camp, last known point and
+// the find, each a 2 px stroke at one size on its own small disc; base camp and teams sit on a dark halo
+// that keeps the heat out from under them. Only a drone's active leg is drawn solid; legs it has flown fade
+// to 20 %, planned ones are dashed. Click a sector to act on it (the console's popover); in Task mode the
+// click assigns; drop a team's T-card on a sector to assign it.
+// Labels: a drone shows only "D2 88%", a team only "T3"; their full lines (name, battery,
 // the link in words, last heard; callsign, status, position age) are hover/focus tooltips and in the
 // hidden text summary. Labels never overlap: MapLibre's symbol collision moves or drops them. Layers
 // higher up are placed first: drones, then the last known point and clues, then teams, then sector POA
@@ -16,7 +21,10 @@
 // Built by lane A for lanes C and B (issues #64, #74).
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Marker, Popup, type GeoJSONSource, type Map } from "maplibre-gl";
-import type { Clue, FleetState, MapBase, MapUpdate, Proposal, Team } from "../../contract";
+import type { Clue, FleetState, MapBase, MapUpdate, Mission, Proposal, Team } from "../../contract";
+import { ensureIconImages } from "../base/iconImages";
+import { sectorAt, sectorCentre } from "../../search/sectorCells";
+import { useConsole } from "../../command/consoleStore";
 import { usePick } from "../pick";
 import { clueFeatures } from "../base/clueLayer";
 import { droneFeatures, droneLinkWords } from "../base/droneLayer";
@@ -25,9 +33,11 @@ import { FleetGlide, type LonLat } from "../base/fleetMotion";
 import { legFeatures, noteCancels, retaskAnimating, retaskFeatures, type SeenCancel } from "../base/legLayer";
 import { point, type MissionFeature } from "../base/missionFeature";
 import { relayFeatures } from "../base/relayLayer";
-import { teamFeatures } from "../base/teamLayer";
+import { teamFeatures, teamShort } from "../base/teamLayer";
 import { useMission, type DroneLink } from "../../lib/mission";
 import { isTyping } from "../../lib/keys";
+import { KeyHint } from "../../shell/components";
+import { Icon, type IconName } from "../../shell/icons";
 import { clock, useClock } from "../../lib/time";
 import { useSelection } from "../../lib/selection";
 import type { SectorNow } from "../../lib/api";
@@ -35,7 +45,8 @@ import { prefersReducedMotion } from "../../metrics/motion";
 import { LiveHeat, lookedAt } from "../../search/live";
 import { basemapStyle, chooseBasemapMode, readBasemapColors } from "../base/basemap";
 import { MapProvider, useMap } from "../MapView";
-import { cellKinds, surfaceData } from "./classes";
+import { surfaceData } from "./classes";
+import { HATCH_KIND, smoothKinds, smoothSurface, wholeGridKinds } from "./smooth";
 import { cluesToFlash, type ClueSeen, FLASH_MS, flashFeatures, seenOf } from "./clueFlash";
 import { CLASS_ROWS, ContourGlyph, OUTSIDE_LABEL, swatchColor } from "./Legend";
 import { basemapKind, basemapLabelLayer, type BasemapKind, HEAT_PALETTES, type HeatPalette, muteImagery } from "./palette";
@@ -58,6 +69,8 @@ export const LIVE_IDS = {
   droneLabels: "live-heat-drone-labels",
   droneSim: "live-heat-drone-sim",
   relay: "live-heat-relay",
+  halos: "live-heat-halos",
+  selected: "live-heat-sector-selected",
 } as const;
 /** The probability surface: the raster (LIVE_IDS.heat) while it tweens, class fills and contours at rest. */
 export const LIVE_SURFACE_IDS = surfaceIds("live-heat-", LIVE_IDS.heat);
@@ -67,6 +80,25 @@ type Feature = { type: "Feature"; properties: Record<string, unknown>; geometry:
 const fc = (features: Feature[]) => ({ type: "FeatureCollection" as const, features });
 /** The flash of a clue just added or confirmed (clueFlash.ts). */
 const FLASH_ID = "sl-clue-flash";
+/** The hatch over ground no photo has looked at yet: thin diagonal lines, a little of the text colour. */
+const HATCH_IMAGE = "sl-unphotographed-hatch";
+function hatchImage(color: string): ImageData | null {
+  if (typeof document === "undefined") return null;
+  const el = document.createElement("canvas");
+  el.width = el.height = 16;
+  const ctx = el.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (const o of [-16, 0, 16]) {
+    ctx.moveTo(o, 16);
+    ctx.lineTo(o + 16, 0);
+  }
+  ctx.stroke();
+  return ctx.getImageData(0, 0, 16, 16);
+}
 /** A theme token (MapLibre cannot read CSS variables). */
 const cssVar = (name: string, fallback: string) =>
   (typeof document === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue(name).trim()) || fallback;
@@ -74,7 +106,7 @@ const cssVar = (name: string, fallback: string) =>
 const pct = (x: number) => `${(x * 100).toFixed(x < 0.1 ? 1 : 0)} %`;
 
 /** Sector outlines and their "B3 · 6 %" labels (sectors from a server before #83 have no outline). */
-export function sectorFeatures(sectors: readonly SectorNow[]): { lines: Feature[]; labels: Feature[] } {
+export function sectorFeatures(sectors: readonly SectorNow[], teamIn: (sector: string) => string | null = () => null): { lines: Feature[]; labels: Feature[] } {
   const lines: Feature[] = [];
   const labels: Feature[] = [];
   for (const s of sectors) {
@@ -85,7 +117,7 @@ export function sectorFeatures(sectors: readonly SectorNow[]): { lines: Feature[
     const lat = ring.reduce((a, c) => a + c[1], 0) / ring.length;
     labels.push({
       type: "Feature",
-      properties: { text: `${s.sector_id} · ${pct(s.poa)}`, poa: s.poa },
+      properties: { text: `${s.sector_id} · ${pct(s.poa)}${teamIn(s.sector_id) ? ` · ${teamIn(s.sector_id)}` : ""}`, poa: s.poa },
       geometry: { type: "Point", coordinates: [lon, lat] },
     });
   }
@@ -100,9 +132,14 @@ export function pointFeatures(
   fleet: FleetState | null = null,
   now: Date = new Date(),
   time?: (iso: string) => string,
+  mission: Pick<Mission, "base_camp" | "found"> | null = null,
 ): MissionFeature[] {
   const callsign = (id: string) => teams.find((t) => t.id === id)?.callsign ?? (id === "command" ? "command" : id);
+  const camp = mission?.base_camp;
+  const found = mission?.found;
   return [
+    ...(camp ? [point("base", "base", camp.name ? `Base camp: ${camp.name}` : "Base camp", "text", camp.lon, camp.lat)] : []),
+    ...(found ? [point("found", "found", `Found by ${callsign(found.team)} in ${found.sector}`, "ok", found.lon, found.lat)] : []),
     point("lkp", "", "Last known point", "accent", base.lkp.lon, base.lkp.lat),
     ...clueFeatures(clues, callsign, time),
     ...teamFeatures(teams, now),
@@ -119,6 +156,9 @@ function LiveLayers({
   fleet = null,
   proposals = [],
   now,
+  mission = null,
+  tasks = [],
+  actions,
   onBasemap,
   onReady,
 }: Omit<LiveHeatMapProps, "mapBase"> & { base: MapBase; onBasemap?: (kind: BasemapKind) => void }): ReactNode {
@@ -177,18 +217,37 @@ function LiveLayers({
         onBasemap?.(kind);
       }
       muteImagery(map, true);
+      // the console's "not photographed yet": a light hatch over the heat, not a veil under it
+      const hatchLayer = LIVE_SURFACE_IDS.fills[HATCH_KIND] as string;
+      if (!map.hasImage(HATCH_IMAGE)) {
+        const img = hatchImage(cssVar("--text", "#f2f2f0"));
+        if (img) map.addImage(HATCH_IMAGE, img, { pixelRatio: 2 });
+      }
+      if (map.getLayer(hatchLayer) && map.getPaintProperty(hatchLayer, "fill-pattern") !== HATCH_IMAGE) {
+        map.setPaintProperty(hatchLayer, "fill-pattern", HATCH_IMAGE);
+        map.setPaintProperty(hatchLayer, "fill-antialias", true);
+        if (map.getLayer(LIVE_SURFACE_IDS.casing90)) map.moveLayer(hatchLayer, LIVE_SURFACE_IDS.casing90);
+      }
       if (added && surface.current) pushSurface(map, LIVE_SURFACE_IDS, surface.current);
-      for (const id of [LIVE_IDS.sectors, LIVE_IDS.sectorLabels, LIVE_IDS.points, LIVE_IDS.legs, LIVE_IDS.drones, LIVE_IDS.relay]) {
+      for (const id of [LIVE_IDS.sectors, LIVE_IDS.sectorLabels, LIVE_IDS.points, LIVE_IDS.legs, LIVE_IDS.drones, LIVE_IDS.relay, LIVE_IDS.selected]) {
         if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: fc([]) });
       }
       const color = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
       ensureFleetImages(map, { background: color("--bg", "#0a0b0d"), border: color("--text-3", "#8a8a93"), text: color("--text", "#f2f2f0") });
+      ensureIconImages(map, {
+        disc: color("--bg", "#0a0b0d"), accent: color("--accent", "#ff7a1a"), warn: color("--warn", "#ffc48f"), ok: color("--ok", "#7ee2a0"),
+        info: color("--accent-soft", "#ffb27a"), muted: color("--text-3", "#8a8a93"), text: color("--text", "#f2f2f0"),
+      });
       if (!map.getLayer(LIVE_IDS.sectors)) {
         const tone = (): unknown => ["match", ["get", "tone"], "accent", color("--accent", "#ff7a1a"), "warn", color("--warn", "#ffc48f"), "ok", color("--ok", "#7ee2a0"),
           "info", color("--accent-soft", "#ffb27a"), "muted", color("--text-3", "#8a8f98"), color("--text", "#f2f2f0")]; // prettier-ignore
-        // legs: proposed faint and dashed, approved solid, flying solid and thicker (B-T1)
-        map.addLayer({ id: LIVE_IDS.legs, type: "line", source: LIVE_IDS.legs, filter: ["in", ["get", "style"], ["literal", ["approved", "flying"]]],
-          paint: { "line-color": tone() as never, "line-opacity": 0.85, "line-width": ["match", ["get", "style"], "flying", 2.5, 1.5] } }); // prettier-ignore
+        // legs: only the active (flying) leg solid; flown legs at 20 %; approved-not-yet-flown and proposed dashed
+        map.addLayer({ id: LIVE_IDS.legs, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "flying"],
+          layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": color("--accent", "#ff7a1a"), "line-opacity": 0.75, "line-width": 1.25 } }); // prettier-ignore
+        map.addLayer({ id: `${LIVE_IDS.legs}-past`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "past"],
+          paint: { "line-color": color("--text", "#f2f2f0"), "line-opacity": 0.2, "line-width": 1.5 } }); // prettier-ignore
+        map.addLayer({ id: `${LIVE_IDS.legs}-planned`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "approved"],
+          paint: { "line-color": color("--accent-soft", "#ffb27a"), "line-opacity": 0.7, "line-width": 1.5, "line-dasharray": [2, 2] } }); // prettier-ignore
         // a re-task: the cancelled leg fades out; a dashed trail from where the drone turned to its new leg
         map.addLayer({ id: `${LIVE_IDS.legs}-cancelled`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "cancelled"],
           paint: { "line-color": color("--accent", "#ff7a1a"), "line-opacity": ["*", 0.85, ["get", "fade"]] as never, "line-width": 2 } }); // prettier-ignore
@@ -201,7 +260,10 @@ function LiveLayers({
           paint: { "circle-radius": 2.5, "circle-color": color("--accent-soft", "#ffb27a"), "circle-stroke-color": color("--bg", "#0a0b0d"), "circle-stroke-width": 0.5 } }); // prettier-ignore
         map.addLayer({ id: `${LIVE_IDS.legs}-proposed`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "proposed"],
           paint: { "line-color": tone() as never, "line-opacity": 0.45, "line-width": 1.2, "line-dasharray": [2, 2] } }); // prettier-ignore
-        map.addLayer({ id: LIVE_IDS.sectors, type: "line", source: LIVE_IDS.sectors, paint: { "line-color": color("--text", "#f2f2f0"), "line-opacity": 0.5, "line-width": 1 } });
+        map.addLayer({ id: LIVE_IDS.sectors, type: "line", source: LIVE_IDS.sectors, paint: { "line-color": color("--text", "#f2f2f0"), "line-opacity": 0.35, "line-width": 1 } });
+        // the sector whose popover is open
+        map.addLayer({ id: `${LIVE_IDS.selected}-fill`, type: "fill", source: LIVE_IDS.selected, paint: { "fill-color": color("--accent", "#ff7a1a"), "fill-opacity": 0.08 } });
+        map.addLayer({ id: LIVE_IDS.selected, type: "line", source: LIVE_IDS.selected, paint: { "line-color": color("--accent", "#ff7a1a"), "line-opacity": 0.9, "line-width": 2 } });
         map.addLayer({
           id: LIVE_IDS.sectorLabels,
           type: "symbol",
@@ -218,15 +280,24 @@ function LiveLayers({
           },
           paint: { "text-color": color("--text", "#f2f2f0"), "text-halo-color": color("--bg", "#0a0b0d"), "text-halo-width": 1.5 },
         });
+        // base camp's and the teams' halos: a dark disc that keeps the heat out from under them
         map.addLayer({
-          id: LIVE_IDS.points,
+          id: LIVE_IDS.halos,
           type: "circle",
           source: LIVE_IDS.points,
-          paint: {
-            "circle-radius": ["match", ["get", "kind"], "lkp", 6, "drone", 6, 5],
-            "circle-color": tone() as never,
-            "circle-stroke-color": color("--bg", "#0a0b0d"),
-            "circle-stroke-width": 1.5,
+          filter: ["in", ["get", "kind"], ["literal", ["base", "team", "found"]]],
+          paint: { "circle-radius": 18, "circle-color": color("--bg", "#0a0b0d"), "circle-opacity": 0.72, "circle-blur": 0.35 },
+        });
+        // every mark is an icon of the one set, coloured by its tone
+        map.addLayer({
+          id: LIVE_IDS.points,
+          type: "symbol",
+          source: LIVE_IDS.points,
+          layout: {
+            "icon-image": ["concat", "icon-", ["get", "kind"], "-", ["get", "tone"]] as never,
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+            "symbol-sort-key": ["match", ["get", "kind"], "found", 0, "base", 1, "team", 2, 3] as never,
           },
         });
         // teams: "T3" only (the full line is the tooltip). Added below the clue labels, so placed after them.
@@ -242,7 +313,7 @@ function LiveLayers({
             "text-font": GLYPH_FONT,
             "text-size": 11,
             "text-variable-anchor": ["right", "left", "top", "bottom", "top-right", "bottom-right", "top-left", "bottom-left"],
-            "text-radial-offset": 0.9,
+            "text-radial-offset": 1.3,
             "text-allow-overlap": false,
             "text-optional": true,
           },
@@ -269,15 +340,15 @@ function LiveLayers({
           paint: { "text-color": color("--text", "#f2f2f0"), "text-halo-color": color("--bg", "#0a0b0d"), "text-halo-width": 1.5 },
         });
         // drones: the ring is the link (ok green, degraded amber, lost in the accent and thicker); the tooltip says it in words
+        // drones: the drone icon, its colour the link (ok in the text colour, degraded amber, lost in the accent)
         map.addLayer({
           id: LIVE_IDS.drones,
-          type: "circle",
+          type: "symbol",
           source: LIVE_IDS.drones,
-          paint: {
-            "circle-radius": 6,
-            "circle-color": tone() as never,
-            "circle-stroke-color": ["match", ["get", "link"], "lost", color("--accent", "#ff7a1a"), "degraded", color("--warn", "#ffc48f"), color("--ok", "#7ee2a0")] as never,
-            "circle-stroke-width": ["match", ["get", "link"], "lost", 3.5, "degraded", 3, 2] as never,
+          layout: {
+            "icon-image": ["match", ["get", "link"], "lost", "icon-drone-accent", "degraded", "icon-drone-warn", "icon-drone-text"] as never,
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
           },
         });
         map.addLayer({
@@ -293,7 +364,7 @@ function LiveLayers({
             "text-size": 11.5,
             // bunched at home after a recall: each label tries eight spots around its dot before it is dropped
             "text-variable-anchor": ["left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"],
-            "text-radial-offset": 0.9,
+            "text-radial-offset": 1.3,
             "text-allow-overlap": false,
             "text-optional": true,
             "symbol-sort-key": ["match", ["get", "link"], "lost", 0, "degraded", 1, 2],
@@ -303,14 +374,6 @@ function LiveLayers({
             "text-halo-color": color("--bg", "#0a0b0d"),
             "text-halo-width": 1.5,
           },
-        });
-        // a SIM chip on every simulated drone, always drawn (it never hides another label)
-        map.addLayer({
-          id: LIVE_IDS.droneSim,
-          type: "symbol",
-          source: LIVE_IDS.drones,
-          filter: ["==", ["get", "sim"], true],
-          layout: { "icon-image": FLEET_IMAGES.sim, "icon-anchor": "bottom", "icon-offset": [0, -7], "icon-allow-overlap": true, "icon-ignore-placement": true },
         });
       }
       setReadyMap(map);
@@ -342,34 +405,99 @@ function LiveLayers({
 
   // The heat: new updates are applied incrementally and the change is tweened (the raster), then the
   // same classes are drawn as fills and contours.
-  const kinds = useMemo(() => {
-    if (!ready) return null;
-    const covered = lookedAt(base, updates);
-    return cellKinds(heat.sync(updates).p, covered, new Uint8Array(covered.length));
-  }, [ready, heat, base, updates]);
+  // the classes over the whole search area (the prior is known everywhere); what no photo has seen yet
+  const kinds = useMemo(() => (ready ? wholeGridKinds(heat.sync(updates).p) : null), [ready, heat, updates]);
+  const photographed = useMemo(() => (ready ? (base.photographed ? Uint8Array.from(base.photographed) : lookedAt(base, updates)) : null), [ready, base, updates]);
   const colors = useMemo(() => kindColors(HEAT_PALETTES[basemap], theme), [basemap, theme]);
   useEffect(() => {
     if (!map || !kinds) return;
-    surface.current = surfaceData(base.grid, kinds);
+    surface.current = smoothSurface(base.grid, kinds, photographed);
     pushSurface(map, LIVE_SURFACE_IDS, surface.current);
-  }, [map, base, kinds]);
+  }, [map, base, kinds, photographed]);
   useEffect(() => {
     if (!kinds) return;
-    const pixels = kindPixels(kinds, colors);
+    const pixels = kindPixels(smoothKinds(base.grid, kinds), colors);
     if (!drawn.current || prefersReducedMotion()) raster.show(pixels);
     else raster.animate(pixels, { durationMs: TWEEN_MS });
     drawn.current = true;
-  }, [raster, kinds, colors]);
+  }, [raster, kinds, colors, base]);
 
   useEffect(() => {
     if (!map || !ready) return;
-    const { lines, labels } = sectorFeatures(sectors);
+    const short = (id: string | null) => (id ? (teams.find((t) => t.id === id) ? teamShort(teams.find((t) => t.id === id)!) : id) : null);
+    const teamIn = (sector: string) => short(tasks.find((t) => t.sector_id === sector && (t.state === "assigned" || t.state === "in_progress"))?.team_id ?? null);
+    const { lines, labels } = sectorFeatures(sectors, teamIn);
     setData(map, LIVE_IDS.sectors, lines);
     setData(map, LIVE_IDS.sectorLabels, labels);
-    const points = pointFeatures(base, clues, teams, null, now ?? new Date(), (iso) => clock(iso, tz));
+    const points = pointFeatures(base, clues, teams, null, now ?? new Date(), (iso) => clock(iso, tz), mission);
     setData(map, LIVE_IDS.points, points);
     syncTargets(map, teamTargets.current, points.filter((p) => p.properties.kind === "team"), "team");
-  }, [map, ready, base, sectors, clues, teams, now, tz]);
+  }, [map, ready, base, sectors, clues, teams, now, tz, mission, tasks]);
+
+  // The sector popover: a click on a sector (not on a mark) opens it; in Task mode the click assigns.
+  const selSector = useConsole((s) => s.sector);
+  useEffect(() => {
+    if (!map || !ready) return undefined;
+    const onClick = (e: { point: { x: number; y: number }; lngLat: { lng: number; lat: number } }) => {
+      const marks = map.queryRenderedFeatures([e.point.x, e.point.y] as never, { layers: [LIVE_IDS.points, LIVE_IDS.drones].filter((id) => map.getLayer(id)) });
+      if (marks.length) return;
+      const s = sectorAt(sectors, e.lngLat.lng, e.lngLat.lat);
+      const ui = useConsole.getState();
+      if (!s) return ui.closeSector();
+      if (ui.picking && actions) {
+        if (ui.picking.kind === "team") actions.assign(ui.picking.id, s.sector_id);
+        else actions.droneLeg(s.sector_id, ui.picking.id);
+        return ui.pick(null);
+      }
+      ui.openSector(s.sector_id, e.point.x, e.point.y);
+    };
+    map.on("click", onClick as never);
+    return () => {
+      map.off("click", onClick as never);
+    };
+  }, [map, ready, sectors, actions]);
+  // the popover opened from elsewhere (the sectors table): put it at the sector's centre; outline the sector
+  useEffect(() => {
+    if (!map || !ready) return;
+    const s = selSector ? sectors.find((x) => x.sector_id === selSector.id) : null;
+    setData(map, LIVE_IDS.selected, s?.polygon ? [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [s.polygon] } }] : []);
+    if (s && selSector && !Number.isFinite(selSector.x)) {
+      const c = sectorCentre(s);
+      if (c) {
+        const pt = map.project([c.lon, c.lat]);
+        useConsole.getState().openSector(s.sector_id, pt.x, pt.y);
+      }
+    }
+  }, [map, ready, selSector, sectors]);
+  // drop a team's T-card on a sector: assign it there
+  useEffect(() => {
+    if (!map || !ready || !actions) return undefined;
+    const el = map.getContainer();
+    const over = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes("application/x-sightline-team")) return;
+      e.preventDefault();
+      el.classList.add("sl-drop-on");
+    };
+    const leave = () => el.classList.remove("sl-drop-on");
+    const drop = (e: DragEvent) => {
+      el.classList.remove("sl-drop-on");
+      const team = e.dataTransfer?.getData("application/x-sightline-team");
+      if (!team) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const at = map.unproject([e.clientX - r.left, e.clientY - r.top]);
+      const s = sectorAt(sectors, at.lng, at.lat);
+      if (s) actions.assign(team, s.sector_id);
+    };
+    el.addEventListener("dragover", over);
+    el.addEventListener("dragleave", leave);
+    el.addEventListener("drop", drop);
+    return () => {
+      el.removeEventListener("dragover", over);
+      el.removeEventListener("dragleave", leave);
+      el.removeEventListener("drop", drop);
+    };
+  }, [map, ready, sectors, actions]);
 
   // A clue added or confirmed: its circle and the cells it reweighted flash and fade, so the cause
   // (the clue) and the effect (the map) are seen together. Reduced motion: no flash.
@@ -487,6 +615,22 @@ function LiveLayers({
     const t = teams.find((x) => x.id === selectedTeam);
     if (map && t?.position) map.flyTo({ center: [t.position.lon, t.position.lat], zoom: Math.max(map.getZoom(), 16), duration: prefersReducedMotion() ? 0 : 800 });
   }, [map, selectedTeam, teams]);
+  // a clue picked in the timeline: fly to it and say what it is
+  const selectedClue = useSelection((s) => s.selectedClueId);
+  useEffect(() => {
+    const c = clues.find((x) => x.id === selectedClue);
+    if (!map || !c) return undefined;
+    map.flyTo({ center: [c.lon, c.lat], zoom: Math.max(map.getZoom(), 16), duration: prefersReducedMotion() ? 0 : 800 });
+    const el = document.createElement("div");
+    el.className = "text-small";
+    el.style.color = "#111";
+    el.textContent = `${c.id} ${c.kind}: ${c.text}`;
+    const popup = new Popup({ closeButton: true }).setLngLat([c.lon, c.lat]).setDOMContent(el).addTo(map);
+    return () => {
+      popup.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, selectedClue]);
 
   // A pick asked for elsewhere on the page (the clue form): B's onPick answers it.
   useEffect(() => {
@@ -568,6 +712,12 @@ export interface LiveHeatMapProps {
   fill?: boolean;
   /** Called once the map has its layers and has drawn them (a still stand-in can fade out then). */
   onReady?: () => void;
+  /** The mission record: base camp and the find are drawn from it. */
+  mission?: Mission | null;
+  /** The sectors' tasks: a sector's label names the team in it. */
+  tasks?: readonly { sector_id: string; state: string; team_id: string | null }[];
+  /** The console's direct actions: a click in Task mode and a dropped T-card assign through these. */
+  actions?: { assign: (team: string, sector: string) => void; droneLeg: (sector: string, drone?: string) => void };
 }
 
 const TEAM_WORDS: Record<Team["status"], string> = { standby: "standby", assigned: "assigned", searching: "searching", returning: "returning", off_duty: "off duty", overdue: "overdue" };
@@ -644,7 +794,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
             Click the map to place the clue (Esc cancels).
           </p>
         )}
-        <FloatingLegend updates={rest.updates.length} palette={HEAT_PALETTES[basemap]} />
+        <FloatingLegend palette={HEAT_PALETTES[basemap]} />
       </figure>
     );
   }
@@ -666,8 +816,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
         <MapLegend />
         <span>
           {HEAT_CAPTION}{" "}
-          {rest.fleet?.simulated ? "Drones, their links and relays are simulated. " : ""}
-          {rest.updates.length} map updates · each sector shows its share of the probability (POA).
+          Each sector shows its share of the probability (POA).
         </span>
       </figcaption>
     </figure>
@@ -676,7 +825,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
 
 /** The heat in words: the caption under the map and the floating legend's tooltip. */
 export const HEAT_CAPTION =
-  "Shading: the likeliest 50, 80 and 90 % of the probability on ground a photo has looked at (lighter on the dark map, redder on satellite: likelier); no shading: outside 90 % of estimated probability; dimmed: not photographed yet.";
+  "Shading: the likeliest 50, 80 and 90 % of the estimated probability across the search area (lighter on the dark map, redder on satellite: likelier); no shading: outside 90 % of it; hatched: no photo has looked there yet.";
 
 /** The map's attribution on the app background, so a mark drawn under it stays readable and so does it. */
 const ATTRIBUTION_CLASS =
@@ -694,11 +843,10 @@ export function legendOpenAtStart(): boolean {
 }
 
 /**
- * The legend floating on the console's map: a small "Legend" pill with the map-update count (top left,
- * away from the scrubber along the bottom), opened by a click or the L key; open, two columns of at most
- * four lines under the pill.
+ * The map's one legend, top left (away from the scrubber along the bottom): a small "Legend" pill, opened by
+ * a click or the L key; open, the heat's line and the marks in two columns.
  */
-export function FloatingLegend({ updates, palette }: { updates: number; palette?: HeatPalette }) {
+export function FloatingLegend({ palette }: { updates?: number; palette?: HeatPalette }) {
   const [open, setOpen] = useState(legendOpenAtStart);
   const bodyId = useId();
   useEffect(() => {
@@ -718,10 +866,10 @@ export function FloatingLegend({ updates, palette }: { updates: number; palette?
   }, []);
   return (
     <figcaption
-      className={`absolute top-3 left-3 z-10 flex max-h-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] flex-col overflow-y-auto border border-border bg-bg/85 backdrop-blur-[16px] ${open ? "rounded-md px-3 py-2" : "rounded-full px-2.5 py-1"}`}
-      title={`${HEAT_CAPTION} Each sector shows its share of the probability (POA).`}
+      className={`absolute top-3 left-3 z-10 flex max-h-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] flex-col overflow-y-auto border border-border bg-bg/90 backdrop-blur-[16px] ${open ? "rounded-md px-3 py-2" : "rounded-full px-2.5 py-1"}`}
+      title={`${HEAT_CAPTION} Each sector shows its share of the probability (POA) and the team in it.`}
     >
-      <div className="order-2 mt-1.5 flex flex-col gap-1.5" id={bodyId} hidden={!open}>
+      <div className="order-2 mt-2 flex flex-col gap-2" id={bodyId} hidden={!open}>
         <HeatKeyRow palette={palette} />
         <MapLegend columns />
       </div>
@@ -738,46 +886,29 @@ export function FloatingLegend({ updates, palette }: { updates: number; palette?
             <path d="M3 1.5 6.5 5 3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
           </svg>
           Legend
-          <kbd aria-hidden="true" className="rounded-[3px] border border-border px-1 font-mono text-[10px] leading-[14px] text-text-3">L</kbd>
+          <KeyHint>L</KeyHint>
         </button>
-        <span className="font-mono text-caption text-text-3">
-          {updates} map updates{open ? " · sector labels show POA" : ""}
-        </span>
       </div>
     </figcaption>
   );
 }
 
 const Line = ({ className }: { className: string }) => <span className={`inline-block w-4 ${className}`} />;
+const Mark = ({ name, className = "text-text" }: { name: IconName; className?: string }) => <Icon name={name} size={14} className={`shrink-0 ${className}`} />;
 
-/** Seven lines: the fill legend lays them out as two columns of at most four. */
+/** Eight lines: the fill legend lays them out as two columns of at most four. */
 const LEGEND: readonly { key: string; title?: string; content: ReactNode }[] = [
-  { key: "lkp", content: <><Dot color="var(--accent)" />Last known point<Dot color="var(--warn)" className="ml-2" />Clue</> },
-  { key: "teams", content: <><Dot color="var(--ok)" />Team searching<Dot color="var(--accent-soft)" className="ml-2" />assigned or returning</> },
-  { key: "drone", title: "Hover or focus a drone for its name, battery, link and when it was last heard", content: <><SimChip />D2 88%: drone and battery; SIM: simulated</> },
-  {
-    key: "link",
-    title: "A drone that lost its link flies its leg on its own",
-    content: <><Ring color="var(--ok)" />Link ok<Ring color="var(--warn)" className="ml-2" />degraded<Ring color="var(--accent)" thick className="ml-2" />lost</>,
-  },
-  { key: "route", content: <><Line className="h-0.5 bg-accent" />Drone route<Line className="ml-2 border-t border-dashed border-text-3" />proposed, awaiting approval</> },
+  { key: "base", content: <><Mark name="base" />Base camp<Mark name="lkp" className="ml-2 text-accent" />Last known point</> },
+  { key: "teams", content: <><Mark name="team" className="text-ok" />Team searching<Mark name="team" className="ml-2 text-accent-soft" />assigned</> },
+  { key: "drone", title: "Hover or focus a drone for its name, battery, link and when it was last heard", content: <><Mark name="drone" />Drone, battery<Mark name="drone" className="ml-2 text-warn" />link degraded</> },
+  { key: "clue", content: <><Mark name="clue" className="text-warn" />Clue<Mark name="found" className="ml-2 text-ok" />Found</> },
+  { key: "route", content: <><Line className="h-0.5 bg-accent" />Active drone leg</> },
+  { key: "past", content: <><Line className="h-0.5 bg-text/20" />Flown<Line className="ml-2 border-t border-dashed border-accent-soft" />planned</> },
   { key: "retask", content: <><Line className="border-t border-dashed border-text-2" />Re-tasked: where a drone turned</> },
   { key: "relay", content: <><Line className="border-t-2 border-dotted border-accent-soft" />Relay: a drone carries a cut-off team</> },
 ];
 
-function SimChip() {
-  return <span className="inline-block rounded-[3px] border border-text-3 bg-bg px-0.5 font-mono text-[8px] leading-[10px] font-semibold text-text">SIM</span>;
-}
-
-function Ring({ color, thick = false, className = "" }: { color: string; thick?: boolean; className?: string }) {
-  return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-text ${className}`} style={{ boxShadow: `0 0 0 ${thick ? 2.5 : 1.5}px ${color}` }} />;
-}
-
-function Dot({ color, className = "" }: { color: string; className?: string }) {
-  return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${className}`} style={{ background: color }} />;
-}
-
-/** The heat in one line: the three classes, the two contour lines and the unshaded rest. */
+/** The heat in one line: the three classes, the two edges, the unshaded rest and the hatch. */
 export function HeatKeyRow({ palette = HEAT_PALETTES.dark }: { palette?: HeatPalette }) {
   return (
     <ul aria-label="Probability classes" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-text-2">
@@ -797,11 +928,15 @@ export function HeatKeyRow({ palette = HEAT_PALETTES.dark }: { palette?: HeatPal
         <span aria-hidden="true" className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px] ring-1 ring-border" />
         No shading: {OUTSIDE_LABEL.toLowerCase()}
       </li>
+      <li className="flex items-center gap-1.5 whitespace-nowrap">
+        <span aria-hidden="true" className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px] ring-1 ring-border" style={{ background: "repeating-linear-gradient(135deg, transparent 0 2px, color-mix(in srgb, var(--text) 55%, transparent) 2px 3px)" }} />
+        Hatched: not photographed yet
+      </li>
     </ul>
   );
 }
 
-/** What the map's marks mean: the colours LiveLayers gives each kind and tone. `columns`: two columns, four lines. */
+/** What the map's marks mean: the icons LiveLayers draws for each kind and tone. `columns`: two columns, four lines. */
 export function MapLegend({ columns = false }: { columns?: boolean }) {
   return (
     <ul

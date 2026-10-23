@@ -96,21 +96,16 @@ export function Page({ className, children, ...props }: ComponentProps<"main">) 
   );
 }
 
-/** Uppercase mono label, 12 px. */
+/** A section label: sentence case, 12 px, medium weight, the body family (theme.css: no uppercase tracking). */
 export function Label({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return (
-    <span
-      className={cx("font-mono text-label uppercase tracking-label text-text-3", className)}
-      {...props}
-    />
-  );
+  return <span className={cx("text-label font-medium text-text-2", className)} {...props} />;
 }
 
 /** Big number with its label and where it came from. Every number on screen needs a source. */
 export function Stat({ value, label, source }: { value: ReactNode; label: string; source?: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-mono text-display leading-none text-text">{value}</span>
+      <span className="text-display font-medium leading-none text-text">{value}</span>
       <Label className="text-text-2">{label}</Label>
       {source && <span className="text-small text-text-3">{source}</span>}
     </div>
@@ -157,13 +152,26 @@ const MODE: Record<Mode, { tone: Tone; word: string; title: string }> = {
   connecting: { tone: "muted", word: "Connecting", title: "Connecting to the mission server" },
 };
 
-/** LIVE / DEMO / SIM: where the data on screen comes from, in one chip style everywhere. */
+/** Live / Demo / Sim: where the data on screen comes from, in one chip style everywhere. */
 export function ModeChip({ mode, children }: { mode: Mode; children?: ReactNode }) {
   const m = MODE[mode];
   return (
     <span data-mode={mode} data-tone={m.tone} title={m.title} className="sl-pill">
       <span aria-hidden className="sl-pill-dot" />
       {children ?? m.word}
+    </span>
+  );
+}
+
+/** The one disclosure on the demo console: every per-element "simulated" or "recorded" label is folded
+ * into this chip; the caveats themselves are in the Debrief and About. */
+export const DISCLOSURE = "Simulation on real aerial photographs";
+export const DISCLOSURE_TITLE =
+  "The drones, their links, the teams and the radio traffic are simulated; the photos are real aerial survey photos (HERIDAL). The Debrief and About say what is measured and what is not.";
+export function DisclosureChip({ className }: { className?: string }) {
+  return (
+    <span data-tone="caution" title={DISCLOSURE_TITLE} className={cx("sl-pill", className)}>
+      {DISCLOSURE}
     </span>
   );
 }
@@ -184,7 +192,7 @@ export function Annotation({ children }: { children: ReactNode }) {
 /** A key to press. Hidden on touch screens (no hover, or a finger for a pointer), where there is no keyboard to press it on. */
 export function KeyHint({ children }: { children: ReactNode }) {
   return (
-    <kbd className="inline-flex min-w-6 items-center justify-center rounded-sm border border-border bg-surface-strong px-1.5 py-0.5 font-mono text-label text-text-2 [@media(hover:none)]:hidden [@media(pointer:coarse)]:hidden">
+    <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-[4px] border border-border bg-surface-strong px-1 text-caption font-medium text-text-2 [@media(hover:none)]:hidden [@media(pointer:coarse)]:hidden">
       {children}
     </kbd>
   );

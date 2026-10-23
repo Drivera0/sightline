@@ -31,7 +31,7 @@ export function recordedCard(): ReviewCard {
     id: RECORDED_ID,
     conf: 0.179,
     crop: cropUrl,
-    frame: "Recorded second look · HERIDAL photo train_ZRI_2061, not this flight",
+    frame: "Second look on HERIDAL photo train_ZRI_2061, not this flight",
     words: verdictWords(RECORDED_VERDICT),
     chips: verdictChips(RECORDED_VERDICT),
     relook: [{ url: zoomUrl, name: "relook/f0001-d01-zoom_native.jpg" }],

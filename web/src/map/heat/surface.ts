@@ -138,7 +138,7 @@ export function ensureSurfaceLayers(
         layout: { visibility: shown("vector"), "line-join": "miter", "line-cap": "butt" },
         paint: casing
           ? { "line-color": palette.casing.color, "line-opacity": palette.casing.opacity, "line-width": style.width + 2 * palette.casing.width }
-          : { "line-color": style.color, "line-opacity": 1, "line-width": style.width, ...(style.dash ? { "line-dasharray": style.dash } : {}) },
+          : { "line-color": style.color, "line-opacity": style.opacity ?? 1, "line-width": style.width, ...(style.dash ? { "line-dasharray": style.dash } : {}) },
       },
       before,
     );

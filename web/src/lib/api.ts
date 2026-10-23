@@ -21,6 +21,7 @@ import type {
   SectorTask,
   Survey,
   Team,
+  TimelineEvent,
   TraceEntry,
   Verdict,
 } from "../contract";
@@ -181,6 +182,38 @@ export const patchTeam = (api: Api, id: string, tid: string, patch: Partial<Team
 /** Ask the simulated fleet to change a drone's link (the sim applies it from the event stream). */
 export const postFleetLink = (api: Api, id: string, target: string, link: "connected" | "degraded" | "lost", by: string) =>
   call<MissionEvent>(api, "POST", `${m(id)}/fleet/link`, { target, link, by });
+
+// The command post's direct actions (the console acts without waiting for the agent; each one is logged to
+// the timeline like an approval). A server from before them answers 404 and the store falls back to the
+// task and team calls above where there is one (useMission).
+const team = (id: string, tid: string) => `${m(id)}/teams/${encodeURIComponent(tid)}`;
+const sector = (id: string, sid: string) => `${m(id)}/sectors/${encodeURIComponent(sid)}`;
+export const assignTeam = (api: Api, id: string, tid: string, sector_id: string) => call<unknown>(api, "POST", `${team(id, tid)}/assign`, { sector: sector_id });
+export const callTeam = (api: Api, id: string, tid: string, text: string) => call<unknown>(api, "POST", `${team(id, tid)}/call`, { text });
+export const recallTeam = (api: Api, id: string, tid: string) => call<unknown>(api, "POST", `${team(id, tid)}/recall`, {});
+export const markSearched = (api: Api, id: string, sid: string, pod: number) => call<unknown>(api, "POST", `${sector(id, sid)}/searched`, { pod });
+export const recheckSector = (api: Api, id: string, sid: string) => call<unknown>(api, "POST", `${sector(id, sid)}/recheck`, {});
+export const postFound = (api: Api, id: string, tid: string, sector_id: string) => call<Mission>(api, "POST", `${m(id)}/found`, { team: tid, sector: sector_id });
+
+/**
+ * The mission timeline so far (`GET /missions/{id}/events` asked for JSON). The same path is the SSE
+ * stream: a server that answers it with the stream only (or not at all) gives an empty list, and the
+ * console builds its timeline from the mission events instead.
+ */
+export async function getTimeline(api: Api, id: string): Promise<TimelineEvent[]> {
+  const ctl = new AbortController();
+  try {
+    const r = await (api.fetch ?? fetch)(`${api.base}${m(id)}/events`, { headers: { accept: "application/json" }, signal: ctl.signal });
+    if (!r.ok || !(r.headers.get("content-type") ?? "").includes("json")) return [];
+    const j = (await r.json()) as unknown;
+    const list = Array.isArray(j) ? j : Array.isArray((j as { events?: unknown }).events) ? (j as { events: unknown[] }).events : [];
+    return list.filter((e): e is TimelineEvent => !!e && typeof e === "object" && "kind" in e && "text" in e);
+  } catch {
+    return [];
+  } finally {
+    ctl.abort(); // never stay on a stream
+  }
+}
 
 /** Demo only: a conditions record labelled "override (demo)", handled like a refresh (refused for a real fleet). */
 export const overrideConditions = (api: Api, id: string, gust_kmh: number, by: string) =>

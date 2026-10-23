@@ -220,7 +220,7 @@ export function ResultsSummary({
       </div>
       <details className="group rounded-lg border border-line bg-surface-solid">
         <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-lg p-4 hover:bg-surface-strong lg:px-6 [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="font-mono text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none">
+          <span aria-hidden="true" className="text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none">
             ›
           </span>
           <span className="text-body text-text">Charts: how the detector compares, and how the search map holds up</span>
@@ -407,7 +407,7 @@ function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"];
             <li key={r.name} data-in-use={inUse || undefined} className="grid grid-cols-[minmax(0,11.5rem)_minmax(0,1fr)_3rem_4rem] items-center gap-3">
               <span className={"flex min-w-0 flex-col text-small " + (inUse ? "text-text" : "text-text-2")} title={r.name}>
                 <span className="truncate">{r.short}</span>
-                {inUse && <span className="font-mono text-label uppercase tracking-label text-text-2">in use</span>}
+                {inUse && <span className="text-label font-medium text-text-2">in use</span>}
               </span>
               <span className="h-2 rounded-full bg-surface-strong">
                 <span
@@ -415,10 +415,10 @@ function WhyResolution({ ablations, source }: { ablations: Metrics["ablations"];
                   style={{ width: `${Math.max(2, r.voc.recall * 100)}%`, animationDelay: `${350 + i * 120}ms` }}
                 />
               </span>
-              <span className={"text-right font-mono text-small " + (inUse ? "font-medium text-text" : "text-text-2")}>
+              <span className={"text-right text-small " + (inUse ? "font-medium text-text" : "text-text-2")}>
                 {pct(r.voc.recall)}
               </span>
-              <span className="text-right font-mono text-small text-text-2" title="Precision">
+              <span className="text-right text-small text-text-2" title="Precision">
                 {pct(r.voc.precision)}
               </span>
             </li>
@@ -449,7 +449,7 @@ function Limits() {
       <ol aria-label="What breaks first" className="flex flex-col gap-3">
         {WHAT_BREAKS_FIRST.map((l, i) => (
           <li key={l.lead} className="flex gap-3 border-l-2 border-warn/50 pl-3">
-            <span className="font-mono text-small text-text-3">{i + 1}</span>
+            <span className="text-small text-text-3">{i + 1}</span>
             <span className="text-small text-text-2">
               <span className="font-medium text-text">{l.lead}</span> {l.rest}
             </span>
@@ -535,7 +535,7 @@ function Race({ n, rows, source }: { n: number; rows: RaceRowData[]; source: str
               key={t}
               data-tick
               className={
-                "absolute top-1 font-mono text-label tabular-nums text-text-3 " +
+                "absolute top-1 text-label tabular-nums text-text-3 " +
                 (i === 0 ? "" : t === n ? "-translate-x-full" : "-translate-x-1/2")
               }
               style={{ left: `${(t / n) * 100}%` }}
@@ -622,7 +622,7 @@ function RaceRow({ n, row, delay }: { n: number; row: RaceRowData; delay: number
         />
       </div>
       <span className="flex items-baseline justify-end gap-2">
-        <span data-count className={"font-mono text-title " + (accent ? "font-medium text-text" : "text-text-2")}>
+        <span data-count className={"text-title " + (accent ? "font-medium text-text" : "text-text-2")}>
           {row.approx ? "≈" : ""}
           {Math.round(shown)}
         </span>
@@ -701,7 +701,7 @@ function Card({
         <Sourced source={source}>
           <span className="text-display font-semibold leading-none tracking-tight text-text">{format(shown)}</span>
         </Sourced>
-        {scoring && <span className="font-mono text-label uppercase tracking-label text-text-2">{scoring}</span>}
+        {scoring && <span className="text-label font-medium text-text-2">{scoring}</span>}
         {scoringPlain && <span className="text-label text-text-3">{scoringPlain}</span>}
         {headline && <span className={"text-small font-medium " + (better ? "text-ok" : "text-warn")}>{headline}</span>}
       </div>

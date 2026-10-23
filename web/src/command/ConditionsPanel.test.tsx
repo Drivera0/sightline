@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { Conditions } from "../contract";
 import { conditionsFacts, dayNote, flyGate, latestLookup } from "./conditions";
 import { ConditionsPanel } from "./ConditionsPanel";
-import { CommandView } from "./CommandView";
+import { useState } from "react";
+import { CommandView, type ConsoleActions } from "./CommandView";
+import { StatusLine } from "./StatusLine";
+import { NO_LINKS } from "../lib/mission";
 import { demoConditionsData, loadDemoConditions } from "./demoMission";
 import fixture from "./__fixtures__/demo_mission.json";
 
@@ -101,20 +104,30 @@ describe("ConditionsPanel", () => {
     expect(then).toHaveClass("text-text-3");
   });
 
-  it("opens from the console header's conditions line, and with W", async () => {
+  it("opens from the status line's flyability word (W in the console does the same)", async () => {
     const d = await loadDemoConditions();
-    render(
-      <CommandView
-        mission={null} status="demo" conditions={d.conditions} tasks={[]} sectors={[]} teams={[]} clues={[]} proposals={[]} imageUrl={(r) => r}
-        onSetTask={vi.fn()} onUpdateTeam={vi.fn()} onAddClue={vi.fn()} onDecide={vi.fn()} map={<div>map</div>} conditionsData={d}
-      />,
-    );
+    const actions = {} as ConsoleActions;
+    function Console() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <StatusLine mission={null} conditions={d.conditions} teams={[]} clues={[]} now={new Date(d.conditions.fetched_at)} tz={true} conditionsOpen={open} onConditions={() => setOpen(!open)} conditionsId="c" />
+          <CommandView
+            mission={null} status="demo" conditions={d.conditions} tasks={[]} sectors={[]} teams={[]} clues={[]} proposals={[]} events={[]} fleet={null} links={NO_LINKS}
+            imageUrl={(r) => r} actions={actions} onAddClue={vi.fn()} onDecide={vi.fn()} map={<div>map</div>} review={null} reviewCount={0}
+            conditionsData={d} conditionsOpen={open} conditionsId="c"
+          />
+        </>
+      );
+    }
+    render(<Console />);
     expect(screen.queryByRole("region", { name: "Conditions" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: /Sources and quotes/ }));
+    const word = screen.getByRole("button", { name: /flyab/i });
+    expect(word).toHaveAttribute("aria-controls", "c");
+    await userEvent.click(word);
     expect(screen.getByRole("region", { name: "Conditions" })).toBeInTheDocument();
-    await userEvent.keyboard("w");
+    expect(word).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(word);
     expect(screen.queryByRole("region", { name: "Conditions" })).toBeNull();
-    await userEvent.keyboard("W");
-    expect(screen.getByRole("region", { name: "Conditions" })).toBeInTheDocument();
   });
 });

@@ -138,7 +138,7 @@ export function NextSearch({
                     }`}
                   >
                     {/* The same number and fill as the circle's badge on the map. */}
-                    <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent font-mono text-label font-semibold text-bg">
+                    <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent text-label font-semibold text-bg">
                       {rank + 1}
                     </span>
                     <span className="flex min-w-0 flex-col gap-1">
@@ -146,14 +146,14 @@ export function NextSearch({
                       <span className="text-label text-text-2 first-letter:uppercase">
                         {hectares(patch.areaHa)} ha · {canopyLabel(patch.canopy)}
                       </span>
-                      <span className="font-mono text-label text-text-2">{patch.density.toFixed(1)}× avg per cell</span>
+                      <span className="text-label text-text-2">{patch.density.toFixed(1)}× avg per cell</span>
                     </span>
                     <span
                       className="flex flex-col items-end"
                       title={`This patch holds ${pct(patch.share)} of the probability left on eligible surveyed ground`}
                       data-patch-share={pct(patch.share)}
                     >
-                      <span className="font-mono text-small text-text">{pct(patch.share)}</span>
+                      <span className="text-small text-text">{pct(patch.share)}</span>
                       <span className="text-label text-text-2">of surveyed chance</span>
                     </span>
                   </button>
@@ -200,7 +200,7 @@ function ShareRow({ label, swatch, value }: { label: string; swatch: string; val
         <span aria-hidden="true" className={`size-2 rounded-full ${swatch}`} />
         {label}
       </span>
-      <span className="font-mono text-text" data-share={label}>
+      <span className="text-text" data-share={label}>
         {pct(value)}
       </span>
     </div>

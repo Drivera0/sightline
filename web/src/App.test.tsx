@@ -44,7 +44,8 @@ describe("App: one console behind every address", () => {
 
   it("opens a live mission only with a mission server; without one, the empty console offers the demo", () => {
     open("#m/a1b2c3d4/review", "https://api.example.org");
-    expect(screen.getByTestId("console")).toHaveTextContent("a1b2c3d4 review");
+    expect(window.location.hash).toBe("#m/a1b2c3d4/map?needs"); // the review folds into Needs you
+    expect(screen.getByTestId("console")).toHaveTextContent("a1b2c3d4 map null needs");
     document.body.innerHTML = "";
     open("#m/a1b2c3d4/review", null);
     expect(screen.getByRole("link", { name: "Load the demo mission" })).toHaveAttribute("href", "#m/demo/map");

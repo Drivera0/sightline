@@ -292,6 +292,8 @@ export interface MapBase {
   params: Params;
   prior: Distribution;
   canopy: (number | null)[];
+  /** Console only (not in the schema): 1 where a photo has looked at the cell, decoded from the mission's `photographed`. */
+  photographed?: number[] | null;
 }
 export interface MapUpdate {
   seq: number;
@@ -558,3 +560,5 @@ export interface TimelineEntry {
   direction?: ("in" | "out") | null;
   by?: string | null;
 }
+/** The console's name for a timeline line (the generated TimelineEntry). */
+export type TimelineEvent = TimelineEntry;

@@ -89,7 +89,7 @@ function ModelStrip({ entries, chainCount }: { entries: readonly TraceEntry[]; c
       <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {models.map((m) => (
           <li key={m.model} className="flex flex-col gap-0.5 rounded-sm border border-line px-3 py-2">
-            <span className="truncate font-mono text-small text-text" title={m.model}>
+            <span className="truncate text-small text-text" title={m.model}>
               {m.model}
             </span>
             <span className="text-caption text-text-2">
@@ -149,7 +149,7 @@ function ChainView({ chain, runKey, imageUrl }: { chain: Chain; runKey: string; 
     <article aria-label={`Chain ${title}`} className="overflow-hidden rounded-lg border border-line bg-surface-solid">
       <header className="flex flex-col gap-1.5 border-b border-line px-4 py-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="font-mono text-small text-text">{title}</span>
+          <span className="text-small text-text">{title}</span>
           <ol className="flex items-center gap-1 text-caption" aria-label="Stages">
             {STAGES.map((s, i) => (
               <li key={s} className={chain.stages.includes(s) ? "text-text-2" : "text-text-3 line-through decoration-text-3/50"}>
@@ -224,7 +224,7 @@ function LedgerChip({ l }: { l: Ledger }) {
     <span
       data-ledger={l.ref}
       title={`${LEDGER_KIND[l.kind] ?? l.kind} ${l.ref} (${l.chainId}): expected gain ${l.expected}, realised ${l.realised}, delta ${l.delta}`}
-      className="inline-flex max-w-full flex-wrap items-baseline gap-x-1.5 rounded-full border border-line bg-surface-strong px-2.5 py-px font-mono text-caption"
+      className="inline-flex max-w-full flex-wrap items-baseline gap-x-1.5 rounded-full border border-line bg-surface-strong px-2.5 py-px text-caption"
     >
       {/* text-2, not text-3: on the chip's strong surface text-3 is 4.47:1 */}
       <span className="text-text-2">
@@ -267,7 +267,7 @@ function RelookRow({ chain }: { chain: Chain }) {
         <span className="flex flex-wrap items-center gap-1" aria-label="Models">
           <span className="pr-1 text-text-3">Models:</span>
           {models.map((m) => (
-            <span key={m} className="rounded-full border border-line bg-surface-strong px-2 py-px font-mono text-caption text-text-2">
+            <span key={m} className="rounded-full border border-line bg-surface-strong px-2 py-px text-caption text-text-2">
               {m}
             </span>
           ))}
@@ -287,10 +287,10 @@ function PlannerRanked({ e, produced }: { e: TraceEntry; produced: readonly { id
         <ol className="flex flex-col gap-0.5" aria-label="Ranked sectors">
           {ranked.map((r, i) => (
             <li key={`${r.sector}-${i}`} data-sector={r.sector} className="text-text-2">
-              <span className="font-mono text-text">
+              <span className="text-text">
                 {i + 1}. {r.sector}
               </span>{" "}
-              <span className="font-mono text-text-3">score {r.score === null ? "–" : String(Number(r.score.toPrecision(3)))}</span>
+              <span className="text-text-3">score {r.score === null ? "–" : String(Number(r.score.toPrecision(3)))}</span>
               {r.evidence && <span>: {r.evidence}</span>}
             </li>
           ))}
@@ -355,7 +355,7 @@ function Step({
           <span className="text-text-3 md:hidden">out: </span>
           {outputSummary(e)}
         </span>
-        <span className="text-right font-mono text-caption text-text-2">{ms === null ? "–" : seconds(ms)}</span>
+        <span className="text-right text-caption text-text-2">{ms === null ? "–" : seconds(ms)}</span>
       </button>
       {isPlannerCall(e) && <PlannerRanked e={e} produced={produced} />}
       {open && (
