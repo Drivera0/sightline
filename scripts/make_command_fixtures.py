@@ -317,7 +317,11 @@ def run(seed: int | None) -> None:
     dets = Detections.model_validate_json((CACHE / "detections.json").read_text())
     scn = None
     if seed is not None:
+        from sightline.search.demo_scenario import MIN_ROAD_M, demo_affinity
+
+        # the LKP and the person 300 m or more from a basemap road (the terrain affinity's raster)
         scn = generate(seed, m.grid, [c for f in survey.frames for c in f.footprint],
+                       affinity=demo_affinity(m.grid), min_road_distance_m=MIN_ROAD_M,
                        frames=[(f.id, f.pose.lat, f.pose.lon) for f in survey.frames])  # fmt: skip
         T0 = datetime.fromisoformat(scn.call_at)
     else:

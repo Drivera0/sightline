@@ -390,7 +390,13 @@ def apply_scenario(store: MissionStore, mission_id: str, seed: int, by: str) -> 
     live = store.live(mission_id)
     grid = live.base.grid
     corners = [c for f in store.survey(mission_id).frames for c in f.footprint]
-    scn = generate(seed, grid, corners)
+    from sightline.search.demo_scenario import MIN_ROAD_M, demo_affinity
+
+    try:  # the LKP and the person 300 m or more from a basemap road, where the basemap covers it
+        aff = demo_affinity(grid)
+        scn = generate(seed, grid, corners, affinity=aff, min_road_distance_m=MIN_ROAD_M)
+    except (OSError, ValueError):
+        scn = generate(seed, grid, corners)
     p, out = koester_prior(grid, scn.lkp, scn.category)
     params = live.base.params.model_copy(update={"prior_source": prior_source(scn.category)})
     store.put_map_base(mission_id, live.base.model_copy(update={
