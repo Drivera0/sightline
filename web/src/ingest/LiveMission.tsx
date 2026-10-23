@@ -36,6 +36,7 @@ import { stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
+import { withTaskStatus } from "../command/console";
 import type { ConditionsData } from "../command/ConditionsPanel";
 import type { TraceRun } from "../command/TraceView";
 import type { TriedPhoto } from "../detect/TryPhoto";
@@ -493,6 +494,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     },
     onRestart: restartGuide,
   });
+  // each team's status as its tasks say it (a team assigned a sector is not on standby)
+  const teams = useMemo(() => withTaskStatus(s.teams, s.tasks), [s.teams, s.tasks]);
   // where a candidate is, for the map's focus: a dropped photo's place, the demo cache's, or the live mission's
   const candidateAt = (id: string) => {
     const mine = dropped.at[id];
@@ -716,7 +719,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               <StatusLine
                 mission={s.mission}
                 conditions={s.conditions}
-                teams={s.teams}
+                teams={teams}
                 clues={s.clues}
                 now={demoNow ?? new Date()}
                 tz={clockZone.tz}
@@ -771,7 +774,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               conditions={s.conditions}
               tasks={s.tasks}
               sectors={s.sectors}
-              teams={s.teams}
+              teams={teams}
               clues={s.clues}
               proposals={run.on ? run.proposals(s.proposals) : s.proposals}
               events={s.events}
@@ -806,7 +809,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                     {mapOn && (
                       <div className="absolute inset-0">
                         <Suspense fallback={null}>
-                          <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} candidateAt={candidateAt} fill onReady={onMapReady} />
+                          <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} candidateAt={candidateAt} fill onReady={onMapReady} />
                         </Suspense>
                       </div>
                     )}
@@ -818,7 +821,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                   </div>
                 ) : mapOn ? (
                   <Suspense fallback={MAP_FRAME}>
-                    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} candidateAt={candidateAt} fill />
+                    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} candidateAt={candidateAt} fill />
                   </Suspense>
                 ) : (
                   MAP_FRAME

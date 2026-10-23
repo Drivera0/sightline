@@ -2,7 +2,7 @@
 // flyability in one word, who is out, when each team was last heard and whether it is overdue, when a
 // returning team is back, the resources in the order a search manager reads them, and what needs a person.
 // Built by lane A.
-import type { Clue, Conditions, Drone, FleetState, Mission, MissionEvent, Proposal, RadioTurn, Team } from "../contract";
+import type { Clue, Conditions, Drone, FleetState, Mission, MissionEvent, Proposal, RadioTurn, SectorTask, Team } from "../contract";
 import { clock, type Tz } from "../lib/time";
 import type { FleetLinks } from "../lib/mission";
 import { teamOf } from "./timeline";
@@ -92,6 +92,21 @@ export function legOf(d: Drone, fleet: FleetState | null): { n: number; m: numbe
   const legs = (fleet?.legs ?? []).filter((l) => l.drone_id === d.id && l.status !== "cancelled" && l.status !== "proposed");
   const i = legs.findIndex((l) => l.id === d.leg_id);
   return { n: i >= 0 ? i + 1 : legs.filter((l) => l.status === "done").length, m: legs.length, id: d.leg_id };
+}
+
+/**
+ * A team's status as its tasks say it (the judges' Team Four: assigned C4 and B4, searching B4, and still
+ * "Standby"): a team on standby with a task assigned to it is assigned; with one in progress, searching.
+ * Overdue and returning stand as they are.
+ */
+export function withTaskStatus<T extends Team>(teams: readonly T[], tasks: readonly SectorTask[]): T[] {
+  return teams.map((t) => {
+    if (t.status !== "standby" && t.status !== "off_duty" && t.status !== "assigned") return t;
+    const mine = tasks.filter((x) => x.team_id === t.id);
+    if (mine.some((x) => x.state === "in_progress")) return { ...t, status: "searching" };
+    if (t.status !== "assigned" && mine.some((x) => x.state === "assigned")) return { ...t, status: "assigned" };
+    return t;
+  });
 }
 
 /** Teams most overdue first (never heard counts as most), then drones by lowest battery. */
