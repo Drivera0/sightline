@@ -290,11 +290,13 @@ async def get_events(
     after: Annotated[str | None, Query()] = None,  # EventSource can't set headers on first connect
     format: Annotated[Literal["sse", "json"] | None, Query()] = None,
     accept: Annotated[str | None, Header()] = None,
+    timeline: Annotated[bool, Query()] = False,
 ) -> Response:
-    """The mission's event stream (SSE): every ``MissionEvent``, each followed by its ``timeline``
-    lines (1.3, ``TimelineEntry``, same id). With ``?format=json`` (or ``Accept: application/json``
-    without ``text/event-stream``): the whole timeline as a JSON list, oldest first; ``after`` keeps
-    only the lines after that event id."""
+    """The mission's event stream (SSE): every ``MissionEvent``. With ``?timeline=1`` (1.3) each
+    event is followed by its ``timeline`` lines (``event: timeline``, ``TimelineEntry``, same id);
+    opt-in, so readers that expect only ``MissionEvent`` data are unchanged. With ``?format=json``
+    (or ``Accept: application/json`` without ``text/event-stream``): the whole timeline as a JSON
+    list, oldest first; ``after`` keeps only the lines after that event id."""
     from sightline.mission import timeline as tl
 
     store = _store(request, mission_id)
@@ -317,7 +319,10 @@ async def get_events(
         return tl.entries(ev, *cache["ctx"])
 
     return StreamingResponse(
-        event_stream(store.subscribe(mission_id, last_event_id or after), timeline=lines_of),
+        event_stream(
+            store.subscribe(mission_id, last_event_id or after),
+            timeline=lines_of if timeline else None,
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

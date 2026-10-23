@@ -771,3 +771,16 @@ def test_the_after_action_report_is_written_when_found_and_served_on_demand(api)
     open_mission = client.get(f"/missions/{mission(client)}/report.md").text
     assert "**Not found yet** (status: searching)" in open_mission
     assert not re.search(r"\bclear(s|ed|ing)?\b", md, re.IGNORECASE)
+
+
+def test_the_sse_stream_sends_timeline_lines_only_when_asked(api) -> None:
+    """Old readers of the stream (the fleet sim, the smoke test, remote_check) see MissionEvents only."""
+    import inspect
+
+    from sightline.api import missions
+
+    src = inspect.getsource(missions.get_events)
+    assert "timeline=lines_of if timeline else None" in src
+    client, _, _ = api
+    mid = mission(client)
+    assert client.get(f"/missions/{mid}/events?format=json").status_code == 200
