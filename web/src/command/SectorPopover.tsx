@@ -76,7 +76,7 @@ export function SectorPopover({
       ref={box}
       role="dialog"
       aria-label={`Sector ${id}`}
-      className="sl-pop absolute z-20 flex flex-col gap-3 rounded-lg border border-border bg-surface-solid p-3 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)]"
+      className="sl-pop absolute z-20 flex flex-col gap-3 rounded-lg border border-border bg-surface-solid p-3 shadow-[var(--shadow-pop)]"
       style={{ left, top, width: W, maxHeight: height - 16, overflowY: "auto" }}
     >
       <div className="flex items-baseline gap-2">

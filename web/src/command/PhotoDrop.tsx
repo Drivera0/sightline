@@ -15,6 +15,7 @@ import { DRONE_POD, useMission } from "../lib/mission";
 import type { ReviewCard } from "../review/LiveReview";
 import { cellsWithinRadius } from "../search/update";
 import { Button } from "../shell/components";
+import { Icon } from "../shell/icons";
 
 /** The hint on an empty Photos view. */
 export const DROP_HINT = "Drop a drone's photos here to see them ranked and placed";
@@ -195,9 +196,11 @@ export function PhotoDrop({ demo, cache, dir, api, missionId }: { demo: boolean;
       }}
       onDragLeave={() => setOver(false)}
       onDrop={onDrop}
-      className={`flex flex-col gap-2 rounded-lg border border-dashed p-3 ${over ? "border-accent bg-accent/5" : "border-border bg-surface-solid"}`}
+      className={`flex flex-col items-center gap-2 rounded-lg border-2 border-dashed p-4 text-center ${over ? "border-drone bg-drone/5" : "border-border bg-surface-solid"}`}
     >
-      <p className="text-small text-text">{DROP_HINT}</p>
+      {/* a target, not prose: drop here */}
+      <Icon name="drone" size={22} className={over ? "text-drone" : "text-text-3"} />
+      <p className="text-small font-medium text-text">Drop a drone's photos</p>
       <div className="flex flex-wrap items-center gap-2">
         <label className="sl-tap inline-flex h-8 cursor-pointer items-center rounded-full border border-border px-3 text-small text-text hover:border-text-2">
           Choose photos

@@ -5,6 +5,7 @@
 import type { ReactNode } from "react";
 import type { Frame } from "../contract";
 import { Label } from "../shell/components";
+import { Icon } from "../shell/icons";
 
 /** How many of the newest photos are shown as pictures (each is a full survey photo). */
 export const PHOTO_TILES = 12;
@@ -47,7 +48,7 @@ export function PhotoStrip({
         <progress className="sr-only" max={total} value={landed.length} aria-label="Photos placed on the map" />
       </div>
       {newest.length === 0 ? (
-        <p className="text-caption text-text-3">No photos yet: the drone is still flying.</p>
+        <PhotosHowTo compact />
       ) : (
         <ul className="grid grid-cols-5 gap-1" aria-label="Newest photos">
           {newest.map((f) => (
@@ -96,6 +97,7 @@ export function PhotosRail({
   return (
     <section aria-label="Photos" data-tour="photos" className="flex flex-col gap-3">
       {drop}
+      {!landed?.length && <PhotosHowTo />}
       <div className="flex items-baseline justify-between gap-2 px-1">
         <span className="text-caption font-medium text-text-2">
           Photos <span className="font-normal text-text-3">· from the drone, newest first</span>
@@ -122,7 +124,7 @@ export function PhotosRail({
             </div>
           </div>
           {newest.length === 0 ? (
-            <p className="text-small text-text-3">No photos yet: the drone is still flying.</p>
+            <p className="text-small text-text-3">No photos yet.</p>
           ) : (
             <>
               <Label>Newest first</Label>
@@ -141,5 +143,25 @@ export function PhotosRail({
       )}
       {live}
     </section>
+  );
+}
+
+/** How photos get in, in three lines with the shared icons (the Photos view's empty state). */
+export const PHOTOS_HOW = [
+  { icon: "drone", text: "After landing, drop the drone's photos here, or Load 20 sample photos." },
+  { icon: "radio", text: "On a live mission the laptop client watches the card or controller folder: photos arrive as the drone flies." },
+  { icon: "detection", text: "Stills, not video: a person is about 70 px wide in a full-resolution still and about 15 px in a video frame." },
+] as const;
+
+export function PhotosHowTo({ compact = false }: { compact?: boolean }) {
+  return (
+    <ul aria-label="How photos get in" className={`flex flex-col gap-1.5 ${compact ? "text-caption" : "text-small"} text-text-2`}>
+      {PHOTOS_HOW.map((l) => (
+        <li key={l.icon} className="flex items-start gap-2">
+          <Icon name={l.icon} size={compact ? 13 : 15} className="mt-0.5 shrink-0 text-drone" />
+          <span>{l.text}</span>
+        </li>
+      ))}
+    </ul>
   );
 }

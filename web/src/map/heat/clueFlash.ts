@@ -1,12 +1,20 @@
-// Cause and effect for a clue: when one is added or confirmed, its pin's circle and the map cells it
-// reweighted flash for a moment (the clue's own map update: source "clue", ref = the clue's id).
+// Cause and effect for a clue: when one is added or confirmed, a ring in the clue colour comes up on its pin
+// and the cells it reweighted, and fades over two seconds (V3 §2: a ring that fades, not a flash; the clue's
+// own map update: source "clue", ref = the clue's id).
 // Pure helpers; LiveHeatMap draws and fades them. Built by lane A.
 import type { Clue, MapBase, MapUpdate } from "../../contract";
 import { circlePolygon } from "../base/circle";
 import { cellRing } from "./geometry";
 
-/** How long the flash takes to fade (ms). */
-export const FLASH_MS = 1800;
+/** How long the ring takes to fade (ms): two seconds, slow enough to be seen, never a flash. */
+export const FLASH_MS = 2000;
+
+/** The ring's strength at `f` (0..1 of FLASH_MS): up over the first tenth, then an ease-out fade to 0. */
+export function ringAlpha(f: number): number {
+  const x = Math.min(1, Math.max(0, f));
+  if (x < 0.1) return x / 0.1;
+  return Math.pow(1 - (x - 0.1) / 0.9, 1.6);
+}
 /** The circle drawn for a clue with no radius of its own (m). */
 const MIN_RADIUS_M = 60;
 

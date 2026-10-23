@@ -3,7 +3,8 @@
 import type { Clue } from "../../contract";
 import { point, type MissionFeature, type Tone } from "./missionFeature";
 
-export const CLUE_TONE: Record<Clue["kind"], Tone> = { object: "warn", track: "warn", sighting: "accent", sound: "info", other: "muted" };
+/** Clues are amber everywhere (the v3 colour system); the kind is in the label and the popup. */
+export const CLUE_TONE: Record<Clue["kind"], Tone> = { object: "clue", track: "clue", sighting: "clue", sound: "clue", other: "clue" };
 
 /** `time`: the page's clock (lib/time); by default the clue's UTC HH:MM. */
 export function clueFeatures(

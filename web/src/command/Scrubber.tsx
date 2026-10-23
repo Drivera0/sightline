@@ -19,7 +19,10 @@ export function Scrubber({
   through = null,
   hint = null,
   onSkip,
+  stepOnly = false,
 }: {
+  /** Inside the story: only the next and earlier checkpoints are taps away (a phone's tap never skips ahead; judges 2026-10-23). */
+  stepOnly?: boolean;
   t: Checkpoint;
   progress: number;
   playing: boolean;
@@ -51,7 +54,7 @@ export function Scrubber({
       role="group"
       aria-label="Mission time"
       data-tour="scrubber"
-      className="@container pointer-events-auto flex w-full items-center gap-3 rounded-lg border border-border bg-surface-solid px-2 py-1.5 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.8)]"
+      className="@container pointer-events-auto flex w-full items-center gap-3 rounded-lg border border-border bg-surface-solid px-2 py-1.5 shadow-[var(--shadow-pop)]"
     >
       <button
         type="button"
@@ -89,10 +92,11 @@ export function Scrubber({
               <li key={c.id} className="flex min-w-0 flex-col items-center">
                 <button
                   type="button"
+                  disabled={stepOnly && c.t > t + 1}
                   onClick={() => onSeek(c.t)}
                   aria-current={here ? "step" : undefined}
                   title={`${c.label}, ${zoned(c.at)} (${utcLabel(c.at)})`}
-                  className="group flex min-h-6 min-w-6 flex-col items-center gap-0.5 rounded-sm px-1 outline-offset-0"
+                  className="group flex min-h-6 min-w-6 flex-col items-center gap-0.5 rounded-sm px-1 outline-offset-0 disabled:cursor-default disabled:opacity-60"
                 >
                   <span
                     aria-hidden
@@ -112,7 +116,8 @@ export function Scrubber({
       )}
     </div>
     {(note || hint) && (
-      <p role="status" aria-label="Mission clock status" className="self-center rounded-full bg-bg/85 px-3 py-0.5 text-center text-caption text-text-2 backdrop-blur">
+      // the story's keys are for a keyboard: a touch screen shows no key hints
+      <p role="status" aria-label="Mission clock status" className={`self-center rounded-full bg-bg/85 px-3 py-0.5 text-center text-caption text-text-2 backdrop-blur ${note ? "" : "[@media(hover:none)]:hidden [@media(pointer:coarse)]:hidden"}`}>
         {note ?? hint}
       </p>
     )}

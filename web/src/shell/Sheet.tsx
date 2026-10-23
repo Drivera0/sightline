@@ -48,7 +48,7 @@ export function Sheet({ label, onClose, children, width = "max-w-xl" }: { label:
         aria-label={label}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className={`sl-sheet flex h-full w-full ${width} flex-col overflow-y-auto border-l border-line bg-surface-solid shadow-[0_24px_80px_-12px_rgba(0,0,0,0.9)]`}
+        className={`sl-sheet flex h-full w-full ${width} flex-col overflow-y-auto border-l border-line bg-surface-solid shadow-[var(--shadow-pop)]`}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface-solid px-5 py-3">
           <span className="text-small font-medium text-text-2">{label}</span>

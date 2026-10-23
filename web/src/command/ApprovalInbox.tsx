@@ -5,12 +5,14 @@
 // outbound queue; nothing is transmitted from here. Keys act on the focused card only. The person acting is
 // the console's one name (lib/mission operatorName). Built by lane A for lane E (issue #70).
 
-import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Drone, EvidenceRef, Proposal, Team } from "../contract";
 import { KeyHint, StatusPill } from "../shell/components";
 import { operatorName } from "../lib/mission";
 import { clueNoteFor } from "./clueShift";
 import { domain, OVERRIDE_SOURCE } from "./conditions";
+import { useConsole } from "./consoleStore";
+import { AgentNote, RadioBubble } from "./RadioBubble";
 
 export type Decide = (
   pid: string,
@@ -29,6 +31,8 @@ const KIND_WORDS: Record<Proposal["kind"], string> = {
   alert: "Alert",
 };
 const IMAGE_EVIDENCE: readonly EvidenceRef["kind"][] = ["crop", "frame", "relook"];
+/** A reason longer than this shows two lines and a "Show the whole reason" link. */
+const REASON_SHORT = 140;
 
 /** A recall: a re-task whose leg flies the drone home (target `home`), proposed when conditions ground the drones. */
 export const isRecall = (p: Proposal) => p.kind === "retask_drone" && p.target.home !== undefined;
@@ -130,6 +134,9 @@ export function ApprovalInbox({
 }) {
   const newestFirst = [...proposals].sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
   const pending = newestFirst.filter((p) => p.status === "pending");
+  // the proposals the inbox opened with are not new; one that comes later slides in with a slow ring
+  const known = useRef<Set<string> | null>(null);
+  if (known.current === null) known.current = new Set(proposals.map((p) => p.id));
 
   // After a decision the card leaves the list: bring the next pending card to the top of the rail (and
   // focus it, so A and X act on it), rather than leave the rail scrolled to the middle of a card.
@@ -175,6 +182,7 @@ export function ApprovalInbox({
           imageUrl={imageUrl}
           clues={p.kind === "assign_sector" ? clueNoteFor(p.reason, clueNote?.(p) ?? null) : null}
           story={p.id === story}
+          fresh={!known.current?.has(p.id)}
           cardRef={(el) => {
             if (el) cards.current.set(p.id, el);
             else cards.current.delete(p.id);
@@ -194,6 +202,7 @@ function PendingCard({
   imageUrl,
   clues = null,
   story = false,
+  fresh = false,
   cardRef,
 }: {
   p: Proposal;
@@ -205,6 +214,8 @@ function PendingCard({
   /** Which clues moved the sector's probability (from the map log), or null. */
   clues?: string | null;
   story?: boolean;
+  /** Came in after the inbox opened: it slides in with a slow ring. */
+  fresh?: boolean;
   cardRef?: (el: HTMLDivElement | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -232,27 +243,43 @@ function PendingCard({
     if ((e.key === "e" || e.key === "E") && canEdit) setEditing((v) => !v);
   };
   const canEdit = p.kind === "assign_sector" || p.briefing !== null;
+  // in focus, the map glows its sector and the team's card glows violet; a new one takes the focus if it is free
+  const focused = useConsole((s) => s.focus?.kind === "proposal" && s.focus.id === p.id);
+  const take = () => useConsole.getState().setFocus({ kind: "proposal", id: p.id });
+  useEffect(() => {
+    if (fresh && !useConsole.getState().focus) take();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
       ref={cardRef}
       tabIndex={0}
       onKeyDown={keys}
+      onFocus={take}
+      onClick={take}
+      data-focused={focused || undefined}
       aria-label={`Proposal ${p.id}`}
       data-proposal={p.id}
       {...(story ? { "data-story-proposal": "" } : {})}
-      className="flex flex-col gap-2 rounded-md border border-line border-l-2 border-l-accent bg-bg/40 p-2.5 focus:outline focus:outline-accent"
+      style={{ ["--c" as string]: "var(--proposal)" }}
+      className={`flex flex-col gap-2 rounded-md border border-line border-l-2 border-l-[var(--proposal)] bg-bg/40 p-2.5 focus:outline focus:outline-[var(--proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused ? "sl-glow-proposal" : ""}`}
     >
       <div className="flex items-center gap-2">
-        <StatusPill tone="action">{kindWords(p)}</StatusPill>
+        <StatusPill tone="proposal">{kindWords(p)}</StatusPill>
         <span className="ml-auto font-mono text-caption text-text-3" title={`proposed by the ${p.created_by}`}>
           {p.id}
         </span>
       </div>
       <span className="text-small font-medium text-text">{isRecall(p) ? recallSummary(p.summary, drone?.battery_pct) : p.summary}</span>
-      <button type="button" title={open ? undefined : p.reason} className={`self-stretch text-left text-small text-text-2 ${open ? "" : "line-clamp-1"}`} aria-expanded={open} onClick={() => setOpen(!open)}>
-        {p.reason}
-      </button>
+      <AgentNote>
+        <p className={open || p.reason.length <= REASON_SHORT ? "" : "line-clamp-2"}>{p.reason}</p>
+        {p.reason.length > REASON_SHORT && (
+          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="sl-tap self-start text-caption text-text-2 underline underline-offset-2 hover:text-text">
+            {open ? "Show less" : "Show the whole reason"}
+          </button>
+        )}
+      </AgentNote>
       {clues && (
         <p aria-label="Clues behind it" className="text-small text-text-2">
           <span className="text-text-3">Clues behind it, from the map log: </span>
@@ -276,7 +303,9 @@ function PendingCard({
           )}
         </div>
       )}
-      {!editing && p.briefing && open && <p className="text-small text-text-2">Briefing: “{p.briefing}”</p>}
+      {!editing && p.briefing && (
+        <RadioBubble to={teams.find((t) => t.id === (team || p.target.team))?.callsign ?? (p.target.team === "all" ? "all teams" : (p.target.team ?? "the team"))} text={p.briefing} callsigns={teams.map((t) => t.callsign)} />
+      )}
       {editing && (
         <div role="group" className="flex flex-col gap-2" aria-label="Edit before approving">
           {p.kind === "assign_sector" && (

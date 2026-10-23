@@ -28,12 +28,12 @@ describe("where a mark goes", () => {
 describe("the Debrief's line", () => {
   it("says the mission so far, with each searched sector's POD", () => {
     const line = missionSoFar({
-      mapUpdates: [{ source: "frame" }, { source: "frame" }, { source: "ground" }] as never,
+      mapUpdates: [{ source: "frame", ref: "f0001" }, { source: "frame", ref: "L001-p01" }, { source: "ground" }] as never,
       tasks: [{ sector_id: "B4", state: "searched", pod: 0.6 }, { sector_id: "A1", state: "in_progress", pod: null }] as never,
       clues: [{}] as never,
       proposals: [{ status: "approved" }, { status: "pending" }] as never,
     });
-    expect(line).toBe("2 photos on the map · 1 proposal decided · 1 sector searched (B4 at POD 60 %) · 1 clue");
+    expect(line).toBe("1 survey photo and 1 leg photo on the map · 1 proposal decided · 1 sector searched (B4 at POD 60 %) · 1 clue");
     expect(line).not.toMatch(/\bclear/i);
   });
 });

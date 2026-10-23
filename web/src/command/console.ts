@@ -2,7 +2,7 @@
 // flyability in one word, who is out, when each team was last heard and whether it is overdue, when a
 // returning team is back, the resources in the order a search manager reads them, and what needs a person.
 // Built by lane A.
-import type { Clue, Conditions, Drone, FleetState, Mission, MissionEvent, Proposal, RadioTurn, Team } from "../contract";
+import type { Clue, Conditions, Drone, FleetState, Mission, MissionEvent, Proposal, RadioTurn, SectorTask, Team } from "../contract";
 import { clock, type Tz } from "../lib/time";
 import type { FleetLinks } from "../lib/mission";
 import { teamOf } from "./timeline";
@@ -94,6 +94,21 @@ export function legOf(d: Drone, fleet: FleetState | null): { n: number; m: numbe
   return { n: i >= 0 ? i + 1 : legs.filter((l) => l.status === "done").length, m: legs.length, id: d.leg_id };
 }
 
+/**
+ * A team's status as its tasks say it (the judges' Team Four: assigned C4 and B4, searching B4, and still
+ * "Standby"): a team on standby with a task assigned to it is assigned; with one in progress, searching.
+ * Overdue and returning stand as they are.
+ */
+export function withTaskStatus<T extends Team>(teams: readonly T[], tasks: readonly SectorTask[]): T[] {
+  return teams.map((t) => {
+    if (t.status !== "standby" && t.status !== "off_duty" && t.status !== "assigned") return t;
+    const mine = tasks.filter((x) => x.team_id === t.id);
+    if (mine.some((x) => x.state === "in_progress")) return { ...t, status: "searching" };
+    if (t.status !== "assigned" && mine.some((x) => x.state === "assigned")) return { ...t, status: "assigned" };
+    return t;
+  });
+}
+
 /** Teams most overdue first (never heard counts as most), then drones by lowest battery. */
 export function teamOrder(teams: readonly Team[], events: readonly MissionEvent[], now: Date, checkInMin = 30): { team: Team; heard: Heard }[] {
   return teams
@@ -134,6 +149,38 @@ export function needs(
   const turns = events.filter((e) => e.type === "radio.turn").map((e) => e.data as unknown as RadioTurn).filter((t) => t?.state === "awaiting_confirm");
   for (const t of turns) out.push({ kind: "readback", id: `turn-${t.id}`, clue: null, turn: t, team: teamOf(teams, t.callsign) });
   return out;
+}
+
+/**
+ * The probability outside the search grid ("rest of the world"): what the sectors do not hold. The sectors
+ * tile the grid, so this is 1 − their POA; null with no sectors. The prior puts most of it outside on
+ * purpose (a 1 km grid around the last known point; judges 2026-10-23: the POA summed to 25 % unexplained).
+ */
+export function outsideGrid(sectors: readonly { poa: number }[]): number | null {
+  if (!sectors.length) return null;
+  return Math.min(1, Math.max(0, 1 - sectors.reduce((n, s) => n + s.poa, 0)));
+}
+
+/** A team's radio words that report the subject ("Subject located in Charlie Two", "we found her"). */
+export const REPORTS_SUBJECT = /\bsubject (?:located|found)\b|\bfound (?:him|her|them|the subject|the hiker|the child)\b|\bwe have (?:him|her|the subject)\b/i;
+
+/**
+ * The teams that reported the subject on the radio while the mission is not yet marked found: who, in which
+ * sector (its task's, else none), and the words. Needs you offers Record find for each (judges 2026-10-23).
+ */
+export function sightingReports(events: readonly MissionEvent[], teams: readonly Team[], tasks: readonly { sector_id: string; state: string; team_id: string | null }[]): { team: Team; sector: string | null; words: string; at: string }[] {
+  const out = new Map<string, { team: Team; sector: string | null; words: string; at: string }>();
+  for (const e of events) {
+    if (e.type !== "radio.turn") continue;
+    const t = e.data as unknown as RadioTurn | null;
+    if (!t || t.direction !== "in" || !REPORTS_SUBJECT.test(t.transcript)) continue;
+    const id = teamOf(teams, t.callsign);
+    const team = teams.find((x) => x.id === id);
+    if (!team) continue;
+    const task = tasks.find((x) => x.team_id === team.id && (x.state === "in_progress" || x.state === "assigned"));
+    out.set(team.id, { team, sector: task?.sector_id ?? null, words: t.transcript.replace(/\s*\(typed for the demo fixture\)$/, ""), at: e.at });
+  }
+  return [...out.values()];
 }
 
 /** The drone's link in one word. */

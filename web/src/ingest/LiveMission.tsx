@@ -25,6 +25,7 @@ import { photoProgress, useMission } from "../lib/mission";
 import { clockWithZone, ClockZone, DEMO_TZ, utcLabel } from "../lib/time";
 import { CommandView, storeActions } from "../command/CommandView";
 import { useConsole } from "../command/consoleStore";
+import { useNotify } from "../shell/notify";
 import { Briefings, useRadioVoice } from "../command/RadioLink";
 import { StatusLine } from "../command/StatusLine";
 import { MissionReport } from "../command/MissionReport";
@@ -35,6 +36,7 @@ import { stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
+import { outsideGrid, withTaskStatus } from "../command/console";
 import type { ConditionsData } from "../command/ConditionsPanel";
 import type { TraceRun } from "../command/TraceView";
 import type { TriedPhoto } from "../detect/TryPhoto";
@@ -47,7 +49,7 @@ import { Button, modeOf, Page, Panel, Stat } from "../shell/components";
 import { DEMO_CONSOLE_HASH, guideHash, viewHash, type Route, type View } from "../shell/flow";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS } from "../shell/shortcuts";
-import { LiveReview, liveReviewItems, ReviewRail, type LiveAnswer } from "../review/LiveReview";
+import { liveCards, liveReviewItems, ReviewRail, type LiveAnswer } from "../review/LiveReview";
 import { UploadPanel, WatchPanel } from "./UploadPanel";
 
 // Split from the first bundle (the landing paints without them): the map with MapLibre, the views a
@@ -192,6 +194,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // the demo's scenario (#m/demo?s=<seed>; none: the overdue hiker) and the mission as that scenario
   const [seed, setSeed] = useState<string | null>(route.seed ?? null);
   const [scenario, setScenario] = useState<DemoFull | null>(null);
+  const [liveAnswers, setLiveAnswers] = useState<Record<string, LiveAnswer>>({});
 
   /** Bring a region of the console on screen (phones stack them) and put focus in it. */
   const show = useCallback((id: "console-needs" | "console-timeline" | "console-map" | "console-resources", focus?: string) => {
@@ -290,14 +293,22 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const gOpts = useMemo(() => (guided ? guidedOptsFor(scenario, effSeed, guide!.choices, story.user) : null), [guided, scenario, effSeed, guide?.choices, story.user]);
   // the guided search's standing approval plays the agent's next picks as assignments of the visitor's
   const simUser = useMemo(() => (guided ? standingUser(scenario, effSeed, story.user, guide!.choices) : story.user), [guided, scenario, effSeed, story.user, guide?.choices]);
+  // the visitor decides (judges 2026-10-23): once they play the clock outside the story, the scenario's own
+  // approvals wait for them (missionTime.demoAt's hold) until another scenario is loaded, and what they
+  // assign plays through the guided search's engine (sim.ts)
+  const [decides, setDecides] = useState(false);
+  useEffect(() => {
+    if (demo && !guided && story.playing) setDecides(true);
+  }, [demo, guided, story.playing]);
+  const hold = demo && !guided && decides;
   const derivedIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!demo || !scenario) return;
-    const at = demoAt(scenario, clockIso, simUser, gOpts);
+    const at = demoAt(scenario, clockIso, simUser, gOpts, { hold, seed: effSeed });
     const state = gOpts ? onMissionClock(at, costs) : at;
     derivedIds.current = new Set((state.events ?? []).map((e) => e.id));
     useMission.getState().useDemo(state, clockIso);
-  }, [demo, scenario, clockIso, simUser, gOpts, costs]);
+  }, [demo, scenario, clockIso, simUser, gOpts, costs, hold, effSeed]);
   // what the visitor does on the demo console is kept as events of their own, replayed when the clock moves
   useEffect(() => {
     if (!demo) return undefined;
@@ -350,6 +361,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     useSeedRef.current = s;
     stopAllDemoFlights();
     useConsole.getState().reset();
+    useNotify.getState().reset();
+    setDecides(false);
     useStory.setState({ user: [], answers: {}, tried: null });
     useDropped.setState({ cards: [], at: {}, status: null });
     // a new scenario in the guided search starts it again from the call
@@ -490,6 +503,21 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     },
     onRestart: restartGuide,
   });
+  // each team's status as its tasks say it (a team assigned a sector is not on standby)
+  const teams = useMemo(() => withTaskStatus(s.teams, s.tasks), [s.teams, s.tasks]);
+  // where a candidate is, for the map's focus: a dropped photo's place, the demo cache's, or the live mission's
+  const candidateAt = (id: string) => {
+    const mine = dropped.at[id];
+    if (mine) return { lat: mine.lat, lon: mine.lon, footprint: null };
+    const frames = demo ? cache?.survey.frames : s.survey?.frames;
+    const footprint = frames?.find((f) => f.id === id.slice(0, 5))?.footprint ?? null;
+    if (demo) {
+      const at = candidatePosition(cache, id);
+      return at ? { lat: at.lat, lon: at.lon, footprint } : null;
+    }
+    const det = s.detections?.frames[id.slice(0, 5)]?.find((d) => d.id === id);
+    return det && det.lat !== null && det.lon !== null ? { lat: det.lat, lon: det.lon, footprint } : null;
+  };
   // which clues moved each sector, from the map log: a line on an assignment's card (clueShift.ts)
   const shifts = useMemo(() => (s.mapBase && s.sectors.length ? clueShifts(s.mapBase, s.mapUpdates, s.sectors, s.clues) : null), [s.mapBase, s.mapUpdates, s.sectors, s.clues]);
   const clueNote = (p: Proposal) => clueLine(shifts?.get(String(p.target.sector ?? "")));
@@ -605,22 +633,21 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   );
   // the review cards live in Needs you: the demo's queue, or a live mission's candidates
   const reviewCount = demo ? (run.on ? run.cards(cards) : cards).filter((c) => !story.answers[c.id]).length + (story.tried ? 1 : 0) : liveReviewItems(s.detections, s.promoted).length;
+  // a live mission's queue (one list for the rail and the review frame, one set of answers)
+  const live = demo ? [] : liveCards(s.detections, s.survey, s.verdicts, s.promoted, (rel) => fileUrl(api, missionId, rel));
+  const answerLive = (id: string, a: LiveAnswer) => {
+    setLiveAnswers((x) => ({ ...x, [id]: a }));
+    void useMission.getState().review(id, a);
+  };
   const review =
     reviewCount > 0 || tried ? (
       demo ? (
         <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id])} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Candidates appear here as the survey's photos land." />
       ) : (
-        <LiveReview
-          detections={s.detections}
-          survey={s.survey}
-          verdicts={s.verdicts}
-          promoted={s.promoted}
-          imageUrl={(rel) => fileUrl(api, missionId, rel)}
-          onAnswer={(id, answer) => void useMission.getState().review(id, answer)}
-          top={tried}
-        />
+        <ReviewRail cards={live} answers={liveAnswers} onAnswer={answerLive} top={tried} />
       )
     ) : null;
+  const reviewFrame = demo ? { cards: run.on ? run.cards(cards) : cards, answers: story.answers, onAnswer: answerDemo } : { cards: live, answers: liveAnswers, onAnswer: answerLive };
   const debrief = (
     <Suspense fallback={loading("the debrief")}>
       <Debrief
@@ -701,13 +728,14 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               <StatusLine
                 mission={s.mission}
                 conditions={s.conditions}
-                teams={s.teams}
+                teams={teams}
                 clues={s.clues}
                 now={demoNow ?? new Date()}
                 tz={clockZone.tz}
                 conditionsOpen={condOpen}
                 conditionsId={condId}
                 disclose={demo}
+                outside={outsideGrid(s.sectors)}
                 onConditions={conditionsData ? () => setCondOpen((o) => !o) : undefined}
                 menu={
                   <>
@@ -756,7 +784,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               conditions={s.conditions}
               tasks={s.tasks}
               sectors={s.sectors}
-              teams={s.teams}
+              teams={teams}
               clues={s.clues}
               proposals={run.on ? run.proposals(s.proposals) : s.proposals}
               events={s.events}
@@ -776,6 +804,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               cover={cover}
               review={review}
               reviewCount={reviewCount}
+              reviewFrame={reviewFrame}
+              autoReview={!(demo && run.on)}
               briefings={briefings}
               storyProposal={run.on ? run.proposal : null}
               voice={voice}
@@ -789,7 +819,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                     {mapOn && (
                       <div className="absolute inset-0">
                         <Suspense fallback={null}>
-                          <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} fill onReady={onMapReady} />
+                          <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} candidateAt={candidateAt} fill onReady={onMapReady} />
                         </Suspense>
                       </div>
                     )}
@@ -801,7 +831,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                   </div>
                 ) : mapOn ? (
                   <Suspense fallback={MAP_FRAME}>
-                    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={s.teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} fill />
+                    <LiveHeatMap mapBase={s.mapBase} updates={s.mapUpdates} sectors={s.sectors} clues={s.clues} teams={teams} fleet={s.fleet} proposals={s.proposals} mission={s.mission} tasks={s.tasks} actions={actions} now={demoNow} candidateAt={candidateAt} fill />
                   </Suspense>
                 ) : (
                   MAP_FRAME
@@ -837,7 +867,15 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                 document.querySelector("figure[aria-label='Live map'], [data-testid='map-still']")?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
                 return usePick.getState().request();
               }}
-              onDecide={(pid, decision, by, reason, edits) => (run.on ? run.decide(pid, decision, by, reason, edits) : useMission.getState().decide(pid, decision, by, reason, edits))}
+              onDecide={(pid, decision, by, reason, edits) => {
+                if (run.on) return run.decide(pid, decision, by, reason, edits);
+                const p = s.proposals.find((x) => x.id === pid);
+                const done = useMission.getState().decide(pid, decision, by, reason, edits);
+                // while the visitor decides, an approved assignment sends the team (sim.ts plays the pass)
+                const team = edits?.team ?? p?.target.team;
+                if (hold && decision === "approve" && p?.kind === "assign_sector" && p.target.sector && team) return done.then(() => useMission.getState().assign(team, p.target.sector!));
+                return done;
+              }}
             />
           )}
         </main>

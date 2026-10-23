@@ -1,5 +1,5 @@
 // LANE_D §6 test 9 (ingest) and test 8 (review in live mode), plus the live routes.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Detections, MapFile, Verdict } from "../contract";
@@ -7,6 +7,7 @@ import { App } from "../App";
 import { useGuide, useStory } from "../command/story";
 import { diskFetch } from "../lib/diskFetch";
 import { LiveReview, liveReviewItems, relookName, verdictWords } from "../review/LiveReview";
+import { RUN_MAX_MS, SECOND_LOOK_LABEL, useSecondLook } from "../review/SecondLook";
 import { EMPTY, useMission } from "../lib/mission";
 import type { Route } from "../shell/flow";
 import { useConsole } from "../command/consoleStore";
@@ -137,11 +138,19 @@ describe("review in live mode (test 8)", () => {
     expect(relookName("relook/f0003-d01-zoom_native.jpg")).toBe("zoom native");
     expect(relookName("relook/f0003-d01-enhance_contrast.jpg")).toBe("enhance contrast");
     const v = verdict({ relook_crops: ["relook/f0001-d02-zoom_native.jpg"] });
+    useSecondLook.getState().reset();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<LiveReview detections={dets} survey={null} verdicts={[v]} promoted={["f0001-d02"]} imageUrl={(r) => `/f/${r}`} onAnswer={vi.fn()} />);
     expect(screen.queryByAltText(/Re-look image/)).toBeNull(); // not loaded until asked for
-    await userEvent.click(screen.getByRole("button", { name: "Show the second look's images (1)" }));
+    // a real button with its two model chips; pressed, it shows its progress, then the result inline
+    const card = screen.getByLabelText("Candidate f0001-d02");
+    await userEvent.click(within(card).getByRole("button", { name: SECOND_LOOK_LABEL }));
+    expect(within(card).getByLabelText("Second look running")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(RUN_MAX_MS));
+    expect(within(card).getByLabelText("Second look result")).toHaveTextContent("Second look: likely a person");
     expect(screen.getByAltText("Re-look image relook/f0001-d02-zoom_native.jpg")).toHaveAttribute("src", "/f/relook/f0001-d02-zoom_native.jpg");
     expect(screen.getByText("zoom native")).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("always says the second look in words", () => {
@@ -152,14 +161,15 @@ describe("review in live mode (test 8)", () => {
   });
 
   it("sends each answer", async () => {
+    useSecondLook.getState().reset();
     const onAnswer = vi.fn();
     render(
       <LiveReview detections={dets} survey={null} verdicts={[verdict({})]} promoted={["f0001-d02"]} imageUrl={(r) => `/f/${r}`} onAnswer={onAnswer} />,
     );
-    expect(screen.getByText("Second look: likely a person · lying down · red jacket")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Candidate f0001-d02")).getByRole("button", { name: SECOND_LOOK_LABEL })).toBeEnabled();
     expect(screen.getByAltText("Crop of f0001-d02")).toHaveAttribute("src", "/f/crops/nearmiss/f0001-d02.jpg");
     const card = screen.getByLabelText("Candidate f0001-d02");
-    await userEvent.click(card.querySelector("button")!);
+    await userEvent.click(within(card).getByRole("button", { name: "Person" }));
     expect(onAnswer).toHaveBeenCalledWith("f0001-d02", "person");
   });
 });

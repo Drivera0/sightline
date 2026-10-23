@@ -73,7 +73,7 @@ export function Popover({
           id={id}
           role="tooltip"
           className={
-            "sl-fade absolute z-50 w-64 max-w-[80vw] rounded-sm border border-border bg-bg/95 px-3 py-2 text-left text-small font-normal normal-case tracking-normal text-text-2 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.9)] backdrop-blur-[16px] " +
+            "sl-fade absolute z-50 w-64 max-w-[80vw] rounded-sm border border-border bg-bg/95 px-3 py-2 text-left text-small font-normal normal-case tracking-normal text-text-2 shadow-[var(--shadow-pop)] backdrop-blur-[16px] " +
             ALIGN[align] +
             (side === "top" ? " bottom-full mb-2" : " top-full mt-2")
           }

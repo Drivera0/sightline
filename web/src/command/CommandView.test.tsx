@@ -76,7 +76,8 @@ describe("the command post", () => {
     expect(cards[0]).toHaveTextContent("not heard 40 min");
     expect(cards[0]).toHaveTextContent("Overdue");
     expect(cards[0]).toHaveTextContent("A1");
-    expect(cards[3]).toHaveTextContent("heard 2 min");
+    expect(cards[3]).toHaveTextContent("at base camp"); // standby at base: no check-in to keep
+    expect(cards[1]).toHaveTextContent(/heard \d+ min/);
   });
 
   it("T-cards: Call addresses the talk bar to the team, Task picks a sector, Recall goes through", async () => {
@@ -197,7 +198,6 @@ describe("the command post", () => {
 
   it("the sectors by POA, folded under the resources; a row opens its popover", async () => {
     setup();
-    await userEvent.click(screen.getByText("Sectors by POA"));
     const rows = within(screen.getByRole("table", { name: "Sectors by POA" })).getAllByRole("row").slice(1);
     expect(rows.map((r) => r.getAttribute("aria-label"))).toEqual(["Sector B3", "Sector C2", "Sector D4"]);
     expect(rows[2]).toHaveTextContent("searched, POD 60 %");
@@ -207,7 +207,7 @@ describe("the command post", () => {
 
   it("adds a clue at a team's position, from the timeline", async () => {
     const p = setup();
-    await userEvent.click(screen.getByRole("button", { name: "Add a clue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add clue" }));
     await userEvent.type(screen.getByLabelText("What"), "blue backpack by the creek");
     await userEvent.selectOptions(screen.getByLabelText("Team"), "T2");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
@@ -221,7 +221,7 @@ describe("the command post", () => {
     expect(clueProblem("pack", "latlon", "49.3", "-122.9", "-5")).toMatch(/radius/);
     expect(clueProblem("pack", "latlon", "49.3", "-122.9", "40")).toBeNull();
     const p = setup({ onPickOnMap: vi.fn().mockResolvedValue({ lat: 49.3731234, lon: -122.9357654 }) });
-    await userEvent.click(screen.getByRole("button", { name: "Add a clue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add clue" }));
     await userEvent.type(screen.getByLabelText("What"), "boot print");
     await userEvent.selectOptions(screen.getByLabelText("Where"), "latlon");
     await userEvent.type(screen.getByLabelText("Latitude"), "123");

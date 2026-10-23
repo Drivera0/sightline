@@ -94,12 +94,12 @@ describe("drone link ring", () => {
     expect(Object.values(LINK_WORD)).toEqual(["link ok", "link degraded", "link lost"]);
   });
 
-  it("draws only the short id and battery on the map, and marks a simulated drone", () => {
+  it("draws only the drone's name (never D2, a sector name) and battery on the map, and marks a simulated drone", () => {
     const fs = droneFeatures(fleet, {}, NOW);
     expect(fs.map((f) => [f.properties.short, f.properties.battery, f.properties.sim])).toEqual([
-      ["D1", "80%", true],
-      ["D2", "70%", true],
-      ["D3", "60%", true],
+      ["Drone 1", "80%", true],
+      ["Drone 2", "70%", true],
+      ["Drone 3", "60%", true],
     ]);
     expect(droneLinkWords(undefined, NOW)).toBe("");
     expect(droneLinkWords({ link: "lost", since: "2026-10-24T21:55:00Z", last_heard_at: "2026-10-24T21:55:00Z" }, NOW)).toBe("link lost, last heard 5 min ago");

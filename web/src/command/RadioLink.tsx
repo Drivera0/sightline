@@ -11,6 +11,7 @@ import { MicDenied, startRecording, type Recording } from "../radio/recorder";
 import { useRadio } from "../radio/store";
 import { Icon } from "../shell/icons";
 import type { TalkVoice } from "./Timeline";
+import { RadioBubble } from "./RadioBubble";
 
 const POLL_MS = 300;
 const POLL_LIMIT_MS = 60_000;
@@ -95,7 +96,7 @@ export function Briefings({ api, callsign }: { api: RadioApi; callsign: (id: str
             <Icon name="radio" className="text-accent" />
             Briefing to send: {o.target.team === "all" ? "all teams" : callsign(o.target.team ?? null)}
           </span>
-          <span className="text-small text-text-2">{o.briefing}</span>
+          <RadioBubble to={o.target.team === "all" ? "all teams" : callsign(o.target.team ?? null)} text={o.briefing ?? ""} />
           <span className="flex gap-1.5">
             <button type="button" disabled={busy} onClick={act(() => radio.transmit(api, o.id))} className="sl-tap inline-flex h-7 items-center rounded-full border border-accent bg-accent/15 px-3 text-small text-text disabled:opacity-40">
               Transmit
