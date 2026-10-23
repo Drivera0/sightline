@@ -18,7 +18,7 @@ export type ButtonSize = "md" | "lg";
 const BUTTON_BASE =
   "sl-tap inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full transition-[background-color,border-color,color,filter] disabled:pointer-events-none disabled:opacity-50";
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-  primary: "bg-accent font-medium text-bg hover:brightness-110",
+  primary: "bg-accent font-medium text-on-accent hover:brightness-110",
   secondary: "border border-border text-text hover:border-text-2 hover:bg-surface-strong",
   ghost: "text-text-2 hover:bg-surface-strong hover:text-text",
 };
@@ -41,7 +41,7 @@ export type ButtonProps =
   | (ButtonLook & ComponentProps<"a"> & { href: string });
 
 /**
- * The one button: primary (solid accent, one per screen), secondary (outlined), ghost (text only).
+ * The one button: primary (solid brand orange, one per screen, the only orange control), secondary (outlined), ghost (text only).
  * With `href` it is a link that looks like a button (it navigates); without, a `<button>`.
  */
 export function Button(props: ButtonProps) {

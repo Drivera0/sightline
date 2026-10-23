@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { KeyHint, Label, Panel } from "./components";
 import { SHORTCUT_GROUPS, type ShortcutGroup } from "./shortcuts";
 
-/** The console's keys (`?`). */
+/** The `?` menu: About and the home page, then the console's keys. */
 export function ShortcutOverlay({ onClose, groups = SHORTCUT_GROUPS }: { onClose: () => void; groups?: readonly ShortcutGroup[] }) {
   const closeButton = useRef<HTMLButtonElement>(null);
 
@@ -35,6 +35,14 @@ export function ShortcutOverlay({ onClose, groups = SHORTCUT_GROUPS }: { onClose
             Close
           </button>
         </div>
+        <nav aria-label="Sightline" className="mb-4 flex flex-wrap gap-2">
+          <a href="#about" onClick={onClose} className="sl-tap inline-flex h-8 items-center rounded-full border border-line px-3 text-small text-text hover:bg-surface-strong">
+            About Sightline
+          </a>
+          <a href="#" onClick={onClose} className="sl-tap inline-flex h-8 items-center rounded-full border border-line px-3 text-small text-text hover:bg-surface-strong">
+            Home: choose a search
+          </a>
+        </nav>
         {groups.map((group) => (
           <section key={group.title} className="mb-4 last:mb-0">
             <Label>{group.title}</Label>

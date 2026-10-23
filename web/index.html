@@ -3,13 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#0a0b0d" />
     <meta name="description" content="Sightline, the brain of a drone search: drones and ground teams feed one probability map that tells both where to look next. A demo search over Mount Seymour." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- the two faces the first screen uses, fetched with the page: text never reflows when they arrive -->
     <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2" />
     <link rel="preload" as="font" type="font/woff2" crossorigin href="/node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2" />
+    <!-- the theme before the first paint (src/shell/theme.ts has the same rule): the visitor's choice, else the system's -->
+    <script>
+      try {
+        var t = localStorage.getItem("sightline.theme");
+        if (t !== "light" && t !== "dark") t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        document.documentElement.dataset.theme = t;
+        document.documentElement.style.colorScheme = t;
+      } catch (e) {}
+    </script>
     <title>Sightline · drone search and rescue</title>
   </head>
   <body>

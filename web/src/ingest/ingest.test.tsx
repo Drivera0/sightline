@@ -258,9 +258,11 @@ describe("the demo mission: the story on the one console", () => {
     vi.stubGlobal("fetch", demoFetch());
     useMission.setState({ ...EMPTY, status: "idle" });
     useStory.getState().reset();
-    window.history.replaceState(null, "", "#");
+    window.history.replaceState(null, "", "#m/demo");
     render(<App base={null} />);
     expect(window.location.hash).toBe("#m/demo");
+    // the scenario on screen, under the app bar
+    expect(screen.getByRole("region", { name: "Scenario" })).toHaveTextContent("Overdue hiker · Mount Seymour");
     const pitch = screen.getByRole("region", { name: "Sightline" });
     expect(within(pitch).getByRole("heading", { level: 1 })).toHaveTextContent("The brain of a drone search.");
     expect(within(pitch).getByRole("button", { name: "Follow the search (3 min)" }).className).toMatch(/bg-accent/);

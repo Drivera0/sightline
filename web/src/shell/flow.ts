@@ -1,7 +1,10 @@
-// The site's addresses. There is one place, the console, and everything else is a view of it, a sheet
-// over it, or a moment of the demo mission's timeline:
+// The site's addresses. A home page, then one place, the console: everything else is a view of it, a
+// sheet over it, or a moment of the demo mission's timeline:
 //
-//   #                          → #m/demo (the landing: the console on the demo mission at t0, the pitch bar)
+//   #                          the home page: what Sightline is, and "Choose a search" (front/Home.tsx)
+//   #m/demo                    the console on the demo mission at t0, the pitch bar
+//   #m/demo?s=<seed>&guide=1   a scenario with its guided simulation started (a home card's Start)
+//   #m/demo/map?s=<seed>       a scenario, just the console
 //   #m/demo?t=0..6             the story at a checkpoint, its coach mark on: 0 the call, 1 photos land,
 //                              2 confirm, 3 where next, 4 the run, 5 the find, 6 the debrief
 //   #m/<id>/<view>[?t=0..6]    a view of a mission: map (the console), photos, trace, debrief; on the
@@ -41,23 +44,25 @@ export type Route =
       view: View | null;
       /** The demo mission's clock, at a checkpoint. */
       t: Checkpoint | null;
-      /** Something open on arrival: the Conditions panel, the event log, For judges, Try a photo, Needs You, the radio. */
-      open: { conditions?: boolean; log?: boolean; judges?: boolean; try?: boolean; needs?: boolean; radio?: boolean };
+      /** Something open on arrival: the Conditions panel, the event log, For judges, Try a photo, Needs You, the radio,
+       *  or (`guide`, the demo only) the guided simulation started. */
+      open: { conditions?: boolean; log?: boolean; judges?: boolean; try?: boolean; needs?: boolean; radio?: boolean; guide?: boolean };
       /** The demo's scenario seed (`?s=`), when the address names one. */
       seed?: string | null;
     }
   | { kind: "card"; id: string; sector: string }
+  | { kind: "home" }
   | { kind: "new" }
   | { kind: "about" };
 
+/** The home page. */
+export const HOME = "#";
 export const DEMO = "#m/demo";
 /** The demo mission's console at "now" (the end of its timeline), no story. */
 export const DEMO_CONSOLE_HASH = "#m/demo/map";
 
 /** Old addresses, each with its one home now. */
 export const REDIRECTS: Readonly<Record<string, string>> = {
-  "": DEMO,
-  "#": DEMO,
   // the guided demo's steps: the same moments of the demo mission's timeline
   "#survey": `${DEMO}?t=1`,
   "#rank": `${DEMO}?t=1`,
@@ -100,13 +105,13 @@ export function redirectFromHash(hash: string): string | null {
 
 const MISSION = /^#m\/([0-9a-f]{8}|demo)(?:\/([a-z]+))?(?:\/([^?]*))?(?:\?(.*))?$/;
 
-/** Where a hash points (after its redirect). Anything unknown is the landing. */
+/** Where a hash points (after its redirect). The root, and anything unknown, is the home page. */
 export function routeFromHash(hash: string): Route {
   const h = redirectFromHash(hash) ?? hash;
   if (h === "#new") return { kind: "new" };
   if (h === "#about") return { kind: "about" };
   const m = MISSION.exec(h);
-  if (!m) return { kind: "mission", id: "demo", view: null, t: null, open: {} };
+  if (!m) return { kind: "home" };
   const [, id, rawView, rest, query] = m as unknown as [string, string, string | undefined, string | undefined, string | undefined];
   if (rawView === "card" && rest) return { kind: "card", id, sector: decodeURIComponent(rest) };
   const q = new URLSearchParams(query ?? "");
@@ -120,9 +125,16 @@ export function routeFromHash(hash: string): Route {
     ...(q.has("try") ? { try: true } : {}),
     ...(q.has("needs") ? { needs: true } : {}),
     ...(q.has("radio") ? { radio: true } : {}),
+    ...(id === "demo" && q.get("guide") === "1" ? { guide: true } : {}),
   };
   const seed = id === "demo" ? q.get("s") : null;
   return { kind: "mission", id, view, t: id === "demo" ? t : null, open, ...(seed ? { seed } : {}) };
+}
+
+/** A scenario's address: the console on it with the guided simulation on, or (`guide` false) just the console. */
+export function scenarioHash(seed: string, guide = true): string {
+  const s = encodeURIComponent(seed);
+  return guide ? `${DEMO}?s=${s}&guide=1` : `${DEMO}/map?s=${s}`;
 }
 
 /** A mission view's address, with the demo's clock when it is not "now". */

@@ -1,6 +1,21 @@
 @import "tailwindcss";
 
-/* Tokens from docs/05_FRONTEND_SHARED.md section 5. Never hard-code colours or sizes elsewhere. */
+/* Tokens. Never hard-code colours or sizes elsewhere: use these (Tailwind: bg-surface, text-team,
+   fill-[var(--prob-3)] ...). Two themes: dark (the default) and light. `data-theme` on <html> is set
+   before the first paint (index.html) from the visitor's choice, else the system preference (theme.ts).
+   Every text colour is at least 4.5:1 on --bg, --surface-solid and --surface-strong in both themes
+   (`node scripts/check-contrast.mjs`, also run by the tests). The table is in shell/README.md.
+
+   Semantic colours, one per kind of thing, used everywhere (map, cards, timeline, chips):
+     --team     ground teams            blue
+     --drone    drones                  teal
+     --clue     clues                   amber
+     --proposal the agent's proposals   violet
+     --found    the find                green
+     --alert    alerts, overdue         red
+     --searched searched ground (fill)  blue-black, --searched-line its outline
+     --prob-1..5 probability, low → high: rust → amber → cream (dark), rust → orange → yellow (light)
+   The brand orange (--accent) is for the primary action and the story only. */
 :root {
   --bg: #0a0b0d; /* app background */
   --surface: rgba(255, 255, 255, 0.05); /* glass panels */
@@ -8,17 +23,32 @@
   --border: rgba(255, 255, 255, 0.12);
   --text: #f2f2f0;
   --text-2: #a1a1aa; /* secondary */
-  --text-3: #8a8a93; /* captions, sources */
-  --accent: #ff7a1a; /* the one accent: selection, pins, heat */
+  --text-3: #8f8f98; /* captions, sources */
+  --accent: #ff7a1a; /* the brand: the primary action and the story */
   --accent-soft: #ffb27a;
-  --ok: #7ee2a0; /* "Person" */
+  --on-accent: #0a0b0d; /* text on a solid --accent fill */
+  --ok: #7ee2a0; /* "Person", fine */
   --warn: #ffc48f; /* "Unsure" */
   /* Status colours (Pulse's restraint: colour only for meaning). Green (--ok): searching, fine.
      Amber: caution. Red: alert. Orange (--accent) stays the one "needs action" colour. */
   --caution: #f5b544;
   --alert: #f26b5e;
+  /* the semantic set (above) */
+  --team: #6ea8fe;
+  --drone: #2ec4b6;
+  --clue: #f5b544;
+  --proposal: #b197fc;
+  --found: #5fd38d;
+  --searched: #1c2636;
+  --searched-line: #4a5d7c;
+  --prob-1: #7c2d12;
+  --prob-2: #c2410c;
+  --prob-3: #f59e0b;
+  --prob-4: #fcd34d;
+  --prob-5: #fff1d0;
   --line: rgba(255, 255, 255, 0.08); /* hairline: rows and dividers inside a panel */
   --surface-solid: #111215; /* opaque panel (rails, popovers over the map) */
+  --shadow-pop: 0 16px 40px -12px rgba(0, 0, 0, 0.9); /* popovers and menus */
   --radius-lg: 16px; /* panels */
   --radius-md: 10px; /* inner elements: crops, frames */
   --radius-sm: 10px; /* inner elements: rows, inputs (999px only for buttons and chips) */
@@ -30,7 +60,41 @@
   color-scheme: dark;
 }
 
-/* Expose the tokens as Tailwind utilities (bg-surface, text-text-2, rounded-lg, font-mono, ...). */
+/* The light theme: the same names, darker inks on a warm white. */
+:root[data-theme="light"] {
+  --bg: #f5f5f2;
+  --surface: rgba(20, 24, 33, 0.03);
+  --surface-strong: rgba(20, 24, 33, 0.06);
+  --border: rgba(20, 24, 33, 0.16);
+  --text: #17181b;
+  --text-2: #4b4b53;
+  --text-3: #5c5c66;
+  --accent: #b33c0a;
+  --accent-soft: #9a3412;
+  --on-accent: #ffffff;
+  --ok: #12703a;
+  --warn: #a14e07;
+  --caution: #8a5300;
+  --alert: #b42318;
+  --team: #1d5ec7;
+  --drone: #0e7068;
+  --clue: #8a5300;
+  --proposal: #6d32d6;
+  --found: #12703a;
+  --searched: #3a4658;
+  --searched-line: #1f2937;
+  --prob-1: #9a3412;
+  --prob-2: #ea580c;
+  --prob-3: #f59e0b;
+  --prob-4: #facc15;
+  --prob-5: #fef08a;
+  --line: rgba(20, 24, 33, 0.09);
+  --surface-solid: #ffffff;
+  --shadow-pop: 0 16px 40px -12px rgba(15, 23, 42, 0.28);
+  color-scheme: light;
+}
+
+/* Expose the tokens as Tailwind utilities (bg-surface, text-text-2, text-team, rounded-lg, font-mono, ...). */
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
@@ -41,10 +105,23 @@
   --color-text-3: var(--text-3);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-caution: var(--caution);
   --color-alert: var(--alert);
+  --color-team: var(--team);
+  --color-drone: var(--drone);
+  --color-clue: var(--clue);
+  --color-proposal: var(--proposal);
+  --color-found: var(--found);
+  --color-searched: var(--searched);
+  --color-searched-line: var(--searched-line);
+  --color-prob-1: var(--prob-1);
+  --color-prob-2: var(--prob-2);
+  --color-prob-3: var(--prob-3);
+  --color-prob-4: var(--prob-4);
+  --color-prob-5: var(--prob-5);
   --color-line: var(--line);
   --color-surface-solid: var(--surface-solid);
   --radius-lg: var(--radius-lg);
@@ -133,6 +210,12 @@ body {
 [data-tone="action"] { --c: var(--accent); }
 [data-tone="neutral"] { --c: var(--text-2); }
 [data-tone="muted"] { --c: var(--text-3); }
+/* The semantic set as pill tones: a team, a drone, a clue, a proposal, the find. */
+[data-tone="team"] { --c: var(--team); }
+[data-tone="drone"] { --c: var(--drone); }
+[data-tone="clue"] { --c: var(--clue); }
+[data-tone="proposal"] { --c: var(--proposal); }
+[data-tone="found"] { --c: var(--found); }
 .sl-pill-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--c); flex: none; }
 /* A pill with a sentence in it (the Trace's "Led to"): wraps inside its row instead of running off a phone. */
 .sl-pill.sl-pill-wrap { white-space: normal; height: auto; min-height: 20px; padding-block: 2px; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }

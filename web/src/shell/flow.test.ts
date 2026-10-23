@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { DEMO, DEMO_CONSOLE_HASH, REDIRECTS, redirectFromHash, routeFromHash, viewHash, VIEWS } from "./flow";
+import { DEMO, DEMO_CONSOLE_HASH, HOME, REDIRECTS, redirectFromHash, routeFromHash, scenarioHash, viewHash, VIEWS } from "./flow";
 
 describe("routes: one console", () => {
-  it("lands on the demo mission's console (the story's t0)", () => {
-    expect(redirectFromHash("")).toBe(DEMO);
-    expect(redirectFromHash("#")).toBe(DEMO);
-    expect(routeFromHash("")).toEqual({ kind: "mission", id: "demo", view: null, t: null, open: {} });
+  it("opens the home page at the root and on an unknown address; the console is at #m/demo", () => {
+    expect(redirectFromHash("")).toBeNull();
+    expect(redirectFromHash("#")).toBeNull();
+    expect(routeFromHash("")).toEqual({ kind: "home" });
+    expect(routeFromHash(HOME)).toEqual({ kind: "home" });
+    expect(routeFromHash("#nowhere")).toEqual({ kind: "home" });
+    expect(routeFromHash(DEMO)).toEqual({ kind: "mission", id: "demo", view: null, t: null, open: {} });
+  });
+
+  it("opens a scenario with its guided simulation on, or just the console", () => {
+    expect(scenarioHash("missing-child")).toBe("#m/demo?s=missing-child&guide=1");
+    expect(routeFromHash(scenarioHash("missing-child"))).toEqual({ kind: "mission", id: "demo", view: null, t: null, open: { guide: true }, seed: "missing-child" });
+    expect(scenarioHash("dementia", false)).toBe("#m/demo/map?s=dementia");
+    expect(routeFromHash(scenarioHash("dementia", false))).toEqual({ kind: "mission", id: "demo", view: "map", t: null, open: {}, seed: "dementia" });
+    expect(routeFromHash("#m/0a1b2c3d/map?guide=1")).toEqual({ kind: "mission", id: "0a1b2c3d", view: "map", t: null, open: {} }); // only the demo has a guide
   });
 
   it("reads a checkpoint of the story and a view of a mission", () => {

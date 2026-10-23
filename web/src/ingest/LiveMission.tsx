@@ -26,9 +26,9 @@ import { useConsole } from "../command/consoleStore";
 import { Briefings, useRadioVoice } from "../command/RadioLink";
 import { StatusLine } from "../command/StatusLine";
 import { MissionReport } from "../command/MissionReport";
-import { ScenarioMenu } from "../command/ScenarioMenu";
+import { ScenarioBanner } from "../front/ScenarioBanner";
 import { PhotoDrop, useDropped } from "../command/PhotoDrop";
-import { DEFAULT_SEED, scenarioMission } from "../command/scenarios";
+import { DEFAULT_SEED, presetFor, scenarioMission } from "../command/scenarios";
 import { stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
@@ -225,6 +225,11 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       return;
     }
     storyFromRoute(route);
+    // a home card's Start (`&guide=1`): the guided simulation from the call, no pitch bar to press first
+    if (route.open.guide) {
+      landing();
+      useStory.getState().begin();
+    }
     if (route.view === null && route.t === null) setView("map");
     else if (route.view === null && route.t !== null) setView(checkpoint(route.t).view);
     else if (route.view !== null) setView(route.view);
@@ -679,7 +684,6 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                 onConditions={conditionsData ? () => setCondOpen((o) => !o) : undefined}
                 menu={
                   <>
-                    {demo && <ScenarioMenu seed={seed} onPick={(x) => pickScenario(x)} disabled={story.tour} />}
                     <span className="text-caption text-text-3" title={barTitle}>
                       {barClock}
                     </span>
@@ -694,6 +698,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
             </button>
           }
         />
+        {/* which search is on screen, and the home page's cards to change it (front/ScenarioBanner.tsx) */}
+        {demo && <ScenarioBanner seed={seed} name={presetFor(seed).name} area={s.mission?.area?.name ?? "Mount Seymour"} clock={barClock} />}
         {keysOpen && <ShortcutOverlay groups={SHORTCUT_GROUPS} onClose={() => setKeysOpen(false)} />}
         {demo && story.pitch && (
           <PitchBar
