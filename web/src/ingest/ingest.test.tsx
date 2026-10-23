@@ -275,7 +275,7 @@ describe("the demo mission: the story on the one console", () => {
     expect(window.location.hash).toBe("#m/demo/map");
   });
 
-  it("follows the story: the photos rail, then the review with the recorded second look, the approval gate, the debrief", async () => {
+  it("follows the search from the call to the find and the report: twelve marks, t3's approval gate, Esc keeps the clock", async () => {
     vi.stubGlobal("fetch", demoFetch());
     useMission.setState({ ...EMPTY, status: "idle" });
     useStory.getState().reset();
@@ -283,38 +283,58 @@ describe("the demo mission: the story on the one console", () => {
     render(<App base={null} />);
     await settle();
     await userEvent.click(screen.getByRole("button", { name: "Follow the search (3 min)" }));
-    // t1 (jsdom asks for reduced motion: the clock jumps)
-    const mark = await screen.findByRole("dialog", { name: "The story, 1 of 5" });
-    expect(mark).toHaveTextContent("Photos are landing");
-    expect(screen.getByRole("region", { name: "Photos" })).toBeInTheDocument();
+    // t0, the call, on the status line (jsdom asks for reduced motion: the clock jumps)
+    const call = await screen.findByRole("dialog", { name: "The story, 1 of 12" }, { timeout: 5000 });
+    expect(call).toHaveTextContent("13:35. Last seen at 10:30. Four teams at base, the trailhead lot. Drone one up.");
+    expect(window.location.hash).toBe("#m/demo?t=0");
+    const step = async (n: number, text: string | RegExp) => {
+      await userEvent.keyboard("{ArrowRight}");
+      const d = await screen.findByRole("dialog", { name: `The story, ${n} of 12` }, { timeout: 3000 });
+      expect(d).toHaveTextContent(text);
+      return d;
+    };
+    await step(2, "flies the survey from base");
     expect(window.location.hash).toBe("#m/demo?t=1");
-    await userEvent.keyboard("{ArrowRight}");
-    expect(await screen.findByRole("dialog", { name: "The story, 2 of 5" })).toHaveTextContent("second look");
-    const review = within(screen.getByRole("region", { name: "Needs you" })).getByRole("region", { name: "Review" });
-    const recorded = within(review).getByLabelText("Candidate recorded-f0001-d01");
-    expect(within(recorded).getByLabelText("Models")).toHaveTextContent("OpenCV 5 zoom native");
-    expect(within(recorded).getByLabelText("Models")).toHaveTextContent("Nemotron-3.5-Super-VL");
-    await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    // t3: first the timeline, once ("Clues move the map too"), then the gate waits for the visitor's approval
-    const clues = await screen.findByRole("dialog", { name: "The story, 3 of 5" });
-    expect(clues).toHaveTextContent("Clues move the map too");
-    await userEvent.keyboard("{ArrowRight}");
-    await waitFor(() => expect(screen.getByRole("dialog", { name: "The story, 3 of 5" })).not.toHaveTextContent("Clues move the map too"));
-    const gate = screen.getByRole("dialog", { name: "The story, 3 of 5" });
+    await step(3, "first candidates are already waiting for me in Needs you");
+    await step(4, "plainly people");
+    expect(window.location.hash).toBe("#m/demo?t=2");
+    await step(5, "grey bag");
+    await step(6, "second look caught it");
+    await step(7, "Team One on the radio: possible whistle, three blasts, to the south-west.");
+    const gate = await step(8, "The agent proposes Team One for C2");
     expect(gate).toHaveTextContent("Approve it on the card");
+    await userEvent.keyboard("{ArrowRight}"); // the gate: the arrow does not move it on
+    expect(screen.getByRole("dialog", { name: "The story, 8 of 12" })).toBeInTheDocument();
     const card = await screen.findByLabelText("Proposal p003");
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
-    expect(await screen.findByRole("dialog", { name: "The story, 4 of 5" })).toHaveTextContent("searched at POD 60 %");
-    expect(await screen.findByText(/Sector B4 searched at POD 60%/)).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "The story, 9 of 12" })).toHaveTextContent("Drone two loses its link");
     expect(screen.getByRole("group", { name: "Mission time" })).toBeInTheDocument(); // inside the story, the scrubber
+    expect(screen.getByRole("status", { name: "Mission clock status" })).toHaveTextContent("Esc leaves the story");
+    await step(10, "Team One walks C2");
+    const find = await step(11, "Subject located in Charlie Two");
+    expect(find).not.toHaveTextContent(/typed for|demo/i);
+    expect(await screen.findByRole("status", { name: "Mission status" }, { timeout: 5000 })).toHaveTextContent(/Found/);
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(await screen.findByRole("dialog", { name: "The story, 5 of 5" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Debrief" })).toHaveTextContent("What breaks first");
+    expect(await screen.findByRole("dialog", { name: "The story, 12 of 12" })).toHaveTextContent("after-action report");
+    expect(await screen.findByRole("article", { name: "Mission report" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
     // Esc leaves the story; the console stays at that mission time
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("region", { name: "Debrief" })).toBeInTheDocument();
     expect(window.location.hash).toBe("#m/demo/debrief");
+  });
+
+  it("Skip to now on the scrubber puts the story away at the end of the timeline", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo?t=2");
+    render(<App base={null} />);
+    await screen.findByRole("dialog", { name: /The story, 4 of/ }, { timeout: 5000 });
+    await userEvent.click(within(screen.getByRole("group", { name: "Mission time" })).getByRole("button", { name: "Skip to now" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(window.location.hash).toBe("#m/demo/map"));
   });
 
   it("tells one story about conditions: the row's verdict is the Conditions panel's", async () => {
@@ -323,7 +343,7 @@ describe("the demo mission: the story on the one console", () => {
     useStory.getState().reset();
     window.history.replaceState(null, "", "#m/demo/map?t=4");
     render(<App base={null} />);
-    const header = await screen.findByRole("status", { name: "Mission status" });
+    const header = await screen.findByRole("status", { name: "Mission status" }, { timeout: 5000 });
     const row = await waitFor(() => {
       const pill = header.querySelector("button[data-tone]");
       expect(pill).not.toBeNull();
@@ -355,7 +375,7 @@ describe("the demo mission: the story on the one console", () => {
     useStory.getState().seek(2);
     await settle();
     expect(status()).toBe("pending"); // proposed at 14:10 PDT; the visitor approved it at 14:42, not yet at 14:31
-    useStory.getState().seek(4);
+    useStory.getState().seek(6);
     await settle();
     expect(status()).toBe("approved");
   });

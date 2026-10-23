@@ -21,8 +21,8 @@ instance (it never unmounts while you stay on a mission), one clock.
 | Address | Opens |
 |---|---|
 | `#`, `` | `#m/demo`: the landing (t0, the pitch bar) |
-| `#m/demo?t=0..5` | the story at a checkpoint, its coach mark on |
-| `#m/<id>/map` · `photos` · `trace` · `debrief` | a view of a mission; on the demo `?t=0..3` sets the mission clock (none: the end of the timeline) |
+| `#m/demo?t=0..6` | the story at a checkpoint (the call, photos land, confirm, where next, the run, the find, the debrief), its coach marks on |
+| `#m/<id>/map` · `photos` · `trace` · `debrief` | a view of a mission; on the demo `?t=0..5` sets the mission clock (none: the end of the timeline) |
 | `#m/<id>/map?needs` | the console with Needs you in front (`#m/<id>/review` lands here: the review folds into Needs you) |
 | `#m/<id>/map?radio` | the console with the timeline on Radio and the talk bar ready (`#m/<id>/radio` lands here: the radio desk is the talk bar) |
 | `#m/demo?s=<seed>` | the demo mission as a scenario (`overdue-hiker`, `missing-child`, `despondent`, `dementia`, or any seed) |
@@ -38,9 +38,9 @@ Old addresses, kept so links in the docs, the Devposts and the video still land 
 | `#survey`, `#rank` | `#m/demo?t=1` (photos land) |
 | `#review` | `#m/demo?t=2` (confirm) |
 | `#search`, `#searchnext` | `#m/demo?t=3` (where next) |
-| `#results` | `#m/demo?t=5` (the debrief) |
+| `#results` | `#m/demo?t=6` (the debrief) |
 | `#operate`, `#command` | `#m/demo/map` |
-| `#judges` | `#m/demo?t=5&judges` (the debrief, For judges open) |
+| `#judges` | `#m/demo?t=6&judges` (the debrief, For judges open) |
 | `#try` | `#m/demo/photos?try` |
 | `#m/<id>/command[/conditions]`, `#m/<id>/approvals` | `#m/<id>/map[/conditions]` |
 | `#m/<id>/review` | `#m/<id>/map?needs` |

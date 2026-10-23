@@ -37,10 +37,11 @@ describe("routes: one console", () => {
       "#review": "#m/demo?t=2",
       "#search": "#m/demo?t=3",
       "#searchnext": "#m/demo?t=3",
-      "#results": "#m/demo?t=5",
+      "#results": "#m/demo?t=6",
       "#operate": DEMO_CONSOLE_HASH,
       "#command": DEMO_CONSOLE_HASH,
-      "#judges": "#m/demo?t=5&judges",
+      "#judges": "#m/demo?t=6&judges",
+      "#m/demo?t=5&judges": "#m/demo?t=6&judges",
       "#try": "#m/demo/photos?try",
     });
     expect(redirectFromHash("#m/demo/command")).toBe("#m/demo/map");

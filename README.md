@@ -8,7 +8,7 @@ Sightline is the brain of a drone search for a missing person: it finds the like
 
 **[Live demo](https://sightline-iota-sandy.vercel.app) · [Demo console, now](https://sightline-iota-sandy.vercel.app/#m/demo/map) · [Report](docs/report/OPENCV_REPORT.md) · [Architecture](docs/architecture/sightline-architecture.html) · [Run it](#reproduce-the-results-cpu-only-about-14-minutes)**
 
-**For judges:** open the [live site](https://sightline-iota-sandy.vercel.app) (the console at t0, the call) and press **Follow the search** (3 min); the Debrief at the end has "For judges: where to look, in order" ([`#m/demo?t=5&judges`](https://sightline-iota-sandy.vercel.app/#m/demo?t=5&judges); the old `#judges` redirects there). Answers to the questions we expect, with their evidence, in [docs/JUDGE_QA.md](docs/JUDGE_QA.md).
+**For judges:** open the [live site](https://sightline-iota-sandy.vercel.app) (the console at t0, the call) and press **Follow the search** (3 min); the Debrief at the end has "For judges: where to look, in order" ([`#m/demo?t=6&judges`](https://sightline-iota-sandy.vercel.app/#m/demo?t=6&judges); the old `#judges` redirects there). Answers to the questions we expect, with their evidence, in [docs/JUDGE_QA.md](docs/JUDGE_QA.md).
 
 ![Sightline system architecture](docs/architecture/system.png)
 
@@ -57,13 +57,17 @@ The rows are not strictly comparable: the published ones do not state their matc
 
 ## What the demo shows
 
-The site is one console on a demo mission. The landing (`#`, which opens `#m/demo`) is the console at t0, the call, with a pitch bar; **Follow the search (3 min)** runs the mission clock through five checkpoints, each with a coach mark and its own address (`#m/demo?t=1` to `?t=5`; → next, ← back, Esc leaves the story at that mission time):
+The site is one console on a demo mission. The landing (`#`, which opens `#m/demo`) is the console at t0, the call, with a pitch bar; **Follow the search (3 min)** tells the search from the search manager's seat in seven moments, each with its own address (`#m/demo?t=0` to `?t=6`) and coach marks on the real panels (→ next, ← back, Space pauses the clock, Esc leaves the story at that mission time; **Skip to now** on the scrubber):
 
-1. **Photos land** (`?t=1`, the Photos view): 500 drone photos from a search over Mount Seymour; the detector reads each one, the queue puts the likeliest people first, and the map updates as each photo is placed.
-2. **Confirm** (`?t=2`, the Review view): a searcher answers each candidate (Person, Not a person, Unsure); the third scored only 0.18, and a second look caught it.
-3. **Where next** (`?t=3`, the Map): a probability map of where the person could still be (photographed ground fades, ground never photographed stays marked as not yet searched), and the agent proposes Team One for A1 with its reason; you approve it.
-4. **Run** (`?t=4`): eighteen minutes on, the teams are out and B4 is searched at POD 60 %, lowered but never ruled out.
-5. **Results** (`?t=5`, the Debrief): the measured numbers with their sources, what breaks first, and where to look, in order, for judges.
+0. **The call** (`?t=0`, the status line): "13:35. Last seen at 10:30. Four teams at base, the trailhead lot. Drone one up."
+1. **Photos land** (`?t=1`, the map and Needs you): 500 drone photos from a survey over Mount Seymour; the map dims where the drone has looked and brightens where it has not, and the first candidates wait in Needs you.
+2. **Confirm** (`?t=2`, Needs you): two plain people marked Person, a grey bag marked Not a person, and the low-scoring candidate the second look caught, marked Person.
+3. **Where next** (`?t=3`, the timeline, then Needs you): a radio call becomes a clue and moves the map; the agent proposes Team One for C2 with its reason naming that clue, and waits for your approval.
+4. **Run** (`?t=4`, Resources and the map): drone two loses its link, drone three relays Team Two, and Team One walks C2.
+5. **The find** (`?t=5`, the status line): "Sightline, Team One. Subject located in Charlie Two, conscious and talking, over." The status line flips to Found.
+6. **Debrief** (`?t=6`): the after-action report, then the measured numbers with their sources, what breaks first, and where to look, in order, for judges.
+
+The story reads whichever scenario is loaded (its first assignment, the clue it names, its find), so it works on every preset. Recording: `docs/report/figures/command-post/story.webm`.
 
 The view switch (Map · Photos · Review · Trace · Debrief · Radio, keys 1 to 6) works at any moment; **Skip to now** (or `#m/demo/map`) opens the console at the end of the timeline, the wordmark opens the About sheet (`#about`: who it is for, how it works), and `#new` is the empty console for a new search. The old guided-demo addresses (`#survey`, `#rank`, `#review`, `#search`, `#results`, `#judges`, `#try`) redirect to these moments. The Mount Seymour flight path, the fleet and the mission's timeline are simulated, and the site labels them that way.
 

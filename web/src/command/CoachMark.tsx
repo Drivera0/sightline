@@ -1,6 +1,8 @@
 // A coach mark on the real console (driver.js's pattern, hand-rolled: no dependency): a ring around one
-// element and one sentence beside it, Next and Back, skippable. Space pauses the mission clock, the arrow
-// keys step, Esc leaves the story and keeps the console at this mission time.
+// element and a sentence or two beside it, Next and Back, skippable. Space pauses the mission clock, the
+// arrow keys step, Esc leaves the story and keeps the console at this mission time. A mark names its
+// element by a CSS selector, or by several in order of preference (the card it is about, else its panel);
+// a selector that starts with "group:" rings its first few matches together (two cards, a call and its clue).
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isTyping } from "../lib/keys";
@@ -55,15 +57,63 @@ export function placeCard(target: Box | null, vw: number, vh: number, cardH = 18
   return free ?? spots[0]!;
 }
 
-/** The first element matching `selector` that is on screen (a phone and a desktop can each have their own). */
-function findTarget(selector: string): HTMLElement | null {
-  const all = [...document.querySelectorAll<HTMLElement>(selector)];
-  return all.find((el) => el.getClientRects().length > 0) ?? all[0] ?? null;
+/** One selector, or several in order of preference. */
+export type Target = string | readonly string[];
+
+/** "group:<selector>": the first few matches, ringed as one. */
+export const GROUP = "group:";
+const GROUP_MAX = 3;
+
+/**
+ * The elements a mark points at: of the selectors in order, the first that matches something on screen (a
+ * phone and a desktop can each have their own), else the first that matches anything. One element, or for
+ * a "group:" selector its first few on screen.
+ */
+export function findTargets(target: Target): HTMLElement[] {
+  const list = typeof target === "string" ? [target] : target;
+  let hidden: HTMLElement[] = [];
+  for (const raw of list) {
+    const group = raw.startsWith(GROUP);
+    let all: HTMLElement[] = [];
+    try {
+      all = [...document.querySelectorAll<HTMLElement>(group ? raw.slice(GROUP.length) : raw)];
+    } catch {
+      continue; // a selector this browser cannot read (:has on an old engine): the next one
+    }
+    const shown = all.filter((el) => el.getClientRects().length > 0);
+    if (shown.length) return group ? shown.slice(0, GROUP_MAX) : [shown[0]!];
+    if (!hidden.length && all[0]) hidden = [all[0]];
+  }
+  return hidden;
+}
+
+/** The first element a mark points at (see findTargets). */
+export function findTarget(target: Target): HTMLElement | null {
+  return findTargets(target)[0] ?? null;
+}
+
+/** A card (not a whole panel) that its scrolling panel cuts off. */
+function clipped(el: HTMLElement): boolean {
+  const r = el.getBoundingClientRect();
+  if (r.height <= 0 || r.height > 320) return false;
+  const v = visibleRect(el);
+  return v.height < r.height - 1 && v.top >= 0 && v.top + v.height <= window.innerHeight;
+}
+
+/** The box around several boxes. */
+function union(boxes: readonly Box[]): Box | null {
+  const real = boxes.filter((b) => b.width > 0 && b.height > 0);
+  if (!real.length) return null;
+  const top = Math.min(...real.map((b) => b.top));
+  const left = Math.min(...real.map((b) => b.left));
+  const bottom = Math.max(...real.map((b) => b.top + b.height));
+  const right = Math.max(...real.map((b) => b.left + b.width));
+  return { top, left, width: right - left, height: bottom - top };
 }
 
 /** Give focus back to the mark's anchor (made focusable from code if it is not), without scrolling. */
-function focusAnchor(selector: string) {
-  const el = findTarget(selector);
+function focusAnchor(target: Target) {
+  const el = findTarget(target);
   if (!el) return;
   if (el.tabIndex < 0 && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
   el.focus({ preventScroll: true });
@@ -84,8 +134,8 @@ export function CoachMark({
   last = false,
 }: {
   text: string;
-  /** A CSS selector on the console. */
-  target: string;
+  /** A CSS selector on the console, or several in order of preference. */
+  target: Target;
   /** 1-based. */
   index: number;
   count: number;
@@ -104,6 +154,8 @@ export function CoachMark({
   const [avoid, setAvoid] = useState<Box[]>([]);
   const anchor = useRef(target);
   anchor.current = target;
+  // the target as a value, so a new array with the same selectors does not restart the measuring
+  const targetKey = typeof target === "string" ? target : target.join("\n");
   const [view, setView] = useState({ w: typeof window === "undefined" ? 1440 : window.innerWidth, h: typeof window === "undefined" ? 900 : window.innerHeight });
   const card = useRef<HTMLDivElement>(null);
   const primary = useRef<HTMLButtonElement>(null);
@@ -119,22 +171,41 @@ export function CoachMark({
     let want = 0;
     let settleUntil = 0;
     let moved = false;
-    const scrollTo = (el: HTMLElement, phone: boolean) => {
+    // On a desktop the panels scroll on their own (Needs you, the timeline, Resources): where a mark scrolled
+    // one, it goes back when the mark moves on (unless the visitor has scrolled since), so the next moment's
+    // newest entries are on top again.
+    const saved = new Map<HTMLElement, number>();
+    let wheeled = false;
+    const remember = (el: HTMLElement) => {
+      for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        const o = getComputedStyle(p).overflowY;
+        if ((o === "auto" || o === "scroll") && !saved.has(p)) saved.set(p, p.scrollTop);
+      }
+    };
+    const scrollTo = (els: readonly HTMLElement[], phone: boolean) => {
+      const el = els[0]!;
+      if (!phone) for (const x of els) remember(x);
+      // a group: its last one in view first, then its first, so both ends are on screen where they fit
+      if (!phone && els.length > 1) els.at(-1)!.scrollIntoView({ block: "nearest", inline: "nearest" });
       // on a phone the card sits along the bottom: bring the target to the top
       el.scrollIntoView({ block: phone ? "start" : "nearest", inline: "nearest" });
       want = el.getBoundingClientRect().top;
     };
     const measure = () => {
-      const el = findTarget(target);
+      const els = findTargets(anchor.current);
+      const el = els[0] ?? null;
       const phone = window.innerWidth < 640;
       if (el && el !== scrolled && typeof el.scrollIntoView === "function") {
-        scrollTo(el, phone);
+        scrollTo(els, phone);
         scrolled = el;
         settleUntil = performance.now() + 3000;
       } else if (el && phone && !moved && performance.now() < settleUntil && Math.abs(el.getBoundingClientRect().top - want) > 8) {
-        scrollTo(el, phone);
+        scrollTo(els, phone);
+      } else if (el && !phone && !wheeled && els.some(clipped)) {
+        // the panel reordered under the mark (teams go out, drones sort by battery): bring the cards back in view
+        scrollTo(els, phone);
       }
-      const r = el ? visibleRect(el) : null;
+      const r = union(els.map(visibleRect));
       setBox((b) => {
         if (!r || r.width <= 0 || r.height <= 0) return null;
         const next = { top: r.top, left: r.left, width: r.width, height: r.height };
@@ -154,8 +225,9 @@ export function CoachMark({
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(measure);
     };
-    const user = () => {
+    const user = (e: Event) => {
       moved = true;
+      if (e.type !== "pointerdown") wheeled = true;
     };
     window.addEventListener("resize", on);
     window.addEventListener("scroll", on, true);
@@ -166,8 +238,9 @@ export function CoachMark({
       window.removeEventListener("resize", on);
       window.removeEventListener("scroll", on, true);
       for (const k of ["wheel", "touchmove", "pointerdown"] as const) window.removeEventListener(k, user);
+      if (!wheeled) for (const [p, top] of saved) p.scrollTop = top;
     };
-  }, [target]);
+  }, [targetKey]);
 
   useEffect(() => {
     (primary.current ?? card.current)?.focus({ preventScroll: true });
