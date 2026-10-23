@@ -182,7 +182,8 @@ export function AppBar({
               <span className="truncate text-small font-medium text-text" title={mission.name}>
                 {mission.name}
               </span>
-              <ModeChip mode={mission.mode} />
+              {/* the demo's one disclosure is its chip: no Demo chip beside it */}
+              {!mission.disclose && <ModeChip mode={mission.mode} />}
               {mission.disclose && (
                 // the pill's own display rule outranks a utility class: hide its wrapper on phones
                 <span className="hidden md:inline-flex">

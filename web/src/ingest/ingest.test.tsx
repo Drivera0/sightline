@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Detections, MapFile, Verdict } from "../contract";
 import { App } from "../App";
-import { useStory } from "../command/story";
+import { useGuide, useStory } from "../command/story";
 import { diskFetch } from "../lib/diskFetch";
 import { LiveReview, liveReviewItems, relookName, verdictWords } from "../review/LiveReview";
 import { EMPTY, useMission } from "../lib/mission";
@@ -409,4 +409,57 @@ describe("the demo mission: the story on the one console", () => {
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(window.location.hash).toBe("#m/demo/map"));
   });
+});
+
+describe("the guided search (#m/demo?guide=1): the manager makes each decision", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useGuide.getState().stop();
+  });
+
+  it("waits at each decision with the clock paused, takes it from the keyboard, and ends with what you did", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo?guide=1");
+    render(<App base={null} />);
+    // no pitch bar, no story marks, no scrubber: the first decision at the call
+    const survey = await screen.findByRole("dialog", { name: /Your call: Decision 1 of \d · Survey/ }, { timeout: 5000 });
+    expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Mission time" })).toBeNull();
+    expect(screen.getByText("Mission clock paused")).toBeInTheDocument();
+    expect(window.location.hash).toBe("#m/demo?guide=1");
+    // the gate: time passes, the clock does not
+    const clockText = () => within(screen.getByRole("group", { name: "Decisions" })).getByText(/^\d\d:\d\d$/).textContent;
+    const before = clockText();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(clockText()).toBe(before);
+    expect(survey).toHaveTextContent("+12 min");
+    await userEvent.keyboard("a");
+    // triage: three candidates, one at a time, each its own key
+    for (const n of [1, 2, 3]) {
+      await screen.findByRole("dialog", { name: new RegExp(`Your call: Decision 2 of \\d · Triage, ${n} of 3`) }, { timeout: 5000 });
+      await userEvent.keyboard(n === 1 ? "3" : n === 2 ? "2" : "1");
+    }
+    // the radio clue, the assignment, the lost link: the agent's option each time
+    await screen.findByRole("dialog", { name: /Your call: Decision 3 of \d · Clue/ }, { timeout: 5000 });
+    await userEvent.keyboard("a");
+    const assign = await screen.findByRole("dialog", { name: /Your call: Decision 4 of \d · Assign/ }, { timeout: 5000 });
+    expect(assign).toHaveTextContent("Team One");
+    await userEvent.keyboard("a");
+    for (let guard = 0; guard < 6; guard++) {
+      const d = await screen.findByRole("dialog", { name: /Your call/ }, { timeout: 8000 });
+      if (/Find/.test(d.getAttribute("aria-label") ?? "")) break;
+      await userEvent.keyboard("a");
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: d.getAttribute("aria-label")! })).toBeNull(), { timeout: 3000 }).catch(() => undefined);
+    }
+    await screen.findByRole("dialog", { name: /Your call: Decision \d of \d · Find/ }, { timeout: 8000 });
+    expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("not found"); // only the manager marks it
+    await userEvent.keyboard("a");
+    await waitFor(() => expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("Found"), { timeout: 3000 });
+    const end = await screen.findByRole("dialog", { name: "What you did" }, { timeout: 5000 });
+    expect(end).toHaveTextContent(/Found at \d\d:\d\d by Team/);
+    expect(end).toHaveTextContent("Every draw");
+    expect(end.textContent).not.toMatch(/score|saved a life/i);
+  }, 60_000);
 });

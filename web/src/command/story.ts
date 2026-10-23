@@ -8,7 +8,8 @@ import type { MissionEvent } from "../contract";
 import type { TriedPhoto } from "../detect/TryPhoto";
 import type { LiveAnswer } from "../review/LiveReview";
 import { prefersReducedMotion } from "../metrics/motion";
-import { checkpoint, clockAt, LAST, type Checkpoint } from "./missionTime";
+import type { Choice } from "./guide";
+import { checkpoint, CHECKPOINTS, clockAt, LAST, type Checkpoint } from "./missionTime";
 
 /** How long the clock takes to run into each checkpoint, in ms (reduced motion: no run, a jump). */
 export const RUN_MS: Readonly<Record<Checkpoint, number>> = { 0: 0, 1: 6000, 2: 1200, 3: 1200, 4: 6000, 5: 2500, 6: 800 };
@@ -128,9 +129,73 @@ export const useStory = create<StoryState>((set, get) => ({
   reset: () => set({ ...INITIAL, beats: get().beats }),
 }));
 
-/** The mission clock the story is at (ISO). */
-export function storyClock(s: Pick<StoryState, "t" | "progress">): string {
+/** The mission clock the story is at (ISO): the guided search's own clock when it runs. */
+export function storyClock(s: Pick<StoryState, "t" | "progress"> & { guide?: GuideState | null }): string {
+  if (s.guide) return new Date(s.guide.clock).toISOString().replace(/\.\d+Z$/, "Z");
   return clockAt(s.t, s.progress);
+}
+
+// ---- The guided search (`?guide=1`, guide.ts): its own clock, which waits at every decision ----
+
+export interface GuideState {
+  /** The mission clock (ms). It runs toward the next decision and stops there until it is made. */
+  clock: number;
+  /** Space pauses it between decisions. */
+  paused: boolean;
+  /** "Watch instead": the agent's line plays each decision; T takes over. */
+  watch: boolean;
+  /** The decisions made, in order. */
+  choices: Choice[];
+  /** The end screen ("What you did") is up. */
+  ended: boolean;
+}
+
+/** Mission minutes per real second while the guided clock runs (an hour in ten seconds). */
+export const GUIDE_RATE = 360;
+
+export const useGuide = create<{
+  guide: GuideState | null;
+  start: (opts?: { watch?: boolean }) => void;
+  stop: () => void;
+  setClock: (ms: number) => void;
+  pause: (paused?: boolean) => void;
+  setWatch: (watch: boolean) => void;
+  choose: (c: Choice) => void;
+  end: () => void;
+}>((set, get) => ({
+  guide: null,
+  start: (opts = {}) => set({ guide: { clock: new Date(CHECKPOINTS[0]!.at).getTime(), paused: false, watch: !!opts.watch, choices: [], ended: false } }),
+  stop: () => set({ guide: null }),
+  setClock: (ms) => {
+    const g = get().guide;
+    if (g && g.clock !== ms) set({ guide: { ...g, clock: ms } });
+  },
+  pause: (paused) => {
+    const g = get().guide;
+    if (g) set({ guide: { ...g, paused: paused ?? !g.paused } });
+  },
+  setWatch: (watch) => {
+    const g = get().guide;
+    if (g) set({ guide: { ...g, watch } });
+  },
+  choose: (c) => {
+    const g = get().guide;
+    if (g && !g.choices.some((x) => x.key === c.key)) set({ guide: { ...g, choices: [...g.choices, c], paused: false } });
+  },
+  end: () => {
+    const g = get().guide;
+    if (g) set({ guide: { ...g, ended: true, paused: true } });
+  },
+}));
+
+/**
+ * The guided clock's next reading: `step` ms of real time on from `clock`, at GUIDE_RATE, never past
+ * `hold` (the next decision, on the mission clock). Reduced motion: straight to the hold.
+ */
+export function guideStep(clock: number, hold: number | null, stepMs: number, reduced = false): number {
+  if (hold === null) return clock;
+  if (clock >= hold) return clock;
+  return reduced ? hold : Math.min(hold, clock + stepMs * GUIDE_RATE);
 }
 
 /** The landing: t0 with the pitch bar. */

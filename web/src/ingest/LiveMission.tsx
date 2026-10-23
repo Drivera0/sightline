@@ -16,7 +16,11 @@ import { beatCounts, markIndex, storyBeats, storyProposal as firstAssignment } f
 import { PhotoStrip, PhotosRail } from "../command/PhotosRail";
 import { PitchBar } from "../command/PitchBar";
 import { Scrubber, STORY_HINT } from "../command/Scrubber";
-import { landing, RUN_MS, storyClock, useStory } from "../command/story";
+import { landing, RUN_MS, storyClock, useGuide, useStory } from "../command/story";
+import { guidedOptsFor, useGuideRun } from "../command/GuideRun";
+import { costsOf, standingUser } from "../command/guide";
+import { fixtureOf } from "../command/sim";
+import { onMissionClock } from "../command/missionTime";
 import { isTyping } from "../lib/keys";
 import { cacheUrl, loadCache } from "../lib/cache";
 import { photoProgress, useMission } from "../lib/mission";
@@ -42,7 +46,7 @@ import { MapStill, wantsStillMap } from "../map/MapStill";
 import { useSelection } from "../lib/selection";
 import { AppBar, rememberMission, type BarAction } from "../shell/AppBar";
 import { Button, modeOf, Page, Panel, Stat } from "../shell/components";
-import { DEMO_CONSOLE_HASH, viewHash, type Route, type View } from "../shell/flow";
+import { DEMO_CONSOLE_HASH, guideHash, viewHash, type Route, type View } from "../shell/flow";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS } from "../shell/shortcuts";
 import { LiveReview, liveReviewItems, ReviewRail, type LiveAnswer } from "../review/LiveReview";
@@ -143,6 +147,13 @@ function afterPaint(cb: () => void): () => void {
 /** The demo mission's story as the address sets it: the landing, a checkpoint of the story, or a view's clock. */
 function storyFromRoute(route: MissionRoute): void {
   const st = useStory.getState();
+  // the guided search (`?guide=1`): its own clock from the call, no coach marks, no pitch bar
+  if (route.open.guide) {
+    useStory.setState({ t: 0, beat: 0, progress: 1, playing: false, through: null, tour: false, pitch: false, started: true });
+    if (!useGuide.getState().guide) useGuide.getState().start();
+    return;
+  }
+  if (useGuide.getState().guide) useGuide.getState().stop();
   if (route.view === null && route.t === null) landing();
   else if (route.view === null && route.t !== null) {
     if (route.t === 0) landing();
@@ -154,7 +165,8 @@ function storyFromRoute(route: MissionRoute): void {
 }
 
 /** The demo mission's clock, the story's checkpoint, the view and the scenario, as an address. */
-function demoHash(view: View, t: Checkpoint, tour: boolean, pitch: boolean, seed: string | null = null): string {
+function demoHash(view: View, t: Checkpoint, tour: boolean, pitch: boolean, seed: string | null = null, guide = false): string {
+  if (guide) return guideHash(seed);
   const h = pitch ? "#m/demo" : tour ? `#m/demo?t=${t}` : viewHash(DEMO_MISSION_ID, view, t >= LAST ? null : t);
   return seed ? `${h}${h.includes("?") ? "&" : "?"}s=${encodeURIComponent(seed)}` : h;
 }
@@ -225,12 +237,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       return;
     }
     storyFromRoute(route);
-    // a home card's Start (`&guide=1`): the guided simulation from the call, no pitch bar to press first
-    if (route.open.guide) {
-      landing();
-      useStory.getState().begin();
-    }
-    if (route.view === null && route.t === null) setView("map");
+    if (route.open.guide || (route.view === null && route.t === null)) setView("map");
     else if (route.view === null && route.t !== null) setView(checkpoint(route.t).view);
     else if (route.view !== null) setView(route.view);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -276,15 +283,25 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     };
   }, [demo, demoData, seed]);
 
-  // The demo mission at the story's clock, the visitor's own actions on top.
-  const clockIso = storyClock(story);
+  // The demo mission at the story's clock, the visitor's own actions on top. The guided search runs its own
+  // clock: the fixtures' clock stands still while a decision's minutes are spent (sim.ts), and the console
+  // prints the mission clock.
+  const guide = useGuide((x) => x.guide);
+  const guided = demo && !!guide;
+  const effSeed = seed ?? DEFAULT_SEED;
+  const costs = useMemo(() => costsOf(guide?.choices ?? []), [guide?.choices]);
+  const clockIso = guided ? new Date(fixtureOf(guide!.clock, costs)).toISOString().replace(/\.\d+Z$/, "Z") : storyClock(story);
+  const gOpts = useMemo(() => (guided ? guidedOptsFor(scenario, effSeed, guide!.choices, story.user) : null), [guided, scenario, effSeed, guide?.choices, story.user]);
+  // the guided search's standing approval plays the agent's next picks as assignments of the visitor's
+  const simUser = useMemo(() => (guided ? standingUser(scenario, effSeed, story.user, guide!.choices) : story.user), [guided, scenario, effSeed, story.user, guide?.choices]);
   const derivedIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!demo || !scenario) return;
-    const state = demoAt(scenario, clockIso, story.user);
+    const at = demoAt(scenario, clockIso, simUser, gOpts);
+    const state = gOpts ? onMissionClock(at, costs) : at;
     derivedIds.current = new Set((state.events ?? []).map((e) => e.id));
     useMission.getState().useDemo(state, clockIso);
-  }, [demo, scenario, clockIso, story.user]);
+  }, [demo, scenario, clockIso, simUser, gOpts, costs]);
   // what the visitor does on the demo console is kept as events of their own, replayed when the clock moves
   useEffect(() => {
     if (!demo) return undefined;
@@ -332,9 +349,9 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   useEffect(() => {
     // only while the address is this mission's (the About sheet keeps #about over it)
     if (!demo || !story.started || !/^#m\/demo(\/|\?|$)/.test(window.location.hash)) return;
-    const want = demoHash(view, story.t, story.tour, story.pitch, seed);
+    const want = demoHash(view, story.t, story.tour, story.pitch, seed, guided);
     if (window.location.hash !== want) window.history.replaceState(null, "", want);
-  }, [demo, view, story.t, story.tour, story.pitch, story.started, seed]);
+  }, [demo, view, story.t, story.tour, story.pitch, story.started, seed, guided]);
 
   // phones: the story's marks on a candidate (t2) and on the proposal (t3) open Needs you, folded otherwise
   useEffect(() => {
@@ -365,11 +382,13 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     useConsole.getState().reset();
     useStory.setState({ user: [], answers: {}, tried: null });
     useDropped.setState({ cards: [], at: {}, status: null });
+    // a new scenario in the guided search starts it again from the call
+    if (useGuide.getState().guide) useGuide.getState().start();
     setScenario(null);
     setSeed(s);
     if (write) {
       const st = useStory.getState();
-      window.history.replaceState(null, "", demoHash(view, st.t, st.tour, st.pitch, s));
+      window.history.replaceState(null, "", demoHash(view, st.t, st.tour, st.pitch, s, !!useGuide.getState().guide));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
@@ -396,7 +415,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       } else if (keysOpen) return;
       else if (e.key === "c" || e.key === "C") go("map");
       else if ((e.key === "w" || e.key === "W") && view === "map") setCondOpen((o) => !o);
-      else if (/^[1-6]$/.test(e.key) && !useStory.getState().tour) {
+      else if (/^[1-6]$/.test(e.key) && !useStory.getState().tour && !useGuide.getState().guide) {
         // 1 Map, 2 Photos, 3 Needs you (the old Review), 4 Trace, 5 Debrief, 6 the radio (the old Radio view)
         const n = Number(e.key);
         if (n === 3) {
@@ -406,7 +425,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           go("map");
           toRadio();
         } else go((["map", "photos", "", "trace", "debrief"] as const)[n - 1] as View);
-      } else if (e.key === " " && demo && !useStory.getState().tour && !(e.target instanceof HTMLButtonElement)) {
+      } else if (e.key === " " && demo && !useStory.getState().tour && !useGuide.getState().guide && !(e.target instanceof HTMLButtonElement)) {
         // outside the story Space plays the clock on to the end, or pauses it
         e.preventDefault();
         useStory.getState().play();
@@ -438,7 +457,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // on the map, a team picked on the roster (after the next paint). Once wanted it stays.
   const [still] = useState(wantsStillMap);
   const [wanted, setWanted] = useState<"auto" | "tap" | null>(null);
-  const storyMoves = demo && (story.tour || story.playing) && story.t >= 1 && story.t !== 2 && story.t !== LAST;
+  const storyMoves = demo && (guided || ((story.tour || story.playing) && story.t >= 1 && story.t !== 2 && story.t !== LAST));
   const picking = usePick((p) => p.pending !== null);
   const teamPicked = useSelection((x) => x.selectedTeamId !== null || x.selectedClueId !== null);
   const sectorOpen = useConsole((x) => x.sector !== null || x.picking !== null);
@@ -467,11 +486,46 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   }, [stillPhase]);
 
   const imageUrl = (rel: string) => (demo ? demoImageUrl(rel) : fileUrl(api, missionId, rel));
+  // the guided search's decisions, mark and end screen (GuideRun.tsx); the review's answers reach it by a ref
+  const answerRef = useRef<(id: string, a: LiveAnswer) => void>(() => undefined);
+  const restartGuide = useCallback((watch: boolean) => {
+    stopAllDemoFlights();
+    useConsole.getState().reset();
+    useStory.setState({ user: [], answers: {}, tried: null });
+    useDropped.setState({ cards: [], at: {}, status: null });
+    useGuide.getState().start({ watch });
+    setView("map");
+  }, []);
+  const run = useGuideRun({
+    demo,
+    scenario,
+    seed: effSeed,
+    scenarioName: presetFor(seed).name,
+    cache,
+    imageUrl,
+    answer: (id, a) => answerRef.current(id, a),
+    onPickOnMap: () => {
+      useConsole.getState().setTab("map");
+      document.getElementById("console-map")?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+    },
+    onReport: () => setView("debrief"),
+    onTrace: () => setView("trace"),
+    onLeave: () => {
+      useGuide.getState().stop();
+      stopAllDemoFlights();
+      useStory.setState({ user: [], answers: {}, tried: null });
+      useStory.getState().skipToNow();
+      setView("map");
+      window.history.replaceState(null, "", DEMO_CONSOLE_HASH);
+    },
+    onRestart: restartGuide,
+  });
   // which clues moved each sector, from the map log: a line on an assignment's card (clueShift.ts)
   const shifts = useMemo(() => (s.mapBase && s.sectors.length ? clueShifts(s.mapBase, s.mapUpdates, s.sectors, s.clues) : null), [s.mapBase, s.mapUpdates, s.sectors, s.clues]);
   const clueNote = (p: Proposal) => clueLine(shifts?.get(String(p.target.sector ?? "")));
   const clockZone = useMemo(() => ({ tz: demo ? DEMO_TZ : false }), [demo]);
-  const demoNow = useMemo(() => (demo ? new Date(clockIso) : undefined), [demo, clockIso]);
+  const shownIso = guided ? new Date(guide!.clock).toISOString().replace(/\.\d+Z$/, "Z") : clockIso;
+  const demoNow = useMemo(() => (demo ? new Date(shownIso) : undefined), [demo, shownIso]);
   const liveDebrief = demo ? undefined : `${api.base}/missions/${encodeURIComponent(missionId)}/debrief.md`;
   const actions = useMemo(() => storeActions(), []);
 
@@ -501,25 +555,30 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // the demo's queue: photos dropped in this browser first, then the survey's candidates at this clock
   const cards = demo ? [...dropped.cards, ...demoCards(cache, landed ?? [], imageUrl, new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime())] : [];
   const answerDemo = (id: string, a: LiveAnswer) => {
+    answerRef.current = answerDemo;
     useStory.getState().answer(id, a);
     if (a !== "person") return;
     const mine = dropped.at[id];
     const at = mine ? { lat: mine.lat, lon: mine.lon, frame: mine.photo, conf: mine.conf } : candidatePosition(cache, id);
     if (at && !s.clues.some((c) => c.text.includes(id))) {
-      void useMission.getState().addClue({
-        kind: "sighting",
+      const draft = {
+        kind: "sighting" as const,
         text: `person confirmed by the image reviewer in ${at.frame} (${id}, detector ${at.conf.toFixed(2)})`,
         lat: at.lat,
         lon: at.lon,
         at_team_position: false,
         radius_m: 10,
-        reliability: "high",
+        reliability: "high" as const,
         reported_by: "command",
-        source: "form",
+        source: "form" as const,
         confirmed_by_turn: null,
-      });
+      };
+      // the guided search's clock moves on past the fixtures' clues: an id of its own, never c00n again
+      if (guided) useMission.getState().emit("clue.added", `sighting: ${draft.text}`, `s-${id}`, { ...draft, id: `s-${id}`, at: clockIso, confirmed: true });
+      else void useMission.getState().addClue(draft);
     }
   };
+  answerRef.current = answerDemo;
   const tried = story.tried ? <TriedCard tried={story.tried} onClose={() => useStory.getState().setTried(null)} /> : undefined;
   const tryPanel = cache ? (
     <Suspense fallback={loading("the detector")}>
@@ -575,11 +634,11 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     />
   );
   // the review cards live in Needs you: the demo's queue, or a live mission's candidates
-  const reviewCount = demo ? cards.filter((c) => !story.answers[c.id]).length + (story.tried ? 1 : 0) : liveReviewItems(s.detections, s.promoted).length;
+  const reviewCount = demo ? (run.on ? run.cards(cards) : cards).filter((c) => !story.answers[c.id]).length + (story.tried ? 1 : 0) : liveReviewItems(s.detections, s.promoted).length;
   const review =
     reviewCount > 0 || tried ? (
       demo ? (
-        <ReviewRail cards={cards.filter((c) => !story.answers[c.id] || story.tour)} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Candidates appear here as the survey's photos land." />
+        <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id] || story.tour)} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Candidates appear here as the survey's photos land." />
       ) : (
         <LiveReview
           detections={s.detections}
@@ -631,7 +690,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // ---- the bar ----
   const t = story.t;
   const action: BarAction | null = demo
-    ? story.pitch || story.tour
+    ? story.pitch || story.tour || guided
       ? null
       : {
           label: "Follow the search",
@@ -641,7 +700,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           },
         }
     : { label: "New search", href: "#new" };
-  const barAt = demo ? new Date(clockIso) : new Date();
+  const barAt = demo ? new Date(run.missionClock ?? clockIso) : new Date();
   const barClock = demo || s.mission ? clockWithZone(barAt, clockZone.tz) : null;
   const barTitle = `Mission clock · ${utcLabel(barAt)}`;
   // the coach mark at this checkpoint and beat (it shows while the clock runs into the checkpoint too)
@@ -649,14 +708,14 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const markCount = beats.reduce((n, b) => n + b.length, 0);
   const markNo = markIndex(beats, t, story.beat);
   // once the subject is found, pending proposals and candidates are closed (Needs you folds them away)
-  const needsCount = s.mission?.status === "found" ? 0 : s.proposals.filter((p) => p.status === "pending").length + reviewCount;
-  const inStory = demo && (story.tour || story.playing);
+  const needsCount = s.mission?.status === "found" ? 0 : (run.on ? run.proposals(s.proposals) : s.proposals).filter((p) => p.status === "pending").length + reviewCount;
+  const inStory = demo && !guided && (story.tour || story.playing);
 
   return (
     <ClockZone.Provider value={clockZone}>
       <div className="flex min-h-dvh flex-col lg:h-dvh">
         <AppBar
-          mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: demo ? "demo" : modeOf(s.status), clock: barClock, clockTitle: barTitle, disclose: demo }}
+          mission={{ name: (s.mission?.name ?? (demo ? "Mount Seymour" : "…")).replace(/\s*\(demo\)$/i, ""), mode: demo ? "demo" : modeOf(s.status), clock: barClock, clockTitle: barTitle, disclose: demo }}
           views={{ current: view, onSelect: go, counts: { map: needsCount || undefined, photos: inStory ? frameCount || undefined : undefined } }}
           tabs={{
             current: tab,
@@ -711,7 +770,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           />
         )}
         {/* a phone's coach mark sits along the bottom: room under the last panel so any target can scroll to the top */}
-        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-2 pb-20 lg:p-3 lg:pb-3 ${mark ? "max-sm:pb-[55vh]" : ""}`}>
+        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-2 pb-20 lg:p-3 lg:pb-3 ${mark || guided ? "max-sm:pb-[55vh]" : ""}`}>
           {s.error && (
             <p role="alert" className="text-small text-warn">
               {s.error}
@@ -731,7 +790,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               sectors={s.sectors}
               teams={s.teams}
               clues={s.clues}
-              proposals={s.proposals}
+              proposals={run.on ? run.proposals(s.proposals) : s.proposals}
               events={s.events}
               timeline={s.timeline}
               fleet={s.fleet}
@@ -750,7 +809,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               review={review}
               reviewCount={reviewCount}
               briefings={briefings}
-              storyProposal={demo ? storyProposal : null}
+              storyProposal={run.on ? run.proposal : demo ? storyProposal : null}
               voice={voice}
               conditionsData={conditionsData}
               conditionsOpen={condOpen && view === "map"}
@@ -781,7 +840,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                 )
               }
               overMap={
-                inStory ? (
+                run.strip ?? (inStory ? (
                   <Scrubber
                     t={t}
                     progress={story.progress}
@@ -808,16 +867,17 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                     }}
                     hint={story.tour ? STORY_HINT : null}
                   />
-                ) : undefined
+                ) : undefined)
               }
               onPickOnMap={() => {
                 document.querySelector("figure[aria-label='Live map'], [data-testid='map-still']")?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
                 return usePick.getState().request();
               }}
-              onDecide={(pid, decision, by, reason, edits) => useMission.getState().decide(pid, decision, by, reason, edits)}
+              onDecide={(pid, decision, by, reason, edits) => (run.on ? run.decide(pid, decision, by, reason, edits) : useMission.getState().decide(pid, decision, by, reason, edits))}
             />
           )}
         </main>
+        {ready && run.overlay}
         {mark && ready && (
           <CoachMark
             text={mark.text}
