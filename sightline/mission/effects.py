@@ -308,7 +308,38 @@ def on_fleet(store: MissionStore, mission_id: str, t: FleetTelemetry, hooks: Any
         store.put_fleet(mission_id, fleet)
         _hook(hooks, "on_fleet_join", store, mission_id)
         return fleet
+    before = store.state(mission_id)["fleet"]
     fleet, done = store.merge_telemetry(mission_id, t)
+    _drone_notes(store, mission_id, before, fleet)
     for leg_id in done:
         _hook(hooks, "on_leg_done", store, mission_id, leg_id)
     return fleet
+
+
+BATTERY_MARKS = (50.0, 25.0)  # a timeline line when a drone's battery falls through each
+
+
+def _drone_notes(store: MissionStore, mission_id: str, before: Any, after: Any) -> None:
+    """Timeline lines for the fleet (1.3): a leg started or ended, a battery mark passed. Each is a
+    ``mission.note`` whose ``data.drone`` says what happened."""
+    old_legs = {x.id: x.status for x in before.legs}
+    names = {d.id: d.name for d in after.drones}
+    for leg in after.legs:
+        was = old_legs.get(leg.id)
+        if was == leg.status or leg.status not in ("flying", "done"):
+            continue
+        event = "leg_start" if leg.status == "flying" else "leg_end"
+        where = f"sector {leg.sector_id}" if leg.sector_id else "home"
+        verb = "started" if event == "leg_start" else "done"
+        name = names.get(leg.drone_id, leg.drone_id)
+        store.emit(mission_id, "mission.note", f"{name}: leg {leg.id} ({where}) {verb}", ref=leg.id,
+                   data={"drone": {"event": event, "drone": leg.drone_id, "leg": leg.id,
+                                   "sector": leg.sector_id}})  # fmt: skip
+    old_pct = {d.id: d.battery_pct for d in before.drones}
+    for d in after.drones:
+        prev = old_pct.get(d.id)
+        crossed = [m for m in BATTERY_MARKS if prev is not None and prev > m >= d.battery_pct]
+        if crossed:
+            store.emit(mission_id, "mission.note", f"{d.name}: battery {d.battery_pct:.0f} %",
+                       ref=d.id, data={"drone": {"event": "battery", "drone": d.id,
+                                                 "battery_pct": round(d.battery_pct, 1)}})  # fmt: skip

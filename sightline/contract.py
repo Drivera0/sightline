@@ -712,6 +712,27 @@ class RadioTurn(_Model):
     at: str
 
 
+TimelineKind = Literal["radio", "clue", "detection", "decision", "checkin", "drone", "found"]
+
+
+class TimelineEntry(_Model):
+    """1.3 (section 15): one line of the mission's one timeline, derived from its events
+    (``sightline/mission/timeline.py``): radio turns and desk replies, clues, detections and second
+    looks, decisions (approvals and direct actions), check-ins, drone legs and links, the find."""
+
+    id: str  # the event's id; a desk reply to a team's turn adds "-reply"
+    at: str
+    kind: TimelineKind
+    team: str | None = None
+    drone: str | None = None
+    sector: str | None = None
+    text: str
+    refs: list[str] = Field(default_factory=list)
+    turn_id: str | None = None  # radio: the turn, so the console can reply to it
+    direction: Literal["in", "out"] | None = None  # radio: from a team (in) or from the desk (out)
+    by: str | None = None  # decision: who decided
+
+
 class MissionBundle(_Model):
     """Root type used only to export the live-mission models (section 12) to the JSON Schema."""
 
@@ -731,6 +752,7 @@ class MissionBundle(_Model):
     event: MissionEvent
     trace: TraceEntry
     radio_turn: RadioTurn
+    timeline_entry: TimelineEntry
 
 
 # --- JSON schema and writing ---------------------------------------------------------------

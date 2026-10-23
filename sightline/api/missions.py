@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, File, Header, HTTPException, Query, Request, Response, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
 
@@ -282,19 +282,50 @@ def get_state(mission_id: str, request: Request) -> dict:
     return _dump(_store(request, mission_id).state(mission_id))
 
 
-@missions_router.get("/missions/{mission_id}/events")
+@missions_router.get("/missions/{mission_id}/events", response_model=None)
 async def get_events(
     mission_id: str,
     request: Request,
     last_event_id: Annotated[str | None, Header()] = None,
     after: Annotated[str | None, Query()] = None,  # EventSource can't set headers on first connect
-) -> StreamingResponse:
+    format: Annotated[Literal["sse", "json"] | None, Query()] = None,
+    accept: Annotated[str | None, Header()] = None,
+) -> Response:
+    """The mission's event stream (SSE): every ``MissionEvent``, each followed by its ``timeline``
+    lines (1.3, ``TimelineEntry``, same id). With ``?format=json`` (or ``Accept: application/json``
+    without ``text/event-stream``): the whole timeline as a JSON list, oldest first; ``after`` keeps
+    only the lines after that event id."""
+    from sightline.mission import timeline as tl
+
     store = _store(request, mission_id)
+    wants_json = format == "json" or (
+        format is None
+        and "application/json" in (accept or "")
+        and "text/event-stream" not in (accept or "")
+    )
+    if wants_json:
+        lines = tl.mission_timeline(store, mission_id)
+        if after:
+            n = _event_no(after)
+            lines = [x for x in lines if _event_no(x.id.split("-")[0]) > n]
+        return JSONResponse(_dump(lines))
+    cache: dict[str, Any] = {}
+
+    def lines_of(ev: Any) -> list:
+        if "ctx" not in cache or ev.type in ("team.updated", "mission.note"):
+            cache["ctx"] = tl.for_store(store, mission_id)  # teams change; sectors don't
+        return tl.entries(ev, *cache["ctx"])
+
     return StreamingResponse(
-        event_stream(store.subscribe(mission_id, last_event_id or after)),
+        event_stream(store.subscribe(mission_id, last_event_id or after), timeline=lines_of),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+def _event_no(event_id: str) -> int:
+    digits = event_id.lstrip("e")
+    return int(digits) if digits.isdigit() else 0
 
 
 # --- photos -------------------------------------------------------------------------------

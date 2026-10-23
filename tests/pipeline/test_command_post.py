@@ -430,3 +430,165 @@ def test_direct_actions_are_in_the_ics_214_beside_the_approvals(api) -> None:
     md = client.get(f"/missions/{mid}/ics214.md").text
     assert "Direct action: Team Two assigned to sector B3" in md
     assert "Direct action: Sector B3 searched at POD 50%" in md
+
+
+# --- one timeline -------------------------------------------------------------------------------
+
+DRONE = {"id": "D1", "name": "Drone 1", "simulated": True, "position": LKP, "altitude_m": 50,
+         "speed_ms": 8, "battery_pct": 60, "max_wind_kmh": 43.2, "status": "idle", "leg_id": None}  # fmt: skip
+
+
+def _busy_mission(client: TestClient, store: MissionStore) -> str:
+    """A mission with one of everything the timeline shows."""
+    from sightline.contract import Leg, Proposal, RadioTurn
+    from sightline.radio.mount import StoreMissionApi
+
+    mid = mission(client)
+    StoreMissionApi(store).record_turn(mid, RadioTurn(
+        id="r0001", direction="in", callsign="T2", transcript="Sightline, Team Two, at the creek, over.",
+        reply="Team Two, Sightline. Copy, over.", audio=None, state="answered", actions=[], asr_ms=None,
+        llm_ms=None, tts_ms=None, at="2026-10-24T21:00:00Z"))  # fmt: skip
+    client.post(f"/missions/{mid}/clues", headers=AUTH, json={
+        "kind": "object", "text": "blue water bottle", "lat": LKP["lat"] - 0.001, "lon": LKP["lon"],
+        "reported_by": "T2", "source": "form"})  # fmt: skip
+    client.post(
+        f"/missions/{mid}/teams/T1/assign", headers=AUTH, json={"sector": "C2", "by": "Dana"}
+    )
+    client.post(
+        f"/missions/{mid}/teams/T1/call", headers=AUTH, json={"text": "start C2 from the east"}
+    )
+    client.patch(
+        f"/missions/{mid}/teams/T1",
+        headers=AUTH,
+        json={"position": {"lat": 49.371, "lon": -122.943}},
+    )
+    client.put(
+        f"/missions/{mid}/fleet",
+        headers=AUTH,
+        json={"drones": [DRONE], "leg_status": {}, "at": "x"},
+    )
+    leg = Leg(id="L001", drone_id="D1", sector_id="B2", waypoints=[(-122.946, 49.371), (-122.947, 49.371)],
+              altitude_m=50, est_minutes=5, expected_clearance=0.02, score_per_min=0.004, reason="r",
+              status="proposed")  # fmt: skip
+    p = store.add_proposal(mid, Proposal(
+        id="", kind="drone_leg", summary="Send Drone 1 to sector B2", reason="r", briefing=None,
+        target={"drone": "D1", "leg": "L001"}, leg=leg, evidence=[], status="pending", created_by="planner",
+        created_at="t", decided_at=None, decided_by=None, decision_reason=None, edits=None))  # fmt: skip
+    client.post(
+        f"/missions/{mid}/proposals/{p.id}/decide",
+        headers=AUTH,
+        json={"decision": "approve", "by": "Dana"},
+    )
+    flying = {**DRONE, "status": "flying", "battery_pct": 45}
+    client.put(
+        f"/missions/{mid}/fleet",
+        headers=AUTH,
+        json={"drones": [flying], "leg_status": {"L001": "flying"}, "at": "y"},
+    )
+    client.put(
+        f"/missions/{mid}/fleet",
+        headers=AUTH,
+        json={"drones": [flying], "leg_status": {"L001": "done"}, "at": "z"},
+    )
+    client.post(
+        f"/missions/{mid}/fleet/link",
+        headers=AUTH,
+        json={"target": "D1", "link": "lost", "report": True},
+    )
+    client.post(f"/missions/{mid}/fleet/relay", headers=AUTH, json={
+        "team_id": "T3", "via": ["D1"], "hops": 1, "heard_at": "2026-10-24T21:10:00Z", "age_s": 30,
+        "lat": 49.369, "lon": -122.944})  # fmt: skip
+    client.post(
+        f"/missions/{mid}/found", headers=AUTH, json={"team": "T1", "sector": "C2", "by": "Dana"}
+    )
+    return mid
+
+
+def test_the_timeline_has_every_kind_with_its_team_drone_and_sector(api) -> None:
+    client, store, _ = api
+    mid = _busy_mission(client, store)
+    lines = client.get(f"/missions/{mid}/events?format=json").json()
+    kinds = {"radio", "clue", "decision", "checkin", "drone", "found"}  # detections: the next test
+    assert {x["kind"] for x in lines} == kinds
+    radio = [x for x in lines if x["kind"] == "radio"]
+    assert [(x["direction"], x["team"]) for x in radio] == [
+        ("in", "T2"),
+        ("out", "T2"),
+        ("out", "T1"),
+    ]
+    assert radio[0]["turn_id"] == "r0001" and radio[1]["id"].endswith("-reply")
+    (clue,) = [x for x in lines if x["kind"] == "clue"]
+    assert (
+        clue["team"] == "T2"
+        and clue["sector"] is not None
+        and clue["text"] == "object: blue water bottle"
+    )
+    decisions = [x for x in lines if x["kind"] == "decision"]
+    assert (
+        decisions[0]["text"] == "Team One assigned to sector C2 (by Dana)"
+        and decisions[0]["by"] == "Dana"
+    )
+    assert any(
+        x["text"].startswith("Dana approved planner p") and x["drone"] == "D1" for x in decisions
+    )
+    drone = [x["text"] for x in lines if x["kind"] == "drone"]
+    assert any("leg L001 (sector B2) started" in t for t in drone) and any(
+        "battery 45 %" in t for t in drone
+    )
+    assert any("link lost" in t for t in drone) and any("approved for Drone 1" in t for t in drone)
+    checkins = [x for x in lines if x["kind"] == "checkin"]
+    assert {x["team"] for x in checkins} == {"T1", "T3"}
+    assert next(x for x in checkins if x["team"] == "T3")["drone"] == "D1"
+    (found,) = [x for x in lines if x["kind"] == "found"]
+    assert found["team"] == "T1" and found["sector"] == "C2" and found["by"] == "Dana"
+    # Accept: application/json gets the same list; after= keeps the newer lines only
+    assert (
+        client.get(f"/missions/{mid}/events", headers={"Accept": "application/json"}).json()
+        == lines
+    )
+    last = lines[-2]["id"].split("-")[0]
+    assert client.get(f"/missions/{mid}/events?format=json&after={last}").json() == [lines[-1]]
+
+
+def test_detections_and_second_looks_are_timeline_lines(api) -> None:
+    from sightline.contract import MissionEvent
+    from sightline.mission.timeline import entries
+
+    ev = MissionEvent(id="e00009", type="detection.new", at="t", summary="candidate f0001-d01 (0.80)",
+                      ref="f0001-d01", data={"lat": 49.37, "lon": -122.945})  # fmt: skip
+    (x,) = entries(ev, [], lambda lat, lon: "C2")
+    assert x.kind == "detection" and x.sector == "C2" and x.refs == ["f0001-d01"]
+    v = MissionEvent(id="e00010", type="verdict", at="t", summary="second look on f0001-d01: yes",
+                     ref="f0001-d01", data={"id": "v0001"})  # fmt: skip
+    assert entries(v)[0].kind == "detection"
+    assert (
+        entries(MissionEvent(id="e1", type="map.updated", at="t", summary="m", ref=None, data={}))
+        == []
+    )
+
+
+def test_the_event_stream_sends_each_events_timeline_lines_after_it() -> None:
+    import asyncio
+
+    from sightline.api.sse import event_stream
+    from sightline.contract import MissionEvent
+    from sightline.mission.timeline import entries
+
+    evs = [MissionEvent(id="e00001", type="clue.added", at="t", summary="s", ref="c001",
+                        data={"kind": "object", "text": "glove", "reported_by": "T1"}),
+           MissionEvent(id="e00002", type="map.updated", at="t", summary="m", ref=None, data=None)]  # fmt: skip
+
+    async def gen():
+        for e in evs:
+            yield e
+
+    async def collect():
+        return [x async for x in event_stream(gen(), timeline=lambda ev: entries(ev))]
+
+    out = asyncio.run(collect())
+    assert [x.split("\n")[0] for x in out] == [
+        "event: clue.added",
+        "event: timeline",
+        "event: map.updated",
+    ]
+    assert out[1].split("\n")[1] == "id: e00001" and '"kind":"clue"' in out[1]

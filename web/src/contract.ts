@@ -250,6 +250,7 @@ export interface MissionBundle {
   event: MissionEvent;
   trace: TraceEntry;
   radio_turn: RadioTurn;
+  timeline_entry: TimelineEntry;
 }
 export interface Mission {
   contract_version: "1.0" | "1.1" | "1.2" | "1.3";
@@ -537,4 +538,22 @@ export interface RadioTurn {
   llm_ms: number | null;
   tts_ms: number | null;
   at: string;
+}
+/**
+ * 1.3 (section 15): one line of the mission's one timeline, derived from its events
+ * (``sightline/mission/timeline.py``): radio turns and desk replies, clues, detections and second
+ * looks, decisions (approvals and direct actions), check-ins, drone legs and links, the find.
+ */
+export interface TimelineEntry {
+  id: string;
+  at: string;
+  kind: "radio" | "clue" | "detection" | "decision" | "checkin" | "drone" | "found";
+  team?: string | null;
+  drone?: string | null;
+  sector?: string | null;
+  text: string;
+  refs?: string[];
+  turn_id?: string | null;
+  direction?: ("in" | "out") | null;
+  by?: string | null;
 }
