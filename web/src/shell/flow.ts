@@ -2,14 +2,15 @@
 // over it, or a moment of the demo mission's timeline:
 //
 //   #                          → #m/demo (the landing: the console on the demo mission at t0, the pitch bar)
-//   #m/demo?t=0..5             the story at a checkpoint (the coach mark on; t0 is the landing)
-//   #m/<id>/<view>[?t=0..5]    a view of a mission: map (the console), photos, trace, debrief; on the
+//   #m/demo?t=0..6             the story at a checkpoint, its coach mark on: 0 the call, 1 photos land,
+//                              2 confirm, 3 where next, 4 the run, 5 the find, 6 the debrief
+//   #m/<id>/<view>[?t=0..6]    a view of a mission: map (the console), photos, trace, debrief; on the
 //                              demo, ?t= sets the mission clock, none is "now"
 //   #m/<id>/map?needs          the console with Needs You in front (#m/<id>/review lands here)
 //   #m/<id>/map?radio          the console with the timeline on Radio and the talk bar ready (#m/<id>/radio)
 //   #m/<id>/map/conditions     the console with the Conditions panel open
 //   #m/<id>/trace?log          the trace view on its event log
-//   #m/<id>/debrief?judges     the debrief with "Where to look, in order" open (#judges: #m/demo?t=5&judges)
+//   #m/<id>/debrief?judges     the debrief with "Where to look, in order" open (#judges: #m/demo?t=6&judges)
 //   #m/<id>/photos?try         the photos view with Try a photo open
 //   #m/<id>/card/<sector>      a sector's printable assignment card (live missions)
 //   #new                       the empty console: start a search, or load the demo mission
@@ -63,12 +64,14 @@ export const REDIRECTS: Readonly<Record<string, string>> = {
   "#review": `${DEMO}?t=2`,
   "#search": `${DEMO}?t=3`,
   "#searchnext": `${DEMO}?t=3`,
-  "#results": `${DEMO}?t=5`,
+  "#results": `${DEMO}?t=6`,
   // the old console aliases
   "#operate": DEMO_CONSOLE_HASH,
   "#command": DEMO_CONSOLE_HASH,
   // For judges is a fold of the debrief; Try a photo an action in the Photos rail
-  "#judges": `${DEMO}?t=5&judges`,
+  "#judges": `${DEMO}?t=6&judges`,
+  // the debrief was t5 before the find had a checkpoint of its own
+  "#m/demo?t=5&judges": `${DEMO}?t=6&judges`,
   "#try": `${DEMO}/photos?try`,
 };
 
@@ -108,7 +111,7 @@ export function routeFromHash(hash: string): Route {
   if (rawView === "card" && rest) return { kind: "card", id, sector: decodeURIComponent(rest) };
   const q = new URLSearchParams(query ?? "");
   const tv = q.get("t");
-  const t = tv !== null && /^[0-5]$/.test(tv) ? (Number(tv) as Checkpoint) : null;
+  const t = tv !== null && /^[0-6]$/.test(tv) ? (Number(tv) as Checkpoint) : null;
   const view = rawView && VIEW_IDS.includes(rawView) ? (rawView as View) : null;
   const open = {
     ...(rest === "conditions" ? { conditions: true } : {}),

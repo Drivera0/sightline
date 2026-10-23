@@ -1,38 +1,32 @@
 // Mission time on the demo mission: the one timeline the story and the console share. The demo mission
-// is one set of fixtures (demoMission.ts) dated on a scripted afternoon; this module says what of it is
-// visible at a given mission clock, so the story's six checkpoints are six clock readings of the same
-// mission, not six screens. `demoAt(full, clock, user)` is pure: the console's store (`useMission`) is
-// loaded with it whenever the scrubber moves.
+// is one set of fixtures (demoMission.ts) dated on one afternoon; this module says what of it is
+// visible at a given mission clock, so the story's seven checkpoints are seven clock readings of the same
+// mission, not seven screens. `demoAt(full, clock, user)` is pure: the console's store (`useMission`) is
+// loaded with it whenever the scrubber moves. What the coach marks say at each checkpoint is in
+// storyCopy.ts, read off the loaded scenario.
 
 import type { Clue, FleetState, MapBase, MapUpdate, MissionEvent, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { applyEvent, EMPTY, fleetLinksFromEvents, type MissionData } from "../lib/mission";
 import { LiveHeat, lookedAt } from "../search/live";
 
-export type Checkpoint = 0 | 1 | 2 | 3 | 4 | 5;
-export const CHECKPOINTS_ALL: readonly Checkpoint[] = [0, 1, 2, 3, 4, 5];
+export type Checkpoint = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export const CHECKPOINTS_ALL: readonly Checkpoint[] = [0, 1, 2, 3, 4, 5, 6];
+/** The last checkpoint: the debrief, at the end of the timeline ("now"). */
+export const LAST: Checkpoint = 6;
 
 /** What the right-hand side of the console shows (the view switch). */
 export type StoryView = "map" | "photos" | "debrief";
 
 export interface CheckpointDef {
   t: Checkpoint;
-  id: "call" | "photos" | "confirm" | "next" | "run" | "results";
+  id: "call" | "photos" | "confirm" | "next" | "run" | "find" | "debrief";
   /** The scrubber's tick label. */
   label: string;
   /** The mission clock at this checkpoint (ISO, UTC as the fixtures are dated; shown in Vancouver time). */
   at: string;
   /** The view the story shows here. */
   view: StoryView;
-  /**
-   * The coach mark: one sentence, in the mission's voice (null at t0, where the pitch bar speaks).
-   * `target` is a CSS selector on the real console.
-   */
-  mark: { text: string; target: string; aside?: string } | null;
-  /** The action on the real console that moves the story on (the coach mark waits for it, or Skip). */
-  gate?: "approve";
-  /** A mark shown once before this checkpoint's own (t3: the clue log, then the proposal). */
-  pre?: { text: string; target: string; aside?: string };
 }
 
 const DAY = "2026-10-24T";
@@ -42,64 +36,33 @@ export const FLIGHT = { start: `${DAY}20:42:00Z`, end: `${DAY}21:18:00Z` } as co
 export const BOARD_AT = `${DAY}21:42:00Z`;
 /** The drones leave the trailhead for their legs once the run is approved. */
 export const FLEET_OUT = `${DAY}21:44:00Z`;
+/** The end of the timeline: the fixtures' "now", half a minute after the find. */
+export const NOW_AT = `${DAY}22:00:00Z`;
 /** Where everyone waits before the run: the trailhead lot, where the subject's car is (the call). */
 export const TRAILHEAD = { lat: 49.373, lon: -122.949 } as const;
 /**
- * The proposal the story asks the visitor to approve at t3: the planner's assignment for Team One on the
- * map with the clues (scripts/make_command_fixtures.py; p001 and p002 are the second look's promotions).
+ * The overdue hiker's first assignment (scripts/make_command_fixtures.py; p001 and p002 are the second
+ * look's promotions). The story itself never names it: it reads the loaded scenario's first assignment.
  */
 export const STORY_PROPOSAL = "p003";
 /** The sector it proposes (the fixture's; missionTime.test checks the two agree). */
 export const STORY_SECTOR = "C2";
 
+/**
+ * The seven moments of the search. Every scenario keeps the overdue hiker's rhythm on the same afternoon
+ * (scenarios.ts moves a generator fixture onto it), so the clock readings are the same for all of them:
+ * the call, the survey's photos in, the review, the planner's tick, the run with the teams out, the find
+ * (the fixtures put it at 21:59:30), and the end of the timeline.
+ */
 export const CHECKPOINTS: readonly CheckpointDef[] = [
-  { t: 0, id: "call", label: "The call", at: `${DAY}20:35:00Z`, view: "map", mark: null },
-  {
-    t: 1,
-    id: "photos",
-    label: "Photos land",
-    at: FLIGHT.end,
-    view: "photos",
-    mark: { text: "Photos are landing: the detector reads each one, and the map updates as it is placed.", target: '[data-tour="photos"]' },
-  },
-  {
-    t: 2,
-    id: "confirm",
-    label: "Confirm",
-    at: `${DAY}21:31:00Z`,
-    view: "map",
-    mark: { text: "A person confirms every candidate; the third scored only 0.18, and a second look caught it.", target: '[data-tour="review"]' },
-  },
-  {
-    t: 3,
-    id: "next",
-    label: "Where next",
-    at: BOARD_AT,
-    view: "map",
-    mark: { text: "The clues moved the map: the agent proposes Team One for C2, says why, and waits for your approval.", target: `[data-proposal="${STORY_PROPOSAL}"]` },
-    gate: "approve",
-    pre: { text: "Clues move the map too: each confirmed clue changes where the person could be.", target: '[data-tour="timeline"]' },
-  },
-  {
-    t: 4,
-    id: "run",
-    label: "Run",
-    at: `${DAY}22:00:00Z`,
-    view: "map",
-    mark: { text: "Eighteen minutes on: teams are out, and B4 is searched at POD 60 %, lowered but never ruled out.", target: '[data-tour="tasks"]', aside: "Teams report by radio: hear them in the timeline." },
-  },
-  {
-    t: 5,
-    id: "results",
-    label: "Results",
-    at: `${DAY}22:00:00Z`,
-    view: "debrief",
-    mark: { text: "The debrief: what the detector found, how fast, and what breaks first.", target: '[data-tour="debrief"]' },
-  },
+  { t: 0, id: "call", label: "The call", at: `${DAY}20:35:00Z`, view: "map" },
+  { t: 1, id: "photos", label: "Photos land", at: FLIGHT.end, view: "map" },
+  { t: 2, id: "confirm", label: "Confirm", at: `${DAY}21:31:00Z`, view: "map" },
+  { t: 3, id: "next", label: "Where next", at: BOARD_AT, view: "map" },
+  { t: 4, id: "run", label: "Run", at: `${DAY}21:58:30Z`, view: "map" },
+  { t: 5, id: "find", label: "The find", at: `${DAY}21:59:45Z`, view: "map" },
+  { t: 6, id: "debrief", label: "Debrief", at: NOW_AT, view: "debrief" },
 ];
-
-/** The coach marks: one per checkpoint after the call (five). */
-export const MARK_COUNT = CHECKPOINTS.filter((c) => c.mark).length;
 
 const ms = (iso: string) => new Date(iso).getTime();
 const iso = (t: number) => new Date(t).toISOString().replace(/\.\d+Z$/, "Z");
@@ -124,7 +87,7 @@ export function tFromHash(hash: string): Checkpoint | null {
   const q = hash.split("?")[1];
   if (!q) return null;
   const v = new URLSearchParams(q).get("t");
-  if (v === null || !/^[0-5]$/.test(v)) return null;
+  if (v === null || !/^[0-6]$/.test(v)) return null;
   return Number(v) as Checkpoint;
 }
 
@@ -320,6 +283,6 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
 export function checkpointAtOrBefore(clock: string): Checkpoint {
   const c = ms(clock);
   let found: Checkpoint = 0;
-  for (const cp of CHECKPOINTS) if (ms(cp.at) <= c && cp.t !== 5) found = cp.t;
+  for (const cp of CHECKPOINTS) if (ms(cp.at) <= c) found = cp.t;
   return found;
 }

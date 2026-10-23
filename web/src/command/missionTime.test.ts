@@ -6,7 +6,7 @@ import {
   BOARD_AT,
   CHECKPOINTS,
   FLIGHT,
-  MARK_COUNT,
+  LAST,
   STORY_PROPOSAL,
   STORY_SECTOR,
   TRAILHEAD,
@@ -15,6 +15,7 @@ import {
   demoAt,
   frameTime,
   tFromHash,
+  type Checkpoint,
   type DemoFull,
 } from "./missionTime";
 import { useStory } from "./story";
@@ -43,16 +44,28 @@ const full: DemoFull = {
   data: { ...fx, mapBase: base, mapUpdates: [...frames, ...fx.map_updates], verdicts: [] },
   now: fx.now,
 };
-const at = (t: 0 | 1 | 2 | 3 | 4 | 5) => demoAt(full, clockAt(t));
+const at = (t: Checkpoint) => demoAt(full, clockAt(t));
 
 describe("mission time: the demo mission's checkpoints", () => {
-  it("has six checkpoints in clock order and five coach marks, one sentence each", () => {
-    expect(CHECKPOINTS.map((c) => c.id)).toEqual(["call", "photos", "confirm", "next", "run", "results"]);
+  it("has seven checkpoints in clock order, from the call to the debrief at the fixtures' end", () => {
+    expect(CHECKPOINTS.map((c) => c.id)).toEqual(["call", "photos", "confirm", "next", "run", "find", "debrief"]);
     const times = CHECKPOINTS.map((c) => new Date(c.at).getTime());
+    expect(new Set(times).size).toBe(times.length);
     expect([...times].sort((a, b) => a - b)).toEqual(times);
-    expect(MARK_COUNT).toBe(5);
-    for (const c of CHECKPOINTS) if (c.mark) expect(c.mark.text.split(/[.!?](\s|$)/).filter((x) => x.trim()).length).toBe(1);
-    expect(CHECKPOINTS.at(-1)!.at).toBe(fx.now); // the story ends at the fixtures' "now"
+    expect(CHECKPOINTS[LAST]!.at).toBe(fx.now); // the story ends at the fixtures' "now"
+    expect(CHECKPOINTS.map((c) => c.view)).toEqual(["map", "map", "map", "map", "map", "map", "debrief"]);
+  });
+
+  it("t4 is before the find and t5 just after it: the radio call, then Found on the status line", () => {
+    const found = fx.mission!.found!;
+    expect(new Date(clockAt(4)).getTime()).toBeLessThan(new Date(found.at).getTime());
+    expect(new Date(clockAt(5)).getTime()).toBeGreaterThan(new Date(found.at).getTime());
+    const run = at(4);
+    expect(run.mission!.found).toBeNull();
+    expect(run.mission!.status).not.toBe("found");
+    const find = at(5);
+    expect(find.mission!).toMatchObject({ status: "found", found: { team: "T1", sector: STORY_SECTOR } });
+    expect(find.timeline!.some((e) => e.kind === "radio" && e.direction === "in" && /Subject located/.test(e.text))).toBe(true);
   });
 
   it("t0, the call: no clue yet, everyone at the trailhead, an empty board, no photo on the map", () => {
@@ -108,7 +121,6 @@ describe("mission time: the demo mission's checkpoints", () => {
     // and the story's proposal is the planner's on the fixture's map: Team One to that sector
     const p = fx.proposals!.find((x) => x.id === STORY_PROPOSAL)!;
     expect(p).toMatchObject({ kind: "assign_sector", target: { team: "T1", sector: STORY_SECTOR } });
-    expect(CHECKPOINTS[3]!.mark!.text).toContain(`Team One for ${STORY_SECTOR}`);
   });
 
   it("t3, where next: the board is seeded from the map and the story's proposal waits for a person", () => {
@@ -121,8 +133,8 @@ describe("mission time: the demo mission's checkpoints", () => {
     expect(s.teams!.every((t) => t.status === "standby")).toBe(true);
   });
 
-  it("t4, run: the fixtures' end; B4 searched at POD 60 %, teams out, drones on their legs", () => {
-    const s = at(4);
+  it("t6, the fixtures' end; B4 searched at POD 60 %, teams out, drones on their legs", () => {
+    const s = at(6);
     const b4 = s.tasks!.find((t) => t.sector_id === "B4")!;
     expect(b4.state).toBe("searched");
     expect(b4.pod).toBe(0.6);
@@ -157,31 +169,52 @@ describe("mission time: the demo mission's checkpoints", () => {
     expect(tFromHash("#m/demo?t=9")).toBeNull();
     expect(tFromHash("#m/demo")).toBeNull();
     expect(checkpointAtOrBefore(clockAt(2, 0.5))).toBe(1);
-    expect(checkpointAtOrBefore(clockAt(5))).toBe(4);
+    expect(checkpointAtOrBefore(clockAt(5))).toBe(5);
+    expect(checkpointAtOrBefore(clockAt(6))).toBe(6);
+    expect(tFromHash("#m/demo?t=6")).toBe(6);
   });
 });
 
 describe("the story's clock", () => {
-  it("begins at t1 with the marks on, steps with next and previous, and leaves the clock where it is on exit", () => {
+  it("begins at the call with the marks on, steps beat by beat, and leaves the clock where it is on exit", () => {
     useStory.getState().reset();
+    useStory.getState().setBeats([1, 2, 3, 2, 2, 1, 1]);
     useStory.getState().begin();
-    expect(useStory.getState()).toMatchObject({ t: 1, tour: true, pitch: false });
-    useStory.getState().setProgress(1);
+    expect(useStory.getState()).toMatchObject({ t: 0, beat: 0, tour: true, pitch: false });
     useStory.getState().next();
-    expect(useStory.getState().t).toBe(2);
-    useStory.getState().previous();
-    expect(useStory.getState()).toMatchObject({ t: 1, progress: 1 });
+    expect(useStory.getState()).toMatchObject({ t: 1, beat: 0 });
+    useStory.getState().setProgress(1);
+    useStory.getState().next(); // t1's second mark: the same clock
+    expect(useStory.getState()).toMatchObject({ t: 1, beat: 1, progress: 1 });
+    useStory.getState().next();
+    expect(useStory.getState()).toMatchObject({ t: 2, beat: 0 });
+    useStory.getState().previous(); // back to the last mark of t1
+    expect(useStory.getState()).toMatchObject({ t: 1, beat: 1, progress: 1 });
     useStory.getState().exit();
     expect(useStory.getState()).toMatchObject({ t: 1, tour: false });
     useStory.getState().skipToNow();
-    expect(useStory.getState()).toMatchObject({ t: 4, progress: 1, tour: false });
+    expect(useStory.getState()).toMatchObject({ t: LAST, progress: 1, tour: false });
+  });
+
+  it("steps over a checkpoint the scenario has no beat for, both ways, and t3's approval moves on whatever the beat", () => {
+    useStory.getState().reset();
+    useStory.getState().setBeats([1, 2, 3, 2, 1, 0, 1]); // no find
+    useStory.getState().seek(4, { tour: true });
+    useStory.getState().next();
+    expect(useStory.getState().t).toBe(6);
+    useStory.getState().previous();
+    expect(useStory.getState()).toMatchObject({ t: 4, beat: 0 });
+    useStory.getState().seek(3, { tour: true });
+    useStory.getState().nextCheckpoint();
+    expect(useStory.getState()).toMatchObject({ t: 4, beat: 0 });
+    useStory.getState().setBeats([1, 2, 3, 2, 2, 1, 1]);
   });
 
   it("with reduced motion the scrubber's play jumps to the end", () => {
     useStory.getState().reset();
     useStory.getState().seek(1, { tour: false });
     useStory.getState().play(); // the tests have no matchMedia: reduced motion
-    expect(useStory.getState()).toMatchObject({ t: 4, progress: 1, playing: false, through: null });
+    expect(useStory.getState()).toMatchObject({ t: LAST, progress: 1, playing: false, through: null });
   });
 
   it("the scrubber's play runs the clock from the checkpoint it is at through to the end, and pauses", () => {
@@ -197,12 +230,12 @@ describe("the story's clock", () => {
     useStory.getState().play(); // pause
     expect(useStory.getState().playing).toBe(false);
     useStory.getState().play(); // resume
-    for (const t of [3, 4]) {
+    for (const t of [3, 4, 5, 6]) {
       useStory.getState().setProgress(1);
       expect(useStory.getState()).toMatchObject({ t, progress: 0, playing: true });
     }
     useStory.getState().setProgress(1);
-    expect(useStory.getState()).toMatchObject({ t: 4, progress: 1, playing: false, through: null });
+    expect(useStory.getState()).toMatchObject({ t: LAST, progress: 1, playing: false, through: null });
     // at the end, play starts again from the call
     useStory.getState().play();
     expect(useStory.getState()).toMatchObject({ t: 1, playing: true, through: clockAt(0) });
@@ -226,7 +259,7 @@ describe("the run: drones fly their legs and teams walk out as the clock moves",
       expect(near(d.position, end[i]!.position!)).toBe(false);
       expect(near(d.position, b[i]!.position!)).toBe(false); // a minute later it is somewhere else
     }
-    expect(demoAt(full, clockAt(4)).fleet!.drones.map((d) => d.position)).toEqual(end.map((d) => d.position));
+    expect(demoAt(full, clockAt(LAST)).fleet!.drones.map((d) => d.position)).toEqual(end.map((d) => d.position));
   });
 
   it("a team out on a task walks from the trailhead to its last reported position", () => {

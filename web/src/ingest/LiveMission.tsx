@@ -11,10 +11,11 @@ import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent,
 import { clueLine, clueShifts } from "../command/clueShift";
 import { CoachMark } from "../command/CoachMark";
 import { candidatePosition, demoCards, landedFrames, RECORDED_ID } from "../command/demoReview";
-import { CHECKPOINTS, checkpoint, demoAt, MARK_COUNT, STORY_PROPOSAL, type Checkpoint, type DemoFull } from "../command/missionTime";
+import { checkpoint, demoAt, LAST, STORY_PROPOSAL, type Checkpoint, type DemoFull } from "../command/missionTime";
+import { beatCounts, markIndex, storyBeats, storyProposal as firstAssignment } from "../command/storyCopy";
 import { PhotoStrip, PhotosRail } from "../command/PhotosRail";
 import { PitchBar } from "../command/PitchBar";
-import { Scrubber } from "../command/Scrubber";
+import { Scrubber, STORY_HINT } from "../command/Scrubber";
 import { landing, RUN_MS, storyClock, useStory } from "../command/story";
 import { isTyping } from "../lib/keys";
 import { cacheUrl, loadCache } from "../lib/cache";
@@ -154,7 +155,7 @@ function storyFromRoute(route: MissionRoute): void {
 
 /** The demo mission's clock, the story's checkpoint, the view and the scenario, as an address. */
 function demoHash(view: View, t: Checkpoint, tour: boolean, pitch: boolean, seed: string | null = null): string {
-  const h = pitch ? "#m/demo" : tour ? `#m/demo?t=${t}` : viewHash(DEMO_MISSION_ID, view, t >= 4 ? null : t);
+  const h = pitch ? "#m/demo" : tour ? `#m/demo?t=${t}` : viewHash(DEMO_MISSION_ID, view, t >= LAST ? null : t);
   return seed ? `${h}${h.includes("?") ? "&" : "?"}s=${encodeURIComponent(seed)}` : h;
 }
 
@@ -176,7 +177,6 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const [logOpen, setLogOpen] = useState(!!route.open.log);
   const [condOpen, setCondOpen] = useState(!!route.open.conditions);
   const condId = useId();
-  const [preSeen, setPreSeen] = useState<number[]>([]);
   const [demoData, setDemoData] = useState<{ full: DemoFull; bundle: CacheBundle } | null>(null);
   const [bundle, setBundle] = useState<CacheBundle | null>(null);
   const tab = useConsole((x) => x.tab);
@@ -336,14 +336,19 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     if (demo && story.tour && (story.t === 2 || story.t === 3)) useConsole.getState().setTab("needs");
   }, [demo, story.tour, story.t]);
 
-  // t3's gate: the visitor's approval of the story's proposal runs the clock to t4. The story's proposal is
-  // the scenario's first assignment (the overdue hiker's p003), so the story works on any scenario.
-  const storyAssign = scenario?.data.proposals?.find((p) => p.kind === "assign_sector") ?? null;
+  // The story's beats for this scenario (storyCopy.ts): what each coach mark says and where it points.
+  const beats = useMemo(() => storyBeats(scenario), [scenario]);
+  useEffect(() => {
+    if (demo && scenario) useStory.getState().setBeats(beatCounts(beats));
+  }, [demo, scenario, beats]);
+  // t3's gate: the visitor's approval of the story's proposal runs the clock on to the run. The story's
+  // proposal is the scenario's first assignment (the overdue hiker's p003), so the story works on any scenario.
+  const storyAssign = firstAssignment(scenario);
   const storyProposal = storyAssign?.id ?? STORY_PROPOSAL;
   useEffect(() => {
     if (!demo || !story.tour || story.t !== 3 || story.progress < 1) return;
     const decided = story.user.some((e) => e.type === "proposal.decided" && e.ref === storyProposal);
-    if (decided) useStory.getState().seek(4, { animate: true });
+    if (decided) useStory.getState().nextCheckpoint();
   }, [demo, story.tour, story.t, story.progress, story.user, storyProposal]);
 
   /** Load another scenario: the visitor's actions and answers go with the old one. */
@@ -428,7 +433,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // on the map, a team picked on the roster (after the next paint). Once wanted it stays.
   const [still] = useState(wantsStillMap);
   const [wanted, setWanted] = useState<"auto" | "tap" | null>(null);
-  const storyMoves = demo && (story.tour || story.playing) && (story.t === 1 || story.t === 4);
+  const storyMoves = demo && (story.tour || story.playing) && story.t >= 1 && story.t !== 2 && story.t !== LAST;
   const picking = usePick((p) => p.pending !== null);
   const teamPicked = useSelection((x) => x.selectedTeamId !== null || x.selectedClueId !== null);
   const sectorOpen = useConsole((x) => x.sector !== null || x.picking !== null);
@@ -634,15 +639,10 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const barAt = demo ? new Date(clockIso) : new Date();
   const barClock = demo || s.mission ? clockWithZone(barAt, clockZone.tz) : null;
   const barTitle = `Mission clock · ${utcLabel(barAt)}`;
-  // a checkpoint's pre-mark (t3: the timeline) comes once, before its own mark
-  const pre = demo && story.tour && !preSeen.includes(t) ? (CHECKPOINTS[t]?.pre ?? null) : null;
-  const baseMark = demo && story.tour ? (pre ?? CHECKPOINTS[t]?.mark) : null;
-  // t3's mark names the scenario's own proposal (its team and sector) and points at its card
-  const mark =
-    baseMark && !pre && t === 3 && storyAssign
-      ? { ...baseMark, text: `The clues moved the map: the agent proposes ${s.teams.find((x) => x.id === storyAssign.target.team)?.callsign ?? storyAssign.target.team} for ${storyAssign.target.sector}, says why, and waits for your approval.`, target: "[data-story-proposal]" }
-      : baseMark;
-  const markIndex = CHECKPOINTS.filter((c) => c.mark && c.t <= t).length;
+  // the coach mark at this checkpoint and beat (it shows while the clock runs into the checkpoint too)
+  const mark = demo && story.tour ? (beats[t]?.[story.beat] ?? null) : null;
+  const markCount = beats.reduce((n, b) => n + b.length, 0);
+  const markNo = markIndex(beats, t, story.beat);
   const needsCount = s.proposals.filter((p) => p.status === "pending").length + reviewCount;
   const inStory = demo && (story.tour || story.playing);
 
@@ -651,7 +651,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       <div className="flex min-h-dvh flex-col lg:h-dvh">
         <AppBar
           mission={{ name: s.mission?.name ?? (demo ? "Mount Seymour (demo)" : "…"), mode: demo ? "demo" : modeOf(s.status), clock: barClock, clockTitle: barTitle, disclose: demo }}
-          views={{ current: view, onSelect: go, counts: { map: needsCount || undefined } }}
+          views={{ current: view, onSelect: go, counts: { map: needsCount || undefined, photos: inStory ? frameCount || undefined : undefined } }}
           tabs={{
             current: tab,
             needs: needsCount || undefined,
@@ -776,7 +776,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               overMap={
                 inStory ? (
                   <Scrubber
-                    t={view === "debrief" && t === 4 && story.progress >= 1 ? 5 : t}
+                    t={t}
                     progress={story.progress}
                     playing={story.playing}
                     at={clockIso}
@@ -793,8 +793,13 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                     onSeek={(to) => {
                       const st = useStory.getState();
                       st.seek(to, { animate: to === st.t + 1 });
-                      if (!st.tour) setView(to === 5 ? "debrief" : view === "debrief" ? "map" : view);
+                      if (!st.tour) setView(to === LAST ? "debrief" : view === "debrief" ? "map" : view);
                     }}
+                    onSkip={() => {
+                      useStory.getState().skipToNow();
+                      setView("map");
+                    }}
+                    hint={story.tour ? STORY_HINT : null}
                   />
                 ) : undefined
               }
@@ -810,14 +815,12 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           <CoachMark
             text={mark.text}
             target={mark.target}
-            index={markIndex}
-            count={MARK_COUNT}
-            last={t === 5}
-            gate={!pre && checkpoint(t).gate === "approve" ? "Approve it on the card to send the team." : undefined}
-            aside={mark.aside}
-            onAside={mark.aside ? toRadio : undefined}
-            onNext={() => (pre ? setPreSeen((s) => [...s, t]) : t === 5 ? useStory.getState().exit() : useStory.getState().next())}
-            onBack={t > 1 ? () => useStory.getState().previous() : undefined}
+            index={markNo}
+            count={markCount}
+            last={markNo >= markCount}
+            gate={mark.gate === "approve" ? "Approve it on the card to send the team." : undefined}
+            onNext={() => (markNo >= markCount ? useStory.getState().exit() : useStory.getState().next())}
+            onBack={markNo > 1 ? () => useStory.getState().previous() : undefined}
             onExit={() => useStory.getState().exit()}
             onToggleClock={() => useStory.getState().toggle()}
           />
