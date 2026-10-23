@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Detection, MissionEvent, Proposal } from "../contract";
-import { applyEvent, EMPTY, photoProgress, useMission, type MissionData } from "./mission";
+import { applyEvent, EMPTY, photoProgress, useMission, userClueId, type MissionData } from "./mission";
 
 const AT = "2026-10-24T21:40:00Z";
 const API = "http://api.test";
@@ -139,7 +139,7 @@ describe("useMission, demo", () => {
     const s = useMission.getState();
     expect(s.proposals[0]).toMatchObject({ status: "approved", briefing: "Edited." });
     expect(s.tasks[0]).toMatchObject({ sector_id: "B3", state: "searched", pod: 0.6 });
-    expect(s.clues[0]?.id).toBe("c001");
+    expect(s.clues[0]?.id).toBe("u-c001") // a visitor's clue: its own id space;
     expect(s.events.map((e) => e.type)).toEqual(["proposal.decided", "task.updated", "clue.added"]);
   });
 
@@ -155,5 +155,12 @@ describe("useMission, demo", () => {
     useMission.getState().useDemo({ ...base(), proposals: [proposal()] });
     await useMission.getState().decide("p001", "approve", "Search manager");
     expect(useMission.getState().proposals[0]?.decided_at).not.toBe("2026-10-24T21:55:00Z");
+  });
+});
+
+describe("a visitor's clue on the demo (judges 2026-10-23 addendum)", () => {
+  it("has an id of its own, never one a fixture clue takes later", () => {
+    expect(userClueId([{ id: "c001" }, { id: "c002" }])).toBe("u-c001");
+    expect(userClueId([{ id: "c001" }, { id: "u-c001" }, { id: "c004" }, { id: "u-c002" }])).toBe("u-c003");
   });
 });

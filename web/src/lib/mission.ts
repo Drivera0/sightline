@@ -249,6 +249,15 @@ interface MissionStore extends MissionData {
   emit: (type: MissionEvent["type"], summary: string, ref: string | null, data: unknown) => void;
 }
 
+/**
+ * A clue the visitor adds on the demo has an id of its own ("u-c001", "u-c002"…), never the fixtures' "c004":
+ * numbered by count, a visitor's clue could take an id a fixture clue uses later and overwrite it.
+ */
+export function userClueId(clues: readonly { id: string }[]): string {
+  const n = clues.reduce((m, c) => Math.max(m, Number(/^u-c(\d+)$/.exec(c.id)?.[1] ?? 0)), 0) + 1;
+  return `u-c${String(n).padStart(3, "0")}`;
+}
+
 /** Who acts on this console (the inbox's old "You are"; one name for the page). */
 export const OPERATOR_KEY = "sightline.operator";
 export function operatorName(): string {
@@ -616,8 +625,7 @@ export const useMission = create<MissionStore>((set, get) => {
     addClue: async (draft) => {
       const a = get().api;
       if (!a) {
-        const n = get().clues.length + 1;
-        const clue = { ...draft, id: `c${String(n).padStart(3, "0")}`, lat: draft.lat ?? 0, lon: draft.lon ?? 0, radius_m: draft.radius_m ?? 25, at: now(), confirmed: true } as Clue;
+        const clue = { ...draft, id: userClueId(get().clues), lat: draft.lat ?? 0, lon: draft.lon ?? 0, radius_m: draft.radius_m ?? 25, at: now(), confirmed: true } as Clue;
         demoEvent("clue.added", `${clue.kind}: ${clue.text}`, clue.id, clue);
         return;
       }

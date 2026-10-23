@@ -2,7 +2,7 @@
 // approved"), pure: where it starts (where it is, else the sector it last worked, else base camp), the point
 // where it enters the new sector (the nearest point of the outline), and the sweep inside it (east-west
 // lines, as a drone's). The map draws the route growing along it (LiveHeatMap); the demo's walk
-// (command/demoWalk.ts) moves the team along the same path. Built by lane A.
+// (command/focusLayers.ts) and the guided search's engine (command/sim.ts) send the team the same way. Built by lane A.
 import { metres, type LonLat } from "./fleetMotion";
 
 type Polygon = readonly (readonly [number, number])[];
