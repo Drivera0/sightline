@@ -2,7 +2,7 @@
 // (the agent's pick first, when it proposed one), send a drone leg, mark it searched at a POD (never 100 %:
 // a search lowers a sector's probability, it never removes it), open it again for a recheck, or record the
 // find. Every action is logged to the timeline like an approval. Built by lane A.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { KeyHint } from "../shell/components";
@@ -64,7 +64,12 @@ export function SectorPopover({
   }, [onClose, id]);
   const W = 288;
   const left = Math.max(8, Math.min(x + 12, width - W - 8));
-  const top = Math.max(8, Math.min(y - 24, height - 360));
+  // inside the map: its own measured height decides how high it may open (it scrolls when the map is shorter)
+  const [tall, setTall] = useState(360);
+  useLayoutEffect(() => {
+    if (box.current) setTall(box.current.offsetHeight);
+  });
+  const top = Math.max(8, Math.min(y - 24, height - tall - 8));
   const state = !task || task.state === "proposed" ? "open" : task.state === "searched" ? `searched at POD ${Math.round((task.pod ?? 0) * 100)} %` : `${task.state === "assigned" ? "assigned to" : "being searched by"} ${assigned?.callsign ?? task.team_id}`;
   return (
     <div
@@ -72,7 +77,7 @@ export function SectorPopover({
       role="dialog"
       aria-label={`Sector ${id}`}
       className="sl-pop absolute z-20 flex flex-col gap-3 rounded-lg border border-border bg-surface-solid p-3 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)]"
-      style={{ left, top, width: W }}
+      style={{ left, top, width: W, maxHeight: height - 16, overflowY: "auto" }}
     >
       <div className="flex items-baseline gap-2">
         <span className="text-title font-medium text-text">{id}</span>
