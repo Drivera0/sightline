@@ -29,6 +29,18 @@ def token_from_env() -> str | None:
     return os.environ.get(ENV, "").strip() or None
 
 
+def bearer_problem(header: str | None, token: str | bytes) -> str | None:
+    """None if ``header`` is ``Bearer <token>``, else the reason it is not (``MISSING``,
+    ``WRONG``). Also used by reads that may cost a paid call (``GET /missions/{id}/similar``)."""
+    expected = token.encode() if isinstance(token, str) else token
+    scheme, _, given = (header or "").partition(" ")
+    if scheme.lower() != "bearer" or not given.strip():
+        return MISSING
+    if not hmac.compare_digest(given.strip().encode(), expected):
+        return WRONG
+    return None
+
+
 class WriteToken:
     """Refuses write methods without ``Authorization: Bearer <token>``."""
 
@@ -51,9 +63,4 @@ class WriteToken:
 
     def check(self, header: str | None) -> str | None:
         """None if ``header`` carries the token, else the reason for the 401."""
-        scheme, _, given = (header or "").partition(" ")
-        if scheme.lower() != "bearer" or not given.strip():
-            return MISSING
-        if not hmac.compare_digest(given.strip().encode(), self.token):
-            return WRONG
-        return None
+        return bearer_problem(header, self.token)

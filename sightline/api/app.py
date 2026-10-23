@@ -72,6 +72,7 @@ def create_app(
     from sightline.api.command import TAG_DOC as COMMAND_DOC
     from sightline.api.command import command_router
     from sightline.api.exports import TAG_DOC, exports_router
+    from sightline.api.similar import similar_router
 
     app = FastAPI(
         title="Sightline upload API",
@@ -90,6 +91,7 @@ def create_app(
     if missions is not None:
         app.state.missions = missions
         app.include_router(missions_router)
+        app.include_router(similar_router)
         app.include_router(exports_router)
         app.include_router(command_router)
         if radio:  # the radio desk on the same missions (D-R4): "text" or "real" voices
@@ -103,6 +105,7 @@ def create_app(
     # others, so a 401, 413 or 429 still carries the CORS headers the browser needs to read it.
     app.add_middleware(BodyLimit)
     token = api_token or token_from_env()
+    app.state.api_token = token  # reads that may cost a paid call check it (api/similar.py)
     if token:
         app.add_middleware(WriteToken, token=token)
     rate = rate_from_env() if rate_limit == "env" else rate_limit

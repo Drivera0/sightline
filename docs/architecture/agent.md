@@ -103,6 +103,7 @@ sequenceDiagram
 | Human | The search manager approves, edits or rejects; nothing happens before that | lane E inbox, lane D API |
 | Effect | Approved detections join the review queue; approved legs go to the fleet; approved briefings go to the radio | lane D |
 | Command post (v1.3) | A team out in the field not heard for the mission's check-in interval goes `overdue` and the agent proposes an `alert` to call it (`overdue_team`); the manager's direct actions (assign, call, recall, searched, recheck) log beside the approvals; once the mission is `found` the agent proposes nothing new | `loop.py` (`_on_team_overdue`), `mission/command.py` |
+| Similar photos (`find_similar`) | After a confirmed sighting only (a reviewer's "person" or a second look's `yes`): the flight's detection crops embedded once with a hosted NVIDIA model (Llama Nemotron Embed VL 1B v2), cosine top 5 from other photos at or above 0.92 (chosen on val); a `promote_detection` for each of up to 3 near-misses like it, matches already in the queue named in the feed. Traced `tool_call` → `proposal`. `GET /missions/{id}/similar` answers the same question for a crop or a text (`docs/report/SIMILAR.md`) | `similar_tool.py`, `sightline/ml/similar.py`, `sightline/api/similar.py` |
 | Tool choice (bulletin) | No lost-person category: Nemotron Nano decides whether to call `search_public_bulletin` and writes its query; Tavily search (trusted domains) → extract → profile with verbatim quotes, names redacted → one `Set subject profile` proposal; approval sets the category and the prior, then re-plans | `subject_tool.py`, `geo/subject.py` |
 
 ## One real chain: an OpenCV 5 result changes the decision
@@ -329,6 +330,19 @@ fixture (`SIGHTLINE_FAKE_LLM=1 SIGHTLINE_FAKE_VL=relook`: `unclear`, then `yes`)
   leg         L004       relook-f0001-d01   expected 0.000097 realised 0.000051 delta -0.000046
 ```
 
+## Photos like a confirmed one (`find_similar`)
+
+Rule: the agent asks for similar photos only after a confirmed sighting; proposals, never promotions.
+After a reviewer's "person" or a second look's `yes`, `sightline/agent/similar_tool.py` embeds the
+flight's crops with a hosted NVIDIA model (Llama Nemotron Embed VL 1B v2: NV-CLIP and NV-DINOv2 answer
+404 for our key). It takes the top 5 from other photos at cosine 0.92 or more and proposes up to 3
+near-misses for review, one `promote_detection` each. The trace is a `tool_call` (query, model,
+threshold, every match and what was done with it, calls and timeouts), then the proposals, under
+chain id `similar-<detection>`. On val, the top-3 near-misses at 0.92 were people 0.375 of the time
+by the VOC rule (0.825 counting group and offset boxes), against 0.215 (0.628) for any near-miss of
+the flight. On the demo flight nothing reaches 0.92, and the trace says "review 0 photos". Numbers,
+cost and limits: `docs/report/SIMILAR.md`.
+
 ## Evaluation
 
 **Task success.** On val (95 photos, 333 people) the second look on near-misses finds 11 more
@@ -358,7 +372,9 @@ logged and traced and never stops the agent or the pipeline (hooks only enqueue,
 
 **Human control.** The agent only proposes. It never dismisses a detection (no
 `dismiss_detection` in v1), never writes the fleet, and never transmits: approved briefings are
-sent by the radio operator. A newer leg proposal for a drone supersedes the older pending one; a
+sent by the radio operator. The agent asks for similar photos only after a confirmed sighting;
+proposals, never promotions (`similar_tool.py`, one `promote_detection` per look-alike, each
+approved on its own). A newer leg proposal for a drone supersedes the older pending one; a
 team has at most one pending assignment. Every decision records who and when (contract §12.3-5,
 checked by lane D's `validate_mission`).
 
