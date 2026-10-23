@@ -12,7 +12,9 @@ Team Four 4, ``TEAM_SPEAKERS``), the desk's reply or call in speaker 0, sentence
 desk speaks. Each clip is then **heard back by Parakeet** (TDT 0.6B v2, ``ParakeetAsr``) and scored
 against the line (word error rate after ``protocol.normalize``, as ``scripts/radio_wer.py``); Magpie
 samples, so a line is spoken up to ``--takes`` times and the take Parakeet heard best is kept. One
-model is on the GPU at a time: Magpie speaks every line of a take, is freed, then Parakeet hears them.
+model is on the GPU at a time, each in its own process (``--worker``): Magpie speaks every line of a
+take and exits, then Parakeet hears them and exits (freeing CUDA memory inside one process left the
+second engine out of memory under WSL).
 
 Writes ``web/public/voices/<scenario>/<turn_id>.mp3`` (team) and ``<turn_id>-desk.mp3`` (desk), 22.05
 kHz mono MP3 at 48 kbps, ``voices.json`` beside them (per clip: the line, the speaker, what Parakeet
@@ -141,6 +143,29 @@ def hear_all(jobs: list[tuple[str, Path]], device: str, dry_run: bool) -> list[s
         _free()
 
 
+def in_workers(jobs: Path, device: str, dry_run: bool) -> list[str]:
+    """Speak, then hear, the jobs in ``jobs`` (JSON ``[{text, speaker, wav}]``), each engine in a
+    process of its own; returns what Parakeet heard, in order."""
+    if dry_run:
+        items = json.loads(jobs.read_text())
+        speak_all([(j["text"], j["speaker"], Path(j["wav"])) for j in items], device, True)
+        return hear_all([(j["text"], Path(j["wav"])) for j in items], device, True)
+    me = [sys.executable, str(Path(__file__).resolve()), "--device", device, "--worker"]
+    subprocess.run([*me, "speak", str(jobs)], check=True)
+    subprocess.run([*me, "hear", str(jobs)], check=True)
+    return json.loads(jobs.with_suffix(".heard.json").read_text())
+
+
+def worker(kind: str, jobs: Path, device: str) -> int:
+    items = json.loads(jobs.read_text())
+    if kind == "speak":
+        speak_all([(j["text"], j["speaker"], Path(j["wav"])) for j in items], device, False)
+    else:
+        heard = hear_all([(j["text"], Path(j["wav"])) for j in items], device, False)
+        jobs.with_suffix(".heard.json").write_text(json.dumps(heard))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -151,7 +176,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--takes", type=int, default=3, help="speak a line up to this many times")
     ap.add_argument("--force", action="store_true", help="speak every line again")
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--worker", nargs=2, metavar=("speak|hear", "JOBS"), help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
+    if args.worker:
+        return worker(args.worker[0], Path(args.worker[1]), args.device)
     if shutil.which("ffmpeg") is None:
         print("needs ffmpeg")
         return 1
@@ -181,10 +209,10 @@ def main(argv: list[str] | None = None) -> int:
             if not todo:
                 break
             wavs = [Path(tmp) / f"{k}-{take}.wav" for k in range(len(todo))]
-            speak_all([(p["text"], p["speaker"], w) for p, w in zip(todo, wavs, strict=True)],
-                      args.device, args.dry_run)  # fmt: skip
-            heard = hear_all([(p["text"], w) for p, w in zip(todo, wavs, strict=True)],
-                             args.device, args.dry_run)  # fmt: skip
+            jobs = Path(tmp) / f"take{take}.json"
+            jobs.write_text(json.dumps([{"text": p["text"], "speaker": p["speaker"], "wav": str(w)}
+                                        for p, w in zip(todo, wavs, strict=True)]))  # fmt: skip
+            heard = in_workers(jobs, args.device, args.dry_run)
             for p, w, h in zip(todo, wavs, heard, strict=True):
                 err, words = word_errors(p["text"], h)
                 if p["best"] is None or err < p["best"][0]:
