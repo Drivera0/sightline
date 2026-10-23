@@ -246,3 +246,11 @@ describe("the run: drones fly their legs and teams walk out as the clock moves",
     expect(t1(fx.now).position).toEqual(fx.teams!.find((t) => t.id === "T1")!.position);
   });
 });
+
+describe("judges 2026-10-23 (5): no unlogged jump at the end of the timeline", () => {
+  it("reads every sector's POA from the same map log at 15:00 as a second before", () => {
+    const before = demoAt(full, new Date(new Date(fx.now).getTime() - 1000).toISOString());
+    const end = demoAt(full, fx.now);
+    for (const s of end.sectors!) expect(s.poa).toBeCloseTo(before.sectors!.find((x) => x.sector_id === s.sector_id)!.poa, 6);
+  });
+});

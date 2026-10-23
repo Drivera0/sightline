@@ -260,7 +260,9 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
   const events = (d.events ?? [])
     .filter((e) => eventTime(e) <= c)
     .sort((a, b) => a.at.localeCompare(b.at));
-  const sectors = now || !d.mapBase ? (d.sectors ?? []) : sectorsAt(d.mapBase, d.sectors ?? [], mapUpdates);
+  // every reading from the same map log, the end of the timeline too (the fixture's own "now" POA came from
+  // the server before the last legs and searches were applied: B1 jumped 0.4 → 1.6 % at 15:00, judges 2026-10-23)
+  const sectors = !d.mapBase ? (d.sectors ?? []) : sectorsAt(d.mapBase, d.sectors ?? [], mapUpdates);
   const base: MissionData = {
     ...EMPTY,
     ...d,
