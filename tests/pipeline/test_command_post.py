@@ -633,3 +633,89 @@ def test_the_overdue_hook_only_enqueues(monkeypatch) -> None:
     )
     hooks.on_team_overdue(None, "m", "T3")
     assert (jobs[0].event, jobs[0].ref) == ("team_overdue", "T3")
+
+
+# --- ICS 309 and the D4H log push ---------------------------------------------------------------
+
+
+def test_ics309_lists_every_radio_turn_with_from_and_to(api) -> None:
+    client, store, _ = api
+    mid = _busy_mission(client, store)
+    f = client.get(f"/missions/{mid}/ics309.json").json()
+    assert f["form"] == "ICS 309" and f["incident_name"] == "Seymour"
+    rows = [(r["from"], r["to"]) for r in f["communications_log"]]
+    cp = "Sightline (command post)"
+    assert rows == [("Team Two", cp), (cp, "Team Two"), (cp, "Team One")]
+    assert f["communications_log"][0]["message"] == "Sightline, Team Two, at the creek, over."
+    md = client.get(f"/missions/{mid}/ics309.md")
+    assert md.headers["content-type"].startswith("text/markdown")
+    assert "# Communications Log (ICS 309)" in md.text and "| 21:00 UTC | Team Two |" in md.text
+    empty = client.get(f"/missions/{mission(client)}/ics309.md").text
+    assert "No radio traffic logged yet." in empty
+
+
+class FakeD4h:
+    """A D4H Operations Center stand-in: records each log post; ``fail_after`` answers 500."""
+
+    def __init__(self, fail_after: int | None = None) -> None:
+        self.posts: list[tuple[str, dict, dict]] = []
+        self.fail_after = fail_after
+
+    def handler(self, request):
+        import json
+
+        import httpx
+
+        if self.fail_after is not None and len(self.posts) >= self.fail_after:
+            return httpx.Response(500, text="boom")
+        self.posts.append((request.url.path, json.loads(request.content), dict(request.headers)))
+        return httpx.Response(201, json={"id": len(self.posts)})
+
+
+def _mock_d4h(monkeypatch, fake: FakeD4h) -> None:
+    import httpx
+
+    from sightline.mission import d4h
+
+    monkeypatch.setattr(d4h, "client_factory",
+                        lambda base: httpx.Client(base_url=base, transport=httpx.MockTransport(fake.handler)))  # fmt: skip
+
+
+def test_d4h_push_needs_a_token_in_the_environment(api, monkeypatch) -> None:
+    client, _store, _ = api
+    mid = mission(client)
+    monkeypatch.delenv("D4H_API_TOKEN", raising=False)
+    body = {"org": "42", "incident_id": "7"}
+    assert client.post(f"/missions/{mid}/export/d4h", json=body).status_code == 401  # write token
+    r = client.post(f"/missions/{mid}/export/d4h", json=body, headers=AUTH)
+    assert r.status_code == 503 and "D4H_API_TOKEN" in r.json()["detail"]
+
+
+def test_d4h_push_posts_each_timeline_line_as_a_tagged_log(api, monkeypatch) -> None:
+    client, store, _ = api
+    mid = _busy_mission(client, store)
+    fake = FakeD4h()
+    _mock_d4h(monkeypatch, fake)
+    monkeypatch.setenv("D4H_API_TOKEN", "d4h-secret")
+    r = client.post(
+        f"/missions/{mid}/export/d4h", json={"org": "42", "incident_id": "7"}, headers=AUTH
+    )
+    assert r.status_code == 200, r.text
+    lines = client.get(f"/missions/{mid}/events?format=json").json()
+    assert r.json()["posted"] == len(lines) == len(fake.posts)
+    path, first, headers = fake.posts[0]
+    assert path == "/api/v1/orgs/42/incidents/7/logs"
+    assert headers["authorization"] == "Bearer d4h-secret"
+    assert first == {"message": "[21:00 UTC] Team Two: Sightline, Team Two, at the creek, over.",
+                     "tags": ["Sightline", "radio", "Team Two"]}  # fmt: skip
+    found = fake.posts[-1][1]
+    assert found["tags"][:3] == ["Sightline", "found", "Team One"] and "Sector C2" in found["tags"]
+    # only the lines after an event id; a D4H failure says how many went up
+    after = client.post(f"/missions/{mid}/export/d4h", headers=AUTH,
+                        json={"org": "42", "incident_id": "7", "after": r.json()["last_id"]})  # fmt: skip
+    assert after.json()["posted"] == 0
+    _mock_d4h(monkeypatch, FakeD4h(fail_after=2))
+    bad = client.post(
+        f"/missions/{mid}/export/d4h", json={"org": "42", "incident_id": "7"}, headers=AUTH
+    )
+    assert bad.status_code == 502 and "2 lines posted" in bad.json()["detail"]

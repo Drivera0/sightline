@@ -56,13 +56,14 @@ def entries(
     if ev.type == "radio.turn":
         tid = _team(teams, d.get("callsign")) or d.get("callsign")
         turn = d.get("id") or ev.ref
+        at = d.get("at") or ev.at  # when it was said, not when it was recorded
         out: list[TimelineEntry] = []
         if d.get("direction") == "in":
             if (d.get("transcript") or "").strip():
-                out.append(line("radio", d["transcript"].strip(), team=tid, refs=[turn],
+                out.append(line("radio", d["transcript"].strip(), at=at, team=tid, refs=[turn],
                                 turn_id=turn, direction="in"))  # fmt: skip
             if d.get("reply"):
-                out.append(line("radio", d["reply"], id=f"{ev.id}-reply", team=tid, refs=[turn],
+                out.append(line("radio", d["reply"], id=f"{ev.id}-reply", at=at, team=tid, refs=[turn],
                                 turn_id=turn, direction="out"))  # fmt: skip
         elif d.get("reply"):
             out.append(
