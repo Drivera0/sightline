@@ -10,7 +10,7 @@ import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
 import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent, Proposal, TraceEntry } from "../contract";
 import { clueLine, clueShifts } from "../command/clueShift";
 import { CoachMark } from "../command/CoachMark";
-import { candidatePosition, demoCards, landedFrames, RECORDED_ID } from "../command/demoReview";
+import { candidatePosition, demoCards, landedFrames } from "../command/demoReview";
 import { checkpoint, demoAt, LAST, STORY_PROPOSAL, type Checkpoint, type DemoFull } from "../command/missionTime";
 import { beatCounts, markIndex, storyBeats, storyProposal as firstAssignment } from "../command/storyCopy";
 import { PhotoStrip, PhotosRail } from "../command/PhotosRail";
@@ -497,7 +497,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const cards = demo ? [...dropped.cards, ...demoCards(cache, landed ?? [], imageUrl, new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime())] : [];
   const answerDemo = (id: string, a: LiveAnswer) => {
     useStory.getState().answer(id, a);
-    if (a !== "person" || id === RECORDED_ID) return;
+    if (a !== "person") return;
     const mine = dropped.at[id];
     const at = mine ? { lat: mine.lat, lon: mine.lon, frame: mine.photo, conf: mine.conf } : candidatePosition(cache, id);
     if (at && !s.clues.some((c) => c.text.includes(id))) {
@@ -643,7 +643,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const mark = demo && story.tour ? (beats[t]?.[story.beat] ?? null) : null;
   const markCount = beats.reduce((n, b) => n + b.length, 0);
   const markNo = markIndex(beats, t, story.beat);
-  const needsCount = s.proposals.filter((p) => p.status === "pending").length + reviewCount;
+  // once the subject is found, pending proposals and candidates are closed (Needs you folds them away)
+  const needsCount = s.mission?.status === "found" ? 0 : s.proposals.filter((p) => p.status === "pending").length + reviewCount;
   const inStory = demo && (story.tour || story.playing);
 
   return (

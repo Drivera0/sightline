@@ -37,7 +37,7 @@ describe("demo mission", () => {
     const { runs } = await loadDemoTrace();
     const own = runs[0]!;
     // the view names roles and models; the data still says the models are fakes and the people scripted
-    expect(own.entries.filter((e) => e.model !== null).every((e) => e.model!.startsWith("fake/"))).toBe(true);
+    expect(own.entries.filter((e) => e.model !== null).every((e) => /^(fake|recorded)\//.test(e.model!))).toBe(true);
     const by = own.entries.filter((e) => e.kind === "decision").map((e) => (e.output as { by: string }).by);
     expect(by.length).toBeGreaterThan(0);
     expect(by.every((b) => /\(scripted for the demo fixture\)$/.test(b))).toBe(true);
@@ -49,7 +49,8 @@ describe("demo mission", () => {
       expect(kinds).toContain("model_call");
       if (p.kind === "promote_detection") expect(kinds).toContain("tool_call"); // the OpenCV re-look
       if (p.status !== "pending") expect(kinds).toContain("decision");
-      for (const e of c!.entries.filter((x) => x.kind === "model_call")) expect(e.model).toMatch(/^fake\//);
+      // fakes, and the one live answer replayed word for word (second_look/verdict.json)
+      for (const e of c!.entries.filter((x) => x.kind === "model_call")) expect(e.model).toMatch(/^(fake|recorded)\//);
     }
   });
 

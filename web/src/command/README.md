@@ -68,8 +68,11 @@ logs the cache's frame steps, the clues (`POST /clues`, so `LiveMap.clue_update`
 task updates; the agent's own `loop.handle` makes every proposal (the second look on the cache's near-miss
 detections, the planner's tick at 21:42 UTC); a scripted search manager and image reviewer decide them through
 `POST /decide`. The models are fakes and say so (`fake/<model>`: scripted VL answers, short briefings from the
-facts). Out: 4 teams, 16 tasks in every state, 4 clues (2 by radio, typed turns), 5 proposals (2 promotions,
-one pending with the second look's images in `__fixtures__/relook/`; 3 assignments), the 16 sectors' POA, and
+facts), but for the second look on f0273-d02 (#192): `scripts/make_second_look_fixture.py` ran it on this flight
+with the live VL model (`__fixtures__/second_look/`: trace, verdict, crop and zoom), and its answer is replayed
+word for word as `recorded/<model>`. Out: 4 teams, 16 tasks in every state, 4 clues (2 by radio, typed turns),
+4 proposals (the promotion of f0273-d02, pending with the second look's images in `__fixtures__/relook/`; 3
+assignments), the 16 sectors' POA, and
 `demo_trace.jsonl`, the mission's whole trace, so every proposal has its chain in the Trace view. The car in the
 trailhead lot is a mission note, not a clue: it marks where the search starts, and as a clue it would pull the
 map toward the corner sector A1. The script validates everything against the contract and refuses the word
@@ -103,12 +106,15 @@ cache (`/cache/demo`). Screenshots: `docs/report/figures/one-console/`.
   `?after=`; entries grouped into chains by shared ids (perception → decision → action → approval), one line
   per step (span type, tool or model, input, output, ms), the proposal each chain led to and who decided, and
   a "which model did what" strip. The demo mission shows its own trace first (`__fixtures__/demo_trace.jsonl`,
-  from the generator), then two earlier runs copied from the repo (`demo_trace_avchain.jsonl`,
-  `demo_trace_conditions.jsonl`, the av-chain crops). The view names roles, not provenance: a run is "This
-  flight" or "Earlier run", a model is its name (the fixture's `fake/<model>` id shown without `fake/`), and a
-  decider is its role ("Search manager", `roleOf`). The trace's own strings keep the provenance (`fake/<model>`,
+  from the generator, with the one live answer replayed), then two earlier runs copied from the repo
+  (`demo_trace_avchain.jsonl`, a second look on another HERIDAL photo, and `demo_trace_conditions.jsonl`, with
+  the av-chain crops). The view names roles, not provenance: a run is "This flight" or "Earlier run", a model
+  is its name (the fixture's `fake/<model>` and `recorded/<model>` ids shown without the prefix), and a decider
+  is its role ("Search manager", `roleOf`). The trace's own strings keep the provenance (`fake/<model>`,
   "Search manager (scripted for the demo fixture)"; a step's output shows them), and the header's disclosure
-  chip, the Debrief and About say it.
+  chip, the Debrief and About say it. The review rail's third
+  card at Confirm is this flight's second look (`demoReview.ts`, "Second look · this flight"); Person on it pins a
+  sighting at f0273-d02's place, like any candidate.
 
 ## Load order (web audit, 2026-10-22)
 
@@ -137,8 +143,11 @@ four regions, every action logged to one timeline.
   team, the agent's pick first; send a drone leg; mark searched at a POD of at most 90 %; recheck; record the
   find). Base camp, one icon set, only the active leg solid. The scrubber shows only inside the story.
 - **Needs you** (`NeedsYou.tsx`, right): decisions only. The agent's proposals (`ApprovalInbox.tsx`, a
-  one-line reason, A/X/E), candidates to review (the review queue lives here now), teams past their check-in,
-  clues awaiting read-back, a live radio's briefings to send (`RadioLink.tsx`).
+  one-line reason, A/X/E), candidates to review (the review queue lives here now), teams past their
+  check-in, clues awaiting read-back, a live radio's briefings to send (`RadioLink.tsx`). Once
+  `Mission.status` is `found`, pending proposals and candidates are closed: one row, "16 items closed at
+  15:00, subject found", expands to them (each "closed: subject found"); the header and the Map tab's count
+  stop counting them. Overdue teams and read-backs stay, and every direct action still works.
 - **Timeline** (`Timeline.tsx`, `timeline.ts`, bottom): one stream, All / Radio / Clues / Drone / Decisions,
   Reply on radio entries, Confirm on clues awaiting read-back, Show on map; repeats merge. The talk bar is
   the radio desk: hold `V` (a live radio server) or type, to the team picked. Add a clue is here.
@@ -152,7 +161,9 @@ four regions, every action logged to one timeline.
   derived from the demo mission (its last known point, prior, base camp, clues and assignments).
 - **Photos** (`PhotoDrop.tsx`, `lib/exif.ts`): drop a drone's photos on the demo and they are read (EXIF GPS,
   DJI altitude and heading), ranked by the in-browser detector, placed, and their candidates go to Needs
-  you; "Load 20 sample photos" uses `VITE_SAMPLE_PHOTOS_URL` or the demo survey's own photos. A live mission
+  you; "Load 20 sample photos" reads the site's own copy of the pack (`public/sample/sightline-sample-photos.zip`,
+  same origin, so it works on Vercel and offline; `VITE_SAMPLE_PHOTOS_URL` can point elsewhere), else the demo
+  survey's own photos. A live mission
   uploads the drop.
 - **After-action report** (`report.ts`, `MissionReport.tsx`): once the subject is found the Debrief is the
   mission report, with Report, ICS 204/214/309, CalTopo and Print; the measured results follow it.

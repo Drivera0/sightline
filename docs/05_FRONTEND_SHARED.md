@@ -118,7 +118,7 @@ Shared components D provides in `shell/`: `Panel`, `Stat` (big number + label + 
 
 ## 6. The five steps (BCS hackathon; details in each lane file §9)
 
-> **Now (PR #171):** the site is one console, not a guided flow. `#` opens the demo mission's console at t0; **Follow the search** runs it through the checkpoints `#m/demo?t=1..5` (Photos land, Confirm, Where next, Run, Results), and the views are Map · Photos · Review · Trace · Debrief. The old step hashes (`#survey`, `#rank`, `#review`, `#search`, `#results`) redirect to those checkpoints. Addresses: `web/src/shell/flow.ts` and `web/src/shell/README.md`. The table below is the BCS plan, kept as history.
+> **Now (PR #171):** the site is one console, not a guided flow. `#` opens the demo mission's console at t0; **Follow the search** runs it through the checkpoints `#m/demo?t=1..6` (Photos land, Confirm, Where next, Run, The find, Debrief), and the views are Map · Photos · Trace · Debrief (the review is in Needs You, the radio in the timeline's talk bar). The old step hashes (`#survey`, `#rank`, `#review`, `#search`, `#results`) redirect to those checkpoints. Addresses: `web/src/shell/flow.ts` and `web/src/shell/README.md`. The table below is the BCS plan, kept as history.
 
 At BCS the app was one guided flow with a step bar and the step in the URL hash; the hackathon plan's three tabs became these steps.
 

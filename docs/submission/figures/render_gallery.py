@@ -1,7 +1,8 @@
 """Render the six Devpost gallery images (1920x1080 PNG) from the one-console site, each at its checkpoint.
 
-python render_gallery.py OUTDIR [SITE]   (a Python with playwright, Pillow and Chromium; SITE defaults to
-http://localhost:5191/, the dev server started as README.md here says)
+python render_gallery.py OUTDIR [SITE [NAME-PREFIX ...]]   (a Python with playwright, Pillow and Chromium; SITE defaults to
+http://localhost:5191/, the dev server started as README.md here says; t1 needs the dev server, it sets the
+story's clock through /src/command/story.ts)
 
 Each image opens its canonical address (no redirects), waits for the map, does its one step (Esc to put the
 coach mark away, a click, a key), lets the page settle 400 ms, and is saved with the cursor hidden. A PNG over
@@ -29,37 +30,71 @@ def esc(page: Page) -> None:
     page.keyboard.press("Escape")
 
 
+def t1_mid_leg(page: Page) -> None:
+    """The console 60 % into the clock's run into t1 (14:00 PDT): the photos still landing, the map lowering
+    under the first leg, Needs You filling. The story shows this on its way into t1; the clock is set from
+    the story's own store (the dev server serves it at /src/command/story.ts), with the coach marks off."""
+    esc(page)
+    page.evaluate(
+        """async () => {
+          const { useStory } = await import('/src/command/story.ts');
+          useStory.setState({ t: 1, progress: 0.6, playing: false, tour: false });
+        }"""
+    )
+    page.wait_for_timeout(2500)  # the map's frames and the queue catch up with the clock
+
+
 def t2_card(page: Page) -> None:
     esc(page)
-    page.get_by_role("button", name="Show the second look's images").click()
-    # back to the top of the queue: #1 and #2 above, #3 with its second look's images open
-    page.evaluate("() => document.querySelectorAll('.overflow-y-auto').forEach((e) => { e.scrollTop = 0; })")
+    show = page.get_by_role("button", name="Show the second look's images").element_handle()
+    show.click()
+    # the queue scrolled to #3 (this flight's second look, its images open), under its pending promotion
+    show.evaluate("(e) => e.closest('li').scrollIntoView({ block: 'start' })")
 
 
 def trace_chain(page: Page) -> None:
-    # the recorded av-chain run (Nemotron VL on a val photo), below the demo mission's own trace
-    chain = page.get_by_role("article", name="Chain f0001-d01 · v0001 · p001")
+    # this flight's second look (f0273-d02) in the demo mission's own trace: Nemotron VL's live answer
+    chain = page.get_by_role("article", name="Chain f0273-d02 · v0002 · relook-f0273-d02 · p001")
     chain.locator("li[aria-label^=Model] button").first.click()
     chain.evaluate("(e) => e.scrollIntoView({ block: 'start' })")
 
 
 def t4_conditions(page: Page) -> None:
     esc(page)
+    # the Resources list down to the three drones (Drone 2's link lost, Drone 3 relaying), then W
+    page.evaluate(
+        """() => {
+          const r = document.querySelector('section[aria-label=Resources]');
+          const d2 = [...r.querySelectorAll('*')].find((e) => e.children.length === 0 && e.textContent.trim() === 'Drone 2');
+          let card = d2; while (card.parentElement && card.parentElement.getBoundingClientRect().height < 200) card = card.parentElement;
+          card.scrollIntoView({ block: 'end' });
+        }"""
+    )
     page.keyboard.press("w")
 
 
-def t5_debrief(page: Page) -> None:
+def t6_report(page: Page) -> None:
     esc(page)
-    # The three numbers and "What breaks first" don't fit one 1080 px screen with "How much looking it saves"
-    # between them, so that part is left out of this frame (it is in the app, between the two).
+    # The after-action report (the find, the areas searched at their POD) and "What breaks first" don't fit
+    # the 720 px panel with what is between them, so this frame leaves out the key events, the export
+    # buttons, the resources line, the measured results above "What breaks first" and its one-line intro
+    # (all in the app, between the two).
     page.evaluate(
         """() => {
-          const h = [...document.querySelectorAll('section[aria-label=Debrief] h3')]
-            .find((e) => e.textContent.startsWith('How much looking'));
-          if (h) h.closest('section').style.display = 'none';
-          const glance = [...document.querySelectorAll('section[aria-label=Debrief] h3')]
-            .find((e) => e.textContent.startsWith('At a glance'));
-          glance.nextElementSibling.scrollIntoView({ block: 'start' });  // "The three numbers that matter…"
+          const d = document.querySelector('section[aria-label=Debrief]');
+          for (const name of ['Key events', 'Resources and traffic']) {
+            const s = d.querySelector(`section[aria-label="${name}"]`);
+            if (s) s.style.display = 'none';
+          }
+          const measured = [...d.querySelectorAll('h2')].find((e) => e.textContent.startsWith('The detector and the map'));
+          if (measured) measured.style.display = 'none';
+          const results = d.querySelector('section[aria-label=Results]');
+          const breaks = [...results.querySelectorAll('h3')].find((e) => e.textContent.startsWith('What breaks first'));
+          for (const c of results.children) if (!c.contains(breaks)) c.style.display = 'none';
+          if (breaks.nextElementSibling?.tagName === 'P') breaks.nextElementSibling.style.display = 'none';
+          const print = [...d.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Print');
+          if (print) print.parentElement.style.display = 'none';  // Report, the team, ICS 204/214/309, CalTopo, Print
+          d.scrollIntoView({ block: 'start' });
         }"""
     )
 
@@ -67,12 +102,13 @@ def t5_debrief(page: Page) -> None:
 # (file, address, step after load)
 JOBS = [
     ("console-t0-the-call-pitch-bar.png", "#m/demo?t=0", None),
-    ("photos-land-t1-each-photo-ranked-and-placed.png", "#m/demo?t=1", esc),
-    ("second-look-t2-a-018-candidate-opencv5-zoom-nemotron-vl.png", "#m/demo?t=2", t2_card),
+    ("photos-land-t1-each-photo-ranked-and-placed.png", "#m/demo?t=1", t1_mid_leg),
+    ("second-look-t2-a-017-candidate-this-flight-opencv5-zoom-nemotron-vl.png", "#m/demo?t=2", t2_card),
     ("trace-which-model-did-what-second-look.png", "#m/demo/trace?t=2", trace_chain),
     ("run-t4-fleet-flying-b4-pod-60-conditions.png", "#m/demo?t=4", t4_conditions),
-    ("debrief-t5-three-numbers-what-breaks-first.png", "#m/demo?t=5", t5_debrief),
+    ("debrief-t6-after-action-report-what-breaks-first.png", "#m/demo?t=6", t6_report),
 ]
+ONLY = sys.argv[3:]  # optional: render only the files whose names start with these
 
 
 def squeeze(path: Path) -> None:
@@ -87,6 +123,8 @@ def squeeze(path: Path) -> None:
 with sync_playwright() as p:
     browser = p.chromium.launch()
     for name, address, step in JOBS:
+        if ONLY and not any(name.startswith(o) for o in ONLY):
+            continue
         ctx = browser.new_context(viewport={"width": 1920, "height": 1080}, device_scale_factor=1)
         page = ctx.new_page()
         page.goto(SITE + address)

@@ -40,6 +40,10 @@ export interface HeatPalette {
   contour90: LineStyle;
   /** A thin dark line under each contour: it reads on pale imagery and on the pale classes. */
   casing: { color: string; width: number; opacity: number };
+  /** Ground a search has lowered (the console only): a dark, cool tint under the classes. */
+  searched?: FillStyle;
+  /** Opacity of the "not photographed yet" fill (the console's hatch); VEIL_ALPHA when left out. */
+  veilAlpha?: number;
 }
 
 export const HEAT_PALETTES: Record<BasemapKind, HeatPalette> = {
@@ -63,6 +67,38 @@ export const HEAT_PALETTES: Record<BasemapKind, HeatPalette> = {
   },
 };
 
+/**
+ * The command console's heat (LiveHeatMap): the same three mass classes, tuned so the terrain under them stays
+ * readable. On the dark map lighter means likelier, one warm hue from rust to cream (no pink or red wash), the
+ * three classes far apart in lightness (about L* 94, 77 and 52 before blending); no fill is above 0.45. Ground a search lowered goes darker and cooler
+ * (a near-black blue), the 50 % edge is a 1.5 px light line, the 90 % edge a faint 1 px one, and the
+ * "not photographed yet" hatch is a 1 px line at 0.12.
+ */
+export const CONSOLE_PALETTES: Record<BasemapKind, HeatPalette> = {
+  satellite: {
+    kind: "satellite",
+    top: { color: "#e31a1c", alpha: 0.45 },
+    mid: { color: "#fd8d3c", alpha: 0.34 },
+    low: { color: "#fed976", alpha: 0.24 },
+    contour50: { color: "#ffe08a", width: 1.5, opacity: 0.95 },
+    contour90: { color: "#ffffff", width: 1, opacity: 0.3 },
+    casing: { color: "#0a0b0d", width: 0, opacity: 0 },
+    searched: { color: "#08203f", alpha: 0.42 },
+    veilAlpha: 0.12,
+  },
+  dark: {
+    kind: "dark",
+    top: { color: "#ffedb8", alpha: 0.45 },
+    mid: { color: "#f5b04a", alpha: 0.34 },
+    low: { color: "#b8603a", alpha: 0.28 },
+    contour50: { color: "#fff4cc", width: 1.5, opacity: 0.9 },
+    contour90: { color: "#ffffff", width: 1, opacity: 0.28 },
+    casing: { color: "#0a0b0d", width: 0, opacity: 0 },
+    searched: { color: "#020a1c", alpha: 0.45 },
+    veilAlpha: 0.12,
+  },
+};
+
 /** Opacity of the "not yet searched" veil (cells not photographed at this step). */
 export const VEIL_ALPHA = 0.45;
 /** Fill of a cell awaiting review: a neutral light tone (no update yet), outlined dashed on the map. */
@@ -80,7 +116,9 @@ export function kindFill(palette: HeatPalette, kind: number, theme: { veil: stri
     case CELL.held:
       return { color: theme.held, alpha: HELD_ALPHA };
     case CELL.veil:
-      return { color: theme.veil, alpha: VEIL_ALPHA };
+      return { color: theme.veil, alpha: palette.veilAlpha ?? VEIL_ALPHA };
+    case CELL.searched:
+      return palette.searched ?? null;
     default:
       return null;
   }

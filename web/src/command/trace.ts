@@ -117,10 +117,11 @@ const short = (s: string, n = 120) => (s.length > n ? `${s.slice(0, n - 1)}…` 
 
 /**
  * A model as the visitor reads it: "nvidia/Nemotron-3.5-Super-VL". The trace keeps its own id (the demo
- * fixture's stand-in is "fake/<model>", and a step's input and output still show it); the header's
- * disclosure chip, the Debrief and About say what is simulated, so a step names the model.
+ * fixture's stand-in is "fake/<model>", a live answer it replays "recorded/<model>", and a step's output
+ * still shows them); the header's disclosure chip, the Debrief and About say what is simulated, so a step
+ * names the model.
  */
-export const modelName = (m: string) => m.replace(/^fake\//, "");
+export const modelName = (m: string) => m.replace(/^(?:fake|recorded)\//, "");
 
 /**
  * Who decided, as the console names the role ("Search manager", the operator chip's word). The demo
@@ -412,13 +413,14 @@ export function modelUse(entries: readonly TraceEntry[]): { models: ModelUse[]; 
   const tools = new Map<string, number>();
   for (const e of entries) {
     if (e.kind === "model_call" && e.model) {
-      const m = models.get(e.model) ?? { model: e.model, name: words(modelName(e.model)), calls: 0, actors: [], ms: 0, tokensIn: 0, tokensOut: 0 };
+      const id = modelName(e.model); // a fixture's fake/ and recorded/ calls of one model count as that model
+      const m = models.get(id) ?? { model: id, name: words(id), calls: 0, actors: [], ms: 0, tokensIn: 0, tokensOut: 0 };
       m.calls += 1;
       if (!m.actors.includes(e.actor)) m.actors.push(e.actor);
       m.ms += e.ms ?? 0;
       m.tokensIn += e.tokens_in ?? 0;
       m.tokensOut += e.tokens_out ?? 0;
-      models.set(e.model, m);
+      models.set(id, m);
     }
     if (e.kind === "tool_call") {
       const name = spanName(e).replace(/ \(.*\)$/, "");

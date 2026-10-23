@@ -41,7 +41,7 @@ def test_planner_entry_prints_its_ranking_not_an_image() -> None:
     ranked = [line for line in got if line.startswith("    ranked ")]
     assert [line.split()[2] for line in ranked] == ["C2", "B2", "C3"]
     assert ranked[0].startswith(
-        "    ranked 1. C2 score 0.014715: C2 · 2.7 % of remaining probability"
+        "    ranked 1. C2 score 0.019395: C2 · 3.5 % of remaining probability"
     )
     assert [e["kind"] for e in excerpt.chain(entries, "p003")][:2] == ["tool_call", "model_call"]
 
