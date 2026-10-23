@@ -46,6 +46,18 @@ export function storeActions(): ConsoleActions {
   };
 }
 
+/** The popover's actions: each one done, the popover closes (the map and the timeline show what changed). */
+function closing(a: SectorActions): SectorActions {
+  const done = () => useConsole.getState().closeSector();
+  return {
+    assign: (t, s) => (a.assign(t, s), done()),
+    droneLeg: (s, d) => (a.droneLeg(s, d), done()),
+    searched: (s, pod) => (a.searched(s, pod), done()),
+    recheck: (s) => (a.recheck(s), done()),
+    found: (t, s) => (a.found(t, s), done()),
+  };
+}
+
 export interface CommandProps {
   mission: Mission | null;
   status: string;
@@ -165,7 +177,7 @@ export function CommandView(p: CommandProps) {
               y={sel.y}
               width={mapBox.clientWidth}
               height={mapBox.clientHeight}
-              actions={p.actions}
+              actions={closing(p.actions)}
               cardHref={p.cardHref}
               onClose={() => useConsole.getState().closeSector()}
             />

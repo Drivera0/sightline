@@ -118,12 +118,12 @@ export function SectorPopover({
           <span className="text-caption font-medium text-text-2">Mark searched at a POD</span>
           <div className="flex gap-1.5">
             {[
-              ["Low 30 %", 0.3],
-              ["Medium 50 %", 0.5],
-              ["High 70 %", 0.7],
+              ["Low", 0.3],
+              ["Medium", 0.5],
+              ["High", 0.7],
             ].map(([name, v]) => (
-              <button key={name} type="button" className={chip} onClick={() => actions.searched(id, v as number)}>
-                {name}
+              <button key={name} type="button" aria-label={`${name} ${Math.round((v as number) * 100)} %`} className={chip} onClick={() => actions.searched(id, v as number)}>
+                {name} <span className="text-text-3">{Math.round((v as number) * 100)} %</span>
               </button>
             ))}
           </div>

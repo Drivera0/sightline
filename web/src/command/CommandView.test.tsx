@@ -167,18 +167,23 @@ describe("the command post", () => {
     expect(teams.map((b) => b.textContent)).toEqual(["Team Four· agent's pick", "Team One"]);
     await userEvent.click(teams[1]!);
     expect(p.actions.assign).toHaveBeenCalledWith("T1", "B3");
-    await userEvent.click(within(pop).getByRole("button", { name: "Send a drone leg" }));
-    expect(p.actions.droneLeg).toHaveBeenCalledWith("B3");
-    const pod = within(pop).getByRole("group", { name: "POD entry" });
+    expect(screen.queryByRole("dialog")).toBeNull(); // done: the popover closes
+    const reopen = () => {
+      act(() => useConsole.getState().openSector("B3", 100, 100));
+      return screen.getByRole("dialog", { name: "Sector B3" });
+    };
+    await userEvent.click(within(reopen()).getByRole("button", { name: "Send a drone leg" }));
+    expect(p.actions.droneLeg).toHaveBeenCalledWith("B3", undefined);
+    const pod = within(reopen()).getByRole("group", { name: "POD entry" });
     expect(within(pod).getByLabelText("POD")).toHaveAttribute("max", "0.9"); // never 100 %
     expect(pod).toHaveTextContent("it never removes it");
     await userEvent.click(within(pod).getByRole("button", { name: "High 70 %" }));
     expect(p.actions.searched).toHaveBeenCalledWith("B3", 0.7);
-    act(() => useConsole.getState().openSector("A1", 100, 100));
     act(() => useConsole.getState().openSector("D4", 100, 100));
     const d4 = screen.getByRole("dialog", { name: "Sector D4" });
     await userEvent.click(within(d4).getByRole("button", { name: "Recheck" }));
     expect(p.actions.recheck).toHaveBeenCalledWith("D4");
+    reopen();
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
   });

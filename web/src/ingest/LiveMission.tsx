@@ -24,6 +24,7 @@ import { CommandView, storeActions } from "../command/CommandView";
 import { useConsole } from "../command/consoleStore";
 import { Briefings, useRadioVoice } from "../command/RadioLink";
 import { StatusLine } from "../command/StatusLine";
+import { MissionReport } from "../command/MissionReport";
 import { stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
@@ -547,6 +548,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
         traceHref={viewHash(missionId, "trace")}
         liveDebriefUrl={liveDebrief}
         exports={{ missionUrl: demo ? null : `${api.base}/missions/${encodeURIComponent(missionId)}`, teams: s.teams }}
+        report={s.mission?.status === "found" ? <MissionReport data={s} now={demoNow ?? new Date()} missionUrl={demo ? null : `${api.base}/missions/${encodeURIComponent(missionId)}`} /> : undefined}
       />
     </Suspense>
   );
