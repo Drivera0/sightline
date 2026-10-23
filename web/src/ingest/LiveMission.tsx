@@ -331,6 +331,11 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     if (window.location.hash !== want) window.history.replaceState(null, "", want);
   }, [demo, view, story.t, story.tour, story.pitch, story.started, seed]);
 
+  // phones: the story's marks on a candidate (t2) and on the proposal (t3) open Needs you, folded otherwise
+  useEffect(() => {
+    if (demo && story.tour && (story.t === 2 || story.t === 3)) useConsole.getState().setTab("needs");
+  }, [demo, story.tour, story.t]);
+
   // t3's gate: the visitor's approval of the story's proposal runs the clock to t4. The story's proposal is
   // the scenario's first assignment (the overdue hiker's p003), so the story works on any scenario.
   const storyAssign = scenario?.data.proposals?.find((p) => p.kind === "assign_sector") ?? null;

@@ -36,6 +36,11 @@ describe("the dissolved heat", () => {
     expect(simplifyRing(polys[0]![0]!, 0.3).length).toBeLessThanOrEqual(polys[0]![0]!.length);
   });
 
+  it("draws no classes on a flat map (the prior before anything is known)", () => {
+    const kinds = wholeGridKinds(new Float64Array(N * N).fill(1 / (N * N)));
+    expect(kinds.every((k) => k === CELL.none)).toBe(true);
+  });
+
   it("classes the whole grid, photographed or not, and hatches what no photo has seen", () => {
     const p = new Float64Array(N * N).fill(0);
     for (let i = 0; i < N * N; i++) p[i] = disc(20, 20, 8)[i] ? 2 : 0.1;

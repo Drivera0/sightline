@@ -212,7 +212,15 @@ function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[];
               return (
                 <tr key={s.sector_id} aria-label={`Sector ${s.sector_id}`} className="border-t border-line hover:bg-surface">
                   <td className="px-2.5 py-1">
-                    <button type="button" className="sl-tap text-left text-text hover:underline" onClick={() => useConsole.getState().openSector(s.sector_id, Number.NaN, Number.NaN)}>
+                    <button
+                      type="button"
+                      className="sl-tap text-left text-text hover:underline"
+                      onClick={() => {
+                        useConsole.getState().openSector(s.sector_id, Number.NaN, Number.NaN);
+                        // phones: the map is above, out of sight
+                        if (window.innerWidth < 1024) document.getElementById("console-map")?.scrollIntoView({ block: "start" });
+                      }}
+                    >
                       {s.sector_id} <span className="text-text-3">{s.label}</span>
                     </button>
                   </td>

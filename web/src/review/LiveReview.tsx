@@ -72,10 +72,10 @@ function Card({ c, rank, answer, current, onAnswer }: { c: ReviewCard; rank: num
   const [shown, setShown] = useState(false);
   const el = useRef<HTMLLIElement>(null);
   // J/K bring the current candidate into view; the first one does not pull its rail (Needs you) down on arrival
-  const first = useRef(true);
+  const was = useRef(current);
   useEffect(() => {
-    if (current && !first.current) el.current?.scrollIntoView?.({ block: "nearest" });
-    first.current = false;
+    if (current && !was.current) el.current?.scrollIntoView?.({ block: "nearest" });
+    was.current = current;
   }, [current]);
   return (
     <li ref={el} aria-label={`Candidate ${c.id}`} aria-current={current || undefined} data-candidate={c.id} className={`flex flex-col gap-2 rounded-lg border bg-surface-solid p-2.5 ${current ? "border-border" : "border-line"}`}>

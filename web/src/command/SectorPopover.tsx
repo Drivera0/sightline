@@ -123,7 +123,8 @@ export function SectorPopover({
               ["High", 0.7],
             ].map(([name, v]) => (
               <button key={name} type="button" aria-label={`${name} ${Math.round((v as number) * 100)} %`} className={chip} onClick={() => actions.searched(id, v as number)}>
-                {name} <span className="text-text-3">{Math.round((v as number) * 100)} %</span>
+                <span className="whitespace-nowrap">{name}</span>
+                <span className="whitespace-nowrap text-text-3">{Math.round((v as number) * 100)}%</span>
               </button>
             ))}
           </div>
