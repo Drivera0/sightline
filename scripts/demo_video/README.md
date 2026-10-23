@@ -111,7 +111,7 @@ Each cut is cut from `master.mp4` with its own captions and card burned in (`cut
 - **OpenCV (≤ 4:30)**. Act 1: cold open (8 s, real footage) → disclosure card (3 s) → owner on camera (10 s) → `call`. Act 2: `photos` → `confirm` → `trace` → `next` → `run` → `walk` → `radio` → `find`. Act 3: `debrief` (the three "what breaks first" lines read over it) → architecture slot (20 s, for the Figma/Canva animation; captions name OpenCV 5, Nemotron 3.5 Super VL, Nemotron 3 Nano, Parakeet, Magpie, Nebius Token Factory and Tavily) → proof slide slot (15 s) → close (10 s).
 - **Nebius (≤ 2:50)**. The same act 1 (the owner says "it runs on Nebius Token Factory") → `call` at 1.5× → `photos`, `confirm`, `next` at 1.25× with Nebius Serverless Job / Token Factory captions → `run` → `fleet` (the longer fleet beat) → `walk` → `radio` → `find` → architecture slot (10 s) → close (10 s).
 
-A shot that didn't run is left out. When the shots don't fit, each is trimmed from its tail by the same factor, except that none goes below its `min_s` (`find` keeps 10 s for its hold, `debrief` 22 s for the three lines); `"trimmed"` in `cut_<name>.json` says by how much. Edit the `cuts:` section to reorder, change a speed or resize a slot. Camera moves (`moves:`) are slow push-ins on the panel being used; `speed` is only for waits inside a shot.
+A shot that didn't run is left out. When the shots don't fit, each is trimmed from its tail by the same factor, except that none goes below its `min_s` (`find` is never trimmed, for its 4 s hold, `debrief` 22 s for the three lines); `"trimmed"` in `cut_<name>.json` says by how much. Edit the `cuts:` section to reorder, change a speed or resize a slot. Camera moves (`moves:`) are slow push-ins on the panel being used; `speed` is only for waits inside a shot.
 
 The GIF takes the first candidate shot (`gif.candidates`, in order of preference) with enough movement in its window (a candidate's own `min_motion` overrides the default), ends it on the frame within 18 ± 2 s closest to its first frame (never over 20 s), and fades its first half second in over its end, playing on from the frame after: the last frame is the frame before the first, so the loop has no jump. `end_aligned: true` takes the window that ends with the shot (`run`, the first choice: the approval, the clock running on, drone two's lost link and drone three's relay). Larger than 3 MB, it retries at lower fps and width.
 
@@ -142,24 +142,23 @@ uv run --extra video python scripts/demo_video/captions.py runs/video/capture-te
 
 `runs/video/capture-test/`: `call` and `photos` (t0, **Follow the search**, t1), 27.3 s recorded. Capture: 177 frames at 3840×2160, 15 fps median while the page moved (20 at p90), so the master is 30 fps. `master_4k.mp4` is 4.6 MB (1.3 Mbit/s at CRF 16) and took 71 s to encode. The program (`call` pushes 1.0 → 1.12 towards Follow the search; `photos` pushes 1.08 and plays the clock's run at 1.5×) is 25.7 s and rendered in 13 s. `master_captioned.mp4` is 21.8 MB (6.8 Mbit/s), `sample_call.mp4` (10 s) is 8.7 MB (7.0 Mbit/s) and `master_1440p_captioned.mp4` is 41.8 MB (13.0 Mbit/s). Frames for comparing sharpness: `frame_4k.png`, `frame_1080p.png` (the program, with its move and label), `frame_1080p_nomove.png` and `old_frame_1080p_recordVideo.png` (the same moment of `final5-20261022-140255`).
 
-## Last run (live, `--serve-local`, this machine, 2026-10-22, after #177, recorded with `recordVideo`)
+## Last run (shot list v2, this machine, 2026-10-22, main at 01c3342 after #199 and #201)
 
-`runs/video/final4-20261022-122829/`: 236.6 s master; shot times from the sync mark, nothing skipped or failed:
+`runs/video/v2-20261022-195041/` (copied to `C:\Users\drive\Desktop\sightline-video\v2\`): the story only (no API, no `--live`), 4K capture at 15 fps median while moving, a 30 fps master of 210.9 s; shot times from the sync mark, 11 shots ok, none skipped or failed:
 
-| Shot | Start | End | Length | Target |
-|---|---|---|---|---|
-| call | 1.1 | 11.1 | 10.0 | 10 |
-| photos | 12.0 | 24.8 | 12.9 | 13 |
-| confirm | 25.6 | 46.6 | 21.0 | 20 |
-| trace | 47.3 | 65.1 | 17.8 | 17 |
-| next | 65.8 | 75.0 | 9.1 | 9 |
-| run | 75.8 | 87.3 | 11.4 | 12 |
-| conditions | 88.1 | 101.2 | 13.0 | 13 |
-| fleet | 102.0 | 117.8 | 15.8 | 15 |
-| radio | 118.7 | 132.3 | 13.6 | 11 |
-| results | 133.2 | 144.6 | 11.4 | 10 |
-| breaks | 145.1 | 169.2 | 24.2 | 20 |
-| live_link | 179.8 | 199.0 | 19.3 | 18 |
-| recall | 200.4 | 233.6 | 33.2 | 32 |
+| Shot | Program | Length | Target |
+|---|---|---|---|
+| call | 1.0–14.5 | 13.5 | 14 |
+| photos | 15.5–37.5 | 22.0 | 22 |
+| confirm | 38.5–69.9 | 31.4 | 34 |
+| trace | 70.9–82.5 | 11.6 | 10 |
+| next | 83.3–104.9 | 21.6 | 22 |
+| run | 106.3–124.9 | 18.6 | 18 |
+| fleet | 126.5–139.3 | 12.8 | 14 |
+| walk | 141.0–149.8 | 8.8 | 9 |
+| radio | 151.9–168.4 | 16.5 | 15 |
+| find | 169.7–182.1 | 12.4 | 12 |
+| debrief | 183.2–209.0 | 25.8 | 26 |
 
-Cuts: OpenCV 3:52.8 (9 shots), Nebius 2:41.1 (8 shots), none trimmed. GIF: 2.63 MB, 15.7 s at 10 fps, 800 px, from `run` (the t3 proposal approved, the clock runs on, teams out, the drones fly, B4 searched at POD 60 %). Wall time: about 4 min to record, about 3 min for the encodes.
+Cuts: OpenCV 4:08.1 (10 shots, act 1 ends at 0:34.5, none trimmed), Nebius 2:49.5 (9 shots, trimmed to 0.92 except `find` and `radio`). Narration with Magpie (the placeholder voice): every line fits (the dry run at 150 wpm flagged only the architecture line, 0.4 s over; Magpie's first take ran 0.7 s over and lost its second sentence, so the line was cut to two shorter sentences); listen-check WER 0.035 (OpenCV) and 0.028 (Nebius). A Kokoro take of the Nebius cut fits too. The GIF from `run` comes out at 4.8 MB after the four retries (the heat of #199 is busier), so it is not published; `docs/report/figures/demo.gif` stays as it is.
+

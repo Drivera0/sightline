@@ -112,7 +112,7 @@ cuts:
       text: "Found: {find_team}, in {find_sector_said}."
     debrief: *breaks
     "slot: architecture":
-      text: "OpenCV 5 ranks the photos, Nemotron 3.5 Super VL takes the second look, and the map tells the planner where next. Nemotron 3 Nano writes the briefings, Parakeet and Magpie work the radio, Tavily reads the conditions, and every model call goes to Nebius Token Factory."
+      text: "OpenCV 5 ranks the photos and Nemotron 3.5 Super VL takes the second look. Nemotron 3 Nano writes the briefings, Parakeet and Magpie work the radio, Tavily reads conditions, and every model call goes to Nebius Token Factory."
     "slot: proof":
       text: "One script reproduces the detector's numbers in about five minutes on a CPU. Every claim links to the file and line that backs it."
 

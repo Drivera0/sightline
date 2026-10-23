@@ -89,7 +89,7 @@ cuts:
       - run
       - walk
       - radio
-      - {shot: find, min_s: 10}                         # the payoff: the call, Found, 4 s held on the map
+      - {shot: find, min_s: 13}                         # the payoff: Found, then 4 s held on the map (never trimmed)
       # Act 3, the debrief
       - {shot: debrief, min_s: 22}                      # the three "what breaks first" lines are read here
       - {slot: architecture, s: 20, captions: ["Photos → OpenCV 5 detector (cv2.dnn)", "Second look: Nemotron 3.5 Super VL", "Briefings: Nemotron 3 Nano", "Radio: Parakeet hears, Magpie speaks", "Every model call: Nebius Token Factory", "Conditions and bulletins: Tavily"]}
@@ -108,8 +108,8 @@ cuts:
       - run
       - fleet
       - walk
-      - radio
-      - {shot: find, min_s: 10}
+      - {shot: radio, min_s: 16.5}                      # never trimmed: the in-world exchange needs it
+      - {shot: find, min_s: 13}                         # never trimmed: the 4 s hold on the map
       - {slot: architecture, s: 10, captions: ["OpenCV 5 · Nemotron 3.5 Super VL", "Every model call: Nebius Token Factory"]}
       - {slot: close, s: 10, on_camera: true}
 
