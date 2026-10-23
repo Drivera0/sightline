@@ -19,7 +19,7 @@
   "base_camp": {
    "lat": 49.36585,
    "lon": -122.9484,
-   "name": "Mount Seymour trailhead lot"
+   "name": "Trailhead lot"
   },
   "status": "found",
   "found": {
@@ -481,7 +481,7 @@
    "id": "p006",
    "kind": "retask_drone",
    "summary": "Recall Drone 1: fly home now (leaves sector B2, battery 84%)",
-   "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 1 to its launch point, 1 min away.",
+   "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 1 to its launch point, 1 min away.",
    "briefing": null,
    "target": {
     "drone": "D1",
@@ -506,13 +506,13 @@
     "est_minutes": 1.4,
     "expected_clearance": 0.0,
     "score_per_min": 0.0,
-    "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
+    "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
     "status": "proposed"
    },
    "evidence": [
     {
      "kind": "conditions",
-     "ref": "scripted for the demo scenario (not a real forecast)",
+     "ref": "a made-up forecast for this exercise, not a real one",
      "caption": "Wind gusting to 52 km/h over the upper slopes this afternoon"
     },
     {
@@ -533,7 +533,7 @@
    "id": "p007",
    "kind": "retask_drone",
    "summary": "Recall Drone 2: fly home now (leaves sector C1, battery 88%)",
-   "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 2 to its launch point, 2 min away.",
+   "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 2 to its launch point, 2 min away.",
    "briefing": null,
    "target": {
     "drone": "D2",
@@ -558,13 +558,13 @@
     "est_minutes": 1.8,
     "expected_clearance": 0.0,
     "score_per_min": 0.0,
-    "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
+    "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
     "status": "proposed"
    },
    "evidence": [
     {
      "kind": "conditions",
-     "ref": "scripted for the demo scenario (not a real forecast)",
+     "ref": "a made-up forecast for this exercise, not a real one",
      "caption": "Wind gusting to 52 km/h over the upper slopes this afternoon"
     },
     {
@@ -585,7 +585,7 @@
    "id": "p008",
    "kind": "retask_drone",
    "summary": "Recall Drone 3: fly home now (leaves sector A1, battery 84%)",
-   "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 3 to its launch point, 2 min away.",
+   "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 3 to its launch point, 2 min away.",
    "briefing": null,
    "target": {
     "drone": "D3",
@@ -610,13 +610,13 @@
     "est_minutes": 1.7,
     "expected_clearance": 0.0,
     "score_per_min": 0.0,
-    "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
+    "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
     "status": "proposed"
    },
    "evidence": [
     {
      "kind": "conditions",
-     "ref": "scripted for the demo scenario (not a real forecast)",
+     "ref": "a made-up forecast for this exercise, not a real one",
      "caption": "Wind gusting to 52 km/h over the upper slopes this afternoon"
     },
     {
@@ -639,7 +639,7 @@
   "stale": false,
   "area": "Mount Seymour",
   "sources": [
-   "scripted for the demo scenario (not a real forecast)"
+   "a made-up forecast for this exercise, not a real one"
   ],
   "wind_kmh": 28.0,
   "gust_kmh": 52.0,
@@ -939,7 +939,7 @@
     "base_camp": {
      "lat": 49.36585,
      "lon": -122.9484,
-     "name": "Mount Seymour trailhead lot"
+     "name": "Trailhead lot"
     },
     "status": "searching",
     "found": null,
@@ -1294,7 +1294,7 @@
     "clothing": "red jacket, blue top, dark trousers",
     "reason": "Two human figures are visible, each with a head, torso, and limbs, one in a red jacket and blue top and another in a red top behind them.",
     "model": "recorded/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 31,
+    "ms": 34,
     "at": "2026-10-25T00:11:45Z",
     "object": null
    }
@@ -1552,7 +1552,7 @@
     "clothing": null,
     "reason": "A red car parked under the trees at the photo's edge; nothing shaped like a person (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 35,
+    "ms": 38,
     "at": "2026-10-25T00:20:39Z",
     "object": null
    }
@@ -1586,7 +1586,7 @@
     "clothing": null,
     "reason": "The centre shows a green tent with no visible human shape, head, body, limbs, or outline.",
     "model": "recorded/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 78,
+    "ms": 9,
     "at": "2026-10-25T00:21:57Z",
     "object": "shelter"
    }
@@ -1612,7 +1612,7 @@
     "clothing": null,
     "reason": "Bare ground at the photo's edge; nothing shaped like a person (scripted for the demo fixture: no model was called).",
     "model": "fake/nvidia/Nemotron-3.5-Super-VL",
-    "ms": 8,
+    "ms": 9,
     "at": "2026-10-25T00:22:36Z",
     "object": null
    }
@@ -2863,7 +2863,7 @@
    "at": "2026-10-25T01:07:00Z",
    "ref": null,
    "data": null,
-   "summary": "conditions: gusts 52 km/h (scripted for the demo scenario (not a real forecast)): not flyable"
+   "summary": "conditions: gusts 52 km/h (a made-up forecast for this exercise, not a real one): not flyable"
   },
   {
    "id": "e00114",
@@ -2874,7 +2874,7 @@
     "id": "p006",
     "kind": "retask_drone",
     "summary": "Recall Drone 1: fly home now (leaves sector B2, battery 84%)",
-    "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 1 to its launch point, 1 min away.",
+    "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 1 to its launch point, 1 min away.",
     "briefing": null,
     "target": {
      "drone": "D1",
@@ -2899,13 +2899,13 @@
      "est_minutes": 1.4,
      "expected_clearance": 0.0,
      "score_per_min": 0.0,
-     "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
+     "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
      "status": "proposed"
     },
     "evidence": [
      {
       "kind": "conditions",
-      "ref": "scripted for the demo scenario (not a real forecast)",
+      "ref": "a made-up forecast for this exercise, not a real one",
       "caption": "Wind gusting to 52 km/h over the upper slopes this afternoon"
      },
      {
@@ -2933,7 +2933,7 @@
     "id": "p007",
     "kind": "retask_drone",
     "summary": "Recall Drone 2: fly home now (leaves sector C1, battery 88%)",
-    "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 2 to its launch point, 2 min away.",
+    "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 2 to its launch point, 2 min away.",
     "briefing": null,
     "target": {
      "drone": "D2",
@@ -2958,13 +2958,13 @@
      "est_minutes": 1.8,
      "expected_clearance": 0.0,
      "score_per_min": 0.0,
-     "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
+     "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
      "status": "proposed"
     },
     "evidence": [
      {
       "kind": "conditions",
-      "ref": "scripted for the demo scenario (not a real forecast)",
+      "ref": "a made-up forecast for this exercise, not a real one",
       "caption": "Wind gusting to 52 km/h over the upper slopes this afternoon"
      },
      {
@@ -2992,7 +2992,7 @@
     "id": "p008",
     "kind": "retask_drone",
     "summary": "Recall Drone 3: fly home now (leaves sector A1, battery 84%)",
-    "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 3 to its launch point, 2 min away.",
+    "reason": "Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h. Recall Drone 3 to its launch point, 2 min away.",
     "briefing": null,
     "target": {
      "drone": "D3",
@@ -3017,13 +3017,13 @@
      "est_minutes": 1.7,
      "expected_clearance": 0.0,
      "score_per_min": 0.0,
-     "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", scripted for the demo scenario (not a real forecast), as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
+     "reason": "Recall: Gusts 52 km/h (\"Wind gusting to 52 km/h over the upper slopes this afternoon\", a made-up forecast for this exercise, not a real one, as of 01:07 UTC) > DJI Mavic 3E limit 43 km/h.",
      "status": "proposed"
     },
     "evidence": [
      {
       "kind": "conditions",
-      "ref": "scripted for the demo scenario (not a real forecast)",
+      "ref": "a made-up forecast for this exercise, not a real one",
       "caption": "Wind gusting to 52 km/h over the upper slopes this afternoon"
      },
      {
@@ -183482,7 +183482,7 @@
    "turn_id": "r09275",
    "direction": "in",
    "by": null,
-   "audio": null
+   "audio": "voices/overdue-hiker/r09275.mp3"
   },
   {
    "id": "e00027-reply",
@@ -183498,7 +183498,7 @@
    "turn_id": "r09275",
    "direction": "out",
    "by": null,
-   "audio": null
+   "audio": "voices/overdue-hiker/r09275-desk.mp3"
   },
   {
    "id": "e00028",
@@ -183607,7 +183607,7 @@
    "turn_id": "r09396",
    "direction": "in",
    "by": null,
-   "audio": null
+   "audio": "voices/overdue-hiker/r09396.mp3"
   },
   {
    "id": "e00040-reply",
@@ -183623,7 +183623,7 @@
    "turn_id": "r09396",
    "direction": "out",
    "by": null,
-   "audio": null
+   "audio": "voices/overdue-hiker/r09396-desk.mp3"
   },
   {
    "id": "e00041",
@@ -183763,7 +183763,7 @@
    "turn_id": "r09617",
    "direction": "in",
    "by": null,
-   "audio": null
+   "audio": "voices/overdue-hiker/r09617.mp3"
   },
   {
    "id": "e00057-reply",
@@ -183779,7 +183779,7 @@
    "turn_id": "r09617",
    "direction": "out",
    "by": null,
-   "audio": null
+   "audio": "voices/overdue-hiker/r09617-desk.mp3"
   },
   {
    "id": "e00058",
@@ -184178,7 +184178,7 @@
    "turn_id": "r9999",
    "direction": "in",
    "by": null,
-   "audio": null
+   "audio": "voices/overdue-hiker/r9999.mp3"
   },
   {
    "id": "e00120-reply",
@@ -184194,7 +184194,7 @@
    "turn_id": "r9999",
    "direction": "out",
    "by": null,
-   "audio": null
+   "audio": "voices/overdue-hiker/r9999-desk.mp3"
   },
   {
    "id": "e00121",
@@ -184292,7 +184292,7 @@
   "base_camp": {
    "lat": 49.36585,
    "lon": -122.9484,
-   "name": "Mount Seymour trailhead lot"
+   "name": "Trailhead lot"
   },
   "clues": [
    {
@@ -184334,7 +184334,7 @@
   ],
   "lkp_road_m": 426.3,
   "survey_launch": {
-   "from": "Mount Seymour trailhead lot",
+   "from": "Trailhead lot",
    "transit_m": 313,
    "transit_min": 0.5
   },
@@ -224454,7 +224454,7 @@
   "base_camp": {
    "lat": 49.36585,
    "lon": -122.9484,
-   "name": "Mount Seymour trailhead lot"
+   "name": "Trailhead lot"
   },
   "subject": {
    "profile": "adult day hiker, overdue, red jacket",
