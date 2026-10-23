@@ -1,10 +1,14 @@
-// The demo mission's time control, on the map (Flightradar24's playback): play or pause, the six
-// checkpoints as ticks, the mission clock. The same control is the story's progress: a tick is a
-// checkpoint of the story and a moment of the mission at once.
+// The demo mission's time control, on the map (Flightradar24's playback): play or pause, the seven
+// checkpoints as ticks, the mission clock, and Skip to now. The same control is the story's progress: a
+// tick is a checkpoint of the story and a moment of the mission at once. Under it, one line: the story's
+// keys while the coach marks show, or where a play-through is going.
 
 import type { ReactNode } from "react";
 import { clock, DEMO_TZ, utcLabel, zone } from "../lib/time";
-import { CHECKPOINTS, type Checkpoint } from "./missionTime";
+import { CHECKPOINTS, LAST, type Checkpoint } from "./missionTime";
+
+/** The line under the scrubber while the coach marks show: the story's keys. */
+export const STORY_HINT = "→ next · ← back · Space pauses the clock · Esc leaves the story";
 
 export function Scrubber({
   t,
@@ -16,6 +20,7 @@ export function Scrubber({
   canPlay = false,
   through = null,
   hint = null,
+  onSkip,
 }: {
   t: Checkpoint;
   progress: number;
@@ -31,11 +36,13 @@ export function Scrubber({
   through?: string | null;
   /** One line under the scrubber, when nothing is playing (how to use the console). */
   hint?: ReactNode;
+  /** Skip to now: the mission as it stands at the end of the timeline, the story put away. */
+  onSkip?: () => void;
 }) {
   const running = progress < 1;
   // the thumb: between the previous tick and t while the clock runs into t
   const pos = Math.max(0, t - 1 + progress) / (CHECKPOINTS.length - 1);
-  const end = CHECKPOINTS[4]!.at;
+  const end = CHECKPOINTS[LAST]!.at;
   // the demo mission's clock: Mount Seymour's local time, UTC in the tooltips
   const local = (iso: string) => clock(iso, DEMO_TZ);
   const zoned = (iso: string) => `${local(iso)} ${zone(new Date(iso), DEMO_TZ)}`;
@@ -100,6 +107,11 @@ export function Scrubber({
           })}
         </ol>
       </div>
+      {onSkip && (
+        <button type="button" onClick={onSkip} className="sl-tap shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-caption text-text-2 hover:text-text">
+          Skip to now
+        </button>
+      )}
     </div>
     {(note || hint) && (
       <p role="status" aria-label="Mission clock status" className="self-center rounded-full bg-bg/85 px-3 py-0.5 text-center text-caption text-text-2 backdrop-blur">

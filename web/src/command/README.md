@@ -15,18 +15,24 @@ model chips, your own photo on top), **Debrief** (`Debrief.tsx`, a wide panel: t
 measured results with how each is measured, what breaks first, For judges, the links) and **Trace** (a sheet
 over the console: the agent's trace or the event log).
 
-**Mission time on the demo mission.** `missionTime.ts` gives the demo mission a `t` dimension: six
-checkpoints of its scripted afternoon, told in Mount Seymour's local time (13:35 PDT the call, 14:18 photos land,
-14:31 confirm, 14:42 where next, 15:00 run, 15:00 results; the fixtures are dated in UTC, and the app bar and
-the scrubber show UTC on hover: `lib/time.ts`, `DEMO_TZ`) and `demoAt(full, clock, user)`, the fixtures as they stood at a clock reading with the
-visitor's own actions replayed on top (one data model: the same fixtures, filtered by their own times, which
-the generator sets on the story's timeline). `story.ts` holds the clock (checkpoint, progress,
-playing), whether the coach marks are on, and the visitor's actions as events. `Scrubber.tsx` is the time
-control on the map; `CoachMark.tsx` the story's five marks (hand-rolled, no dependency: a ring on the real
-panel, one sentence, Next/Back/Exit, the arrow keys, Space, Esc); `PitchBar.tsx` the landing's two lines.
-t3 waits for the visitor's approval of p003 (`STORY_PROPOSAL`: the planner's Team One to C2, on the map the
-four clues moved; the card says which clue raised the sector, `clueShift.ts`); t2's third candidate is a recorded second look (`demoReview.ts`:
-a 0.18 detection, OpenCV 5's zoom, Nemotron VL's verdict), labelled as recorded on another photo.
+**Mission time on the demo mission.** `missionTime.ts` gives the demo mission a `t` dimension: seven
+checkpoints of its afternoon, told in Mount Seymour's local time (13:35 PDT the call, 14:18 photos land,
+14:31 confirm, 14:42 where next, 14:58 the run, 14:59 the find, 15:00 the debrief; the fixtures are dated in UTC,
+and the app bar and the scrubber show UTC on hover: `lib/time.ts`, `DEMO_TZ`) and `demoAt(full, clock, user)`, the
+fixtures as they stood at a clock reading with the visitor's own actions replayed on top (one data model: the same
+fixtures, filtered by their own times; every scenario keeps this rhythm). `storyCopy.ts` is what "Follow the
+search" says, read off the loaded scenario in the search manager's present-tense voice: twelve coach marks on the
+overdue hiker (the call; the survey and the first candidates; Person, Person, a grey bag, the second look; the
+radio clue and the proposal that names it; the lost link and relay, the team walking its sector; the find; the
+after-action report), each anchored to a real region by selectors in order of preference ("the first assignment",
+"the clue it names", "the found event", never fixed ids), a beat the scenario lacks left out, and none of
+demo/recorded/scripted/simulated in the words (the header's chip says it). `story.ts` holds the clock
+(checkpoint, beat, progress, playing), whether the marks are on, and the visitor's actions as events.
+`Scrubber.tsx` is the time control on the map, with Skip to now and the story's keys under it; `CoachMark.tsx`
+the marks (hand-rolled, no dependency: a ring on the real panel or on a "group:" of cards, a sentence or two,
+Next/Back/Exit, the arrow keys, Space, Esc; a panel it scrolled goes back when it moves on); `PitchBar.tsx` the
+landing's two lines. t3's proposal mark waits for the visitor's approval (the card says which clue raised the
+sector, `clueShift.ts`). Recording and stills: `docs/report/figures/command-post/story.webm`, `story-t0…t6.webp`.
 
 | File | What |
 |---|---|

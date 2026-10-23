@@ -774,8 +774,8 @@ def demo_shots(d: Director) -> None:
         d.pause(2.0)
 
     def results():
-        """t5: the debrief beside the map; the three numbers."""
-        d.hash("#m/demo?t=5", 2.0)
+        """t6: the debrief beside the map; the three numbers."""
+        d.hash("#m/demo?t=6", 2.0)
         if (
             d.first(
                 p.get_by_role("region", name="Debrief"),
@@ -784,7 +784,7 @@ def demo_shots(d: Director) -> None:
             )
             is None
         ):
-            raise RuntimeError("no Debrief at t5")
+            raise RuntimeError("no Debrief at t6")
         d.pause(1.0)
         for name in ("People found", "Time per full photo", "Ground to search"):
             n = d.first(p.get_by_text(re.compile(rf"^{name}$", re.IGNORECASE)), timeout=1)

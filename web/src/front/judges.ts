@@ -22,7 +22,7 @@ export interface JudgeLink {
 }
 
 export const JUDGE_LINKS: readonly JudgeLink[] = [
-  { label: "Follow the search", time: "3 min", proves: "the call, 500 photos landing, a person confirming, the agent's proposal, your approval, the run", href: "#m/demo?t=0" },
+  { label: "Follow the search", time: "3 min", proves: "the call, 500 photos landing, a person confirming, the agent's proposal, your approval, the run, the find, the report", href: "#m/demo?t=0" },
   { label: "Confirm", time: "1 min", proves: "a 0.18 detection the queue would have dropped, rescued by OpenCV 5's zoom and Nemotron VL, confirmed by a person", href: "#m/demo?t=2" },
   { label: "Trace", time: "1 min", proves: "OpenCV output changing the agent's next action, and which model did what", href: "#m/demo/trace" },
   { label: "Conditions", time: "30 s", proves: "live Tavily facts with the quote and the page each came from (W in the console)", href: "#m/demo/map/conditions" },
