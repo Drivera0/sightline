@@ -5,7 +5,7 @@
 **Repo:** https://github.com/Drivera0/sightline (tag `opencv-submit`, created at submission)
 **Report:** `docs/report/OPENCV_REPORT.md` · **Agentic Vision evidence:** `docs/architecture/agent.md`
 **Demo:** https://sightline-iota-sandy.vercel.app (opens the console on a demo mission at t0, no server needed; `#m/demo/map` is the console at the end of its timeline)
-**Where to look, in order:** the console at t0 (`#`) → **Follow the search** (3 min, `#m/demo?t=0` to `?t=5`) → the Trace view (`#m/demo/trace`) → Conditions, W in the console (`#m/demo/map/conditions`) → the Debrief: results, what breaks first and the links out (`#m/demo?t=5`; the old `#judges` redirects to its list for judges) → the About sheet for the method (`#about`)
+**Where to look, in order:** the console at t0 (`#`) → **Follow the search** (3 min, `#m/demo?t=0` to `?t=6`) → the Trace view (`#m/demo/trace`) → Conditions, W in the console (`#m/demo/map/conditions`) → the Debrief: results, what breaks first and the links out (`#m/demo?t=6`; the old `#judges` redirects to its list for judges) → the About sheet for the method (`#about`)
 **Live API (AWS):** https://44-227-39-234.sslip.io (stopped between demos to save cost)
 **Video:** <to add>
 
@@ -14,7 +14,7 @@ Video outline for Dan (≤ 5:00; from .documents/WIN_RESEARCH.md §8, OpenCV vid
 0:00–0:12 Dan on camera, lower-third, one line: "A missing hiker, 400 hectares, two hours of light. Sightline turns 500 drone photos into a ranked search plan." Logo card 1 s.
 0:12–0:30 The console at t0 → Follow the search: map with search area and drone track. Burned-in checkpoint labels throughout.
 0:30–1:05 Upload → detection: photos tick in, detections with confidence, heat map filling. Split screen: photo + boxes | map.
-1:05–1:35 Re-look: a 0.18 candidate, OpenCV zoom_native/CLAHE, Nemotron VL verdict; Trace view visible (tool → model → result → proposal).
+1:05–1:35 Re-look: the 0.17 candidate from this flight (f0273-d02, two people on a forest trail), OpenCV zoom_native, Nemotron VL verdict; Trace view visible (tool → model → result → proposal).
 1:35–2:05 Approval: a real person approves in the inbox; the gate shown explicitly.
 2:05–2:40 Map re-task → assignment card → GPX opens in CalTopo.
 2:40–3:20 Radio desk: a real exchange with audio and transcript; team acknowledges; clue lands on the map.
@@ -27,12 +27,12 @@ Production: burn in captions; 1080p master; YouTube "Not for Kids"; no copyright
 
 **Gallery (in this order):**
 
-1. *The console on the demo mission at 20:35, the call (DEMO chip, simulated data): the pitch bar, the search area around the last known point on the probability map, four teams on standby, and the mission timeline along the map.* (`docs/submission/figures/console-t0-the-call-pitch-bar.png`)
-2. *21:18, photos land: one survey flight's 500 photos (real HERIDAL photos on a simulated flight path), each ranked by the detector and placed on the map as it lands; 14 candidates, and the map now says where the person could still be.* (`docs/submission/figures/photos-land-t1-each-photo-ranked-and-placed.png`)
+1. *The console on the demo mission at 13:35 PDT, the call (Demo and "Simulation on real aerial photographs" chips): the pitch bar, the status line (5 min elapsed, 5 h 02 min of daylight left, flyable to 18:36, nobody out, subject not found), the four team cards on standby, Koester's lost-hiker rings around the last known point on the probability map, base camp at the trailhead lot, and the timeline along the bottom.* (`docs/submission/figures/console-t0-the-call-pitch-bar.png`)
+2. *14:00 PDT, photos landing: partway through the survey flight (real HERIDAL photos on a simulated flight path), each photo is ranked by the detector as it lands (re-detected on OpenCV 5 `cv2.dnn`, the same boxes and scores), the map lowers where the first leg has looked, and Needs You fills with the first 8 candidates for a person to confirm.* (`docs/submission/figures/photos-land-t1-each-photo-ranked-and-placed.png`)
 3. *21:31, confirm: a person answers every candidate. The third, from this flight's photo f0273, scored only 0.17, below the 0.29 review threshold; the agent promoted it after a second look: an OpenCV 5 native-resolution zoom, and Nemotron VL's verdict "likely a person, standing, 2 people". Marking it Person pins a sighting on the map. The zoom is open on the card (the model's live answer, kept word for word).* (`docs/submission/figures/second-look-t2-a-017-candidate-this-flight-opencv5-zoom-nemotron-vl.png`)
 4. *The Trace view on that chain: the 0.173 detection f0273-d02, the OpenCV 5 `zoom_native` tool, the crop and the zoom Nemotron VL answered "person: yes, standing, 2" from (its live answer, replayed word for word in the demo's own trace), then the proposal, waiting for a person.* (`docs/submission/figures/trace-which-model-did-what-second-look.png`)
-5. *22:00, the run: two simulated drones fly their legs, two teams are searching, B4 is searched at POD 60 % (lowered, never ruled out) and C4 at POD 40 %. The Conditions panel (W) shows a recorded live lookup: each value with its quote and page, and the flyability gate.* (`docs/submission/figures/run-t4-fleet-flying-b4-pod-60-conditions.png`)
-6. *The Debrief: the three numbers (people found 90 % vs 68 % by eye, SAR-APD scoring; 0.25 s vs 33 s per full photo; ground to search, 3.0 ha vs 4.4 ha for a naive map, simulated, the best of three seeds) and what breaks first, in the report's words. The `cv2.dnn` vs PyTorch parity and the other numbers are in the report's tables (§3.1, §3.9).* (`docs/submission/figures/debrief-t5-three-numbers-what-breaks-first.png`)
+5. *14:58 PDT, the run: three simulated drones fly their legs, Drone 2 has lost its link (it flies its approved leg on its own and keeps its photos on board) and Drone 3's degraded link relays Team Two, who has no signal; Teams One and Two are searching C2 and B2, and B4 is searched at POD 60 %, its probability lowered by that. The Conditions panel (W) is open: the flyability gate (flyable until about 18:36 PDT, gust limit 43 km/h for Drone 1), the demo's own conditions, and another evening's recorded live lookup folded below with each value's quote and page.* (`docs/submission/figures/run-t4-fleet-flying-b4-pod-60-conditions.png`)
+6. *15:00 PDT, the Debrief after the find: the after-action report (found by Team One in C2 at 14:59, where found, the areas searched at their POD: B4 60 %, C4 40 %) and what breaks first, in the report's words, with the radio exchange that reported the find in the timeline. The key events, the exports and the measured results sit between the two in the app and are left out of this frame; the `cv2.dnn` vs PyTorch parity and the other numbers are in the report's tables (§3.1, §3.9).* (`docs/submission/figures/debrief-t6-after-action-report-what-breaks-first.png`)
 
 ---
 
