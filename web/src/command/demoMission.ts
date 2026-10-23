@@ -2,7 +2,8 @@
 // the landing (`#m/demo`). Fixtures from `scripts/make_command_fixtures.py` (validated against the contract
 // there) plus the demo cache's map: its frame steps become the map log, then the clues and the ground searches.
 // Everything is a demo and says so on screen. Built by lane A for lane E (#70).
-import type { Conditions, MapBase, MapFile, MapUpdate } from "../contract";
+import type { Conditions, MapBase, MapFile, MapUpdate, Mission } from "../contract";
+import { TRAILHEAD } from "./missionTime";
 import type { MissionData } from "../lib/mission";
 import { parseTrace } from "./trace";
 import { latestLookup } from "./conditions";
@@ -32,6 +33,16 @@ export function cacheBase(map: MapFile): MapBase {
   return { contract_version, grid, lkp, params, prior, canopy };
 }
 
+/** A mission record from before the command post's fields, with their defaults. */
+export function withPostDefaults(m: Mission): Pick<Mission, "base_camp" | "status" | "found" | "check_in_min"> {
+  return {
+    base_camp: m.base_camp ?? { lat: TRAILHEAD.lat, lon: TRAILHEAD.lon, name: "Trailhead lot" },
+    status: m.status ?? "searching",
+    found: m.found ?? null,
+    check_in_min: m.check_in_min ?? 30,
+  };
+}
+
 export async function loadDemoMission(
   fetchFn: typeof fetch = fetch,
   fixture: () => Promise<Fixture> = async () => (await import("./__fixtures__/demo_mission.json")).default as unknown as Fixture,
@@ -47,8 +58,11 @@ export async function loadDemoMission(
   ]);
   const frames = cacheUpdates(map, fx.mission?.created_at ?? fx.now);
   const { now, map_updates, ...rest } = fx;
+  // The command post's fields (contract v1.2 draft) until the regenerated fixture carries them: base camp
+  // in the trailhead lot (where the subject's car is), still searching, a 30-minute check-in interval.
+  const mission = rest.mission ? { ...rest.mission, ...withPostDefaults(rest.mission) } : rest.mission;
   return {
-    data: { ...rest, verdicts: [], fleet: fx.fleet ?? null, mapBase: cacheBase(map), mapUpdates: [...frames, ...map_updates] },
+    data: { ...rest, mission, verdicts: [], fleet: fx.fleet ?? null, mapBase: cacheBase(map), mapUpdates: [...frames, ...map_updates] },
     now,
   };
 }
