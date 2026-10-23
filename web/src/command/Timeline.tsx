@@ -74,10 +74,13 @@ export function Timeline({
   /** The talk bar (TalkBar), under the stream. */
   talk: ReactNode;
   /** The Add a clue form, opened from the header. */
-  clueForm: (close: () => void) => ReactNode;
+  clueForm: (close: () => void, at: { lat: number; lon: number } | null) => ReactNode;
 }) {
   const filter = useConsole((s) => s.filter);
-  const [adding, setAdding] = useState(false);
+  // Add clue: the header's button, the map's right-click or long-press, a hint's action (consoleStore.clue)
+  const clue = useConsole((s) => s.clue);
+  const adding = clue.open;
+  const setAdding = (open: boolean) => (open ? useConsole.getState().openClue(null) : useConsole.getState().closeClue());
   const { time } = useClock();
   const all = useMemo(() => buildTimeline(events, teams, server), [events, teams, server]);
   const shown = all.filter((e) => inFilter(e, filter)).slice(0, TIMELINE_LIMIT);
@@ -121,12 +124,21 @@ export function Timeline({
             </button>
           ))}
         </div>
-        <Button aria-expanded={adding} onClick={() => setAdding(!adding)} aria-label="Add a clue" className="ml-auto h-7! px-3! text-caption! font-normal">
-          <span aria-hidden className="sm:hidden">+ Clue</span>
-          <span aria-hidden className="max-sm:hidden">Add a clue</span>
+        <Button
+          aria-expanded={adding}
+          onClick={() => setAdding(!adding)}
+          title="Add a clue: what was found, who reported it, how reliable. Or right-click (long-press) the map where it was."
+          className="ml-auto h-7! gap-1.5! border-[color-mix(in_srgb,var(--c-clue)_60%,transparent)]! px-3! text-caption! font-normal"
+        >
+          <Icon name="clue" size={13} className="text-[var(--c-clue)]" />
+          Add clue
         </Button>
       </div>
-      {adding && <div className="border-b border-line p-2">{clueForm(() => setAdding(false))}</div>}
+      {adding && (
+        <div key={clue.n} className="sl-slide-in border-b border-line p-2">
+          {clueForm(() => setAdding(false), clue.at)}
+        </div>
+      )}
       <ol ref={list} aria-label="Timeline entries" className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
         {shown.length === 0 && <li className="px-2 py-2 text-small text-text-3">Nothing here yet.</li>}
         {shown.map((e) => (
@@ -298,18 +310,24 @@ export function ClueForm({
   onAddClue,
   onPickOnMap,
   onDone,
+  at = null,
 }: {
   teams: readonly Team[];
   onAddClue: (draft: ClueDraft) => void | Promise<void>;
   onPickOnMap?: () => Promise<{ lat: number; lon: number } | null>;
   onDone: () => void;
+  /** A point picked on the map (right-click, long-press): the clue is there. */
+  at?: { lat: number; lon: number } | null;
 }) {
   const [kind, setKind] = useState<ClueDraft["kind"]>("object");
   const [text, setText] = useState("");
-  const [where, setWhere] = useState<"team" | "latlon">("team");
+  const [where, setWhere] = useState<"team" | "latlon">(at ? "latlon" : "team");
   const [team, setTeam] = useState(teams[0]?.id ?? "");
-  const [lat, setLat] = useState("");
-  const [lon, setLon] = useState("");
+  const [lat, setLat] = useState(at ? at.lat.toFixed(6) : "");
+  const [lon, setLon] = useState(at ? at.lon.toFixed(6) : "");
+  // who reported it: the team whose position it is, else command, unless chosen
+  const [reporter, setReporter] = useState<string | null>(null);
+  const reportedBy = reporter ?? (where === "team" ? team : "command");
   const [reliability, setReliability] = useState<ClueDraft["reliability"]>("medium");
   const [radius, setRadius] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
@@ -323,7 +341,7 @@ export function ClueForm({
       await onAddClue({
         kind, text: text.trim(), lat: where === "latlon" ? Number(lat) : null, lon: where === "latlon" ? Number(lon) : null,
         at_team_position: where === "team", radius_m: radius.trim() ? Number(radius) : null, reliability,
-        reported_by: where === "team" ? team : "command", source: "form", confirmed_by_turn: null,
+        reported_by: reportedBy, source: "form", confirmed_by_turn: null,
       });
       setText("");
       onDone();
@@ -338,7 +356,19 @@ export function ClueForm({
           <option key={k}>{k}</option>
         ))}
       </select>
-      <input aria-label="What" className={`${field} min-w-48 flex-1`} placeholder="blue backpack by the creek" value={text} onChange={(e) => setText(e.target.value)} />
+      <input aria-label="What" autoFocus className={`${field} min-w-48 flex-1`} placeholder="What was found: blue backpack by the creek" value={text} onChange={(e) => setText(e.target.value)} />
+      <label className="flex items-center gap-1.5 text-caption text-text-2">
+        reported by
+        <select aria-label="Reported by" className={field} value={reportedBy} onChange={(e) => setReporter(e.target.value)}>
+          <option value="command">Command (entered here)</option>
+          <option value="public">Public or family</option>
+          {teams.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.callsign}
+            </option>
+          ))}
+        </select>
+      </label>
       <select aria-label="Where" className={field} value={where} onChange={(e) => setWhere(e.target.value as "team" | "latlon")}>
         <option value="team">at a team's position</option>
         <option value="latlon">at lat/lon</option>
@@ -373,11 +403,20 @@ export function ClueForm({
         </>
       )}
       <input aria-label="Radius (m)" className={`${field} w-24`} inputMode="numeric" placeholder="radius m" title="How far from the point it could be. Empty: the default for its kind (object 30 m … sound 200 m)." value={radius} onChange={(e) => setRadius(e.target.value)} />
-      <select aria-label="Reliability" className={field} value={reliability} onChange={(e) => setReliability(e.target.value as ClueDraft["reliability"])}>
-        <option value="low">low</option>
-        <option value="medium">medium</option>
-        <option value="high">high</option>
-      </select>
+      <span role="radiogroup" aria-label="Reliability" className="inline-flex h-8 items-center gap-0.5 rounded-full border border-border p-0.5 text-caption">
+        {(["low", "medium", "high"] as const).map((r) => (
+          <button
+            key={r}
+            type="button"
+            role="radio"
+            aria-checked={reliability === r}
+            onClick={() => setReliability(r)}
+            className={`h-full rounded-full px-2.5 ${reliability === r ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--c-clue)]" : "text-text-2 hover:text-text"}`}
+          >
+            {r}
+          </button>
+        ))}
+      </span>
       <Button type="submit" className="h-8! px-3!">
         Add
       </Button>

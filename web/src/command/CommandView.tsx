@@ -234,7 +234,7 @@ export function CommandView(p: CommandProps) {
           teams={p.teams}
           onConfirmClue={p.actions.confirmClue}
           talk={<TalkBar teams={p.teams} onSend={(team, text) => p.actions.call(team, text)} voice={p.voice} />}
-          clueForm={(close) => <ClueForm teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} onDone={close} />}
+          clueForm={(close, at) => <ClueForm teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} onDone={close} at={at} />}
         />
       </div>
       {p.cover && <div className="absolute inset-0 z-30 overflow-y-auto rounded-lg bg-bg">{p.cover}</div>}

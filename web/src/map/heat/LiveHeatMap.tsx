@@ -35,6 +35,7 @@ import { legFeatures, noteCancels, retaskAnimating, retaskFeatures, type SeenCan
 import { point, type MissionFeature } from "../base/missionFeature";
 import { relayFeatures } from "../base/relayLayer";
 import { OnePopup } from "../base/onePopup";
+import { showMe } from "../../command/showMe";
 import { teamFeatures, teamShort } from "../base/teamLayer";
 import { atBaseText, layoutPointLabels, leaderEnd, leaderStart, type PointLabelInput, teamsAtBase } from "../base/pointLabels";
 import type { Box } from "../base/camera";
@@ -711,6 +712,37 @@ function LiveLayers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, selectedClue, one]);
 
+  // Add a clue where it was found: right-click the map, or press and hold on a touch screen (V3 §3)
+  useEffect(() => {
+    if (!map || !ready) return undefined;
+    const add = (at: { lng: number; lat: number }) => showMe({ kind: "addClue", at: { lat: at.lat, lon: at.lng } });
+    const onMenu = (e: { lngLat: { lng: number; lat: number }; preventDefault?: () => void; originalEvent?: Event }) => {
+      e.originalEvent?.preventDefault();
+      add(e.lngLat);
+    };
+    let timer = 0;
+    const cancel = () => window.clearTimeout(timer);
+    const onTouch = (e: { lngLat: { lng: number; lat: number }; points?: unknown[] }) => {
+      cancel();
+      if ((e.points?.length ?? 1) !== 1) return;
+      const at = e.lngLat;
+      timer = window.setTimeout(() => add(at), LONG_PRESS_MS);
+    };
+    map.on("contextmenu", onMenu as never);
+    map.on("touchstart", onTouch as never);
+    map.on("touchmove", cancel);
+    map.on("touchend", cancel);
+    map.on("touchcancel", cancel);
+    return () => {
+      cancel();
+      map.off("contextmenu", onMenu as never);
+      map.off("touchstart", onTouch as never);
+      map.off("touchmove", cancel);
+      map.off("touchend", cancel);
+      map.off("touchcancel", cancel);
+    };
+  }, [map, ready]);
+
   // What Needs you has in focus (a candidate, a proposal) and a new assignment's route (focusLayers.ts)
   useFocusLayers(map, ready, { sectors, proposals, tasks, teams, mission, candidateAt });
 
@@ -725,6 +757,9 @@ function LiveLayers({
 
   return null;
 }
+
+/** Press and hold this long on a touch screen to add a clue there (ms). */
+export const LONG_PRESS_MS = 550;
 
 /** From this zoom (and at least one step in from the console's fitted view) clues show their text; below it the icon, and the text on hover. */
 export const CLUE_TEXT_ZOOM = 15;

@@ -207,7 +207,7 @@ describe("the command post", () => {
 
   it("adds a clue at a team's position, from the timeline", async () => {
     const p = setup();
-    await userEvent.click(screen.getByRole("button", { name: "Add a clue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add clue" }));
     await userEvent.type(screen.getByLabelText("What"), "blue backpack by the creek");
     await userEvent.selectOptions(screen.getByLabelText("Team"), "T2");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
@@ -221,7 +221,7 @@ describe("the command post", () => {
     expect(clueProblem("pack", "latlon", "49.3", "-122.9", "-5")).toMatch(/radius/);
     expect(clueProblem("pack", "latlon", "49.3", "-122.9", "40")).toBeNull();
     const p = setup({ onPickOnMap: vi.fn().mockResolvedValue({ lat: 49.3731234, lon: -122.9357654 }) });
-    await userEvent.click(screen.getByRole("button", { name: "Add a clue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add clue" }));
     await userEvent.type(screen.getByLabelText("What"), "boot print");
     await userEvent.selectOptions(screen.getByLabelText("Where"), "latlon");
     await userEvent.type(screen.getByLabelText("Latitude"), "123");
