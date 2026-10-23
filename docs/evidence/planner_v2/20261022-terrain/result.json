@@ -1,0 +1,755 @@
+{
+  "simulated": true,
+  "grid": "200\u00d7200 cells of 5 m at the creek LKP",
+  "canopy": "runs/creek/20261021-204123/missions/c797e96a: 7761 cells measured on val crops",
+  "visibility_noise": 0.15,
+  "trials_per_row_per_seed": 2000,
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "horizon_min": 120.0,
+  "team_model": "2 teams from the LKP, 3 km/h straight line, 60 min per sector, POD 0.5 per pass",
+  "rows": [
+    {
+      "study": "d",
+      "scenario": "person from hiker/temperate_mountainous rings \u00d7 terrain",
+      "drones": 1,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.093,
+      "found_within_horizon": 0.322,
+      "found_30_min_seed_range": [
+        0.085,
+        0.106
+      ],
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.087,
+          "found_within_horizon": 0.315
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.086,
+          "found_within_horizon": 0.32
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.099,
+          "found_within_horizon": 0.333
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.106,
+          "found_within_horizon": 0.337
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.085,
+          "found_within_horizon": 0.307
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from hiker/temperate_mountainous rings \u00d7 terrain",
+      "drones": 1,
+      "variant": "planner believes Koester 0.8 blend \u00d7 terrain",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.118,
+      "found_within_horizon": 0.337,
+      "found_30_min_seed_range": [
+        0.114,
+        0.123
+      ],
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.115,
+          "found_within_horizon": 0.333
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.114,
+          "found_within_horizon": 0.336
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.123,
+          "found_within_horizon": 0.346
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.114,
+          "found_within_horizon": 0.346
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.122,
+          "found_within_horizon": 0.326
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from hiker/temperate_mountainous rings \u00d7 terrain",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": 74.16,
+      "p90_min": null,
+      "found_within_30_min": 0.269,
+      "found_within_horizon": 0.659,
+      "found_30_min_seed_range": [
+        0.257,
+        0.281
+      ],
+      "per_seed": [
+        {
+          "median_min": 73.7,
+          "p90_min": null,
+          "found_within_30_min": 0.27,
+          "found_within_horizon": 0.658
+        },
+        {
+          "median_min": 76.6,
+          "p90_min": null,
+          "found_within_30_min": 0.27,
+          "found_within_horizon": 0.65
+        },
+        {
+          "median_min": 74.6,
+          "p90_min": null,
+          "found_within_30_min": 0.267,
+          "found_within_horizon": 0.658
+        },
+        {
+          "median_min": 70.0,
+          "p90_min": null,
+          "found_within_30_min": 0.281,
+          "found_within_horizon": 0.678
+        },
+        {
+          "median_min": 75.9,
+          "p90_min": null,
+          "found_within_30_min": 0.257,
+          "found_within_horizon": 0.649
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from hiker/temperate_mountainous rings \u00d7 terrain",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend \u00d7 terrain",
+      "median_min": 72.7,
+      "p90_min": null,
+      "found_within_30_min": 0.268,
+      "found_within_horizon": 0.662,
+      "found_30_min_seed_range": [
+        0.255,
+        0.293
+      ],
+      "per_seed": [
+        {
+          "median_min": 76.3,
+          "p90_min": null,
+          "found_within_30_min": 0.255,
+          "found_within_horizon": 0.655
+        },
+        {
+          "median_min": 71.7,
+          "p90_min": null,
+          "found_within_30_min": 0.267,
+          "found_within_horizon": 0.657
+        },
+        {
+          "median_min": 76.3,
+          "p90_min": null,
+          "found_within_30_min": 0.271,
+          "found_within_horizon": 0.659
+        },
+        {
+          "median_min": 67.4,
+          "p90_min": null,
+          "found_within_30_min": 0.293,
+          "found_within_horizon": 0.675
+        },
+        {
+          "median_min": 71.8,
+          "p90_min": null,
+          "found_within_30_min": 0.255,
+          "found_within_horizon": 0.663
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from hiker/temperate_mountainous rings only",
+      "drones": 1,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.087,
+      "found_within_horizon": 0.309,
+      "found_30_min_seed_range": [
+        0.076,
+        0.096
+      ],
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.092,
+          "found_within_horizon": 0.311
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.076,
+          "found_within_horizon": 0.302
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.096,
+          "found_within_horizon": 0.324
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.089,
+          "found_within_horizon": 0.315
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.082,
+          "found_within_horizon": 0.295
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from hiker/temperate_mountainous rings only",
+      "drones": 1,
+      "variant": "planner believes Koester 0.8 blend \u00d7 terrain",
+      "median_min": null,
+      "p90_min": null,
+      "found_within_30_min": 0.085,
+      "found_within_horizon": 0.291,
+      "found_30_min_seed_range": [
+        0.076,
+        0.097
+      ],
+      "per_seed": [
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.081,
+          "found_within_horizon": 0.285
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.076,
+          "found_within_horizon": 0.288
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.097,
+          "found_within_horizon": 0.3
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.085,
+          "found_within_horizon": 0.303
+        },
+        {
+          "median_min": null,
+          "p90_min": null,
+          "found_within_30_min": 0.088,
+          "found_within_horizon": 0.279
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from hiker/temperate_mountainous rings only",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": 75.88,
+      "p90_min": null,
+      "found_within_30_min": 0.259,
+      "found_within_horizon": 0.653,
+      "found_30_min_seed_range": [
+        0.246,
+        0.272
+      ],
+      "per_seed": [
+        {
+          "median_min": 76.6,
+          "p90_min": null,
+          "found_within_30_min": 0.259,
+          "found_within_horizon": 0.654
+        },
+        {
+          "median_min": 77.6,
+          "p90_min": null,
+          "found_within_30_min": 0.254,
+          "found_within_horizon": 0.644
+        },
+        {
+          "median_min": 74.3,
+          "p90_min": null,
+          "found_within_30_min": 0.263,
+          "found_within_horizon": 0.658
+        },
+        {
+          "median_min": 72.6,
+          "p90_min": null,
+          "found_within_30_min": 0.272,
+          "found_within_horizon": 0.668
+        },
+        {
+          "median_min": 78.3,
+          "p90_min": null,
+          "found_within_30_min": 0.246,
+          "found_within_horizon": 0.64
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from hiker/temperate_mountainous rings only",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend \u00d7 terrain",
+      "median_min": 80.76,
+      "p90_min": null,
+      "found_within_30_min": 0.225,
+      "found_within_horizon": 0.64,
+      "found_30_min_seed_range": [
+        0.222,
+        0.23
+      ],
+      "per_seed": [
+        {
+          "median_min": 81.0,
+          "p90_min": null,
+          "found_within_30_min": 0.222,
+          "found_within_horizon": 0.636
+        },
+        {
+          "median_min": 80.7,
+          "p90_min": null,
+          "found_within_30_min": 0.227,
+          "found_within_horizon": 0.635
+        },
+        {
+          "median_min": 81.6,
+          "p90_min": null,
+          "found_within_30_min": 0.224,
+          "found_within_horizon": 0.644
+        },
+        {
+          "median_min": 80.6,
+          "p90_min": null,
+          "found_within_30_min": 0.23,
+          "found_within_horizon": 0.649
+        },
+        {
+          "median_min": 79.9,
+          "p90_min": null,
+          "found_within_30_min": 0.222,
+          "found_within_horizon": 0.638
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from dementia/temperate_mountainous rings \u00d7 terrain",
+      "drones": 1,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": 85.98,
+      "p90_min": null,
+      "found_within_30_min": 0.207,
+      "found_within_horizon": 0.593,
+      "found_30_min_seed_range": [
+        0.193,
+        0.217
+      ],
+      "per_seed": [
+        {
+          "median_min": 84.6,
+          "p90_min": null,
+          "found_within_30_min": 0.211,
+          "found_within_horizon": 0.603
+        },
+        {
+          "median_min": 86.3,
+          "p90_min": null,
+          "found_within_30_min": 0.217,
+          "found_within_horizon": 0.588
+        },
+        {
+          "median_min": 85.5,
+          "p90_min": null,
+          "found_within_30_min": 0.208,
+          "found_within_horizon": 0.601
+        },
+        {
+          "median_min": 86.3,
+          "p90_min": null,
+          "found_within_30_min": 0.205,
+          "found_within_horizon": 0.592
+        },
+        {
+          "median_min": 87.2,
+          "p90_min": null,
+          "found_within_30_min": 0.193,
+          "found_within_horizon": 0.583
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from dementia/temperate_mountainous rings \u00d7 terrain",
+      "drones": 1,
+      "variant": "planner believes Koester 0.8 blend \u00d7 terrain",
+      "median_min": 82.82,
+      "p90_min": null,
+      "found_within_30_min": 0.224,
+      "found_within_horizon": 0.593,
+      "found_30_min_seed_range": [
+        0.211,
+        0.236
+      ],
+      "per_seed": [
+        {
+          "median_min": 82.1,
+          "p90_min": null,
+          "found_within_30_min": 0.227,
+          "found_within_horizon": 0.606
+        },
+        {
+          "median_min": 82.1,
+          "p90_min": null,
+          "found_within_30_min": 0.229,
+          "found_within_horizon": 0.59
+        },
+        {
+          "median_min": 82.1,
+          "p90_min": null,
+          "found_within_30_min": 0.236,
+          "found_within_horizon": 0.6
+        },
+        {
+          "median_min": 82.1,
+          "p90_min": null,
+          "found_within_30_min": 0.211,
+          "found_within_horizon": 0.594
+        },
+        {
+          "median_min": 85.7,
+          "p90_min": null,
+          "found_within_30_min": 0.215,
+          "found_within_horizon": 0.573
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from dementia/temperate_mountainous rings \u00d7 terrain",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": 26.86,
+      "p90_min": null,
+      "found_within_30_min": 0.538,
+      "found_within_horizon": 0.778,
+      "found_30_min_seed_range": [
+        0.525,
+        0.549
+      ],
+      "per_seed": [
+        {
+          "median_min": 26.2,
+          "p90_min": null,
+          "found_within_30_min": 0.54,
+          "found_within_horizon": 0.774
+        },
+        {
+          "median_min": 27.0,
+          "p90_min": null,
+          "found_within_30_min": 0.542,
+          "found_within_horizon": 0.786
+        },
+        {
+          "median_min": 26.2,
+          "p90_min": null,
+          "found_within_30_min": 0.549,
+          "found_within_horizon": 0.782
+        },
+        {
+          "median_min": 27.0,
+          "p90_min": null,
+          "found_within_30_min": 0.532,
+          "found_within_horizon": 0.778
+        },
+        {
+          "median_min": 27.9,
+          "p90_min": null,
+          "found_within_30_min": 0.525,
+          "found_within_horizon": 0.77
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from dementia/temperate_mountainous rings \u00d7 terrain",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend \u00d7 terrain",
+      "median_min": 26.5,
+      "p90_min": null,
+      "found_within_30_min": 0.536,
+      "found_within_horizon": 0.784,
+      "found_30_min_seed_range": [
+        0.523,
+        0.549
+      ],
+      "per_seed": [
+        {
+          "median_min": 26.1,
+          "p90_min": null,
+          "found_within_30_min": 0.546,
+          "found_within_horizon": 0.791
+        },
+        {
+          "median_min": 26.7,
+          "p90_min": null,
+          "found_within_30_min": 0.535,
+          "found_within_horizon": 0.785
+        },
+        {
+          "median_min": 25.5,
+          "p90_min": null,
+          "found_within_30_min": 0.549,
+          "found_within_horizon": 0.787
+        },
+        {
+          "median_min": 26.7,
+          "p90_min": null,
+          "found_within_30_min": 0.529,
+          "found_within_horizon": 0.785
+        },
+        {
+          "median_min": 27.5,
+          "p90_min": null,
+          "found_within_30_min": 0.523,
+          "found_within_horizon": 0.771
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from dementia/temperate_mountainous rings only",
+      "drones": 1,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": 94.74,
+      "p90_min": null,
+      "found_within_30_min": 0.182,
+      "found_within_horizon": 0.549,
+      "found_30_min_seed_range": [
+        0.17,
+        0.199
+      ],
+      "per_seed": [
+        {
+          "median_min": 88.9,
+          "p90_min": null,
+          "found_within_30_min": 0.17,
+          "found_within_horizon": 0.559
+        },
+        {
+          "median_min": 106.3,
+          "p90_min": null,
+          "found_within_30_min": 0.174,
+          "found_within_horizon": 0.531
+        },
+        {
+          "median_min": 101.6,
+          "p90_min": null,
+          "found_within_30_min": 0.188,
+          "found_within_horizon": 0.544
+        },
+        {
+          "median_min": 88.0,
+          "p90_min": null,
+          "found_within_30_min": 0.199,
+          "found_within_horizon": 0.558
+        },
+        {
+          "median_min": 88.9,
+          "p90_min": null,
+          "found_within_30_min": 0.177,
+          "found_within_horizon": 0.555
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from dementia/temperate_mountainous rings only",
+      "drones": 1,
+      "variant": "planner believes Koester 0.8 blend \u00d7 terrain",
+      "median_min": 93.72,
+      "p90_min": null,
+      "found_within_30_min": 0.19,
+      "found_within_horizon": 0.547,
+      "found_30_min_seed_range": [
+        0.172,
+        0.206
+      ],
+      "per_seed": [
+        {
+          "median_min": 89.2,
+          "p90_min": null,
+          "found_within_30_min": 0.19,
+          "found_within_horizon": 0.557
+        },
+        {
+          "median_min": 105.3,
+          "p90_min": null,
+          "found_within_30_min": 0.172,
+          "found_within_horizon": 0.532
+        },
+        {
+          "median_min": 90.0,
+          "p90_min": null,
+          "found_within_30_min": 0.193,
+          "found_within_horizon": 0.545
+        },
+        {
+          "median_min": 89.2,
+          "p90_min": null,
+          "found_within_30_min": 0.206,
+          "found_within_horizon": 0.556
+        },
+        {
+          "median_min": 94.9,
+          "p90_min": null,
+          "found_within_30_min": 0.188,
+          "found_within_horizon": 0.546
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from dementia/temperate_mountainous rings only",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend",
+      "median_min": 30.5,
+      "p90_min": null,
+      "found_within_30_min": 0.5,
+      "found_within_horizon": 0.76,
+      "found_30_min_seed_range": [
+        0.483,
+        0.512
+      ],
+      "per_seed": [
+        {
+          "median_min": 29.9,
+          "p90_min": null,
+          "found_within_30_min": 0.501,
+          "found_within_horizon": 0.759
+        },
+        {
+          "median_min": 33.3,
+          "p90_min": null,
+          "found_within_30_min": 0.483,
+          "found_within_horizon": 0.753
+        },
+        {
+          "median_min": 30.7,
+          "p90_min": null,
+          "found_within_30_min": 0.497,
+          "found_within_horizon": 0.758
+        },
+        {
+          "median_min": 29.0,
+          "p90_min": null,
+          "found_within_30_min": 0.512,
+          "found_within_horizon": 0.776
+        },
+        {
+          "median_min": 29.6,
+          "p90_min": null,
+          "found_within_30_min": 0.505,
+          "found_within_horizon": 0.753
+        }
+      ]
+    },
+    {
+      "study": "d",
+      "scenario": "person from dementia/temperate_mountainous rings only",
+      "drones": 3,
+      "variant": "planner believes Koester 0.8 blend \u00d7 terrain",
+      "median_min": 30.74,
+      "p90_min": null,
+      "found_within_30_min": 0.495,
+      "found_within_horizon": 0.757,
+      "found_30_min_seed_range": [
+        0.481,
+        0.501
+      ],
+      "per_seed": [
+        {
+          "median_min": 29.5,
+          "p90_min": null,
+          "found_within_30_min": 0.501,
+          "found_within_horizon": 0.748
+        },
+        {
+          "median_min": 33.6,
+          "p90_min": null,
+          "found_within_30_min": 0.481,
+          "found_within_horizon": 0.746
+        },
+        {
+          "median_min": 30.1,
+          "p90_min": null,
+          "found_within_30_min": 0.499,
+          "found_within_horizon": 0.759
+        },
+        {
+          "median_min": 31.0,
+          "p90_min": null,
+          "found_within_30_min": 0.491,
+          "found_within_horizon": 0.769
+        },
+        {
+          "median_min": 29.5,
+          "p90_min": null,
+          "found_within_30_min": 0.501,
+          "found_within_horizon": 0.763
+        }
+      ]
+    }
+  ],
+  "seconds": 3.5
+}

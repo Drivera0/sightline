@@ -80,6 +80,70 @@ prior and gave identical numbers. `prior_mass_outside` now says where the outsid
 for the demo hiker it is 0.747: 0.607 of the rings past the 1 km grid's edge, 0.04 beyond the 95 %
 ring, 0.10 the uniform blend's half.
 
+**Update, 22 Oct: terrain affinity (optional, off by default).** The rings say how far from the
+IPP; they do not say where on the ground. `sightline/geo/terrain_affinity.py` reads the offline
+basemap's vector tiles (trails, streams, roads, lakes, cliffs and bare rock) over the grid and gives
+each cell a multiplier: trails 2.0 within 25 m falling to 1.0 at 100 m, streams 1.5 within 40 m to
+1.0 at 120 m, roads 0.7 within 50 m to 1.0 at 100 m, 0.2 inside a lake, 0.3 on cliffs or bare rock;
+the kernels multiply, then the raster is scaled to mean 1. The figures behind it are Jacobs 2015
+(*Terrain Based Probability Models for SAR*, Mountain Rescue Association, 1455 ISRID backcountry
+finds), Table 1: trails 5x, streams 2x, stream/trail interfaces 7x, roads 3x for uninjured subjects,
+with little gain past about 100 m (§5.2) and no effect of canopy or land cover (§4.6.2). Our trail
+and stream multipliers are milder than his, by hand (his are for narrow bands, and mapped trails
+carry position error). Roads are set below 1 on purpose, against his 3x: a subject within reach of
+a road is usually not lost. The water and cliff values are ours. The prior becomes rings × affinity,
+rescaled to the same in-grid mass, so `outside` and `prior_mass_outside` do not change (0.747 for
+the demo hiker either way). On the demo grid 81 % of cells lie within 100 m of a mapped trail, so
+the multiplier ranges only 0.11 to 1.45 after scaling to mean 1.
+
+| Demo prior, rings only | Rings × terrain affinity |
+|---|---|
+| ![rings](figures/v3/prior_rings.png) | ![rings × terrain](figures/v3/prior_rings_terrain.png) |
+
+Sector POA for the demo hiker (4 × 4 lattice, in-grid mass 25.3 % either way):
+
+| Sector | Rings | Rings × terrain | Change | Mean multiplier |
+|---|---|---|---|---|
+| B2 | 1.92 % | 2.43 % | +0.51 pt | 1.26 |
+| B3 | 1.92 % | 2.14 % | +0.22 pt | 1.12 |
+| D3 | 1.55 % | 1.84 % | +0.29 pt | 1.20 |
+| A3 | 1.55 % | 1.77 % | +0.22 pt | 1.13 |
+| C4 | 1.55 % | 1.74 % | +0.19 pt | 1.12 |
+| C3 | 1.92 % | 1.73 % | −0.19 pt | 0.92 |
+| A1 | 1.32 % | 1.64 % | +0.32 pt | 1.24 |
+| A2 | 1.55 % | 1.63 % | +0.08 pt | 1.04 |
+| C1 | 1.55 % | 1.62 % | +0.07 pt | 1.04 |
+| B1 | 1.55 % | 1.58 % | +0.03 pt | 1.01 |
+| D4 | 1.32 % | 1.54 % | +0.22 pt | 1.16 |
+| B4 | 1.55 % | 1.42 % | −0.13 pt | 0.90 |
+| C2 | 1.92 % | 1.33 % | −0.59 pt | 0.70 |
+| A4 | 1.32 % | 1.02 % | −0.30 pt | 0.79 |
+| D1 | 1.32 % | 1.00 % | −0.31 pt | 0.75 |
+| D2 | 1.55 % | 0.93 % | −0.62 pt | 0.61 |
+
+Planner, same seeds, canopy and grid as above (`--only-affinity`, study (d);
+`docs/evidence/planner_v2/20261022-terrain/`). Found within 30 min, seed range in brackets:
+
+| Person drawn from | Drones | Planner believes rings | Planner believes rings × terrain |
+|---|---|---|---|
+| hiker rings × terrain | 1 | 9.3 % (8.5–10.6) | 11.8 % (11.4–12.3) |
+| hiker rings × terrain | 3 | 26.9 % (25.7–28.1) | 26.8 % (25.5–29.3) |
+| hiker rings only | 1 | 8.7 % (7.6–9.6) | 8.5 % (7.6–9.7) |
+| hiker rings only | 3 | 25.9 % (24.6–27.2) | 22.5 % (22.2–23.0) |
+| dementia rings × terrain | 1 | 20.7 % (19.3–21.7) | 22.4 % (21.1–23.6) |
+| dementia rings × terrain | 3 | 53.8 % (52.5–54.9) | 53.6 % (52.3–54.9) |
+| dementia rings only | 1 | 18.2 % (17.0–19.9) | 19.0 % (17.2–20.6) |
+| dementia rings only | 3 | 50.0 % (48.3–51.2) | 49.5 % (48.1–50.1) |
+
+When the person follows the terrain, believing it helps one drone (hiker +2.5 points, dementia +1.7,
+seed ranges apart for the hiker) and makes no measurable difference with three: the planner ranks
+250 m sectors, and three drones reach the top sectors either way. When the terrain is wrong (the
+person drawn from the rings alone), it costs the hiker with three drones 3.4 points; the other rows
+are inside the seed spread. The gain is small because the multiplier is mild and the trail network
+here is dense. Whether real subjects follow these kernels on this mountain is not tested: there are
+no find locations here to test it on. The affinity stays off by default; the web fixtures are
+not regenerated with it in this change.
+
 ### (b) Team awareness (3 drones and 2 teams; teams search with POD 0.5 per pass)
 
 | Canopy | Clue | v1 (teams ignored, nearest team) | discount only | walking time only | v2 (both) |
