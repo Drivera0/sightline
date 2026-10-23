@@ -53,7 +53,7 @@ SOURCES: dict[str, dict] = {
         "page": "https://commons.wikimedia.org/wiki/File:Tent,_sleeping_bag,_and_backpack.jpg",
         "cut": (300, 1560, 1960, 2268),  # below the drink bottle's label
         "object_box": (430, 1560, 1840, 2200),
-        "credit": "Steve Bittinger, CC BY 2.0 (https://creativecommons.org/licenses/by/2.0), via Wikimedia Commons",
+        "credit": "Steve Bittinger, CC BY 2.0, via Wikimedia Commons",
         "view": "ground-level oblique (no licensed aerial photo of a pack was found)",
     },
     "fire ring": {
@@ -62,7 +62,7 @@ SOURCES: dict[str, dict] = {
         "page": "https://commons.wikimedia.org/wiki/File:Campfire_scar_08319.JPG",
         "cut": (0, 0, 2358, 1768),
         "object_box": (105, 95, 2180, 1650),
-        "credit": "Walter Siegmund, CC BY 2.5 (https://creativecommons.org/licenses/by/2.5), via Wikimedia Commons",
+        "credit": "Walter Siegmund, CC BY 2.5, via Wikimedia Commons",
         "view": "close top-down (camera pointing straight down, not drone altitude)",
     },
     "shelter": {
@@ -71,7 +71,7 @@ SOURCES: dict[str, dict] = {
         "page": "https://commons.wikimedia.org/wiki/File:Aerial_View_(140435851).jpeg",
         "cut": (420, 560, 1100, 1070),  # two tents and a pack; the people at the right are left out
         "object_box": (676, 692, 932, 815),
-        "credit": "J Doll, CC BY 3.0 (https://creativecommons.org/licenses/by/3.0), via Wikimedia Commons",
+        "credit": "J Doll, CC BY 3.0, via Wikimedia Commons",
         "view": "steep oblique from a rock outcrop above the camp",
     },
     "hikers": {
