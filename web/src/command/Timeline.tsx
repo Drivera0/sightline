@@ -10,6 +10,7 @@ import { useSelection } from "../lib/selection";
 import { Button, KeyHint } from "../shell/components";
 import { Icon, type IconName } from "../shell/icons";
 import { useConsole } from "./consoleStore";
+import { withCallsigns } from "./RadioBubble";
 import { buildTimeline, FILTERS, inFilter, type Entry, type EntryKind } from "./timeline";
 
 const ICON: Record<EntryKind, IconName> = {
@@ -85,6 +86,7 @@ export function Timeline({
   const all = useMemo(() => buildTimeline(events, teams, server), [events, teams, server]);
   const shown = all.filter((e) => inFilter(e, filter)).slice(0, TIMELINE_LIMIT);
   const fresh = useFreshRows(all);
+  const callsigns = useMemo(() => teams.map((t) => t.callsign), [teams]);
   const counts = useMemo(() => Object.fromEntries(FILTERS.map((f) => [f, all.filter((e) => inFilter(e, f)).length])) as Record<(typeof FILTERS)[number], number>, [all]);
   const list = useRef<HTMLOListElement>(null);
   // "Show me" on a radio call: its row, brought into view and highlighted
@@ -155,7 +157,16 @@ export function Timeline({
             </span>
             <Icon name={ICON[e.kind]} size={15} className="mt-[3px] shrink-0 text-[var(--c)]" />
             <span className="min-w-0 flex-1">
-              <span className={`text-small ${e.kind === "note" ? "text-text-2" : "text-text"}`}>{e.text}</span>
+              {e.kind === "radio" ? (
+                // the air: a radio line, callsigns in mono; the desk's own calls in a teal bubble
+                <span
+                  className={`text-small text-text ${e.turn?.direction === "out" ? "rounded-sm rounded-tl-none border border-[color-mix(in_srgb,var(--c-drone)_40%,transparent)] bg-[color-mix(in_srgb,var(--c-drone)_8%,transparent)] px-1.5 py-px" : ""}`}
+                >
+                  {withCallsigns(e.text, callsigns)}
+                </span>
+              ) : (
+                <span className={`text-small ${e.kind === "note" ? "text-text-2" : "text-text"}`}>{e.text}</span>
+              )}
               {e.repeats > 1 && <span className="ml-1.5 text-caption text-text-3" title={`${e.repeats} times; the newest shown`}>×{e.repeats}</span>}
               {e.detail && <span className="block line-clamp-2 text-caption text-text-3" title={e.detail}>{e.detail}</span>}
             </span>
