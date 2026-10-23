@@ -5,7 +5,7 @@
 // column or lay a sheet over the console, never the map. Phones stack the regions (Needs you, the map, the
 // timeline, the resources) and the bottom tabs jump between them. Built by lane A.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Clue, ClueDraft, Conditions, Drone, FleetState, Mission, MissionEvent, Proposal, SectorTask, Team, TimelineEvent } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { useMission, type FleetLinks } from "../lib/mission";
@@ -23,6 +23,8 @@ import { useEventToasts } from "./notifications";
 import { showMe } from "./showMe";
 import { ToastStack } from "../shell/toasts";
 import { TimelineHandle, useTimelineHeight } from "./TimelineResize";
+import { ReviewFrame } from "./ReviewFrame";
+import type { LiveAnswer, ReviewCard } from "../review/LiveReview";
 
 /** The demo mission is dated at Mount Seymour; a live mission reads the browser's zone. */
 export const missionTz = (status: string): Tz => (status === "demo" ? DEMO_TZ : false);
@@ -100,6 +102,10 @@ export interface CommandProps {
   /** The review cards for Needs you, and how many wait for an answer. */
   review: ReactNode;
   reviewCount: number;
+  /** The candidates for the large review frame, their answers, and how to answer (V3 §3). */
+  reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: (id: string, a: LiveAnswer) => void };
+  /** Open the review frame by itself when the first candidates arrive (off inside the guided story). */
+  autoReview?: boolean;
   briefings?: ReactNode;
   storyProposal?: string | null;
   voice?: TalkVoice | null;
@@ -120,7 +126,15 @@ export function CommandView(p: CommandProps) {
   }, []);
   const tz = missionTz(p.status);
   // what changed, said once: a toast (and the bell's log) for every event that is news (V3 §2)
-  useEventToasts(p.events, p.teams, p.mission?.status === "found" ? 0 : p.reviewCount, p.proposals);
+  const waiting = p.mission?.status === "found" ? 0 : p.reviewCount;
+  useEventToasts(p.events, p.teams, waiting, p.proposals);
+  // photos landed and candidates arrived where there were none: the first one opens in the review frame
+  const wasWaiting = useRef<number | null>(null);
+  useEffect(() => {
+    const was = wasWaiting.current;
+    wasWaiting.current = waiting;
+    if (was === 0 && waiting > 0 && p.autoReview && p.reviewFrame) useConsole.getState().openReview(null);
+  }, [waiting, p.autoReview, p.reviewFrame]);
   // the simulated fleet's demo controls (live missions only: they call the API)
   const api = useMission((s) => s.api);
   const t = now();
@@ -244,6 +258,7 @@ export function CommandView(p: CommandProps) {
       </div>
       {p.cover && <div className="absolute inset-0 z-30 overflow-y-auto rounded-lg bg-bg">{p.cover}</div>}
       <ToastStack onShow={showMe} />
+      {p.reviewFrame && <ReviewFrame cards={p.reviewFrame.cards} answers={p.reviewFrame.answers} onAnswer={p.reviewFrame.onAnswer} />}
     </div>
   );
 }

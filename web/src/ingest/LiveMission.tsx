@@ -48,7 +48,7 @@ import { Button, modeOf, Page, Panel, Stat } from "../shell/components";
 import { DEMO_CONSOLE_HASH, guideHash, viewHash, type Route, type View } from "../shell/flow";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS } from "../shell/shortcuts";
-import { LiveReview, liveReviewItems, ReviewRail, type LiveAnswer } from "../review/LiveReview";
+import { liveCards, liveReviewItems, ReviewRail, type LiveAnswer } from "../review/LiveReview";
 import { UploadPanel, WatchPanel } from "./UploadPanel";
 
 // Split from the first bundle (the landing paints without them): the map with MapLibre, the views a
@@ -193,6 +193,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // the demo's scenario (#m/demo?s=<seed>; none: the overdue hiker) and the mission as that scenario
   const [seed, setSeed] = useState<string | null>(route.seed ?? null);
   const [scenario, setScenario] = useState<DemoFull | null>(null);
+  const [liveAnswers, setLiveAnswers] = useState<Record<string, LiveAnswer>>({});
 
   /** Bring a region of the console on screen (phones stack them) and put focus in it. */
   const show = useCallback((id: "console-needs" | "console-timeline" | "console-map" | "console-resources", focus?: string) => {
@@ -620,22 +621,21 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   );
   // the review cards live in Needs you: the demo's queue, or a live mission's candidates
   const reviewCount = demo ? (run.on ? run.cards(cards) : cards).filter((c) => !story.answers[c.id]).length + (story.tried ? 1 : 0) : liveReviewItems(s.detections, s.promoted).length;
+  // a live mission's queue (one list for the rail and the review frame, one set of answers)
+  const live = demo ? [] : liveCards(s.detections, s.survey, s.verdicts, s.promoted, (rel) => fileUrl(api, missionId, rel));
+  const answerLive = (id: string, a: LiveAnswer) => {
+    setLiveAnswers((x) => ({ ...x, [id]: a }));
+    void useMission.getState().review(id, a);
+  };
   const review =
     reviewCount > 0 || tried ? (
       demo ? (
         <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id])} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Candidates appear here as the survey's photos land." />
       ) : (
-        <LiveReview
-          detections={s.detections}
-          survey={s.survey}
-          verdicts={s.verdicts}
-          promoted={s.promoted}
-          imageUrl={(rel) => fileUrl(api, missionId, rel)}
-          onAnswer={(id, answer) => void useMission.getState().review(id, answer)}
-          top={tried}
-        />
+        <ReviewRail cards={live} answers={liveAnswers} onAnswer={answerLive} top={tried} />
       )
     ) : null;
+  const reviewFrame = demo ? { cards: run.on ? run.cards(cards) : cards, answers: story.answers, onAnswer: answerDemo } : { cards: live, answers: liveAnswers, onAnswer: answerLive };
   const debrief = (
     <Suspense fallback={loading("the debrief")}>
       <Debrief
@@ -791,6 +791,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               cover={cover}
               review={review}
               reviewCount={reviewCount}
+              reviewFrame={reviewFrame}
+              autoReview={!(demo && (story.tour || run.on))}
               briefings={briefings}
               storyProposal={run.on ? run.proposal : null}
               voice={voice}
