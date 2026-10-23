@@ -35,6 +35,14 @@ edge is not dropped: it is in ``outside``, and ``prior_mass_outside`` reports ho
 The rings are blended with the uniform prior (``KOESTER_WEIGHT`` of the mass from the rings, the
 rest from ``placeholder_prior``): a hedge against a wrong category or IPP, chosen by hand, not
 tuned (there are no cases to tune it on). Without a category the prior stays uniform.
+
+**Terrain affinity (optional, off by default).** The rings say how far; they do not say where on
+the ground. ``koester_prior(..., affinity=...)`` multiplies the blended prior by a per-cell terrain
+multiplier (``sightline.geo.terrain_affinity``: near trails and streams up, in lakes and on cliffs
+down, roads mildly down; Jacobs 2015's ISRID find-location PDENs, milder by hand) and rescales the
+cells so they hold the same in-grid mass as before. ``outside`` and ``prior_mass_outside`` do not
+change: the affinity moves mass between cells, never across the grid's edge. It applies to the
+uniform placeholder too (``category`` None), so even the placeholder follows the terrain.
 """
 
 from __future__ import annotations
@@ -43,6 +51,7 @@ import math
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -219,16 +228,41 @@ def subject_category(subject: str | None) -> str | None:
     return name if name in CATEGORIES else f"{kind}/{DEFAULT_TERRAIN}"
 
 
+def _multiplier(grid: Grid, affinity: Any) -> np.ndarray:
+    m = np.asarray(getattr(affinity, "multiplier", affinity), dtype=np.float64).ravel()
+    if m.size != grid.rows * grid.cols:
+        raise ValueError(f"affinity has {m.size} cells, the grid {grid.rows * grid.cols}")
+    if not np.all(np.isfinite(m)) or np.any(m < 0):
+        raise ValueError("affinity must be finite and non-negative")
+    return m
+
+
+def apply_affinity(grid: Grid, p: np.ndarray, affinity: Any) -> np.ndarray:
+    """``p`` × the per-cell ``affinity`` (an array or a ``TerrainAffinity``), rescaled so the cells
+    hold the same total as ``p``: the outside mass is untouched. All-zero product: ``p`` as is."""
+    q = p * _multiplier(grid, affinity)
+    total = float(q.sum())
+    return q * (float(p.sum()) / total) if total > 0 else p.copy()
+
+
 def koester_prior(
-    grid: Grid, lkp: LatLon, category: str | None, weight: float = KOESTER_WEIGHT
+    grid: Grid,
+    lkp: LatLon,
+    category: str | None,
+    weight: float = KOESTER_WEIGHT,
+    affinity: Any = None,
 ) -> tuple[np.ndarray, float]:
     """``weight`` × the category's distance rings around the LKP + (1 − ``weight``) × the uniform
     placeholder; the placeholder alone when ``category`` is None. Ring k holds the quartile share
     (25, 25, 25, 20 %), falling off with distance across the ring (``ring_prior``); the 5 % beyond
     the 95 % ring, and any ring's part past the grid's edge, is outside the grid
-    (``prior_mass_outside`` says how much of each)."""
+    (``prior_mass_outside`` says how much of each). With ``affinity`` (a per-cell multiplier,
+    ``sightline.geo.terrain_affinity``), the cells are multiplied by it and rescaled to the same
+    in-grid total (``apply_affinity``), the placeholder included; ``outside`` is unchanged."""
     uniform_p, uniform_out = placeholder_prior(grid)
     if category is None:
+        if affinity is not None:
+            uniform_p = apply_affinity(grid, uniform_p, affinity)
         return uniform_p, uniform_out
     if category not in CATEGORIES:
         raise ValueError(f"unknown lost-person category {category!r}: {sorted(CATEGORIES)}")
@@ -237,6 +271,8 @@ def koester_prior(
     rings = list(zip(CATEGORIES[category].rings_m, QUARTILES, strict=True))
     ring_p, ring_out = ring_prior(grid, lkp, rings)
     p = weight * ring_p + (1 - weight) * uniform_p
+    if affinity is not None:
+        p = apply_affinity(grid, p, affinity)
     return p, weight * ring_out + (1 - weight) * uniform_out
 
 
@@ -260,9 +296,15 @@ def prior_mass_outside(
     }
 
 
-def prior_source(category: str | None, weight: float = KOESTER_WEIGHT) -> str:
+def prior_source(
+    category: str | None, weight: float = KOESTER_WEIGHT, affinity: bool = False
+) -> str:
     """``params.prior_source`` (contract 1.1) for the prior ``koester_prior`` gave."""
+    terrain = " × terrain affinity (Jacobs 2015 ISRID find locations)" if affinity else ""
     if category is None:
-        return "placeholder"
+        return "placeholder" + terrain
     c = CATEGORIES[category]
-    return f"Koester lost-person rings, {c.name} (n={c.n}; {c.source}), weight {weight:g} + uniform"
+    return (
+        f"Koester lost-person rings, {c.name} (n={c.n}; {c.source}), weight {weight:g} + uniform"
+        + terrain
+    )

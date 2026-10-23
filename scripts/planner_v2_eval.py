@@ -16,6 +16,9 @@ HERIDAL test photos. Minutes until a simulated person is found (``planner_sim.pl
 (b) team awareness: 3 drones + 2 teams; the drone discount and the walking time on or off.
 (c) re-plans: 3 drones + 2 teams, a clue in each sector in turn; the best leg only per event vs
     the best leg plus every idle drone; with and without the agent's opening legs.
+(d) terrain affinity (``--affinity``, off by default): the person drawn from the rings with or
+    without the terrain multiplier (``geo/terrain_affinity.py``, from the offline basemap), the
+    planner believing the Koester blend with or without it; 1 and 3 drones, the same seeds.
 
 Writes ``runs/planner_v2/result.json`` and prints the tables. **Simulated evaluation**: label it
 so wherever it is shown.
@@ -75,7 +78,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--canopy-from", type=Path, default=None, help="a creek run's mission folder")
     ap.add_argument("--trials", type=int, default=2000)
     ap.add_argument("--horizon", type=float, default=120.0, help="minutes simulated")
+    ap.add_argument("--affinity", action="store_true", help="add study (d): terrain affinity")
+    ap.add_argument("--only-affinity", action="store_true", help="run study (d) alone")
     args = ap.parse_args(argv)
+    args.affinity = args.affinity or args.only_affinity
     t0 = time.perf_counter()
 
     lkp = FleetScenario.load("creek").lkp
@@ -120,6 +126,9 @@ def main(argv: list[str] | None = None) -> int:
         }
 
     rows: list[dict] = []
+    if args.only_affinity:
+        _affinity_rows(rows, grid, lkp, canopy, cfg, args, score)
+        return _report(rows, grid, canopy_src, args, t0)
 
     # (a) prior
     for cat in ("hiker/temperate_mountainous", "dementia/temperate_mountainous"):
@@ -165,6 +174,40 @@ def main(argv: list[str] | None = None) -> int:
                          "variant": "best leg only (v1)" if replan == "one" else "best leg + every idle drone (v2)",
                          **score(pairs)})  # fmt: skip
 
+    if args.affinity:
+        _affinity_rows(rows, grid, lkp, canopy, cfg, args, score)
+    return _report(rows, grid, canopy_src, args, t0)
+
+
+def _affinity_rows(rows, grid, lkp, canopy, cfg, args, score) -> None:
+    """Study (d): rings with and without the terrain affinity, as truth and as belief."""
+    from sightline.geo.terrain_affinity import affinity_raster, features_from_pmtiles, grid_bbox
+    from sightline.search.planner_sim import plan_mission, scenario
+    from sightline.search.prior import koester_prior
+
+    pmtiles = ROOT / "web/public/basemap/northshore.pmtiles"
+    aff = affinity_raster(grid, features_from_pmtiles(pmtiles, grid_bbox(grid)))
+    for cat in ("hiker/temperate_mountainous", "dementia/temperate_mountainous"):
+        truths = {
+            "rings × terrain": koester_prior(grid, lkp, cat, weight=1.0, affinity=aff)[0],
+            "rings only": koester_prior(grid, lkp, cat, weight=1.0)[0],
+        }
+        beliefs = {
+            "Koester 0.8 blend": koester_prior(grid, lkp, cat)[0],
+            "Koester 0.8 blend × terrain": koester_prior(grid, lkp, cat, affinity=aff)[0],
+        }
+        for tname, tp in truths.items():
+            truth = scenario(grid, lkp, tp.tolist(), canopy, cfg)
+            for n in (1, 3):
+                for bname, bp in beliefs.items():
+                    belief = scenario(grid, lkp, bp.tolist(), canopy, cfg)
+                    ps = plan_mission(belief, cfg, n, 0, args.horizon)
+                    rows.append({"study": "d", "scenario": f"person from {cat} {tname}",
+                                 "drones": n, "variant": f"planner believes {bname}",
+                                 **score([(truth, ps)])})  # fmt: skip
+
+
+def _report(rows, grid, canopy_src, args, t0) -> int:
     result = {
         "simulated": True,
         "grid": f"{grid.rows}×{grid.cols} cells of {grid.cell_m:.0f} m at the creek LKP",
@@ -177,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
         "rows": rows,
         "seconds": round(time.perf_counter() - t0, 1),
     }
-    out = ROOT / "runs/planner_v2"
+    out = ROOT / ("runs/planner_v2_affinity" if args.only_affinity else "runs/planner_v2")
     out.mkdir(parents=True, exist_ok=True)
     (out / "result.json").write_text(json.dumps(result, indent=2))
 
