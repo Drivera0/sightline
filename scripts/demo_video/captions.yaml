@@ -32,6 +32,9 @@ labels:
   radio:   {text: "Radio: Parakeet hears the team,\nMagpie speaks the desk's reply"}
   find:    {text: "Found in C2, 1 h 30 min after the call"}
   debrief: {text: "The after-action report, written from\nthe timeline; what breaks first"}
+  # the --live shots (record.py live_shots), not in the v2 cuts
+  live_link: {text: "Fleet controls cut drone two's link;\na drone relays the cut-off team"}
+  recall:    {text: "Gusts past the drones' limit:\nthe agent proposes a recall"}
 
 # The program (master.mp4), rendered from the 4K master at this size (`--size 2560x1440` for the 1440p
 # upload). zoompan works on the master scaled up `upscale` times first: it rounds its crop to whole

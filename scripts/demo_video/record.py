@@ -1,15 +1,16 @@
-"""Record the demo flow as one 1920x1080 screen recording at device scale 2, shot by shot (WIN_RESEARCH §8).
+"""Record the story as one 1920x1080 screen recording at device scale 2, shot by shot (shot list v2).
 
-    uv run --extra video python scripts/demo_video/record.py                       # the demo story
-    uv run --extra video python scripts/demo_video/record.py --live --serve-local  # + the simulated fleet live
+    uv run --extra video python scripts/demo_video/record.py                       # the story (no API)
+    uv run --extra video python scripts/demo_video/record.py --live --serve-local  # + the live fleet shots
     uv run --extra video python scripts/demo_video/record.py --live --api http://127.0.0.1:8000
-    uv run --extra video python scripts/demo_video/record.py --shots call,photos   # just those shots
+    uv run --extra video python scripts/demo_video/record.py --shots call,photos   # just those (debugging)
 
 Builds the site (``VITE_CACHE_DIR=demo``), serves it with ``vite preview`` on port 5202 (started and
-stopped by PID by this script), drives Chromium through the one console (PR #171): the landing at t0
-with the pitch bar, the mission-time story's coach marks t1-t5, the Trace, the Conditions panel, the
-simulated fleet, the radio desk and the Debrief, with eased mouse moves and clicks, and writes into the
-run folder:
+stopped by PID by this script), and drives Chromium through the seven-beat story of PR #200 ("Follow the
+search", t0-t6) on the one console: the call, photos land, confirm (Person, Person, Not a person, the
+second look), the Trace, where next (the radio clue, the proposal, Approve), the run (the lost link, the
+relay), the fleet, Team One's walk, the radio call, the find and the debrief, with eased mouse moves and
+clicks, and writes into the run folder:
 
 - ``master_4k.mp4``: the recording, 3840x2160 (the 1920x1080 viewport at device scale 2), captured frame
   by frame with ``page.screencast`` and encoded by ffmpeg (``capture.py``: H.264 CRF 16, BT.709), at 60 fps
@@ -96,6 +97,21 @@ CURSOR_JS = r"""
 })();
 """
 SYNC_COLORS = ("#ff00ff", "#00ff00")
+
+# Scrolls the element's scrolling ancestor smoothly so the element (and the heading just above it) sits in
+# the upper part of it; else scrollIntoView.
+SCROLL_TO_JS = r"""
+(sel) => {
+  const el = document.querySelector(sel);
+  if (!el) return false;
+  let sc = el.parentElement;
+  while (sc && !(/(auto|scroll)/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight > sc.clientHeight)) sc = sc.parentElement;
+  if (!sc) { el.scrollIntoView({behavior: "smooth", block: "center"}); return true; }
+  const top = sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top - 0.12 * sc.clientHeight - 80;
+  sc.scrollTo({top: Math.max(0, top), behavior: "smooth"});
+  return true;
+}
+"""
 SYNC_BOX = (1906, 1066, 12)  # x, y, size of the mark in CSS px (the 1920x1080 viewport)
 
 
@@ -561,7 +577,9 @@ def demo_shots(d: Director) -> None:
         return p.get_by_role("dialog", name=re.compile(r"^The story"))
 
     def mark_next(timeout: float = 6.0):
-        b = d.first(mark().get_by_role("button", name=re.compile(r"^(Next|Done)$")), timeout=timeout)
+        b = d.first(
+            mark().get_by_role("button", name=re.compile(r"^(Next|Done)$")), timeout=timeout
+        )
         if b is None:
             raise RuntimeError("no Next on the coach mark")
         d.click(b)
@@ -621,7 +639,9 @@ def demo_shots(d: Director) -> None:
         d.pause(1.6)
         d.to(status(), 1.0, 0.36, 0.5)  # Out 0 people, Subject not found
         d.pause(1.4)
-        camp = d.first(team_on_map("T1"), timeout=2)  # the teams wait at base camp, the trailhead lot
+        camp = d.first(
+            team_on_map("T1"), timeout=2
+        )  # the teams wait at base camp, the trailhead lot
         if camp is not None:
             d.to(camp, 1.1)
             d.pause(1.8)
@@ -630,12 +650,16 @@ def demo_shots(d: Director) -> None:
         """t1: drone one flies the survey from base, 500 photos land and the map changes under its legs;
         then the candidates already waiting in Needs you."""
         mark_next()
-        d.move(SIZE["width"] * 0.47, SIZE["height"] * 0.42, 1.2)  # the map: the clock runs 6 s to t1
+        d.move(
+            SIZE["width"] * 0.47, SIZE["height"] * 0.42, 1.2
+        )  # the map: the clock runs 6 s to t1
         wait_mark(r"flies the survey|photos land", 9)
         d.pause(2.5)
         mark_next()
         wait_mark(r"ranks each photo", 4)
-        needs = d.first(p.locator('[data-tour="review"]'), p.locator('[data-tour="needs"]'), timeout=2)
+        needs = d.first(
+            p.locator('[data-tour="review"]'), p.locator('[data-tour="needs"]'), timeout=2
+        )
         if needs is not None:
             d.to(needs, 1.1, 0.5, 0.3)
         d.pause(2.5)
@@ -686,7 +710,11 @@ def demo_shots(d: Director) -> None:
         """The Trace on that chain: the tool call, the model call, the verdict, the proposal, the approval."""
         d.click(views("Trace"))
         d.pause(1.0)
-        chain = d.first(p.locator('article[aria-label^="Chain f0001-d01"]'), p.locator('article[aria-label^="Chain"]'), timeout=5)
+        chain = d.first(
+            p.locator('article[aria-label^="Chain f0001-d01"]'),
+            p.locator('article[aria-label^="Chain"]'),
+            timeout=5,
+        )
         if chain is None:
             raise RuntimeError("no chain in the Trace")
         d.to(chain, 0.8, 0.1, 0.05)
@@ -719,7 +747,9 @@ def demo_shots(d: Director) -> None:
         d.pause(2.0)
         mark_next()
         wait_mark(r"agent proposes", 4)
-        prop = d.first(p.locator("[data-story-proposal]"), p.locator('[data-proposal="p003"]'), timeout=4)
+        prop = d.first(
+            p.locator("[data-story-proposal]"), p.locator('[data-proposal="p003"]'), timeout=4
+        )
         if prop is None:
             raise RuntimeError("no story proposal at t3")
         d.to(prop, 1.0, 0.4, 0.35)  # the reason names the clue
@@ -767,15 +797,28 @@ def demo_shots(d: Director) -> None:
     def radio():
         """The radio, one turn: the timeline on Radio; the clock runs to t5 and Team One's call lands, then
         the desk's reply (voiced in Magpie by narrate.py, in-world)."""
-        tab = d.first(timeline().get_by_role("group", name="Show").get_by_role("button", name="Radio"), timeout=2)
+        tab = d.first(
+            timeline().get_by_role("group", name="Show").get_by_role("button", name="Radio"),
+            timeout=2,
+        )
         if tab is None:
             raise RuntimeError("no Radio filter on the timeline")
         d.click(tab, 0.9)
         d.pause(0.8)
         mark_next()  # the clock runs 2.5 s to the find
         wait_mark(r"Subject located|finds the subject", 6)
-        call_in = d.first(timeline().locator('li[data-kind="radio"]', has_text=re.compile(r"^.*Sightline, Team One\. Subject")), timeout=2)
-        reply = d.first(timeline().locator('li[data-kind="radio"]', has_text=re.compile(r"Team One, Sightline\. Copy subject")), timeout=2)
+        call_in = d.first(
+            timeline().locator(
+                'li[data-kind="radio"]', has_text=re.compile(r"^.*Sightline, Team One\. Subject")
+            ),
+            timeout=2,
+        )
+        reply = d.first(
+            timeline().locator(
+                'li[data-kind="radio"]', has_text=re.compile(r"Team One, Sightline\. Copy subject")
+            ),
+            timeout=2,
+        )
         for li in (call_in, reply):
             if li is not None:
                 d.to(li, 1.0, 0.3, 0.4)
@@ -814,12 +857,9 @@ def demo_shots(d: Director) -> None:
             raise RuntimeError("no 'What breaks first' in the debrief")
         rail = p.locator('[data-tour="debrief"]').first
         d.to(report if rail.count() == 0 else rail, 0.8, 0.5, 0.6)
-        for _ in range(40):  # scroll by hand until the lines sit in the upper half
-            box = lines.bounding_box()
-            if box and box["y"] < SIZE["height"] * 0.42:
-                break
-            p.mouse.wheel(0, 260)
-            d.pause(0.15)
+        # one smooth scroll of the rail (a wheel step at a time is a round trip each at 4K, ~25 s)
+        p.evaluate(SCROLL_TO_JS, 'ol[aria-label="What breaks first"]')
+        d.pause(1.8)
         d.pause(0.6)
         items = lines.locator("li")
         for i in range(items.count()):

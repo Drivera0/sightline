@@ -10,15 +10,17 @@ script):
   camera move (``moves``: a slow push-in by default) and speed-up rendered from the 4K frames
   (``moves.py``), lanczos down to the output; uncaptioned. The shots' times in it go back into
   shots.json (``program_start_s`` / ``program_end_s``) for the labels, the cuts and the narration;
-- ``captions.srt``: one short burned-in step label per shot that ran (not narration), at most 42
-  characters a line, two lines, on screen at least 1.2 s;
-- ``master_captioned.mp4``: the program with the labels burned in after the move, so they stay sharp and
-  still; the export profile (H.264 High, BT.709, 8 Mbit/s at 30 fps or 12 at 60 for 1080p, YouTube's
+- ``captions.srt`` / ``captions.ass``: one short burned-in caption per shot that ran (not narration), at
+  most 42 characters a line, two lines, on screen at least 1.2 s, in the site's type (Geist, copied into
+  ``fonts/`` for libass); never demo/recorded/scripted/simulated, never "clear" or "rule out";
+- ``master_captioned.mp4``: the program with the captions burned in after the move, so they stay sharp
+  and still; the export profile (H.264 High, BT.709, 8 Mbit/s at 30 fps or 12 at 60 for 1080p, YouTube's
   table, ``+faststart``);
-- ``cut_opencv.mp4`` (<= 5:00) and ``cut_nebius.mp4`` (<= 3:00): silent cuts in each video's story
-  order, black at the start and the end for the on-camera clips, black slots where a slide goes, cut
-  from ``master.mp4`` with their own labels (``cut_<name>.srt``, numbered in the cut's order);
-  ``cut_<name>.json`` lists every segment with its source and output times;
+- ``cut_opencv.mp4`` (<= 4:30) and ``cut_nebius.mp4`` (<= 2:50): silent cuts in each video's story
+  order: black slots for footage, the owner on camera and slides made elsewhere (with placeholder
+  captions), the disclosure card rendered here, and the shots, cut from ``master.mp4`` with their own
+  captions (``cut_<name>.srt`` / ``.ass``); ``cut_<name>.json`` lists every segment with its source and
+  output times;
 - ``demo.gif``: 16-20 s for the README (fps 10, 800 px wide, one palette, <= 3 MB), first and last frame
   matched so it loops.
 
@@ -231,11 +233,11 @@ def ass(events: list[tuple], cfg: dict, path: Path, font: str) -> None:
     rows = [
         "[Script Info]", "ScriptType: v4.00+", "PlayResX: 1920", "PlayResY: 1080", "WrapStyle: 2",
         "ScaledBorderAndShadow: yes", "", "[V4+ Styles]", fmt,
-        f"Style: Label,{font},{lab.get('size', 34)},&H00FFFFFF,&H00FFFFFF,{box},{box},0,0,0,0,100,100,0,0,3,"
-        f"{lab.get('outline', 10)},0,2,60,60,{lab.get('margin_v', 40)},1",
+        (f"Style: Label,{font},{lab.get('size', 34)},&H00FFFFFF,&H00FFFFFF,{box},{box},0,0,0,0,100,100,0,0,3,"
+         f"{lab.get('outline', 10)},0,2,60,60,{lab.get('margin_v', 40)},1"),
         f"Style: Card,{font},{card.get('size', 58)},&H00F2F2F2,&H00F2F2F2,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,120,120,0,1",
-        f"Style: Credit,{font},{credit.get('size', 26)},&H00E6E6E6,&H00E6E6E6,{box},{box},0,0,0,0,100,100,0,0,3,"
-        f"{max(4, lab.get('outline', 10) - 4)},0,2,60,60,{credit.get('margin_v', 112)},1",
+        (f"Style: Credit,{font},{credit.get('size', 26)},&H00E6E6E6,&H00E6E6E6,{box},{box},0,0,0,0,100,100,0,0,3,"
+         f"{max(4, lab.get('outline', 10) - 4)},0,2,60,60,{credit.get('margin_v', 112)},1"),
         "", "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]  # fmt: skip

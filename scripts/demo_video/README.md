@@ -1,11 +1,12 @@
 # Demo video pipeline
 
-One command records the whole demo flow as a 4K master (the 1920×1080 viewport at device scale 2, captured frame by frame), renders the camera moves and speed-ups from it down to a 1080p program, burns in short step labels, cuts the OpenCV (≤ 5:00) and Nebius (≤ 3:00) videos from it, and makes the README GIF (≤ 20 s, ≤ 3 MB). The shot lists follow WIN_RESEARCH §8, on the one console of PR #171: the landing at t0, the mission-time story's coach marks t1–t5, the Trace, Conditions, the simulated fleet, the radio desk and the Debrief. The selectors are roles and labels, and a shot whose element isn't there is skipped (or failed) with the reason in `shots.json`.
+One command records the whole story as a 4K master (the 1920×1080 viewport at device scale 2, captured frame by frame), renders the camera moves and speed-ups from it down to a 1080p program, burns in short captions in the site's type, cuts the OpenCV (≤ 4:30) and Nebius (≤ 2:50) videos from it with their slots and the disclosure card, and makes the README GIF (≤ 20 s, ≤ 3 MB); `narrate.py` then voices both cuts with whichever narrator is chosen. Shot list v2 follows the seven-beat story of PR #200 ("Follow the search", t0–t6: the call, photos land, confirm, where next, the run, the find, the debrief) told in three acts. The selectors are roles and labels, and a shot whose element isn't there is skipped (or failed) with the reason in `shots.json`.
 
 ```bash
 uv sync --extra video                 # playwright==1.64.0 + pyyaml (not in the default deps)
 uv run --extra video playwright install chromium   # once per machine
-bash scripts/demo_video/run.sh --live --serve-local --publish   # -> runs/video/<timestamp>/ (+ docs/report/figures/demo.gif)
+bash scripts/demo_video/run.sh --publish   # -> runs/video/<timestamp>/ (+ docs/report/figures/demo.gif)
+~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<timestamp>   # -> <run>/narrated/ (Magpie)
 ```
 
 Needs `web/node_modules` (`pnpm install` in `web/`), the demo cache in `web/public/cache/demo` (README, "The demo cache"), and `ffmpeg` with libass. In a git worktree, link the main checkout's cache: `ln -s <main>/web/public/cache/demo web/public/cache/demo`.
@@ -15,33 +16,32 @@ Needs `web/node_modules` (`pnpm install` in `web/`), the demo cache in `web/publ
 | Step | Script | Output in the run folder |
 |---|---|---|
 | record | `record.py` (+ `capture.py`) | `master_4k.mp4` (3840×2160, H.264 CRF 16, BT.709, 60 or 30 fps), `shots.json`, `frame_times.json`, `snaps/NN_<shot>.png` (last frame of each shot) |
-| program, captions | `captions.py --only mp4,srt,burn` (+ `moves.py`) | `master.mp4` (1920×1080 program: moves and speed-ups, uncaptioned), `captions.srt`, `master_captioned.mp4` (export profile) |
-| cuts | `captions.py --only cuts` | `cut_opencv.mp4` (≤ 5:00), `cut_nebius.mp4` (≤ 3:00), `cut_<name>.srt` (the cut's own labels), `cut_<name>.json` (every segment: source in/out, output time) |
+| program, captions | `captions.py --only mp4,srt,burn` (+ `moves.py`) | `master.mp4` (1920×1080 program: moves and speed-ups, uncaptioned), `captions.srt` / `.ass`, `fonts/` (the site's Geist for libass), `master_captioned.mp4` (export profile) |
+| cuts | `captions.py --only cuts` | `cut_opencv.mp4` (≤ 4:30), `cut_nebius.mp4` (≤ 2:50), `cut_<name>.srt` / `.ass` (the cut's own captions and card), `cut_<name>.json` (every segment: source in/out, output time) |
 | gif | `captions.py --only gif` | `demo.gif` (fps 10, 800 px, one palette, ≤ 3 MB, ≤ 20 s, loops), `gif.json` |
 
 `run.sh` runs them in that order (`--1440` adds `master_1440p.mp4` and `master_1440p_captioned.mp4` for the upload). It is idempotent: a run folder whose `shots.json` names a recording that is there is not recorded again (`--out <folder>` to finish or redo one), and each later step is skipped while its output is newer than its inputs (`FORCE=1` redoes them). `--publish` also copies the GIF to `docs/report/figures/demo.gif` if it is at most 3 MB; without it nothing outside `runs/` (gitignored) is written. Other flags go to `record.py`.
 
 ## Recording (`record.py`)
 
-Builds the site with `VITE_CACHE_DIR=demo` into the run folder, serves it with `vite preview` on port 5202 (`--server dev` for the dev server), and stops it by PID at the end (it never kills a process it didn't start; if 5202 is taken it stops and says so). Chromium then plays these shots, each a named step with a target length (an action that finishes early holds its last frame up to the target), with 400 ms of settle before each:
+Builds the site with `VITE_CACHE_DIR=demo` into the run folder, serves it with `vite preview` on port 5202 (`--server dev` for the dev server), and stops it by PID at the end (it never kills a process it didn't start; if 5202 is taken it stops and says so). Chromium then plays these shots (shot list v2), each a named step with a target length (an action that finishes early holds its last frame up to the target), with 400 ms of settle before each. They are one continuous walk through the story's coach marks, so each shot starts where the one before left the console (`--shots` is for debugging one stretch, not for re-taking one shot):
 
-| Shot | What happens | Target |
-|---|---|---|
-| `call` | `#`: the console at t0 with the pitch bar (one centred line and the button); pointer over the line and the LKP; click **Follow the search** | 10 s |
-| `photos` | t1: the clock runs over the survey flight (6 s), photos land and the heat fills; the counter, then the photo tiles | 13 s |
-| `confirm` | t2: **Next**; the three cards; the 0.18 recorded card's chips (OpenCV 5 zoom native, Nemotron-3.5-Super-VL); **Show the second look's images**; **Person** on it and on #1 (f0336-d01), whose sighting lands in the clue log and on the map | 20 s |
-| `trace` | **Trace** in the view switch: the f0001-d01 chain, pointer down its steps (note → tool → model → verdict → proposal → approval), the model call opened | 17 s |
-| `next` | `#m/demo?t=3`: the coach mark on p001; the reason, then **Approve** | 9 s |
-| `run` | the approval runs the clock to t4 (3.5 s): teams out, drones fly, B4 searched at POD 60 % in the task board, Drone 1's tooltip | 12 s |
-| `conditions` | Esc (the story steps aside, the console stays at t4), **Sources and quotes** (W): wind, gusts, the pages read | 13 s |
-| `fleet` | zoom on the simulated fleet at t4: Drone 2 link lost, Drone 3 degraded, Team Two relayed through D1 (each marker's tooltip) | 15 s |
-| `radio` | **Open Radio** under the approvals (else **Radio** in the view switch, key 6): the Radio view; play the recorded Magpie briefing, open its transcript | 11 s |
-| `results` | `#m/demo?t=5`: the Debrief beside the map; pointer over the three numbers | 10 s |
-| `breaks` | scroll the Debrief to "What breaks first", the three lines one by one (on screen about 15 s) | 20 s |
-| `live_link` | **live**: Fleet controls' **Degrade link D2** (the ring turns), Team Two loses its signal, a drone relays it (the dashed relay line) | 18 s |
-| `recall` | **live**: **Set gusts 50 km/h (demo override)**, "Not flyable" with the Demo override chip, the recall cards quoting the gusts and the 43 km/h limit, each approved, the drones turn home | 32 s |
+| Shot | Beat | What happens | Target |
+|---|---|---|---|
+| `call` | t0 | `/`: the pitch bar, **Follow the search**; the first coach mark; the pointer over the status line (elapsed, daylight, flyable, out, subject) and the teams at base camp | 14 s |
+| `photos` | t1 | **Next**: the clock runs 6 s over drone one's survey, 500 photos land and the map changes under its legs; **Next**: the candidates waiting in Needs you | 22 s |
+| `confirm` | t2 | **Person** on #1 (f0336-d01) and #2 (f0127-d01); the grey bag (f0452-d01): **Not a person**; the 0.18 card (recorded-f0001-d01): its model chips, **Show the second look's images**, **Person**; the pin on the map | 34 s |
+| `trace` | | **Trace** in the view switch: the f0001-d01 chain, the pointer down its steps, the model call opened | 10 s |
+| `next` | t3 | `#m/demo?t=3`: Team One's radio call and the clue it became on the timeline, the map's move toward it; **Next**: the proposal (Team One to C2) in Needs you, its reason; **Approve** | 22 s |
+| `run` | t4 | the clock runs 6 s: teams out, drones fly their legs; Drone 2's card (link lost), Drone 3's (link degraded), Team Two on the map | 18 s |
+| `fleet` | t4 | (the Nebius cut) the D2, D3 and Team Two markers' tooltips, "Team Two heard via D3" on the timeline | 14 s |
+| `walk` | t4 | **Next**: Team One walks C2 | 9 s |
+| `radio` | t5 | the timeline on **Radio**; **Next**: the clock runs 2.5 s, Team One's call ("Subject located in Charlie Two …") and the desk's reply land | 15 s |
+| `find` | t5 | **Found · C2** in the status line, then Team One on the map, held 4.5 s | 12 s |
+| `debrief` | t6 | **Next**: the after-action report ("Found by Team One in C2", key events); the Debrief scrolled to "What breaks first", the three lines one by one | 26 s |
+| `live_link`, `recall` | | **`--live` only**, not in the v2 cuts: the Fleet controls cut a link; gusts → no flying → recall (below) | 18 s, 32 s |
 
-None of the demo shots needs an API: the demo mission is fixtures plus the demo cache, and it already holds the degraded links and Team Two's relay (`fleet`). The two live shots need one (below).
+None of the v2 shots needs an API: the demo mission is fixtures plus the demo cache, and it already holds drone two's lost link and drone three's relay of Team Two. The two live shots need one (below).
 
 Determinism: fixed 1920×1080 viewport at device scale 2, dark scheme, `prefers-reduced-motion: no-preference`, time zone America/Vancouver, locale en-US, and the page clock started at the demo mission fixture's `now` (2026-10-24T22:00Z; `--no-clock` turns it off; not pinned with `--live`, whose mission carries real times). Mouse moves follow a slightly bowed cubic Bézier, eased in and out (cubic), and take a fixed wall time however slow the renderer is; every on-camera action is a click, with 300 ms of settle before and after it. Headless Chromium records no cursor, so the recorder draws one (an SVG arrow, and a ring on each click that eases out) on top of the page; both are vectors, so they are as sharp as the text at 2×. The site is untouched. Each click's place goes into its shot's `extra.clicks` (`push_in: {focus: click}` uses it).
 
@@ -102,31 +102,35 @@ The shots' places in the program go back into `shots.json` (`program_start_s`, `
 
 **Export profile** (`master_captioned.mp4`, the cuts, the narrated cuts): H.264 High, yuv420p, BT.709 tags, YouTube's recommended SDR bitrates (1080p: 8 Mbit/s at 30 fps, 12 at 60; 1440p: 16 / 24), VBV cap 1.5×, `-movflags +faststart`; AAC 192 kbit/s, 48 kHz for the narration.
 
-## Captions and cuts (`captions.py`, `captions.yaml`)
+## Captions, the card and the cuts (`captions.py`, `captions.yaml`)
 
-`captions.yaml` holds the burned-in labels: one short step name per shot, not narration. A label is at most two lines of 42 characters with its number (`captions.py` wraps a long line at a space and refuses a label that would need a third) and stays on screen at least 1.2 s. Numbers are counted over the shots that actually ran, so a skipped shot leaves no gap. A label never calls an area done (`captions.py` refuses one that does); a searched sector is "searched at POD x"; anything simulated or recorded says so. The style is libass `force_style` (Inter, small, dark box, bottom centre).
+`captions.yaml` holds one short caption per shot (a lower third, not narration), in the site's type: Geist, copied from `web/node_modules/@fontsource-variable/geist` into the run's `fonts/` for libass (Inter when it isn't there), rendered from an `.ass` file with three styles (Label, Card, Credit) on a 1920×1080 canvas. A caption is at most two lines of 42 characters (`captions.py` wraps a long line at a space and refuses one that would need a third) and stays on screen at least 1.2 s. A model's name appears when it acts. Inside the story no caption says demo, recorded, scripted or simulated, and none calls an area clear or ruled out: `captions.py` refuses them (storyCopy.ts's `STORY_BANNED`). The disclosure card is the one place those words go: "A simulated search on real aerial photographs", 3 s, centred, faded in and out, rendered by the pipeline on black.
 
-The cuts are made from `master.mp4` with their own labels burned in (`cut_<name>.srt`: numbered in the cut's order and timed to its sped-up segments, so a step number never runs backwards; a segment's `label` replaces the shot's for that cut), silent, with black at the start and end for the on-camera clips:
+Each cut is cut from `master.mp4` with its own captions and card burned in (`cut_<name>.srt` and `.ass`, timed to its sped-up, trimmed segments). Segments are shots, black slots (footage, the owner on camera, a slide or animation made elsewhere; a slot can carry placeholder captions, spread evenly over it, and `on_camera` slots are never narrated) and cards:
 
-- **OpenCV (≤ 5:00)**: [black 12 s] → call → photos → confirm → trace → next → run → conditions → results → breaks → black slots for the evidence index (30 s), reproduce in 5 min (30 s) and limits (20 s) slides → [black 10 s].
-- **Nebius (≤ 3:00)**: [black 10 s] → call at 2× → confirm at 1.5× (labelled "Nemotron 3.5 Super VL on Nebius Token Factory") → run at 1.5× → fleet → live_link → recall at 1.25× → radio → breaks → a 15 s architecture slot → [black 10 s].
+- **OpenCV (≤ 4:30)**. Act 1: cold open (8 s, real footage) → disclosure card (3 s) → owner on camera (10 s) → `call`. Act 2: `photos` → `confirm` → `trace` → `next` → `run` → `walk` → `radio` → `find`. Act 3: `debrief` (the three "what breaks first" lines read over it) → architecture slot (20 s, for the Figma/Canva animation; captions name OpenCV 5, Nemotron 3.5 Super VL, Nemotron 3 Nano, Parakeet, Magpie, Nebius Token Factory and Tavily) → proof slide slot (15 s) → close (10 s).
+- **Nebius (≤ 2:50)**. The same act 1 (the owner says "it runs on Nebius Token Factory") → `call` at 1.5× → `photos`, `confirm`, `next` at 1.25× with Nebius Serverless Job / Token Factory captions → `run` → `fleet` (the longer fleet beat) → `walk` → `radio` → `find` → architecture slot (10 s) → close (10 s).
 
-A shot that didn't run is left out. When the shots don't fit, each is trimmed from its tail by the same factor, except that none goes below its `min_s` (`breaks` keeps 12 s, so the three lines stay up at least 6 s); `"trimmed"` in `cut_<name>.json` says by how much. Edit the `cuts:` section to reorder, change a speed or resize a slot.
+A shot that didn't run is left out. When the shots don't fit, each is trimmed from its tail by the same factor, except that none goes below its `min_s` (`find` keeps 10 s for its hold, `debrief` 22 s for the three lines); `"trimmed"` in `cut_<name>.json` says by how much. Edit the `cuts:` section to reorder, change a speed or resize a slot. Camera moves (`moves:`) are slow push-ins on the panel being used; `speed` is only for waits inside a shot.
 
-The GIF takes the first candidate shot (`gif.candidates`, in order of preference) with enough movement in its window (a candidate's own `min_motion` overrides the default), ends it on the frame within 18 ± 2 s closest to its first frame (never over 20 s), and fades its first half second in over its end, playing on from the frame after: the last frame is the frame before the first, so the loop has no jump. `end_aligned: true` takes the window that ends with the shot: `run` (the first choice) is 12 s, so its window starts at t3 on the proposal, then the approval and the run. Larger than 3 MB, it retries at lower fps and width.
+The GIF takes the first candidate shot (`gif.candidates`, in order of preference) with enough movement in its window (a candidate's own `min_motion` overrides the default), ends it on the frame within 18 ± 2 s closest to its first frame (never over 20 s), and fades its first half second in over its end, playing on from the frame after: the last frame is the frame before the first, so the loop has no jump. `end_aligned: true` takes the window that ends with the shot (`run`, the first choice: the approval, the clock running on, drone two's lost link and drone three's relay). Larger than 3 MB, it retries at lower fps and width.
 
 ## Narration (`narrate.py`, `narration.yaml`)
 
-Voices both cuts with NVIDIA Magpie TTS, the radio desk's model and speaker (`sightline/radio/tts.py`), and checks them by ear with Parakeet, the radio desk's ASR. It runs in the NeMo environment (`docs/feedback/radio.md`, "How to reproduce"), after `run.sh` has made the cuts:
+The narrator isn't chosen yet, so the narration is voice-agnostic: `--engine magpie` (default; NVIDIA Magpie TTS through the radio desk's wrapper, in the NeMo env), `--engine elevenlabs` (the API; the key from `ELEVENLABS_API_KEY`, never printed; `--voice` eric, daniel, matilda or river; `eleven_multilingual_v2`, stability 0.55, similarity 0.8, style 0.15, 44.1 kHz mp3 decoded to wav) or `--engine kokoro` (Kokoro-82M through `/home/driver/voices-env/kokoro/bin/python`, `am_michael`). Every voice is decoded to 48 kHz mono. Run after `run.sh` has made the cuts:
 
 ```bash
-~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<timestamp>   # -> runs/video/<timestamp>/narrated/
-~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<timestamp> --dry-run   # no NeMo: tones sized at 150 wpm
+~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<ts>                                   # Magpie -> <run>/narrated/
+~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<ts> --engine elevenlabs --voice daniel # -> <run>/narrated-elevenlabs-daniel/
+~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<ts> --engine kokoro                    # -> <run>/narrated-kokoro-am_michael/
+uv run --extra video python scripts/demo_video/narrate.py runs/video/<ts> --dry-run                     # no voices: tones at 150 wpm, checks the fit
 ```
 
-`narration.yaml` holds one line per shot (keyed by the shot ids in `shots.json`, or `slot: <name>` for the OpenCV cut's three slides and the Nebius architecture slot), at most two sentences, sized at 150 words a minute, numbers as words, every model by name and everything simulated said so; the "what breaks first" lines are read word for word (`verbatim`). The on-camera open and close stay silent. `respell` is what Magpie is given for names it says wrong ("OpenCV 5" came out as "OpenZvy"; "Open CV five" is heard right).
+`narration.yaml` holds the search manager's lines, present tense, one or two sentences a shot, sized at 150 words a minute to the shot's time in the cut; act 3 drops into the builder's voice. Inside the story nothing says demo, recorded, scripted or simulated and nothing says clear or rule out (`narrate.py` refuses them); the one exception is the `verbatim` "what breaks first" lines, read word for word over `debrief` (the report's own sentence ends "… in the demo are simulated"). On-camera slots stay silent. Each engine has its own respelling table: `respell.magpie` ("OpenCV 5" came out as "OpenZvy"; "Open CV five" is heard right) and `respell.plain` for ElevenLabs and Kokoro; a line's `say` / `say_plain` replaces it entirely.
 
-For each line Magpie speaks each sentence (250 ms apart), up to `takes` samples, and keeps the one Parakeet hears best; a line over its shot by more than 0.5 s loses its second sentence and is listed in a warning to rewrite. The lines start 250 ms into their shots (never on top of the line before), the track is normalised to −16 LUFS (ffmpeg `loudnorm`, two passes) and muxed as AAC into `cut_<name>_narrated.mp4`, with "Narration: NVIDIA Magpie TTS" burned in over the first narrated shot just above its step label (one re-encode in `captions.py`'s export profile; `--no-credit` copies the video stream). Each line's time comes from `cut_<name>.json` (its place in the cut) checked against `shots.json`'s program times (after the speed-ups); a cut older than those times is refused with "rerun captions.py --only cuts". Also `narration_<name>.srt` (the spoken lines), `clips/`, and `narration_report.md` / `narration.json`: per line the text, seconds available and used, and the listen-check, Parakeet on each line cut back out of the finished mp4's audio, as word error rate with numbers spelled out on both sides (the script says "sixty percent", Parakeet writes "60%").
+The radio exchange stays in-world: Team One's call (Magpie speaker 3) and the desk's reply (speaker 0, Sightline's voice) are always Magpie, whichever engine narrates, placed `at_s` into the `radio` shot with no narrator over them; with another narrator the credit adds "Radio: NVIDIA Magpie TTS".
+
+For each line the engine speaks each sentence (250 ms apart), up to `takes` samples (Magpie 3, ElevenLabs and Kokoro 1), and keeps the one Parakeet hears best; a line over its shot by more than 0.5 s loses its second sentence and is listed to rewrite (a verbatim, in-world or one-sentence line is listed, not cut). The lines start 250 ms into their shots (never on top of the line before), the track is normalised to −16 LUFS (ffmpeg `loudnorm`, two passes) and muxed as AAC into `cut_<name>_narrated.mp4`, with the engine's credit burned in over the first narrated shot just above its caption. Each line's time comes from `cut_<name>.json` checked against `shots.json`'s program times; a cut older than those is refused with "rerun captions.py --only cuts". Also `narration_<name>.srt`, `clips/`, and `narration_report.md` / `narration.json` (per line the text, seconds available and used, whether it fits, and the listen-check: Parakeet on each line cut back out of the finished mp4's audio, as word error rate with numbers spelled out on both sides; skipped, and said so, where NeMo isn't importable).
 
 ## Capture test (this machine, 2026-10-22, the new capture)
 
