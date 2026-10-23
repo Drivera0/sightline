@@ -2,7 +2,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Clue, FleetState, MapBase, Team } from "../../contract";
-import { FloatingLegend, legendOpenAtStart, LiveHeatMap, mapTextAlternative, pointFeatures, sectorFeatures } from "./LiveHeatMap";
+import { FloatingLegend, HeatKeyRow, legendOpenAtStart, LiveHeatMap, mapTextAlternative, NO_EVIDENCE_LABEL, pointFeatures, sectorFeatures } from "./LiveHeatMap";
 
 const base = { lkp: { lat: 49.37, lon: -122.945 } } as MapBase;
 const ring: [number, number][] = [[0, 1], [1, 1], [1, 0], [0, 0], [0, 1]];
@@ -78,10 +78,11 @@ describe("live map features", () => {
     expect(list).toHaveTextContent("Active drone leg");
     // The heat's own line above it: the three classes, both edges and the unshaded rest.
     const heat = screen.getByRole("list", { name: "Probability classes" });
-    expect(heat).toHaveTextContent("Likeliest 50 · 80 · 90 % of probability");
+    expect(heat).toHaveTextContent("Likelier than even: 90 · 80 · 50 % of the extra");
     expect(heat).toHaveTextContent("50 % edge");
     expect(heat).toHaveTextContent("90 % edge");
-    expect(heat).toHaveTextContent("No shading: outside 90 % of estimated probability");
+    expect(heat).toHaveTextContent("Darker: searched, lowered");
+    expect(heat).toHaveTextContent("No shading: about as likely as an even spread");
     expect(heat).toHaveTextContent("Hatched: not photographed yet");
     expect(localStorage.getItem("sightline.mapLegend")).toBe("open");
     unmount();
@@ -91,5 +92,13 @@ describe("live map features", () => {
     expect(screen.getByRole("button", { name: /Legend/ })).toHaveAttribute("aria-expanded", "false");
     expect(localStorage.getItem("sightline.mapLegend")).toBe("closed");
     localStorage.removeItem("sightline.mapLegend");
+  });
+
+  it("says there is no evidence yet while the map is flat, instead of naming shades nobody sees", () => {
+    render(<HeatKeyRow evidence={false} />);
+    const heat = screen.getByRole("list", { name: "Probability classes" });
+    expect(heat).toHaveTextContent(NO_EVIDENCE_LABEL);
+    expect(heat).not.toHaveTextContent("50 % edge");
+    expect(heat).toHaveTextContent("Hatched: not photographed yet");
   });
 });

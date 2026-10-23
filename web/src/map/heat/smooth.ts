@@ -222,40 +222,78 @@ export function outline(mask: Uint8Array, rows: number, cols: number, radius = S
 }
 
 /**
- * The class of every cell over the whole grid (every cell with probability is eligible, photographed or
- * not), and the ground no photo has looked at. Held cells (awaiting review) are never classed.
+ * How far from an even spread a cell must stand before it is shaded: within FLAT_BAND (5 %) of the flat
+ * level a cell is "as likely as the next" and gets no fill, so a flat prior draws nothing at all.
  */
-export function wholeGridKinds(p: ArrayLike<number>, held?: Uint8Array | null): Uint8Array {
+export const FLAT_BAND = 0.05;
+
+/**
+ * The class of every cell over the whole grid (every cell with probability is eligible, photographed or
+ * not), and the ground a search has lowered. Held cells (awaiting review) are never classed.
+ *
+ * The classes are mass classes of the probability that stands above an even spread: the flat level is the
+ * grid's mean cell, each cell's excess is what it holds beyond 1.05 × that, and the likeliest cells holding
+ * 50, 80 and 90 % of the excess are the three classes. On a near-flat field (the demo's prior is one Koester
+ * ring across the whole 1 km grid, and photos lower only what they cover) mass classes of the raw
+ * probability put the likeliest 50 % over almost every cell, a wash of one colour; the excess keeps the
+ * shape: rings around the last known point when the prior has them, a clue's neighbourhood, unsearched
+ * ground once the rest is searched. `searched` (optional, 1 = a search lowered the cell) marks the cells
+ * with no class as CELL.searched.
+ */
+export function wholeGridKinds(p: ArrayLike<number>, held?: Uint8Array | null, searched?: Uint8Array | null): Uint8Array {
   const n = p.length;
   const eligible = new Uint8Array(n);
-  for (let i = 0; i < n; i++) if (held?.[i] !== 1) eligible[i] = 1;
-  const t = massThresholds(p, eligible);
+  let total = 0;
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    if (held?.[i] === 1) continue;
+    eligible[i] = 1;
+    total += Math.max(0, p[i] as number);
+    count++;
+  }
+  const flat = count ? total / count : 0;
+  const excess = new Float64Array(n);
+  for (let i = 0; i < n; i++) if (eligible[i] === 1) excess[i] = Math.max(0, (p[i] as number) - (1 + FLAT_BAND) * flat);
+  const t = flat > 0 ? massThresholds(excess, eligible) : null;
   const out = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
-    const v = p[i] as number;
+    const v = excess[i] as number;
     if (held?.[i] === 1) out[i] = CELL.held;
-    else if (!t || !(v > 0)) out[i] = CELL.none;
-    else if (v >= (t[0] as number)) out[i] = CELL.top;
-    else if (v >= (t[1] as number)) out[i] = CELL.mid;
-    else if (v >= (t[2] as number)) out[i] = CELL.low;
-    else out[i] = CELL.none;
+    else if (t && v > 0 && v >= (t[0] as number)) out[i] = CELL.top;
+    else if (t && v > 0 && v >= (t[1] as number)) out[i] = CELL.mid;
+    else if (t && v > 0 && v >= (t[2] as number)) out[i] = CELL.low;
+    else out[i] = searched?.[i] === 1 ? CELL.searched : CELL.none;
   }
-  // A flat map (the prior before anything is known, ties everywhere) puts nearly every cell in the likeliest
-  // 50 %: a block of one colour that says nothing. Draw no classes until the map has a shape.
-  let lo = Infinity;
-  let hi = 0;
-  for (let i = 0; i < n; i++) {
-    const v = p[i] as number;
-    if (eligible[i] !== 1 || !(v > 0)) continue;
-    if (v < lo) lo = v;
-    if (v > hi) hi = v;
-  }
-  if (hi > 0 && hi <= lo * FLAT_RATIO) for (let i = 0; i < n; i++) if (out[i] !== CELL.held) out[i] = CELL.none;
   return out;
 }
 
-/** When the likeliest cell is within this factor of the least likely one, the map is flat: no classes are drawn. */
-export const FLAT_RATIO = 1.05;
+/** A search lowered a cell when its photos (or a ground team) took more than this share of its probability. */
+export const SEARCHED_BELOW = 0.9;
+
+/**
+ * Ground a search has lowered: 1 where the steps in `updates` (photos that found nobody, a ground search)
+ * multiplied the cell by SEARCHED_BELOW or less. Reweights (clues) never mark a cell searched.
+ */
+export function searchedMask(n: number, updates: readonly { kind: string; cells: readonly (readonly [number, number] | number[])[] }[]): Uint8Array {
+  const left = new Float64Array(n).fill(1);
+  for (const u of updates) {
+    if (u.kind !== "step") continue;
+    for (const c of u.cells) {
+      const i = c[0] as number;
+      if (i >= 0 && i < n) left[i] = (left[i] as number) * (1 - (c[1] as number));
+    }
+  }
+  return Uint8Array.from(left, (v) => (v <= SEARCHED_BELOW ? 1 : 0));
+}
+
+/** Nothing to draw: no class and no searched ground (the legend says "no evidence yet"). */
+export function evidenceless(kinds: Uint8Array): boolean {
+  for (let i = 0; i < kinds.length; i++) {
+    const k = kinds[i];
+    if (k !== CELL.none && k !== CELL.held) return false;
+  }
+  return true;
+}
 
 /** The smoothed per-cell kinds (for the raster while the heat tweens, so it matches the fills it hands over to). */
 export function smoothKinds(grid: Pick<Grid, "rows" | "cols">, kinds: Uint8Array, radius = SMOOTH_RADIUS): Uint8Array {
@@ -268,9 +306,10 @@ export function smoothKinds(grid: Pick<Grid, "rows" | "cols">, kinds: Uint8Array
   const f50 = field((k) => k === CELL.top);
   const f80 = field((k) => k === CELL.top || k === CELL.mid);
   const f90 = field((k) => k === CELL.top || k === CELL.mid || k === CELL.low);
+  const fs = field((k) => k === CELL.searched);
   const out = new Uint8Array(kinds.length);
   for (let i = 0; i < kinds.length; i++) {
-    out[i] = kinds[i] === CELL.held ? CELL.held : f50[i]! >= 0.5 ? CELL.top : f80[i]! >= 0.5 ? CELL.mid : f90[i]! >= 0.5 ? CELL.low : CELL.none;
+    out[i] = kinds[i] === CELL.held ? CELL.held : f50[i]! >= 0.5 ? CELL.top : f80[i]! >= 0.5 ? CELL.mid : f90[i]! >= 0.5 ? CELL.low : fs[i]! >= 0.5 ? CELL.searched : CELL.none;
   }
   return out;
 }
@@ -280,9 +319,10 @@ export const HATCH_KIND = CELL.veil;
 
 /**
  * The console's surface: one MultiPolygon per class band (the likeliest 50 %, 50–80 %, 80–90 %), the
+ * ground a search lowered (kind CELL.searched, under the classes: `searched`, or the kinds' own), the
  * unphotographed ground (kind CELL.veil, drawn as a hatch), and the 50 % and 90 % edges as lines.
  */
-export function smoothSurface(grid: Grid, kinds: Uint8Array, photographed: Uint8Array | null, radius = SMOOTH_RADIUS): SurfaceData {
+export function smoothSurface(grid: Grid, kinds: Uint8Array, photographed: Uint8Array | null, radius = SMOOTH_RADIUS, searched?: Uint8Array | null): SurfaceData {
   const { rows, cols } = grid;
   const mask = (inside: (k: number) => boolean) => {
     const m = new Uint8Array(kinds.length);
@@ -296,7 +336,9 @@ export function smoothSurface(grid: Grid, kinds: Uint8Array, photographed: Uint8
     const polys = evenOdd(rings);
     return polys.length ? { type: "Feature", properties: { kind }, geometry: { type: "MultiPolygon", coordinates: polys.map((pp) => pp.map((r) => toLonLat(grid, r))) } } : null;
   };
+  const lowered = searched ?? mask((k) => k === CELL.searched);
   const fills = [
+    poly(CELL.searched, outline(lowered, rows, cols, radius)),
     poly(CELL.low, [...r90, ...r80]),
     poly(CELL.mid, [...r80, ...r50]),
     poly(CELL.top, r50),

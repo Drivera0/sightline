@@ -32,10 +32,12 @@ export const CELL = {
   held: 4,
   /** Not photographed at this step: the "not yet searched" veil. */
   veil: 5,
+  /** The console: ground a search has lowered (photos or a ground team found nobody there): a dark, cool tint. */
+  searched: 6,
 } as const;
 export type CellKind = (typeof CELL)[keyof typeof CELL];
 export const CLASS_KINDS = [CELL.top, CELL.mid, CELL.low] as const;
-export const FILL_KINDS = [CELL.veil, CELL.held, CELL.low, CELL.mid, CELL.top] as const;
+export const FILL_KINDS = [CELL.veil, CELL.held, CELL.searched, CELL.low, CELL.mid, CELL.top] as const;
 
 /**
  * The probability thresholds of the 50 / 80 / 90 % regions over the eligible cells: a cell is in the

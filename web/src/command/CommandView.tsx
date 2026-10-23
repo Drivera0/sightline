@@ -209,7 +209,7 @@ export function CommandView(p: CommandProps) {
             onCall={(id, draft) => call(id, draft)}
             onRecall={p.actions.recall}
             onConfirmClue={p.actions.confirmClue}
-
+            found={p.mission?.status === "found" ? { at: p.mission.found?.at ?? null } : null}
           />
         )}
       </div>

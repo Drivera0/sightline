@@ -345,13 +345,16 @@ describe("the demo mission: the story on the one console", () => {
     useStory.getState().reset();
     window.history.replaceState(null, "", "#m/demo/map");
     render(<App base={null} />);
+    // at 15:00 the subject is found and the proposal is closed; at 14:42 it still waits for a person
+    useStory.getState().seek(3);
+    await settle();
     const card = (await screen.findByText("Add f0396-d01 to the review queue: second look says likely a person")).closest("[aria-label^='Proposal']") as HTMLElement;
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
     const status = () => useMission.getState().proposals.find((p) => p.id === "p002")?.status;
     expect(status()).toBe("approved");
     useStory.getState().seek(2);
     await settle();
-    expect(status()).toBe("pending"); // proposed at 14:10 PDT; the visitor approved it at 15:00, not yet at 14:31
+    expect(status()).toBe("pending"); // proposed at 14:10 PDT; the visitor approved it at 14:42, not yet at 14:31
     useStory.getState().seek(4);
     await settle();
     expect(status()).toBe("approved");

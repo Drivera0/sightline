@@ -643,7 +643,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       ? { ...baseMark, text: `The clues moved the map: the agent proposes ${s.teams.find((x) => x.id === storyAssign.target.team)?.callsign ?? storyAssign.target.team} for ${storyAssign.target.sector}, says why, and waits for your approval.`, target: "[data-story-proposal]" }
       : baseMark;
   const markIndex = CHECKPOINTS.filter((c) => c.mark && c.t <= t).length;
-  const needsCount = s.proposals.filter((p) => p.status === "pending").length + reviewCount;
+  // once the subject is found, pending proposals and candidates are closed (Needs you folds them away)
+  const needsCount = s.mission?.status === "found" ? 0 : s.proposals.filter((p) => p.status === "pending").length + reviewCount;
   const inStory = demo && (story.tour || story.playing);
 
   return (
