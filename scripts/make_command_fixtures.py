@@ -48,6 +48,19 @@ category's prior, its clues at their times, the agent's assignments approved, an
 person's sector finding them (the search manager assigns one directly when the agent sent none there).
 The same seed draws the same scenario and the same story (only timings measured in the run differ).
 No trace and no fleet for a scenario.
+
+**Distractors** (scenarios only): the scenario's ``distractors`` (a backpack, a fire ring, a shelter,
+other hikers: real licensed aerial photos in ``web/public/cache-extras/distractors/``, ``CREDITS.md``
+there) land as extra photos of the flight (``f0501`` on), a few seconds after the survey photo each is
+placed next to, each with the detection ``scripts/make_distractor_fixture.py`` recorded on it. The
+second look replays that script's **live** VL answer word for word (``__fixtures__/distractors/``,
+traced as ``recorded/<model>``); three minutes later the scripted image reviewer answers: "object"
+(with the object type: the clue candidate, low reliability until a team confirms it) or "not_subject"
+(other hikers), approving the promotion first when the second look made one. The fixture's
+``distractors`` lists each (photo, detection, verdict, the answer, the clue candidate).
+
+**Voices**: each radio line's ``audio`` (``web/public/voices/<scenario>/``, from
+``scripts/make_voice_fixture.py``) is attached when its clip still says the line.
 """
 
 from __future__ import annotations
@@ -110,6 +123,25 @@ def recorded_answers() -> dict[str, dict]:
 
 
 RECORDED = recorded_answers()
+
+EXTRAS = ROOT / "web/public/cache-extras/distractors"  # the distractor photos and CREDITS.md
+DISTRACTOR_FIX = FIX / "distractors"  # scripts/make_distractor_fixture.py: live verdicts
+FIRST_EXTRA = (
+    501  # distractor photos: f0501, f0502, ... after the cache's 500 (no fleet in a scenario)
+)
+
+
+def slug_of(kind: str) -> str:
+    return kind.replace(" ", "-")
+
+
+def distractor_records() -> dict[str, dict]:
+    """The recorded detection and live second look per distractor kind."""
+    out = {}
+    for p in sorted(DISTRACTOR_FIX.glob("*.json")) if DISTRACTOR_FIX.is_dir() else []:
+        doc = json.loads(p.read_text())
+        out[doc["kind"]] = doc
+    return out
 
 
 def iso(t: datetime) -> str:
@@ -285,7 +317,8 @@ def run(seed: int | None) -> None:
     dets = Detections.model_validate_json((CACHE / "detections.json").read_text())
     scn = None
     if seed is not None:
-        scn = generate(seed, m.grid, [c for f in survey.frames for c in f.footprint])
+        scn = generate(seed, m.grid, [c for f in survey.frames for c in f.footprint],
+                       frames=[(f.id, f.pose.lat, f.pose.lon) for f in survey.frames])  # fmt: skip
         T0 = datetime.fromisoformat(scn.call_at)
     else:
         T0 = datetime.fromisoformat("2026-10-24T20:30:00+00:00")
@@ -405,7 +438,8 @@ def run(seed: int | None) -> None:
         "d": (0.0010, -0.0008),
         "reliability": "medium",
         "reported_by": "T1",
-        "source": "form",
+        "source": "radio",
+        "confirmed_by_turn": "r0002",
     }
     clue_bottle = {
         "kind": "object",
@@ -418,6 +452,16 @@ def run(seed: int | None) -> None:
     }
     clue_whistle = {"kind": "sound", "text": "possible whistle, three blasts, to the south-west", "d": (-0.0006, -0.0012),
                     "reliability": "low", "reported_by": "T1", "source": "radio", "confirmed_by_turn": "r0007"}  # fmt: skip
+    records = distractor_records() if scn is not None else {}
+    for k, d in enumerate(scn.distractors if scn is not None else []):
+        if d.kind not in records:
+            print(
+                f"  no recorded second look for the {d.kind}: run scripts/make_distractor_fixture.py"
+            )
+            continue
+        t = FLIGHT[0] + timedelta(seconds=round(span * order[d.near_frame] / (n - 1)) + 4)
+        schedule.append((t, 2, ("distractor", d, FIRST_EXTRA + k)))
+        schedule.append((t + timedelta(minutes=3), 2, ("distractor_review", d, FIRST_EXTRA + k)))
     if scn is not None:
         scenario_schedule(scn, later)
         later(60, ("conditions",))
@@ -469,6 +513,31 @@ def run(seed: int | None) -> None:
         return "T4", sid
 
     reviewed: list[tuple[datetime, str]] = []
+    distractors: list[dict] = []
+    radio_clues: list[
+        dict
+    ] = []  # each team report: heard (awaiting), then confirmed by the manager
+
+    def draft_of(d: dict) -> dict:
+        """The clue body of a fixture clue (``d``: offset from the LKP, or ``lat``/``lon``). A sound
+        a team heard is a bearing from the team's position (contract 15.7): the arc's middle is the
+        clue's point and its range the distance there, a 20° half-width, 100 m deep (the range give
+        or take the clue's radius)."""
+        body = {k: v for k, v in d.items() if k not in ("d", "at_lkp", "confirmed_by_turn")}
+        if "d" in d:
+            body |= {"lat": round(lkp.lat + d["d"][0], 6), "lon": round(lkp.lon + d["d"][1], 6)}
+        team = next((t for t in store.state(mid)["teams"] if t.id == d["reported_by"]), None)
+        if d["kind"] == "sound" and team is not None and team.position is not None:
+            import math
+
+            o = team.position
+            dn = (body["lat"] - o.lat) * 110_540.0
+            de = (body["lon"] - o.lon) * 111_320.0 * math.cos(math.radians(o.lat))
+            body |= {"origin": {"lat": o.lat, "lon": o.lon},
+                     "bearing_deg": round(math.degrees(math.atan2(de, dn)) % 360.0, 1),
+                     "bearing_spread_deg": 20.0, "range_m": round(math.hypot(de, dn), 1), "radius_m": 100.0}  # fmt: skip
+        return body
+
     first_map_update = None
     for t, _, what in schedule:
         clock.t = max(clock.t, t)
@@ -479,13 +548,16 @@ def run(seed: int | None) -> None:
                                                        cells=s.cells, canopy=None, at=clock.iso_ms()))  # fmt: skip
             first_map_update = first_map_update or u.seq
         elif kind == "turn":
-            # a radio turn typed at the desk (no speech, no model), committed after the team's
-            # "affirmative" to the readback, recorded as the radio desk records it (radio/mount.py)
-            rid, callsign, said, readback = what[1], what[2], what[3], what[4]
+            # a team reports a clue on the radio (typed at the desk: no speech, no model), recorded as
+            # the radio desk records it (radio/mount.py): awaiting the search manager's confirmation,
+            # with the clue it would be (contract 15.7); only the manager's action makes it a clue
+            rid, callsign, said, readback, d = what[1], what[2], what[3], what[4], what[5]
             radio.record_turn(mid, RadioTurn(
                 id=rid, direction="in", callsign=callsign, transcript=f"{said} (typed for the demo fixture)",
-                reply=readback, audio=None, state="committed", actions=["log clue"], asr_ms=None, llm_ms=None,
-                tts_ms=None, at=clock.iso_ms()))  # fmt: skip
+                reply=readback, audio=None, state="awaiting_confirm", actions=["draft clue"], asr_ms=None,
+                llm_ms=None, tts_ms=None, at=clock.iso_ms(), draft=draft_of(d)))  # fmt: skip
+            radio_clues.append({"turn_id": rid, "team": d["reported_by"], "kind": d["kind"],
+                                "text": d["text"], "heard_at": clock.iso_ms()})  # fmt: skip
         elif kind == "event":
             store.emit(mid, what[1], what[2], ref=what[3])
         elif kind == "detection":
@@ -497,13 +569,75 @@ def run(seed: int | None) -> None:
             for p in out:
                 if p.kind == "promote_detection":
                     reviewed.append((clock.t, p.id))
+        elif kind == "distractor":
+            d, num = what[1], what[2]
+            rec = records[d.kind]
+            near = next(f for f in survey.frames if f.id == d.near_frame)
+            fid = f"f{num:04d}"
+            frame = type(near).model_validate(near.model_dump() | {
+                "id": fid, "file": f"frames/{fid}.jpg", "flight_index": num - 1, "score": 0.0,
+                "rank": num, "n_candidates": 0,
+                "width_px": rec["size_px"][0], "height_px": rec["size_px"][1],
+                "source": {"image": f"distractor:{slug_of(d.kind)}", "x0": 0, "y0": 0}})  # fmt: skip
+            store.append_frame(mid, frame, (EXTRAS / rec["image"]).read_bytes())
+            from sightline.contract import Detection
+
+            did = f"{fid}-d01"
+            conf = rec["detection"]["conf"]
+            crop = f"crops/{did}.jpg" if conf >= loop.CANDIDATE_THRESHOLD else None  # a candidate
+            x = Detection(id=did, box_px=tuple(rec["detection"]["box_px"]), conf=conf, crop=crop,
+                          lat=d.lat, lon=d.lon, radius_m=10.0)  # fmt: skip
+            crops = {crop: (EXTRAS / rec["crop"]).read_bytes()} if crop else {}
+            store.append_detections(mid, fid, [x], crops)
+            store.emit(
+                mid, "photo.processed", f"{fid} processed (distractor: {d.kind}, demo)", ref=fid
+            )
+            models.next_vl, models.recorded = None, {"text": rec["answer"], **rec["model_call"]}
+            out = loop.handle("detection", store, mid, did, client=models, detector=NoDetector())
+            models.recorded = None
+            verdict = next(v for v in store.state(mid)["verdicts"] if v.detection_id == did)
+            distractors.append({
+                "kind": d.kind, "frame_id": fid, "near_frame": d.near_frame, "detection_id": did,
+                "image": f"cache-extras/distractors/{rec['image']}",
+                "crop": f"cache-extras/distractors/{rec['crop']}", "box_px": rec["detection"]["box_px"],
+                "conf": conf, "lat": d.lat, "lon": d.lon,
+                "trail_m": d.trail_m, "detector": rec["detection"]["note"],
+                "verdict_id": verdict.id, "person": verdict.person, "object": verdict.object,
+                "reason": verdict.reason, "model": verdict.model,
+                "promoted": [p.id for p in out if p.kind == "promote_detection"],
+                "review": d.review, "review_object": d.object, "clue": None,
+                "credit": rec["credit"]})  # fmt: skip
+        elif kind == "distractor_review":
+            d, num = what[1], what[2]
+            did = f"f{num:04d}-d01"
+            for p in store.state(mid)["proposals"]:
+                if (
+                    p.kind == "promote_detection"
+                    and p.target.get("detection") == did
+                    and p.status == "pending"
+                ):
+                    call("POST", f"/missions/{mid}/proposals/{p.id}/decide",
+                         json={"decision": "approve", "by": REVIEWER, "reason": None})  # fmt: skip
+                    reviewed[:] = [(w, q) for w, q in reviewed if q != p.id]
+                    clock.tick()
+            body = {"detection_id": did, "answer": d.review, "object": d.object, "by": REVIEWER}
+            call("POST", f"/missions/{mid}/reviews", json=body)
+            entry = next(x for x in distractors if x["detection_id"] == did)
+            clue = next((c for c in store.state(mid)["clues"] if c.detection_id == did), None)
+            if clue is not None:
+                entry["clue"] = clue.id
+                loop.handle("clue", store, mid, clue.id, client=models)
         elif kind == "clue":
             d = what[1]
-            body = {k: v for k, v in d.items() if k != "d"} | {
-                "lat": lkp.lat + d["d"][0],
-                "lon": lkp.lon + d["d"][1],
-            }
-            clue = call("POST", f"/missions/{mid}/clues", json=body)
+            if d["source"] == "radio":  # the manager confirms the team's radio report (15.7)
+                rid = d["confirmed_by_turn"]
+                clue = call(
+                    "POST", f"/missions/{mid}/turns/{rid}/confirm_clue", json={"by": MANAGER}
+                )
+                rc = next(x for x in radio_clues if x["turn_id"] == rid)
+                rc |= {"clue": clue["id"], "confirmed_at": clock.iso_ms(), "confirmed_by": MANAGER}
+            else:
+                clue = call("POST", f"/missions/{mid}/clues", json=draft_of(d))
             loop.handle("clue", store, mid, clue["id"], client=models)
         elif kind == "task":
             sid, body, note = what[1], what[2], what[3]
@@ -525,20 +659,23 @@ def run(seed: int | None) -> None:
             body = {"kind": c.kind, "text": c.text, "lat": c.lat, "lon": c.lon,
                     "reliability": c.reliability, "reported_by": c.reported_by}  # fmt: skip
             if c.reported_by.startswith("T"):
+                # a team's report: a radio turn awaiting the manager, confirmed half a minute later
                 rid = f"r{9000 + int(c.minutes * 10):05d}"
                 callsign = team_of(c.reported_by).callsign
+                d = {**body, "source": "radio", "confirmed_by_turn": rid, "at_lkp": False}
                 radio.record_turn(mid, RadioTurn(
                     id=rid, direction="in", callsign=c.reported_by,
                     transcript=f"Sightline, {callsign}. {c.text[:1].upper()}{c.text[1:]}, over. (typed for the demo fixture)",
-                    reply=f"{callsign}, Sightline. Copy {c.kind}, {c.text}. Confirm, over.", audio=None,
-                    state="committed", actions=["log clue"], asr_ms=None, llm_ms=None, tts_ms=None,
-                    at=clock.iso_ms()))  # fmt: skip
-                clock.tick()
-                body |= {"source": "radio", "confirmed_by_turn": rid}
+                    reply=f"{callsign}, Sightline. Copy {c.kind}, {c.text}. Holding it for the search manager to confirm, over.", audio=None,
+                    state="awaiting_confirm", actions=["draft clue"], asr_ms=None, llm_ms=None, tts_ms=None,
+                    at=clock.iso_ms(), draft=draft_of(d)))  # fmt: skip
+                radio_clues.append({"turn_id": rid, "team": c.reported_by, "kind": c.kind,
+                                    "text": c.text, "heard_at": clock.iso_ms()})  # fmt: skip
+                schedule.append((clock.t + timedelta(seconds=30), 1, ("clue", d)))
+                schedule.sort(key=lambda x: (x[0], x[1]))
             else:
-                body |= {"source": "form"}
-            clue = call("POST", f"/missions/{mid}/clues", json=body)
-            loop.handle("clue", store, mid, clue["id"], client=models)
+                clue = call("POST", f"/missions/{mid}/clues", json=body | {"source": "form"})
+                loop.handle("clue", store, mid, clue["id"], client=models)
         elif kind == "decide_all":
             for p in store.state(mid)["proposals"]:
                 if p.kind == "assign_sector" and p.status == "pending":
@@ -704,10 +841,12 @@ def run(seed: int | None) -> None:
         # never a limit on the probability, which covers the whole grid (demo_prior.json)
         "photographed": rle([int(i in stepped) for i in range(m.grid.rows * m.grid.cols)]),
         "timeline": [],
+        # 15.7: each clue a team reported on the radio, heard (awaiting) then confirmed by the manager
+        "radio_clues": radio_clues,
     }
     if scn is not None:
         doc |= {"scenario": scn.public(), "t0": iso(T0), "flight": [iso(FLIGHT[0]), iso(FLIGHT[1])],
-                "prior": prior_doc(base, category)}  # fmt: skip
+                "prior": prior_doc(base, category), "distractors": distractors}  # fmt: skip
     out_events = []
     renumbered = {u.seq: v.seq for u, v in zip(rest, map_updates, strict=True)}
     for seen_ids, e in enumerate(sorted(events, key=lambda e: e.at), 1):
@@ -728,6 +867,15 @@ def run(seed: int | None) -> None:
             [MissionEvent.model_validate(e) for e in out_events], state["teams"], where
         )
     ]
+    from sightline.radio.voices import attach_audio
+
+    voice_slug = "demo" if scn is None else PRESET_SLUG.get(seed, f"seed-{seed}")
+    attach_audio(doc["timeline"], voice_slug, ROOT / "web/public")
+    # the after-action report as the server builds it (last seen, every sector's final POD, the legs;
+    # the story's legs are added by make_fleet_fixture.py), the run's mission id as the fixture's
+    from sightline.mission.report import build as build_report
+
+    doc["report"] = json.loads(json.dumps(build_report(store, mid, iso(NOW))).replace(mid, slug))
     text = json.dumps(doc, indent=1, ensure_ascii=False)
     trace_text = "".join(
         TraceEntry.model_validate(x.model_dump()).model_dump_json() + "\n" for x in trace
@@ -790,30 +938,32 @@ def story_schedule(
     later(50, ("assign", "T4", "C4", "hasty search of the trail through C4"))
     later(51, ("task", "C4", {"state": "in_progress", "team_id": "T4"}, None))
     later(51.2, ("team", "T4", {"status": "searching"}))
+    # Team One hears the whistle from the trail above the creek, north-east of where it came from:
+    # a sound is a bearing from where the team stood (contract 15.7)
+    later(
+        69.5,
+        (
+            "team",
+            "T1",
+            {"position": {"lat": 49.37105, "lon": -122.94385}, "position_at": iso(at(69.5))},
+        ),
+    )
     later(56, ("place", "T4", "C4", (0.45, 0.4)))
     later(82, ("place", "T4", "B4", (0.3, 0.55)))
+    later(65.8, ("turn", "r0002", "Team One",
+                 "Sightline, Team One. Fresh boot prints heading east off the main trail, over.",
+                 "Team One, Sightline. Copy fresh boot prints heading east off the main trail. Holding it for the search manager to confirm, over.",
+                 clue_boots))  # fmt: skip
     later(66, ("clue", clue_boots))
-    later(
-        67.8,
-        (
-            "turn",
-            "r0004",
-            "Team Two",
-            "Sightline, Team Two. Blue water bottle by the creek crossing, over.",
-            "Team Two, Sightline. Copy a blue water bottle by the creek crossing, logging it as a clue. Confirm, over.",
-        ),
-    )
+    later(67.8, ("turn", "r0004", "Team Two",
+                 "Sightline, Team Two. Blue water bottle by the creek crossing, over.",
+                 "Team Two, Sightline. Copy a blue water bottle by the creek crossing. Holding it for the search manager to confirm, over.",
+                 clue_bottle))  # fmt: skip
     later(68, ("clue", clue_bottle))
-    later(
-        69.8,
-        (
-            "turn",
-            "r0007",
-            "Team One",
-            "Sightline, Team One. Possible whistle, three blasts, to the south-west, over.",
-            "Team One, Sightline. Copy a possible whistle, three blasts, south-west, low reliability. Confirm, over.",
-        ),
-    )
+    later(69.8, ("turn", "r0007", "Team One",
+                 "Sightline, Team One. Possible whistle, three blasts, to the south-west, over.",
+                 "Team One, Sightline. Copy a possible whistle, three blasts, south-west, low reliability. Holding it for the search manager to confirm, over.",
+                 clue_whistle))  # fmt: skip
     later(70, ("clue", clue_whistle))
     later(60, ("conditions",))
     later(

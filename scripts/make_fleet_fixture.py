@@ -21,6 +21,11 @@ a drone takes along a leg is in the fixture: its map step joins ``map_updates`` 
 time, ``ref`` = its frame id after the cache's 500) and ``leg_photos`` lists it (frame, drone, leg,
 capture time, position, footprint, map update seq), so the map can lower under the drone as it flies.
 ``timeline`` and ``photographed`` are rebuilt with the fleet's lines and cells.
+
+``feeds``: one entry per leg for the console's "Drone feed" tile (``clip`` and ``poster`` under
+``web/public/``, ``start_s`` in its 10 s loop, ``label`` "drone feed (public-domain footage, not this
+flight)", ``credit``): public-domain U.S. Forest Service clips (``web/public/feed/CREDITS.md``), not
+this flight.
 """
 
 from __future__ import annotations
@@ -235,7 +240,32 @@ def main() -> int:
         e["id"] = f"e{k:05d}"
     fx["events"] = merged
     fx["fleet"] = json.loads(fleet.model_dump_json())
-    leg_photos(fx, events, frames, steps, stamps)
+    fx["feeds"] = feeds(fx["fleet"]["legs"])
+    leg_photos(fx, events, frames, steps, stamps)  # first: the report counts the legs' map steps
+    if "report" in fx:  # the after-action report's drone legs: minutes and photos per leg
+        from sightline.mission.report import leg_rows
+
+        shifted = [e.model_copy(update={"at": stamps.get(e.id, e.at)}) for e in events]
+        fx["report"]["legs"] = leg_rows(fleet, shifted, frames)
+        # every sector's final POD with the legs' photos too: the cache's frame steps, then the log
+        from types import SimpleNamespace
+
+        from sightline.mission.report import sector_pods
+
+        prior = json.loads((FIXTURE.parent / "demo_prior.json").read_text())
+        looks = [SimpleNamespace(kind="step", cells=s.cells) for s in m.steps]
+        looks += [SimpleNamespace(kind=u["kind"], cells=u["cells"]) for u in fx["map_updates"]]
+        pods = sector_pods(SimpleNamespace(prior=SimpleNamespace(p=prior["p"])), looks, layout)
+        for row in fx["report"]["sectors"]:
+            row["pod"] = pods[row["sector"]]
+        fx["report"]["drones"] |= {
+            "legs_flown": sum(x.status == "done" for x in fleet.legs),
+            "legs_cancelled": sum(x.status == "cancelled" for x in fleet.legs),
+            "simulated": fleet.simulated,
+            "flight_minutes": round(sum(x["minutes"] for x in fx["report"]["legs"]
+                                        if x["minutes_from"] == "reported"), 1),
+            "flight_minutes_from": "the legs' start and end reports (a re-tasked leg until the next starts)",
+        }  # fmt: skip
     from sightline.contract import MissionEvent
     from sightline.mission.timeline import timeline
     from sightline.search.grid import cell_containing
@@ -251,6 +281,9 @@ def main() -> int:
     teams_now = [Team.model_validate(t) for t in fx["teams"]]
     fx["timeline"] = [x.model_dump(mode="json") for x in
                       timeline([MissionEvent.model_validate(e) for e in fx["events"]], teams_now, sector_of)]  # fmt: skip
+    from sightline.radio.voices import attach_audio
+
+    attach_audio(fx["timeline"], "demo", ROOT / "web/public")  # the voices, when they still fit
     fx["teams"] = [
         json.loads(team_now.model_dump_json()) if t["id"] == "T2" else t for t in fx["teams"]
     ]
@@ -265,6 +298,28 @@ def main() -> int:
     print(f"drones: {[(d.id, d.status, round(d.battery_pct)) for d in fleet.drones]}")
     print(f"{len(fleet_events)} fleet events; wrote {FIXTURE.relative_to(ROOT)}")
     return 0
+
+
+# The "Drone feed" tile's clips (web/public/feed/, CREDITS.md there): public-domain U.S. Forest
+# Service footage, not this flight, and labelled so wherever it plays.
+FEED_CLIPS = ("feed/forest-1.mp4", "feed/forest-2.mp4")
+FEED_LABEL = "drone feed (public-domain footage, not this flight)"
+FEED_CREDIT = "U.S. Forest Service video (Shasta-Trinity National Forest), via DVIDS; public domain"
+FEED_LOOP_S = 10.0
+
+
+def feeds(legs: list[dict]) -> list[dict]:
+    """One feed entry per leg: which clip the tile plays while the leg flies and where in the 10 s
+    loop it starts (drones take turns between the clips; the start steps by 3 s per leg)."""
+    order = sorted({x["drone_id"] for x in legs})
+    out = []
+    for k, leg in enumerate(legs):
+        clip = FEED_CLIPS[order.index(leg["drone_id"]) % len(FEED_CLIPS)]
+        out.append({"leg": leg["id"], "drone": leg["drone_id"], "sector": leg.get("sector_id"),
+                    "clip": clip, "poster": clip.replace(".mp4", ".jpg"),
+                    "start_s": round((3.0 * k) % FEED_LOOP_S, 1), "loop_s": FEED_LOOP_S,
+                    "label": FEED_LABEL, "credit": FEED_CREDIT})  # fmt: skip
+    return out
 
 
 def _is_fleet(e: dict) -> bool:
