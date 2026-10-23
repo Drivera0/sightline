@@ -99,6 +99,41 @@ export const CONSOLE_PALETTES: Record<BasemapKind, HeatPalette> = {
   },
 };
 
+/** A theme token's value (MapLibre cannot read CSS variables), or "" outside a page. */
+const token = (name: string): string =>
+  typeof document === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+/**
+ * The console's heat on the colour system's tokens (theme.css: --prob-1..5, --searched), for the theme on
+ * screen. Dark: likelier is lighter, rust → amber → cream (--prob-2, --prob-3, --prob-5); light: the light
+ * theme's rust → orange → yellow, a little stronger so it holds on a light map, with the 50 % edge in rust.
+ * Imagery (satellite) keeps its own ramp. Without the tokens (tests, no page) the fixed palettes above.
+ */
+export function consolePalettes(theme: "dark" | "light" = "dark", read: (name: string) => string = token): Record<BasemapKind, HeatPalette> {
+  const v = (name: string, fallback: string) => read(name) || fallback;
+  const base = CONSOLE_PALETTES.dark;
+  const dark: HeatPalette =
+    theme === "light"
+      ? {
+          ...base,
+          top: { color: v("--prob-4", "#facc15"), alpha: 0.58 },
+          mid: { color: v("--prob-3", "#f59e0b"), alpha: 0.46 },
+          low: { color: v("--prob-2", "#ea580c"), alpha: 0.34 },
+          contour50: { color: v("--prob-1", "#9a3412"), width: 1.5, opacity: 0.9 },
+          contour90: { color: v("--text", "#17181b"), width: 1, opacity: 0.3 },
+          searched: { color: v("--searched", "#3a4658"), alpha: 0.26 },
+        }
+      : {
+          ...base,
+          top: { color: v("--prob-5", base.top.color), alpha: base.top.alpha },
+          mid: { color: v("--prob-3", base.mid.color), alpha: base.mid.alpha },
+          low: { color: v("--prob-2", base.low.color), alpha: base.low.alpha },
+          contour50: { ...base.contour50, color: v("--prob-5", base.contour50.color) },
+          searched: { color: v("--searched", base.searched!.color), alpha: base.searched!.alpha },
+        };
+  return { satellite: CONSOLE_PALETTES.satellite, dark };
+}
+
 /** Opacity of the "not yet searched" veil (cells not photographed at this step). */
 export const VEIL_ALPHA = 0.45;
 /** Fill of a cell awaiting review: a neutral light tone (no update yet), outlined dashed on the map. */

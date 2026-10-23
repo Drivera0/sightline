@@ -1,7 +1,7 @@
 // Shared by lane B's live-mission layers (clueLayer, teamLayer, droneLayer, legLayer): plain GeoJSON
 // features the live map draws. `tone` picks a theme colour when the layer is drawn. Built by lane A for
 // lane B (#74).
-export type Tone = "accent" | "warn" | "ok" | "info" | "muted" | "text";
+export type Tone = "accent" | "warn" | "ok" | "info" | "muted" | "text" | "team" | "drone" | "clue" | "found" | "alert";
 export interface MissionFeature {
   type: "Feature";
   properties: { kind: string; id: string; label: string; tone: Tone; popup?: string } & Record<string, unknown>;

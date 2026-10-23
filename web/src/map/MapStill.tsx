@@ -57,7 +57,7 @@ export function MapStill({ demo, loading = false, onLoad }: { demo: boolean; loa
         className="absolute inset-0 bg-transparent focus-visible:outline-offset-[-4px]"
       >
         {/* under the last known point, above the scrubber */}
-        <span className="absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-border bg-bg/85 px-4 py-2 text-body text-text shadow-[0_8px_24px_-8px_rgba(0,0,0,0.8)]">{loading ? "Loading the map…" : "Tap to load the map"}</span>
+        <span className="absolute left-1/2 top-[62%] -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-border bg-bg/85 px-4 py-2 text-body text-text shadow-[var(--shadow-pop)]">{loading ? "Loading the map…" : "Tap to load the map"}</span>
       </button>
       {demo && <span className="pointer-events-none absolute left-2 top-2 rounded-full bg-bg/80 px-2 py-0.5 text-caption text-text-2">Still image · at the call</span>}
     </div>

@@ -138,7 +138,7 @@ export function NextSearch({
                     }`}
                   >
                     {/* The same number and fill as the circle's badge on the map. */}
-                    <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent text-label font-semibold text-bg">
+                    <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent text-label font-semibold text-on-accent">
                       {rank + 1}
                     </span>
                     <span className="flex min-w-0 flex-col gap-1">

@@ -405,6 +405,8 @@ export interface ModelUse {
   ms: number;
   tokensIn: number;
   tokensOut: number;
+  /** A fixture's stand-in ("fake/<model>"): replayed, not a call made on this flight (judges 2026-10-23). */
+  replayed: boolean;
 }
 
 /** Which model did what: each model's calls, who called it, time and tokens. Tools are counted too. */
@@ -413,14 +415,16 @@ export function modelUse(entries: readonly TraceEntry[]): { models: ModelUse[]; 
   const tools = new Map<string, number>();
   for (const e of entries) {
     if (e.kind === "model_call" && e.model) {
-      const id = modelName(e.model); // a fixture's fake/ and recorded/ calls of one model count as that model
-      const m = models.get(id) ?? { model: id, name: words(id), calls: 0, actors: [], ms: 0, tokensIn: 0, tokensOut: 0 };
+      const id = modelName(e.model); // a recorded live answer counts as the model's own; a fixture's fake/ stand-in apart
+      const replayed = /^fake\//.test(e.model);
+      const key = `${id}|${replayed ? "replayed" : "live"}`;
+      const m = models.get(key) ?? { model: id, name: words(id), calls: 0, actors: [], ms: 0, tokensIn: 0, tokensOut: 0, replayed };
       m.calls += 1;
       if (!m.actors.includes(e.actor)) m.actors.push(e.actor);
       m.ms += e.ms ?? 0;
       m.tokensIn += e.tokens_in ?? 0;
       m.tokensOut += e.tokens_out ?? 0;
-      models.set(id, m);
+      models.set(key, m);
     }
     if (e.kind === "tool_call") {
       const name = spanName(e).replace(/ \(.*\)$/, "");

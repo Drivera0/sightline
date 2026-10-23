@@ -4,13 +4,14 @@
 import type { Team } from "../../contract";
 import { minutesAgo, point, type MissionFeature, type Tone } from "./missionFeature";
 
+// teams in the team colour while they are out; standby and off duty muted; overdue in the alert colour
 const STATUS: Record<Team["status"], [string, Tone]> = {
   standby: ["standby", "muted"],
-  assigned: ["assigned", "info"],
-  searching: ["searching", "ok"],
-  returning: ["returning", "info"],
+  assigned: ["assigned", "team"],
+  searching: ["searching", "team"],
+  returning: ["returning", "team"],
   off_duty: ["off duty", "muted"],
-  overdue: ["overdue", "warn"],
+  overdue: ["overdue", "alert"],
 };
 
 const NUMBER: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };

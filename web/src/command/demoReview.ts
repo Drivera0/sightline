@@ -28,6 +28,7 @@ export function secondLookCard(): ReviewCard {
     chips: verdictChips(v),
     relook: v.relook_crops.map((name) => ({ url: zoomUrl, name })),
     promoted: true,
+    ms: v.ms,
     note: `Survey photo ${SECOND_LOOK_ID.slice(0, 5)}, below the 0.29 review threshold, so the queue would have dropped it; the agent promoted it after the second look (OpenCV 5 zoom, then Nemotron VL, a live call): "${v.reason}"`,
   };
 }
@@ -41,6 +42,11 @@ export function landedFrames(bundle: CacheBundle | null, count: number): Frame[]
 /** The review queue at this moment: candidates in landed photos, most confident first; the second look from this flight third. */
 export function demoCards(bundle: CacheBundle | null, landed: readonly Frame[], imageUrl: (rel: string) => string, withSecondLook: boolean): ReviewCard[] {
   if (!bundle) return [];
+  const photoOf = (id: string) => {
+    const f = bundle.survey?.frames.find((x) => x.id === id.slice(0, 5));
+    const det = bundle.detections.frames[id.slice(0, 5)]?.find((d) => d.id === id);
+    return f && det ? { photo: imageUrl(f.file), size: [f.width_px, f.height_px] as [number, number], box: det.box_px } : {};
+  };
   const ids = new Set(landed.map((f) => f.id));
   const threshold = bundle.detections.candidate_threshold;
   const cards: ReviewCard[] = Object.entries(bundle.detections.frames)
@@ -55,8 +61,13 @@ export function demoCards(bundle: CacheBundle | null, landed: readonly Frame[], 
       frame: `Survey photo ${d.id.slice(0, 5)}`,
       words: null,
       note: undefined,
+      ...photoOf(d.id),
     }));
-  if (withSecondLook) cards.splice(Math.min(2, cards.length), 0, secondLookCard());
+  if (withSecondLook) {
+    const own = secondLookCard();
+    const f = bundle.survey?.frames.find((x) => x.id === SECOND_LOOK_ID.slice(0, 5));
+    cards.splice(Math.min(2, cards.length), 0, f ? { ...own, photo: imageUrl(f.file), size: [f.width_px, f.height_px], box: secondLook.detection.box_px as [number, number, number, number] } : own);
+  }
   return cards;
 }
 

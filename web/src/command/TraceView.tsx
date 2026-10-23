@@ -97,7 +97,8 @@ function ModelStrip({ runs, chainCount }: { runs: readonly TraceRun[]; chainCoun
   const entries = runs.flatMap((r) => r.entries);
   const { tools } = modelUse(entries);
   // each model once per run, with the run it was called in
-  const models = runs.flatMap((r, i) => modelUse(r.entries).models.map((m) => ({ ...m, run: runWords(r), key: `r${i}-${m.model}` })));
+  // a fixture's stand-in calls are "Replayed", never "This flight": only live (or recorded live) calls are this flight's
+  const models = runs.flatMap((r, i) => modelUse(r.entries).models.map((m) => ({ ...m, run: m.replayed ? "Replayed" : runWords(r), key: `r${i}-${m.model}-${m.replayed ? "r" : "l"}` })));
   const proposals = entries.filter((e) => e.kind === "proposal").length;
   const decisions = entries.filter((e) => e.kind === "decision").length;
   return (
@@ -123,7 +124,7 @@ function ModelStrip({ runs, chainCount }: { runs: readonly TraceRun[]; chainCoun
               {m.actors.map((a) => `${a}: ${ACTOR_ROLE[a]}`).join("; ")}
             </span>
             <span className="text-caption text-text-3">
-              {m.calls} {m.calls === 1 ? "call" : "calls"} · {seconds(m.ms)}
+              {m.calls} {m.calls === 1 ? "call" : "calls"} · {m.replayed && m.ms === 0 ? "no timing (replayed)" : seconds(m.ms)}
               {m.tokensIn + m.tokensOut > 0 && ` · ${m.tokensIn} → ${m.tokensOut} tokens`}
             </span>
           </li>

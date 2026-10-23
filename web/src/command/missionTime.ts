@@ -8,7 +8,9 @@
 import type { Clue, FleetState, MapBase, MapUpdate, MissionEvent, Proposal, SectorTask, Team } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { applyEvent, EMPTY, fleetLinksFromEvents, type MissionData } from "../lib/mission";
+import { teamOf } from "./timeline";
 import { LiveHeat, lookedAt } from "../search/live";
+import { agentPick, passesFrom, poaAfter, realOf, type Cost, type Pass, type Subject } from "./sim";
 
 export type Checkpoint = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export const CHECKPOINTS_ALL: readonly Checkpoint[] = [0, 1, 2, 3, 4, 5, 6];
@@ -230,14 +232,29 @@ export function sectorsAt(base: MapBase, sectors: readonly SectorNow[], updates:
   });
 }
 
+export interface DemoOptions {
+  /**
+   * The visitor decides (guided or playing; judges 2026-10-23: p003 and p004 were approved "by Search
+   * manager" with no click): the scenario's own approvals are held, their proposals stay pending, and what
+   * followed from them (the team's tasks, its walk out, its radio, the find it made) does not happen unless
+   * the visitor assigns the team; then the guided search's engine plays it (sim.ts via `simulate`: the walk,
+   * the sweep, the seeded draw at POD, the find or the sector searched). One engine for both modes.
+   */
+  hold?: boolean;
+  /** The draws' seed (the scenario's), with `hold`. */
+  seed?: string;
+}
+
 /**
  * The demo mission as it stood at mission clock `clock`, with the visitor's own actions (`user`, events
  * the console made in demo mode) replayed on top where they had happened by then. Arrays keep the
- * fixtures' objects, so the map's incremental replay sees the same updates.
+ * fixtures' objects, so the map's incremental replay sees the same updates. A proposal the visitor
+ * decided is theirs alone: the scenario's own decision of it is not shown as well (it was logged twice).
  */
-export function demoAt(full: DemoFull, clock: string, user: readonly MissionEvent[] = []): Partial<MissionData> {
-  const d = full.data;
+export function demoAt(full: DemoFull, clock: string, user: readonly MissionEvent[] = [], guided: GuidedOpts | null = null, opts: DemoOptions = {}): Partial<MissionData> {
+  if (guided) return guidedAt(full, clock, user, guided);
   const c = ms(clock);
+  const d = holdFor(full.data, user, c, opts);
   const now = c >= ms(full.now);
   HOME = d.mission?.base_camp ? { lat: d.mission.base_camp.lat, lon: d.mission.base_camp.lon } : { ...TRAILHEAD };
   // the find, and when each team was last heard, as they stood at the clock
@@ -258,7 +275,9 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
   const events = (d.events ?? [])
     .filter((e) => eventTime(e) <= c)
     .sort((a, b) => a.at.localeCompare(b.at));
-  const sectors = now || !d.mapBase ? (d.sectors ?? []) : sectorsAt(d.mapBase, d.sectors ?? [], mapUpdates);
+  // every reading from the same map log, the end of the timeline too (the fixture's own "now" POA came from
+  // the server before the last legs and searches were applied: B1 jumped 0.4 → 1.6 % at 15:00, judges 2026-10-23)
+  const sectors = !d.mapBase ? (d.sectors ?? []) : sectorsAt(d.mapBase, d.sectors ?? [], mapUpdates);
   const base: MissionData = {
     ...EMPTY,
     ...d,
@@ -276,7 +295,56 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
     timeline: (d.timeline ?? []).filter((e) => ms(e.at) <= c),
     links: fleetLinksFromEvents(events),
   };
-  return user.filter((e) => ms(e.at) <= c).reduce(applyEvent, base);
+  const mine = user.filter((e) => ms(e.at) <= c);
+  const out = mine.reduce(applyEvent, base);
+  if (!opts.hold) return out;
+  // the visitor's assignments play through the guided search's engine
+  const sim = simulate(out, full, mine, c, opts.seed ?? "demo");
+  return { ...sim, sectors: d.mapBase ? sectorsAt(d.mapBase, sim.sectors, sim.mapUpdates) : sim.sectors };
+}
+
+const decidedBy = (user: readonly MissionEvent[], c: number) => new Set(user.filter((e) => e.type === "proposal.decided" && ms(e.at) <= c && e.ref).map((e) => e.ref as string));
+
+/**
+ * The fixtures with what the visitor decides taken out of the scenario's hands: a proposal the visitor
+ * decided loses the scenario's decision of it; with `hold`, every proposal the scenario decided by itself
+ * is pending and what followed from it is gone. Pure.
+ */
+export function holdFor(d: Partial<MissionData>, user: readonly MissionEvent[], c: number, opts: DemoOptions = {}): Partial<MissionData> {
+  const mine = decidedBy(user, c);
+  const held = new Set((d.proposals ?? []).filter((p) => p.decided_at && (mine.has(p.id) || (opts.hold && p.status !== "pending"))).map((p) => p.id));
+  if (!held.size) return d;
+  // a held assignment: the team and sector it sent, and from when
+  const heldAssign = (d.proposals ?? []).filter((p) => opts.hold && held.has(p.id) && !mine.has(p.id) && p.kind === "assign_sector" && p.target.team && p.target.sector);
+  const heldTeams = new Map(heldAssign.map((p) => [p.target.team as string, ms(p.decided_at as string)]));
+  const heldSectors = new Set(heldAssign.map((p) => `${p.target.team}|${p.target.sector}`));
+  const teamOfEvent = (e: { team?: string | null; ref?: string | null; data?: unknown; type?: string }) => {
+    const x = e.data as Record<string, unknown> | null | undefined;
+    return (e.team ?? (x?.team_id as string | undefined) ?? (e.type === "team.updated" ? e.ref : null) ?? null) as string | null;
+  };
+  const afterHeld = (team: string | null, at: string) => team !== null && heldTeams.has(team) && ms(at) >= heldTeams.get(team)!;
+  const found = d.mission?.found;
+  const findHeld = !!found && heldTeams.has(found.team);
+  const decidedHere = (refs: readonly (string | null | undefined)[]) => refs.some((r) => r && held.has(r));
+  const subjectLine = (text: string) => /subject located|subject found/i.test(text);
+  const events = (d.events ?? []).filter((e) => {
+    if (e.type === "proposal.decided" && e.ref && held.has(e.ref)) return false;
+    if (afterHeld(teamOfEvent({ ...e, team: null }), e.at)) return false;
+    if (e.type === "radio.turn" && afterHeld(teamOf(d.teams ?? [], (e.data as { callsign?: string } | null)?.callsign), e.at)) return false;
+    if (findHeld && (((e.data as { action?: string } | null)?.action === "found") || subjectLine(e.summary) || (e.type === "radio.turn" && subjectLine(JSON.stringify(e.data ?? ""))))) return false;
+    return true;
+  });
+  const timeline = (d.timeline ?? []).filter((e) => {
+    if (e.kind === "decision" && decidedHere(e.refs ?? [])) return false;
+    if (afterHeld(teamOf(d.teams ?? [], e.team ?? null), e.at)) return false;
+    if (findHeld && (e.kind === "found" || subjectLine(e.text))) return false;
+    return true;
+  });
+  const proposals = (d.proposals ?? []).map((p) => (held.has(p.id) ? { ...p, status: "pending" as const, decided_at: null, decided_by: null, decision_reason: null, edits: null } : p));
+  const tasks = (d.tasks ?? []).map((t) => (t.team_id && heldSectors.has(`${t.team_id}|${t.sector_id}`) ? { ...t, state: "proposed" as const, team_id: null, pod: null, note: null } : t));
+  const teams = (d.teams ?? []).map((t) => (heldTeams.has(t.id) ? { ...t, position: null, position_at: null, status: "standby" as const, last_heard_at: null } : t));
+  const mission = d.mission && findHeld ? { ...d.mission, found: null, status: "searching" as const } : d.mission;
+  return { ...d, events, timeline, proposals, tasks, teams, mission };
 }
 
 /** The checkpoint at or before a clock reading (where the scrubber's thumb sits). */
@@ -285,4 +353,199 @@ export function checkpointAtOrBefore(clock: string): Checkpoint {
   let found: Checkpoint = 0;
   for (const cp of CHECKPOINTS) if (ms(cp.at) <= c) found = cp.t;
   return found;
+}
+
+// ---- The guided search (`?guide=1`): the same fixtures, the manager's decisions the visitor's ----
+//
+// The fixtures' own search manager steps aside after the board is seeded: every proposal waits for the
+// visitor, the teams stay at base camp until the visitor assigns them, and the find happens only when a
+// team the visitor sent detects the subject (sim.ts: a pass of the subject's sector at POD, a seeded
+// draw) and the visitor marks it. The radio clue waits for its read-back and moves the map only once it
+// is confirmed (never, when it is only logged).
+
+/** What the guided search changes in the fixtures. */
+export interface GuidedOpts {
+  /** The scenario's seed: the draws. */
+  seed: string;
+  /** The clue the manager reads back (its radio call is in the fixtures; it waits for a decision). */
+  readback?: string | null;
+  /** The read-back clue moves the map (confirmed); false: logged only, or not decided yet. */
+  mapClue?: boolean;
+}
+
+/** The subject's sector and position: the scenario's find (null: a scenario without one). */
+export function subjectOf(full: DemoFull | null): Subject | null {
+  const f = full?.data.mission?.found;
+  return f?.sector ? { sector: f.sector, lat: f.lat, lon: f.lon } : null;
+}
+
+/** Each sector's probability as the agent ranks them (the fixtures' sectors). */
+export function poaOf(full: DemoFull | null): Map<string, number> {
+  return new Map((full?.data.sectors ?? []).map((s) => [s.sector_id, s.poa]));
+}
+
+/** The visitor's "found" (the store logs it as a mission note carrying the mission). */
+export function isFoundEvent(e: MissionEvent): boolean {
+  return e.type === "mission.note" && (e.data as { action?: string } | null)?.action === "found";
+}
+
+/** "C2" said on the radio: "Charlie Two". */
+export function sectorSpoken(sector: string): string {
+  const NATO: Record<string, string> = { A: "Alpha", B: "Bravo", C: "Charlie", D: "Delta", E: "Echo", F: "Foxtrot", G: "Golf", H: "Hotel" };
+  const NUM = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+  const m = /^([A-Z])(\d)$/.exec(sector);
+  return m ? `${NATO[m[1]!] ?? m[1]} ${NUM[Number(m[2])]}` : sector;
+}
+
+/** The fixtures' own manager: its decisions and the teams' moves, and after the board is seeded the teams' radio and the find. */
+function managersOwn(e: MissionEvent): boolean {
+  if (e.type === "proposal.decided" || e.type === "task.updated" || e.type === "team.updated") return true;
+  const late = ms(e.at) > ms(BOARD_AT);
+  if (e.type === "radio.turn") return late;
+  // the fleet's own notes stay (legs, links); the teams' (position reports, relays, searched, the find) go
+  return e.type === "mission.note" && !/^(Drone|D\d|L\d)/.test(e.summary) && (late || /Search manager|position report|assigned to sector|searched at POD/.test(e.summary));
+}
+
+function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], opts: GuidedOpts): Partial<MissionData> {
+  const d = full.data;
+  const c = ms(clock);
+  HOME = d.mission?.base_camp ? { lat: d.mission.base_camp.lat, lon: d.mission.base_camp.lon } : { ...TRAILHEAD };
+  const mission = d.mission ? { ...d.mission, found: null, status: d.mission.status === "found" ? ("searching" as const) : d.mission.status } : null;
+  const held = (u: MapUpdate) => u.source === "ground" || (u.source === "clue" && !!opts.readback && u.ref === opts.readback && !opts.mapClue);
+  const allUpdates = (d.mapUpdates ?? []).filter((u) => !held(u));
+  const times = updateTimes(allUpdates);
+  const mapUpdates = allUpdates.filter((_, i) => (times[i] as number) <= c);
+  const tasks: SectorTask[] = c < ms(BOARD_AT) ? [] : (d.tasks ?? []).map((t) => ({ ...t, state: "proposed" as const, team_id: null, pod: null, note: null, updated_at: BOARD_AT }));
+  const clues = (d.clues ?? []).filter((x) => ms(x.at) <= c).map((x) => (x.id === opts.readback ? { ...x, confirmed: false } : x));
+  const proposals = (d.proposals ?? []).filter((p) => ms(p.created_at) <= c).map((p) => proposalAt(p, -Infinity));
+  const events = (d.events ?? [])
+    .filter((e) => eventTime(e) <= c && !managersOwn(e))
+    // the read-back clue waits for the manager's decision in the log too
+    .map((e) => (e.type === "clue.added" && e.ref === opts.readback && e.data ? { ...e, data: { ...(e.data as object), confirmed: false } as MissionEvent["data"] } : e))
+    .sort((a, b) => a.at.localeCompare(b.at));
+  // the manager's decisions, the teams' check-ins and the find are the visitor's now; after the board is seeded the teams' radio too
+  const timeline = (d.timeline ?? []).filter((e) => ms(e.at) <= c && e.kind !== "decision" && e.kind !== "checkin" && e.kind !== "found" && !(ms(e.at) > ms(BOARD_AT) && e.kind === "radio"));
+  const base: MissionData = {
+    ...EMPTY,
+    ...d,
+    mission,
+    tasks,
+    teams: (d.teams ?? []).map((t) => ({ ...atTrailhead(t), last_heard_at: t.last_heard_at && ms(t.last_heard_at) <= Math.min(c, ms(BOARD_AT)) ? t.last_heard_at : null })),
+    clues,
+    proposals,
+    fleet: fleetAt(d.fleet, c, ms(full.now)),
+    events,
+    mapUpdates,
+    sectors: d.sectors ?? [],
+    verdicts: [],
+    timeline,
+    links: fleetLinksFromEvents(events),
+  };
+  const mine = user.filter((e) => ms(e.at) <= c);
+  const s = simulate(mine.reduce(applyEvent, base), full, mine, c, opts.seed);
+  return { ...s, sectors: d.mapBase ? sectorsAt(d.mapBase, s.sectors, s.mapUpdates) : s.sectors };
+}
+
+/** Where a sector's teams walk to: the middle of its outline. */
+function centreOf(sectors: readonly SectorNow[], id: string): LL | null {
+  const ring = sectors.find((s) => s.sector_id === id)?.polygon?.slice(0, -1);
+  if (!ring?.length) return null;
+  return { lon: ring.reduce((a, p) => a + p[0], 0) / ring.length, lat: ring.reduce((a, p) => a + p[1], 0) / ring.length };
+}
+
+/** A pass with no find lowers its sector's cells at its POD, one update per pass (kept, so the map replays incrementally). */
+const groundUpdates = new Map<string, MapUpdate>();
+function groundUpdate(base: MapBase, sectors: readonly SectorNow[], p: Pass, seq: number): MapUpdate | null {
+  const key = `${p.team}|${p.sector}|${p.start}|${seq}`;
+  const hit = groundUpdates.get(key);
+  if (hit) return hit;
+  const cells = sectorCells(base, sectors).get(p.sector) ?? [];
+  if (!cells.length) return null;
+  const u: MapUpdate = { seq, kind: "step", source: "ground", ref: p.sector, cells: cells.map((i) => [i, p.pod] as [number, number]), at: iso(p.end) };
+  groundUpdates.set(key, u);
+  return u;
+}
+
+/**
+ * The passes the visitor sent, played to the clock `c` (sim.ts): teams walk out and sweep; a pass that
+ * detects the subject ends in the team's radio call (the visitor marks the find); a pass without a find
+ * marks its sector searched at its POD, lowers it on the map, and the agent proposes its next pick to
+ * that team. Pure apart from keeping the map updates it makes.
+ */
+export function simulate(s: MissionData, full: DemoFull, user: readonly MissionEvent[], c: number, seed: string): MissionData {
+  const subject = subjectOf(full);
+  const found = user.find(isFoundEvent);
+  const all = passesFrom(seed, subject, user);
+  const passes = all.filter((x) => x.start <= c);
+  if (!passes.length) return s;
+  const call = (id: string) => s.teams.find((t) => t.id === id)?.callsign ?? id;
+  let teams = s.teams;
+  let tasks = s.tasks;
+  let proposals = s.proposals;
+  const timeline = [...s.timeline];
+  const mapUpdates = [...s.mapUpdates];
+  const lastFor = new Map<string, Pass>();
+  for (const x of passes) lastFor.set(x.team, x);
+  let seq = 900_000;
+  for (const x of passes) {
+    seq += 1;
+    // once the find is marked, the passes still out stop where they are
+    const ended = !x.cut && x.end <= c && !(found && ms(found.at) < x.end);
+    if (lastFor.get(x.team) === x) {
+      const centre = centreOf(s.sectors, x.sector);
+      const there = ended && x.detected && subject ? { lat: subject.lat, lon: subject.lon } : centre;
+      const walked = there ? alongPath([HOME, there], (c - x.start) / WALK_MS) : null;
+      const status: Team["status"] = ended ? (x.detected ? "searching" : "standby") : c >= x.arrive ? "searching" : "assigned";
+      const heard = ended ? x.end : c >= x.arrive ? x.arrive : x.start;
+      teams = teams.map((t) => (t.id === x.team ? { ...t, status, position: walked ?? t.position, position_at: iso(c), last_heard_at: iso(heard) } : t));
+    }
+    // the board: in progress once the team is there, searched at its POD when it reports no sign
+    const own = (t: SectorTask) => t.sector_id === x.sector && t.team_id === x.team;
+    if (!x.cut && c >= x.arrive) tasks = tasks.map((t) => (own(t) ? (ended && !x.detected ? { ...t, state: "searched" as const, pod: x.pod, updated_at: iso(x.end) } : { ...t, state: "in_progress" as const, updated_at: iso(x.arrive) }) : t));
+    if (!ended) continue;
+    const said = x.detected
+      ? `Sightline, ${call(x.team)}. Subject located in ${sectorSpoken(x.sector)}, conscious and talking, over.`
+      : `Sightline, ${call(x.team)}. ${sectorSpoken(x.sector)} searched, no sign of the subject, over.`;
+    timeline.push({ id: `g-${x.team}-${x.start}`, at: iso(x.end), kind: "radio", team: x.team, sector: x.sector, text: said, direction: "in", refs: [], turn_id: null, drone: null, by: null });
+    if (x.detected) continue;
+    if (s.mapBase) {
+      const u = groundUpdate(s.mapBase, s.sectors, x, seq);
+      if (u) mapUpdates.push(u);
+    }
+    // no find: the agent proposes its next pick for the team, unless the visitor has already sent it on
+    if (found || lastFor.get(x.team) !== x) continue;
+    const pick = agentPick(poaOf(full), all, x.end);
+    const id = `g${String(passes.indexOf(x) + 1).padStart(3, "0")}`;
+    if (pick && !proposals.some((p) => p.id === id)) {
+      const poa = poaAfter(poaOf(full), all, x.end).get(pick) ?? 0;
+      proposals = [
+        ...proposals,
+        {
+          id, kind: "assign_sector", status: "pending", created_by: "planner", created_at: iso(x.end), decided_at: null, decided_by: null, decision_reason: null, edits: null, evidence: [], briefing: null,
+          target: { team: x.team, sector: pick },
+          summary: `Assign sector ${pick} to ${call(x.team)}`,
+          reason: `${x.sector} searched at POD ${x.pod.toFixed(2)} with no sign, so its probability drops; ${pick} is now the likeliest open sector (${(poa * 100).toFixed(1)} % POA) and ${call(x.team)} is free.`,
+        },
+      ];
+    }
+  }
+  timeline.sort((a, b) => a.at.localeCompare(b.at));
+  return { ...s, teams, tasks, timeline, proposals, mapUpdates };
+}
+
+/** The fixtures' times on the mission clock (sim.ts realOf): every time a panel prints, after the decisions' costs. */
+export function onMissionClock(s: Partial<MissionData>, costs: readonly Cost[]): Partial<MissionData> {
+  if (!costs.some((x) => x.ms > 0)) return s;
+  const r = (at: string) => iso(realOf(ms(at), costs));
+  const rn = (at: string | null | undefined) => (at ? r(at) : (at ?? null));
+  return {
+    ...s,
+    mission: s.mission ? { ...s.mission, found: s.mission.found ? { ...s.mission.found, at: r(s.mission.found.at) } : s.mission.found } : s.mission,
+    events: s.events?.map((e) => ({ ...e, at: r(e.at) })),
+    timeline: s.timeline?.map((e) => ({ ...e, at: r(e.at) })),
+    clues: s.clues?.map((x) => ({ ...x, at: r(x.at) })),
+    proposals: s.proposals?.map((p) => ({ ...p, created_at: r(p.created_at), decided_at: rn(p.decided_at) })),
+    tasks: s.tasks?.map((t) => ({ ...t, updated_at: r(t.updated_at) })),
+    teams: s.teams?.map((t) => ({ ...t, position_at: rn(t.position_at), last_heard_at: rn(t.last_heard_at) })),
+  };
 }

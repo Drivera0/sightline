@@ -1,6 +1,6 @@
 // The landing's one line, between the app bar and the console at t0: what Sightline is, and the one
-// thing to do (follow the search). Centred, one line and the button. No marketing page: the console under
-// it is the product.
+// thing to do (follow the search: the guided search, each decision yours). Centred, one line and the
+// button. No marketing page: the console under it is the product.
 
 import { HERO } from "../front/copy";
 import { Button } from "../shell/components";

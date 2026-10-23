@@ -1,7 +1,8 @@
 // The heat surface on a MapLibre map: per-class GeoJSON fills and the 50 % / 90 % contour lines at
 // rest, and the canvas raster (raster.ts) while the heat animates (the Search next build-up, a review
 // answer's tween, the flight replay, a live update). Both draw the same cell kinds (classes.ts) in the
-// same colours and opacities, so the swap at the end of an animation does not show. The raster is
+// same colours and opacities, and the hand-over crossfades (setSurfaceMode with a fade: the contours
+// fade out as a tween starts and the new fills and contours fade in as it ends). The raster is
 // one texture upload per frame, which keeps the tweens smooth; the fills give crisp class edges at any
 // zoom, per-class opacity by zoom and room for the contours. Kept free of React so tests can use a
 // mocked map.
@@ -193,6 +194,86 @@ interface SwapState {
   want: SurfaceMode;
   /** Stops waiting for the pending push (a newer push replaces it). */
   cancel?: () => void;
+  /** How the hand-over to `want` should go (a crossfade), when asked for one. */
+  fade?: SurfaceFade;
+  /** Stops a crossfade in progress. */
+  stopFade?: () => void;
+}
+
+/**
+ * A crossfade between the raster and the fills (V3 §2: the heat evolves, it never swaps): over `ms` the
+ * half going away fades out while the other fades in, contours with the fills. Needs the palette, theme
+ * and opacity multiplier the layers were drawn with, to put them back exactly at the end.
+ */
+export interface SurfaceFade {
+  ms: number;
+  palette: HeatPalette;
+  theme: SurfaceTheme;
+  opacity: number;
+  /** Test seams. */
+  raf?: (fn: (t: number) => void) => number;
+  caf?: (id: number) => void;
+  now?: () => number;
+}
+
+/** The fills', the raster's and the contours' strengths for a crossfade at `e` (0..1, eased) towards `mode`. */
+export function fadeMix(mode: SurfaceMode, e: number): { raster: number; vector: number } {
+  const k = Math.min(1, Math.max(0, e));
+  return mode === "raster" ? { raster: k, vector: 1 - k } : { raster: 1 - k, vector: k };
+}
+
+const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+function setMix(map: Map, ids: SurfaceIds, fade: SurfaceFade, mix: { raster: number; vector: number }): void {
+  const set = (id: string, prop: string, value: unknown) => {
+    if (map.getLayer(id)) map.setPaintProperty(id, prop as PaintName, value as never);
+  };
+  set(ids.raster, "raster-opacity", zoomOpacity(fade.opacity * mix.raster));
+  for (const kind of FILL_KINDS) {
+    const fill = kindFill(fade.palette, kind, fade.theme);
+    if (fill) set(ids.fills[kind] as string, "fill-opacity", zoomOpacity(fill.alpha * fade.opacity * mix.vector));
+  }
+  set(ids.casing90, "line-opacity", fade.palette.casing.opacity * mix.vector);
+  set(ids.casing50, "line-opacity", fade.palette.casing.opacity * mix.vector);
+  set(ids.line90, "line-opacity", (fade.palette.contour90.opacity ?? 1) * mix.vector);
+  set(ids.line50, "line-opacity", (fade.palette.contour50.opacity ?? 1) * mix.vector);
+}
+
+/** Crossfade to `mode`: both halves shown while it runs, then only `mode`'s, at full strength. */
+function fadeTo(map: Map, ids: SurfaceIds, mode: SurfaceMode, fade: SurfaceFade, state: SwapState): void {
+  state.stopFade?.();
+  const raf = fade.raf ?? ((fn: (t: number) => void) => requestAnimationFrame(fn));
+  const caf = fade.caf ?? ((id: number) => cancelAnimationFrame(id));
+  const now = fade.now ?? (() => performance.now());
+  for (const id of surfaceLayerIds(ids)) if (map.getLayer(id) && map.getLayoutProperty?.(id, "visibility") !== "visible") map.setLayoutProperty?.(id, "visibility", "visible");
+  const start = now();
+  let frame = 0;
+  const end = () => {
+    state.stopFade = undefined;
+    setMix(map, ids, fade, { raster: 1, vector: 1 });
+    applyMode(map, ids, mode);
+  };
+  const tick = () => {
+    const t = Math.min(1, (now() - start) / Math.max(1, fade.ms));
+    try {
+      if (t >= 1) return end();
+      setMix(map, ids, fade, fadeMix(mode, easeInOut(t)));
+    } catch {
+      return; /* the map is going away */
+    }
+    frame = raf(tick);
+  };
+  state.stopFade = () => {
+    caf(frame);
+    state.stopFade = undefined;
+    try {
+      setMix(map, ids, fade, { raster: 1, vector: 1 });
+    } catch {
+      /* the map is going away */
+    }
+  };
+  setMix(map, ids, fade, fadeMix(mode, 0));
+  frame = raf(tick);
 }
 const swaps = new WeakMap<Map, globalThis.Map<string, SwapState>>();
 
@@ -248,7 +329,10 @@ export function pushSurface(map: Map, ids: SurfaceIds, data: SurfaceData): void 
     cancel();
     state.pending = false;
     try {
-      if (state.want === "vector") applyMode(map, ids, "vector");
+      if (state.want === "vector") {
+        if (state.fade) fadeTo(map, ids, "vector", state.fade, state);
+        else applyMode(map, ids, "vector");
+      }
     } catch {
       /* style reloading */
     }
@@ -261,9 +345,20 @@ export function pushSurface(map: Map, ids: SurfaceIds, data: SurfaceData): void 
  * Show the raster (while animating) or the fills and contours (at rest). Only touches what changes; a
  * hand-over to fills that are still loading waits for them (pushSurface).
  */
-export function setSurfaceMode(map: Map, ids: SurfaceIds, mode: SurfaceMode): void {
+export function setSurfaceMode(map: Map, ids: SurfaceIds, mode: SurfaceMode, fade?: SurfaceFade): void {
   const state = swapState(map, ids);
+  const was = state.want;
   state.want = mode;
-  if (mode === "vector" && state.pending) return;
-  applyMode(map, ids, mode);
+  state.fade = fade;
+  if (mode === "vector" && state.pending) {
+    // the raster keeps the map until the new fills are drawn (then the crossfade, pushSurface)
+    if (state.stopFade) {
+      state.stopFade();
+      applyMode(map, ids, "raster");
+    }
+    return;
+  }
+  if (fade && was !== mode) return fadeTo(map, ids, mode, fade, state);
+  if (was !== mode) state.stopFade?.();
+  if (!state.stopFade) applyMode(map, ids, mode);
 }

@@ -1,12 +1,13 @@
 // LANE_D §6 test 9 (ingest) and test 8 (review in live mode), plus the live routes.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Detections, MapFile, Verdict } from "../contract";
 import { App } from "../App";
-import { useStory } from "../command/story";
+import { useGuide, useStory } from "../command/story";
 import { diskFetch } from "../lib/diskFetch";
 import { LiveReview, liveReviewItems, relookName, verdictWords } from "../review/LiveReview";
+import { RUN_MAX_MS, SECOND_LOOK_LABEL, useSecondLook } from "../review/SecondLook";
 import { EMPTY, useMission } from "../lib/mission";
 import type { Route } from "../shell/flow";
 import { useConsole } from "../command/consoleStore";
@@ -137,11 +138,19 @@ describe("review in live mode (test 8)", () => {
     expect(relookName("relook/f0003-d01-zoom_native.jpg")).toBe("zoom native");
     expect(relookName("relook/f0003-d01-enhance_contrast.jpg")).toBe("enhance contrast");
     const v = verdict({ relook_crops: ["relook/f0001-d02-zoom_native.jpg"] });
+    useSecondLook.getState().reset();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<LiveReview detections={dets} survey={null} verdicts={[v]} promoted={["f0001-d02"]} imageUrl={(r) => `/f/${r}`} onAnswer={vi.fn()} />);
     expect(screen.queryByAltText(/Re-look image/)).toBeNull(); // not loaded until asked for
-    await userEvent.click(screen.getByRole("button", { name: "Show the second look's images (1)" }));
+    // a real button with its two model chips; pressed, it shows its progress, then the result inline
+    const card = screen.getByLabelText("Candidate f0001-d02");
+    await userEvent.click(within(card).getByRole("button", { name: SECOND_LOOK_LABEL }));
+    expect(within(card).getByLabelText("Second look running")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(RUN_MAX_MS));
+    expect(within(card).getByLabelText("Second look result")).toHaveTextContent("Second look: likely a person");
     expect(screen.getByAltText("Re-look image relook/f0001-d02-zoom_native.jpg")).toHaveAttribute("src", "/f/relook/f0001-d02-zoom_native.jpg");
     expect(screen.getByText("zoom native")).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("always says the second look in words", () => {
@@ -152,14 +161,15 @@ describe("review in live mode (test 8)", () => {
   });
 
   it("sends each answer", async () => {
+    useSecondLook.getState().reset();
     const onAnswer = vi.fn();
     render(
       <LiveReview detections={dets} survey={null} verdicts={[verdict({})]} promoted={["f0001-d02"]} imageUrl={(r) => `/f/${r}`} onAnswer={onAnswer} />,
     );
-    expect(screen.getByText("Second look: likely a person · lying down · red jacket")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Candidate f0001-d02")).getByRole("button", { name: SECOND_LOOK_LABEL })).toBeEnabled();
     expect(screen.getByAltText("Crop of f0001-d02")).toHaveAttribute("src", "/f/crops/nearmiss/f0001-d02.jpg");
     const card = screen.getByLabelText("Candidate f0001-d02");
-    await userEvent.click(card.querySelector("button")!);
+    await userEvent.click(within(card).getByRole("button", { name: "Person" }));
     expect(onAnswer).toHaveBeenCalledWith("f0001-d02", "person");
   });
 });
@@ -277,7 +287,7 @@ describe("the demo mission: the story on the one console", () => {
     expect(window.location.hash).toBe("#m/demo/map");
   });
 
-  it("follows the search from the call to the find and the report: twelve marks, t3's approval gate, Esc keeps the clock", async () => {
+  it("Follow the search opens the guided search on this scenario: the first decision, no coach marks", async () => {
     vi.stubGlobal("fetch", demoFetch());
     useMission.setState({ ...EMPTY, status: "idle" });
     useStory.getState().reset();
@@ -285,58 +295,22 @@ describe("the demo mission: the story on the one console", () => {
     render(<App base={null} />);
     await settle();
     await userEvent.click(screen.getByRole("button", { name: "Follow the search (3 min)" }));
-    // t0, the call, on the status line (jsdom asks for reduced motion: the clock jumps)
-    const call = await screen.findByRole("dialog", { name: "The story, 1 of 12" }, { timeout: 5000 });
-    expect(call).toHaveTextContent("13:35. Last seen at 10:30. Four teams at base, the trailhead lot. Drone one up.");
-    expect(window.location.hash).toBe("#m/demo?t=0");
-    const step = async (n: number, text: string | RegExp) => {
-      await userEvent.keyboard("{ArrowRight}");
-      const d = await screen.findByRole("dialog", { name: `The story, ${n} of 12` }, { timeout: 3000 });
-      expect(d).toHaveTextContent(text);
-      return d;
-    };
-    await step(2, "flies the survey from base");
-    expect(window.location.hash).toBe("#m/demo?t=1");
-    await step(3, "first candidates are already waiting for me in Needs you");
-    await step(4, "plainly people");
-    expect(window.location.hash).toBe("#m/demo?t=2");
-    await step(5, "grey bag");
-    await step(6, "second look caught it");
-    await step(7, "Team One on the radio: possible whistle, three blasts, to the south-west.");
-    const gate = await step(8, "The agent proposes Team One for C2");
-    expect(gate).toHaveTextContent("Approve it on the card");
-    await userEvent.keyboard("{ArrowRight}"); // the gate: the arrow does not move it on
-    expect(screen.getByRole("dialog", { name: "The story, 8 of 12" })).toBeInTheDocument();
-    const card = await screen.findByLabelText("Proposal p002");
-    await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
-    expect(await screen.findByRole("dialog", { name: "The story, 9 of 12" })).toHaveTextContent("Drone two loses its link");
-    expect(screen.getByRole("group", { name: "Mission time" })).toBeInTheDocument(); // inside the story, the scrubber
-    expect(screen.getByRole("status", { name: "Mission clock status" })).toHaveTextContent("Esc leaves the story");
-    await step(10, "Team One walks C2");
-    const find = await step(11, "Subject located in Charlie Two");
-    expect(find).not.toHaveTextContent(/typed for|demo/i);
-    expect(await screen.findByRole("status", { name: "Mission status" }, { timeout: 5000 })).toHaveTextContent(/Found/);
-    await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(await screen.findByRole("dialog", { name: "The story, 12 of 12" })).toHaveTextContent("after-action report");
-    expect(await screen.findByRole("article", { name: "Mission report" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
-    // Esc leaves the story; the console stays at that mission time
-    await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("region", { name: "Debrief" })).toBeInTheDocument();
-    expect(window.location.hash).toBe("#m/demo/debrief");
+    await waitFor(() => expect(window.location.hash).toBe("#m/demo?guide=1"));
+    expect(await screen.findByRole("dialog", { name: /Your call: Decision 1 of \d · Survey/ }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /The story/ })).toBeNull();
+    useGuide.getState().stop();
   });
 
-  it("Skip to now on the scrubber puts the story away at the end of the timeline", async () => {
+  it("?t=N still lands: the console at that checkpoint's clock, no coach marks, the address on the map view", async () => {
     vi.stubGlobal("fetch", demoFetch());
     useMission.setState({ ...EMPTY, status: "idle" });
     useStory.getState().reset();
-    window.history.replaceState(null, "", "#m/demo?t=2");
+    window.history.replaceState(null, "", "#m/demo?t=3");
     render(<App base={null} />);
-    await screen.findByRole("dialog", { name: /The story, 4 of/ }, { timeout: 5000 });
-    await userEvent.click(within(screen.getByRole("group", { name: "Mission time" })).getByRole("button", { name: "Skip to now" }));
+    await waitFor(() => expect(within(screen.getAllByRole("banner")[0]!).getByText("14:42 PDT")).toBeInTheDocument(), { timeout: 5000 });
     expect(screen.queryByRole("dialog")).toBeNull();
-    await waitFor(() => expect(window.location.hash).toBe("#m/demo/map"));
+    expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull(); // no pitch bar
+    await waitFor(() => expect(window.location.hash).toBe("#m/demo/map?t=3"));
   });
 
   it("tells one story about conditions: the row's verdict is the Conditions panel's", async () => {
@@ -409,4 +383,57 @@ describe("the demo mission: the story on the one console", () => {
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(window.location.hash).toBe("#m/demo/map"));
   });
+});
+
+describe("the guided search (#m/demo?guide=1): the manager makes each decision", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useGuide.getState().stop();
+  });
+
+  it("waits at each decision with the clock paused, takes it from the keyboard, and ends with what you did", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo?guide=1");
+    render(<App base={null} />);
+    // no pitch bar, no story marks, no scrubber: the first decision at the call
+    const survey = await screen.findByRole("dialog", { name: /Your call: Decision 1 of \d · Survey/ }, { timeout: 5000 });
+    expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Mission time" })).toBeNull();
+    expect(screen.getByText("Mission clock paused")).toBeInTheDocument();
+    expect(window.location.hash).toBe("#m/demo?guide=1");
+    // the gate: time passes, the clock does not
+    const clockText = () => within(screen.getByRole("group", { name: "Decisions" })).getByText(/^\d\d:\d\d$/).textContent;
+    const before = clockText();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(clockText()).toBe(before);
+    expect(survey).toHaveTextContent("+12 min");
+    await userEvent.keyboard("a");
+    // triage: three candidates, one at a time, each its own key
+    for (const n of [1, 2, 3]) {
+      await screen.findByRole("dialog", { name: new RegExp(`Your call: Decision 2 of \\d · Triage, ${n} of 3`) }, { timeout: 5000 });
+      await userEvent.keyboard(n === 1 ? "3" : n === 2 ? "2" : "1");
+    }
+    // the radio clue, the assignment, the lost link: the agent's option each time
+    await screen.findByRole("dialog", { name: /Your call: Decision 3 of \d · Clue/ }, { timeout: 5000 });
+    await userEvent.keyboard("a");
+    const assign = await screen.findByRole("dialog", { name: /Your call: Decision 4 of \d · Assign/ }, { timeout: 5000 });
+    expect(assign).toHaveTextContent("Team One");
+    await userEvent.keyboard("a");
+    for (let guard = 0; guard < 6; guard++) {
+      const d = await screen.findByRole("dialog", { name: /Your call/ }, { timeout: 8000 });
+      if (/Find/.test(d.getAttribute("aria-label") ?? "")) break;
+      await userEvent.keyboard("a");
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: d.getAttribute("aria-label")! })).toBeNull(), { timeout: 3000 }).catch(() => undefined);
+    }
+    await screen.findByRole("dialog", { name: /Your call: Decision \d of \d · Find/ }, { timeout: 8000 });
+    expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("not found"); // only the manager marks it
+    await userEvent.keyboard("a");
+    await waitFor(() => expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("Found"), { timeout: 3000 });
+    const end = await screen.findByRole("dialog", { name: "What you did" }, { timeout: 5000 });
+    expect(end).toHaveTextContent(/Found at \d\d:\d\d by Team/);
+    expect(end).toHaveTextContent("Every draw");
+    expect(end.textContent).not.toMatch(/score|saved a life/i);
+  }, 60_000);
 });

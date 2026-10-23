@@ -92,7 +92,7 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
     case "proposal.decided": {
       const p = d as unknown as Proposal | null;
       if (!p) return null;
-      const by = (p.decided_by ?? "someone").replace(/ \(scripted for the demo fixture\)$/, "");
+      const by = scenarioManager(p.decided_by ?? "someone");
       return entry({
         id: e.id, at: e.at, kind: "decision", sector: p.target.sector ?? null, team: p.target.team ?? null, refs: [p.id],
         text: `${by} ${p.status === "approved" ? "approved" : p.status === "rejected" ? "rejected" : p.status} agent ${p.id}: ${p.summary}`,
@@ -127,8 +127,16 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
   }
 }
 
+/**
+ * The scenario's own search manager (the fixture's scripted decisions) is never shown as the visitor, who is
+ * "Search manager" on this console (judges 2026-10-23): "The scenario's search manager approved…".
+ */
+export const scenarioManager = (text: string) =>
+  text.replace(/(\b[Bb]y )?Search manager \(scripted for the demo fixture\)/g, (_, by: string | undefined) => (by ? `${by}the scenario's search manager` : "The scenario's search manager"));
+
 /** The demo's per-line notes ("scripted for the demo fixture", "simulated relay"): the one disclosure chip says it once. */
-export const plain = (text: string) => text.replace(/\s*\((?:scripted|typed) for the demo fixture\)/g, "").replace(/\s*\(simulated(?: [a-z ]+)?\)/g, "").trim();
+export const plain = (text: string) =>
+  scenarioManager(text).replace(/\s*\((?:scripted|typed) for the demo fixture\)/g, "").replace(/\s*\(simulated(?: [a-z ]+)?\)/g, "").trim();
 
 /** A server's timeline entry as the console shows it. */
 export function fromTimeline(e: TimelineEvent, i: number, teams: readonly Team[], turns: readonly RadioTurn[] = []): Entry {

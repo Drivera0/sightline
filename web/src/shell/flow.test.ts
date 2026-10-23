@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEMO, DEMO_CONSOLE_HASH, HOME, REDIRECTS, redirectFromHash, routeFromHash, scenarioHash, viewHash, VIEWS } from "./flow";
+import { DEMO, DEMO_CONSOLE_HASH, guideHash, HOME, REDIRECTS, redirectFromHash, routeFromHash, scenarioHash, viewHash, VIEWS } from "./flow";
 
 describe("routes: one console", () => {
   it("opens the home page at the root and on an unknown address; the console is at #m/demo", () => {
@@ -65,6 +65,9 @@ describe("routes: one console", () => {
     expect(routeFromHash("#m/0a1b2c3d/review")).toMatchObject({ view: "map", open: { needs: true } });
     expect(routeFromHash("#m/demo/radio")).toMatchObject({ view: "map", open: { radio: true } });
     expect(routeFromHash("#m/demo?s=missing-child")).toMatchObject({ seed: "missing-child" });
+    // the guided search on the default scenario or a named one
+    expect(routeFromHash(guideHash("dementia"))).toMatchObject({ seed: "dementia", open: { guide: true } });
+    expect(routeFromHash(guideHash())).toMatchObject({ id: "demo", open: { guide: true } });
     expect(redirectFromHash("#m/demo/map")).toBeNull();
     for (const [from, to] of Object.entries(REDIRECTS)) expect(routeFromHash(from)).toEqual(routeFromHash(to));
   });

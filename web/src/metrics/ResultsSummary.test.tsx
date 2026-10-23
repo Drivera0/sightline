@@ -73,9 +73,10 @@ describe("ResultsSummary in time and in your own answers", () => {
 describe("Results recall figures", () => {
   it("names the scoring next to each recall figure", () => {
     render(<ResultsSummary metrics={cache.metrics} />);
-    const big = screen.getByText(pct(cache.metrics.detector.sar.recall), { selector: ".text-display" });
-    expect(big.closest("div")).toHaveTextContent(`${pct(cache.metrics.detector.sar.recall)}SAR-APD`);
-    expect(screen.getByText(new RegExp(`Strict VOC: ${pct(cache.metrics.detector.voc.recall)}`))).toBeInTheDocument();
+    // the strict figure leads (judges 2026-10-23); the human-study scoring follows it, named
+    const big = screen.getByText(pct(cache.metrics.detector.voc.recall), { selector: ".text-display" });
+    expect(big.closest("div")).toHaveTextContent(`${pct(cache.metrics.detector.voc.recall)}Strict VOC: the box must match the person closely`);
+    expect(screen.getByText("SAR-APD").parentElement).toHaveTextContent(`${pct(cache.metrics.detector.sar.recall)}SAR-APDscored like the human study`);
   });
 });
 

@@ -115,7 +115,7 @@ export function Stat({ value, label, source }: { value: ReactNode; label: string
 export type BadgeKind = "simulated" | "placeholder" | "info";
 
 /** Status colours, by meaning (theme.css `.sl-pill`): orange `action` only for "needs a person". */
-export type Tone = "ok" | "caution" | "alert" | "action" | "neutral" | "muted";
+export type Tone = "ok" | "caution" | "alert" | "action" | "neutral" | "muted" | "team" | "drone" | "clue" | "proposal" | "found";
 
 const BADGE_TONES: Record<BadgeKind, Tone> = { simulated: "caution", placeholder: "caution", info: "neutral" };
 

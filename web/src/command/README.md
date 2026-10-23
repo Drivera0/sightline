@@ -20,19 +20,17 @@ checkpoints of its afternoon, told in Mount Seymour's local time (13:35 PDT the 
 14:31 confirm, 14:42 where next, 14:58 the run, 14:59 the find, 15:00 the debrief; the fixtures are dated in UTC,
 and the app bar and the scrubber show UTC on hover: `lib/time.ts`, `DEMO_TZ`) and `demoAt(full, clock, user)`, the
 fixtures as they stood at a clock reading with the visitor's own actions replayed on top (one data model: the same
-fixtures, filtered by their own times; every scenario keeps this rhythm). `storyCopy.ts` is what "Follow the
-search" says, read off the loaded scenario in the search manager's present-tense voice: twelve coach marks on the
-overdue hiker (the call; the survey and the first candidates; Person, Person, a grey bag, the second look; the
-radio clue and the proposal that names it; the lost link and relay, the team walking its sector; the find; the
-after-action report), each anchored to a real region by selectors in order of preference ("the first assignment",
-"the clue it names", "the found event", never fixed ids), a beat the scenario lacks left out, and none of
-demo/recorded/scripted/simulated in the words (the header's chip says it). `story.ts` holds the clock
-(checkpoint, beat, progress, playing), whether the marks are on, and the visitor's actions as events.
-`Scrubber.tsx` is the time control on the map, with Skip to now and the story's keys under it; `CoachMark.tsx`
-the marks (hand-rolled, no dependency: a ring on the real panel or on a "group:" of cards, a sentence or two,
-Next/Back/Exit, the arrow keys, Space, Esc; a panel it scrolled goes back when it moves on); `PitchBar.tsx` the
-landing's two lines. t3's proposal mark waits for the visitor's approval (the card says which clue raised the
-sector, `clueShift.ts`). Recording and stills: `docs/report/figures/command-post/story.webm`, `story-t0…t6.webp`.
+fixtures, filtered by their own times; every scenario keeps this rhythm). The walk-through is the guided
+search (below): "Follow the search" on the app bar and the pitch bar, and the home page's Start, open it. The
+old step-through story (twelve first-person coach marks, `?t=0` to `?t=6`) is retired: `?t=N` opens the console
+at that checkpoint's clock with no marks (it settles on `#m/demo/map?t=N`), so old links still land.
+`story.ts` holds that clock (checkpoint, progress, playing), the pitch bar and the visitor's actions as events,
+and the guided search's own clock (`useGuide`). `storyCopy.ts` keeps the scenario's roles the guided search
+anchors to (the first assignment, the clue it names, the console's regions, the grey bag, the banned words).
+`Scrubber.tsx` is the time control on the map while the clock plays (Space outside the guided search), with
+Skip to now, and the guided search's strip; `CoachMark.tsx` the guided search's mark (hand-rolled, no
+dependency: a ring on the real panel or on a "group:" of cards); `PitchBar.tsx` the landing's two lines.
+The old story's stills stay in `docs/report/figures/command-post/` as a record.
 
 | File | What |
 |---|---|
@@ -156,7 +154,7 @@ four regions, every action logged to one timeline.
   `/sectors/{sector}/searched|recheck` and `/found` (falling back to the task and team calls on a server
   without them); the demo does each in memory and logs it ("Search manager assigned B3 to Team Two"), and its
   drone legs fly from base camp photo by photo (`lib/demoFlight.ts`), lowering the map under them.
-- **Scenarios** (`scenarios.ts`, `ScenarioMenu.tsx`): four presets and shuffled seeds (`#m/demo?s=<seed>`).
+- **Scenarios** (`scenarios.ts`; the home page's scenario cards choose one): four presets and shuffled seeds (`#m/demo?s=<seed>`).
   The generator's `__fixtures__/scenarios/<seed>.json` is used when it exists; until then a scenario is
   derived from the demo mission (its last known point, prior, base camp, clues and assignments).
 - **Photos** (`PhotoDrop.tsx`, `lib/exif.ts`): drop a drone's photos on the demo and they are read (EXIF GPS,
@@ -171,3 +169,83 @@ four regions, every action logged to one timeline.
 The demo fixture has none of the command post's fields yet; `demoMission.ts` gives the mission its base camp
 (the trailhead lot), status and a 30-minute check-in until the regenerated fixture carries them. Screenshots and
 the cold-user checklist: `docs/report/figures/command-post/`.
+
+## The guided search (lane A, `#m/demo?guide=1`)
+
+The demo mission as a decision simulation: the home page's Start opens it on a scenario
+(`#m/demo?s=<seed>&guide=1`, `shell/flow.ts` `guideHash`). The clock runs to each decision and waits there
+until the manager makes it; there is no scrubber, no Skip to now and no Back during play.
+
+- **The decisions** (`guide.ts`, injects in the mission's order, the ones the scenario has): Survey (the
+  planner's legs, or a serpentine at +12 min), Triage (three candidates, one at a time: Person, Not a person,
+  Not the subject, which logs a witness lead, Unsure; Person on the grey bag sends a team to check it, +10
+  min), Clue (confirm the radio call, ask for a bearing at +2 min, or log it without mapping: the clue's map
+  update is held until it is confirmed), Assign (approve the agent's team and sector, send another team, or
+  pick a sector on the map), Link (let the drone finish its leg, or divert another as a relay), Wind (only
+  when the scenario's agent proposes a recall: none of the fixtures do yet), Find. A scenario without drones
+  has no Survey or Link. Each option shows what it does and what it costs before the commit; A picks the
+  agent's, 1–4 an option, M the map, T takes over from Watch instead, Space pauses between decisions, Esc
+  leaves. The console's own actions count too (P/N/U in the queue, Approve or Edit on the card, a sector's
+  popover, Confirm on a read-back, Record the find). Needs you shows the current decision only.
+- **The consequence model** (`sim.ts`, `missionTime.ts` `guidedAt` and `simulate`): the fixtures' own
+  manager steps aside (its decisions, the teams' moves and the find are filtered out), the subject's
+  position is the scenario's find, and a team the manager sends walks out (6 min) and sweeps its sector
+  (10 min). A pass of the subject's sector detects them with probability POD 0.60, on a draw fixed by the
+  seed, the sector and the pass; a pass with no find marks the sector searched at its POD, lowers it on the
+  map, and the agent proposes its likeliest open sector next. The second assignment can stand for the rest
+  (every free team takes the agent's picks in turn until the find). Found shows only when the manager marks
+  it. No fail state: at last light the search suspends. Decisions that take minutes stop the fixtures'
+  clock for that long (`fixtureOf`, `realOf`), and the console prints the mission clock (`onMissionClock`).
+- **Watch instead** plays the agent's line through the same engine (the reason for 3 s, then "Agent's
+  choice: …"); **What you did** (`GuideEnd.tsx`, `hotWash`) compares each decision with the agent's, prints
+  every draw, shows the searched sectors at their POD and the subject's sector, says where the two lines
+  diverged, and links the after-action report, the trace, `PLANNER_V2.md` and `POD.md`. No score.
+- **On screen** (`GuideRun.tsx`, mounted by `ingest/LiveMission.tsx`): `GuideMark` in `CoachMark.tsx`
+  ("Your call": amber ring, options, clock paused; "Watch this": progress bar, clock running) and
+  `GuideStrip` in `Scrubber.tsx` (the decisions with a check on each one made, a live region for screen
+  readers). Phones get the same flow with the mark as a bottom sheet.
+- **Not yet:** the counterfactual is computed live from the same engine, not from an offline decision tree;
+  the survey pattern, the relay and the bearing change the clock and the record, not the drones' paths or
+  the size of the clue's map update; the store methods the interaction worker is adding to
+  `demoMission.ts` (a team walks a sector, searched at POD, found if the subject is inside; the survey
+  proposal at t0) were not on main, so the minimal rule lives here. Screenshots:
+  `docs/report/figures/v3/guided-step-*.webp`.
+
+## Feedback, review and the visitor's decisions (v3 interaction, lane A)
+
+What changed after Dan's v3 review (`docs/report/figures/v3/`: review-frame, toast, proposal-glow, timeline-tall,
+heat-tween-1..3; 1440 and 390):
+
+- **Nothing changes silently.** Every mission event that is news becomes a toast (`shell/toasts.tsx`,
+  `shell/notify.ts`; the mapping is `notifications.ts`, tested): bottom right, 5 s, stacking (same key merges with
+  a count), one action ("Show me", `showMe.ts`). The status line has a bell with the unread count and the last
+  30. New timeline rows hold a highlight in their kind's colour for 3 s; new proposal cards slide in with a slow
+  ring; the map's clue ring fades over 2 s. A team past its check-in raises an alert toast too.
+- **The heat evolves.** A change tweens cell by cell over 400 ms; the new class fills and contours are held back
+  until the tween ends, then crossfade in (`map/heat/surface.ts` `setSurfaceMode(…, fade)`).
+- **The map follows Needs you** (`map/heat/focusLayers.ts`): a candidate in focus (clicked, J/K, the review frame)
+  outlines its photo's footprint and pulses its pin; a proposal in focus glows its sector and the team or drone
+  card violet; the map pans when the focus is near the edge; an assignment draws the team's route growing from
+  where it is, its last sector or base camp (`map/base/teamRoute.ts`). One pin popup at a time
+  (`map/base/onePopup.ts`).
+- **Review frame** (`ReviewFrame.tsx`): when candidates arrive where there were none, a toast says how many and
+  the first opens large (outside the guided story): the photo with the box, the crop, the AI second look, P/N/U,
+  moving on by itself. The second look is a button with its two model chips, a progress state and the result
+  inline (`review/SecondLook.tsx`).
+- **Timeline**: 20 rem by default, a handle to resize it (remembered), readable rows, a remembered filter with
+  counts, Add clue in its header; right-click or long-press the map adds a clue there (what, who reported,
+  reliability); the first radio call brings a one-time hint.
+- **Call and Task**: Call addresses the talk bar ("Calling Team Two"); Task lists the sectors by POA under the
+  card, the agent's pick first (`SectorPicker.tsx`). No folded lists: "Show N more" links instead.
+- **Two voices** (`RadioBubble.tsx`): what goes on the air is a teal radio bubble with mono callsigns ("Desk →
+  Team One"); what the agent tells you is a plain violet note ("Agent → you").
+- **The visitor decides** (`missionTime.demoAt(…, guided, { hold, seed })`, `holdFor`): a proposal the visitor
+  decided is logged once; once they play the clock outside the story, the scenario's own approvals wait for them
+  and what followed from them does not happen. What they assign then plays through the guided search's engine
+  (`sim.ts` via `simulate`: the walk, the sweep, the seeded draw at POD, the find or the sector searched), the one
+  engine for the free console and the guided search. Free mode labels the scenario's decisions "the scenario's
+  search manager". The map draws each new assignment's route (`focusLayers.ts`, `map/base/teamRoute.ts`).
+- **The judges' list (2026-10-23)**: team status from its tasks; overdue fires; POA at 15:00 from the map log;
+  Outside the grid N %; drones read "Drone 1"; Record find on the team card and in Needs you; the story's
+  scrubber steps one checkpoint on a phone; Replayed (not This flight) on stand-in model calls; survey and leg
+  photos apart; the strict 86.4 % leads People found. Held in `judges.test.ts` and the files' own tests.

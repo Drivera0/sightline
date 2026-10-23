@@ -7,6 +7,7 @@ import {
   pushSurface,
   setSurfaceMode,
   setSurfacePalette,
+  fadeMix,
   SURFACE_LOAD_TIMEOUT_MS,
   surfaceIds,
   surfaceLayerIds,
@@ -130,5 +131,67 @@ describe("raster and fills hand over", () => {
     m.setLoaded(true);
     m.fire({ sourceId: ids.fillSource });
     expect(m.visible(ids.raster)).toBe(true);
+  });
+});
+
+describe("the heat evolves (V3 §2): raster and fills crossfade, never swap", () => {
+  const clock = () => {
+    let t = 0;
+    const queue: ((t: number) => void)[] = [];
+    return {
+      now: () => t,
+      raf: (fn: (t: number) => void) => queue.push(fn),
+      caf: () => {},
+      step(ms: number) {
+        t += ms;
+        const run = queue.splice(0);
+        run.forEach((fn) => fn(t));
+      },
+    };
+  };
+  const paintOf = (m: ReturnType<typeof mockMap>, id: string) => m.layers.find((l) => l.id === id)!.paint;
+
+  it("mixes the two halves in opposite directions", () => {
+    expect(fadeMix("raster", 0)).toEqual({ raster: 0, vector: 1 });
+    expect(fadeMix("raster", 1)).toEqual({ raster: 1, vector: 0 });
+    expect(fadeMix("vector", 0.25)).toEqual({ raster: 0.75, vector: 0.25 });
+  });
+
+  it("shows both while it fades, then only the new half at full strength", () => {
+    const m = mockMap();
+    const c = clock();
+    const fade = { ms: 200, palette: HEAT_PALETTES.dark, theme, opacity: 1, ...c };
+    ensureSurfaceLayers(m.map, ids, canvas, grid, HEAT_PALETTES.dark, theme, 1, "vector");
+    setSurfaceMode(m.map, ids, "raster", fade);
+    expect(m.visible(ids.raster)).toBe(true);
+    expect(m.visible(ids.line50)).toBe(true); // still there, fading
+    c.step(100);
+    const mid = paintOf(m, ids.line50)["line-opacity"] as number;
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(HEAT_PALETTES.dark.contour50.opacity ?? 1);
+    c.step(150);
+    expect(m.visible(ids.line50)).toBe(false);
+    expect(m.visible(ids.raster)).toBe(true);
+    expect(paintOf(m, ids.raster)["raster-opacity"]).toEqual(zoomOpacity(1));
+    expect(paintOf(m, ids.line50)["line-opacity"]).toBe(HEAT_PALETTES.dark.contour50.opacity ?? 1);
+  });
+
+  it("waits for the new fills, then fades them in over the raster", () => {
+    const m = mockMap();
+    const c = clock();
+    const fade = { ms: 200, palette: HEAT_PALETTES.dark, theme, opacity: 1, ...c };
+    ensureSurfaceLayers(m.map, ids, canvas, grid, HEAT_PALETTES.dark, theme, 1, "raster");
+    setSurfaceMode(m.map, ids, "raster");
+    pushSurface(m.map, ids, surfaceData(grid, Uint8Array.from([1, 2, 3, 0])));
+    setSurfaceMode(m.map, ids, "vector", fade);
+    expect(m.visible(ids.line50)).toBe(false); // the fills are not drawn yet
+    m.fire({ sourceId: ids.fillSource, sourceDataType: "content" });
+    m.setLoaded(true);
+    m.fire({ sourceId: ids.fillSource });
+    expect(m.visible(ids.raster)).toBe(true);
+    expect(m.visible(ids.line50)).toBe(true);
+    c.step(300);
+    expect(m.visible(ids.raster)).toBe(false);
+    expect(m.visible(ids.fills[CELL.top] as string)).toBe(true);
   });
 });

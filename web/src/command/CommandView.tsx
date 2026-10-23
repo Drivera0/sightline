@@ -5,7 +5,7 @@
 // column or lay a sheet over the console, never the map. Phones stack the regions (Needs you, the map, the
 // timeline, the resources) and the bottom tabs jump between them. Built by lane A.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Clue, ClueDraft, Conditions, Drone, FleetState, Mission, MissionEvent, Proposal, SectorTask, Team, TimelineEvent } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { useMission, type FleetLinks } from "../lib/mission";
@@ -19,6 +19,13 @@ import { NeedsYou } from "./NeedsYou";
 import { Resources } from "./Resources";
 import { SectorPopover, type SectorActions } from "./SectorPopover";
 import { ClueForm, Timeline, TalkBar, type TalkVoice } from "./Timeline";
+import { useEventToasts, useOverdueToasts } from "./notifications";
+import { teamOrder } from "./console";
+import { showMe } from "./showMe";
+import { ToastStack } from "../shell/toasts";
+import { TimelineHandle, useTimelineHeight } from "./TimelineResize";
+import { ReviewFrame } from "./ReviewFrame";
+import type { LiveAnswer, ReviewCard } from "../review/LiveReview";
 
 /** The demo mission is dated at Mount Seymour; a live mission reads the browser's zone. */
 export const missionTz = (status: string): Tz => (status === "demo" ? DEMO_TZ : false);
@@ -96,6 +103,10 @@ export interface CommandProps {
   /** The review cards for Needs you, and how many wait for an answer. */
   review: ReactNode;
   reviewCount: number;
+  /** The candidates for the large review frame, their answers, and how to answer (V3 §3). */
+  reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: (id: string, a: LiveAnswer) => void };
+  /** Open the review frame by itself when the first candidates arrive (off inside the guided story). */
+  autoReview?: boolean;
   briefings?: ReactNode;
   storyProposal?: string | null;
   voice?: TalkVoice | null;
@@ -115,6 +126,18 @@ export function CommandView(p: CommandProps) {
     return () => clearInterval(id);
   }, []);
   const tz = missionTz(p.status);
+  // what changed, said once: a toast (and the bell's log) for every event that is news (V3 §2)
+  const waiting = p.mission?.status === "found" ? 0 : p.reviewCount;
+  useEventToasts(p.events, p.teams, waiting, p.proposals);
+  const checkIn = p.mission?.check_in_min ?? 30;
+  useOverdueToasts(teamOrder(p.teams, p.events, now(), checkIn).filter((x) => x.heard.overdue).map((x) => ({ team: x.team, min: x.heard.min })), checkIn);
+  // photos landed and candidates arrived where there were none: the first one opens in the review frame
+  const wasWaiting = useRef<number | null>(null);
+  useEffect(() => {
+    const was = wasWaiting.current;
+    wasWaiting.current = waiting;
+    if (was === 0 && waiting > 0 && p.autoReview && p.reviewFrame) useConsole.getState().openReview(null);
+  }, [waiting, p.autoReview, p.reviewFrame]);
   // the simulated fleet's demo controls (live missions only: they call the API)
   const api = useMission((s) => s.api);
   const t = now();
@@ -132,15 +155,25 @@ export function CommandView(p: CommandProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [picking]);
-  const call = (teamId: string, draft?: string) => useConsole.getState().talk(teamId, draft ?? `${p.teams.find((x) => x.id === teamId)?.callsign ?? teamId}, Sightline. `);
+  // the proposal in focus in Needs you: the team (or drone) it would send glows on its card
+  const focus = useConsole((s) => s.focus);
+  const focusP = focus?.kind === "proposal" ? p.proposals.find((x) => x.id === focus.id && x.status === "pending") : undefined;
+  const glow = focusP ? (focusP.target.team ?? focusP.target.drone ?? focusP.leg?.drone_id ?? null) : null;
+  // Call: the talk bar, addressed to that team, its cursor in the message (phones: scrolled to it)
+  const call = (teamId: string, draft?: string) => {
+    useConsole.getState().talk(teamId, draft ?? `${p.teams.find((x) => x.id === teamId)?.callsign ?? teamId}, Sightline. `);
+    if (typeof window !== "undefined" && window.innerWidth < 1024) document.querySelector("form[aria-label='Talk']")?.scrollIntoView?.({ block: "center" });
+  };
+  // the timeline's height: taller by default, dragged by its handle, remembered (TimelineResize.tsx)
+  const [timelineH, setTimelineH] = useTimelineHeight();
   const grid = wide
-    ? "lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] lg:grid-rows-[minmax(0,1fr)_15rem]"
-    : "lg:grid-cols-[17rem_minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)_15rem]";
+    ? "lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]"
+    : "lg:grid-cols-[17rem_minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]";
   return (
-    <div role="group" aria-label="Command view" className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
+    <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
       {p.conditionsOpen && p.conditionsData && (
         // over the console, under the status line (the map keeps its place); W or Esc closes it
-        <div className="absolute inset-x-0 top-0 z-30 max-h-[75vh] overflow-y-auto rounded-lg shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]">
+        <div className="absolute inset-x-0 top-0 z-30 max-h-[75vh] overflow-y-auto rounded-lg shadow-[var(--shadow-pop)]">
           <ConditionsPanel id={p.conditionsId ?? "conditions-panel"} data={p.conditionsData} now={panelNow} time={(iso) => `${clock(iso, tz)} ${zone(new Date(iso), tz)}${dayNote(iso, panelNow, tz)}`} />
         </div>
       )}
@@ -154,7 +187,9 @@ export function CommandView(p: CommandProps) {
           links={p.links}
           events={p.events}
           now={t}
-          actions={{ onCall: (id) => call(id), onRecall: p.actions.recall, onRecallDrone: p.actions.recallDrone }}
+          glow={glow}
+          proposals={p.proposals}
+          actions={{ onCall: (id) => call(id), onRecall: p.actions.recall, onRecallDrone: p.actions.recallDrone, onAssign: p.actions.assign, onDroneLeg: p.actions.droneLeg, onFound: p.mission?.status === "found" ? undefined : p.actions.found }}
           footer={api && p.mission ? <FleetControls api={api} missionId={p.mission.mission_id} fleet={p.fleet} links={p.links} conditions={p.conditions} /> : undefined}
         />
       </div>
@@ -210,20 +245,25 @@ export function CommandView(p: CommandProps) {
             onRecall={p.actions.recall}
             onConfirmClue={p.actions.confirmClue}
             found={p.mission?.status === "found" ? { at: p.mission.found?.at ?? null } : null}
+            tasks={p.tasks}
+            onFound={p.actions.found}
           />
         )}
       </div>
-      <div id="console-timeline" className={`order-3 flex h-[28rem] min-h-0 flex-col lg:order-none lg:h-auto ${wide ? "lg:col-span-2" : "lg:col-span-3"}`}>
+      <div id="console-timeline" className={`relative order-3 flex h-[28rem] min-h-0 flex-col lg:order-none lg:h-auto ${wide ? "lg:col-span-2" : "lg:col-span-3"}`}>
+        <TimelineHandle height={timelineH} onResize={setTimelineH} />
         <Timeline
           events={p.events}
           server={p.timeline}
           teams={p.teams}
           onConfirmClue={p.actions.confirmClue}
           talk={<TalkBar teams={p.teams} onSend={(team, text) => p.actions.call(team, text)} voice={p.voice} />}
-          clueForm={(close) => <ClueForm teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} onDone={close} />}
+          clueForm={(close, at) => <ClueForm teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} onDone={close} at={at} />}
         />
       </div>
       {p.cover && <div className="absolute inset-0 z-30 overflow-y-auto rounded-lg bg-bg">{p.cover}</div>}
+      <ToastStack onShow={showMe} />
+      {p.reviewFrame && <ReviewFrame cards={p.reviewFrame.cards} answers={p.reviewFrame.answers} onAnswer={p.reviewFrame.onAnswer} />}
     </div>
   );
 }

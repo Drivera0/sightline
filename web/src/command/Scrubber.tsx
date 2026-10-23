@@ -1,14 +1,12 @@
-// The demo mission's time control, on the map (Flightradar24's playback): play or pause, the seven
-// checkpoints as ticks, the mission clock, and Skip to now. The same control is the story's progress: a
-// tick is a checkpoint of the story and a moment of the mission at once. Under it, one line: the story's
-// keys while the coach marks show, or where a play-through is going.
+// The demo mission's time control on the map outside the guided search (Flightradar24's playback): play
+// or pause, the seven checkpoints as ticks, the mission clock, and Skip to now. Under it, one line: where a
+// play-through is going. The guided search has its own strip instead (GuideStrip, below): no free seeking
+// while decisions are open.
 
 import type { ReactNode } from "react";
 import { clock, DEMO_TZ, utcLabel, zone } from "../lib/time";
 import { CHECKPOINTS, LAST, type Checkpoint } from "./missionTime";
 
-/** The line under the scrubber while the coach marks show: the story's keys. */
-export const STORY_HINT = "→ next · ← back · Space pauses the clock · Esc leaves the story";
 
 export function Scrubber({
   t,
@@ -21,7 +19,10 @@ export function Scrubber({
   through = null,
   hint = null,
   onSkip,
+  stepOnly = false,
 }: {
+  /** Inside the story: only the next and earlier checkpoints are taps away (a phone's tap never skips ahead; judges 2026-10-23). */
+  stepOnly?: boolean;
   t: Checkpoint;
   progress: number;
   playing: boolean;
@@ -30,13 +31,13 @@ export function Scrubber({
   onSeek: (t: Checkpoint) => void;
   /** Play or pause: with `canPlay`, at a checkpoint it plays the clock on to the end. */
   onToggle: () => void;
-  /** Outside the story: the play button runs the clock from here to the end (else only a run in progress pauses). */
+  /** The play button runs the clock from here to the end (else only a run in progress pauses). */
   canPlay?: boolean;
   /** Playing through to the end: the clock it started at (ISO). */
   through?: string | null;
   /** One line under the scrubber, when nothing is playing (how to use the console). */
   hint?: ReactNode;
-  /** Skip to now: the mission as it stands at the end of the timeline, the story put away. */
+  /** Skip to now: the mission as it stands at the end of the timeline. */
   onSkip?: () => void;
 }) {
   const running = progress < 1;
@@ -53,7 +54,7 @@ export function Scrubber({
       role="group"
       aria-label="Mission time"
       data-tour="scrubber"
-      className="@container pointer-events-auto flex w-full items-center gap-3 rounded-lg border border-border bg-surface-solid px-2 py-1.5 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.8)]"
+      className="@container pointer-events-auto flex w-full items-center gap-3 rounded-lg border border-border bg-surface-solid px-2 py-1.5 shadow-[var(--shadow-pop)]"
     >
       <button
         type="button"
@@ -91,10 +92,11 @@ export function Scrubber({
               <li key={c.id} className="flex min-w-0 flex-col items-center">
                 <button
                   type="button"
+                  disabled={stepOnly && c.t > t + 1}
                   onClick={() => onSeek(c.t)}
                   aria-current={here ? "step" : undefined}
                   title={`${c.label}, ${zoned(c.at)} (${utcLabel(c.at)})`}
-                  className="group flex min-h-6 min-w-6 flex-col items-center gap-0.5 rounded-sm px-1 outline-offset-0"
+                  className="group flex min-h-6 min-w-6 flex-col items-center gap-0.5 rounded-sm px-1 outline-offset-0 disabled:cursor-default disabled:opacity-60"
                 >
                   <span
                     aria-hidden
@@ -114,10 +116,69 @@ export function Scrubber({
       )}
     </div>
     {(note || hint) && (
-      <p role="status" aria-label="Mission clock status" className="self-center rounded-full bg-bg/85 px-3 py-0.5 text-center text-caption text-text-2 backdrop-blur">
+      // the story's keys are for a keyboard: a touch screen shows no key hints
+      <p role="status" aria-label="Mission clock status" className={`self-center rounded-full bg-bg/85 px-3 py-0.5 text-center text-caption text-text-2 backdrop-blur ${note ? "" : "[@media(hover:none)]:hidden [@media(pointer:coarse)]:hidden"}`}>
         {note ?? hint}
       </p>
     )}
+    </div>
+  );
+}
+
+/**
+ * The guided search's progress strip, where the scrubber is outside it (no free seeking during play): the
+ * decisions this scenario has, named, a check on each one made, the current one marked; the mission clock
+ * and whether it is paused for a decision. A live region reads out each new step.
+ */
+export function GuideStrip({
+  pips,
+  at,
+  call,
+  paused,
+  announce,
+}: {
+  pips: readonly { id: string; label: string; state: "done" | "current" | "next"; count?: number }[];
+  /** The mission clock (ISO). */
+  at: string;
+  /** A decision is open: the clock waits for it. */
+  call: boolean;
+  paused: boolean;
+  /** What the live region says ("Your call, Triage: …"). */
+  announce: string;
+}) {
+  const local = (iso: string) => clock(iso, DEMO_TZ);
+  return (
+    <div className="pointer-events-none flex w-full flex-col items-stretch gap-1">
+      <div
+        role="group"
+        aria-label="Decisions"
+        data-tour="scrubber"
+        className="pointer-events-auto flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface-solid px-3 py-1.5 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.8)]"
+      >
+        <span className="w-12 shrink-0 text-small text-text" title={`Mission clock, ${utcLabel(at)}`}>
+          {local(at)}
+        </span>
+        <ol className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          {pips.map((p, i) => (
+            <li
+              key={p.id}
+              aria-current={p.state === "current" ? "step" : undefined}
+              className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption ${p.state === "current" ? (call ? "border-caution text-text" : "border-border text-text") : p.state === "done" ? "border-line text-text-2" : "border-line text-text-3"}`}
+            >
+              <span aria-hidden className={p.state === "done" ? "text-ok" : "text-text-3"}>
+                {p.state === "done" ? "✓" : i + 1}
+              </span>
+              <span>{p.label}</span>
+              {p.count && p.count > 1 ? <span className="text-text-3">×{p.count}</span> : null}
+              <span className="sr-only">{p.state === "done" ? ", decided" : p.state === "current" ? ", now" : ""}</span>
+            </li>
+          ))}
+        </ol>
+        <span className={`shrink-0 text-caption ${call ? "text-caution" : "text-text-3"}`}>{call ? "Mission clock paused" : paused ? "Paused" : "Clock running"}</span>
+      </div>
+      <p className="sr-only" aria-live="polite" role="status">
+        {announce}
+      </p>
     </div>
   );
 }

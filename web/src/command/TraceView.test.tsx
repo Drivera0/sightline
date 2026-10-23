@@ -33,9 +33,9 @@ describe("trace helpers", () => {
     expect(roleOf("Dana (IC)")).toBe("Dana (IC)");
     expect(modelName("fake/nvidia/Nemotron-3.5-Super-VL")).toBe("nvidia/Nemotron-3.5-Super-VL");
     expect(modelName("recorded/nvidia/Nemotron-3.5-Super-VL")).toBe("nvidia/Nemotron-3.5-Super-VL");
-    // one model, whichever stand-in made the call
+    // a recorded live answer is the model's own call; a fixture's stand-in is replayed, kept apart (judges 2026-10-23)
     const vl = (model: string) => entry({ kind: "model_call", actor: "verifier", model });
-    expect(modelUse([vl("fake/nvidia/vl"), vl("recorded/nvidia/vl")]).models.map((m) => [m.model, m.calls])).toEqual([["nvidia/vl", 2]]);
+    expect(modelUse([vl("fake/nvidia/vl"), vl("recorded/nvidia/vl"), vl("nvidia/vl")]).models.map((m) => [m.model, m.calls, m.replayed])).toEqual([["nvidia/vl", 2, false], ["nvidia/vl", 1, true]]);
     const d = entry({ kind: "decision", actor: "human", output: { proposal: "p003", status: "approved", by: "Search manager (scripted for the demo fixture)" } });
     expect(spanName(d)).toBe("Search manager");
     expect(deciderOf(d)).toBe("Search manager");
@@ -121,14 +121,17 @@ describe("TraceView", () => {
     expect(within(step).getAllByRole("img")).toHaveLength(2); // the crop and the zoom it looked at
     expect(step).toHaveTextContent('"prompt": "verify-v2"');
     // the runs say which flight, not how they were made: this one, and two earlier runs
-    expect(screen.getAllByText("This flight")).toHaveLength(3); // the run's chip and its two models
+    expect(screen.getAllByText("This flight")).toHaveLength(2); // the run's chip and the one model called live on it
+    expect(within(strip).getAllByText("Replayed")).toHaveLength(2); // the fixture's stand-ins: never "This flight"
+    expect(strip).toHaveTextContent("no timing (replayed)");
     expect(screen.getAllByText("Earlier run")).toHaveLength(4); // two runs' chips and their two models
     expect(screen.queryByText("Recorded")).toBeNull();
     // a model is named by the model: the demo fixture's stand-in id stays in the data
     const models = within(strip).getAllByRole("listitem");
     expect(models.map((li) => [li.getAttribute("data-run"), li.querySelector("span span")!.textContent])).toEqual([
+      ["Replayed", "nvidia/Nemotron-3.5-Super-VL"],
+      ["Replayed", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"],
       ["This flight", "nvidia/Nemotron-3.5-Super-VL"],
-      ["This flight", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"],
       ["Earlier run", "nvidia/Nemotron-3.5-Super-VL"],
       ["Earlier run", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"],
     ]);

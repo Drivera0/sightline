@@ -54,9 +54,8 @@ describe("Needs you", () => {
     expect(screen.queryByText("review cards")).toBeNull();
     const closed = screen.getByRole("group", { name: "Closed: subject found" });
     expect(closed).toHaveTextContent(/^16 items closed at \d\d:\d\d, subject found/);
-    expect(closed).not.toHaveAttribute("open");
-    await userEvent.click(within(closed).getByText(/16 items closed/));
-    expect(closed).toHaveAttribute("open");
+    expect(within(closed).getAllByText("closed: subject found")).toHaveLength(2); // the first two, then a link
+    await userEvent.click(within(closed).getByRole("button", { name: "Show 1 more" }));
     expect(within(closed).getAllByText("closed: subject found")).toHaveLength(3); // two proposals, the candidates
     expect(closed).toHaveTextContent("14 candidates to review");
   });

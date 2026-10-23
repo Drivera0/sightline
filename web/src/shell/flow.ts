@@ -3,10 +3,12 @@
 //
 //   #                          the home page: what Sightline is, and "Choose a search" (front/Home.tsx)
 //   #m/demo                    the console on the demo mission at t0, the pitch bar
-//   #m/demo?s=<seed>&guide=1   a scenario with its guided simulation started (a home card's Start)
+//   #m/demo?s=<seed>&guide=1   a scenario with its guided search started (a home card's Start): each decision
+//                              waits for the manager (command/guide.ts)
 //   #m/demo/map?s=<seed>       a scenario, just the console
-//   #m/demo?t=0..6             the story at a checkpoint, its coach mark on: 0 the call, 1 photos land,
-//                              2 confirm, 3 where next, 4 the run, 5 the find, 6 the debrief
+//   #m/demo?t=0..6             the console at a checkpoint's clock (no coach marks; it settles on
+//                              #m/demo/map?t=N): 0 the call, 1 photos land, 2 confirm, 3 where next,
+//                              4 the run, 5 the find, 6 the debrief
 //   #m/<id>/<view>[?t=0..6]    a view of a mission: map (the console), photos, trace, debrief; on the
 //                              demo, ?t= sets the mission clock, none is "now"
 //   #m/<id>/map?needs          the console with Needs You in front (#m/<id>/review lands here)
@@ -129,6 +131,11 @@ export function routeFromHash(hash: string): Route {
   };
   const seed = id === "demo" ? q.get("s") : null;
   return { kind: "mission", id, view, t: id === "demo" ? t : null, open, ...(seed ? { seed } : {}) };
+}
+
+/** The guided search's address, on a scenario or the default one. */
+export function guideHash(seed: string | null = null): string {
+  return seed ? scenarioHash(seed) : `${DEMO}?guide=1`;
 }
 
 /** A scenario's address: the console on it with the guided simulation on, or (`guide` false) just the console. */

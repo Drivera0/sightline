@@ -4,7 +4,8 @@
 // drone: status, battery, link, leg n/m; Task, Recall. Most overdue first. Drag a team's card onto a
 // sector on the map to assign it. Below, the sectors by POA, folded. Built by lane A.
 import { useState, type DragEvent, type ReactNode } from "react";
-import type { Drone, FleetState, Mission, MissionEvent, SectorTask, Team } from "../contract";
+import type { Drone, FleetState, Mission, MissionEvent, Proposal, SectorTask, Team } from "../contract";
+import { SectorPicker } from "./SectorPicker";
 import type { SectorNow } from "../lib/api";
 import type { FleetLinks } from "../lib/mission";
 import { useSelection } from "../lib/selection";
@@ -18,14 +19,14 @@ export const TEAM_DRAG = "application/x-sightline-team";
 const STATUS: Record<Team["status"], [string, Tone]> = {
   standby: ["Standby", "muted"],
   assigned: ["Assigned", "neutral"],
-  searching: ["Searching", "ok"],
+  searching: ["Searching", "team"],
   returning: ["Returning", "caution"],
   off_duty: ["Off duty", "muted"],
   overdue: ["Overdue", "alert"],
 };
 const DRONE_STATUS: Record<Drone["status"], [string, Tone]> = {
   idle: ["At base", "muted"],
-  flying: ["Flying", "ok"],
+  flying: ["Flying", "drone"],
   returning: ["Returning", "caution"],
   charging: ["Charging", "muted"],
   offline: ["Offline", "alert"],
@@ -34,9 +35,14 @@ const pct = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)} %`;
 const btn = "sl-tap inline-flex h-7 items-center rounded-full border border-line px-2.5 text-caption text-text-2 hover:border-border hover:text-text disabled:opacity-40";
 
 export interface ResourceActions {
+  /** Task: the sector picked in the list (SectorPicker) for a team or a drone. */
+  onAssign?: (teamId: string, sector: string) => void;
+  onDroneLeg?: (sector: string, droneId: string) => void;
   onCall: (teamId: string) => void;
   onRecall: (teamId: string) => void;
   onRecallDrone: (droneId: string) => void;
+  /** Record the find: the team has the subject in its sector. */
+  onFound?: (teamId: string, sector: string) => void;
 }
 
 export function Resources({
@@ -50,7 +56,13 @@ export function Resources({
   now,
   actions,
   footer,
+  glow = null,
+  proposals = [],
 }: {
+  /** The agent's pending proposals: Task's list puts its pick for a team or drone first. */
+  proposals?: readonly Proposal[];
+  /** The team or drone the proposal in focus would send: its card glows violet (V3 §2). */
+  glow?: string | null;
   /** Under the cards (a live mission's fleet controls for the simulated fleet). */
   footer?: ReactNode;
   mission: Mission | null;
@@ -77,10 +89,10 @@ export function Resources({
       </h2>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
         {ordered.map(({ team, heard }) => (
-          <TeamCard key={team.id} team={team} heard={heard} task={tasks.find((x) => x.team_id === team.id && (x.state === "assigned" || x.state === "in_progress"))} base={mission?.base_camp} picking={picking?.id === team.id} actions={actions} />
+          <TeamCard key={team.id} team={team} heard={heard} task={tasks.find((x) => x.team_id === team.id && (x.state === "assigned" || x.state === "in_progress"))} base={mission?.base_camp} picking={picking?.id === team.id} glow={glow === team.id} actions={actions} picker={{ sectors, tasks, proposals }} />
         ))}
         {drones.map((d) => (
-          <DroneCard key={d.id} d={d} fleet={fleet} link={linkWord(links, d.id)} picking={picking?.id === d.id} onRecall={() => actions.onRecallDrone(d.id)} />
+          <DroneCard key={d.id} d={d} fleet={fleet} link={linkWord(links, d.id)} picking={picking?.id === d.id} glow={glow === d.id} onRecall={() => actions.onRecallDrone(d.id)} picker={{ sectors, tasks, proposals }} onLeg={actions.onDroneLeg} />
         ))}
         <SectorsByPoa tasks={tasks} sectors={sectors} teams={teams} />
         {footer}
@@ -89,17 +101,26 @@ export function Resources({
   );
 }
 
-function heardWords(h: Heard): [string, string] {
+function heardWords(h: Heard, status: Team["status"]): [string, string] {
+  // at base camp the team is at the command post: no radio check-in to keep
+  if (status === "standby" || status === "off_duty") return ["at base camp", "text-text-3"];
   if (h.min === null) return ["not heard yet", "text-text-3"];
   const m = Math.round(h.min);
   if (h.overdue) return [`not heard ${m} min`, "text-alert"];
   return [`heard ${m} min`, h.due ? "text-caution" : "text-text-2"];
 }
 
-function TeamCard({ team, heard, task, base, picking, actions }: { team: Team; heard: Heard; task?: SectorTask; base?: Mission["base_camp"]; picking: boolean; actions: ResourceActions }) {
+interface PickerData {
+  sectors: readonly SectorNow[];
+  tasks: readonly SectorTask[];
+  proposals: readonly Proposal[];
+}
+const stopPicking = () => useConsole.getState().pick(null);
+
+function TeamCard({ team, heard, task, base, picking, glow = false, actions, picker }: { team: Team; heard: Heard; task?: SectorTask; base?: Mission["base_camp"]; picking: boolean; glow?: boolean; actions: ResourceActions; picker?: PickerData }) {
   const selected = useSelection((s) => s.selectedTeamId === team.id);
   const [word, tone] = STATUS[heard.overdue && team.status !== "standby" ? "overdue" : team.status];
-  const [heardText, heardClass] = heardWords(heard);
+  const [heardText, heardClass] = heardWords(heard, team.status);
   const eta = etaMin(team, base);
   const inField = team.status !== "standby" && team.status !== "off_duty";
   const onDrag = (e: DragEvent) => {
@@ -113,11 +134,12 @@ function TeamCard({ team, heard, task, base, picking, actions }: { team: Team; h
       data-team={team.id}
       draggable
       onDragStart={onDrag}
-      className={`flex cursor-grab flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 active:cursor-grabbing ${picking ? "border-accent" : heard.overdue ? "border-alert/50" : selected ? "border-border" : "border-line"}`}
+      className={`flex cursor-grab flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 active:cursor-grabbing ${picking ? "border-accent" : heard.overdue ? "border-alert/50" : selected ? "border-border" : "border-line"} ${glow ? "sl-glow-proposal" : ""}`}
+      data-glow={glow || undefined}
       title="Drag onto a sector on the map to assign"
     >
       <div className="flex items-center gap-2">
-        <Icon name="team" className={heard.overdue ? "text-alert" : "text-text-2"} />
+        <Icon name="team" className={heard.overdue ? "text-alert" : "text-team"} />
         <button
           type="button"
           aria-pressed={selected}
@@ -134,7 +156,7 @@ function TeamCard({ team, heard, task, base, picking, actions }: { team: Team; h
       </div>
       <div className="flex items-center gap-3 text-caption">
         <span className={heardClass}>{heardText}</span>
-        {eta !== null && <span className="text-text-2">back ~{duration(eta)}</span>}
+        {eta !== null && inField && <span className="text-text-2">back ~{duration(eta)}</span>}
         <span className="ml-auto text-text-3">{team.members} people</span>
       </div>
       <div className="flex gap-1.5">
@@ -147,20 +169,38 @@ function TeamCard({ team, heard, task, base, picking, actions }: { team: Team; h
         <button type="button" className={btn} disabled={!inField || team.status === "returning"} onClick={() => actions.onRecall(team.id)}>
           Recall
         </button>
+        {task && actions.onFound && (
+          <button type="button" className={`${btn} ml-auto`} title={`Record that ${team.callsign} has the subject in ${task.sector_id}`} onClick={() => actions.onFound?.(team.id, task.sector_id)}>
+            Record find
+          </button>
+        )}
       </div>
+      {picking && picker && actions.onAssign && (
+        <SectorPicker
+          kind="team"
+          id={team.id}
+          name={team.callsign}
+          {...picker}
+          onPick={(sector) => {
+            actions.onAssign?.(team.id, sector);
+            stopPicking();
+          }}
+          onClose={stopPicking}
+        />
+      )}
     </article>
   );
 }
 
-function DroneCard({ d, fleet, link, picking, onRecall }: { d: Drone; fleet: FleetState | null; link: string; picking: boolean; onRecall: () => void }) {
+function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, onLeg }: { d: Drone; fleet: FleetState | null; link: string; picking: boolean; glow?: boolean; onRecall: () => void; picker?: PickerData; onLeg?: (sector: string, drone: string) => void }) {
   const [word, tone] = DRONE_STATUS[d.status];
   const leg = legOf(d, fleet);
   const sector = fleet?.legs.find((l) => l.id === d.leg_id)?.sector_id;
   const linkTone = link === "connected" ? "text-text-2" : link === "degraded" ? "text-caution" : "text-alert";
   return (
-    <article aria-label={`Drone ${d.name}`} data-drone={d.id} className={`flex flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 ${picking ? "border-accent" : "border-line"}`}>
+    <article aria-label={`Drone ${d.name}`} data-drone={d.id} data-glow={glow || undefined} className={`flex flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 ${picking ? "border-accent" : "border-line"} ${glow ? "sl-glow-proposal" : ""}`}>
       <div className="flex items-center gap-2">
-        <Icon name="drone" className="text-text-2" />
+        <Icon name="drone" className="text-drone" />
         <button type="button" onClick={() => useSelection.getState().selectDrone(d.id)} className="sl-tap min-w-0 truncate text-left text-small font-medium text-text hover:underline">
           {d.name}
         </button>
@@ -182,22 +222,39 @@ function DroneCard({ d, fleet, link, picking, onRecall }: { d: Drone; fleet: Fle
           Recall
         </button>
       </div>
+      {picking && picker && onLeg && (
+        <SectorPicker
+          kind="drone"
+          id={d.id}
+          name={d.name}
+          {...picker}
+          onPick={(sector) => {
+            onLeg(sector, d.id);
+            stopPicking();
+          }}
+          onClose={stopPicking}
+        />
+      )}
     </article>
   );
 }
 
-/** The sectors by POA, folded (the old task board's facts, one row each); a row opens its popover on the map. */
+/** How many sectors show before "Show N more". */
+export const SECTORS_SHOWN = 5;
+
+/** The sectors by POA (the old task board's facts, one row each), the likeliest shown; a row opens its popover on the map. */
 function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[]; sectors: readonly SectorNow[]; teams: readonly Team[] }) {
   const [open, setOpen] = useState(false);
-  const rows = [...sectors].sort((a, b) => b.poa - a.poa);
+  const all = [...sectors].sort((a, b) => b.poa - a.poa);
+  const rows = open ? all : all.slice(0, SECTORS_SHOWN);
   const callsign = (id: string | null) => teams.find((t) => t.id === id)?.callsign ?? "";
   const STATE: Record<SectorTask["state"], string> = { proposed: "open", assigned: "assigned", in_progress: "searching", searched: "searched" };
   return (
-    <details className="mt-1 rounded-md border border-line" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
-      <summary className="sl-tap flex cursor-pointer items-center gap-2 px-2.5 py-2 text-small text-text-2">
-        Sectors by POA <span className="text-caption text-text-3">{rows.length}</span>
-      </summary>
-      {open && (
+    <section aria-label="Sectors by POA" className="mt-1 rounded-md border border-line">
+      <h3 className="flex items-center gap-2 px-2.5 py-2 text-small text-text-2">
+        Sectors by POA <span className="text-caption text-text-3">{all.length}</span>
+      </h3>
+      {(
         <table className="w-full text-caption" aria-label="Sectors by POA">
           <thead className="text-text-3">
             <tr>
@@ -235,6 +292,16 @@ function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[];
           </tbody>
         </table>
       )}
-    </details>
+      {all.length > 0 && (
+        <p className="border-t border-line px-2.5 py-1.5 text-caption text-text-3" title="The sectors tile the 1 km search grid; the rest of the probability is outside it.">
+          Outside the grid (rest of the world): <span className="text-text-2">{Math.round(Math.max(0, 1 - all.reduce((n, s) => n + s.poa, 0)) * 100)} %</span>
+        </p>
+      )}
+      {all.length > SECTORS_SHOWN && (
+        <button type="button" onClick={() => setOpen(!open)} className="sl-tap w-full border-t border-line px-2.5 py-1.5 text-left text-caption text-text-2 underline underline-offset-2 hover:text-text">
+          {open ? "Show fewer" : `Show ${all.length - SECTORS_SHOWN} more`}
+        </button>
+      )}
+    </section>
   );
 }

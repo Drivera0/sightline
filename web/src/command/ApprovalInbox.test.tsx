@@ -1,6 +1,6 @@
 // LANE_E §9 test 4: the proposals in Needs you. Reject needs a reason; edits go with the approval; decided
 // proposals leave for the timeline; keys act on the focused card only.
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,13 +46,16 @@ describe("ApprovalInbox", () => {
     expect(onDecide).toHaveBeenCalledWith("p001", "approve", "Dana", undefined, undefined);
   });
 
-  it("shows the reason on one line, the rest on a click", async () => {
-    setup([p({ reason: "Sector B3 holds 6.9% of the probability. A long second sentence the card keeps folded." })]);
-    const why = screen.getByRole("button", { name: /Sector B3 holds/ });
-    expect(why.className).toMatch(/line-clamp-1/);
-    await userEvent.click(why);
-    expect(why).toHaveAttribute("aria-expanded", "true");
-    expect(why.className).not.toMatch(/line-clamp-1/);
+  it("shows a short reason whole; a long one two lines and a visible link for the rest (nothing folded behind a click)", async () => {
+    setup([p({ reason: "Sector B3 holds 6.9% of the probability." })]);
+    expect(screen.getByText("Sector B3 holds 6.9% of the probability.").className).not.toMatch(/line-clamp/);
+    expect(screen.queryByRole("button", { name: "Show the whole reason" })).toBeNull();
+    cleanup();
+    setup([p({ reason: `Sector B3 holds 6.9% of the probability. ${"A long second sentence the card shows in part. ".repeat(4)}` })]);
+    const why = screen.getByText(/Sector B3 holds/);
+    expect(why.className).toMatch(/line-clamp-2/);
+    await userEvent.click(screen.getByRole("button", { name: "Show the whole reason" }));
+    expect(why.className).not.toMatch(/line-clamp/);
   });
 
   it("a rejection needs a reason", async () => {
