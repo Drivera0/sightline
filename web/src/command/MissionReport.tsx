@@ -100,7 +100,8 @@ export function MissionReport({ data, now, missionUrl }: { data: Parameters<type
       </section>
       <section aria-label="Resources and traffic" className="grid grid-cols-2 gap-x-4 gap-y-1 text-small sm:grid-cols-3">
         {[
-          ["Photos processed", r.photos],
+          ["Survey photos", r.photos.survey],
+          ["Leg photos", r.photos.legs],
           ["Drone legs", `${r.legs.flown} · ${r.legs.minutes} min`],
           ["Radio turns", r.radioTurns],
           ["Clues", r.clues],

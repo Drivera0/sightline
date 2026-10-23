@@ -93,11 +93,11 @@ export function ResultsSummary({
         <div className="grid gap-4 @xl:grid-cols-3">
           <Card
             label="People found"
-            value={detector.sar.recall}
+            // the strict figure leads (judges 2026-10-23); the looser human-study scoring and its comparison follow
+            value={detector.voc.recall}
             format={(v) => pct(v)}
-            scoring="SAR-APD"
-            scoringPlain="scored like the human study"
-            // The same green "+22 pts better" as the details below: the difference is the point.
+            scoringPlain="Strict VOC: the box must match the person closely"
+            second={{ value: pct(detector.sar.recall), scoring: "SAR-APD", plain: "scored like the human study" }}
             headline={`${deltaPts(detector.sar.recall, human.recall)} ${detector.sar.recall >= human.recall ? "better" : "worse"}`}
             ours={detector.sar.recall}
             theirs={human.recall}
@@ -106,7 +106,7 @@ export function ResultsSummary({
             // "Strict VOC" is the name the figure is known by; the plain rule follows it in the same line.
             line="Share of people found in test photos the detector never saw in training."
             caveat={HUMAN_CAVEAT}
-            note={`Strict VOC: ${pct(detector.voc.recall)}, when the box must match the person closely. The big figure is scored like the human study (SAR-APD, a looser rule). ${HUMAN_CAVEAT} The ${pct(human.recall)} is a reference figure quoted by ${human.source}, who do not say who the people were or whether they saw these ${detector.test_images} photos.`}
+            note={`The big figure is strict VOC: the box must match the person closely. It is ${pct(detector.sar.recall)} when scored like the human study (SAR-APD, a looser rule); the bars compare that. ${HUMAN_CAVEAT} The ${pct(human.recall)} is a reference figure quoted by ${human.source}, who do not say who the people were or whether they saw these ${detector.test_images} photos.`}
             source={`HERIDAL test set, ${detector.test_images} images, SAR-APD matching (metrics.detector.sar; VOC: metrics.detector.voc) vs ${human.source}`}
             delay={0}
           />
@@ -650,7 +650,10 @@ function Card({
   caveat,
   footnote,
   delay,
+  second,
 }: {
+  /** A second reading of the big figure under it (the looser human-study scoring), which the headline and bars compare. */
+  second?: { value: string; scoring: string; plain: string };
   label: string;
   value: number;
   format: (v: number) => string;
@@ -703,8 +706,16 @@ function Card({
         </Sourced>
         {scoring && <span className="text-label font-medium text-text-2">{scoring}</span>}
         {scoringPlain && <span className="text-label text-text-3">{scoringPlain}</span>}
-        {headline && <span className={"text-small font-medium " + (better ? "text-ok" : "text-warn")}>{headline}</span>}
+        {headline && !second && <span className={"text-small font-medium " + (better ? "text-ok" : "text-warn")}>{headline}</span>}
       </div>
+      {second && (
+        <div className="-mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-small text-text-2">
+          <span className="font-medium text-text">{second.value}</span>
+          <span className="text-label font-medium text-text-2">{second.scoring}</span>
+          <span className="text-label text-text-3">{second.plain}</span>
+          {headline && <span className={"text-small font-medium " + (better ? "text-ok" : "text-warn")}>{headline}</span>}
+        </div>
+      )}
       <div className="flex flex-col gap-1.5">
         <Bar label={oursLabel} value={format(ours)} width={(ours / max) * 100} accent />
         <Bar label={theirsLabel} value={format(theirs)} width={(theirs / max) * 100} />

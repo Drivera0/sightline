@@ -16,7 +16,8 @@ export interface MissionReport {
   found: { by: string; sector: string; at: string; where: string } | null;
   events: { at: string; text: string }[];
   searched: { sector: string; pod: number; team: string | null; note: string | null }[];
-  photos: number;
+  /** The survey flight's photos and the drone legs' photos, apart (they were added up as "1180 of the 500"). */
+  photos: { survey: number; legs: number };
   legs: { flown: number; minutes: number };
   radioTurns: number;
   proposals: { accepted: number; rejected: number; pending: number };
@@ -30,6 +31,21 @@ function keyEvents(entries: readonly Entry[]): Entry[] {
   const firstPhoto = [...entries].reverse().find((e) => e.kind === "drone" && /photos|flight/i.test(e.text));
   const keep = entries.filter((e) => e.kind === "clue" || e.kind === "found" || (e.kind === "decision" && !e.text.startsWith("Agent proposes")));
   return [...(firstPhoto ? [firstPhoto] : []), ...keep].sort((a, b) => a.at.localeCompare(b.at));
+}
+
+/**
+ * The photos on the map: the survey flight's (frame ids, "f0042") and the drone legs' ("L004-p07"), apart.
+ * Added up they read as "1180 photos" next to "of the 500 photos" (judges 2026-10-23).
+ */
+export function photoCounts(updates: readonly { source: string; ref: string | null }[]): { survey: number; legs: number } {
+  let survey = 0;
+  let legs = 0;
+  for (const u of updates) {
+    if (u.source !== "frame") continue;
+    if (u.ref && /^f\d{4}$/.test(u.ref)) survey += 1;
+    else legs += 1;
+  }
+  return { survey, legs };
 }
 
 export function buildReport(s: Data, now: Date): MissionReport {
@@ -48,7 +64,7 @@ export function buildReport(s: Data, now: Date): MissionReport {
     found: m?.found ? { by: callsign(m.found.team), sector: m.found.sector ?? "", at: m.found.at, where: `${m.found.lat.toFixed(5)}, ${m.found.lon.toFixed(5)}` } : null,
     events: keyEvents(entries).map((e) => ({ at: e.at, text: e.text })),
     searched: s.tasks.filter((t) => t.state === "searched").map((t) => ({ sector: t.sector_id, pod: t.pod ?? 0, team: t.team_id ? callsign(t.team_id) : null, note: t.note })),
-    photos: s.mapUpdates.filter((u) => u.source === "frame").length,
+    photos: photoCounts(s.mapUpdates),
     legs: { flown: legs.length, minutes: Math.round(legs.reduce((n, l) => n + l.est_minutes, 0)) },
     radioTurns: s.events.filter((e) => e.type === "radio.turn").length,
     proposals: {
@@ -84,7 +100,7 @@ export function reportMarkdown(r: MissionReport, tz: Tz): string {
     "",
     "## Resources and traffic",
     "",
-    `- Photos processed: ${r.photos}`,
+    `- Photos processed: ${r.photos.survey} from the survey flight, ${r.photos.legs} from drone legs`,
     `- Drone legs flown: ${r.legs.flown} (${r.legs.minutes} flight minutes planned)`,
     `- Radio turns: ${r.radioTurns}`,
     `- Clues: ${r.clues}`,

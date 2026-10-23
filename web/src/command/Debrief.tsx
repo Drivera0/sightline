@@ -10,16 +10,17 @@ import { FOOTER } from "../front/copy";
 import { RadioClip } from "../front/RadioClip";
 import { ResultsSummary } from "../metrics/ResultsSummary";
 import { Label } from "../shell/components";
+import { photoCounts } from "./report";
 
 /** The mission so far, in one line: photos, candidates confirmed, sectors searched (with their POD), clues. */
 export function missionSoFar(s: Pick<MissionData, "mapUpdates" | "tasks" | "clues" | "proposals">): string {
-  const photos = s.mapUpdates.filter((u) => u.source === "frame").length;
+  const photos = photoCounts(s.mapUpdates);
   const searched = s.tasks.filter((t) => t.state === "searched");
   const decided = s.proposals.filter((p) => p.status !== "pending").length;
   const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
   const pods = searched.map((t) => `${t.sector_id} at POD ${Math.round((t.pod ?? 0) * 100)} %`).join(", ");
   return [
-    n(photos, "photo") + " on the map",
+    `${n(photos.survey, "survey photo")}${photos.legs ? ` and ${n(photos.legs, "leg photo")}` : ""} on the map`,
     n(decided, "proposal") + " decided",
     searched.length ? `${n(searched.length, "sector")} searched (${pods})` : "no sector searched yet",
     n(s.clues.length, "clue"),

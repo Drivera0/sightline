@@ -178,9 +178,9 @@ describe("design critique fixes", () => {
       const more = within(card(name)).getByText("How it's measured").closest("details")!;
       expect(more).not.toHaveAttribute("open");
     }
-    // The scoring and simulation notes live inside the fold, not on the card face.
-    const people = within(card("People found")).getByText(/Strict VOC/);
-    expect(people.closest("details")).not.toBeNull();
+    // The strict scoring is named beside the big figure (judges 2026-10-23); how it is measured stays in the fold.
+    expect(within(card("People found")).getByText(/^Strict VOC/).closest("details")).toBeNull();
+    expect(within(card("People found")).getByText(/The big figure is strict VOC/).closest("details")).not.toBeNull();
     const ground = within(card("Ground to search")).getByText(/1,213 vs 1,743 cells/);
     expect(ground.closest("details")).not.toBeNull();
   });
