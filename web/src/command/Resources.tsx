@@ -99,7 +99,9 @@ export function Resources({
   );
 }
 
-function heardWords(h: Heard): [string, string] {
+function heardWords(h: Heard, status: Team["status"]): [string, string] {
+  // at base camp the team is at the command post: no radio check-in to keep
+  if (status === "standby" || status === "off_duty") return ["at base camp", "text-text-3"];
   if (h.min === null) return ["not heard yet", "text-text-3"];
   const m = Math.round(h.min);
   if (h.overdue) return [`not heard ${m} min`, "text-alert"];
@@ -116,7 +118,7 @@ const stopPicking = () => useConsole.getState().pick(null);
 function TeamCard({ team, heard, task, base, picking, glow = false, actions, picker }: { team: Team; heard: Heard; task?: SectorTask; base?: Mission["base_camp"]; picking: boolean; glow?: boolean; actions: ResourceActions; picker?: PickerData }) {
   const selected = useSelection((s) => s.selectedTeamId === team.id);
   const [word, tone] = STATUS[heard.overdue && team.status !== "standby" ? "overdue" : team.status];
-  const [heardText, heardClass] = heardWords(heard);
+  const [heardText, heardClass] = heardWords(heard, team.status);
   const eta = etaMin(team, base);
   const inField = team.status !== "standby" && team.status !== "off_duty";
   const onDrag = (e: DragEvent) => {

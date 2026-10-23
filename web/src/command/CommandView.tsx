@@ -19,7 +19,8 @@ import { NeedsYou } from "./NeedsYou";
 import { Resources } from "./Resources";
 import { SectorPopover, type SectorActions } from "./SectorPopover";
 import { ClueForm, Timeline, TalkBar, type TalkVoice } from "./Timeline";
-import { useEventToasts } from "./notifications";
+import { useEventToasts, useOverdueToasts } from "./notifications";
+import { teamOrder } from "./console";
 import { showMe } from "./showMe";
 import { ToastStack } from "../shell/toasts";
 import { TimelineHandle, useTimelineHeight } from "./TimelineResize";
@@ -128,6 +129,8 @@ export function CommandView(p: CommandProps) {
   // what changed, said once: a toast (and the bell's log) for every event that is news (V3 §2)
   const waiting = p.mission?.status === "found" ? 0 : p.reviewCount;
   useEventToasts(p.events, p.teams, waiting, p.proposals);
+  const checkIn = p.mission?.check_in_min ?? 30;
+  useOverdueToasts(teamOrder(p.teams, p.events, now(), checkIn).filter((x) => x.heard.overdue).map((x) => ({ team: x.team, min: x.heard.min })), checkIn);
   // photos landed and candidates arrived where there were none: the first one opens in the review frame
   const wasWaiting = useRef<number | null>(null);
   useEffect(() => {

@@ -76,7 +76,8 @@ describe("the command post", () => {
     expect(cards[0]).toHaveTextContent("not heard 40 min");
     expect(cards[0]).toHaveTextContent("Overdue");
     expect(cards[0]).toHaveTextContent("A1");
-    expect(cards[3]).toHaveTextContent("heard 2 min");
+    expect(cards[3]).toHaveTextContent("at base camp"); // standby at base: no check-in to keep
+    expect(cards[1]).toHaveTextContent(/heard \d+ min/);
   });
 
   it("T-cards: Call addresses the talk bar to the team, Task picks a sector, Recall goes through", async () => {
