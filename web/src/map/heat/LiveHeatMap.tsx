@@ -34,6 +34,7 @@ import { FleetGlide, type LonLat } from "../base/fleetMotion";
 import { legFeatures, noteCancels, retaskAnimating, retaskFeatures, type SeenCancel } from "../base/legLayer";
 import { point, type MissionFeature } from "../base/missionFeature";
 import { relayFeatures } from "../base/relayLayer";
+import { OnePopup } from "../base/onePopup";
 import { teamFeatures, teamShort } from "../base/teamLayer";
 import { atBaseText, layoutPointLabels, leaderEnd, leaderStart, type PointLabelInput, teamsAtBase } from "../base/pointLabels";
 import type { Box } from "../base/camera";
@@ -485,13 +486,24 @@ function LiveLayers({
     };
   }, [map, ready]);
 
+  // One popup at a time, anchored to its pin (onePopup.ts): a pin's opens closing any other and the
+  // sector popover; the sector popover opening closes it.
+  const one = useMemo(() => (map ? new OnePopup(() => new Popup({ closeButton: true, offset: 14, maxWidth: "300px" }), map, () => useConsole.getState().closeSector()) : null), [map]);
+  useEffect(() => () => one?.close(), [one]);
+  useEffect(
+    () =>
+      useConsole.subscribe((s, was) => {
+        if (s.sector && s.sector !== was.sector) one?.close();
+      }),
+    [one],
+  );
   // A clue's text on hover while the map is zoomed out (its label shows only from CLUE_TEXT_ZOOM)
   useEffect(() => {
     if (!map || !ready) return undefined;
     const tip = new Popup({ closeButton: false, closeOnClick: false, offset: 14, className: "sl-clue-tip" });
     const show = (e: { features?: { properties: Record<string, unknown> }[]; lngLat: { lng: number; lat: number } }) => {
       const f = e.features?.find((x) => x.properties.kind === "clue")?.properties;
-      if (!f) return tip.remove();
+      if (!f || one?.isOpen) return tip.remove(); // the pin's own popup is open: no second one
       const el = document.createElement("div");
       el.className = "text-small";
       el.style.color = "#111";
@@ -506,7 +518,7 @@ function LiveLayers({
       map.off("mousemove", LIVE_IDS.points, show as never);
       map.off("mouseleave", LIVE_IDS.points, hide);
     };
-  }, [map, ready]);
+  }, [map, ready, one]);
 
   // The sector popover: a click on a sector (not on a mark) opens it; in Task mode the click assigns.
   const selSector = useConsole((s) => s.sector);
@@ -662,18 +674,15 @@ function LiveLayers({
   // Clicking a team, drone or clue selects it (D-M2); selecting a team elsewhere (the roster) flies here.
   useEffect(() => {
     if (!map || !ready) return undefined;
-    const onClick = (e: { features?: { properties: Record<string, unknown> }[] }) => {
-      const f = e.features?.[0]?.properties;
+    const onClick = (e: { features?: { properties: Record<string, unknown>; geometry?: { type: string; coordinates: unknown } }[] }) => {
+      const hit = e.features?.[0];
+      const f = hit?.properties;
       if (!f?.id) return;
-      if (f.popup && map) {
-        // the clue's details (B-C1): text only, never HTML from the mission
-        const el = document.createElement("div");
-        el.className = "text-small";
-        el.style.whiteSpace = "pre-line";
-        el.style.color = "#111";
-        el.textContent = String(f.popup);
-        const at = (e as unknown as { lngLat: { lng: number; lat: number } }).lngLat;
-        new Popup({ closeButton: true }).setLngLat([at.lng, at.lat]).setDOMContent(el).addTo(map);
+      if (f.popup && one) {
+        // the clue's details (B-C1), anchored to the pin (not where the click landed)
+        const at = hit?.geometry?.type === "Point" ? (hit?.geometry.coordinates as [number, number]) : null;
+        const click = (e as unknown as { lngLat: { lng: number; lat: number } }).lngLat;
+        one.open(`${String(f.kind)}:${String(f.id)}`, at ?? [click.lng, click.lat], String(f.popup));
       }
       const sel = useSelection.getState();
       if (f.kind === "team") sel.selectTeam(String(f.id));
@@ -686,28 +695,21 @@ function LiveLayers({
       map.off("click", LIVE_IDS.points, onClick as never);
       map.off("click", LIVE_IDS.drones, onClick as never);
     };
-  }, [map, ready]);
+  }, [map, ready, one]);
   const selectedTeam = useSelection((s) => s.selectedTeamId);
   useEffect(() => {
     const t = teams.find((x) => x.id === selectedTeam);
     if (map && t?.position) map.flyTo({ center: [t.position.lon, t.position.lat], zoom: Math.max(map.getZoom(), 16), duration: prefersReducedMotion() ? 0 : 800 });
   }, [map, selectedTeam, teams]);
-  // a clue picked in the timeline: fly to it and say what it is
+  // a clue picked in the timeline: fly to it and say what it is (the one popup, unless its pin's is open)
   const selectedClue = useSelection((s) => s.selectedClueId);
   useEffect(() => {
     const c = clues.find((x) => x.id === selectedClue);
-    if (!map || !c) return undefined;
+    if (!map || !c || !one) return;
     map.flyTo({ center: [c.lon, c.lat], zoom: Math.max(map.getZoom(), 16), duration: prefersReducedMotion() ? 0 : 800 });
-    const el = document.createElement("div");
-    el.className = "text-small";
-    el.style.color = "#111";
-    el.textContent = `${c.id} ${c.kind}: ${c.text}`;
-    const popup = new Popup({ closeButton: true }).setLngLat([c.lon, c.lat]).setDOMContent(el).addTo(map);
-    return () => {
-      popup.remove();
-    };
+    if (one.key !== `clue:${c.id}`) one.open(`clue:${c.id}`, [c.lon, c.lat], `${c.id} ${c.kind}: ${c.text}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, selectedClue]);
+  }, [map, selectedClue, one]);
 
   // What Needs you has in focus (a candidate, a proposal) and a new assignment's route (focusLayers.ts)
   useFocusLayers(map, ready, { sectors, proposals, tasks, teams, mission, candidateAt });
