@@ -28,6 +28,9 @@ const ALLOWED_URLS = [
   // The Results closing card's "Code on GitHub" link: opened only when a viewer clicks it, never
   // fetched by the page, so the demo still runs with Wi-Fi off.
   "https://github.com/Drivera0/sightline",
+  // The XMP namespace a dropped drone photo's metadata is matched against (src/lib/exif.ts): an
+  // identifier inside the file, never fetched.
+  "http://ns.adobe.com/xap/1.0/",
   // The #judges page's links into the repo (report, architecture, what changed): opened on click only.
   "https://github.com/Drivera0/sightline/*",
 ];
