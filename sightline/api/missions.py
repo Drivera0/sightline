@@ -419,6 +419,21 @@ def get_map_base(mission_id: str, request: Request) -> dict:
         raise HTTPException(404, str(e)) from e
 
 
+@missions_router.get("/missions/{mission_id}/coverage")
+def get_coverage(mission_id: str, request: Request) -> dict:
+    """Which cells a photo has looked at (1.3): ``photographed`` as runs ``[value, count]`` over the
+    grid's cells in row-major order (1 = photographed, 0 = not yet). The probability covers the whole
+    grid; this is only a flag the map can draw as a veil over ground no photo has seen."""
+    from sightline.search.coverage import photographed_runs
+
+    store = _store(request, mission_id)
+    try:
+        live = store.live(mission_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    return photographed_runs(live)
+
+
 @missions_router.get("/missions/{mission_id}/sectors")
 def get_sectors(mission_id: str, request: Request) -> list[dict]:
     """Each sector now: label, POA on the live map, and drone coverage (the share of its cells a

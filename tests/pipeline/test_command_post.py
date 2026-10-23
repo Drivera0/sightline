@@ -719,3 +719,28 @@ def test_d4h_push_posts_each_timeline_line_as_a_tagged_log(api, monkeypatch) -> 
         f"/missions/{mid}/export/d4h", json={"org": "42", "incident_id": "7"}, headers=AUTH
     )
     assert bad.status_code == 502 and "2 lines posted" in bad.json()["detail"]
+
+
+# --- probability over the whole area; the photographed flag ---------------------------------------
+
+
+def test_coverage_flags_photographed_cells_and_the_prior_covers_the_whole_grid(api) -> None:
+    import numpy as np
+
+    client, store, _ = api
+    mid = mission(client, subject="day hiker")
+    live = store.live(mid)
+    p, _ = live.p()
+    assert (p > 0).all()  # every cell of the grid has probability before any photo
+    c = client.get(f"/missions/{mid}/coverage").json()
+    assert (
+        c["cells"] == p.size and c["photographed_cells"] == 0 and c["photographed"] == [[0, p.size]]
+    )
+    # a clue raises the cells around it; nothing has been photographed
+    before = p.copy()
+    client.post(f"/missions/{mid}/clues", headers=AUTH, json={
+        "kind": "track", "text": "boot prints", "lat": LKP["lat"] + 0.002, "lon": LKP["lon"],
+        "reported_by": "command", "source": "form"})  # fmt: skip
+    after, _ = store.live(mid).p()
+    assert np.argmax(after - before) != np.argmax(before)
+    assert (after - before).max() > 0
