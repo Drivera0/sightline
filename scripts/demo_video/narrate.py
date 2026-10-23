@@ -1,33 +1,44 @@
-"""Narrate the silent cuts with NVIDIA Magpie TTS, the radio desk's voice (README.md, "Narration"):
+"""Narrate the silent cuts (README.md, "Narration"), with any of three voices:
 
-    ~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<timestamp> [--cuts opencv,nebius]
-        [--out <dir>] [--takes N] [--no-credit] [--no-check] [--dry-run]
+    ~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<timestamp>                      # Magpie
+    ~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<timestamp> --engine elevenlabs --voice eric
+    ~/radio-env/bin/python scripts/demo_video/narrate.py runs/video/<timestamp> --engine kokoro
+    python3 scripts/demo_video/narrate.py runs/video/<timestamp> --dry-run      # no voices: tones at 150 wpm
+        [--cuts opencv,nebius] [--out <dir>] [--takes N] [--no-credit] [--no-check]
 
-Runs in the NeMo environment (``docs/feedback/radio.md``, "How to reproduce"): Magpie through the radio
-desk's own wrapper (``sightline.radio.tts.MagpieTts``, its speaker) and Parakeet through
-``sightline.radio.asr.ParakeetAsr``. From the run folder's ``cut_<name>.mp4`` + ``cut_<name>.json`` (each
-segment's place in the cut), ``shots.json`` (each shot's place in the program after captions.py's camera
-moves and speed-ups: ``program_start_s`` / ``program_end_s``; a line gets the time its shot has after the
-speed-up, and a cut made before the program's timings is refused) and ``narration.yaml`` next to this
-script, into ``<run>/narrated/``:
+The narrator's voice is not chosen yet, so everything here is voice-agnostic (``narration.yaml``,
+``engines``):
 
-- ``clips/<cut>_<shot>.wav``: each line, sentence by sentence, the best of ``takes`` Magpie samples by
-  Parakeet's word errors (the shortest when tied). A line that runs past its shot by more than
-  ``max_overrun_s`` loses its second sentence and is listed in a warning for a human to rewrite (a
-  ``verbatim`` line is never cut: it is reported instead);
-- ``narration_<cut>.wav``: the lines placed at their shots' starts plus ``lead_s`` (never on top of the
-  line before), the on-camera open and close silent, normalised to ``lufs`` with ffmpeg ``loudnorm``;
-- ``cut_<cut>_narrated.mp4``: the cut with that track as AAC and the narration credit burned in over its
-  first narrated shot, above the step label, in ``captions.py``'s caption style. Burning it re-encodes
-  the video once (``captions.py``'s export profile); ``--no-credit`` copies the video stream instead;
-  the audio is AAC 192 kbit/s, 48 kHz;
+- ``magpie`` (default): NVIDIA Magpie TTS through the radio desk's own wrapper
+  (``sightline.radio.tts.MagpieTts``), in the NeMo environment (``docs/feedback/radio.md``);
+- ``elevenlabs``: the ElevenLabs text-to-speech API, the key from ``ELEVENLABS_API_KEY`` (never printed or
+  written anywhere), ``--voice`` eric, daniel, matilda or river (or a voice id), ``eleven_multilingual_v2``,
+  stability 0.55, similarity 0.8, style 0.15, 44.1 kHz mp3 decoded to wav;
+- ``kokoro``: Kokoro-82M through its own venv's python (``engines.kokoro.python``), voice ``am_michael``.
+
+Each engine gets its own respelling table (``respell.magpie`` or ``respell.plain``) and credit. The radio
+exchange is in-world: Team One's call and the desk's reply are always Magpie (the radio desk's model and
+speaker), whichever engine narrates. The listen-check is Parakeet (``sightline.radio.asr.ParakeetAsr``)
+when NeMo is importable, else it is skipped and the report says so.
+
+From the run folder's ``cut_<name>.mp4`` + ``cut_<name>.json`` (each segment's place in the cut),
+``shots.json`` (each shot's place in the program after captions.py's camera moves and speed-ups; a cut made
+before the program's timings is refused) and ``narration.yaml``, into ``<run>/narrated/``:
+
+- ``clips/<cut>_<shot>.wav``: each line, sentence by sentence, the best of ``takes`` by Parakeet's word
+  errors (the shortest when tied). A line that runs past its shot by more than ``max_overrun_s`` loses its
+  second sentence and is listed for a human to rewrite (a ``verbatim`` line is never cut: it is reported);
+- ``narration_<cut>.wav``: the lines placed at their shots' starts plus ``lead_s`` (never on top of the line
+  before; an in-world exchange at its ``at_s``), 48 kHz, normalised to ``lufs`` with ffmpeg ``loudnorm``;
+- ``cut_<cut>_narrated.mp4``: the cut with that track as AAC and the voice credit burned in over its first
+  narrated shot, above the caption, in the site's type (``captions.py``'s ASS styles; one re-encode in its
+  export profile; ``--no-credit`` copies the video stream);
 - ``narration_<cut>.srt``: the spoken lines, timed to the audio;
-- ``narration_report.md`` + ``narration.json``: per line the text, seconds available, seconds used, takes,
-  and the listen-check: Parakeet transcribes each line back out of the finished mp4's audio and the word
-  error rate against the script (after the radio desk's ``protocol.normalize``) is reported per line and
-  per cut.
+- ``narration_report.md`` + ``narration.json``: per line the text, seconds available and used, takes, and
+  the listen-check (Parakeet on each line cut back out of the finished mp4's audio, word error rate after
+  numbers are spelled out on both sides).
 
-``--dry-run`` needs no NeMo: silent clips sized at ``wpm``, no listen-check; it checks the timing, the
+``--dry-run`` needs no voice and no NeMo: tones sized at ``wpm``, no listen-check; it checks the fit, the
 placement and the mux.
 """
 
@@ -35,10 +46,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 import wave
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -52,16 +66,19 @@ for p in (str(ROOT), str(ROOT / "scripts"), str(HERE)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from captions import AAC, export_x264, probe, span, ts
+from captions import AAC, NO_CLEAR, STORY_BANNED, ass, export_x264, fonts, probe, span, ts
 
 ON_CAMERA = ("on camera (open)", "on camera (close)")
 _SENTENCE = re.compile(r"(?<=[.!?])\s+")
+SR = 48000  # every voice is decoded to 48 kHz mono float, the track's rate
+LEAD = 0.25
+TURN_GAP_S = 0.45  # between the team's call and the desk's reply
 
 # --- the listen-check's words: the script says numbers as words, Parakeet writes digits ("sixty
 # percent" vs "60%", "three hundred thirty-seven" vs "337"), so both sides are spelled out in words
 _ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]  # fmt: skip
 _TENS = ["_", "_", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
-_SPELLING = {"kilometres": "kilometers", "metres": "meters"}
+_SPELLING = {"kilometres": "kilometers", "metres": "meters", "grey": "gray"}
 _ROMAN = {"i": "one", "ii": "two", "iii": "three", "iv": "four"}
 _COMPOUND = {("open", "cv"): "opencv", ("openc", "v"): "opencv", ("per", "cent"): "percent"}
 
@@ -133,10 +150,12 @@ class Line:
     cut: str
     key: str  # shot id or "slot: <name>"
     text: str  # what the .srt shows and the listen-check compares with
-    say: str  # what Magpie is given
+    say: str  # what the voice is given
     verbatim: bool
     at: float  # the segment's start in the cut
     seg_s: float  # the segment's length
+    turns: list[dict] = field(default_factory=list)  # in-world: [{who, text}], always Magpie
+    at_s: float = 0.0  # in-world: where the exchange starts in its shot
     clip: np.ndarray | None = None
     start: float = 0.0  # where the clip starts in the cut
     takes: int = 0
@@ -145,16 +164,16 @@ class Line:
     check: dict = field(default_factory=dict)
 
     @property
+    def in_world(self) -> bool:
+        return bool(self.turns)
+
+    @property
     def available(self) -> float:
-        return self.seg_s - LEAD
+        return self.seg_s - (self.at_s if self.in_world else LEAD)
 
     @property
     def used(self) -> float:
         return 0.0 if self.clip is None else len(self.clip) / SR
-
-
-LEAD = 0.25
-SR = 22050  # Magpie's rate; set from the model
 
 
 def sentences(text: str) -> list[str]:
@@ -167,26 +186,33 @@ def respell(text: str, table: dict[str, str]) -> str:
     return text
 
 
-def plan(cfg: dict, run: Path, cut: str) -> list[Line]:
-    """The cut's narrated lines in order, checked: known segments, never the on-camera open or close,
-    at most two sentences (``verbatim`` aside), never "clear", and a warning when the words won't fit at
-    ``wpm``."""
+def check_line(where: str, text: str, verbatim: bool) -> None:
+    """Never "clear" or "rule out"; inside the story never demo/recorded/scripted/simulated (the disclosure
+    card says it once). A verbatim line (the report's own words) is the one exception to the second."""
+    if NO_CLEAR.search(text):
+        raise SystemExit(f"{where} says {NO_CLEAR.search(text).group(0)!r}: a searched area is 'searched at POD x'")
+    if STORY_BANNED.search(text):
+        if not verbatim:
+            raise SystemExit(f"{where} says {STORY_BANNED.search(text).group(0)!r}: only the disclosure card says that")
+        print(f"  note: {where} is verbatim and keeps {STORY_BANNED.search(text).group(0)!r} (the report's own sentence)")
+
+
+def plan(cfg: dict, run: Path, cut: str, engine: str) -> list[Line]:
+    """The cut's narrated lines in order, checked: known segments, never an on-camera slot, at most two
+    sentences (``verbatim`` aside), the words rule, and a warning when the words won't fit at ``wpm``."""
     segs = json.loads((run / f"cut_{cut}.json").read_text())["segments"]
     by_key = {s["name"]: s for s in segs}
     shots = {s["id"]: s for s in json.loads((run / "shots.json").read_text())["shots"]}
+    ecfg = cfg["engines"][engine]
+    table = cfg["respell"].get(ecfg.get("respell", "plain"), {})
     lines = []
     for key, item in cfg["cuts"][cut].items():
-        if key in ON_CAMERA:
-            raise SystemExit(f"{cut}/{key}: the on-camera open and close stay silent")
         if key not in by_key:
             print(f"  {cut}/{key}: not in cut_{cut}.json (shot skipped?), left out")
             continue
-        text = " ".join(item["text"].split())
-        if "clear" in text.lower():
-            raise SystemExit(f"{cut}/{key} says 'clear': a searched area is 'searched at POD x'")
-        if len(sentences(text)) > 2 and not item.get("verbatim"):
-            raise SystemExit(f"{cut}/{key}: more than two sentences")
         s = by_key[key]
+        if key in ON_CAMERA or s.get("on_camera"):
+            raise SystemExit(f"{cut}/{key}: an on-camera slot stays silent")
         seg_s = float(s["s"])
         if key in shots:  # a shot: its time after the program's speed-up, from shots.json
             a, b = span(shots[key])
@@ -196,130 +222,276 @@ def plan(cfg: dict, run: Path, cut: str) -> list[Line]:
                     f"{a:.2f}-{b:.2f} s in the program: rerun captions.py --only cuts"
                 )
             seg_s = min(seg_s, (b - s["in"]) / float(s.get("speed", 1.0)))
-        line = Line(cut, key, text, item.get("say") or respell(text, cfg.get("respell", {})),
-                    bool(item.get("verbatim")), float(s["at"]), seg_s)  # fmt: skip
+        if item.get("in_world"):
+            turns = [dict(t) for t in item["turns"]]
+            for t in turns:
+                check_line(f"{cut}/{key} ({t['who']})", t["text"], False)
+            text = " ".join(t["text"] for t in turns)
+            line = Line(cut, key, text, text, False, float(s["at"]), seg_s, turns=turns,
+                        at_s=float(item.get("at_s", 0.0)))  # fmt: skip
+        else:
+            text = " ".join(item["text"].split())
+            verbatim = bool(item.get("verbatim"))
+            check_line(f"{cut}/{key}", text, verbatim)
+            if len(sentences(text)) > 2 and not verbatim:
+                raise SystemExit(f"{cut}/{key}: more than two sentences")
+            own = item.get("say") if engine == "magpie" else item.get("say_plain")
+            line = Line(cut, key, text, own or respell(text, table), verbatim, float(s["at"]), seg_s)
         est = len(line.say.split()) / cfg["wpm"] * 60
-        if est > line.available:
+        line_fit = est - line.available
+        if line_fit > 0:
             print(f"  warning: {cut}/{key}: {len(line.say.split())} words is about {est:.1f} s at "
                   f"{cfg['wpm']} wpm, {line.available:.1f} s available")  # fmt: skip
         lines.append(line)
     return sorted(lines, key=lambda x: x.at)
 
 
-# --- speech -------------------------------------------------------------------------------------------
+# --- decoding: any voice's output to 48 kHz mono float ---------------------------------------------------
 
 
-class Voice:
-    """Magpie for the lines, Parakeet to score each take (both as the radio desk loads them)."""
+def decode(data: bytes) -> np.ndarray:
+    """WAV or mp3 bytes -> float32 mono at SR, through ffmpeg."""
+    r = subprocess.run(["ffmpeg", "-v", "error", "-i", "pipe:0", "-ac", "1", "-ar", str(SR), "-f", "f32le", "pipe:1"],
+                       input=data, capture_output=True, check=True)  # fmt: skip
+    return np.frombuffer(r.stdout, np.float32).copy()
 
-    def __init__(self, cfg: dict, tmp: Path, dry: bool) -> None:
-        global SR
-        self.cfg, self.tmp, self.dry = cfg, tmp, dry
+
+def wav_bytes(samples: np.ndarray, rate: int = SR) -> bytes:
+    """Float samples in [-1, 1] as a 16-bit mono WAV file."""
+    import io
+
+    pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype("<i2")
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(pcm.tobytes())
+    return buf.getvalue()
+
+
+def tone(text: str, wpm: float) -> np.ndarray:
+    """--dry-run: a quiet tone the length the words take at `wpm` (loudnorm needs something to measure)."""
+    n = int(len(text.split()) / wpm * 60 * SR)
+    return (0.05 * np.sin(np.arange(n) * 2 * np.pi * 220 / SR)).astype(np.float32)
+
+
+# --- the engines -------------------------------------------------------------------------------------------
+
+
+class Magpie:
+    """NVIDIA Magpie TTS as the radio desk loads it; a baked speaker by index."""
+
+    name = "magpie"
+
+    def __init__(self, voice: str) -> None:
+        try:
+            import torch
+
+            from sightline.radio.tts import VOICES, MagpieTts
+        except ImportError as e:
+            raise SystemExit(
+                f"Magpie needs the NeMo environment (~/radio-env/bin/python): {e}"
+            ) from None
+        self.torch, self.tts = torch, MagpieTts()
+        self.default = VOICES.get(voice, 0)
+
+    def speak(self, text: str, seed: int, speaker: int | None = None) -> np.ndarray:
+        from sightline.radio.tts import wav_bytes as wb
+
+        self.torch.manual_seed(seed)
+        with self.torch.inference_mode():
+            audio, n = self.tts.model.do_tts(text, speaker_index=self.default if speaker is None else speaker)
+        samples = audio[0, : int(n[0])].float().cpu().numpy()
+        return decode(wb(samples, self.tts.sample_rate))
+
+
+class ElevenLabs:
+    """The ElevenLabs text-to-speech API (urllib, no SDK). The key comes from ELEVENLABS_API_KEY and is
+    only ever put in the request header."""
+
+    name = "elevenlabs"
+    URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice}?output_format={fmt}"
+
+    def __init__(self, ecfg: dict, voice: str) -> None:
+        self.key = os.environ.get("ELEVENLABS_API_KEY", "")
+        if not self.key:
+            raise SystemExit("--engine elevenlabs needs ELEVENLABS_API_KEY in the environment")
+        self.voice = ecfg.get("voices", {}).get(voice, voice)  # a name from the table, or an id
+        self.cfg = ecfg
+
+    def speak(self, text: str, seed: int, speaker: int | None = None) -> np.ndarray:
+        body = {"text": text, "model_id": self.cfg["model"], "voice_settings": self.cfg["settings"], "seed": seed}
+        req = urllib.request.Request(
+            self.URL.format(voice=self.voice, fmt=self.cfg.get("output_format", "mp3_44100_128")),
+            data=json.dumps(body).encode(),
+            headers={"xi-api-key": self.key, "Content-Type": "application/json", "Accept": "audio/mpeg"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return decode(r.read())
+        except urllib.error.HTTPError as e:  # the body is the API's message, never the key
+            raise SystemExit(f"ElevenLabs said {e.code}: {e.read()[:300].decode(errors='replace')}") from None
+
+
+KOKORO_CHILD = r"""
+import json, sys
+import numpy as np, soundfile as sf
+from kokoro import KPipeline
+pipe = KPipeline(lang_code=sys.argv[1])
+for raw in sys.stdin:
+    job = json.loads(raw)
+    parts = []
+    for r in pipe(job["text"], voice=job["voice"]):
+        a = r.audio if hasattr(r, "audio") else r[2]
+        a = a.detach().cpu().numpy() if hasattr(a, "detach") else np.asarray(a)
+        parts.append(a.astype(np.float32))
+    sf.write(job["path"], np.concatenate(parts) if parts else np.zeros(2400, np.float32), 24000)
+    print("done:" + job["path"], flush=True)
+"""
+
+
+class Kokoro:
+    """Kokoro-82M in its own venv: one child process for the run, a line of JSON in, a WAV out."""
+
+    name = "kokoro"
+
+    def __init__(self, ecfg: dict, voice: str, tmp: Path) -> None:
+        py = ecfg.get("python", "")
+        if not Path(py).exists():
+            raise SystemExit(f"--engine kokoro: no python at {py} (narration.yaml engines.kokoro.python)")
+        self.voice, self.tmp, self.n = voice, tmp, 0
+        self.child = subprocess.Popen([py, "-c", KOKORO_CHILD, ecfg.get("lang", "a")], stdin=subprocess.PIPE,
+                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)  # fmt: skip
+
+    def speak(self, text: str, seed: int, speaker: int | None = None) -> np.ndarray:
+        self.n += 1
+        path = self.tmp / f"kokoro_{self.n}.wav"
+        assert self.child.stdin and self.child.stdout
+        self.child.stdin.write(json.dumps({"text": text, "voice": self.voice, "path": str(path)}) + "\n")
+        self.child.stdin.flush()
+        while True:
+            out = self.child.stdout.readline()
+            if not out:
+                raise SystemExit("the Kokoro process stopped (run its python by hand to see why)")
+            if out.startswith("done:"):
+                return decode(path.read_bytes())
+
+    def close(self) -> None:
+        if self.child.stdin:
+            self.child.stdin.close()
+        self.child.wait(30)
+
+
+class Voices:
+    """The narrator's engine, Magpie for the in-world radio, and Parakeet to score takes and to listen."""
+
+    def __init__(self, cfg: dict, engine: str, voice: str, tmp: Path, dry: bool, check: bool) -> None:
+        self.cfg, self.engine, self.tmp, self.dry = cfg, engine, tmp, dry
+        self.narrator = self.radio = self.asr = None
+        self.asr_note = "not run (--dry-run)" if dry else "not run (--no-check)"
         if dry:
-            self.tts = self.asr = None
             return
-        import torch
+        ecfg = cfg["engines"][engine]
+        if engine == "magpie":
+            self.narrator = Magpie(voice)
+        elif engine == "elevenlabs":
+            self.narrator = ElevenLabs(ecfg, voice)
+        elif engine == "kokoro":
+            self.narrator = Kokoro(ecfg, voice, tmp)
+        else:
+            raise SystemExit(f"unknown engine {engine}")
+        if check:
+            try:
+                from sightline.radio.asr import ParakeetAsr
 
-        from sightline.radio.asr import ParakeetAsr
-        from sightline.radio.tts import MagpieTts
+                self.asr = ParakeetAsr()
+                self.asr_note = "Parakeet TDT 0.6B v2 on the finished mp4's audio"
+            except ImportError as e:
+                self.asr_note = f"not run (no NeMo here: {e})"
 
-        self.torch = torch
-        self.tts = MagpieTts()
-        SR = self.tts.sample_rate
-        self.asr = ParakeetAsr()
+    def magpie(self) -> Magpie:
+        if self.radio is None:
+            self.radio = self.narrator if isinstance(self.narrator, Magpie) else Magpie("en_female")
+        return self.radio
 
-    def say(self, text: str, seed: int) -> np.ndarray:
-        """One take of a line: each sentence on its own, ``gap_s`` between them."""
+    def say(self, line: Line, seed: int) -> np.ndarray:
+        """One take of a line: each sentence on its own, ``gap_s`` between them; an in-world exchange is
+        the team's call in its Magpie speaker, a pause, the desk's reply in Sightline's."""
         gap = np.zeros(int(self.cfg["gap_s"] * SR), np.float32)
         parts: list[np.ndarray] = []
-        for i, sent in enumerate(sentences(text)):
-            if self.dry:
-                n = int(len(sent.split()) / self.cfg["wpm"] * 60 * SR)  # a quiet tone, for loudnorm
-                audio = (0.05 * np.sin(np.arange(n) * 2 * np.pi * 220 / SR)).astype(np.float32)
-            else:
-                self.torch.manual_seed(seed * 100 + i)
-                wav = self.tts.speak(sent, self.cfg["voice"]).wav
-                audio = read_wav(wav)
+        if line.in_world:
+            who = self.cfg.get("radio_voices", {})
+            for t in line.turns:
+                audio = tone(t["text"], self.cfg["wpm"]) if self.dry else self.magpie().speak(t["text"], seed, who.get(t["who"], 0))
+                parts += [np.zeros(int(TURN_GAP_S * SR), np.float32), audio] if parts else [audio]
+            return np.concatenate(parts)
+        for i, sent in enumerate(sentences(line.say)):
+            audio = tone(sent, self.cfg["wpm"]) if self.dry else self.narrator.speak(sent, seed * 100 + i)
             parts += [gap, audio] if parts else [audio]
         return np.concatenate(parts)
-
-    def hear(self, audio: np.ndarray, name: str) -> str:
-        if self.dry:
-            return ""
-        src = self.tmp / f"{name}.wav"
-        src.write_bytes(wav_bytes(audio, SR))
-        return self.transcribe(src)
 
     def transcribe(self, src: Path) -> str:
         dst = src.with_suffix(".16k.wav")
         sh(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-ac", "1", "-ar", "16000", str(dst)])
         return self.asr.transcribe(dst).text
 
-    def best(self, line: Line, text: str, say: str) -> tuple[np.ndarray, int, int]:
+    def hear(self, audio: np.ndarray, name: str) -> str | None:
+        if self.asr is None:
+            return None
+        src = self.tmp / f"{name}.wav"
+        src.write_bytes(wav_bytes(audio))
+        return self.transcribe(src)
+
+    def best(self, line: Line, takes: int) -> tuple[np.ndarray, int, int]:
         """(clip, errors, takes): takes until one is word-perfect and fits, else the best of them (fits
         first, then fewest errors, then shortest)."""
         best = None
-        n = 1 if self.dry else self.cfg["takes"]
+        n = 1 if self.dry else takes
         for seed in range(n):
-            clip = self.say(say, seed)
-            err = (
-                edits(text, self.hear(clip, f"{line.cut}_{line.key}_{seed}"))[0]
-                if not self.dry
-                else 0
-            )
+            clip = self.say(line, seed)
+            heard = self.hear(clip, f"{line.cut}_{line.key}_{seed}".replace(" ", "-").replace(":", ""))
+            err = edits(line.text, heard)[0] if heard is not None else 0
             fits = len(clip) / SR <= line.available + self.cfg["max_overrun_s"]
             score = (not fits, err, len(clip))
             if best is None or score < best[0]:
                 best = (score, clip, err, seed + 1)
-            if fits and err == 0:
+            if fits and (err == 0 or heard is None):
                 break
         assert best is not None
         return best[1], best[2], best[3]
 
-
-def read_wav(data: bytes) -> np.ndarray:
-    import io
-
-    with wave.open(io.BytesIO(data)) as w:
-        pcm = np.frombuffer(w.readframes(w.getnframes()), "<i2")
-    return (pcm.astype(np.float32) / 32768.0).copy()
-
-
-def wav_bytes(samples: np.ndarray, rate: int) -> bytes:
-    from sightline.radio.tts import wav_bytes as wb
-
-    return wb(samples, rate)
+    def close(self) -> None:
+        if isinstance(self.narrator, Kokoro):
+            self.narrator.close()
 
 
 def sh(cmd: list[str], **kw) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, check=True, **kw)
 
 
-def synthesise(lines: list[Line], voice: Voice, cfg: dict, clips: Path) -> list[str]:
+def synthesise(lines: list[Line], voices: Voices, cfg: dict, clips: Path, takes: int) -> list[str]:
     """Each line's clip; the warnings for lines that had to be shortened (or couldn't be)."""
     warnings = []
     for line in lines:
-        clip, err, n = voice.best(line, line.text, line.say)
+        clip, err, n = voices.best(line, takes)
         over = len(clip) / SR - line.available
         if over > cfg["max_overrun_s"]:
-            if line.verbatim:
-                warnings.append(
-                    f"{line.cut}/{line.key}: verbatim, {over:.1f} s over its shot (not cut)"
-                )
+            if line.verbatim or line.in_world or len(sentences(line.text)) < 2:
+                warnings.append(f"{line.cut}/{line.key}: {over:.1f} s over its shot (not cut: "
+                                f"{'verbatim' if line.verbatim else 'in-world' if line.in_world else 'one sentence'})")  # fmt: skip
             else:
                 kept_t, kept_s = sentences(line.text)[0], sentences(line.say)[0]
                 line.shortened = " ".join(sentences(line.text)[1:])
                 warnings.append(f"{line.cut}/{line.key}: {over:.1f} s over, second sentence dropped: "
                                 f"\"{line.shortened}\"")  # fmt: skip
                 line.text, line.say = kept_t, kept_s
-                clip, err, n2 = voice.best(line, line.text, line.say)
+                clip, err, n2 = voices.best(line, takes)
                 n += n2
         line.clip, line.errors, line.takes = clip, err, n
-        (clips / f"{line.cut}_{line.key.replace(': ', '_').replace(' ', '-')}.wav").write_bytes(
-            wav_bytes(clip, SR)
-        )
+        (clips / f"{line.cut}_{line.key.replace(': ', '_').replace(' ', '-')}.wav").write_bytes(wav_bytes(clip))
         print(f"  {line.cut}/{line.key:28} {line.used:5.1f} s of {line.available:5.1f}  "
-              f"takes {n}  errors {err}")  # fmt: skip
+              f"takes {n}  errors {err}{'  (in-world, Magpie)' if line.in_world else ''}")  # fmt: skip
     return warnings
 
 
@@ -327,10 +499,11 @@ def synthesise(lines: list[Line], voice: Voice, cfg: dict, clips: Path) -> list[
 
 
 def place(lines: list[Line], cfg: dict) -> None:
-    """Each line at its shot's start plus ``lead_s``, but never on top of the one before."""
+    """Each line at its shot's start plus ``lead_s`` (an in-world exchange at its ``at_s``), but never on
+    top of the one before."""
     cursor = 0.0
     for line in lines:
-        line.start = max(line.at + LEAD, cursor)
+        line.start = max(line.at + (line.at_s if line.in_world else LEAD), cursor)
         cursor = line.start + line.used + cfg["gap_s"]
 
 
@@ -341,12 +514,12 @@ def track(lines: list[Line], total: float, path: Path, cfg: dict) -> None:
         i = round(line.start * SR)
         buf[i : i + len(line.clip)] += line.clip
     raw = path.with_suffix(".raw.wav")
-    raw.write_bytes(wav_bytes(buf[: round(total * SR)], SR))
+    raw.write_bytes(wav_bytes(buf[: round(total * SR)]))
     target = f"I={cfg['lufs']}:TP={cfg['true_peak_db']}:LRA=11"
-    probe = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(raw), "-af",
-                            f"loudnorm={target}:print_format=json", "-f", "null", "-"],
-                           capture_output=True, text=True, check=True).stderr  # fmt: skip
-    m = json.loads(probe[probe.rindex("{") : probe.rindex("}") + 1])
+    probe_ = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(raw), "-af",
+                             f"loudnorm={target}:print_format=json", "-f", "null", "-"],
+                            capture_output=True, text=True, check=True).stderr  # fmt: skip
+    m = json.loads(probe_[probe_.rindex("{") : probe_.rindex("}") + 1])
     second = (f"loudnorm={target}:linear=true:measured_I={m['input_i']}:measured_TP={m['input_tp']}"
               f":measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}"
               f":offset={m['target_offset']}")  # fmt: skip
@@ -354,22 +527,32 @@ def track(lines: list[Line], total: float, path: Path, cfg: dict) -> None:
     raw.unlink()
 
 
-def credit_srt(lines: list[Line], cfg: dict, path: Path) -> None:
-    first = lines[0]
-    a, b = first.at + 0.3, first.at + first.seg_s - 0.3  # captions.yaml's lead_in / lead_out
-    path.write_text(f"1\n{ts(a)} --> {ts(b)}\n{cfg['credit']['text']}\n")
+def credit_text(cfg: dict, engine: str, lines: list[Line]) -> str:
+    text = cfg["engines"][engine]["credit"]
+    if engine != "magpie" and any(x.in_world for x in lines):
+        text += " · " + cfg["credit"]["in_world"]
+    return text
 
 
-def mux(run: Path, cut: str, out: Path, cfg: dict, credit: bool) -> Path:
+def credit_ass(lines: list[Line], text: str, out: Path, cut: str) -> str:
+    """credit_<cut>.ass: the credit over the first narrated line's segment, in captions.py's Credit style
+    (the site's type, just above the caption). Returns the ass filter for it."""
+    ccfg = yaml.safe_load((HERE / "captions.yaml").read_text())
+    first = next((x for x in lines if not x.in_world), lines[0])
+    a, b = first.at + 0.3, first.at + first.seg_s - 0.3
+    font = fonts(ccfg, out)
+    ass([(a, b, text, "Credit")], ccfg, out / f"credit_{cut}.ass", font)
+    return f"ass=credit_{cut}.ass" + (":fontsdir=fonts" if (out / "fonts").is_dir() else "")
+
+
+def mux(run: Path, cut: str, out: Path, vf: str | None) -> Path:
     """The cut's video with the narration as AAC: the credit burned in (one re-encode, as captions.py
     encodes), or the video stream copied."""
     video = (run / f"cut_{cut}.mp4").resolve()
     dst = out / f"cut_{cut}_narrated.mp4"
-    if credit:
-        cap = yaml.safe_load((HERE / "captions.yaml").read_text())["style"]["force_style"]
-        style = re.sub(r"MarginV=\d+", f"MarginV={cfg['credit']['margin_v']}", cap)
+    if vf:
         info = probe(video)
-        venc = ["-vf", f"subtitles=credit_{cut}.srt:force_style='{style}'", *export_x264(info["fps"], info["h"])]  # fmt: skip
+        venc = ["-vf", vf, *export_x264(info["fps"], info["h"])]
     else:
         venc = ["-c:v", "copy", "-movflags", "+faststart"]
     sh(["ffmpeg", "-v", "error", "-y", "-i", str(video), "-i", f"narration_{cut}.wav",
@@ -387,56 +570,53 @@ def narration_srt(lines: list[Line], path: Path) -> None:
 # --- the listen-check ---------------------------------------------------------------------------------
 
 
-def listen(lines: list[Line], video: Path, voice: Voice, tmp: Path) -> tuple[int, int]:
+def listen(lines: list[Line], video: Path, voices: Voices, tmp: Path) -> tuple[int, int]:
     """Parakeet on each line's window cut from the finished mp4's audio; (errors, words) for the cut."""
-    errs = words = 0
-    for line in lines:
-        src = tmp / f"check_{line.cut}_{lines.index(line)}.wav"
+    errs = n_words = 0
+    for i, line in enumerate(lines):
+        src = tmp / f"check_{line.cut}_{i}.wav"
         sh(["ffmpeg", "-v", "error", "-y", "-ss", f"{max(0.0, line.start - 0.1):.3f}",
             "-t", f"{line.used + 0.4:.3f}", "-i", str(video), "-vn", "-ac", "1", str(src)])  # fmt: skip
-        heard = voice.transcribe(src)
+        heard = voices.transcribe(src)
         e, n = edits(line.text, heard)
         line.check = {"heard": heard, "errors": e, "words": n, "wer": round(e / max(1, n), 3)}
-        errs, words = errs + e, words + n
+        errs, n_words = errs + e, n_words + n
         print(f"  check {line.cut}/{line.key:28} WER {e}/{n}  heard: {heard}")
-    return errs, words
+    return errs, n_words
 
 
-def report(cuts: dict, warnings: list[str], out: Path, cfg: dict) -> None:
+def report(cuts: dict, warnings: list[str], out: Path, cfg: dict, engine: str, voice: str, asr: str) -> None:
     md = ["# Narration", "",
-          (f"NVIDIA Magpie TTS (`{voice_name()}`, speaker {cfg['voice']}), each line placed {LEAD} s after "
-          f"its shot starts, the track at {cfg['lufs']} LUFS; listen-check by Parakeet TDT 0.6B v2 on the "
-          "finished mp4's audio, word error rate with numbers spelled out on both sides."), ""]  # fmt: skip
+          (f"Narrator: {engine} (voice `{voice}`); the radio exchange in NVIDIA Magpie TTS (`{magpie_name()}`, "
+           f"speakers {cfg.get('radio_voices')}). Each line placed {LEAD} s after its shot starts, the track at "
+           f"{cfg['lufs']} LUFS. Listen-check: {asr}."), ""]  # fmt: skip
     data = {}
-    for cut, (lines, errs, words, total) in cuts.items():
-        wer = f"{errs / words:.3f} ({errs} / {words})" if words else "not run"
+    for cut, (lines, errs, n_words, total) in cuts.items():
+        wer = f"{errs / n_words:.3f} ({errs} / {n_words})" if n_words else "not run"
         md += [f"## {cut}: `cut_{cut}_narrated.mp4` ({total:.1f} s), WER {wer}", "",
-               "| Shot | At | Available s | Used s | Takes | WER | Text |", "|---|---|---|---|---|---|---|"]  # fmt: skip
+               "| Shot | At | Available s | Used s | Fits | Takes | WER | Text |", "|---|---|---|---|---|---|---|---|"]  # fmt: skip
         for x in lines:
             w = f"{x.check['errors']}/{x.check['words']}" if x.check else "-"
-            md.append(f"| {x.key} | {x.start:.2f} | {x.available:.2f} | {x.used:.2f} | {x.takes} | {w} | "
-                      f"{x.text}{' *(shortened)*' if x.shortened else ''} |")  # fmt: skip
+            fits = "yes" if x.used <= x.available + cfg["max_overrun_s"] else f"over {x.used - x.available:.1f} s"
+            md.append(f"| {x.key} | {x.start:.2f} | {x.available:.2f} | {x.used:.2f} | {fits} | {x.takes} | {w} | "
+                      f"{x.text}{' *(shortened)*' if x.shortened else ''}{' *(in-world, Magpie)*' if x.in_world else ''} |")  # fmt: skip
         md += [""]
         bad = [x for x in lines if x.check and x.check["errors"]]
         if bad:
-            md += (
-                ["Heard differently:", ""]
-                + [f'- {x.key}: "{x.check["heard"]}"' for x in bad]
-                + [""]
-            )
-        data[cut] = {"total_s": total, "errors": errs, "words": words,
-                     "lines": [{"key": x.key, "text": x.text, "say": x.say, "start_s": round(x.start, 3),
-                                "available_s": round(x.available, 3), "used_s": round(x.used, 3),
-                                "takes": x.takes, "shortened": x.shortened, "check": x.check}
-                               for x in lines]}  # fmt: skip
-    md += ["## Lines cut to fit", ""] + ([f"- {w}" for w in warnings] or ["None."]) + [""]
+            md += ["Heard differently:", ""] + [f'- {x.key}: "{x.check["heard"]}"' for x in bad] + [""]
+        data[cut] = {"total_s": total, "errors": errs, "words": n_words,
+                     "lines": [{"key": x.key, "text": x.text, "say": x.say, "in_world": x.in_world,
+                                "start_s": round(x.start, 3), "available_s": round(x.available, 3),
+                                "used_s": round(x.used, 3), "takes": x.takes, "shortened": x.shortened,
+                                "check": x.check} for x in lines]}  # fmt: skip
+    md += ["## Lines cut or over their shots", ""] + ([f"- {w}" for w in warnings] or ["None."]) + [""]
     (out / "narration_report.md").write_text("\n".join(md))
     (out / "narration.json").write_text(
-        json.dumps({"cuts": data, "warnings": warnings}, indent=2) + "\n"
+        json.dumps({"engine": engine, "voice": voice, "cuts": data, "warnings": warnings}, indent=2) + "\n"
     )
 
 
-def voice_name() -> str:
+def magpie_name() -> str:
     try:
         from sightline.radio.tts import MAGPIE
 
@@ -452,53 +632,58 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("run", type=Path, help="the run folder with cut_<name>.mp4 and cut_<name>.json")
     ap.add_argument("--config", type=Path, default=HERE / "narration.yaml")
+    ap.add_argument("--engine", choices=("magpie", "elevenlabs", "kokoro"), help="the narrator (default: the config's)")
+    ap.add_argument("--voice", help="the engine's voice (default: the config's for that engine)")
     ap.add_argument("--cuts", default="opencv,nebius")
-    ap.add_argument("--out", type=Path, help="default <run>/narrated")
-    ap.add_argument("--takes", type=int, help="override the config's takes per line")
+    ap.add_argument("--out", type=Path, help="default <run>/narrated (or <run>/narrated-<engine>-<voice>)")
+    ap.add_argument("--takes", type=int, help="override the engine's takes per line")
     ap.add_argument(
         "--no-credit", action="store_true", help="copy the video stream, no credit caption"
     )
     ap.add_argument("--no-check", action="store_true", help="skip the listen-check")
-    ap.add_argument("--dry-run", action="store_true", help="no NeMo: silent clips sized at wpm")
+    ap.add_argument("--dry-run", action="store_true", help="no voices: tones sized at wpm")
     args = ap.parse_args(argv)
     cfg = yaml.safe_load(args.config.read_text())
-    if args.takes:
-        cfg["takes"] = args.takes
+    engine = args.engine or cfg.get("engine", "magpie")
+    ecfg = cfg["engines"][engine]
+    voice = args.voice or ecfg["voice"]
+    takes = args.takes or int(ecfg.get("takes", 1))
     LEAD = float(cfg["lead_s"])
-    if "clear" in cfg["credit"]["text"].lower():
-        raise SystemExit("the credit says 'clear'")
-    out = (args.out or args.run / "narrated").resolve()
+    default_out = args.run / ("narrated" if engine == "magpie" and voice == ecfg["voice"] else f"narrated-{engine}-{voice}")
+    out = (args.out or default_out).resolve()
     clips, tmp = out / "clips", out / "tmp"
     for d in (clips, tmp):
         d.mkdir(parents=True, exist_ok=True)
 
     names = args.cuts.split(",")
-    plans = {c: plan(cfg, args.run, c) for c in names}
-    voice = Voice(cfg, tmp, args.dry_run)
+    plans = {c: plan(cfg, args.run, c, engine) for c in names}
+    voices = Voices(cfg, engine, voice, tmp, args.dry_run, not args.no_check)
     warnings: list[str] = []
     done = {}
-    for cut in names:
-        print(f"== {cut}")
-        lines = plans[cut]
-        warnings += synthesise(lines, voice, cfg, clips)
-        place(lines, cfg)
-        total = json.loads((args.run / f"cut_{cut}.json").read_text())["total_s"]
-        for x in lines:  # a late start (after a long line) must not run into the on-camera close
-            if x.start + x.used > x.at + x.seg_s + cfg["max_overrun_s"]:
-                warnings.append(
-                    f"{cut}/{x.key}: ends {x.start + x.used - x.at - x.seg_s:.1f} s past its shot"
-                )
-        track(lines, total, out / f"narration_{cut}.wav", cfg)
-        if not args.no_credit:
-            credit_srt(lines, cfg, out / f"credit_{cut}.srt")
-        video = mux(args.run, cut, out, cfg, not args.no_credit)
-        narration_srt(lines, out / f"narration_{cut}.srt")
-        errs = words = 0
-        if not (args.no_check or args.dry_run):
-            errs, words = listen(lines, video, voice, tmp)
-        done[cut] = (lines, errs, words, total)
-        print(f"  wrote {video}" + (f"  WER {errs}/{words} = {errs / words:.3f}" if words else ""))
-    report(done, warnings, out, cfg)
+    try:
+        for cut in names:
+            print(f"== {cut} ({engine}, {voice}{', dry run' if args.dry_run else ''})")
+            lines = plans[cut]
+            warnings += synthesise(lines, voices, cfg, clips, takes)
+            place(lines, cfg)
+            total = json.loads((args.run / f"cut_{cut}.json").read_text())["total_s"]
+            for x in lines:  # a late start (after a long line) must not run into the next segment
+                if x.start + x.used > x.at + x.seg_s + cfg["max_overrun_s"]:
+                    warnings.append(f"{cut}/{x.key}: ends {x.start + x.used - x.at - x.seg_s:.1f} s past its shot")
+            track(lines, total, out / f"narration_{cut}.wav", cfg)
+            text = credit_text(cfg, engine, lines)
+            check_line(f"{cut} credit", text, False)
+            vf = None if args.no_credit or not lines else credit_ass(lines, text, out, cut)
+            video = mux(args.run, cut, out, vf)
+            narration_srt(lines, out / f"narration_{cut}.srt")
+            errs = n_words = 0
+            if voices.asr is not None:
+                errs, n_words = listen(lines, video, voices, tmp)
+            done[cut] = (lines, errs, n_words, total)
+            print(f"  wrote {video}" + (f"  WER {errs}/{n_words} = {errs / n_words:.3f}" if n_words else ""))
+    finally:
+        voices.close()
+    report(done, warnings, out, cfg, engine, voice, voices.asr_note)
     shutil.rmtree(tmp, ignore_errors=True)
     if warnings:
         print("\nwarning: lines cut or over their shots (rewrite them in narration.yaml):")
