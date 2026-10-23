@@ -1,7 +1,7 @@
 # web/src/shell: one console, its bar and its addresses
 
-The site is a home page (`#`, `front/Home.tsx`: what Sightline is, then "Choose a search") and one console.
-The console on the demo mission (`#m/demo`) starts at the start of its timeline; the story, New search, Try a photo, the results and For judges are moments, views,
+The site is a home page (`#`, `front/Home.tsx`: the hero over the survey's photos, measured facts, how it works, who it is for, the "Guided simulation" cards, For judges) and one console.
+The console on the demo mission (`#m/demo`) starts at the start of its timeline; the guided simulation, New search, Try a photo, the results and For judges are moments, views,
 rails or sheets of that console, never pages of their own. One mission state (`useMission`), one map
 instance (it never unmounts while you stay on a mission), one clock.
 
@@ -13,7 +13,7 @@ instance (it never unmounts while you stay on a mission), one clock.
 | `Sheet.tsx` | A sheet over the console (About): slides in, Esc or the dim closes it, focus goes back. |
 | `components.tsx` | The visual system from #159: `Button` (one orange primary per screen), `Panel` (opaque), `PageHeader`, `Page`, `Stat`, `Badge`, `StatusPill`, `ModeChip`, `DisclosureChip`, `KeyHint`, `EmptyState`. |
 | `Logo.tsx` | `Brand`: the logo and the name, a link to `#about`. |
-| `ShortcutOverlay.tsx`, `shortcuts.ts` | `?`: About and the home page, then the story's keys, the views, the console's and the review's. |
+| `ShortcutOverlay.tsx`, `shortcuts.ts` | `?`: About and the home page, then the clock's keys, the views, the console's and the review's. |
 | `theme.css` | Tokens for both themes (Colour, below), type scale, the status pill, motion (sheets and the guided search's marks 200–300 ms; none under reduced motion). |
 | `notify.ts`, `toasts.tsx`, `notifyBell.tsx` | The notification centre: the store (toasts that merge by key, a log with an unread count), the toast stack (bottom right, 5 s, Show me) and the status line's bell. Which event becomes which toast is `command/notifications.ts`. |
 | `theme.ts`, `ThemeToggle.tsx` | Dark or light: the system's preference until the visitor picks one with the app bar's toggle, then remembered (`localStorage` `sightline.theme`). `index.html` sets `data-theme` before the first paint with the same rule. |
@@ -24,7 +24,7 @@ instance (it never unmounts while you stay on a mission), one clock.
 
 Dark is the default; light follows the system or the toggle. One colour per kind of thing, used everywhere
 (the map, cards, the timeline, chips): a team is always blue, a drone always teal. The brand orange
-(`--accent`) is for the primary action (one per screen) and the story only, never for a kind of thing.
+(`--accent`) is for the primary action (one per screen) and the guided simulation only, never for a kind of thing.
 Every text colour is at least 4.5:1 on `--bg`, `--surface-solid`, `--surface-strong` and its own pill in
 both themes: `node scripts/check-contrast.mjs` prints every pair, and `scripts/contrast.test.ts` fails the
 tests when one drops under. The figure is `node scripts/colour-swatches.mjs` screenshotted.
@@ -39,7 +39,7 @@ tests when one drops under. The figure is `node scripts/colour-swatches.mjs` scr
 | `--alert` | `text-alert` | alerts, overdue | `#f26b5e` | `#b42318` |
 | `--searched`, `--searched-line` | `bg-searched` | searched ground (a fill and its outline, not text) | `#1c2636`, `#4a5d7c` | `#3a4658`, `#1f2937` |
 | `--prob-1` … `--prob-5` | `bg-prob-3` | probability, low → high: rust → amber → cream (dark), rust → orange → yellow (light) | `#7c2d12` `#c2410c` `#f59e0b` `#fcd34d` `#fff1d0` | `#9a3412` `#ea580c` `#f59e0b` `#facc15` `#fef08a` |
-| `--accent`, `--on-accent` | `bg-accent text-on-accent` | the primary action and the story | `#ff7a1a` on `#0a0b0d` | `#b33c0a` on `#ffffff` |
+| `--accent`, `--on-accent` | `bg-accent text-on-accent` | the primary action and the guided simulation | `#ff7a1a` on `#0a0b0d` | `#b33c0a` on `#ffffff` |
 | `--ok`, `--caution`, `--alert` | `data-tone` | status (searching, caution, alert) | `#7ee2a0` `#f5b544` `#f26b5e` | `#12703a` `#8a5300` `#b42318` |
 | `--text`, `--text-2`, `--text-3` | `text-text-2` | text, secondary, captions | `#f2f2f0` `#a1a1aa` `#8f8f98` | `#17181b` `#4b4b53` `#5c5c66` |
 | `--bg`, `--surface-solid`, `--surface`, `--surface-strong`, `--border`, `--line` | `bg-surface-solid` | the page, panels, glass, hover, outlines, hairlines | `#0a0b0d` `#111215` (white at 5/8/12/8 %) | `#f5f5f2` `#ffffff` (ink at 3/6/16/9 %) |
@@ -52,19 +52,19 @@ Never write a hex value in a component: when a colour is missing, add a token he
 
 | Address | Opens |
 |---|---|
-| `#`, `` | the home page: what Sightline is, the four photographs, how it fits together, "Choose a search", the footer (anything unknown lands here too) |
+| `#`, `` | the home page: the hero over a wall of the survey's photos (Try the guided simulation, Open the console), four measured facts, how it works, how photos get in, who it is for, the "Guided simulation" cards (Start the simulation, Open the console only), the For judges strip, the footer (anything unknown lands here too) |
 | `#m/demo` | the console on the demo mission at t0, the pitch bar |
-| `#m/demo?s=<seed>&guide=1` | a scenario with the guided simulation started (a home card's Start) |
-| `#m/demo/map?s=<seed>` | a scenario, just the console |
+| `#m/demo?s=<seed>&guide=1` | a scenario with the guided simulation started (a home card's Start the simulation) |
+| `#m/demo/map?s=<seed>` | a scenario, just the console (a home card's Open the console only) |
 | `#m/demo?t=0..6` | the console at a checkpoint's clock (the call, photos land, confirm, where next, the run, the find, the debrief), no coach marks; it settles on `#m/demo/map?t=N` |
-| `#m/<id>/map` · `photos` · `trace` · `debrief` | a view of a mission; on the demo `?t=0..5` sets the mission clock (none: the end of the timeline) |
+| `#m/<id>/map` · `photos` · `trace` · `debrief` | a view of a mission; on the demo `?t=0..6` sets the mission clock (none: the end of the timeline) |
 | `#m/<id>/map?needs` | the console with Needs you in front (`#m/<id>/review` lands here: the review folds into Needs you) |
 | `#m/<id>/map?radio` | the console with the timeline on Radio and the talk bar ready (`#m/<id>/radio` lands here: the radio desk is the talk bar) |
 | `#m/demo?s=<seed>` | the demo mission as a scenario (`overdue-hiker`, `missing-child`, `despondent`, `dementia`, or any seed) |
 | `#m/<id>/map/conditions` · `trace?log` · `debrief?judges` · `photos?try` | the Conditions panel, the event log, For judges, Try a photo open |
 | `#m/<id>/card/<sector>` | a sector's printable assignment card (live missions) |
 | `#new` | the empty console: start a search or load the demo mission |
-| `#about` | the About sheet over the console last on screen |
+| `#about` | the About sheet over the console last on screen: who built it, the two entries, how photos get in, the colours, the models, the limits, the licences |
 
 Old addresses, kept so links in the docs, the Devposts and the video still land somewhere sensible:
 
@@ -84,8 +84,8 @@ Old addresses, kept so links in the docs, the Devposts and the video still land 
 
 ## Keys
 
-Story: → next, ← back, Space pauses the mission clock, Esc leaves the story (the console stays at that
-mission time). Views: 1 Map, 2 Photos, 3 Needs you (was Review), 4 Trace, 5 Debrief, 6 the radio (the timeline on
+Guided simulation: A the agent's option, 1–4 an option, M pick on the map, T take over from Watch instead,
+Space pauses between decisions, Esc leaves. Outside it, Space plays or pauses the mission clock. Views: 1 Map, 2 Photos, 3 Needs you (was Review), 4 Trace, 5 Debrief, 6 the radio (the timeline on
 Radio, the talk bar ready; was the Radio view), C back to the map. Console: Tab, A approve, X reject, E edit, V hold to
 talk, W conditions, L legend, Esc closes the sector popover or Task mode. Review (in Needs you): J/K (or the arrows),
 P, N, U. `?` lists them.

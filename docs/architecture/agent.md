@@ -416,8 +416,8 @@ secrets in the trace (test 7).
 - **UX, documentation, demonstration (10 %).** The approval inbox and the console
   (`docs/architecture/screens/approval-inbox.png`), this page, report §5 and two reproducible chains
   (`scripts/av_chain.py`, `scripts/retask_chain.py`). The Trace view shows each chain in the product
-  (`#m/<id>/trace`, `web/src/command/TraceView.tsx`; `#m/demo/trace` without a server). The gap we know
-  about: the recorded approvals are scripted until the video run.
+  (`#m/<id>/trace`, `web/src/command/TraceView.tsx`; `#m/demo/trace` without a server: this flight first, then earlier runs). The gap we know
+  about: the recorded approvals are scripted until the video run; the site labels them "The scenario's search manager" and its stand-in model calls "Replayed".
 
 ## The planner as a tool call
 
@@ -460,6 +460,12 @@ fake models, scripted approval), proposal p003:
     reason: C2 · 5.5 % of remaining probability, up from 3.1 %: c001 (hiker at the lot saw…) and c004 (possible whistle, three blasts, to…) raised it; 124 photos here lowered it; 48% under tree cover (drone POD 0.45): a ground team adds the most here.
 2026-10-24T21:43:00Z  human    decision   p003 approved by Search manager (scripted for the demo fixture)
 ```
+
+On the site this decision reads "The scenario's search manager approved…" in the plain console's timeline
+(`web/src/command/timeline.ts`), and the Trace view shows the fixture's `fake/<model>` calls as Replayed. In
+the guided simulation (`#m/demo?s=<seed>&guide=1`) the fixture's manager steps aside: the visitor makes
+this assignment, the planner's reason sits on the card, and what follows plays through one engine
+(`web/src/command/sim.ts`).
 
 The next team plan (p004, Team Two, map v504 again) says "B2 · 5.2 % of remaining probability: no
 new evidence; highest remaining probability of the open sectors": nothing came in between, which
