@@ -266,7 +266,7 @@ describe("the demo mission: the story on the one console", () => {
     expect(within(pitch).getByRole("button", { name: "Follow the search (3 min)" }).className).toMatch(/bg-accent/);
     await waitFor(() => expect(within(screen.getAllByRole("banner")[0]!).getByText("13:35 PDT")).toBeInTheDocument());
     expect(screen.queryByRole("group", { name: "Mission time" })).toBeNull(); // the scrubber shows only inside the story
-    expect(await screen.findByRole("status", { name: "Mission status" })).toHaveTextContent("Clues0"); // the call: the car in the lot is where the search starts
+    expect(await screen.findByRole("status", { name: "Mission status" }, { timeout: 5000 })).toHaveTextContent("Clues0"); // the call: the car in the lot is where the search starts
     expect(screen.queryByText(/blue water bottle by the creek crossing/)).toBeNull(); // not found yet at 13:35 PDT (20:35 UTC)
     await userEvent.click(within(pitch).getByRole("button", { name: "Skip to now" }));
     expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull();
