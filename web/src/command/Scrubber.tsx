@@ -51,7 +51,7 @@ export function Scrubber({
       role="group"
       aria-label="Mission time"
       data-tour="scrubber"
-      className="@container pointer-events-auto flex w-full items-center gap-3 rounded-lg border border-border bg-surface-solid px-2 py-1.5 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.8)]"
+      className="@container pointer-events-auto flex w-full items-center gap-3 rounded-lg border border-border bg-surface-solid px-2 py-1.5 shadow-[var(--shadow-pop)]"
     >
       <button
         type="button"

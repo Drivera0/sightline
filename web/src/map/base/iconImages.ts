@@ -7,8 +7,9 @@ import { ICONS, type IconName } from "../../shell/icons";
 export const ICON_PX = 20;
 const RATIO = 2;
 export const MAP_ICON_KINDS: readonly IconName[] = ["drone", "team", "clue", "base", "lkp", "found"];
-export type IconTone = "accent" | "warn" | "ok" | "info" | "muted" | "text";
-export const ICON_TONES: readonly IconTone[] = ["accent", "warn", "ok", "info", "muted", "text"];
+/** The status tones, and the semantic colours of the v3 colour system (theme.css: team, drone, clue, found, alert). */
+export type IconTone = "accent" | "warn" | "ok" | "info" | "muted" | "text" | "team" | "drone" | "clue" | "found" | "alert";
+export const ICON_TONES: readonly IconTone[] = ["accent", "warn", "ok", "info", "muted", "text", "team", "drone", "clue", "found", "alert"];
 
 export const iconImageId = (kind: IconName, tone: IconTone) => `icon-${kind}-${tone}`;
 

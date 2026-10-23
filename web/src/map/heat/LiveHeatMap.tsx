@@ -54,7 +54,8 @@ import { surfaceData } from "./classes";
 import { evidenceless, HATCH_KIND, searchedMask, smoothKinds, smoothSurface, wholeGridKinds } from "./smooth";
 import { cluesToFlash, type ClueSeen, FLASH_MS, flashFeatures, ringAlpha, seenOf } from "./clueFlash";
 import { CLASS_ROWS, ContourGlyph, swatchColor } from "./Legend";
-import { basemapKind, basemapLabelLayer, type BasemapKind, CONSOLE_PALETTES, type HeatPalette, muteImagery } from "./palette";
+import { basemapKind, basemapLabelLayer, type BasemapKind, CONSOLE_PALETTES, consolePalettes, type HeatPalette, muteImagery } from "./palette";
+import { useTheme } from "../../shell/theme";
 import { gridCorners, HeatRaster, kindColors, kindPixels, surfaceTheme } from "./raster";
 import { type CandidatePlace, useFocusLayers } from "./focusLayers";
 import { ensureSurfaceLayers, pushSurface, setSurfaceMode, setSurfacePalette, surfaceIds } from "./surface";
@@ -148,7 +149,7 @@ export function pointFeatures(
   const found = mission?.found;
   return [
     ...(camp ? [point("base", "base", camp.name ? `Base camp: ${camp.name}` : "Base camp", "text", camp.lon, camp.lat)] : []),
-    ...(found ? [point("found", "found", `Found by ${callsign(found.team)} in ${found.sector}`, "ok", found.lon, found.lat)] : []),
+    ...(found ? [point("found", "found", `Found by ${callsign(found.team)} in ${found.sector}`, "found", found.lon, found.lat)] : []),
     point("lkp", "", "Last known point", "accent", base.lkp.lon, base.lkp.lat),
     ...clueFeatures(clues, callsign, time),
     ...teamFeatures(teams, now),
@@ -183,10 +184,14 @@ function LiveLayers({
   const heat = useMemo(() => new LiveHeat(base), [base]);
   const raster = useMemo(() => new HeatRaster(base.grid), [base]);
   const [basemap, setBasemap] = useState<BasemapKind>("dark");
+  const themeName = useTheme();
   const theme = useMemo(
     () => surfaceTheme({ veil: cssVar("--bg", "#0a0b0d"), held: cssVar("--text", "#f2f2f0") }),
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [themeName],
   );
+  // the heat on the colour system's --prob tokens, for the theme on screen
+  const palettes = useMemo(() => consolePalettes(themeName), [themeName]);
   const surface = useRef<ReturnType<typeof surfaceData> | null>(null);
   const appliedPalette = useRef<BasemapKind | null>(null);
   // Ready means *this* map has the sources: StrictMode (and a new mission) replace the map instance.
@@ -223,7 +228,7 @@ function LiveLayers({
       // The heat sits under the basemap's roads and labels; its palette follows the basemap (palette.ts).
       // This runs on every styledata: the palette is set again only after a basemap switch.
       const kind = basemapKind(map);
-      const palette = CONSOLE_PALETTES[kind];
+      const palette = palettes[kind];
       const mode = raster.animating ? "raster" : "vector";
       const added = ensureSurfaceLayers(map, LIVE_SURFACE_IDS, raster.canvas, base.grid, palette, theme, 1, mode, basemapLabelLayer(map));
       if (added || appliedPalette.current !== kind) {
@@ -253,27 +258,28 @@ function LiveLayers({
       ensureIconImages(map, {
         disc: color("--bg", "#0a0b0d"), accent: color("--accent", "#ff7a1a"), warn: color("--warn", "#ffc48f"), ok: color("--ok", "#7ee2a0"),
         info: color("--accent-soft", "#ffb27a"), muted: color("--text-3", "#8a8a93"), text: color("--text", "#f2f2f0"),
+        team: color("--team", "#6ea8fe"), drone: color("--drone", "#2ec4b6"), clue: color("--clue", "#f5b544"), found: color("--found", "#5fd38d"), alert: color("--alert", "#f26b5e"),
       });
       if (!map.getLayer(LIVE_IDS.sectors)) {
         const tone = (): unknown => ["match", ["get", "tone"], "accent", color("--accent", "#ff7a1a"), "warn", color("--warn", "#ffc48f"), "ok", color("--ok", "#7ee2a0"),
           "info", color("--accent-soft", "#ffb27a"), "muted", color("--text-3", "#8a8f98"), color("--text", "#f2f2f0")]; // prettier-ignore
         // legs: only the active (flying) leg solid; flown legs at 20 %; approved-not-yet-flown and proposed dashed
         map.addLayer({ id: LIVE_IDS.legs, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "flying"],
-          layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": color("--accent", "#ff7a1a"), "line-opacity": 0.75, "line-width": 1.25 } }); // prettier-ignore
+          layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": color("--drone", "#2ec4b6"), "line-opacity": 0.85, "line-width": 1.5 } }); // prettier-ignore
         map.addLayer({ id: `${LIVE_IDS.legs}-past`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "past"],
           paint: { "line-color": color("--text", "#f2f2f0"), "line-opacity": 0.2, "line-width": 1.5 } }); // prettier-ignore
         map.addLayer({ id: `${LIVE_IDS.legs}-planned`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "approved"],
-          paint: { "line-color": color("--accent-soft", "#ffb27a"), "line-opacity": 0.7, "line-width": 1.5, "line-dasharray": [2, 2] } }); // prettier-ignore
+          paint: { "line-color": color("--drone", "#2ec4b6"), "line-opacity": 0.7, "line-width": 1.5, "line-dasharray": [2, 2] } }); // prettier-ignore
         // a re-task: the cancelled leg fades out; a dashed trail from where the drone turned to its new leg
         map.addLayer({ id: `${LIVE_IDS.legs}-cancelled`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "cancelled"],
-          paint: { "line-color": color("--accent", "#ff7a1a"), "line-opacity": ["*", 0.85, ["get", "fade"]] as never, "line-width": 2 } }); // prettier-ignore
+          paint: { "line-color": color("--drone", "#2ec4b6"), "line-opacity": ["*", 0.85, ["get", "fade"]] as never, "line-width": 2 } }); // prettier-ignore
         map.addLayer({ id: `${LIVE_IDS.legs}-diverted`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "diverted"],
           paint: { "line-color": color("--text-2", "#a1a1aa"), "line-opacity": 0.9, "line-width": 1.5, "line-dasharray": [1.5, 1.5] } }); // prettier-ignore
         // relay for a cut-off team: a thin dashed link and dots moving along it towards the drones
         map.addLayer({ id: LIVE_IDS.relay, type: "line", source: LIVE_IDS.relay, filter: ["==", ["get", "kind"], "relay"],
-          paint: { "line-color": color("--accent-soft", "#ffb27a"), "line-opacity": 0.6, "line-width": 1, "line-dasharray": [1, 2] } }); // prettier-ignore
+          paint: { "line-color": color("--drone", "#2ec4b6"), "line-opacity": 0.6, "line-width": 1, "line-dasharray": [1, 2] } }); // prettier-ignore
         map.addLayer({ id: `${LIVE_IDS.relay}-dots`, type: "circle", source: LIVE_IDS.relay, filter: ["==", ["get", "kind"], "relay-dot"],
-          paint: { "circle-radius": 2.5, "circle-color": color("--accent-soft", "#ffb27a"), "circle-stroke-color": color("--bg", "#0a0b0d"), "circle-stroke-width": 0.5 } }); // prettier-ignore
+          paint: { "circle-radius": 2.5, "circle-color": color("--drone", "#2ec4b6"), "circle-stroke-color": color("--bg", "#0a0b0d"), "circle-stroke-width": 0.5 } }); // prettier-ignore
         map.addLayer({ id: `${LIVE_IDS.legs}-proposed`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "proposed"],
           paint: { "line-color": tone() as never, "line-opacity": 0.45, "line-width": 1.2, "line-dasharray": [2, 2] } }); // prettier-ignore
         map.addLayer({ id: LIVE_IDS.sectors, type: "line", source: LIVE_IDS.sectors, paint: { "line-color": color("--text", "#f2f2f0"), "line-opacity": 0.35, "line-width": 1 } });
@@ -331,7 +337,7 @@ function LiveLayers({
           type: "symbol",
           source: LIVE_IDS.drones,
           layout: {
-            "icon-image": ["match", ["get", "link"], "lost", "icon-drone-accent", "degraded", "icon-drone-warn", "icon-drone-text"] as never,
+            "icon-image": ["match", ["get", "link"], "lost", "icon-drone-alert", "degraded", "icon-drone-warn", "icon-drone-drone"] as never,
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
           },
@@ -380,7 +386,7 @@ function LiveLayers({
         pushSurface(map, LIVE_SURFACE_IDS, heldSurface.current);
         heldSurface.current = null;
       }
-      const palette = CONSOLE_PALETTES[appliedPalette.current ?? "dark"];
+      const palette = palettes[appliedPalette.current ?? "dark"];
       const fade = prefersReducedMotion() ? undefined : { ms: playing ? HEAT_FADE_IN_MS : HEAT_FADE_OUT_MS, palette, theme, opacity: 1 };
       setSurfaceMode(map, LIVE_SURFACE_IDS, playing ? "raster" : "vector", fade);
     });
@@ -402,7 +408,7 @@ function LiveLayers({
     };
     // onBasemap is a notification only; a new one does not need the layers again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, raster, base, theme]);
+  }, [map, raster, base, theme, palettes]);
 
   // The heat: new updates are applied incrementally and the change is tweened (the raster), then the
   // same classes are drawn as fills and contours.
@@ -420,7 +426,7 @@ function LiveLayers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kinds]);
   const photographed = useMemo(() => (ready ? (base.photographed ? Uint8Array.from(base.photographed) : lookedAt(base, updates)) : null), [ready, base, updates]);
-  const colors = useMemo(() => kindColors(CONSOLE_PALETTES[basemap], theme), [basemap, theme]);
+  const colors = useMemo(() => kindColors(palettes[basemap], theme), [basemap, theme, palettes]);
   // a new picture's fills wait for its tween to end (the raster draws the change meanwhile)
   const heldSurface = useRef<ReturnType<typeof surfaceData> | null>(null);
   const pushedKinds = useRef<typeof kinds>(null);
@@ -596,8 +602,8 @@ function LiveLayers({
     if (fresh.length === 0 || prefersReducedMotion()) return undefined;
     if (!map.getSource(FLASH_ID)) {
       map.addSource(FLASH_ID, { type: "geojson", data: fc([]) as never });
-      map.addLayer({ id: `${FLASH_ID}-fill`, type: "fill", source: FLASH_ID, paint: { "fill-color": cssVar("--c-clue", "#f2b84b"), "fill-opacity": 0 } });
-      map.addLayer({ id: `${FLASH_ID}-line`, type: "line", source: FLASH_ID, filter: ["==", ["get", "kind"], "circle"], paint: { "line-color": cssVar("--c-clue", "#f2b84b"), "line-width": 2.5, "line-opacity": 0 } });
+      map.addLayer({ id: `${FLASH_ID}-fill`, type: "fill", source: FLASH_ID, paint: { "fill-color": cssVar("--clue", "#f2b84b"), "fill-opacity": 0 } });
+      map.addLayer({ id: `${FLASH_ID}-line`, type: "line", source: FLASH_ID, filter: ["==", ["get", "kind"], "circle"], paint: { "line-color": cssVar("--clue", "#f2b84b"), "line-width": 2.5, "line-opacity": 0 } });
     }
     setData(map, FLASH_ID, flashFeatures(base, fresh, updates) as unknown as Feature[]);
     const start = performance.now();
@@ -789,6 +795,7 @@ function placedLabels(map: Map, points: readonly MissionFeature[], drones: reado
   const toneColor: Record<string, string> = {
     accent: cssVar("--accent", "#ff7a1a"), warn: cssVar("--warn", "#ffc48f"), ok: cssVar("--ok", "#7ee2a0"),
     info: cssVar("--accent-soft", "#ffb27a"), muted: cssVar("--text-3", "#8a8f98"), text: cssVar("--text", "#f2f2f0"),
+    team: cssVar("--team", "#6ea8fe"), drone: cssVar("--drone", "#2ec4b6"), clue: cssVar("--clue", "#f5b544"), found: cssVar("--found", "#5fd38d"), alert: cssVar("--alert", "#f26b5e"),
   }; // prettier-ignore
   const ll = (f: MissionFeature) => f.geometry.coordinates as [number, number];
   const px = (f: MissionFeature) => map.project(ll(f));
@@ -800,7 +807,7 @@ function placedLabels(map: Map, points: readonly MissionFeature[], drones: reado
   for (const f of points) {
     const k = f.properties.kind;
     const base = { id: `${k}:${f.properties.id}`, at: px(f), geo: ll(f) };
-    if (k === "found") inputs.push({ ...base, kind: "found", text: f.properties.label, size: 12, required: true, color: toneColor.ok! });
+    if (k === "found") inputs.push({ ...base, kind: "found", text: f.properties.label, size: 12, required: true, color: toneColor.found! });
     else if (k === "lkp") inputs.push({ ...base, kind: "lkp", text: f.properties.label, required: true, color: toneColor.text! });
     else if (k === "base") inputs.push({ ...base, kind: "base", text: f.properties.label, color: toneColor.text! });
     else if (k === "team" && !atBase.has(f.properties.id)) inputs.push({ ...base, kind: "team", text: String(f.properties.short ?? f.properties.id), color: toneColor[f.properties.tone] ?? toneColor.text! });
@@ -811,7 +818,7 @@ function placedLabels(map: Map, points: readonly MissionFeature[], drones: reado
     inputs.push({ id: "team:at-base", kind: "team", text: atBaseText(shorts), at: px(camp), geo: ll(camp), color: toneColor.text! });
   }
   for (const f of drones) {
-    inputs.push({ id: `drone:${f.properties.id}`, kind: "drone", text: `${f.properties.short ?? f.properties.id} ${f.properties.battery ?? ""}`.trim(), size: 11.5, at: px(f), geo: ll(f), color: f.properties.tone === "warn" ? toneColor.warn! : toneColor.text! });
+    inputs.push({ id: `drone:${f.properties.id}`, kind: "drone", text: `${f.properties.short ?? f.properties.id} ${f.properties.battery ?? ""}`.trim(), size: 11.5, at: px(f), geo: ll(f), color: f.properties.tone === "warn" ? toneColor.warn! : toneColor.drone! });
   }
   const icons = [...points, ...drones].map(px);
   const placed = layoutPointLabels(inputs, icons, view, overlayBoxes(c));
@@ -965,10 +972,14 @@ function MapDescription({ id, ...data }: { id: string } & Pick<LiveHeatMapProps,
 export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps): ReactNode {
   const describedBy = useId();
   const description = <MapDescription id={describedBy} sectors={rest.sectors} teams={rest.teams} clues={rest.clues} fleet={rest.fleet} now={rest.now} />;
+  // the basemap in the theme's colours: a theme switch draws the map again in the other one
+  const themeName = useTheme();
+  const palettes = useMemo(() => consolePalettes(themeName), [themeName]);
   const style = useMemo(() => {
     const key = import.meta.env.VITE_MAPTILER_KEY?.trim() || undefined;
     return basemapStyle(chooseBasemapMode(key, navigator.onLine), key, readBasemapColors());
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeName]);
   const center = useMemo<[number, number] | undefined>(() => (mapBase ? [mapBase.lkp.lon, mapBase.lkp.lat] : undefined), [mapBase]);
   const picking = usePick((s) => s.pending !== null);
   const [basemap, setBasemap] = useState<BasemapKind>("dark");
@@ -986,7 +997,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
             Click the map to place the clue (Esc cancels).
           </p>
         )}
-        <FloatingLegend palette={CONSOLE_PALETTES[basemap]} evidence={evidence} />
+        <FloatingLegend palette={palettes[basemap]} evidence={evidence} />
       </figure>
     );
   }
@@ -1004,7 +1015,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
         </p>
       )}
       <figcaption className="flex flex-col gap-1.5 text-small text-text-3">
-        <HeatKeyRow palette={CONSOLE_PALETTES[basemap]} evidence={evidence} />
+        <HeatKeyRow palette={palettes[basemap]} evidence={evidence} />
         <MapLegend />
         <span>
           {HEAT_CAPTION}{" "}
@@ -1091,13 +1102,13 @@ const Mark = ({ name, className = "text-text" }: { name: IconName; className?: s
 /** Eight lines: the fill legend lays them out as two columns of at most four. */
 const LEGEND: readonly { key: string; title?: string; content: ReactNode }[] = [
   { key: "base", content: <><Mark name="base" />Base camp<Mark name="lkp" className="ml-2 text-accent" />Last known point</> },
-  { key: "teams", content: <><Mark name="team" className="text-ok" />Team searching<Mark name="team" className="ml-2 text-accent-soft" />assigned</> },
-  { key: "drone", title: "Hover or focus a drone for its name, battery, link and when it was last heard", content: <><Mark name="drone" />Drone, battery<Mark name="drone" className="ml-2 text-warn" />link degraded</> },
-  { key: "clue", content: <><Mark name="clue" className="text-warn" />Clue<Mark name="found" className="ml-2 text-ok" />Found</> },
-  { key: "route", content: <><Line className="h-0.5 bg-accent" />Active drone leg</> },
-  { key: "past", content: <><Line className="h-0.5 bg-text/20" />Flown<Line className="ml-2 border-t border-dashed border-accent-soft" />planned</> },
+  { key: "teams", content: <><Mark name="team" className="text-team" />Team out<Mark name="team" className="ml-2 text-alert" />overdue<Mark name="team" className="ml-2 text-text-3" />at base</> },
+  { key: "drone", title: "Hover or focus a drone for its name, battery, link and when it was last heard", content: <><Mark name="drone" className="text-drone" />Drone, battery<Mark name="drone" className="ml-2 text-warn" />link degraded</> },
+  { key: "clue", content: <><Mark name="clue" className="text-clue" />Clue<Mark name="found" className="ml-2 text-found" />Found</> },
+  { key: "route", content: <><Line className="h-0.5 bg-drone" />Active drone leg<Line className="ml-2 h-0.5 bg-team" />team route</> },
+  { key: "past", content: <><Line className="h-0.5 bg-text/20" />Flown<Line className="ml-2 border-t border-dashed border-drone" />planned</> },
   { key: "retask", content: <><Line className="border-t border-dashed border-text-2" />Re-tasked: where a drone turned</> },
-  { key: "relay", content: <><Line className="border-t-2 border-dotted border-accent-soft" />Relay: a drone carries a cut-off team</> },
+  { key: "relay", content: <><Line className="border-t-2 border-dotted border-drone" />Relay: a drone carries a cut-off team</> },
 ];
 
 /** What the console's legend says while nothing stands out of an even spread (a flat prior, no search yet). */

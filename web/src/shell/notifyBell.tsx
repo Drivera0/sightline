@@ -59,7 +59,7 @@ export function NotifyBell({ onShow }: { onShow: (target: ShowTarget | null | un
           <path d="M10 21h4" />
         </svg>
         {unread > 0 ? (
-          <span data-testid="bell-count" className="min-w-4 rounded-full bg-accent px-1 text-center text-caption font-medium text-bg">
+          <span data-testid="bell-count" className="min-w-4 rounded-full bg-text px-1 text-center text-caption font-medium text-bg">
             {unread}
           </span>
         ) : (
@@ -72,7 +72,7 @@ export function NotifyBell({ onShow }: { onShow: (target: ShowTarget | null | un
           role="dialog"
           aria-label="Notifications"
           style={{ top: at.top, right: at.right }}
-          className="sl-slide-in fixed z-50 flex max-h-[60vh] w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-md border border-border bg-surface-solid shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)]"
+          className="sl-slide-in fixed z-50 flex max-h-[60vh] w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-md border border-border bg-surface-solid shadow-[var(--shadow-pop)]"
         >
           <p className="sl-panel-head">Notifications</p>
           {log.length === 0 ? (

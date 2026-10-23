@@ -25,14 +25,14 @@ export function withCallsigns(text: string, callsigns: readonly string[]): React
 export function RadioBubble({ to, text, callsigns = [], from = "Desk", children }: { to: string; text: string; callsigns?: readonly string[]; from?: string; children?: ReactNode }) {
   return (
     <figure aria-label={`${from} to ${to}, on the radio`} className="flex flex-col gap-1">
-      <figcaption className="flex items-center gap-1.5 text-caption text-[var(--c-drone)]">
+      <figcaption className="flex items-center gap-1.5 text-caption text-[var(--drone)]">
         <Icon name="radio" size={12} />
         <span>
           {from} → <span className="font-mono">{to}</span>
         </span>
         <span className="text-text-3">on the radio</span>
       </figcaption>
-      <blockquote className="relative rounded-md rounded-tl-sm border border-[color-mix(in_srgb,var(--c-drone)_45%,transparent)] bg-[color-mix(in_srgb,var(--c-drone)_9%,var(--bg))] px-2.5 py-1.5 text-small text-text-2">
+      <blockquote className="relative rounded-md rounded-tl-sm border border-[color-mix(in_srgb,var(--drone)_45%,transparent)] bg-[color-mix(in_srgb,var(--drone)_9%,var(--bg))] px-2.5 py-1.5 text-small text-text-2">
         {withCallsigns(text, [to, ...callsigns])}
         {children}
       </blockquote>
@@ -43,8 +43,8 @@ export function RadioBubble({ to, text, callsigns = [], from = "Desk", children 
 /** What the agent says to the search manager: plain, violet, never styled as radio. */
 export function AgentNote({ children, label = "Agent → you" }: { children: ReactNode; label?: string }) {
   return (
-    <div className="flex flex-col gap-0.5 border-l-2 border-[var(--c-proposal)] pl-2">
-      <span className="text-caption font-medium text-[var(--c-proposal)]">{label}</span>
+    <div className="flex flex-col gap-0.5 border-l-2 border-[var(--proposal)] pl-2">
+      <span className="text-caption font-medium text-[var(--proposal)]">{label}</span>
       <div className="text-small text-text-2">{children}</div>
     </div>
   );

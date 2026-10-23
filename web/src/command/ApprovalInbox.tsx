@@ -262,11 +262,11 @@ function PendingCard({
       aria-label={`Proposal ${p.id}`}
       data-proposal={p.id}
       {...(story ? { "data-story-proposal": "" } : {})}
-      style={{ ["--c" as string]: "var(--c-proposal)" }}
-      className={`flex flex-col gap-2 rounded-md border border-line border-l-2 border-l-[var(--c-proposal)] bg-bg/40 p-2.5 focus:outline focus:outline-[var(--c-proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused ? "sl-glow-proposal" : ""}`}
+      style={{ ["--c" as string]: "var(--proposal)" }}
+      className={`flex flex-col gap-2 rounded-md border border-line border-l-2 border-l-[var(--proposal)] bg-bg/40 p-2.5 focus:outline focus:outline-[var(--proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused ? "sl-glow-proposal" : ""}`}
     >
       <div className="flex items-center gap-2">
-        <StatusPill tone="action">{kindWords(p)}</StatusPill>
+        <StatusPill tone="proposal">{kindWords(p)}</StatusPill>
         <span className="ml-auto font-mono text-caption text-text-3" title={`proposed by the ${p.created_by}`}>
           {p.id}
         </span>

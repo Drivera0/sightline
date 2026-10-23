@@ -95,9 +95,9 @@ export function useFocusLayers(
   useEffect(() => {
     if (!map || !ready) return;
     for (const id of [FOCUS_ID, ROUTE_ID]) if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: fc([]) as never });
-    const violet = cssVar("--c-proposal", "#a98bff");
+    const violet = cssVar("--proposal", "#a98bff");
     const accent = cssVar("--accent", "#ff7a1a");
-    const team = cssVar("--c-team", "#6aa8ff");
+    const team = cssVar("--team", "#6aa8ff");
     const add = (layer: Parameters<Map["addLayer"]>[0]) => {
       if (!map.getLayer(layer.id)) map.addLayer(layer, map.getLayer("live-heat-halos") ? "live-heat-halos" : undefined);
     };

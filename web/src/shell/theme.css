@@ -567,7 +567,7 @@ body {
 @keyframes sl-toast-rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 .sl-toast-rise { animation: sl-toast-rise var(--motion-in) var(--ease-out) both; }
 /* the focused proposal's team card and the review frame's focus: a steady violet glow */
-.sl-glow-proposal { box-shadow: 0 0 0 1px var(--c-proposal), 0 0 18px -2px color-mix(in srgb, var(--c-proposal) 60%, transparent); border-color: var(--c-proposal) !important; transition: box-shadow var(--motion-in) ease-out; }
+.sl-glow-proposal { box-shadow: 0 0 0 1px var(--proposal), 0 0 18px -2px color-mix(in srgb, var(--proposal) 60%, transparent); border-color: var(--proposal) !important; transition: box-shadow var(--motion-in) ease-out; }
 @media (prefers-reduced-motion: reduce) {
   .sl-slide-in, .sl-toast-rise, .sl-new { animation: none; }
   .sl-row-new { animation: none; background: color-mix(in srgb, var(--c, var(--accent-soft)) 14%, transparent); }

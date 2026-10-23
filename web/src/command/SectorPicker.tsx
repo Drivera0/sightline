@@ -78,12 +78,12 @@ export function SectorPicker({
               type="button"
               data-sector={r.sector}
               onClick={() => onPick(r.sector)}
-              className={`sl-tap flex w-full items-center gap-2 rounded-sm px-1.5 py-1 text-left text-small hover:bg-surface-strong ${r.pick ? "shadow-[inset_2px_0_0_var(--c-proposal)]" : ""}`}
+              className={`sl-tap flex w-full items-center gap-2 rounded-sm px-1.5 py-1 text-left text-small hover:bg-surface-strong ${r.pick ? "shadow-[inset_2px_0_0_var(--proposal)]" : ""}`}
             >
               <span className="w-8 font-medium text-text">{r.sector}</span>
               <span className="sl-num w-12 text-text">{pct(r.poa)}</span>
               <span className="min-w-0 flex-1 truncate text-caption text-text-3">{r.state}</span>
-              {r.pick && <span className="shrink-0 rounded-full bg-[color-mix(in_srgb,var(--c-proposal)_18%,transparent)] px-1.5 text-caption text-[var(--c-proposal)]">Agent's pick</span>}
+              {r.pick && <span className="shrink-0 rounded-full bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-1.5 text-caption text-[var(--proposal)]">Agent's pick</span>}
             </button>
           </li>
         ))}

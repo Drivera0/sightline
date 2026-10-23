@@ -19,14 +19,14 @@ export const TEAM_DRAG = "application/x-sightline-team";
 const STATUS: Record<Team["status"], [string, Tone]> = {
   standby: ["Standby", "muted"],
   assigned: ["Assigned", "neutral"],
-  searching: ["Searching", "ok"],
+  searching: ["Searching", "team"],
   returning: ["Returning", "caution"],
   off_duty: ["Off duty", "muted"],
   overdue: ["Overdue", "alert"],
 };
 const DRONE_STATUS: Record<Drone["status"], [string, Tone]> = {
   idle: ["At base", "muted"],
-  flying: ["Flying", "ok"],
+  flying: ["Flying", "drone"],
   returning: ["Returning", "caution"],
   charging: ["Charging", "muted"],
   offline: ["Offline", "alert"],
@@ -135,7 +135,7 @@ function TeamCard({ team, heard, task, base, picking, glow = false, actions, pic
       title="Drag onto a sector on the map to assign"
     >
       <div className="flex items-center gap-2">
-        <Icon name="team" className={heard.overdue ? "text-alert" : "text-text-2"} />
+        <Icon name="team" className={heard.overdue ? "text-alert" : "text-team"} />
         <button
           type="button"
           aria-pressed={selected}
@@ -191,7 +191,7 @@ function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, on
   return (
     <article aria-label={`Drone ${d.name}`} data-drone={d.id} data-glow={glow || undefined} className={`flex flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 ${picking ? "border-accent" : "border-line"} ${glow ? "sl-glow-proposal" : ""}`}>
       <div className="flex items-center gap-2">
-        <Icon name="drone" className="text-text-2" />
+        <Icon name="drone" className="text-drone" />
         <button type="button" onClick={() => useSelection.getState().selectDrone(d.id)} className="sl-tap min-w-0 truncate text-left text-small font-medium text-text hover:underline">
           {d.name}
         </button>

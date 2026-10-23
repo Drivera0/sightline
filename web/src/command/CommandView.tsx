@@ -156,7 +156,7 @@ export function CommandView(p: CommandProps) {
     <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
       {p.conditionsOpen && p.conditionsData && (
         // over the console, under the status line (the map keeps its place); W or Esc closes it
-        <div className="absolute inset-x-0 top-0 z-30 max-h-[75vh] overflow-y-auto rounded-lg shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]">
+        <div className="absolute inset-x-0 top-0 z-30 max-h-[75vh] overflow-y-auto rounded-lg shadow-[var(--shadow-pop)]">
           <ConditionsPanel id={p.conditionsId ?? "conditions-panel"} data={p.conditionsData} now={panelNow} time={(iso) => `${clock(iso, tz)} ${zone(new Date(iso), tz)}${dayNote(iso, panelNow, tz)}`} />
         </div>
       )}

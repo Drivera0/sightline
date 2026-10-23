@@ -7,12 +7,12 @@ import { TOAST_MS, useNotify, type Note, type NoteTone, type ShowTarget } from "
 
 /** The tone's colour token (theme.css, the v3 colour block). */
 export const TONE_VAR: Record<NoteTone, string> = {
-  team: "var(--c-team)",
-  drone: "var(--c-drone)",
-  clue: "var(--c-clue)",
-  proposal: "var(--c-proposal)",
-  found: "var(--c-found)",
-  alert: "var(--c-alert)",
+  team: "var(--team)",
+  drone: "var(--drone)",
+  clue: "var(--clue)",
+  proposal: "var(--proposal)",
+  found: "var(--found)",
+  alert: "var(--alert)",
   review: "var(--accent)",
   note: "var(--text-2)",
 };
@@ -61,7 +61,7 @@ function Toast({ note, held, onShow }: { note: Note; held: boolean; onShow: (tar
       role="status"
       data-toast={note.key}
       style={{ ["--c" as string]: TONE_VAR[note.tone] }}
-      className="sl-toast-rise pointer-events-auto flex items-start gap-2 rounded-md border border-border border-l-[3px] border-l-[var(--c)] bg-surface-solid/95 px-2.5 py-2 pr-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)] backdrop-blur"
+      className="sl-toast-rise pointer-events-auto flex items-start gap-2 rounded-md border border-border border-l-[3px] border-l-[var(--c)] bg-surface-solid/95 px-2.5 py-2 pr-1.5 shadow-[var(--shadow-pop)] backdrop-blur"
     >
       <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-[var(--c)]" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">

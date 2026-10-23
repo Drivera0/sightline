@@ -154,7 +154,7 @@ four regions, every action logged to one timeline.
   `/sectors/{sector}/searched|recheck` and `/found` (falling back to the task and team calls on a server
   without them); the demo does each in memory and logs it ("Search manager assigned B3 to Team Two"), and its
   drone legs fly from base camp photo by photo (`lib/demoFlight.ts`), lowering the map under them.
-- **Scenarios** (`scenarios.ts`, `ScenarioMenu.tsx`): four presets and shuffled seeds (`#m/demo?s=<seed>`).
+- **Scenarios** (`scenarios.ts`; the home page's scenario cards choose one): four presets and shuffled seeds (`#m/demo?s=<seed>`).
   The generator's `__fixtures__/scenarios/<seed>.json` is used when it exists; until then a scenario is
   derived from the demo mission (its last known point, prior, base camp, clues and assignments).
 - **Photos** (`PhotoDrop.tsx`, `lib/exif.ts`): drop a drone's photos on the demo and they are read (EXIF GPS,

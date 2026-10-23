@@ -21,8 +21,8 @@ const btn = "sl-tap inline-flex h-6 items-center rounded-full border border-line
 export const TIMELINE_LIMIT = 120;
 /** Each kind's colour (theme.css, the v3 colour block): a new row's highlight is in it. */
 const KIND_COLOUR: Record<EntryKind, string> = {
-  radio: "var(--c-team)", checkin: "var(--c-team)", clue: "var(--c-clue)", detection: "var(--accent)", decision: "var(--c-proposal)",
-  drone: "var(--c-drone)", found: "var(--c-found)", note: "var(--text-2)",
+  radio: "var(--team)", checkin: "var(--team)", clue: "var(--clue)", detection: "var(--accent)", decision: "var(--proposal)",
+  drone: "var(--drone)", found: "var(--found)", note: "var(--text-2)",
 };
 /** How long a new row stays highlighted (ms; theme.css --motion-row). */
 export const ROW_NEW_MS = 3000;
@@ -130,9 +130,9 @@ export function Timeline({
           aria-expanded={adding}
           onClick={() => setAdding(!adding)}
           title="Add a clue: what was found, who reported it, how reliable. Or right-click (long-press) the map where it was."
-          className="ml-auto h-7! gap-1.5! border-[color-mix(in_srgb,var(--c-clue)_60%,transparent)]! px-3! text-caption! font-normal"
+          className="ml-auto h-7! gap-1.5! border-[color-mix(in_srgb,var(--clue)_60%,transparent)]! px-3! text-caption! font-normal"
         >
-          <Icon name="clue" size={13} className="text-[var(--c-clue)]" />
+          <Icon name="clue" size={13} className="text-[var(--clue)]" />
           Add clue
         </Button>
       </div>
@@ -160,7 +160,7 @@ export function Timeline({
               {e.kind === "radio" ? (
                 // the air: a radio line, callsigns in mono; the desk's own calls in a teal bubble
                 <span
-                  className={`text-small text-text ${e.turn?.direction === "out" ? "rounded-sm rounded-tl-none border border-[color-mix(in_srgb,var(--c-drone)_40%,transparent)] bg-[color-mix(in_srgb,var(--c-drone)_8%,transparent)] px-1.5 py-px" : ""}`}
+                  className={`text-small text-text ${e.turn?.direction === "out" ? "rounded-sm rounded-tl-none border border-[color-mix(in_srgb,var(--drone)_40%,transparent)] bg-[color-mix(in_srgb,var(--drone)_8%,transparent)] px-1.5 py-px" : ""}`}
                 >
                   {withCallsigns(e.text, callsigns)}
                 </span>
@@ -264,8 +264,8 @@ export function TalkBar({ teams, onSend, voice = null }: { teams: readonly Team[
     <form
       onSubmit={send}
       aria-label="Talk"
-      style={{ ["--c" as string]: "var(--c-team)" }}
-      className={`flex shrink-0 flex-wrap items-center gap-2 border-t border-line p-2 transition-colors ${calling ? "bg-[color-mix(in_srgb,var(--c-team)_10%,transparent)]" : ""}`}
+      style={{ ["--c" as string]: "var(--team)" }}
+      className={`flex shrink-0 flex-wrap items-center gap-2 border-t border-line p-2 transition-colors ${calling ? "bg-[color-mix(in_srgb,var(--team)_10%,transparent)]" : ""}`}
     >
       <button
         type="button"
@@ -282,8 +282,8 @@ export function TalkBar({ teams, onSend, voice = null }: { teams: readonly Team[
         {recording ? "Release to send" : voice?.stage === "sending" ? "Sending…" : voice?.stage === "speaking" ? "Speaking…" : "Hold to talk"} <KeyHint>V</KeyHint>
       </button>
       <label className="flex items-center gap-1.5 text-caption text-text-2">
-        {calling ? <span className="font-medium text-[var(--c-team)]">Calling</span> : "to"}
-        <select aria-label="Recipient" value={to} onChange={(e) => useConsole.getState().setTalkTo(e.target.value)} className={`h-8 rounded-sm border bg-surface-strong px-2 font-mono text-small text-text ${calling ? "sl-new border-[var(--c-team)]" : "border-border"}`}>
+        {calling ? <span className="font-medium text-[var(--team)]">Calling</span> : "to"}
+        <select aria-label="Recipient" value={to} onChange={(e) => useConsole.getState().setTalkTo(e.target.value)} className={`h-8 rounded-sm border bg-surface-strong px-2 font-mono text-small text-text ${calling ? "sl-new border-[var(--team)]" : "border-border"}`}>
           {teams.map((t) => (
             <option key={t.id} value={t.id}>
               {t.callsign}
@@ -432,7 +432,7 @@ export function ClueForm({
             role="radio"
             aria-checked={reliability === r}
             onClick={() => setReliability(r)}
-            className={`h-full rounded-full px-2.5 ${reliability === r ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--c-clue)]" : "text-text-2 hover:text-text"}`}
+            className={`h-full rounded-full px-2.5 ${reliability === r ? "bg-surface-strong text-text shadow-[inset_0_0_0_1px_var(--clue)]" : "text-text-2 hover:text-text"}`}
           >
             {r}
           </button>

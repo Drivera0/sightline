@@ -33,7 +33,7 @@ export function droneFeatures(fleet: FleetState | null, links: Readonly<Record<s
       const name = `${d.name}${d.simulated ? " (simulated)" : ""}`;
       const battery = Math.round(d.battery_pct);
       const f = point("drone", d.id, `${name} · ${battery} %${words ? ` · ${words}` : ""}`,
-        d.battery_pct < 25 ? "warn" : "text", d.position!.lon, d.position!.lat,
+        d.battery_pct < 25 ? "warn" : "drone", d.position!.lon, d.position!.lat,
         `${name}\n${d.status} · battery ${battery} %\n${words || LINK_WORD.connected}${d.simulated ? " (simulated link model)" : ""}`); // prettier-ignore
       f.properties.link = link;
       f.properties.short = d.id; // "D2": the drone ids are short already

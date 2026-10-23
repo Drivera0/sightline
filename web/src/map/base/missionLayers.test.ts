@@ -13,7 +13,7 @@ describe("live-mission layers", () => {
   it("clue pins: colour per kind, and a popup that says how it came in", () => {
     const c = { id: "c003", kind: "object", text: "blue bottle", lat: 1, lon: 2, radius_m: 30, reliability: "high", reported_by: "T2", source: "radio", at: "2026-10-24T21:24:00Z" } as Clue;
     const [f] = clueFeatures([c], (id) => (id === "T2" ? "Team Two" : id));
-    expect(f!.properties).toMatchObject({ kind: "clue", id: "c003", label: "c003 object", tone: "warn" });
+    expect(f!.properties).toMatchObject({ kind: "clue", id: "c003", label: "c003 object", tone: "clue" });
     expect(f!.properties.popup).toBe("blue bottle\nobject · high reliability · within 30 m\nby radio · Team Two · 21:24");
   });
 
@@ -24,7 +24,7 @@ describe("live-mission layers", () => {
     ] as Team[];
     const fs = teamFeatures(teams, NOW);
     expect(fs).toHaveLength(1);
-    expect(fs[0]!.properties).toMatchObject({ label: "Team One · searching · 12 min ago", tone: "ok", short: "T1" });
+    expect(fs[0]!.properties).toMatchObject({ label: "Team One · searching · 12 min ago", tone: "team", short: "T1" });
   });
 
   it("teams: a short id for the map, the full line kept for the tooltip", () => {
@@ -41,7 +41,7 @@ describe("live-mission layers", () => {
       { id: "D3", name: "Drone 3", simulated: true, position: null, battery_pct: 100 },
     ], legs: [] } as unknown as FleetState;
     expect(droneFeatures(fleet).map((f) => [f.properties.label, f.properties.tone])).toEqual([
-      ["Drone 1 (simulated) · 76 %", "text"],
+      ["Drone 1 (simulated) · 76 %", "drone"],
       ["Drone 2 · 18 %", "warn"],
     ]);
   });
