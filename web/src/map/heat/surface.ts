@@ -37,6 +37,7 @@ export function surfaceIds(prefix: string, raster: string): SurfaceIds {
     fills: {
       [CELL.veil]: `${prefix}veil`,
       [CELL.held]: `${prefix}held`,
+      [CELL.searched]: `${prefix}searched`,
       [CELL.low]: `${prefix}class-90`,
       [CELL.mid]: `${prefix}class-80`,
       [CELL.top]: `${prefix}class-50`,

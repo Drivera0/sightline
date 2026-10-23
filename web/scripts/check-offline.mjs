@@ -31,9 +31,6 @@ const ALLOWED_URLS = [
   // The XMP namespace a dropped drone photo's metadata is matched against (src/lib/exif.ts): an
   // identifier inside the file, never fetched.
   "http://ns.adobe.com/xap/1.0/",
-  // The sample photo pack (src/command/PhotoDrop.tsx): fetched only when a visitor presses "Load 20 sample
-  // photos" while online; offline (or where the browser blocks it) the demo survey's own photos are used.
-  "https://github.com/Drivera0/sightline/releases/download/sample-photos/sightline-sample-photos.zip",
   // The #judges page's links into the repo (report, architecture, what changed): opened on click only.
   "https://github.com/Drivera0/sightline/*",
 ];

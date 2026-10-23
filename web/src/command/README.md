@@ -133,8 +133,11 @@ four regions, every action logged to one timeline.
   team, the agent's pick first; send a drone leg; mark searched at a POD of at most 90 %; recheck; record the
   find). Base camp, one icon set, only the active leg solid. The scrubber shows only inside the story.
 - **Needs you** (`NeedsYou.tsx`, right): decisions only. The agent's proposals (`ApprovalInbox.tsx`, a
-  one-line reason, A/X/E), candidates to review (the review queue lives here now), teams past their check-in,
-  clues awaiting read-back, a live radio's briefings to send (`RadioLink.tsx`).
+  one-line reason, A/X/E), candidates to review (the review queue lives here now), teams past their
+  check-in, clues awaiting read-back, a live radio's briefings to send (`RadioLink.tsx`). Once
+  `Mission.status` is `found`, pending proposals and candidates are closed: one row, "16 items closed at
+  15:00, subject found", expands to them (each "closed: subject found"); the header and the Map tab's count
+  stop counting them. Overdue teams and read-backs stay, and every direct action still works.
 - **Timeline** (`Timeline.tsx`, `timeline.ts`, bottom): one stream, All / Radio / Clues / Drone / Decisions,
   Reply on radio entries, Confirm on clues awaiting read-back, Show on map; repeats merge. The talk bar is
   the radio desk: hold `V` (a live radio server) or type, to the team picked. Add a clue is here.
@@ -148,7 +151,9 @@ four regions, every action logged to one timeline.
   derived from the demo mission (its last known point, prior, base camp, clues and assignments).
 - **Photos** (`PhotoDrop.tsx`, `lib/exif.ts`): drop a drone's photos on the demo and they are read (EXIF GPS,
   DJI altitude and heading), ranked by the in-browser detector, placed, and their candidates go to Needs
-  you; "Load 20 sample photos" uses `VITE_SAMPLE_PHOTOS_URL` or the demo survey's own photos. A live mission
+  you; "Load 20 sample photos" reads the site's own copy of the pack (`public/sample/sightline-sample-photos.zip`,
+  same origin, so it works on Vercel and offline; `VITE_SAMPLE_PHOTOS_URL` can point elsewhere), else the demo
+  survey's own photos. A live mission
   uploads the drop.
 - **After-action report** (`report.ts`, `MissionReport.tsx`): once the subject is found the Debrief is the
   mission report, with Report, ICS 204/214/309, CalTopo and Print; the measured results follow it.

@@ -643,7 +643,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const mark = demo && story.tour ? (beats[t]?.[story.beat] ?? null) : null;
   const markCount = beats.reduce((n, b) => n + b.length, 0);
   const markNo = markIndex(beats, t, story.beat);
-  const needsCount = s.proposals.filter((p) => p.status === "pending").length + reviewCount;
+  // once the subject is found, pending proposals and candidates are closed (Needs you folds them away)
+  const needsCount = s.mission?.status === "found" ? 0 : s.proposals.filter((p) => p.status === "pending").length + reviewCount;
   const inStory = demo && (story.tour || story.playing);
 
   return (

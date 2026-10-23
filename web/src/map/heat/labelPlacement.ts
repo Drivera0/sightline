@@ -5,7 +5,7 @@
 // Pure functions: the caller projects points and measures the panels.
 import type { Box } from "../base/camera";
 
-export type TextAnchor = "left" | "right" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+export type TextAnchor = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 /** The sector labels' text size (layers.ts) and the line height MapLibre uses (1.2 em). */
 export const LABEL_SIZE_PX = 11;
@@ -31,9 +31,10 @@ export function labelBox(
   offset: readonly [number, number],
   text: string,
   sizePx = LABEL_SIZE_PX,
+  charEm = CHAR_EM,
 ): Box {
   const lines = text.split("\n");
-  const w = Math.max(...lines.map((l) => l.length)) * CHAR_EM * sizePx;
+  const w = Math.max(...lines.map((l) => l.length)) * charEm * sizePx;
   const h = lines.length * LINE_HEIGHT_EM * sizePx;
   const x = point.x + offset[0] * sizePx;
   const y = point.y + offset[1] * sizePx;

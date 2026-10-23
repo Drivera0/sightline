@@ -2,8 +2,8 @@
 // browser: its EXIF GPS (and DJI's relative altitude and heading) places it, the same ONNX detector as Try a
 // photo ranks it, the ground under it is lowered on the map (a photo step at the drone's POD), its
 // candidates go to Needs you, and each step is logged on the timeline. "Load 20 sample photos" fetches the
-// sample pack (VITE_SAMPLE_PHOTOS_URL: a JSON list of photo addresses) or, without it or offline, uses the
-// demo survey's own photos with their recorded poses. On a live mission the same drop uploads to
+// sample pack (served by the site itself, public/sample/; VITE_SAMPLE_PHOTOS_URL can point elsewhere) or,
+// where it cannot be read, uses the demo survey's own photos with their recorded poses. On a live mission the same drop uploads to
 // POST /missions/{id}/photos and the server ranks them. Built by lane A.
 import { useState, type DragEvent } from "react";
 import { create } from "zustand";
@@ -113,12 +113,16 @@ function crop(bitmap: ImageBitmap, [x0, y0, x1, y1]: [number, number, number, nu
 
 /**
  * The sample pack: 20 frames of the demo flight (f0256 to f0275, people in f0273) with their EXIF GPS,
- * altitude and heading written, published as a release asset. VITE_SAMPLE_PHOTOS_URL can point at a copy
- * (same origin works everywhere). GitHub's download redirect does not allow a page on another site to
- * read it, so where it is blocked (or offline) the demo flight's own photos are used, with their recorded
- * poses, and the page says so.
+ * altitude and heading written. The site serves its own copy (web/public/sample/, the `sample-photos`
+ * release asset, 4.4 MB, sha256 738b6c9b…a1b4bf): same origin, so it loads on Vercel and with Wi-Fi off
+ * (GitHub's download redirect does not let a page on another site read it). VITE_SAMPLE_PHOTOS_URL can
+ * point at another copy, or at a JSON list of photo addresses. Where nothing can be read the demo
+ * flight's own photos are used, with their recorded poses, and the page says so.
  */
-export const SAMPLE_PACK_URL = "https://github.com/Drivera0/sightline/releases/download/sample-photos/sightline-sample-photos.zip";
+export const SAMPLE_PACK_URL = "/sample/sightline-sample-photos.zip";
+
+/** Same origin (a path on this site): readable offline too, so no need to wait for the network. */
+const sameOrigin = (url: string) => url.startsWith("/") && !url.startsWith("//");
 
 export async function unzipPhotos(buf: ArrayBuffer): Promise<Item[]> {
   const { unzipSync } = await import("fflate");
@@ -131,7 +135,7 @@ export async function unzipPhotos(buf: ArrayBuffer): Promise<Item[]> {
 
 async function samples(cache: CacheBundle | null, dir: string): Promise<{ items: Item[]; note: string | null }> {
   const url = import.meta.env.VITE_SAMPLE_PHOTOS_URL?.trim() || SAMPLE_PACK_URL;
-  if (navigator.onLine) {
+  if (sameOrigin(url) || navigator.onLine) {
     try {
       const r = await fetch(url);
       if (!r.ok) throw new Error(String(r.status));
@@ -156,7 +160,7 @@ async function samples(cache: CacheBundle | null, dir: string): Promise<{ items:
       pose: { lat: f.pose.lat, lon: f.pose.lon, heading: f.pose.heading_deg, relAlt: f.pose.alt_agl_m },
     })),
   );
-  return { items, note: "The sample pack could not be read from GitHub in this browser, so these are the demo flight's own photos, placed from their recorded poses." };
+  return { items, note: "The sample pack could not be read in this browser, so these are the demo flight's own photos, placed from their recorded poses." };
 }
 
 /** The drop zone at the top of the Photos view. */

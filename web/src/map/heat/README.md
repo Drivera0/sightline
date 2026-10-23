@@ -1,5 +1,23 @@
 # Heat layer: the probability surface
 
+**The console's heat, retuned (2026-10-22, second pass).** The demo's prior is Koester's hiker rings, but the
+first ring (25 % of the subject's distance, 0.7 km) is wider than the 1 km grid is from its centre: every cell
+of the grid sits in it (40,000 cells, two values, 39,990 at the same p). Mass classes of the raw probability
+then put the likeliest 50 % over nearly every cell, so the whole grid was one red class, and after the photos
+the unsearched ground (most of it) still was. The console now classes the probability *above an even spread*
+(`wholeGridKinds`): the flat level is the grid's mean cell, a cell's excess is what it holds beyond 1.05 × that,
+and the three classes are the likeliest cells holding 50, 80 and 90 % of the excess, over the whole grid. A
+cell within 5 % of flat gets no fill, so a flat prior draws nothing and the legend says "No evidence yet"; a
+prior with rings inside the grid (the dementia scenario's) shows them; a confirmed clue lights its
+neighbourhood. Ground a search lowered (photo or ground-search steps that took 10 % or more of a cell, never a
+clue) is a dark, cool fill under the classes (`searchedMask`, `CELL.searched`), so a flown leg goes darker as
+its photos land. Console palette (`CONSOLE_PALETTES`, the search-next and review maps keep `HEAT_PALETTES`):
+on the dark map one warm hue, cream / amber / rust (lighter = likelier), alphas 0.45 / 0.34 / 0.28, searched
+`#020a1c` at 0.45; the 50 % edge a 1.5 px light line, the 90 % edge 1 px at 0.28; the unphotographed hatch a
+1 px line at 0.12. For the prior itself to read as rings on this grid the generator would have to spread each
+ring's share by distance rather than by area (`sightline/search/prior.py`, lane C); not changed here.
+Screenshots: `docs/report/figures/command-post/heat-*.webp`.
+
 **The console's heat (2026-10-22, `smooth.ts`).** On the live map the classes cover the whole search area
 (the prior is known everywhere), not only photographed ground; ground no photo has looked at yet is a light
 hatch over the heat. Each class region is dissolved: its mask is blurred a few cells and traced with marching
