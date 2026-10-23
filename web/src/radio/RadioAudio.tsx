@@ -8,9 +8,12 @@
 // - Nothing plays before the user has clicked, tapped or pressed a key on the page (browsers block
 //   autoplay, and a page should not start talking on its own); lines that land before that stay silent.
 // - One clip at a time, in the order the lines landed; the mute toggle stops the one playing.
+// - A jump of the clock (Skip to now) lands many lines at once: only the newest turn of them plays (the
+//   team's line and the desk's reply), never a queue of everything in between.
 // - Muted is remembered in this browser (localStorage, best effort).
 import { useEffect, useRef, useState } from "react";
 import type { TimelineEntry } from "../contract";
+import { Icon } from "../shell/icons";
 
 const MUTE_KEY = "sightline.radioAudio.muted";
 
@@ -42,9 +45,11 @@ export interface RadioAudioProps {
   /** Site base for the clips (default: Vite's BASE_URL). */
   base?: string;
   className?: string;
+  /** The words beside the speaker (e.g. "max-sm:sr-only": the icon alone on a phone). */
+  labelClassName?: string;
 }
 
-export function RadioAudio({ entries, base, className }: RadioAudioProps) {
+export function RadioAudio({ entries, base, className, labelClassName }: RadioAudioProps) {
   const [muted, setMuted] = useState(readMuted);
   const [playing, setPlaying] = useState<string | null>(null);
   const seen = useRef<Set<string> | null>(null);
@@ -99,8 +104,11 @@ export function RadioAudio({ entries, base, className }: RadioAudioProps) {
     const fresh = entries.filter((e) => !seen.current!.has(e.id));
     for (const e of fresh) seen.current.add(e.id);
     if (!gesture.current || mutedRef.current) return;
-    const clips = fresh.filter((e) => e.kind === "radio" && e.audio);
-    if (!clips.length) return;
+    const all = fresh.filter((e) => e.kind === "radio" && e.audio);
+    if (!all.length) return;
+    // the newest turn only: its lines (the team's and the desk's), or the newest line when it has no turn
+    const last = all[all.length - 1]!;
+    const clips = last.turn_id ? all.filter((e) => e.turn_id === last.turn_id) : [last];
     queue.current.push(...clips);
     playNext();
   }, [entries]);
@@ -138,7 +146,8 @@ export function RadioAudio({ entries, base, className }: RadioAudioProps) {
       onClick={toggle}
       data-playing={playing ?? undefined}
     >
-      {muted ? "Voices off" : playing ? "Voices on (playing)" : "Voices on"}
+      <Icon name={muted ? "mute" : "speaker"} size={13} className="inline-block align-[-2px]" />
+      <span className={`ml-1 ${labelClassName ?? ""}`}>{muted ? "Voices off" : playing ? "Voices on (playing)" : "Voices on"}</span>
     </button>
   );
 }

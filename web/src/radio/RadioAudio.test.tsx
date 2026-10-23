@@ -77,6 +77,20 @@ describe("RadioAudio", () => {
     expect(played).toEqual([]);
   });
 
+  it("a jump of the clock plays only the newest turn (the team's line, then the desk's reply)", () => {
+    const { rerender } = render(<RadioAudio entries={[]} base="/" />);
+    fireEvent.pointerDown(document.body);
+    const turn = (id: string, t: string, audio: string) => ({ ...line(id, audio), turn_id: t });
+    rerender(
+      <RadioAudio
+        entries={[turn("e1", "r1", "voices/x/r1.mp3"), turn("e1-reply", "r1", "voices/x/r1-desk.mp3"), turn("e2", "r2", "voices/x/r2.mp3"), turn("e2-reply", "r2", "voices/x/r2-desk.mp3")]}
+        base="/"
+      />,
+    );
+    expect(played).toHaveLength(1);
+    expect(played[0]).toMatch(/r2\.mp3$/);
+  });
+
   it("builds clip URLs under the site base", () => {
     expect(audioUrl("voices/demo/r0004.mp3", "/sightline/")).toBe("/sightline/voices/demo/r0004.mp3");
     expect(audioUrl("voices/demo/r0004.mp3", "/")).toBe("/voices/demo/r0004.mp3");

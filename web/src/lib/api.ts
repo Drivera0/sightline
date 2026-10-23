@@ -164,8 +164,15 @@ export const decide = (
   body: { decision: "approve" | "reject"; by: string; reason?: string; edits?: Record<string, string> },
 ) => call<Proposal>(api, "POST", `${m(id)}/proposals/${encodeURIComponent(pid)}/decide`, body);
 
-export const postReview = (api: Api, id: string, detection_id: string, answer: "person" | "not_person" | "unsure") =>
-  call<unknown>(api, "POST", `${m(id)}/reviews`, { detection_id, answer });
+/** An image review (contract 15.7): "object" comes with its type, and becomes a clue candidate. */
+export const postReview = (api: Api, id: string, detection_id: string, answer: ReviewAnswer, object?: ObjectType | null, by?: string) =>
+  call<unknown>(api, "POST", `${m(id)}/reviews`, { detection_id, answer, ...(answer === "object" ? { object: object ?? "other" } : {}), ...(by ? { by } : {}) });
+export type ReviewAnswer = "person" | "not_person" | "not_subject" | "object" | "unsure";
+export type ObjectType = "backpack" | "fire ring" | "shelter" | "other";
+
+/** A clue candidate (an image reviewer's object) confirmed by a team on the ground, at a reliability. */
+export const confirmClueCandidate = (api: Api, id: string, clueId: string, by: string, reliability: "low" | "medium" | "high" = "medium") =>
+  call<Clue>(api, "POST", `${m(id)}/clues/${encodeURIComponent(clueId)}/confirm`, { reliability, by });
 
 export const postClue = (api: Api, id: string, draft: ClueDraft) => call<Clue>(api, "POST", `${m(id)}/clues`, draft);
 

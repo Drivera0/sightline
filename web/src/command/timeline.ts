@@ -23,6 +23,8 @@ export interface Entry {
   refs: string[];
   /** How many times the same line came (repeats merge into the newest). */
   repeats: number;
+  /** A radio line's voice clip (TimelineEntry.audio, under web/public): the row shows a speaker. */
+  audio: string | null;
 }
 
 export const FILTERS = ["All", "Radio", "Clues", "Drone", "Decisions"] as const;
@@ -39,7 +41,7 @@ const IN_FILTER: Record<Filter, readonly EntryKind[] | null> = {
 export const inFilter = (e: Entry, f: Filter) => IN_FILTER[f]?.includes(e.kind) ?? true;
 
 const entry = (e: Partial<Entry> & Pick<Entry, "id" | "at" | "kind" | "text">): Entry => ({
-  team: null, sector: null, detail: null, turn: null, clue: null, refs: [], repeats: 1, ...e,
+  team: null, sector: null, detail: null, turn: null, clue: null, refs: [], repeats: 1, audio: null, ...e,
 });
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
@@ -143,6 +145,7 @@ export function fromTimeline(e: TimelineEvent, i: number, teams: readonly Team[]
   return entry({
     id: e.id ?? `t${i}`, at: e.at, kind: e.kind, team: teamOf(teams, e.team), sector: e.sector ?? null, text: plain(e.text), refs: e.refs ?? [],
     turn: e.turn_id ? (turns.find((t) => t.id === e.turn_id) ?? null) : null,
+    audio: e.audio ?? null,
   });
 }
 

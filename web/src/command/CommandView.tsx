@@ -25,7 +25,9 @@ import { showMe } from "./showMe";
 import { ToastStack } from "../shell/toasts";
 import { TimelineHandle, useTimelineHeight } from "./TimelineResize";
 import { ReviewFrame } from "./ReviewFrame";
-import type { LiveAnswer, ReviewCard } from "../review/LiveReview";
+import { DroneFeed } from "./DroneFeed";
+import { useSelection } from "../lib/selection";
+import type { LiveAnswer, OnAnswer, ReviewCard } from "../review/LiveReview";
 
 /** The demo mission is dated at Mount Seymour; a live mission reads the browser's zone. */
 export const missionTz = (status: string): Tz => (status === "demo" ? DEMO_TZ : false);
@@ -104,7 +106,7 @@ export interface CommandProps {
   review: ReactNode;
   reviewCount: number;
   /** The candidates for the large review frame, their answers, and how to answer (V3 §3). */
-  reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: (id: string, a: LiveAnswer) => void };
+  reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: OnAnswer };
   /** Open the review frame by itself when the first candidates arrive (off inside the guided story). */
   autoReview?: boolean;
   briefings?: ReactNode;
@@ -140,6 +142,9 @@ export function CommandView(p: CommandProps) {
   }, [waiting, p.autoReview, p.reviewFrame]);
   // the simulated fleet's demo controls (live missions only: they call the API)
   const api = useMission((s) => s.api);
+  // the demo fixtures' feed clips (one per drone leg): the tile plays the flying leg's
+  const feeds = useMission((s) => s.feeds);
+  const selectedDrone = useSelection((s) => s.selectedDroneId);
   const t = now();
   const panelNow = p.conditionsData?.recorded ? new Date(p.conditionsData.conditions.fetched_at) : t;
   const sel = useConsole((s) => s.sector);
@@ -217,6 +222,7 @@ export function CommandView(p: CommandProps) {
               onClose={() => useConsole.getState().closeSector()}
             />
           )}
+          <DroneFeed feeds={feeds} fleet={p.fleet} selectedDrone={selectedDrone} raised={!!p.overMap} />
           {p.overMap && <div className="pointer-events-none absolute inset-x-2 bottom-7 z-10 flex justify-center sm:inset-x-3">{p.overMap}</div>}
         </div>
       </div>
@@ -257,6 +263,7 @@ export function CommandView(p: CommandProps) {
           server={p.timeline}
           teams={p.teams}
           onConfirmClue={p.actions.confirmClue}
+          voicesKey={`${p.mission?.mission_id ?? ""}|${p.mission?.scenario_seed ?? p.mission?.name ?? ""}`}
           talk={<TalkBar teams={p.teams} onSend={(team, text) => p.actions.call(team, text)} voice={p.voice} />}
           clueForm={(close, at) => <ClueForm teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} onDone={close} at={at} />}
         />

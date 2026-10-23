@@ -16,6 +16,8 @@ export const ICONS = {
   found: { d: ["M5.5 21V4", "M5.5 4.5h11l-2.2 4 2.2 4h-11"], c: [] },
   checkin: { d: ["M4.5 20.5v-.6a5.5 5.5 0 0 1 11 0v.6", "M17 5.5a5 5 0 0 1 0 7", "M19.6 3a8.5 8.5 0 0 1 0 12"], c: [[10, 8.5, 3]] },
   note: { d: ["M12 11v5.5", "M12 7.6v.1"], c: [[12, 12, 8.5]] },
+  speaker: { d: ["M4 9.5h3.5L12 5.5v13l-4.5-4H4z", "M15.5 9a4.2 4.2 0 0 1 0 6", "M18.2 6.5a7.8 7.8 0 0 1 0 11"], c: [] },
+  mute: { d: ["M4 9.5h3.5L12 5.5v13l-4.5-4H4z", "M16 9.5l5 5", "M21 9.5l-5 5"], c: [] },
 } as const satisfies Record<string, { d: readonly string[]; c: readonly (readonly [number, number, number])[] }>;
 
 export type IconName = keyof typeof ICONS;

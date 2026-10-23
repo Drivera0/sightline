@@ -249,3 +249,34 @@ heat-tween-1..3; 1440 and 390):
   Outside the grid N %; drones read "Drone 1"; Record find on the team card and in Needs you; the story's
   scrubber steps one checkpoint on a phone; Replayed (not This flight) on stand-in model calls; survey and leg
   photos apart; the strict 86.4 % leads People found. Held in `judges.test.ts` and the files' own tests.
+
+## The fixtures' new content, wired in (PR #215's hand-offs)
+
+The regenerated fixtures carry more than the contract's records (`lib/fixtureExtras.ts`: `feeds`, `report`,
+`distractors`; `MissionData` keeps them, optional, so a live mission without them is unchanged). Screenshots:
+`docs/report/figures/v3/` (bearing-arc, drone-feed, radio-voices, review-object, review-cards-object,
+clue-candidate, report-fields, map-still, object-photo).
+
+- **Bearing clues** (`map/base/clueLayer.ts`, `map/README.md`): a sound a team heard with a bearing draws as an
+  amber arc from where the team stood, bearing ± spread, range ± radius, its words on hover.
+- **Drone feed** (`DroneFeed.tsx`): while a leg flies, a tile at the bottom left of the map plays that leg's clip
+  from `public/feed/` (the selected drone's first), muted and looping with its poster, labelled "drone feed ·
+  public-domain footage, not this flight". A phone starts it folded and never plays before a tap or a key;
+  reduced motion waits for Play; prefers-reduced-data hides it. A leg the visitor sends plays the clip of a leg
+  over the same sector, else none.
+- **Radio voices** (`Timeline.tsx` mounts `radio/RadioAudio.tsx` on the server timeline): a turn's clip plays
+  when it lands, after the first click or key, one at a time, the team's voice then the desk's reply; a jump of
+  the clock plays only the newest turn; a new scenario starts afresh. The mute toggle is in the timeline's
+  header, and rows with a clip show a speaker.
+- **Review answers** (`review/answers.tsx`): Person P, Not a person N, Not the subject S, Object O (then the type,
+  1–4: backpack, fire ring, shelter, other; the second look's guess marked), Unsure U, in the review frame and on
+  the cards. A live mission sends them to `POST /reviews` (with `object`); on the demo an Object answer makes the
+  clue candidate the server would (`demoReview.ts` `objectClue`: low reliability, `source: "review"`, not
+  confirmed; a distractor's keeps the fixture's clue id), and Needs you lists it as "Clue candidate to confirm"
+  until a team has seen it (`POST /clues/{id}/confirm` on a live mission). The scenario's distractor frames join
+  the demo queue once their second look is on the timeline (`distractorCards`), with the live verdict they got.
+- **After-action report** (`report.ts`, `MissionReport.tsx`): last seen (and how long before the call), every
+  sector's final POD (the server's report, a ground search recorded since added as one more look) and the drone
+  legs with their minutes (reported or planned) and photos, in the view and the Markdown export.
+- **Object photo badge**: a distractor frame's photo (ground level, among the aerial ones) carries an "object
+  photo" badge in the review frame and on its card.

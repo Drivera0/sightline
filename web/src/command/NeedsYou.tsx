@@ -196,15 +196,20 @@ export function ClosedOnFind({ proposals, reviewCount, count, at }: { proposals:
   );
 }
 
+/** A clue an image reviewer answered "Object" on (contract 15.7): a candidate until a team on the ground sees it. */
+export const isClueCandidate = (c: Clue | null): boolean => c?.source === "review";
+
 function ReadBack({ clue, turn, who, onConfirm, onReply }: { clue: Clue | null; turn: RadioTurn | null; who: string; onConfirm?: () => void; onReply?: () => void }) {
+  const candidate = isClueCandidate(clue);
   return (
-    <article aria-label="Awaiting read-back" className="sl-slide-in flex flex-col gap-1.5 rounded-md border border-caution/40 border-l-2 border-l-caution bg-bg/40 p-2.5">
+    <article aria-label={candidate ? "Clue candidate to confirm" : "Awaiting read-back"} className="sl-slide-in flex flex-col gap-1.5 rounded-md border border-caution/40 border-l-2 border-l-caution bg-bg/40 p-2.5">
       <span className="flex items-center gap-2 text-small font-medium text-text">
         <Icon name="clue" className="text-caution" />
-        {clue ? `Clue to confirm: ${clue.text}` : `Read-back to ${who}`}
+        {clue ? `${candidate ? "Clue candidate to confirm" : "Clue to confirm"}: ${clue.text}` : `Read-back to ${who}`}
       </span>
       {turn?.reply && <span className="text-caption text-text-2">“{turn.reply}”</span>}
-      {clue && <span className="text-caption text-text-3">{who ? `From ${who}. ` : ""}Read it back to the team to confirm it.</span>}
+      {clue && candidate && <span className="text-caption text-text-3">From an image review, low reliability on the map. Send a team to look; Confirm once they have seen it.</span>}
+      {clue && !candidate && <span className="text-caption text-text-3">{who ? `From ${who}. ` : ""}Read it back to the team to confirm it.</span>}
       <span className="flex gap-1.5">
         {onConfirm && (
           <button type="button" className={btn} onClick={onConfirm}>

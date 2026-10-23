@@ -10,6 +10,7 @@ import { useSelection } from "../lib/selection";
 import { Button, KeyHint } from "../shell/components";
 import { Icon, type IconName } from "../shell/icons";
 import { useConsole } from "./consoleStore";
+import { RadioAudio } from "../radio/RadioAudio";
 import { withCallsigns } from "./RadioBubble";
 import { buildTimeline, FILTERS, inFilter, type Entry, type EntryKind } from "./timeline";
 
@@ -67,7 +68,10 @@ export function Timeline({
   onConfirmClue,
   talk,
   clueForm,
+  voicesKey = "",
 }: {
+  /** The mission (and scenario) on screen: a new one starts the radio voices afresh (its lines are history). */
+  voicesKey?: string;
   events: readonly MissionEvent[];
   server?: readonly TimelineEvent[];
   teams: readonly Team[];
@@ -126,11 +130,13 @@ export function Timeline({
             </button>
           ))}
         </div>
+        {/* the radio's voices: a turn's clip plays when it lands (after the first click or key), one at a time */}
+        <RadioAudio key={voicesKey} entries={server} labelClassName="max-sm:sr-only" className="sl-tap ml-auto inline-flex h-7 shrink-0 items-center rounded-full border border-line px-2.5 text-caption text-text-2 hover:border-border hover:text-text aria-[pressed=false]:text-text-3" />
         <Button
           aria-expanded={adding}
           onClick={() => setAdding(!adding)}
           title="Add a clue: what was found, who reported it, how reliable. Or right-click (long-press) the map where it was."
-          className="ml-auto h-7! gap-1.5! border-[color-mix(in_srgb,var(--clue)_60%,transparent)]! px-3! text-caption! font-normal"
+          className="h-7! shrink-0 gap-1.5! border-[color-mix(in_srgb,var(--clue)_60%,transparent)]! px-3! text-caption! font-normal"
         >
           <Icon name="clue" size={13} className="text-[var(--clue)]" />
           Add clue
@@ -166,6 +172,12 @@ export function Timeline({
                 </span>
               ) : (
                 <span className={`text-small ${e.kind === "note" ? "text-text-2" : "text-text"}`}>{e.text}</span>
+              )}
+              {e.audio && (
+                <span title="A voice clip: teams in synthetic voices (Magpie TTS), the desk in Sightline's" className="ml-1.5 inline-flex align-[-2px] text-text-3">
+                  <Icon name="speaker" size={12} />
+                  <span className="sr-only">voice clip</span>
+                </span>
               )}
               {e.repeats > 1 && <span className="ml-1.5 text-caption text-text-3" title={`${e.repeats} times; the newest shown`}>×{e.repeats}</span>}
               {e.detail && <span className="block line-clamp-2 text-caption text-text-3" title={e.detail}>{e.detail}</span>}

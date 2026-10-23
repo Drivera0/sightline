@@ -1,20 +1,16 @@
 // The large review frame (V3 §3): when photos land and candidates arrive, the first waiting one opens here
 // so the search manager knows they are being asked. The whole photo with the candidate's box, the crop
-// large, the AI second look as a real button with its two model chips, and the three answers (P, N, U).
+// large, the AI second look as a real button with its two model chips, and the answers (P, N, S, O with its
+// type picker, U: review/answers.tsx).
 // An answer moves on to the next waiting candidate by itself; at the end it says so. Esc or Later closes it
 // (the candidates stay in Needs you). The map pans to and pulses the candidate in view. Built by lane A.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isTyping } from "../lib/keys";
-import { focusCandidate, reviewKeys, type LiveAnswer, type ReviewCard } from "../review/LiveReview";
+import { focusCandidate, ObjectPhotoBadge, reviewKeys, type LiveAnswer, type OnAnswer, type ReviewCard } from "../review/LiveReview";
+import { answerForKey, ObjectPicker, REVIEW_ANSWERS, usePickerKeys, type ObjectKind } from "../review/answers";
 import { SecondLook } from "../review/SecondLook";
 import { KeyHint } from "../shell/components";
 import { useConsole } from "./consoleStore";
-
-const ANSWERS: { id: LiveAnswer; label: string; key: string }[] = [
-  { id: "person", label: "Person", key: "P" },
-  { id: "not_person", label: "Not a person", key: "N" },
-  { id: "unsure", label: "Unsure", key: "U" },
-];
 
 /** The candidate the frame shows: the one asked for if it still waits, else the first waiting. */
 export function frameCard(cards: readonly ReviewCard[], answers: Readonly<Record<string, LiveAnswer>>, want: string | null): ReviewCard | null {
@@ -29,7 +25,7 @@ export function ReviewFrame({
 }: {
   cards: readonly ReviewCard[];
   answers: Readonly<Record<string, LiveAnswer>>;
-  onAnswer: (id: string, answer: LiveAnswer) => void;
+  onAnswer: OnAnswer;
 }) {
   const { open, id } = useConsole((s) => s.review);
   const close = () => useConsole.getState().closeReview();
@@ -55,12 +51,19 @@ export function ReviewFrame({
     if (c) focusCandidate(c.id);
   }, [c?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const answer = (a: LiveAnswer) => {
+  // Object asks what it is first (1–4 or a click), then answers
+  const [picking, setPicking] = useState(false);
+  useEffect(() => setPicking(false), [c?.id]);
+  const answer = (a: LiveAnswer, object?: ObjectKind) => {
     if (!c) return;
+    if (a === "object" && !object) return setPicking(true);
+    setPicking(false);
     const next = cards.filter((x) => !answers[x.id] && x.id !== c.id)[0] ?? null;
-    onAnswer(c.id, a);
+    if (object) onAnswer(c.id, a, object);
+    else onAnswer(c.id, a);
     useConsole.getState().openReview(next?.id ?? null); // on to the next one by itself
   };
+  usePickerKeys(open && picking, (o) => answer("object", o), () => setPicking(false));
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e: KeyboardEvent) => {
@@ -69,10 +72,10 @@ export function ReviewFrame({
         return close();
       }
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey || !c) return;
-      const k = e.key.toLowerCase();
-      if (k === "p" || k === "n" || k === "u") {
+      const a = answerForKey(e.key);
+      if (a) {
         e.preventDefault();
-        answer(k === "p" ? "person" : k === "n" ? "not_person" : "unsure");
+        answer(a);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -124,17 +127,20 @@ export function ReviewFrame({
               <SecondLook c={c} large />
               {c.note && <p className="text-caption text-text-3">{c.note}</p>}
               <div role="group" aria-label="Answer" className="mt-auto flex flex-wrap gap-2">
-                {ANSWERS.map((a) => (
+                {REVIEW_ANSWERS.map((a) => (
                   <button
                     key={a.id}
                     type="button"
-                    onClick={() => answer(a.id)}
-                    className={`sl-tap inline-flex h-9 items-center gap-2 rounded-full border px-4 text-small text-text ${a.id === "person" ? "border-found bg-found/10 hover:bg-found/20" : "border-border hover:bg-surface-strong"}`}
+                    title={a.title}
+                    aria-pressed={a.id === "object" ? picking : undefined}
+                    onClick={() => (a.id === "object" ? setPicking(!picking) : answer(a.id))}
+                    className={`sl-tap inline-flex h-9 items-center gap-2 rounded-full border px-4 text-small text-text ${a.id === "person" ? "border-found bg-found/10 hover:bg-found/20" : a.id === "object" && picking ? "border-[var(--clue)]" : "border-border hover:bg-surface-strong"}`}
                   >
                     {a.label} <KeyHint>{a.key}</KeyHint>
                   </button>
                 ))}
               </div>
+              {picking && <ObjectPicker large suggested={c.object} onPick={(o) => answer("object", o)} onCancel={() => setPicking(false)} />}
               <p className="text-caption text-text-3">{waiting > 1 ? `${waiting - 1} more after this one; each answer moves on by itself.` : "The last one waiting."}</p>
             </div>
           </div>
@@ -146,7 +152,15 @@ export function ReviewFrame({
 
 /** The whole photo with the candidate's box on it; the crop alone when the photo is not known. */
 function Photo({ c }: { c: ReviewCard }) {
-  if (!c.photo || !c.size || !c.box) return <img src={c.crop} alt={`Crop of ${c.id}, large`} className="max-h-[60vh] w-full rounded-md object-contain" />;
+  // a distractor frame: a ground-level photo among the aerial ones, and the badge says so
+  const badge = c.distractor ? <ObjectPhotoBadge className="absolute top-2 left-2" /> : null;
+  if (!c.photo || !c.size || !c.box)
+    return (
+      <div className="relative">
+        <img src={c.crop} alt={`Crop of ${c.id}, large`} className="max-h-[60vh] w-full rounded-md object-contain" />
+        {badge}
+      </div>
+    );
   const [w, h] = c.size;
   const [x0, y0, x1, y1] = c.box;
   const pct = (v: number, of: number) => `${(100 * v) / of}%`;
@@ -158,6 +172,7 @@ function Photo({ c }: { c: ReviewCard }) {
         className="sl-new absolute rounded-[3px] border-2 border-accent"
         style={{ ["--c" as string]: "var(--accent)", left: pct(x0, w), top: pct(y0, h), width: pct(x1 - x0, w), height: pct(y1 - y0, h) }}
       />
+      {badge}
     </div>
   );
 }

@@ -4,6 +4,7 @@
 // (optimistic) and the server's events confirm them. Demo mode (`useDemo`) runs the same actions on an
 // in-memory mission, so the click path works on Vercel with no backend. Built by lane A for lane D.
 
+import type { DistractorFrame, DroneFeedClip, ServerReport } from "./fixtureExtras";
 import { create } from "zustand";
 import type {
   Clue,
@@ -115,12 +116,16 @@ export interface MissionData {
   links: FleetLinks;
   /** The server's timeline (GET /events, SSE kinds radio … found); empty: built from `events`. */
   timeline: TimelineEvent[];
+  /** The demo fixtures' extras (fixtureExtras.ts): a feed clip per drone leg, the server's report, distractor frames. */
+  feeds?: DroneFeedClip[];
+  report?: ServerReport | null;
+  distractors?: DistractorFrame[];
 }
 
 export const EMPTY: MissionData = {
   mission: null, tasks: [], teams: [], clues: [], proposals: [], verdicts: [], fleet: null,
   conditions: null, events: [], survey: null, detections: null, promoted: [], mapBase: null, mapUpdates: [], sectors: [],
-  links: NO_LINKS, timeline: [],
+  links: NO_LINKS, timeline: [], feeds: [], report: null, distractors: [],
 };
 
 function upsert<T>(list: readonly T[], item: T, key: (x: T) => string): T[] {
@@ -223,7 +228,7 @@ interface MissionStore extends MissionData {
   useDemo: (data: Partial<MissionData>, clock?: string) => void;
   disconnect: () => void;
   decide: (pid: string, decision: "approve" | "reject", by: string, reason?: string, edits?: Record<string, string>) => Promise<void>;
-  review: (detectionId: string, answer: "person" | "not_person" | "unsure") => Promise<void>;
+  review: (detectionId: string, answer: api.ReviewAnswer, object?: api.ObjectType | null) => Promise<void>;
   addClue: (draft: ClueDraft) => Promise<void>;
   setTask: (sector: string, body: { state: SectorTask["state"]; team_id?: string | null; pod?: number | null; note?: string | null }) => Promise<void>;
   /** Re-read the survey and detections (after a photo is processed). */
@@ -567,7 +572,18 @@ export const useMission = create<MissionStore>((set, get) => {
       if (!c) return;
       const team = get().teams.find((t) => t.id === c.reported_by || t.callsign === c.reported_by);
       if (team) await get().call(team.id, `read back: ${c.text}. Confirm, over.`);
-      if (!get().api) demoEvent("clue.added", `${c.id} confirmed`, c.id, { ...c, confirmed: true });
+      const a = get().api;
+      // an image review's clue candidate: a team saw it on the ground, so it counts at medium reliability
+      const seen = c.source === "review" ? { reliability: "medium" as const } : {};
+      if (!a) demoEvent("clue.added", `${c.id} confirmed`, c.id, { ...c, ...seen, confirmed: true });
+      else if (c.source === "review") {
+        try {
+          const clue = await api.confirmClueCandidate(a, mid(), c.id, operatorName());
+          set((s) => ({ clues: upsert(s.clues, clue, (x) => x.id) }));
+        } catch (e) {
+          set({ error: e instanceof Error ? e.message : String(e) });
+        }
+      }
     },
 
     updateTeam: async (teamId, patch) => {
@@ -609,14 +625,14 @@ export const useMission = create<MissionStore>((set, get) => {
       }
     },
 
-    review: async (detectionId, answer) => {
+    review: async (detectionId, answer, object) => {
       const a = get().api;
       if (!a) {
         demoEvent("mission.note", `review ${detectionId}: ${answer}`, detectionId, { answer });
         return;
       }
       try {
-        await api.postReview(a, mid(), detectionId, answer);
+        await api.postReview(a, mid(), detectionId, answer, object, operatorName());
       } catch (e) {
         set({ error: e instanceof Error ? e.message : String(e) });
       }

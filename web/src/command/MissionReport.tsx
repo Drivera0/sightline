@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import type { MissionData } from "../lib/mission";
 import { useClock } from "../lib/time";
 import { Label } from "../shell/components";
-import { buildReport, reportMarkdown } from "./report";
+import { buildReport, lastSeenWords, pct1, reportMarkdown } from "./report";
 
 const LINK = "sl-tap inline-flex items-center gap-1 rounded-full border border-border px-3 py-0.5 text-small text-text-2 hover:border-text-3 hover:text-text";
 
@@ -51,6 +51,12 @@ export function MissionReport({ data, now, missionUrl }: { data: Parameters<type
         </dd>
         <dt className="text-text-3">Subject</dt>
         <dd className="text-text">{r.subject}</dd>
+        {r.lastSeen && (
+          <>
+            <dt className="text-text-3">Last seen</dt>
+            <dd className="text-text">{lastSeenWords(r, time)}</dd>
+          </>
+        )}
         <dt className="text-text-3">Last known point</dt>
         <dd className="font-mono text-caption text-text-2">{r.lkp}</dd>
         {r.found && (
@@ -92,6 +98,67 @@ export function MissionReport({ data, now, missionUrl }: { data: Parameters<type
                   <td className="sl-num py-1 pr-3 text-text">{Math.round(s.pod * 100)} %</td>
                   <td className="py-1 pr-3 text-text-2">{s.team ?? ""}</td>
                   <td className="py-1 text-text-3">{s.note ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+      <section aria-label="Every sector's final POD" className="flex flex-col gap-1.5">
+        <h2 className="text-small font-medium text-text">Every sector's final POD</h2>
+        <p className="text-caption text-text-3">Cumulative from every look (drone photos and ground teams), each sector's chance the subject would have been found there if inside.</p>
+        {r.sectors.length === 0 ? (
+          <p className="text-small text-text-3">No sectors recorded.</p>
+        ) : (
+          <table className="text-small">
+            <thead className="text-caption text-text-3">
+              <tr>
+                <th className="py-1 pr-3 text-left font-normal">Sector</th>
+                <th className="sl-num py-1 pr-3 font-normal">POA</th>
+                <th className="sl-num py-1 pr-3 font-normal">Drone coverage</th>
+                <th className="sl-num py-1 font-normal">Final POD</th>
+              </tr>
+            </thead>
+            <tbody>
+              {r.sectors.map((s) => (
+                <tr key={s.sector} className="border-t border-line">
+                  <td className="py-0.5 pr-3 text-text">{s.sector}</td>
+                  <td className="sl-num py-0.5 pr-3 text-text-2">{pct1(s.poa)}</td>
+                  <td className="sl-num py-0.5 pr-3 text-text-2">{Math.round(s.coverage * 100)} %</td>
+                  <td className="sl-num py-0.5 text-text">{pct1(s.pod)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+      <section aria-label="Drone legs" className="flex flex-col gap-1.5">
+        <h2 className="text-small font-medium text-text">Drone legs</h2>
+        {r.legList.length === 0 ? (
+          <p className="text-small text-text-3">No drone legs flown.</p>
+        ) : (
+          <table className="text-small">
+            <thead className="text-caption text-text-3">
+              <tr>
+                <th className="py-1 pr-3 text-left font-normal">Leg</th>
+                <th className="py-1 pr-3 text-left font-normal">Drone</th>
+                <th className="py-1 pr-3 text-left font-normal">Sector</th>
+                <th className="py-1 pr-3 text-left font-normal">Status</th>
+                <th className="sl-num py-1 pr-3 font-normal">Minutes</th>
+                <th className="sl-num py-1 font-normal">Photos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {r.legList.map((l) => (
+                <tr key={l.leg} className="border-t border-line">
+                  <td className="py-0.5 pr-3 font-mono text-caption text-text-2">{l.leg}</td>
+                  <td className="py-0.5 pr-3 text-text">{l.drone}</td>
+                  <td className="py-0.5 pr-3 text-text">{l.sector ?? ""}</td>
+                  <td className="py-0.5 pr-3 text-text-2">{l.status}</td>
+                  <td className="sl-num py-0.5 pr-3 text-text" title={`minutes as ${l.minutesFrom}`}>
+                    {l.minutes.toFixed(1)} <span className="text-caption text-text-3">{l.minutesFrom}</span>
+                  </td>
+                  <td className="sl-num py-0.5 text-text">{l.photos}</td>
                 </tr>
               ))}
             </tbody>
