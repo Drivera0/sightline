@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Annotation, Badge, EmptyState, KeyHint, Panel, Stat } from "./components";
+import { ShortcutOverlay } from "./ShortcutOverlay";
 import { SHORTCUT_GROUPS } from "./shortcuts";
 
 describe("shared components", () => {
@@ -53,11 +54,21 @@ describe("Annotation", () => {
 });
 
 describe("the shortcuts list", () => {
-  it("lists the story's keys, the views, the console's and the review's, and no guided-demo steps", () => {
+  it("has one group per region of the console, the guided simulation's keys last, and no checkpoints", () => {
     const all = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts.map((s) => `${s.keys.join(" ")}: ${s.description}`));
-    expect(SHORTCUT_GROUPS.map((g) => g.title)).toEqual(["The story", "Views", "Console", "Review", "Everywhere"]);
-    expect(all).toContain("Space: Pause or play the mission clock");
-    expect(all).toContain("Esc: Leave the story (the console stays at that mission time), or close");
-    expect(all.join("\n")).not.toMatch(/guided demo|tour/i);
+    expect(SHORTCUT_GROUPS.map((g) => g.title)).toEqual(["Views", "Needs you", "Map", "Timeline and radio", "Guided simulation"]);
+    const guided = SHORTCUT_GROUPS.find((g) => g.title === "Guided simulation")!;
+    expect(guided.shortcuts.flatMap((s) => s.keys)).toEqual(["A", "1", "2", "3", "4", "M", "T", "Space", "Esc"]);
+    expect(all).toContain("Esc: Leave the guided simulation");
+    expect(all.join("\n")).not.toMatch(/checkpoint|the story|guided demo|tour|→|←/i);
+    expect(all.join("\n")).not.toMatch(/\bclear(s|ed|ing)?\b|\brul(e|ed) out\b/i);
+  });
+
+  it("the overlay shows every group and key", () => {
+    render(<ShortcutOverlay onClose={() => {}} />);
+    const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
+    for (const g of SHORTCUT_GROUPS) expect(dialog).toHaveTextContent(g.title);
+    expect(dialog).toHaveTextContent("Take the agent's option");
+    expect(dialog).not.toHaveTextContent(/checkpoint/i);
   });
 });

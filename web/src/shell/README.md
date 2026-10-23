@@ -13,7 +13,7 @@ instance (it never unmounts while you stay on a mission), one clock.
 | `Sheet.tsx` | A sheet over the console (About): slides in, Esc or the dim closes it, focus goes back. |
 | `components.tsx` | The visual system from #159: `Button` (one orange primary per screen), `Panel` (opaque), `PageHeader`, `Page`, `Stat`, `Badge`, `StatusPill`, `ModeChip`, `DisclosureChip`, `KeyHint`, `EmptyState`. |
 | `Logo.tsx` | `Brand`: the logo and the name, a link to `#about`. |
-| `ShortcutOverlay.tsx`, `shortcuts.ts` | `?`: About and the home page, then the clock's keys, the views, the console's and the review's. |
+| `ShortcutOverlay.tsx`, `shortcuts.ts` | `?`: About and the home page, then the keys by region: Views, Needs you, Map, Timeline and radio, Guided simulation. |
 | `theme.css` | Tokens for both themes (Colour, below), type scale, the status pill, motion (sheets and the guided search's marks 200–300 ms; none under reduced motion). |
 | `notify.ts`, `toasts.tsx`, `notifyBell.tsx` | The notification centre: the store (toasts that merge by key, a log with an unread count), the toast stack (bottom right, 5 s, Show me) and the status line's bell. Which event becomes which toast is `command/notifications.ts`. |
 | `theme.ts`, `ThemeToggle.tsx` | Dark or light: the system's preference until the visitor picks one with the app bar's toggle, then remembered (`localStorage` `sightline.theme`). `index.html` sets `data-theme` before the first paint with the same rule. |
@@ -84,11 +84,15 @@ Old addresses, kept so links in the docs, the Devposts and the video still land 
 
 ## Keys
 
-Guided simulation: A the agent's option, 1–4 an option, M pick on the map, T take over from Watch instead,
-Space pauses between decisions, Esc leaves. Outside it, Space plays or pauses the mission clock. Views: 1 Map, 2 Photos, 3 Needs you (was Review), 4 Trace, 5 Debrief, 6 the radio (the timeline on
-Radio, the talk bar ready; was the Radio view), C back to the map. Console: Tab, A approve, X reject, E edit, V hold to
-talk, W conditions, L legend, Esc closes the sector popover or Task mode. Review (in Needs you): J/K (or the arrows),
-P, N, U. `?` lists them.
+`?` lists them (`shortcuts.ts`), grouped by the console's regions:
+
+| Group | Keys |
+|---|---|
+| Views | 1 Map, 2 Photos, 4 Trace, 5 Debrief (the number keys wait during the guided simulation), C back to the map, `?` this list, Esc closes it or the Conditions panel |
+| Needs you | 3 opens it (was Review); Tab to a card, then A approve, X reject, E edit; J/K (or the arrows) move through the candidates, P, N, U answer |
+| Map | W conditions, L legend, Esc closes the sector popover or the sector list, or cancels Task mode |
+| Timeline and radio | 6 the radio (the timeline on Radio, the talk bar ready; was the Radio view), V hold to talk, Space plays or pauses the mission clock outside the guided simulation |
+| Guided simulation | A the agent's option, 1–4 an option, M pick on the map, T take over from Watch instead, Space pauses between decisions, Esc leaves |
 
 ## Type and spacing
 
