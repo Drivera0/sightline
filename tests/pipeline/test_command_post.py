@@ -4,6 +4,7 @@ only: no model, no network."""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -744,3 +745,29 @@ def test_coverage_flags_photographed_cells_and_the_prior_covers_the_whole_grid(a
     after, _ = store.live(mid).p()
     assert np.argmax(after - before) != np.argmax(before)
     assert (after - before).max() > 0
+
+
+# --- after-action report -----------------------------------------------------------------------
+
+
+def test_the_after_action_report_is_written_when_found_and_served_on_demand(api) -> None:
+    client, store, _ = api
+    mid = _busy_mission(client, store)  # ends with Team One finding the person in C2
+    md = store.read_file(mid, "report/after_action.md").decode()
+    assert md.startswith("# After-action report: Seymour")
+    assert "**Found** by Team One in sector C2" in md
+    assert "Team One assigned to sector C2 (by Dana)" in md and "object: blue water bottle" in md
+    assert f"/missions/{mid}/ics309.md" in md and "Limitations:" in md
+    r = client.get(f"/missions/{mid}/report.json").json()
+    assert r["found"]["team"] == "T1" and r["radio"] == {
+        "turns": 2,
+        "from_teams": 1,
+        "from_command": 2,
+    }
+    assert r["drones"]["legs_flown"] == 1 and r["direct_actions"] >= 1
+    assert r["proposals"]["planner"]["approved"] == 1
+    served = client.get(f"/missions/{mid}/report.md")
+    assert served.headers["content-type"].startswith("text/markdown") and "**Found**" in served.text
+    open_mission = client.get(f"/missions/{mission(client)}/report.md").text
+    assert "**Not found yet** (status: searching)" in open_mission
+    assert not re.search(r"\bclear(s|ed|ing)?\b", md, re.IGNORECASE)

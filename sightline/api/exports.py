@@ -186,3 +186,29 @@ def post_d4h(mission_id: str, body: D4hPush, request: Request) -> dict:
     except d4h.D4hError as e:
         raise HTTPException(502, f"{e} ({e.posted} lines posted before it)") from None
     return {"posted": posted, "last_id": lines[-1].id.split("-")[0] if lines else body.after}
+
+
+@exports_router.get(
+    "/missions/{mission_id}/report.md",
+    response_class=Response,
+    responses={200: {"content": {"text/markdown": {}}}},
+    summary="After-action report (Markdown)",
+)
+def get_report_md(mission_id: str, request: Request) -> Response:
+    """The after-action report: incident, operational period, base camp, subject, key events (first
+    photo, each clue, each decision with who, the find), areas searched with their POD, photos and
+    reviews, drone legs and flight minutes, radio turns, the agent's proposals approved and rejected,
+    a limitations line and links to the ICS 204/214/309 and the CalTopo file. Written when the
+    mission is found (``report/after_action.md``); built fresh here on every request."""
+    from sightline.mission import report
+
+    store = _store(request, mission_id)
+    md = report.after_action_markdown(report.build(store, mission_id, now_iso()))
+    return Response(md, media_type="text/markdown; charset=utf-8")
+
+
+@exports_router.get("/missions/{mission_id}/report.json", summary="After-action report (JSON)")
+def get_report_json(mission_id: str, request: Request) -> dict:
+    from sightline.mission import report
+
+    return report.build(_store(request, mission_id), mission_id, now_iso())

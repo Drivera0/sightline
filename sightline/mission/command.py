@@ -126,6 +126,12 @@ def mark_found(
                    extra={"lat": found.lat, "lon": found.lon}, emit=False)  # fmt: skip
     store.emit(mission_id, "mission.note", f"{summary} (by {by})", ref=team_id,
                data={"found": found.model_dump(), "by": by})  # fmt: skip
+    try:  # the after-action report, kept with the mission the moment it is found
+        from sightline.mission import report
+
+        report.write(store, mission_id, at)
+    except Exception:
+        log.exception("after-action report for %s failed", mission_id)
     return m
 
 
