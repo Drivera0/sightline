@@ -74,7 +74,7 @@ on AWS, the agent workflow).
 | **B · Geo** | camera poses, footprints, pins, base map, clues, conditions (Tavily) | `sightline/geo/`, `web/src/map/` | `LANE_B_GEO.md` |
 | **C · Search** | probability map, live map, sectors, planner, simulated fleet and evaluations | `sightline/search/`, `web/src/map/heat/` | `LANE_C_SEARCH.md` |
 | **D · Pipeline** | contract, pipeline, mission store and API, website shell, review queue, AWS | `sightline/pipeline/`, `sightline/mission/`, `sightline/api/`, `web/src/shell/`, `deploy/aws/` | `LANE_D_PIPELINE.md` |
-| **E · Ops & Voice** | About sheet (was the front door), the console's map (was the command view), radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` | `web/src/command/README.md`, `sightline/radio/README.md` |
+| **E · Ops & Voice** | the home page and the About sheet (was the front door), the console: the command post and the guided simulation (was the command view), radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` | `web/src/command/README.md`, `sightline/radio/README.md` |
 
 The lanes meet at one contract (`01_CONTRACT.md`, v1.2): only the pipeline and the `MissionStore` write
 files, every write is validated against the contract, and the website only reads. How the pipeline calls
@@ -94,6 +94,15 @@ the lanes: `LANE_INTERFACES.md`. Shared website rules: `05_FRONTEND_SHARED.md`.
 The search prior is Koester's distance-from-IPP rings when the subject category is set, else uniform
 within the search area; the clue and shelter factors of the live map are labelled planning heuristics.
 No real search data has been used; all imagery is HERIDAL (CC BY 3.0).
+
+**The public site** (no server) starts on a home page: a measured claim over the survey's photos, the
+facts with their sources, how it works, and the **Guided simulation** cards. **Start the simulation** puts
+the visitor in the search manager's seat: the clock runs to each decision and waits, the agent proposes,
+the visitor decides, and the map, the teams and the clock show what that decision changed; **What you
+did** at the end sets the visitor's line beside the agent's. The console is laid out like a command post
+(resources, map, Needs you, timeline; `web/src/command/README.md`). In the plain console the fixture's
+scripted decisions are labelled "The scenario's search manager" and its stand-in model calls "Replayed",
+and the guided simulation's find comes from seeded draws at the sector's POD, printed on its end screen.
 
 ## 7. Where to read next
 

@@ -4,14 +4,14 @@
 **Subtitle:** One search map for drones, ground teams and the radio, on Nemotron: drone photos and voice reports in, where to search next out
 **Track:** Physical AI
 **Repo:** https://github.com/Drivera0/sightline (AGPL-3.0, tag `nebius-submit`, created at submission)
-**Demo:** https://sightline-iota-sandy.vercel.app (opens the console on a demo mission at t0, no server needed; `#m/demo/map` is the console at the end of its timeline)
-**Where to look, in order:** the console at t0 (`#`) → **Follow the search** (3 min, `#m/demo?t=0` to `?t=6`) → the Trace view (`#m/demo/trace`) → Conditions, W in the console (`#m/demo/map/conditions`) → the Debrief: results, what breaks first and the links out (`#m/demo?t=6`; the old `#judges` redirects to its list for judges) → the About sheet for the method (`#about`)
+**Demo:** https://sightline-iota-sandy.vercel.app (no server needed). Start from the home page: press **Try the guided simulation** and pick a scenario under **Guided simulation** (**Start the simulation**; the overdue hiker is marked "Start here"). You are the search manager: the clock runs to each decision and waits, the AI proposes with its reason and what each option costs in minutes, you decide, and the simulation shows what your decisions change on the map, the teams and the clock. **What you did** at the end sets your line beside the agent's and prints every draw. `#m/demo/map` is the plain console at the end of the scenario's timeline.
+**Where to look, in order:** the home page (`#`) → **Start the simulation** on a scenario card (about 3 min, `#m/demo?s=<seed>&guide=1`) → **What you did** → the Trace view (`#m/demo/trace`) → Conditions, W in the console (`#m/demo/map/conditions`) → the Debrief: results, what breaks first and the links out (`#m/demo?t=6`; the old `#judges` redirects to its list for judges) → the About sheet for the method (`#about`)
 **Video:** <to add>
 
 <!--
 Video outline for Dan (≤ 3:00, public YouTube; from .documents/WIN_RESEARCH.md §8, Nebius video, a trim of the OpenCV master):
 0:00–0:10 Dan on camera, one line + "runs on Nebius Token Factory" said aloud.
-0:10–0:25 The console at t0 → Follow the search, photos landing, 2× speed.
+0:10–0:25 The home page → Start on the overdue hiker: the guided search, photos landing, 2× speed.
 0:25–0:55 Detection → re-look with the Trace view showing which NVIDIA model did what (Nemotron VL, Nemotron Super, Parakeet, Magpie).
 0:55–1:25 Fleet re-task moment: clue by radio → map shifts → agent proposes diverting the nearest drone → approve → drone turns (≥ 1 min of key modules in action starts here).
 1:25–1:50 Assignment card → radio exchange, 8 s of audio.
@@ -82,7 +82,7 @@ Every language and vision model call goes through **Nebius Token Factory** at ru
 - **Tavily as the model's own tool:** for a mission with no subject, Nemotron Nano decides whether to call `search_public_bulletin`, writes the query, and Tavily searches trusted domains then extracts; a profile field is kept only with a verbatim quote, names are redacted, and approval sets the lost-person prior. Three live runs: two abstained (no quote named a category), one proposed "hiker, 20" [16].
 - **AWS** runs the live API and the photo worker.
 
-**What is simulated.** The drones, their flight and battery, and their photos (crops of HERIDAL validation photos at simulated poses) are simulated, as are the ground teams' positions and the search-map evaluations. In the recorded traces the human steps are scripted, and the trace says so. Real: detection, the map math, every Nemotron call on Token Factory, Tavily, the radio's speech models, the AWS deployment and the Serverless Job [8].
+**What is simulated.** The drones, their flight and battery, and their photos (crops of HERIDAL validation photos at simulated poses) are simulated, as are the ground teams' positions and the search-map evaluations. In the recorded traces the human steps are scripted, and the trace says so; on the site, the fixture's scripted decisions read "The scenario's search manager" and its stand-in model calls "Replayed", and the guided simulation's find comes from seeded draws at the sector's POD (0.60), printed on its end screen. Real: detection, the map math, every Nemotron call on Token Factory, Tavily, the radio's speech models, the AWS deployment and the Serverless Job [8].
 
 **Physical AI fit.** Sightline is the decision layer of an embodied team: drones sense, the agent decides, drones and people act, and each action changes what is sensed next. A clue from a team re-tasks the nearest drone; that drone's photo shows the person [9]. The FAQ allows simulation, and our fleet flies through the same photo API a real drone would use. The edge is roadmap only: Ultralytics measures YOLO26n with TensorRT FP16 at 4.57 ms per image on a Jetson Orin Nano Super [10], so a field kit without internet is plausible, but we have not run Sightline on a Jetson.
 

@@ -6,7 +6,7 @@
 > simulated, and what we could not verify is marked. Lead: Dan (lane A). Every claim, its file and line, and how to regenerate it: [`EVIDENCE_INDEX.md`](EVIDENCE_INDEX.md).
 
 Repository: https://github.com/Drivera0/sightline (tag `opencv-submit`) · Live demo:
-https://sightline-iota-sandy.vercel.app (the console on a demo mission at t0; **Follow the search** plays it, and the Debrief's list for judges is `#m/demo?t=5&judges`, where the old `#judges` redirects) · Live
+https://sightline-iota-sandy.vercel.app (the home page: **Try the guided simulation**, then **Start the simulation** on a scenario card, `#m/demo?s=<seed>&guide=1`; the Debrief's list for judges is `#m/demo?t=6&judges`, where the old `#judges` redirects) · Live
 mission API on AWS: https://44-227-39-234.sslip.io (started for demos and judging; `GET /health`).
 
 | § | Section | Rubric line it answers |
@@ -23,7 +23,7 @@ mission API on AWS: https://44-227-39-234.sslip.io (started for demos and judgin
 | 10 | Limitations and failure cases | Technical execution (reliability); responsible operation |
 | 11 | Responsible use | Responsible operation and security |
 | 12 | Reproducibility | Repeatability; documentation |
-| 13 | What changed since BCS | Eligibility disclosure |
+| 13, 14 | What changed since BCS; the site (command post, guided simulation, colour, notifications) | Eligibility disclosure; UX |
 
 ---
 
@@ -53,10 +53,10 @@ reviewer confirmed the person in the crop, the agent proposed an assignment for 
 each with its reason, evidence and a radio briefing. A person approves, edits or rejects (with a reason); an
 approved briefing waits in the radio's outbound queue until the operator presses Transmit.*
 
-![The console at t0](figures/one-console/t0-d.webp)
+![The home page](figures/v3/home-d.webp)
 
-*The landing (`#`): the console on the demo mission at t0, the call, with the pitch and Follow the search, Koester's rings
-around the last known point; the Demo and "Simulation on real aerial photographs" chips say what is simulated.*
+*The home page (`#`): one measured claim over the survey's photos, four measured facts with their sources, how it works, who it is for, and the
+guided simulation's scenario cards; the footer carries the disclosure, and the console's chips say what is simulated (§14).*
 
 ![The console on a live mission](../architecture/screens/command-view.png)
 
@@ -501,7 +501,7 @@ printed by `scripts/trace_excerpt.py`, is in `docs/architecture/agent.md`):
 the ids they share (perception → decision → action → approval), one line per step (span type, tool or
 model, input, output, ms), each opening to its full input, output and images, with the proposal each
 chain led to and who decided it, and a strip counting model calls per model. The demo mission
-(`#m/demo/trace`, no server) shows the chain above and a live conditions lookup, labelled Recorded.
+(`#m/demo/trace`, no server) shows this flight's trace, then the chain above and a live conditions lookup as Earlier run (§14).
 
 ### 5.3 Re-tasking a drone
 
@@ -1126,7 +1126,7 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
 - conditions from live web search (Tavily): forecast, warnings and park alerts, each value kept only
   with a verbatim quote; they decide whether drones may fly, how much a photo can see, how exposed the
   person is, and what briefings say (§7);
-- one console (the demo's story at `#m/demo?t=0..5`, the About sheet, New search at `#new`, and the live mission's views): task board, teams, approval inbox,
+- one console (the home page and its guided simulation at `#m/demo?s=<seed>&guide=1`, the About sheet, New search at `#new`, and the live mission's views; §14): task board, teams, approval inbox,
   clue log, live map with the drones, teams and clues, and printable assignment cards with GPX/KML for
   the teams' handheld GPS (§1);
 - a **simulated drone fleet**, one process per drone, that flies approved legs and sends its photos through
@@ -1147,3 +1147,67 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
   real-footage intake through the live API (`docs/REAL_FLIGHT.md`).
 
 Diff: `git diff bcs-final-submission..opencv-submit`.
+
+## 14. The site: the command post and the guided simulation
+
+**The home page** (`#`, `web/src/front/Home.tsx`) leads with one measured claim over the survey's
+aerial photos, then four measured facts, each linked to its source, how it works, how photos get in,
+who it is for, the **Guided simulation** cards (five scenarios on the same mountain and photos: who is
+missing, the clues the field will report, the length) and a **For judges** strip of links. **Start the
+simulation** opens the console on that scenario with the guided simulation on
+(`#m/demo?s=<seed>&guide=1`); **Open the console only** opens it without.
+
+**The command-post layout** (`web/src/command/README.md`, "The command post"). One screen in four
+regions, the way a SAR command post works: resources on the left (a card per team and drone: status,
+sector, "heard N min", amber near the check-in interval and red past it; Call, Task, Recall), the map in
+the middle, **Needs you** on the right (decisions only: the agent's proposals with a one-line reason,
+candidates to review, overdue teams, clues awaiting read-back) and the timeline along the bottom (one
+stream with Radio, Clues, Drone and Decisions filters, and the talk bar). The status line above shows
+elapsed time, daylight left, flyability with its gate time, people out and found or not. Four views
+(Map · Photos · Trace · Debrief) change the rail, never the map. Once the subject is found, the Debrief
+opens on the after-action report, with ICS 204/214/309, CalTopo and Print.
+
+![The guided simulation at Assign](figures/v3/guided-step-4-assign.webp)
+
+*Decision 4 of 6, Assign: the agent proposes Team One for C2 with its reason (C2's share of the
+remaining probability up from 1.9 % to 3.5 %, raised by two clues), each option says what it does, and the mission clock waits for the manager.*
+
+**The guided simulation** (`web/src/command/guide.ts`, `sim.ts`, `GuideEnd.tsx`). The visitor is the
+search manager. The clock runs to each decision and waits there: the survey (the planner's legs or a
+serpentine, +12 min), triage of three candidates (Person, Not a person, Not the subject, Unsure; the
+third is this flight's 0.17 standing pair, f0273-d02, that the second look promoted), the radio clue
+(confirm, ask for a bearing, or log it without mapping), the first assignment, a drone's lost link,
+assigning again as teams come free, and the find. Each option shows what it does and what it costs in
+mission minutes before the commit; the agent proposes, the visitor decides. A team the manager sends
+walks out and sweeps its sector; a pass of the subject's sector detects them on a draw fixed by the
+seed, the sector and the pass, at the sector's POD (0.60); a pass with no find marks the sector searched
+at that POD, lowers it on the map, and the agent proposes its likeliest open sector next. **Watch
+instead** plays the agent's line through the same engine. **What you did** sets each decision beside the
+agent's, prints every draw, shows the searched sectors at their POD and where the subject was, and says
+where the two lines diverged. There is no score and no fail state: at last light the search suspends.
+
+**Colour and the light theme** (`web/src/shell/README.md`, "Colour"). One colour per kind of thing,
+everywhere on the map, cards, timeline and chips: ground teams blue, drones teal, clues amber, the
+agent's proposals violet, the find green, alerts red; orange is kept for the one primary action per
+screen. Probability runs rust → amber → cream in the dark theme and rust → orange → yellow in the light
+one. Dark is the default; the app bar's toggle switches to light (the system's choice until the visitor
+picks), and every text colour is at least 4.5:1 on its backgrounds in both themes, checked by
+`scripts/contrast.test.ts`.
+
+![Every colour token in both themes, with its contrast](figures/v3/colour-system.webp)
+
+![The console in the light theme, after the find](figures/v3/console-light-d.webp)
+
+**Notifications** (`web/src/shell/notify.ts`, `toasts.tsx`, `command/notifications.ts`). Nothing on the
+mission changes silently: each event that is news becomes a toast (bottom right, 5 s, merged by key,
+with **Show me**), and the status line's bell keeps the last 30 with an unread count. New timeline rows
+hold a highlight in their kind's colour for 3 s, new proposal cards slide in with a slow ring, the heat
+tweens cell by cell to its new state, and the item in focus in Needs you is outlined on the map (a
+candidate's photo footprint, a proposal's sector and team). A team past its check-in raises an alert
+toast too. Figures: `figures/v3/toast-d.webp`, `proposal-glow-d.webp`, `heat-tween-1..3.webp`.
+
+**What the site labels.** The Mount Seymour mission, its drones and its teams are simulated on real
+aerial photographs: in the plain console the fixture's scripted decisions are labelled "The scenario's
+search manager" and its stand-in model calls "Replayed" in the Trace view (only live calls, or a live
+answer kept word for word, read "This flight"), and the guided simulation's find comes from seeded draws
+at the sector's POD, every draw printed on the end screen.

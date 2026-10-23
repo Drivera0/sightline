@@ -1,6 +1,5 @@
-// The front door's words (LANE_E §6.2), as written there. Since the one-console redesign there is no
-// front door: the tagline heads the landing's pitch bar, and the rest is the About sheet (#about) and the
-// Debrief's footer. Propose changes to Dan, don't improvise. Built by lane A for lane E (issue #70).
+// The site's words (first LANE_E §6.2's front door): the home page's hero and sections (front/Home.tsx),
+// the About sheet (#about) and the Debrief's footer. Propose changes to Dan, don't improvise. Built by lane A for lane E (issue #70).
 
 export const HERO = {
   title: "Sightline",
@@ -10,33 +9,6 @@ export const HERO = {
   honesty:
     "The demo uses real aerial search-and-rescue photos (HERIDAL) placed on a simulated flight over Mount Seymour. Everything simulated is labelled.",
 } as const;
-
-export const HOW_IT_WORKS = [
-  {
-    title: "The drone flies a grid",
-    body: "It takes geotagged still photos, not video: a hiker is about 70 pixels wide in a still and about 15 in a video frame.",
-  },
-  {
-    title: "Photos arrive",
-    body: "After each landing, straight from the SD card — no signal needed. Or during the flight, when the command post has a connection.",
-  },
-  {
-    title: "Sightline flags, people confirm",
-    body: "The detector ranks every photo in a quarter of a second. A reviewer confirms each candidate; uncertain ones get a second look by AI before a person decides.",
-  },
-  {
-    title: "The map directs the search",
-    body: "Every photo and every ground report updates where the person could still be. Sightline proposes the next drone leg and the next team assignment. The search manager approves.",
-  },
-] as const;
-
-/** The four steps in one short line each: the About sheet's picture row (the owner asked for plainer, shorter words). */
-export const HOW_IT_WORKS_SHORT = [
-  "Still photos, not video: a hiker is easier to see.",
-  "Straight off the card after each landing. No signal needed.",
-  "The detector ranks every photo. A person confirms each one.",
-  "It shows where to look next. The search manager approves.",
-] as const;
 
 /**
  * How photos get in, and whether it is live: three paths, one line each, with an icon from the shared

@@ -118,7 +118,7 @@ Shared components D provides in `shell/`: `Panel`, `Stat` (big number + label + 
 
 ## 6. The five steps (BCS hackathon; details in each lane file §9)
 
-> **Now (PR #171):** the site is one console, not a guided flow. `#` opens the demo mission's console at t0; **Follow the search** runs it through the checkpoints `#m/demo?t=1..6` (Photos land, Confirm, Where next, Run, The find, Debrief), and the views are Map · Photos · Trace · Debrief (the review is in Needs You, the radio in the timeline's talk bar). The old step hashes (`#survey`, `#rank`, `#review`, `#search`, `#results`) redirect to those checkpoints. Addresses: `web/src/shell/flow.ts` and `web/src/shell/README.md`. The table below is the BCS plan, kept as history.
+> **Now (PR #212):** the site is a home page and one console. `#` is the home page: a measured claim over the survey's photos, facts with their sources, how it works, who it is for, the **Guided simulation** cards and a For judges strip. **Start the simulation** on a card opens the console on that scenario with the guided simulation on (`#m/demo?s=<seed>&guide=1`): each decision waits for the visitor, the agent proposes, the visitor decides, and **What you did** ends it; **Open the console only** opens it without (`#m/demo/map?s=<seed>`). The console is a command post (resources, map, Needs you, timeline with the talk bar), the views are Map · Photos · Trace · Debrief, and `?t=0..6` opens the plain console at a checkpoint's clock. The old step hashes (`#survey`, `#rank`, `#review`, `#search`, `#results`) redirect to those moments. Addresses: `web/src/shell/flow.ts` and `web/src/shell/README.md`. The table below is the BCS plan, kept as history.
 
 At BCS the app was one guided flow with a step bar and the step in the URL hash; the hackathon plan's three tabs became these steps.
 
@@ -136,7 +136,7 @@ At BCS the app was one guided flow with a step bar and the step in the URL hash;
 
 ## 7. The demo click path (BCS; rehearse exactly this)
 
-> **Now:** the click path is the console's story: `#`, then **Follow the search** (3 min), the Trace view, Conditions (W), the Debrief and the About sheet. The table below is the BCS hackathon's.
+> **Now:** the click path is the home page (`#`), **Start the simulation** on the overdue hiker (about 3 min, ending on What you did), the Trace view, Conditions (W), the Debrief and the About sheet. The table below is the BCS hackathon's.
 
 | Time | Screen | Action | Say |
 |---|---|---|---|

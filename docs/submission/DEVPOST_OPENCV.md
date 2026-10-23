@@ -4,15 +4,15 @@
 **Subtitle:** Drone photos and radio reports in, where to search next out: a search-and-rescue map with a person in charge
 **Repo:** https://github.com/Drivera0/sightline (tag `opencv-submit`, created at submission)
 **Report:** `docs/report/OPENCV_REPORT.md` · **Agentic Vision evidence:** `docs/architecture/agent.md`
-**Demo:** https://sightline-iota-sandy.vercel.app (opens the console on a demo mission at t0, no server needed; `#m/demo/map` is the console at the end of its timeline)
-**Where to look, in order:** the console at t0 (`#`) → **Follow the search** (3 min, `#m/demo?t=0` to `?t=6`) → the Trace view (`#m/demo/trace`) → Conditions, W in the console (`#m/demo/map/conditions`) → the Debrief: results, what breaks first and the links out (`#m/demo?t=6`; the old `#judges` redirects to its list for judges) → the About sheet for the method (`#about`)
+**Demo:** https://sightline-iota-sandy.vercel.app (no server needed). Start from the home page: press **Try the guided simulation** and pick a scenario under **Guided simulation** (**Start the simulation**; the overdue hiker is marked "Start here"). You are the search manager: the clock runs to each decision and waits, the AI proposes with its reason and what each option costs in minutes, you decide, and the simulation shows what your decisions change on the map, the teams and the clock. **What you did** at the end sets your line beside the agent's and prints every draw. `#m/demo/map` is the plain console at the end of the scenario's timeline.
+**Where to look, in order:** the home page (`#`) → **Start the simulation** on a scenario card (about 3 min, `#m/demo?s=<seed>&guide=1`) → **What you did** → the Trace view (`#m/demo/trace`) → Conditions, W in the console (`#m/demo/map/conditions`) → the Debrief: results, what breaks first and the links out (`#m/demo?t=6`; the old `#judges` redirects to its list for judges) → the About sheet for the method (`#about`)
 **Live API (AWS):** https://44-227-39-234.sslip.io (stopped between demos to save cost)
 **Video:** <to add>
 
 <!--
 Video outline for Dan (≤ 5:00; from .documents/WIN_RESEARCH.md §8, OpenCV video):
 0:00–0:12 Dan on camera, lower-third, one line: "A missing hiker, 400 hectares, two hours of light. Sightline turns 500 drone photos into a ranked search plan." Logo card 1 s.
-0:12–0:30 The console at t0 → Follow the search: map with search area and drone track. Burned-in checkpoint labels throughout.
+0:12–0:30 The home page → Start on the overdue hiker: the guided search, map with search area and drone track, the first decision waiting. Burned-in decision labels throughout.
 0:30–1:05 Upload → detection: photos tick in, detections with confidence, heat map filling. Split screen: photo + boxes | map.
 1:05–1:35 Re-look: the 0.17 candidate from this flight (f0273-d02, two people on a forest trail), OpenCV zoom_native, Nemotron VL verdict; Trace view visible (tool → model → result → proposal).
 1:35–2:05 Approval: a real person approves in the inbox; the gate shown explicitly.
@@ -78,7 +78,7 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes an
 - **OpenCV 5 re-look tools,** one per failure mode from our error analysis: `zoom_native` for small people, CLAHE for clothing that matches rock, `redetect_region` for groups and people lying down. Also `cv2.fillPoly` and `cv2.blur` for coverage and canopy on the map [5].
 - **Agent:** proposes; never acts. Every tool call, model call, verdict, proposal and decision is one line of the mission's `trace.jsonl` [6].
 - **AWS:** S3, an SQS FIFO queue, an EC2 worker running `cv2.dnn`, CloudWatch metrics and Secrets Manager. 7.1 s per photo from upload to "processed" on the default c7i.2xlarge [7].
-- **One console:** the map stays in the middle while the views (Map · Photos · Review · Trace · Debrief · Radio) change the rail beside it; the demo plays as a 3-minute story through six clock checkpoints, and the Trace view shows each chain step by step, with chips for which model and tool ran and what each observation was worth [25].
+- **One console, laid out like a command post:** resources on the left, the map in the middle, Needs you (decisions only) on the right and the timeline with the talk bar below; four views (Map · Photos · Trace · Debrief) change the rail, never the map. The guided simulation (about 3 min) stops the clock at each decision for the visitor to make, as the search manager, and ends on What you did beside the agent's line; the Trace view shows each chain step by step, with chips for which model and tool ran and what each observation was worth [25].
 
 ## Challenges
 
@@ -88,7 +88,7 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes an
 
 ## Accomplishments
 
-- A real chain where OpenCV changes the decision: a person lying down, scored 0.18 (below the 0.29 review threshold), is zoomed from native pixels, called "yes, lying" by Nemotron VL, and proposed for review [13].
+- A real chain where OpenCV changes the decision: a person lying down on a validation photo, scored 0.18 (below the 0.29 review threshold; a separate chain from the demo flight's 0.17 standing pair, f0273-d02, in the gallery), is zoomed from native pixels, called "yes, lying" by Nemotron VL, and proposed for review [13].
 - OpenCV 5 `cv2.dnn` as the production detector, with a parity table against PyTorch rather than a claim [3].
 - The whole loop live on AWS, with a dead-letter queue, per-step latency metrics and keys only in Secrets Manager [7].
 - A radio desk where the first sound comes back in 2.5 s (p50) with the replies spoken by Magpie (team lines typed), and 6 of 6 clue reports were read back and confirmed before they were logged [16].
@@ -104,7 +104,7 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 - A word error rate on real volunteers' voices over real handsets.
 - A field trial with a search-and-rescue team.
 
-**Limits, stated plainly:** the detector misses groups, clothing that matches pale or dark rock, and people sitting or lying down [14]. The fleet, the demo flight path and the search-map evaluation are simulated and labelled so on screen. The human approvals in the recorded agent traces are scripted and labelled so in the trace [15].
+**Limits, stated plainly:** the detector misses groups, clothing that matches pale or dark rock, and people sitting or lying down [14]. The fleet, the demo flight path and the search-map evaluation are simulated and labelled so on screen. The human approvals in the recorded agent traces are scripted and labelled so in the trace [15]; on the site, the fixture's scripted decisions read "The scenario's search manager" and its stand-in model calls "Replayed", and the guided simulation's find comes from seeded draws at the sector's POD (0.60), printed on its end screen.
 
 ---
 
@@ -134,4 +134,4 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 22. `docs/report/OPENCV_REPORT.md:322-353`
 23. `docs/report/AGENT_EVAL.md:203-229`, `:238-247`
 24. `docs/EXPORTS.md`; `tests/geo/test_exports.py`
-25. `web/src/command/README.md:5-22`, `:86-90`; `README.md:58-68`
+25. `web/src/command/README.md:127-171`, `:173-212`, `:103-116`; `README.md:58-68`
