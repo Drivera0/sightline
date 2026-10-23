@@ -27,7 +27,7 @@ import { ensureIconImages } from "../base/iconImages";
 import { sectorAt, sectorCentre } from "../../search/sectorCells";
 import { useConsole } from "../../command/consoleStore";
 import { usePick } from "../pick";
-import { clueFeatures } from "../base/clueLayer";
+import { clueArcFeatures, clueFeatures } from "../base/clueLayer";
 import { droneFeatures, droneLinkWords } from "../base/droneLayer";
 import { ensureFleetImages, FLEET_IMAGES } from "../base/fleetImages";
 import { FleetGlide, type LonLat } from "../base/fleetMotion";
@@ -80,6 +80,8 @@ export const LIVE_IDS = {
   selected: "live-heat-sector-selected",
   labels: "live-heat-labels",
   leaders: "live-heat-leaders",
+  /** A sound heard on a bearing: its arc (clueLayer.ts clueArcFeatures). */
+  clueArcs: "live-heat-clue-arcs",
 } as const;
 /** The probability surface: the raster (LIVE_IDS.heat) while it tweens, class fills and contours at rest. */
 export const LIVE_SURFACE_IDS = surfaceIds("live-heat-", LIVE_IDS.heat);
@@ -250,7 +252,7 @@ function LiveLayers({
         if (map.getLayer(LIVE_SURFACE_IDS.casing90)) map.moveLayer(hatchLayer, LIVE_SURFACE_IDS.casing90);
       }
       if (added && surface.current) pushSurface(map, LIVE_SURFACE_IDS, surface.current);
-      for (const id of [LIVE_IDS.sectors, LIVE_IDS.sectorLabels, LIVE_IDS.points, LIVE_IDS.legs, LIVE_IDS.drones, LIVE_IDS.relay, LIVE_IDS.selected, LIVE_IDS.labels, LIVE_IDS.leaders]) {
+      for (const id of [LIVE_IDS.clueArcs, LIVE_IDS.sectors, LIVE_IDS.sectorLabels, LIVE_IDS.points, LIVE_IDS.legs, LIVE_IDS.drones, LIVE_IDS.relay, LIVE_IDS.selected, LIVE_IDS.labels, LIVE_IDS.leaders]) {
         if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: fc([]) });
       }
       const color = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
@@ -282,6 +284,10 @@ function LiveLayers({
           paint: { "circle-radius": 2.5, "circle-color": color("--drone", "#2ec4b6"), "circle-stroke-color": color("--bg", "#0a0b0d"), "circle-stroke-width": 0.5 } }); // prettier-ignore
         map.addLayer({ id: `${LIVE_IDS.legs}-proposed`, type: "line", source: LIVE_IDS.legs, filter: ["==", ["get", "style"], "proposed"],
           paint: { "line-color": tone() as never, "line-opacity": 0.45, "line-width": 1.2, "line-dasharray": [2, 2] } }); // prettier-ignore
+        // a sound heard on a bearing: the arc where it could be, a light amber tint under a dashed amber edge
+        map.addLayer({ id: `${LIVE_IDS.clueArcs}-fill`, type: "fill", source: LIVE_IDS.clueArcs, paint: { "fill-color": color("--clue", "#f5b544"), "fill-opacity": 0.14 } });
+        map.addLayer({ id: LIVE_IDS.clueArcs, type: "line", source: LIVE_IDS.clueArcs,
+          paint: { "line-color": color("--clue", "#f5b544"), "line-opacity": 0.9, "line-width": 1.5, "line-dasharray": [3, 2] } }); // prettier-ignore
         map.addLayer({ id: LIVE_IDS.sectors, type: "line", source: LIVE_IDS.sectors, paint: { "line-color": color("--text", "#f2f2f0"), "line-opacity": 0.35, "line-width": 1 } });
         // the sector whose popover is open
         map.addLayer({ id: `${LIVE_IDS.selected}-fill`, type: "fill", source: LIVE_IDS.selected, paint: { "fill-color": color("--accent", "#ff7a1a"), "fill-opacity": 0.08 } });
@@ -458,6 +464,8 @@ function LiveLayers({
     setData(map, LIVE_IDS.sectorLabels, labels);
     const points = pointFeatures(base, clues, teams, null, now ?? new Date(), (iso) => clock(iso, tz), mission);
     setData(map, LIVE_IDS.points, points);
+    const callsign = (id: string) => teams.find((t) => t.id === id)?.callsign ?? id;
+    setData(map, LIVE_IDS.clueArcs, clueArcFeatures(clues, teams, callsign) as unknown as Feature[]);
     syncTargets(map, teamTargets.current, points.filter((p) => p.properties.kind === "team"), "team");
     pointsNow.current = points;
     relabel.current();
@@ -518,12 +526,29 @@ function LiveLayers({
       tip.setLngLat([e.lngLat.lng, e.lngLat.lat]).setDOMContent(el).addTo(map);
     };
     const hide = () => tip.remove();
+    // a bearing's arc: what was heard, who heard it, the bearing and range (a mark under the pointer wins)
+    const arcFill = `${LIVE_IDS.clueArcs}-fill`;
+    const showArc = (e: { features?: { properties: Record<string, unknown> }[]; lngLat: { lng: number; lat: number }; point: { x: number; y: number } }) => {
+      const f = e.features?.[0]?.properties;
+      if (!f || one?.isOpen) return tip.remove();
+      if (map.queryRenderedFeatures([e.point.x, e.point.y] as never, { layers: [LIVE_IDS.points].filter((id) => map.getLayer(id)) }).length) return;
+      const el = document.createElement("div");
+      el.className = "text-small";
+      el.style.color = "#111";
+      el.style.whiteSpace = "pre-line";
+      el.textContent = String(f.label);
+      tip.setLngLat([e.lngLat.lng, e.lngLat.lat]).setDOMContent(el).addTo(map);
+    };
     map.on("mousemove", LIVE_IDS.points, show as never);
     map.on("mouseleave", LIVE_IDS.points, hide);
+    map.on("mousemove", arcFill, showArc as never);
+    map.on("mouseleave", arcFill, hide);
     return () => {
       tip.remove();
       map.off("mousemove", LIVE_IDS.points, show as never);
       map.off("mouseleave", LIVE_IDS.points, hide);
+      map.off("mousemove", arcFill, showArc as never);
+      map.off("mouseleave", arcFill, hide);
     };
   }, [map, ready, one]);
 
@@ -605,7 +630,7 @@ function LiveLayers({
       map.addLayer({ id: `${FLASH_ID}-fill`, type: "fill", source: FLASH_ID, paint: { "fill-color": cssVar("--clue", "#f2b84b"), "fill-opacity": 0 } });
       map.addLayer({ id: `${FLASH_ID}-line`, type: "line", source: FLASH_ID, filter: ["==", ["get", "kind"], "circle"], paint: { "line-color": cssVar("--clue", "#f2b84b"), "line-width": 2.5, "line-opacity": 0 } });
     }
-    setData(map, FLASH_ID, flashFeatures(base, fresh, updates) as unknown as Feature[]);
+    setData(map, FLASH_ID, flashFeatures(base, fresh, updates, teams) as unknown as Feature[]);
     const start = performance.now();
     let raf = 0;
     const frame = (t: number) => {

@@ -2,8 +2,9 @@
 // and the cells it reweighted, and fades over two seconds (V3 §2: a ring that fades, not a flash; the clue's
 // own map update: source "clue", ref = the clue's id).
 // Pure helpers; LiveHeatMap draws and fades them. Built by lane A.
-import type { Clue, MapBase, MapUpdate } from "../../contract";
+import type { Clue, MapBase, MapUpdate, Team } from "../../contract";
 import { circlePolygon } from "../base/circle";
+import { clueArc } from "../base/clueLayer";
 import { cellRing } from "./geometry";
 
 /** How long the ring takes to fade (ms): two seconds, slow enough to be seen, never a flash. */
@@ -33,11 +34,12 @@ export function cluesToFlash(before: ClueSeen | null, clues: readonly Clue[]): C
 
 type Feature = { type: "Feature"; properties: Record<string, string | number>; geometry: { type: "Polygon"; coordinates: number[][][] } };
 
-/** The flash for some clues: each one's circle, and the cells its own map update touched. */
-export function flashFeatures(base: MapBase, clues: readonly Clue[], updates: readonly MapUpdate[]): Feature[] {
+/** The flash for some clues: each one's circle (a bearing's arc), and the cells its own map update touched. */
+export function flashFeatures(base: MapBase, clues: readonly Clue[], updates: readonly MapUpdate[], teams: readonly Pick<Team, "id" | "callsign" | "position">[] = []): Feature[] {
   const out: Feature[] = [];
   for (const c of clues) {
-    out.push({ type: "Feature", properties: { kind: "circle", clue: c.id }, geometry: circlePolygon(c.lon, c.lat, Math.max(MIN_RADIUS_M, c.radius_m || 0)) });
+    const shape = clueArc(c, teams) ?? circlePolygon(c.lon, c.lat, Math.max(MIN_RADIUS_M, c.radius_m || 0));
+    out.push({ type: "Feature", properties: { kind: "circle", clue: c.id }, geometry: shape });
     const cells = new Set<number>();
     for (const u of updates) if (u.source === "clue" && u.ref === c.id) for (const [i] of u.cells) cells.add(i);
     for (const i of cells) out.push({ type: "Feature", properties: { kind: "cell", clue: c.id }, geometry: { type: "Polygon", coordinates: [cellRing(base.grid, i)] } });
