@@ -88,13 +88,19 @@ describe("AppBar", () => {
     expect(screen.queryByRole("navigation", { name: "Sightline" })).toBeNull();
   });
 
-  it("puts the clue log one tap away in the phones' bottom bar only", async () => {
-    const onClick = vi.fn();
-    render(<AppBar mission={null} views={{ ...views("map", vi.fn()), jump: { label: "Clues", title: "The clue log", count: 5, onClick } }} />);
+  it("gives phones four tabs: Map, Needs you (with its count), Timeline, More with the other views", async () => {
+    const onTab = vi.fn();
+    const onSelect = vi.fn();
+    render(<AppBar mission={null} views={views("map", onSelect)} tabs={{ current: "map", onSelect: onTab, needs: 3 }} />);
     const [bar, bottom] = screen.getAllByRole("navigation", { name: "Mission views" });
-    expect(within(bar!).queryByRole("button", { name: /Clues/ })).toBeNull();
-    await userEvent.click(within(bottom!).getByRole("button", { name: "Clues5" }));
-    expect(onClick).toHaveBeenCalled();
+    expect(within(bar!).queryByRole("button", { name: /Needs you/ })).toBeNull();
+    expect(within(bottom!).getAllByRole("button").map((b) => b.textContent)).toEqual(["Map", "Needs you3", "Timeline", "More"]);
+    expect(within(bottom!).getByRole("button", { name: "Map" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(within(bottom!).getByRole("button", { name: "Needs you3" }));
+    expect(onTab).toHaveBeenCalledWith("needs");
+    await userEvent.click(within(bottom!).getByRole("button", { name: "More" }));
+    await userEvent.click(within(bottom!).getByRole("menuitem", { name: "Debrief" }));
+    expect(onSelect).toHaveBeenCalledWith("debrief");
   });
 
   it("switches views with aria-pressed, in the bar and in the bottom bar for phones", async () => {
@@ -104,10 +110,10 @@ describe("AppBar", () => {
     expect(navs).toHaveLength(2);
     expect(navs[1]!.className).toMatch(/fixed .*bottom-0.*lg:hidden/);
     for (const nav of navs) {
-      expect(within(nav).getAllByRole("button").map((b) => b.textContent)).toEqual(["Map2", "Photos", "Review", "Trace", "Debrief", "Radio"]);
       expect(within(nav).getByRole("button", { name: "Debrief" })).toHaveAttribute("aria-pressed", "true");
       expect(within(nav).getByRole("button", { name: /Map/ })).toHaveAttribute("aria-pressed", "false");
     }
+    expect(within(navs[0]!).getAllByRole("button").map((b) => b.textContent)).toEqual(["Map2", "Photos", "Trace", "Debrief"]);
     await userEvent.click(within(navs[0]!).getByRole("button", { name: "Photos" }));
     expect(onSelect).toHaveBeenCalledWith("photos");
   });

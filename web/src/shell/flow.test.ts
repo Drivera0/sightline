@@ -10,11 +10,11 @@ describe("routes: one console", () => {
 
   it("reads a checkpoint of the story and a view of a mission", () => {
     expect(routeFromHash("#m/demo?t=3")).toEqual({ kind: "mission", id: "demo", view: null, t: 3, open: {} });
-    expect(routeFromHash("#m/demo/review?t=2")).toEqual({ kind: "mission", id: "demo", view: "review", t: 2, open: {} });
+    expect(routeFromHash("#m/demo/photos?t=2")).toEqual({ kind: "mission", id: "demo", view: "photos", t: 2, open: {} });
     expect(routeFromHash("#m/0a1b2c3d/debrief")).toEqual({ kind: "mission", id: "0a1b2c3d", view: "debrief", t: null, open: {} });
     expect(routeFromHash("#m/0a1b2c3d/map?t=2")).toMatchObject({ t: null }); // a live mission has no story clock
     expect(routeFromHash("#m/demo?t=9")).toMatchObject({ t: null });
-    expect(routeFromHash("#m/0a1b2c3d/radio")).toMatchObject({ view: "radio" }); // phones
+    expect(routeFromHash("#m/0a1b2c3d/radio")).toMatchObject({ view: "map", open: { radio: true } }); // the talk bar
   });
 
   it("knows New search, About and a sector's card", () => {
@@ -47,6 +47,12 @@ describe("routes: one console", () => {
     expect(redirectFromHash("#m/demo/command/conditions")).toBe("#m/demo/map/conditions");
     expect(redirectFromHash("#m/0a1b2c3d/approvals")).toBe("#m/0a1b2c3d/map");
     expect(redirectFromHash("#m/0a1b2c3d/feed")).toBe("#m/0a1b2c3d/trace?log");
+    // the review folds into Needs you, the radio desk into the timeline's talk bar: both land on the console
+    expect(redirectFromHash("#m/0a1b2c3d/review")).toBe("#m/0a1b2c3d/map?needs");
+    expect(redirectFromHash("#m/demo/radio?t=2")).toBe("#m/demo/map?needs&t=2".replace("needs", "radio"));
+    expect(routeFromHash("#m/0a1b2c3d/review")).toMatchObject({ view: "map", open: { needs: true } });
+    expect(routeFromHash("#m/demo/radio")).toMatchObject({ view: "map", open: { radio: true } });
+    expect(routeFromHash("#m/demo?s=missing-child")).toMatchObject({ seed: "missing-child" });
     expect(redirectFromHash("#m/demo/map")).toBeNull();
     for (const [from, to] of Object.entries(REDIRECTS)) expect(routeFromHash(from)).toEqual(routeFromHash(to));
   });
@@ -54,7 +60,7 @@ describe("routes: one console", () => {
   it("writes a view's address, with the demo's clock when it isn't now", () => {
     expect(viewHash("demo", "photos", 1)).toBe("#m/demo/photos?t=1");
     expect(viewHash("demo", "map")).toBe("#m/demo/map");
-    expect(viewHash("0a1b2c3d", "review", 2)).toBe("#m/0a1b2c3d/review");
-    expect(VIEWS.map((v) => v.label)).toEqual(["Map", "Photos", "Review", "Trace", "Debrief", "Radio"]);
+    expect(viewHash("0a1b2c3d", "trace", 2)).toBe("#m/0a1b2c3d/trace");
+    expect(VIEWS.map((v) => v.label)).toEqual(["Map", "Photos", "Trace", "Debrief"]);
   });
 });
