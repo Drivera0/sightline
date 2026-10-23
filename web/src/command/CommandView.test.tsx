@@ -246,10 +246,11 @@ describe("the command post", () => {
 
   it("the shortcut overlay lists the console's keys", async () => {
     const { SHORTCUT_GROUPS } = await import("../shell/shortcuts");
-    const console_ = SHORTCUT_GROUPS.find((g) => g.title === "Console");
-    expect(console_?.shortcuts.flatMap((s) => s.keys)).toEqual(["Tab", "A", "X", "E", "V", "W", "L", "Esc"]);
-    const views = SHORTCUT_GROUPS.find((g) => g.title === "Views");
-    expect(views?.shortcuts.flatMap((s) => s.keys)).toEqual(["1", "2", "4", "5", "3", "6", "C"]);
+    const keys = (title: string) => SHORTCUT_GROUPS.find((g) => g.title === title)?.shortcuts.flatMap((s) => s.keys);
+    expect(keys("Views")).toEqual(["1", "2", "4", "5", "C", "?", "Esc"]);
+    expect(keys("Needs you")).toEqual(["3", "Tab", "A", "X", "E", "J", "↓", "K", "↑", "P", "N", "U"]);
+    expect(keys("Map")).toEqual(["W", "L", "Esc"]);
+    expect(keys("Timeline and radio")).toEqual(["6", "V", "Space"]);
   });
 
   it('never says "clear"', () => {
