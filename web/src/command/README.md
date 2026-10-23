@@ -171,3 +171,44 @@ four regions, every action logged to one timeline.
 The demo fixture has none of the command post's fields yet; `demoMission.ts` gives the mission its base camp
 (the trailhead lot), status and a 30-minute check-in until the regenerated fixture carries them. Screenshots and
 the cold-user checklist: `docs/report/figures/command-post/`.
+
+## The guided search (lane A, `#m/demo?guide=1`)
+
+The demo mission as a decision simulation: the home page's Start opens it on a scenario
+(`#m/demo?s=<seed>&guide=1`, `shell/flow.ts` `guideHash`). The clock runs to each decision and waits there
+until the manager makes it; there is no scrubber, no Skip to now and no Back during play.
+
+- **The decisions** (`guide.ts`, injects in the mission's order, the ones the scenario has): Survey (the
+  planner's legs, or a serpentine at +12 min), Triage (three candidates, one at a time: Person, Not a person,
+  Not the subject, which logs a witness lead, Unsure; Person on the grey bag sends a team to check it, +10
+  min), Clue (confirm the radio call, ask for a bearing at +2 min, or log it without mapping: the clue's map
+  update is held until it is confirmed), Assign (approve the agent's team and sector, send another team, or
+  pick a sector on the map), Link (let the drone finish its leg, or divert another as a relay), Wind (only
+  when the scenario's agent proposes a recall: none of the fixtures do yet), Find. A scenario without drones
+  has no Survey or Link. Each option shows what it does and what it costs before the commit; A picks the
+  agent's, 1–4 an option, M the map, T takes over from Watch instead, Space pauses between decisions, Esc
+  leaves. The console's own actions count too (P/N/U in the queue, Approve or Edit on the card, a sector's
+  popover, Confirm on a read-back, Record the find). Needs you shows the current decision only.
+- **The consequence model** (`sim.ts`, `missionTime.ts` `guidedAt` and `simulate`): the fixtures' own
+  manager steps aside (its decisions, the teams' moves and the find are filtered out), the subject's
+  position is the scenario's find, and a team the manager sends walks out (6 min) and sweeps its sector
+  (10 min). A pass of the subject's sector detects them with probability POD 0.60, on a draw fixed by the
+  seed, the sector and the pass; a pass with no find marks the sector searched at its POD, lowers it on the
+  map, and the agent proposes its likeliest open sector next. The second assignment can stand for the rest
+  (every free team takes the agent's picks in turn until the find). Found shows only when the manager marks
+  it. No fail state: at last light the search suspends. Decisions that take minutes stop the fixtures'
+  clock for that long (`fixtureOf`, `realOf`), and the console prints the mission clock (`onMissionClock`).
+- **Watch instead** plays the agent's line through the same engine (the reason for 3 s, then "Agent's
+  choice: …"); **What you did** (`GuideEnd.tsx`, `hotWash`) compares each decision with the agent's, prints
+  every draw, shows the searched sectors at their POD and the subject's sector, says where the two lines
+  diverged, and links the after-action report, the trace, `PLANNER_V2.md` and `POD.md`. No score.
+- **On screen** (`GuideRun.tsx`, mounted by `ingest/LiveMission.tsx`): `GuideMark` in `CoachMark.tsx`
+  ("Your call": amber ring, options, clock paused; "Watch this": progress bar, clock running) and
+  `GuideStrip` in `Scrubber.tsx` (the decisions with a check on each one made, a live region for screen
+  readers). Phones get the same flow with the mark as a bottom sheet.
+- **Not yet:** the counterfactual is computed live from the same engine, not from an offline decision tree;
+  the survey pattern, the relay and the bearing change the clock and the record, not the drones' paths or
+  the size of the clue's map update; the store methods the interaction worker is adding to
+  `demoMission.ts` (a team walks a sector, searched at POD, found if the subject is inside; the survey
+  proposal at t0) were not on main, so the minimal rule lives here. Screenshots:
+  `docs/report/figures/v3/guided-step-*.webp`.

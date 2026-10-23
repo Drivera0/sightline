@@ -121,3 +121,61 @@ export function Scrubber({
     </div>
   );
 }
+
+/**
+ * The guided search's progress strip, where the scrubber is outside it (no free seeking during play): the
+ * decisions this scenario has, named, a check on each one made, the current one marked; the mission clock
+ * and whether it is paused for a decision. A live region reads out each new step.
+ */
+export function GuideStrip({
+  pips,
+  at,
+  call,
+  paused,
+  announce,
+}: {
+  pips: readonly { id: string; label: string; state: "done" | "current" | "next"; count?: number }[];
+  /** The mission clock (ISO). */
+  at: string;
+  /** A decision is open: the clock waits for it. */
+  call: boolean;
+  paused: boolean;
+  /** What the live region says ("Your call, Triage: …"). */
+  announce: string;
+}) {
+  const local = (iso: string) => clock(iso, DEMO_TZ);
+  return (
+    <div className="pointer-events-none flex w-full flex-col items-stretch gap-1">
+      <div
+        role="group"
+        aria-label="Decisions"
+        data-tour="scrubber"
+        className="pointer-events-auto flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface-solid px-3 py-1.5 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.8)]"
+      >
+        <span className="w-12 shrink-0 text-small text-text" title={`Mission clock, ${utcLabel(at)}`}>
+          {local(at)}
+        </span>
+        <ol className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          {pips.map((p, i) => (
+            <li
+              key={p.id}
+              aria-current={p.state === "current" ? "step" : undefined}
+              className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption ${p.state === "current" ? (call ? "border-caution text-text" : "border-border text-text") : p.state === "done" ? "border-line text-text-2" : "border-line text-text-3"}`}
+            >
+              <span aria-hidden className={p.state === "done" ? "text-ok" : "text-text-3"}>
+                {p.state === "done" ? "✓" : i + 1}
+              </span>
+              <span>{p.label}</span>
+              {p.count && p.count > 1 ? <span className="text-text-3">×{p.count}</span> : null}
+              <span className="sr-only">{p.state === "done" ? ", decided" : p.state === "current" ? ", now" : ""}</span>
+            </li>
+          ))}
+        </ol>
+        <span className={`shrink-0 text-caption ${call ? "text-caution" : "text-text-3"}`}>{call ? "Mission clock paused" : paused ? "Paused" : "Clock running"}</span>
+      </div>
+      <p className="sr-only" aria-live="polite" role="status">
+        {announce}
+      </p>
+    </div>
+  );
+}
