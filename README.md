@@ -71,7 +71,7 @@ The console on the demo mission is `#m/demo`: t0, the call, with a pitch bar; **
 
 The story reads whichever scenario is loaded (its first assignment, the clue it names, its find), so it works on every preset. Recording: `docs/report/figures/command-post/story.webm`.
 
-The view switch (Map · Photos · Review · Trace · Debrief · Radio, keys 1 to 6) works at any moment; **Skip to now** (or `#m/demo/map`) opens the console at the end of the timeline, the wordmark opens the About sheet (`#about`: who it is for, how it works), and `#new` is the empty console for a new search. The old guided-demo addresses (`#survey`, `#rank`, `#review`, `#search`, `#results`, `#judges`, `#try`) redirect to these moments. The Mount Seymour flight path, the fleet and the mission's timeline are simulated, and the site labels them that way.
+The view switch (Map · Photos · Trace · Debrief, keys 1 to 4; Review folds into Needs you and the radio lives in the timeline) works at any moment; **Skip to now** (or `#m/demo/map`) opens the console at the end of the timeline, the wordmark opens the About sheet (`#about`: who it is for, how it works), and `#new` is the empty console for a new search. The old guided-demo addresses (`#survey`, `#rank`, `#review`, `#search`, `#results`, `#judges`, `#try`) redirect to these moments. The Mount Seymour flight path, the fleet and the mission's timeline are simulated, and the site labels them that way.
 
 ## Live missions
 
