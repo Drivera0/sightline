@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import type { MissionRoute } from "./ingest/LiveMission";
@@ -21,10 +22,30 @@ const open = (hash: string, base: string | null = null) => {
 };
 
 describe("App: one console behind every address", () => {
-  it("opens the demo mission's landing at the site's root", () => {
+  it("opens the home page at the site's root, and the demo mission's landing at #m/demo", () => {
     open("");
-    expect(window.location.hash).toBe("#m/demo");
+    expect(window.location.hash).toBe("");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("The brain of a drone search.");
+    expect(screen.queryByTestId("console")).toBeNull();
+    document.body.innerHTML = "";
+    open("#m/demo");
     expect(screen.getByTestId("console")).toHaveTextContent("demo null null");
+  });
+
+  it("opens a home card's scenario with the guided simulation on", () => {
+    open("#m/demo?s=despondent&guide=1");
+    expect(screen.getByTestId("console")).toHaveTextContent("demo null null guide");
+  });
+
+  it("puts About over the home page, and closing it goes home", async () => {
+    open("");
+    window.location.hash = "#about";
+    const sheet = await screen.findByRole("dialog", { name: "About Sightline" });
+    expect(screen.getByRole("region", { name: "Choose a search" })).toBeInTheDocument(); // the home page behind it
+    await userEvent.click(within(sheet).getByRole("button", { name: /Close/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "About Sightline" })).toBeNull());
+    expect(window.location.hash).toBe("");
+    expect(screen.getByRole("region", { name: "Choose a search" })).toBeInTheDocument();
   });
 
   it.each([

@@ -1,6 +1,6 @@
 // The app's one header. Row one: the wordmark (it opens About), the mission on screen (name, Live/Demo,
-// the one disclosure chip), the view switch (Map · Photos · Trace · Debrief, `aria-pressed`), the action
-// and the shortcuts. Row two, on a mission: the status line (StatusLine.tsx). Under 1024 px the view switch
+// the one disclosure chip), the view switch (Map · Photos · Trace · Debrief, `aria-pressed`), the action,
+// the theme toggle (dark or light) and the shortcuts. Row two, on a mission: the status line (StatusLine.tsx). Under 1024 px the view switch
 // becomes four tabs along the bottom: Map, Needs you, Timeline, More (Photos, Trace, Debrief).
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -8,6 +8,7 @@ import { Button, DisclosureChip, ModeChip, type Mode } from "./components";
 import type { View } from "./flow";
 import { VIEWS } from "./flow";
 import { Brand } from "./Logo";
+import { ThemeToggle } from "./ThemeToggle";
 
 const LAST_MISSION_KEY = "sightline.lastMission";
 
@@ -102,7 +103,7 @@ function PhoneBar({ views, tabs }: { views: BarViews; tabs: BarTabs }) {
   return (
     <div ref={menu} className="relative">
       {more && (
-        <ul role="menu" aria-label="More views" className="absolute right-2 bottom-full mb-2 flex w-48 flex-col rounded-lg border border-line bg-surface-solid p-1 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.9)]">
+        <ul role="menu" aria-label="More views" className="absolute right-2 bottom-full mb-2 flex w-48 flex-col rounded-lg border border-line bg-surface-solid p-1 shadow-[var(--shadow-pop)]">
           {VIEWS.filter((v) => v.id !== "map").map((v) => (
             <li key={v.id} role="none">
               <button
@@ -206,6 +207,7 @@ export function AppBar({
                 {action.label}
               </Button>
             )}
+            <ThemeToggle />
             {extra}
           </div>
         </div>

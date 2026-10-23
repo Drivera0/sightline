@@ -1,26 +1,60 @@
 # web/src/shell: one console, its bar and its addresses
 
-The site is one console. The landing (`#`, which is `#m/demo`) is the console on the demo mission at the
-start of its timeline; the story, New search, Try a photo, the results and For judges are moments, views,
+The site is a home page (`#`, `front/Home.tsx`: what Sightline is, then "Choose a search") and one console.
+The console on the demo mission (`#m/demo`) starts at the start of its timeline; the story, New search, Try a photo, the results and For judges are moments, views,
 rails or sheets of that console, never pages of their own. One mission state (`useMission`), one map
 instance (it never unmounts while you stay on a mission), one clock.
 
 | File | What |
 |---|---|
 | `flow.ts` | The address map: routes, views and every old address redirected (table below). |
-| `AppBar.tsx` | The one header. Row one: wordmark (opens About) · mission name, Live/Demo chip, the demo's one disclosure chip ("Simulation on real aerial photographs") · view switch (Map · Photos · Trace · Debrief, `aria-pressed`) · one button · `?`. Row two: the status line (`command/StatusLine.tsx`). Under 1024 px four tabs along the bottom: Map, Needs you (its count), Timeline, More (Photos, Trace, Debrief). |
+| `AppBar.tsx` | The one header. Row one: wordmark (opens About) · mission name, Live/Demo chip, the demo's one disclosure chip ("Simulation on real aerial photographs") · view switch (Map · Photos · Trace · Debrief, `aria-pressed`) · one button · the theme toggle · `?`. Row two: the status line (`command/StatusLine.tsx`). Under 1024 px four tabs along the bottom: Map, Needs you (its count), Timeline, More (Photos, Trace, Debrief). |
 | `icons.tsx` | The one icon set: drone, team, clue, base camp, last known point, the find, radio, decision, detection, check-in; 24-unit paths, 2-unit round strokes, no emoji. The map draws the same paths (`map/base/iconImages.ts`). |
 | `Sheet.tsx` | A sheet over the console (About): slides in, Esc or the dim closes it, focus goes back. |
 | `components.tsx` | The visual system from #159: `Button` (one orange primary per screen), `Panel` (opaque), `PageHeader`, `Page`, `Stat`, `Badge`, `StatusPill`, `ModeChip`, `DisclosureChip`, `KeyHint`, `EmptyState`. |
 | `Logo.tsx` | `Brand`: the logo and the name, a link to `#about`. |
-| `ShortcutOverlay.tsx`, `shortcuts.ts` | `?`: the story's keys, the views, the console's and the review's. |
-| `theme.css` | Tokens, type scale, the status pill, motion (sheets and coach marks 200–300 ms; none under reduced motion). |
+| `ShortcutOverlay.tsx`, `shortcuts.ts` | `?`: About and the home page, then the story's keys, the views, the console's and the review's. |
+| `theme.css` | Tokens for both themes (Colour, below), type scale, the status pill, motion (sheets and coach marks 200–300 ms; none under reduced motion). |
+| `theme.ts`, `ThemeToggle.tsx` | Dark or light: the system's preference until the visitor picks one with the app bar's toggle, then remembered (`localStorage` `sightline.theme`). `index.html` sets `data-theme` before the first paint with the same rule. |
+
+## Colour
+
+![Every colour token in both themes, with its contrast on the panel colour](../../../docs/report/figures/v3/colour-system.webp)
+
+Dark is the default; light follows the system or the toggle. One colour per kind of thing, used everywhere
+(the map, cards, the timeline, chips): a team is always blue, a drone always teal. The brand orange
+(`--accent`) is for the primary action (one per screen) and the story only, never for a kind of thing.
+Every text colour is at least 4.5:1 on `--bg`, `--surface-solid`, `--surface-strong` and its own pill in
+both themes: `node scripts/check-contrast.mjs` prints every pair, and `scripts/contrast.test.ts` fails the
+tests when one drops under. The figure is `node scripts/colour-swatches.mjs` screenshotted.
+
+| Token | Tailwind | Means | Dark | Light |
+|---|---|---|---|---|
+| `--team` | `text-team` | ground teams | `#6ea8fe` | `#1d5ec7` |
+| `--drone` | `text-drone` | drones | `#2ec4b6` | `#0e7068` |
+| `--clue` | `text-clue` | clues | `#f5b544` | `#8a5300` |
+| `--proposal` | `text-proposal` | the agent's proposals | `#b197fc` | `#6d32d6` |
+| `--found` | `text-found` | the find | `#5fd38d` | `#12703a` |
+| `--alert` | `text-alert` | alerts, overdue | `#f26b5e` | `#b42318` |
+| `--searched`, `--searched-line` | `bg-searched` | searched ground (a fill and its outline, not text) | `#1c2636`, `#4a5d7c` | `#3a4658`, `#1f2937` |
+| `--prob-1` … `--prob-5` | `bg-prob-3` | probability, low → high: rust → amber → cream (dark), rust → orange → yellow (light) | `#7c2d12` `#c2410c` `#f59e0b` `#fcd34d` `#fff1d0` | `#9a3412` `#ea580c` `#f59e0b` `#facc15` `#fef08a` |
+| `--accent`, `--on-accent` | `bg-accent text-on-accent` | the primary action and the story | `#ff7a1a` on `#0a0b0d` | `#b33c0a` on `#ffffff` |
+| `--ok`, `--caution`, `--alert` | `data-tone` | status (searching, caution, alert) | `#7ee2a0` `#f5b544` `#f26b5e` | `#12703a` `#8a5300` `#b42318` |
+| `--text`, `--text-2`, `--text-3` | `text-text-2` | text, secondary, captions | `#f2f2f0` `#a1a1aa` `#8f8f98` | `#17181b` `#4b4b53` `#5c5c66` |
+| `--bg`, `--surface-solid`, `--surface`, `--surface-strong`, `--border`, `--line` | `bg-surface-solid` | the page, panels, glass, hover, outlines, hairlines | `#0a0b0d` `#111215` (white at 5/8/12/8 %) | `#f5f5f2` `#ffffff` (ink at 3/6/16/9 %) |
+| `--shadow-pop` | `shadow-[var(--shadow-pop)]` | popovers and menus | black 90 % | slate 28 % |
+
+Pills take the semantic set as tones too: `data-tone="team" | "drone" | "clue" | "proposal" | "found"`.
+Never write a hex value in a component: when a colour is missing, add a token here, in both themes.
 
 ## Addresses
 
 | Address | Opens |
 |---|---|
-| `#`, `` | `#m/demo`: the landing (t0, the pitch bar) |
+| `#`, `` | the home page: what Sightline is, the four photographs, how it fits together, "Choose a search", the footer (anything unknown lands here too) |
+| `#m/demo` | the console on the demo mission at t0, the pitch bar |
+| `#m/demo?s=<seed>&guide=1` | a scenario with the guided simulation started (a home card's Start) |
+| `#m/demo/map?s=<seed>` | a scenario, just the console |
 | `#m/demo?t=0..6` | the story at a checkpoint (the call, photos land, confirm, where next, the run, the find, the debrief), its coach marks on |
 | `#m/<id>/map` · `photos` · `trace` · `debrief` | a view of a mission; on the demo `?t=0..5` sets the mission clock (none: the end of the timeline) |
 | `#m/<id>/map?needs` | the console with Needs you in front (`#m/<id>/review` lands here: the review folds into Needs you) |
