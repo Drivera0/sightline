@@ -10,7 +10,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Drone, EvidenceRef, Proposal, Team } from "../contract";
 import { KeyHint, StatusPill } from "../shell/components";
-import { operatorName } from "../lib/mission";
+import { operatorName, useMission } from "../lib/mission";
+import { ModelSource, onTokenFactory, proposalCall } from "./nebius";
 import { clueNoteFor } from "./clueShift";
 import { domain, OVERRIDE_SOURCE } from "./conditions";
 import { useConsole } from "./consoleStore";
@@ -307,6 +308,8 @@ function PendingCard({
   cardRef?: (el: HTMLDivElement | null) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // the Nemotron call behind it (the second look a promotion rests on, the briefing it carries), when on record
+  const call = useMission((s) => proposalCall(s.model_calls, p));
   const [editing, setEditing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [why, setWhy] = useState("");
@@ -399,6 +402,7 @@ function PendingCard({
             {open ? "Show less" : "Show the whole reason"}
           </button>
         )}
+        {p.kind === "promote_detection" && call && onTokenFactory(call.model) && <ModelSource model={call.model} ms={call.ms} />}
       </AgentNote>
       {clues && (
         <p aria-label="Clues behind it" className="text-small text-text-2">
@@ -420,7 +424,11 @@ function PendingCard({
         </div>
       )}
       {!editing && p.briefing && (
-        <RadioBubble to={teams.find((t) => t.id === (team || p.target.team))?.callsign ?? (p.target.team === "all" ? "all teams" : (p.target.team ?? "the team"))} text={briefing || p.briefing} callsigns={teams.map((t) => t.callsign)} />
+        <>
+          <RadioBubble to={teams.find((t) => t.id === (team || p.target.team))?.callsign ?? (p.target.team === "all" ? "all teams" : (p.target.team ?? "the team"))} text={briefing || p.briefing} callsigns={teams.map((t) => t.callsign)} />
+          {/* written by the model only while it is the model's own words (an edit is the person's) */}
+          {call?.kind === "briefing" && onTokenFactory(call.model) && (briefing || p.briefing) === call.text && <ModelSource lead="Briefing by" model={call.model} ms={call.ms} />}
+        </>
       )}
       {editing && (
         <div role="group" className="flex flex-col gap-2" aria-label="Edit before approving">
