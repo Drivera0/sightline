@@ -71,9 +71,9 @@ describe("direct actions on the demo", () => {
     demoFlights.start = start;
     await useMission.getState().droneLeg("A1");
     const f = useMission.getState().fleet!;
-    expect(f.legs.at(-1)).toMatchObject({ id: "L001", drone_id: "D1", sector_id: "A1", status: "flying" });
-    expect(f.drones[0]).toMatchObject({ status: "flying", leg_id: "L001" });
-    expect(start).toHaveBeenCalledWith("L001");
+    expect(f.legs.at(-1)).toMatchObject({ id: "L101", drone_id: "D1", sector_id: "A1", status: "flying" });
+    expect(f.drones[0]).toMatchObject({ status: "flying", leg_id: "L101" });
+    expect(start).toHaveBeenCalledWith("L101");
     await useMission.getState().recallDrone("D1");
     expect(useMission.getState().fleet!.drones[0]).toMatchObject({ status: "idle", leg_id: null, position: { lat: 49.373, lon: -122.949 } });
     expect(useMission.getState().fleet!.legs.at(-1)?.status).toBe("cancelled");

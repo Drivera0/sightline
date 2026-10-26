@@ -5,12 +5,14 @@
 // loaded with it whenever the scrubber moves. What the coach marks say at each checkpoint is in
 // storyCopy.ts, read off the loaded scenario.
 
-import type { Clue, FleetState, MapBase, MapUpdate, MissionEvent, Proposal, SectorTask, Team } from "../contract";
+import type { Clue, FleetState, MapBase, MapUpdate, MissionEvent, Proposal, SectorTask, Team, TimelineEvent } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { applyEvent, EMPTY, fleetLinksFromEvents, type MissionData } from "../lib/mission";
 import { teamOf } from "./timeline";
 import { LiveHeat, lookedAt } from "../search/live";
-import { agentPick, passesFrom, poaAfter, realOf, type Cost, type Pass, type Subject } from "./sim";
+import { agentPick, passesFrom, poaAfter, realOf, RETURN_MS, SWEEP_MS, type Cost, type Pass, type Subject } from "./sim";
+import { flightNotes, flights, fleetNow, legPhotos, legSortie, surveySorties, userSorties, type Sortie } from "./fleetSim";
+import { metres, nearestTeam, sectorAt, sightings } from "./console";
 
 export type Checkpoint = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export const CHECKPOINTS_ALL: readonly Checkpoint[] = [0, 1, 2, 3, 4, 5, 6];
@@ -159,48 +161,163 @@ export function alongPath(path: readonly LL[], f: number): LL {
 /** How long a team takes to walk from the trailhead to where the fixtures last saw it (at least). */
 const WALK_MS = 6 * 60_000;
 
-/** Teams wait at the trailhead until their first task, then walk out to their last reported position. */
-function teamsAt(teams: readonly Team[], tasks: readonly SectorTask[], c: number): Team[] {
+/** On foot on a trail: 3 km/h. */
+const WALK_M_PER_MS = 50 / 60_000;
+const MIN_MS = 60_000;
+
+/** Where a team is and how it is at one moment (the map and the Resources row read the same one). */
+export interface Place {
+  status: Team["status"];
+  pos: LL;
+  /** When it was last heard (ms). */
+  heard: number;
+  /** Minutes until it is back at base camp (returning only). */
+  eta: number | null;
+  note?: string | null;
+}
+
+/** A hasty team's radio check-in, every this often while it is out. */
+export const HASTY_CHECKIN_MS = 20 * MIN_MS;
+
+/**
+ * A team that radioed clues before the board was seeded was out on a hasty search: it went out along the
+ * trail at the call, was where each clue was when it called it in, radioed its position every 20 minutes,
+ * then walked back (the cold test: teams radioed clues while the list said "Free · at base camp").
+ */
+function hastyTrip(team: Pick<Team, "id" | "callsign">, clues: readonly Clue[]): { leave: number; stops: { at: number; pos: LL }[]; back: number; checkins: number[] } | null {
+  const visits = clues
+    .filter((c) => c.reported_by !== "command" && teamOf([{ id: team.id, callsign: team.callsign }], c.reported_by) === team.id && ms(c.at) <= ms(BOARD_AT))
+    .sort((a, b) => a.at.localeCompare(b.at));
+  if (!visits.length) return null;
+  const stops = visits.map((c) => ({ at: ms(c.at), pos: { lat: c.lat, lon: c.lon } }));
+  // sent out on the trail five minutes after the call (or in time to reach its first clue)
+  const leave = Math.min(ms(CHECKPOINTS[0]!.at) + 5 * MIN_MS, stops[0]!.at - metres(HOME, stops[0]!.pos) / WALK_M_PER_MS);
+  const last = stops.at(-1)!;
+  const back = last.at + metres(last.pos, HOME) / WALK_M_PER_MS;
+  const checkins: number[] = [];
+  for (let t = leave + HASTY_CHECKIN_MS; t < back; t += HASTY_CHECKIN_MS) checkins.push(t);
+  return { leave, stops, back, checkins };
+}
+
+/** Where a hasty team is at `t` (null: at base camp then). */
+export function hastyAt(team: Pick<Team, "id" | "callsign">, clues: readonly Clue[], t: number): Place | null {
+  const trip = hastyTrip(team, clues);
+  if (!trip || t < trip.leave || t >= trip.back) return null;
+  const { leave, stops, back } = trip;
+  const heard = Math.max(leave, ...trip.checkins.filter((x) => x <= t), ...stops.map((s) => s.at).filter((x) => x <= t));
+  if (t < stops[0]!.at) return { status: "searching", pos: alongPath([HOME, stops[0]!.pos], (t - leave) / Math.max(1, stops[0]!.at - leave)), heard, eta: null, note: "hasty search" };
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [a, b] = [stops[i]!, stops[i + 1]!];
+    if (t < b.at) return { status: "searching", pos: alongPath([a.pos, b.pos], (t - a.at) / Math.max(1, b.at - a.at)), heard, eta: null, note: "hasty search" };
+  }
+  const last = stops.at(-1)!;
+  return { status: "returning", pos: alongPath([last.pos, HOME], (t - last.at) / Math.max(1, back - last.at)), heard, eta: Math.max(1, Math.ceil((back - t) / MIN_MS)), note: null };
+}
+
+/** The hasty teams' going out and their check-ins as timeline rows, up to `c` (what the row's "heard N min" counts). */
+export function hastyRows(teams: readonly Team[], clues: readonly Clue[], c: number, sentAt: (team: string) => number = () => Infinity): TimelineEvent[] {
+  const out: TimelineEvent[] = [];
+  for (const t of teams) {
+    const trip = hastyTrip(t, clues);
+    if (!trip) continue;
+    // sent on to a sector before it was back: the hasty search ends there
+    const until = Math.min(c, sentAt(t.id));
+    const row = (at: number, text: string, i: number): TimelineEvent => ({ id: `hasty-${t.id}-${i}`, at: iso(at), kind: "checkin", team: t.id, sector: null, text, direction: null, refs: [], turn_id: null, drone: null, by: null });
+    if (trip.leave <= until) out.push(row(trip.leave, `${t.callsign} out on a hasty search along the trail`, 0));
+    trip.checkins.forEach((x, i) => x <= until && out.push(row(x, `${t.callsign}: position report (hasty search)`, i + 1)));
+    if (trip.back <= until) out.push(row(trip.back, `${t.callsign} back at base camp`, 99));
+  }
+  return out;
+}
+
+/** A team as a place says. */
+const placed = (t: Team, p: Place, c: number): Team => ({
+  ...t,
+  status: p.status,
+  position: p.pos,
+  position_at: iso(c),
+  last_heard_at: t.last_heard_at && ms(t.last_heard_at) > p.heard && ms(t.last_heard_at) <= c ? t.last_heard_at : iso(p.heard),
+  eta_min: p.eta,
+  note: p.note ?? null,
+});
+
+/** Teams wait at the trailhead until their first task (or go out on a hasty search), then walk out to their last reported position. */
+function teamsAt(teams: readonly Team[], tasks: readonly SectorTask[], c: number, clues: readonly Clue[] = []): Team[] {
   return teams.map((t) => {
     const own = tasks.filter((x) => x.team_id === t.id).map(taskTime);
     const out = own.length ? Math.min(...own) : Infinity;
-    if (c < out || !t.position) return atTrailhead(t);
+    if (c < out || !t.position) {
+      const hasty = hastyAt(t, clues, c);
+      return hasty ? placed(atTrailhead(t), hasty, c) : atTrailhead(t);
+    }
     const there = Math.max(out + WALK_MS, t.position_at ? ms(t.position_at) : 0);
     if (c >= there) return t;
     return { ...t, position: alongPath([HOME, t.position], (c - out) / (there - out)), position_at: iso(c) };
   });
 }
 
-/**
- * The fleet as it stood: none before the survey flight, landed at the trailhead after it, then from
- * FLEET_OUT each drone flies out to its leg and along it, reaching the fixtures' position at `end`.
- */
-function fleetAt(fleet: FleetState | null | undefined, c: number, end: number): FleetState | null {
-  if (!fleet) return null;
-  if (c >= end) return fleet;
-  if (c >= ms(FLEET_OUT)) {
-    const f = (c - ms(FLEET_OUT)) / Math.max(1, end - ms(FLEET_OUT));
-    return {
-      ...fleet,
-      drones: fleet.drones.map((d) => {
-        if (!d.position) return d;
-        const leg = fleet.legs.find((l) => l.id === d.leg_id);
-        const wps = (leg?.waypoints ?? []).map(([lon, lat]) => ({ lat, lon }));
-        // along the leg's sweep lines as far as the waypoint nearest where it ends up, then there
-        const near = wps.reduce((best, w, i) => (Math.hypot(w.lat - d.position!.lat, w.lon - d.position!.lon) < Math.hypot(wps[best]!.lat - d.position!.lat, wps[best]!.lon - d.position!.lon) ? i : best), 0);
-        const path = [{ ...HOME }, ...wps.slice(0, wps.length ? near + 1 : 0), d.position];
-        return { ...d, status: "flying" as const, position: alongPath(path, f) };
-      }),
-    };
+/** The fixtures' flights: the survey (FLIGHT), then each leg from when it started (its "started" note), until its "done" note or its own minutes. */
+const fixtureFlights = new WeakMap<object, Sortie[]>();
+function fixtureSorties(d: Partial<MissionData>, by: string): Sortie[] {
+  const key = d.fleet as object | undefined;
+  if (!key || !d.fleet) return [];
+  const hit = fixtureFlights.get(key);
+  if (hit) return hit;
+  const fleet = d.fleet;
+  const events = d.events ?? [];
+  const timeOf = (re: RegExp) => events.find((e) => re.test(e.summary))?.at ?? null;
+  const out: Sortie[] = surveySorties(fleet.drones, d.sectors ?? [], ms(FLIGHT.start), ms(FLIGHT.end), HOME);
+  for (const l of fleet.legs.filter((x) => x.status !== "proposed")) {
+    const started = timeOf(new RegExp(`leg ${l.id} .*started`)) ?? timeOf(new RegExp(`^${l.id} approved`)) ?? FLEET_OUT;
+    const done = timeOf(new RegExp(`leg ${l.id} .*done`));
+    const drone = fleet.drones.find((x) => x.id === l.drone_id);
+    const speed = Math.max(1, drone?.speed_ms ?? 8);
+    const first = l.waypoints[0];
+    const outMs = first ? (metres(HOME, { lat: first[1], lon: first[0] }) / speed) * 1000 : 0;
+    out.push(legSortie(l, ms(started), by, done ? ms(done) - outMs : null, speed));
   }
+  fixtureFlights.set(key, out);
+  return out;
+}
+
+/**
+ * The fleet as it stood at `c` (fleetSim.ts): no drone before the survey flight, the survey flight, landed
+ * and swapped at base camp, then the legs from when each started: out, the sweep, back, landed; with the
+ * manager's own legs and recalls (`user`, null: the console's own flights are wall-clock, the clock pinned).
+ * The fleet's own notes for each leg's end and landing, and the photos the manager's legs take, come with it.
+ */
+export function fleetAt(d: Partial<MissionData>, c: number, user: readonly MissionEvent[] | null, by = "the search manager"): { fleet: FleetState | null; notes: MissionEvent[]; photos: MapUpdate[]; skipped: Set<string> } {
+  const fleet = d.fleet;
+  const skipped = new Set<string>();
+  if (!fleet) return { fleet: null, notes: [], photos: [], skipped };
   // before the survey flight nothing has flown: no drone on the map (no marker, no battery label) until t1
-  if (c < ms(FLIGHT.start)) return { ...fleet, legs: [], drones: [] };
-  // landed at the trailhead, the survey's photos off their cards; no leg yet
-  return {
-    ...fleet,
-    legs: [],
-    drones: fleet.drones.map((d) => ({ ...d, status: "idle", leg_id: null, position: { ...HOME } })),
-  };
+  if (c < ms(FLIGHT.start)) return { fleet: { ...fleet, legs: [], drones: [] }, notes: [], photos: [], skipped };
+  const mine = user ? userSorties(user.filter((e) => ms(e.at) <= c)) : [];
+  // a scenario leg for a drone the manager has in the air on a leg of their own is not flown: theirs stands
+  const own = flights(fleet.drones, mine, HOME);
+  for (const x of fixtureSorties(d, by)) if (x.kind === "leg" && x.leg && own.some((f) => f.sortie.drone === x.drone && f.sortie.start <= x.start && f.landed > x.start)) skipped.add(x.leg);
+  const sorties = [...fixtureSorties(d, by).filter((x) => !x.leg || !skipped.has(x.leg)), ...mine].filter((x) => x.start <= c);
+  const all = flights(fleet.drones, sorties, HOME);
+  const userLegs = (user ?? []).flatMap((e) => (e.type === "fleet.updated" && ms(e.at) <= c ? ((e.data as unknown as FleetState | null)?.legs ?? []).filter((l) => mine.some((m) => m.leg === l.id)) : []));
+  const legs = [...fleet.legs.filter((l) => !skipped.has(l.id)), ...userLegs.filter((l, i) => userLegs.findIndex((x) => x.id === l.id) === i && !fleet.legs.some((x) => x.id === l.id))];
+  const now = fleetNow(fleet, all, c, HOME, legs);
+  const notes = flightNotes(all, fleet.drones, c, d.events ?? []);
+  const photos = d.mapBase && user ? all.filter((f) => mine.includes(f.sortie)).flatMap((f) => legPhotos(d.mapBase!, f)).filter((u) => ms(u.at) <= c) : [];
+  return { fleet: now, notes, photos, skipped };
+}
+
+/** The fleet's own notes (a leg's sweep done, a drone back at base camp) as timeline rows at their own times. */
+const noteRows = (notes: readonly MissionEvent[]): TimelineEvent[] =>
+  notes.map((n) => ({ id: n.id, at: n.at, kind: "drone", team: null, sector: null, text: n.summary, direction: null, refs: n.ref ? [n.ref] : [], turn_id: null, drone: null, by: null }));
+
+/** A fleet event or note about a scenario leg that was not flown (the manager's own leg had the drone). */
+const aboutSkipped = (e: MissionEvent, skipped: ReadonlySet<string>) => skipped.size > 0 && [...skipped].some((id) => new RegExp(`(^|leg |re-task: )${id}\\b`).test(e.summary));
+
+/** The fixtures' fleet approvals named: "L001 approved for Drone 1" said who approved it. */
+function approver(e: MissionEvent, who: string): MissionEvent {
+  if (e.type !== "fleet.updated" || !/^L\d+ approved for /.test(e.summary) || / by |auto-approved/.test(e.summary)) return e;
+  // the fixture's words kept (plainWords turns them into "Drone 1: flight line approved"), who said after them
+  return { ...e, summary: `${e.summary.replace(/ \(simulated fleet\)$/, "")} (${who})` };
 }
 
 export { sectorCells } from "../search/sectorCells";
@@ -272,8 +389,8 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
       : allTasks.map((t) => (taskTime(t) <= c ? t : { ...t, state: "proposed" as const, team_id: null, pod: null, note: null, updated_at: BOARD_AT }));
   const clues: Clue[] = (d.clues ?? []).filter((x) => ms(x.at) <= c);
   const proposals = (d.proposals ?? []).filter((p) => ms(p.created_at) <= c).map((p) => proposalAt(p, c));
-  const events = (d.events ?? [])
-    .filter((e) => eventTime(e) <= c)
+  const fly = fleetAt(d, c, opts.hold ? user : null);
+  const events = [...(d.events ?? []).filter((e) => eventTime(e) <= c && !aboutSkipped(e, fly.skipped)).map((e) => approver(e, "by the search manager"))]
     .sort((a, b) => a.at.localeCompare(b.at));
   // every reading from the same map log, the end of the timeline too (the fixture's own "now" POA came from
   // the server before the last legs and searches were applied: B1 jumped 0.4 → 1.6 % at 15:00, judges 2026-10-23)
@@ -283,16 +400,22 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
     ...d,
     mission: mission ?? null,
     tasks,
-    teams: (now ? (d.teams ?? []).map((t) => (t.position ? t : atTrailhead(t))) : teamsAt(d.teams ?? [], allTasks, c)).map(heardBy),
+    teams: (now ? (d.teams ?? []).map((t) => (t.position ? t : atTrailhead(t))) : teamsAt(d.teams ?? [], allTasks, c, d.clues ?? [])).map(heardBy),
     clues,
     proposals,
-    fleet: now ? (d.fleet ?? null) : fleetAt(d.fleet, c, ms(full.now)),
+    fleet: now && !opts.hold ? (d.fleet ?? null) : fly.fleet,
     events,
     mapUpdates,
     sectors,
     verdicts: [],
     // the server's timeline, as it stood at the clock
-    timeline: (d.timeline ?? []).filter((e) => ms(e.at) <= c),
+    timeline: [
+      ...(d.timeline ?? [])
+        .filter((e) => ms(e.at) <= c && !aboutSkipped({ summary: e.text } as MissionEvent, fly.skipped))
+        .map((e) => (e.kind === "drone" ? { ...e, text: approver({ type: "fleet.updated", summary: e.text } as MissionEvent, "by the search manager").summary } : e)),
+      ...(now ? [] : hastyRows(d.teams ?? [], d.clues ?? [], c, (id) => Math.min(...allTasks.filter((x) => x.team_id === id).map(taskTime)))),
+      ...(now ? [] : noteRows(fly.notes)),
+    ].sort((a, b) => a.at.localeCompare(b.at)),
     links: fleetLinksFromEvents(events),
   };
   const mine = user.filter((e) => ms(e.at) <= c);
@@ -300,7 +423,9 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
   if (!opts.hold) return out;
   // the visitor's assignments play through the guided search's engine
   const sim = simulate(out, full, mine, c, opts.seed ?? "demo");
-  return { ...sim, sectors: d.mapBase ? sectorsAt(d.mapBase, sim.sectors, sim.mapUpdates) : sim.sectors };
+  // the manager's legs fly by the clock (fleetSim.ts), their photos lowering the map as they are taken
+  const played = { ...sim, fleet: fly.fleet ?? sim.fleet, mapUpdates: [...sim.mapUpdates, ...fly.photos] };
+  return rankPending(played, d.mapBase ? sectorsAt(d.mapBase, played.sectors, played.mapUpdates) : played.sectors);
 }
 
 const decidedBy = (user: readonly MissionEvent[], c: number) => new Set(user.filter((e) => e.type === "proposal.decided" && ms(e.at) <= c && e.ref).map((e) => e.ref as string));
@@ -417,23 +542,43 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   const mapUpdates = allUpdates.filter((_, i) => (times[i] as number) <= c);
   const tasks: SectorTask[] = c < ms(BOARD_AT) ? [] : (d.tasks ?? []).map((t) => ({ ...t, state: "proposed" as const, team_id: null, pod: null, note: null, updated_at: BOARD_AT }));
   const clues = (d.clues ?? []).filter((x) => ms(x.at) <= c).map((x) => (x.id === opts.readback ? { ...x, confirmed: false } : x));
-  const proposals = (d.proposals ?? []).filter((p) => ms(p.created_at) <= c).map((p) => proposalAt(p, -Infinity));
-  const events = (d.events ?? [])
-    .filter((e) => eventTime(e) <= c && !managersOwn(e))
+  // the fixtures' later assignment proposals for a team or a sector the visitor has already sent are moot: the agent does
+  // not propose them (the cold test: "C3 to Team Three" right after Team Three went to B3)
+  const sent = user.filter((e) => e.type === "task.updated" && (e.data as { state?: string } | null)?.state === "assigned").map((e) => ({ at: ms(e.at), team: (e.data as { team_id?: string }).team_id, sector: (e.data as { sector_id?: string }).sector_id }));
+  // (never the first assignment: the guided search's Assign step is about it)
+  const firstAssign = [...(d.proposals ?? [])].filter((p) => p.kind === "assign_sector").sort((a, b) => a.created_at.localeCompare(b.created_at))[0]?.id;
+  const moot = (p: Proposal) => p.kind === "assign_sector" && p.id !== firstAssign && sent.some((x) => x.at <= ms(p.created_at) && (x.team === p.target.team || x.sector === p.target.sector));
+  const mootIds = new Set((d.proposals ?? []).filter(moot).map((p) => p.id));
+  const proposals = (d.proposals ?? []).filter((p) => ms(p.created_at) <= c && !mootIds.has(p.id)).map((p) => proposalAt(p, -Infinity));
+  const mine = user.filter((e) => ms(e.at) <= c);
+  const fly = fleetAt(d, c, mine, "auto-approved: guided survey");
+  const notMoot = (e: MissionEvent) => !(e.type === "proposal.new" && e.ref && mootIds.has(e.ref));
+  const events = [...(d.events ?? []).filter((e) => eventTime(e) <= c && !managersOwn(e) && notMoot(e) && !aboutSkipped(e, fly.skipped)).map((e) => approver(e, "auto-approved: guided survey"))]
     // the read-back clue waits for the manager's decision in the log too
     .map((e) => (e.type === "clue.added" && e.ref === opts.readback && e.data ? { ...e, data: { ...(e.data as object), confirmed: false } as MissionEvent["data"] } : e))
     .sort((a, b) => a.at.localeCompare(b.at));
   // the manager's decisions, the teams' check-ins and the find are the visitor's now; after the board is seeded the teams' radio too
-  const timeline = (d.timeline ?? []).filter((e) => ms(e.at) <= c && e.kind !== "decision" && e.kind !== "checkin" && e.kind !== "found" && !(ms(e.at) > ms(BOARD_AT) && e.kind === "radio"));
+  const timeline = (d.timeline ?? [])
+    .filter((e) => ms(e.at) <= c && e.kind !== "decision" && e.kind !== "checkin" && e.kind !== "found" && !(ms(e.at) > ms(BOARD_AT) && e.kind === "radio"))
+    .filter((e) => !aboutSkipped({ summary: e.text } as MissionEvent, fly.skipped))
+    .map((e) => (e.kind === "drone" ? { ...e, text: approver({ type: "fleet.updated", summary: e.text } as MissionEvent, "auto-approved: guided survey").summary } : e));
+  // a hasty team sent on by the manager stops its hasty rows there
+  const sentAt = (id: string) => Math.min(...sent.filter((x) => x.team === id).map((x) => x.at));
+  timeline.push(...hastyRows(d.teams ?? [], d.clues ?? [], c, sentAt), ...noteRows(fly.notes));
+  timeline.sort((a, b) => a.at.localeCompare(b.at));
   const base: MissionData = {
     ...EMPTY,
     ...d,
     mission,
     tasks,
-    teams: (d.teams ?? []).map((t) => ({ ...atTrailhead(t), last_heard_at: t.last_heard_at && ms(t.last_heard_at) <= Math.min(c, ms(BOARD_AT)) ? t.last_heard_at : null })),
+    teams: (d.teams ?? []).map((t) => {
+      const base = { ...atTrailhead(t), last_heard_at: t.last_heard_at && ms(t.last_heard_at) <= Math.min(c, ms(BOARD_AT)) ? t.last_heard_at : null };
+      const hasty = hastyAt(t, d.clues ?? [], c);
+      return hasty ? placed(base, hasty, c) : base;
+    }),
     clues,
     proposals,
-    fleet: fleetAt(d.fleet, c, ms(full.now)),
+    fleet: fly.fleet,
     events,
     mapUpdates,
     sectors: d.sectors ?? [],
@@ -441,9 +586,10 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
     timeline,
     links: fleetLinksFromEvents(events),
   };
-  const mine = user.filter((e) => ms(e.at) <= c);
-  const s = simulate(mine.reduce(applyEvent, base), full, mine, c, opts.seed);
-  return { ...s, sectors: d.mapBase ? sectorsAt(d.mapBase, s.sectors, s.mapUpdates) : s.sectors };
+  const s0 = simulate(mine.reduce(applyEvent, base), full, mine, c, opts.seed);
+  // the drones fly by the clock (fleetSim.ts); the manager's legs photograph the map as they go
+  const s = { ...s0, fleet: fly.fleet, mapUpdates: [...s0.mapUpdates, ...fly.photos] };
+  return rankPending(s, d.mapBase ? sectorsAt(d.mapBase, s.sectors, s.mapUpdates) : s.sectors);
 }
 
 /** Where a sector's teams walk to: the middle of its outline. */
@@ -477,7 +623,7 @@ export function simulate(s: MissionData, full: DemoFull, user: readonly MissionE
   const found = user.find(isFoundEvent);
   const all = passesFrom(seed, subject, user);
   const passes = all.filter((x) => x.start <= c);
-  if (!passes.length) return s;
+  if (!passes.length) return withSightings(s, full, passes, c, !!found);
   const call = (id: string) => s.teams.find((t) => t.id === id)?.callsign ?? id;
   let teams = s.teams;
   let tasks = s.tasks;
@@ -487,18 +633,18 @@ export function simulate(s: MissionData, full: DemoFull, user: readonly MissionE
   const lastFor = new Map<string, Pass>();
   for (const x of passes) lastFor.set(x.team, x);
   let seq = 900_000;
+  // each team where its passes put it: walking out, sweeping, with the subject, walking back, at base camp
+  const foundAt = found ? ms(found.at) : null;
+  for (const id of lastFor.keys()) {
+    const team = s.teams.find((t) => t.id === id);
+    if (!team) continue;
+    const p = placeOf(passes.filter((x) => x.team === id), c, { centre: (sector) => centreOf(s.sectors, sector), subject, foundAt, from: (t) => hastyAt(team, full.data.clues ?? [], t)?.pos ?? null });
+    teams = teams.map((t) => (t.id === id ? placed(t, p, c) : t));
+  }
   for (const x of passes) {
     seq += 1;
     // once the find is marked, the passes still out stop where they are
     const ended = !x.cut && x.end <= c && !(found && ms(found.at) < x.end);
-    if (lastFor.get(x.team) === x) {
-      const centre = centreOf(s.sectors, x.sector);
-      const there = ended && x.detected && subject ? { lat: subject.lat, lon: subject.lon } : centre;
-      const walked = there ? alongPath([HOME, there], (c - x.start) / WALK_MS) : null;
-      const status: Team["status"] = ended ? (x.detected ? "searching" : "standby") : c >= x.arrive ? "searching" : "assigned";
-      const heard = ended ? x.end : c >= x.arrive ? x.arrive : x.start;
-      teams = teams.map((t) => (t.id === x.team ? { ...t, status, position: walked ?? t.position, position_at: iso(c), last_heard_at: iso(heard) } : t));
-    }
     // the board: in progress once the team is there, searched at its POD when it reports no sign
     const own = (t: SectorTask) => t.sector_id === x.sector && t.team_id === x.team;
     if (!x.cut && c >= x.arrive) tasks = tasks.map((t) => (own(t) ? (ended && !x.detected ? { ...t, state: "searched" as const, pod: x.pod, updated_at: iso(x.end) } : { ...t, state: "in_progress" as const, updated_at: iso(x.arrive) }) : t));
@@ -518,19 +664,130 @@ export function simulate(s: MissionData, full: DemoFull, user: readonly MissionE
     const id = `g${String(passes.indexOf(x) + 1).padStart(3, "0")}`;
     if (pick && !proposals.some((p) => p.id === id)) {
       const poa = poaAfter(poaOf(full), all, x.end).get(pick) ?? 0;
+      const seen = openSighting(s.clues, all, s.sectors, x.end);
       proposals = [
         ...proposals,
         {
           id, kind: "assign_sector", status: "pending", created_by: "planner", created_at: iso(x.end), decided_at: null, decided_by: null, decision_reason: null, edits: null, evidence: [], briefing: null,
           target: { team: x.team, sector: pick },
           summary: `Assign sector ${pick} to ${call(x.team)}`,
-          reason: `${x.sector} searched at POD ${x.pod.toFixed(2)} with no sign, so its probability drops; ${pick} is now the likeliest open sector (${(poa * 100).toFixed(1)} % POA) and ${call(x.team)} is free.`,
+          reason: `${x.sector} searched at POD ${x.pod.toFixed(2)} with no sign, so its probability drops; ${pick} is now the likeliest open sector (${(poa * 100).toFixed(1)} % POA) and ${call(x.team)} is free.${seen ? sightingLine(seen) : ""}`,
         },
       ];
     }
   }
   timeline.sort((a, b) => a.at.localeCompare(b.at));
-  return { ...s, teams, tasks, timeline, proposals, mapUpdates };
+  return withSightings({ ...s, teams, tasks, timeline, proposals, mapUpdates }, full, passes, c, !!found);
+}
+
+/** Where a team's passes (in time order, the last one current) put it at `t`. */
+export function placeOf(list: readonly Pass[], t: number, ctx: { centre: (sector: string) => LL | null; subject: Subject | null; foundAt: number | null; from?: (t: number) => LL | null }): Place {
+  const x = list.at(-1)!;
+  const prev = list.slice(0, -1);
+  // it walks from where it was: its last pass, a hasty search, or base camp
+  const from = prev.length ? placeOf(prev, x.start, ctx).pos : (ctx.from?.(x.start) ?? { ...HOME });
+  const centre = ctx.centre(x.sector) ?? from;
+  // once the find is marked, a pass still out stops where it is
+  const tt = ctx.foundAt !== null && ctx.foundAt < x.end && !x.cut ? Math.min(t, x.end - 1) : t;
+  const walk = (u: number) => alongPath([from, centre], (u - x.start) / WALK_MS);
+  if (tt < x.end) {
+    if (tt < x.arrive) return { status: "assigned", pos: walk(tt), heard: x.start, eta: null };
+    return { status: "searching", pos: centre, heard: x.arrive, eta: null };
+  }
+  if (x.detected && !x.cut) return { status: "searching", pos: ctx.subject ? { lat: ctx.subject.lat, lon: ctx.subject.lon } : centre, heard: x.end, eta: null };
+  // searched with no sign, or recalled: it walks back to base camp from where it stood
+  const p0 = x.end < x.arrive ? walk(x.end) : centre;
+  const out = Math.max(1, metres(from, centre));
+  const backMs = Math.max(MIN_MS, RETURN_MS * Math.min(2, metres(p0, HOME) / out));
+  if (t < x.end + backMs) return { status: "returning", pos: alongPath([p0, HOME], (t - x.end) / backMs), heard: x.end, eta: Math.max(1, Math.ceil((x.end + backMs - t) / MIN_MS)) };
+  return { status: "standby", pos: { ...HOME }, heard: x.end, eta: null };
+}
+
+/** A sighting nobody has been sent to since it was marked (a reviewer's "Person"), as of `t`, with its sector. */
+function openSighting(clues: readonly Clue[], passes: readonly Pass[], sectors: readonly SectorNow[], t: number): { clue: Clue; sector: string } | null {
+  for (const clue of sightings(clues)) {
+    if (ms(clue.at) > t) continue;
+    const sector = sectorAt(sectors, clue);
+    if (!sector) continue;
+    if (passes.some((p) => p.sector === sector && p.start >= ms(clue.at) && !p.cut)) continue;
+    return { clue, sector };
+  }
+  return null;
+}
+
+/** What a proposal's reason says of a sighting still waiting for a team. */
+const sightingLine = (o: { clue: Clue; sector: string }) => ` A possible sighting in ${o.sector} (${o.clue.text}) waits for a team: sending the nearest one there comes first.`;
+
+/** A team's walk out and one pass, in minutes (the cost of sending it anywhere). */
+export const PASS_MIN = Math.round((WALK_MS + SWEEP_MS) / MIN_MS);
+
+/**
+ * A reviewer's "Person" changes the plan: the agent proposes sending the nearest team to the sighting's
+ * sector (a proposal the manager approves; it tops Needs you), until a team has been sent there.
+ */
+function withSightings(s: MissionData, full: DemoFull, passes: readonly Pass[], c: number, found: boolean): MissionData {
+  if (found) return s;
+  let proposals = s.proposals;
+  const call = (id: string) => s.teams.find((t) => t.id === id)?.callsign ?? id;
+  for (const clue of sightings(s.clues)) {
+    if (ms(clue.at) > c) continue;
+    const id = `sight-${clue.id}`;
+    if (proposals.some((p) => p.id === id)) continue;
+    const sector = sectorAt(s.sectors, clue);
+    if (!sector || passes.some((p) => p.sector === sector && p.start >= ms(clue.at) && !p.cut)) continue;
+    const near = nearestTeam(s.teams, clue, HOME);
+    if (!near) continue;
+    const where = near.team.status === "standby" ? "at base camp" : near.team.status === "returning" ? "on its way back" : `out in ${s.tasks.find((t) => t.team_id === near.team.id)?.sector_id ?? "the field"}`;
+    proposals = [
+      ...proposals,
+      {
+        id, kind: "assign_sector", status: "pending", created_by: "planner", created_at: clue.at, decided_at: null, decided_by: null, decision_reason: null, edits: null, briefing: null,
+        evidence: [{ kind: "clue", ref: clue.id, caption: clue.text }],
+        target: { team: near.team.id, sector },
+        summary: `Send ${call(near.team.id)} to the sighting in ${sector} (+${PASS_MIN} min)`,
+        reason: `A reviewer marked a person on a photo (${clue.text}): a possible sighting in ${sector}. ${call(near.team.id)} is the nearest team (${Math.round(near.m)} m, ${where}); the walk and one pass take about ${PASS_MIN} min. If it is not the subject, the plan by POA stands.`,
+      },
+    ];
+  }
+  void full;
+  return proposals === s.proposals ? s : { ...s, proposals };
+}
+
+/**
+ * The agent's pending "next sector" proposals (`g…`) re-ranked on the map the table shows: the likeliest
+ * open sector there, never a lower one (the cold test: A4 at 1.5 % proposed while the table's top open
+ * sector was B4 at 2.5 %). Two proposals do not ask for the same sector.
+ */
+export function rankPending(s: MissionData, sectors: readonly SectorNow[]): MissionData {
+  const taken = new Set(s.tasks.filter((t) => t.state === "assigned" || t.state === "in_progress").map((t) => t.sector_id));
+  const open = [...sectors].filter((x) => !taken.has(x.sector_id) && (s.tasks.find((t) => t.sector_id === x.sector_id)?.state ?? "proposed") === "proposed").sort((a, b) => b.poa - a.poa || a.sector_id.localeCompare(b.sector_id));
+  const call = (id: string | undefined) => s.teams.find((t) => t.id === id)?.callsign ?? id ?? "";
+  // a sighting's sector is the sighting proposal's: the next-sector proposals ask for others
+  const sightingAsks = s.proposals.filter((p) => p.status === "pending" && p.id.startsWith("sight-") && p.target.sector);
+  const asked = new Set<string>(sightingAsks.map((p) => p.target.sector as string));
+  const proposals = s.proposals.map((p) => {
+    if (p.status !== "pending" || !/^g\d+$/.test(p.id) || p.kind !== "assign_sector") return p;
+    const top = open.find((x) => !asked.has(x.sector_id));
+    if (!top) return p;
+    // a higher open sector skipped says why: another proposal (the sighting's, or the agent's own) asks for it
+    const higher = open.filter((x) => asked.has(x.sector_id) && x.poa > top.poa).map((x) => `${x.sector_id}${sightingAsks.some((q) => q.target.sector === x.sector_id) ? ", the sighting's" : ""}`);
+    asked.add(top.sector_id);
+    if (top.sector_id === p.target.sector && !higher.length) return p;
+    const why = p.reason.split(";")[0];
+    const tail = / A possible sighting[\s\S]*$/.exec(p.reason)?.[0] ?? "";
+    return {
+      ...p,
+      target: { ...p.target, sector: top.sector_id },
+      summary: `Assign sector ${top.sector_id} to ${call(p.target.team)}`,
+      reason: `${why}; ${top.sector_id} is now the likeliest open sector on the map${higher.length ? ` not already asked for (${higher.join("; ")})` : ""} (${(top.poa * 100).toFixed(1)} % POA) and ${call(p.target.team)} is free.${tail}`,
+    };
+  });
+  // every other assignment the agent asks for says the sighting comes first (the cold test: it ignored two)
+  const first = sightingAsks[0];
+  const cited = first
+    ? proposals.map((p) => (p.status === "pending" && p.kind === "assign_sector" && !p.id.startsWith("sight-") && !/possible sighting/i.test(p.reason) ? { ...p, reason: `${p.reason} A possible sighting in ${first.target.sector} waits for a team: the agent asks to send ${call(first.target.team)} there first.` } : p))
+    : proposals;
+  return { ...s, sectors: [...sectors], proposals: cited };
 }
 
 /** The fixtures' times on the mission clock (sim.ts realOf): every time a panel prints, after the decisions' costs. */

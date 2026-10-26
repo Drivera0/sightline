@@ -34,7 +34,7 @@ import { cardFor } from "../front/scenarios";
 import { SubjectStrip } from "../command/SubjectStrip";
 import { PhotoDrop, useDropped } from "../command/PhotoDrop";
 import { DEFAULT_SEED, presetFor, scenarioMission } from "../command/scenarios";
-import { stopAllDemoFlights } from "../lib/demoFlight";
+import { setClockedFlights, stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
@@ -315,6 +315,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     if (demo && !guided && story.playing) setDecides(true);
   }, [demo, guided, story.playing]);
   const hold = demo && !guided && decides;
+  // with the clock running (the guided search, a played clock) the drones fly by it (command/fleetSim.ts)
+  useEffect(() => setClockedFlights(demo && (guided || hold)), [demo, guided, hold]);
   const derivedIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!demo || !scenario) return;

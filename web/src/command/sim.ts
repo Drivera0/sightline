@@ -17,6 +17,8 @@ export const TEAM_POD = 0.6;
 export const WALK_MS = 6 * 60_000;
 /** One pass of a sector, once the team is there. */
 export const SWEEP_MS = 10 * 60_000;
+/** Back to base camp from the sector once a pass ends with no find (from part of the way: that part of it). */
+export const RETURN_MS = WALK_MS;
 
 export interface Subject {
   sector: string;
@@ -63,10 +65,26 @@ export function pass(seed: string, subject: Subject | null, team: string, sector
   return { team, sector, n, start, arrive, end: detected ? arrive + Math.round((SWEEP_MS * u) / TEAM_POD / 1000) * 1000 : arrive + SWEEP_MS, pod: TEAM_POD, draw: u, inside, detected, cut: false };
 }
 
-/** The visitor's assignments (task.updated to assigned, from their own events), as passes in time order. */
+/** A recall (the console's Recall: a mission note with action "recall"): the team stops where it is and walks back. */
+function recallOf(e: MissionEvent): string | null {
+  if (e.type !== "mission.note") return null;
+  const d = e.data as { action?: string; team?: string } | null;
+  return d?.action === "recall" && d.team ? d.team : null;
+}
+
+/**
+ * The visitor's assignments (task.updated to assigned, from their own events), as passes in time order. A
+ * recall cuts the team's pass where it is (no find, no POD: it did not finish).
+ */
 export function passesFrom(seed: string, subject: Subject | null, user: readonly MissionEvent[]): Pass[] {
   const out: Pass[] = [];
   for (const e of [...user].sort((a, b) => a.at.localeCompare(b.at))) {
+    const recalled = recallOf(e);
+    if (recalled) {
+      const at = new Date(e.at).getTime();
+      for (const o of out) if (o.team === recalled && !o.cut && o.end > at) Object.assign(o, { end: at, cut: true, detected: false });
+      continue;
+    }
     if (e.type !== "task.updated") continue;
     const t = e.data as unknown as SectorTask | null;
     if (!t || t.state !== "assigned" || !t.team_id) continue;

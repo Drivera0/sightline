@@ -20,7 +20,7 @@ import { Resources } from "./Resources";
 import { SectorPopover, type SectorActions } from "./SectorPopover";
 import { ClueForm, Timeline, TalkBar, type TalkVoice } from "./Timeline";
 import { useEventToasts, useOverdueToasts } from "./notifications";
-import { teamOrder } from "./console";
+import { overdueTeams, teamOrder } from "./console";
 import { showMe } from "./showMe";
 import { ToastStack } from "../shell/toasts";
 import { TimelineHandle, useTimelineHeight } from "./TimelineResize";
@@ -138,7 +138,15 @@ export function CommandView(p: CommandProps) {
   const waiting = p.mission?.status === "found" ? 0 : p.reviewCount;
   useEventToasts(p.events, p.teams, waiting, p.proposals, p.needsHighlight != null);
   const checkIn = p.mission?.check_in_min ?? 30;
-  useOverdueToasts(teamOrder(p.teams, p.events, now(), checkIn).filter((x) => x.heard.overdue).map((x) => ({ team: x.team, min: x.heard.min })), checkIn);
+  // one truth for the teams: when each was last heard, computed once and read by the Resources rows, Needs
+  // you, the overdue toasts and the bell (the cold test: they disagreed)
+  const board = teamOrder(p.teams, p.events, now(), checkIn, p.timeline ?? []);
+  useOverdueToasts(
+    overdueTeams(board).map((x) => ({ team: x.team, at: x.heard.at })),
+    checkIn,
+    (iso) => clock(iso, tz),
+    (id) => board.find((x) => x.team.id === id)?.heard.at ?? null,
+  );
   // photos landed and candidates arrived where there were none: the first one opens in the review frame
   const wasWaiting = useRef<number | null>(null);
   useEffect(() => {
@@ -202,6 +210,7 @@ export function CommandView(p: CommandProps) {
           links={p.links}
           events={p.events}
           now={t}
+          board={board}
           glow={glow}
           proposals={p.proposals}
           actions={{ onCall: (id) => call(id), onRecall: p.actions.recall, onRecallDrone: p.actions.recallDrone, onAssign: p.actions.assign, onDroneLeg: p.actions.droneLeg, onFound: p.mission?.status === "found" ? undefined : p.actions.found }}
@@ -256,6 +265,10 @@ export function CommandView(p: CommandProps) {
             events={p.events}
             clues={p.clues}
             now={t}
+            board={board}
+            sectors={p.sectors}
+            base={p.mission?.base_camp ?? null}
+            onAssign={p.actions.assign}
             checkInMin={p.mission?.check_in_min ?? 30}
             onDecide={p.onDecide}
             imageUrl={p.imageUrl}
@@ -283,7 +296,6 @@ export function CommandView(p: CommandProps) {
           server={p.timeline}
           teams={p.teams}
           fleet={p.fleet}
-          onConfirmClue={p.actions.confirmClue}
           voicesKey={`${p.mission?.mission_id ?? ""}|${p.mission?.scenario_seed ?? p.mission?.name ?? ""}`}
           talk={<TalkBar teams={p.teams} onSend={(team, text) => p.actions.call(team, text)} voice={p.voice} />}
           clueForm={(close, at) => <ClueForm teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} onDone={close} at={at} />}

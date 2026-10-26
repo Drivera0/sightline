@@ -69,15 +69,15 @@ describe("the command post", () => {
     expect(view).not.toHaveTextContent(/approvals waiting ·/);
   });
 
-  it("T-cards: heard N min from the last radio turn or check-in, most overdue first, past the check-in in red", () => {
+  it("T-cards: heard N min from the last radio turn or check-in, a stable order (out, then free; the roster order), past the check-in a red badge", () => {
     setup();
     const cards = within(screen.getByRole("region", { name: "Resources" })).getAllByRole("article");
-    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Team Team Three", "Team Team Two", "Team Team Four", "Team Team One"]);
-    expect(cards[0]).toHaveTextContent("not heard 40 min");
-    expect(cards[0]).toHaveTextContent("Overdue");
-    expect(cards[0]).toHaveTextContent("A1");
-    expect(cards[3]).toHaveTextContent("at base camp"); // standby at base: no check-in to keep
-    expect(cards[1]).toHaveTextContent(/heard \d+ min/);
+    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Team Team Two", "Team Team Three", "Team Team One", "Team Team Four"]);
+    expect(cards[1]).toHaveTextContent("Overdue · not heard 40 min");
+    expect(cards[1]).toHaveAttribute("data-overdue", "true");
+    expect(cards[1]).toHaveTextContent("A1");
+    expect(cards[2]).toHaveTextContent("at base camp"); // standby at base: no check-in to keep
+    expect(cards[0]).toHaveTextContent(/heard \d+ min/);
   });
 
   it("T-cards: Call addresses the talk bar to the team, Task picks a sector, Recall goes through", async () => {
@@ -133,7 +133,7 @@ describe("the command post", () => {
     expect(needs).toHaveTextContent("3 waiting");
   });
 
-  it("the timeline: one stream, filter chips, Reply on a radio turn fills the talk bar, Send calls the team", async () => {
+  it("the timeline: one stream, filter chips, read-only rows (no Reply or Confirm: Needs you decides), Show selects the team, Send calls the team", async () => {
     const events = [
       radio("e1", "Team Two", "Blue water bottle by the creek crossing, over.", "2026-10-24T21:37:48Z"),
       { id: "e2", type: "task.updated", at: "2026-10-24T21:56:00Z", summary: "", ref: "D4", data: task("D4", "searched", "T4", 0.6) } as unknown as MissionEvent,
@@ -145,7 +145,11 @@ describe("the command post", () => {
     expect(within(tl).queryByText(/D4 searched/)).toBeNull();
     await userEvent.click(within(tl).getByRole("button", { name: "Radio" }));
     expect(within(tl).getByText(/D4 searched/)).toBeInTheDocument(); // a team's report is a check-in
-    await userEvent.click(within(tl).getByRole("button", { name: "Reply" }));
+    expect(within(tl).queryByRole("button", { name: "Reply" })).toBeNull();
+    expect(within(tl).queryByRole("button", { name: "Confirm" })).toBeNull();
+    await userEvent.click(within(tl).getAllByRole("button", { name: "Show" })[0]!);
+    expect((await import("../lib/selection")).useSelection.getState().selectedTeamId).toBe("T4"); // the newest row: Team Four's report
+    act(() => useConsole.getState().talk("T2", "Team Two, Sightline. "));
     expect(screen.getByLabelText("Recipient")).toHaveValue("T2");
     await userEvent.type(screen.getByLabelText("Message"), "copy, carry on east.");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));

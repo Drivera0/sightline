@@ -12,7 +12,7 @@ describe("judges 2026-10-23", () => {
   it("(1) a team in the field past its check-in is overdue, and says so in a toast", () => {
     const out = team("T3", "searching", "2026-10-24T20:48:00Z");
     expect(heard(out, [] as MissionEvent[], NOW, 30)).toMatchObject({ overdue: true });
-    expect(overdueToast(out, 72, 30)).toMatchObject({ tone: "alert", title: "Team T3 is overdue", body: expect.stringContaining("Not heard for 72 min, past the 30-minute check-in") });
+    expect(overdueToast(out, "2026-10-24T20:48:00Z", 30)).toMatchObject({ tone: "alert", title: "Team T3 is overdue", body: expect.stringContaining("Not heard since 20:48, past the 30-minute radio check-in") });
     // at base camp there is no check-in to keep
     expect(heard(team("T3", "standby", "2026-10-24T20:48:00Z"), [], NOW, 30).overdue).toBe(false);
   });

@@ -6,10 +6,9 @@ import type { ReactNode } from "react";
 import type { Clue, Conditions, Mission, Team } from "../contract";
 import { DisclosureChip, KeyHint } from "../shell/components";
 import { Icon } from "../shell/icons";
-import type { Tz } from "../lib/time";
-import { daylightMin, duration, elapsedMin, flyWord, peopleOut } from "./console";
+import { clock, type Tz } from "../lib/time";
+import { daylightMin, duration, elapsedMin, flyWord, peopleOut, subjectWord } from "./console";
 import { TERMS } from "./terms";
-import { clock } from "../lib/time";
 import { isOverride } from "./conditions";
 import { NotifyBell } from "../shell/notifyBell";
 import { showMe } from "./showMe";
@@ -130,10 +129,10 @@ export function StatusLine({
       {!found &&
         (onSubject ? (
           <button type="button" onClick={onSubject} title="The subject's full profile" className="sl-tap shrink-0 rounded-sm hover:underline">
-            <Item label="Subject">not found</Item>
+            <Item label="Subject">{subjectWord(clues, (iso) => clock(iso, tz))}</Item>
           </button>
         ) : (
-          <Item label="Subject">not found</Item>
+          <Item label="Subject">{subjectWord(clues, (iso) => clock(iso, tz))}</Item>
         ))}
       {outside !== null && (
         <Item label={TERMS.row} title={TERMS.rowTip}>

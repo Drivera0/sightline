@@ -23,7 +23,7 @@ const proposal = (over: Partial<Proposal>): Proposal => ({
   id: "p001", kind: "assign_sector", summary: "Assign sector C2 to Team One", reason: "C2 holds 5.5 %.", briefing: null, target: { team: "T1", sector: "C2" },
   evidence: [], status: "pending", created_by: "planner", created_at: "2026-10-24T21:40:00Z", decided_at: null, decided_by: null, decision_reason: null, edits: null, ...over,
 });
-const heardOf = (overdue = false) => ({ min: overdue ? 40 : 4, overdue, due: false });
+const heardOf = (overdue = false) => ({ at: null, min: overdue ? 40 : 4, overdue, due: false });
 
 beforeEach(() => useConsole.getState().reset());
 
@@ -31,7 +31,7 @@ describe("Resources: the board at a glance", () => {
   it("sums the teams and drones in one line each, zero counts left out", () => {
     const s = resourceSummary(
       [
-        { team: team("T1", "Team One"), heard: { min: null, overdue: false, due: false } },
+        { team: team("T1", "Team One"), heard: { at: null, min: null, overdue: false, due: false } },
         { team: team("T2", "Team Two", "searching"), heard: heardOf() },
         { team: team("T3", "Team Three", "searching"), heard: heardOf(true) },
       ],
