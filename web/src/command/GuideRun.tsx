@@ -27,8 +27,11 @@ import {
   lastLight,
   photoTitle,
   searchEnd,
+  surveyLate,
   PIPS,
+  standingAt,
   standingUser,
+  STANDING_STOP,
   TRIAGE_OPTIONS,
   triageEffect,
   type Choice,
@@ -36,7 +39,7 @@ import {
   type Inject,
   type TriageAnswer,
 } from "./guide";
-import { CHECKPOINTS, demoAt, onMissionClock, subjectOf, type DemoFull, type GuidedOpts } from "./missionTime";
+import { CHECKPOINTS, demoAt, onMissionClock, subjectOf, SURVEY_PROPOSAL, type DemoFull, type GuidedOpts } from "./missionTime";
 import { GuideStrip } from "./Scrubber";
 import { fixtureOf, passesFrom, realOf, type Cost } from "./sim";
 import { dwellAt, FREE_MIN_PER_S, FREE_WINDOW_MS, lapseBeats, lapseStep, SPEEDS, useGuide, useLapseBeat, useStory, type Lapse, type Speed } from "./story";
@@ -66,8 +69,13 @@ export interface GuideRun {
   needsHighlight: string | null;
   /** An approval of an assignment sends the team (the fixtures' manager no longer does). */
   decide: Decide;
-  /** The assign step's main button on its card ("Send all N free teams…"); the card's own Approve becomes `second`. */
-  lead: { id: string; label: string; onClick: () => void; second: string | null } | null;
+  /**
+   * The main button on a card in Needs you, the card's own Approve becoming `second`: the assign step's ("Send
+   * all N free teams…"), and free play's survey ("Fly the AI's flight lines", the lawnmower pattern second).
+   */
+  lead: { id: string; label: string; onClick: () => void; second: string | null }[] | null;
+  /** The visitor's standing approval (Send all) while it is in force, with its Stop: the top of Needs you. */
+  standing: ReactNode;
   /** The coach bar and the step strip, docked outside the map (CommandView `dock`). */
   dock: ReactNode;
   /** The guided review step's photo, for the review frame's head ("photo 1 of 3"). */
@@ -79,14 +87,28 @@ export interface GuideRun {
   clockBar: ReactNode;
 }
 
-/** What the guided search changes in the fixtures (missionTime.ts): the seed, the read-back clue and whether it is mapped. */
-export function guidedOptsFor(scenario: DemoFull | null, seed: string, choices: readonly { inject: string; option: string }[], user: readonly MissionEvent[]): GuidedOpts {
+/**
+ * What the guided search changes in the fixtures (missionTime.ts): the seed, the read-back clue and whether it
+ * is mapped, the survey (nothing flies before it is chosen; free play, `free`, asks for it in Needs you) and
+ * how long after the call it was approved (the scenario's drones fly that much later).
+ */
+export function guidedOptsFor(scenario: DemoFull | null, seed: string, choices: readonly { inject: string; option: string; f?: number }[], user: readonly MissionEvent[], free = false): GuidedOpts {
   const clue = storyClue(scenario);
   const readback = clue?.source === "radio" ? clue.id : null;
   const chosen = choices.find((c) => c.inject === "clue");
   const confirmed = user.some((e) => e.type === "clue.added" && e.ref === readback && !!(e.data as { confirmed?: boolean } | null)?.confirmed && !/logged/.test(e.summary));
   const survey = choices.find((c) => c.inject === "survey") as { option: string; watched?: boolean } | undefined;
-  return { seed, readback, mapClue: chosen ? chosen.option !== "log" : confirmed, survey: survey ? { option: survey.option, watched: !!survey.watched } : null, dronesWait: dronesWait(scenario, choices) };
+  const flies = !!scenario?.data.fleet?.drones.length;
+  const ask = free && flies && !survey ? (injects({ full: scenario, seed, user: [], choices: [], queue: [] }).find((i) => i.id === "survey")?.agentSays ?? "") : null;
+  return {
+    seed,
+    readback,
+    mapClue: chosen ? chosen.option !== "log" : confirmed,
+    survey: survey ? { option: survey.option, watched: !!survey.watched } : null,
+    dronesWait: dronesWait(scenario, choices),
+    awaitSurvey: flies && !survey ? { ask } : null,
+    dronesLate: surveyLate(choices),
+  };
 }
 
 export function useGuideRun({
@@ -173,12 +195,12 @@ export function useGuideRun({
   const lapseTo = free ? (win?.to ?? null) : hold;
   const rows = useMemo(() => {
     if (!on || !scenario || lapseTo === null || lapseTo <= lapseFrom) return [];
-    const at = onMissionClock(demoAt(scenario, iso(fixtureOf(lapseTo, costs)), user, guidedOptsFor(scenario, seed, choices, rawUser), { seed }), costs);
+    const at = onMissionClock(demoAt(scenario, iso(fixtureOf(lapseTo, costs)), user, guidedOptsFor(scenario, seed, choices, rawUser, free), { seed }), costs);
     return buildTimeline(at.events ?? [], at.teams ?? [], at.timeline ?? [])
       .map((e) => ({ at: new Date(e.at).getTime(), text: e.text, kind: e.kind, team: e.team, sector: e.sector }))
       .filter((e) => e.at > lapseFrom && e.at <= lapseTo)
       .sort((a, b) => a.at - b.at);
-  }, [on, scenario, lapseTo, lapseFrom, costs, user, seed, choices, rawUser]);
+  }, [on, scenario, lapseTo, lapseFrom, costs, user, seed, choices, rawUser, free]);
   // one beat at a time: rows alike landing together are one (story.ts lapseBeats)
   const beats = useMemo(() => lapseBeats(rows), [rows]);
   const lapse: Lapse | null = useMemo(() => (lapseTo === null ? null : { from: lapseFrom, hold: lapseTo, beats: beats.map((b) => b.at) }), [lapseTo, lapseFrom, beats]);
@@ -350,6 +372,13 @@ export function useGuideRun({
     // recorded before the team's move lands, so the step is this decision (not a move made on the side)
     const st = stepRef.current;
     const watched = by === WATCH_BY;
+    // free play's survey card: its own Approve is the lawnmower pattern (the main button, the AI's flight
+    // lines); nothing of it goes to the store but the choice and its note (the drones take off from there)
+    if (pid === SURVEY_PROPOSAL && decision === "approve") {
+      const i = freeRef.current.due.find((x) => x.id === "survey");
+      if (i) performRef.current(i, "serpentine");
+      return;
+    }
     if (decision === "approve" && !carrying.current && st.reached && st.active?.proposal === pid && (st.active.id === "assign" || st.active.id === "wind") && !watched) {
       const team = edits?.team && edits.team !== p?.target.team ? edits.team : null;
       const c = choiceFor(st.active, st.active.id === "wind" ? "recall" : team ? `team:${team}` : "approve", st.f);
@@ -399,6 +428,7 @@ export function useGuideRun({
     if (carry) void useMission.getState().call(carry.id, `carry-out to ${sector}, over.`);
   }
 
+  const performRef = useRef<(i: Inject, optionId: string, watched?: boolean) => void>(() => {});
   /** One option of the current decision, done on the console as the manager would. */
   const perform = useCallback(
     (i: Inject, optionId: string, watched = false) => {
@@ -472,6 +502,8 @@ export function useGuideRun({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [f, answer, cache, scenario, decide, onPickOnMap],
   );
+
+  performRef.current = perform;
 
   // watch instead: the reason for three seconds, then the agent's choice, through the same engine
   useEffect(() => {
@@ -586,11 +618,29 @@ export function useGuideRun({
   const only = reached && active?.id === "assign" ? active.options.find((o) => o.id === "approve") : undefined;
   // free play: the same Send all on the card of the first assignment waiting
   const freeAssign = free ? due.find((i) => i.id === "assign" && i.proposal && i.options.some((o) => o.id === "all")) : undefined;
-  const cardLead: GuideRun["lead"] = freeAssign
+  const assignLead = freeAssign
     ? { id: freeAssign.proposal!, label: freeAssign.options.find((o) => o.id === "all")!.label, onClick: () => perform(freeAssign, "all"), second: freeAssign.options.find((o) => o.id === "approve")?.label ?? null }
     : allOpt && active?.proposal
       ? { id: active.proposal, label: allOpt.label, onClick: () => perform(active, "all"), second: only?.label ?? null }
       : null;
+  // free play: the AI's survey waits in Needs you as a suggestion; nothing flies until one is chosen there
+  const freeSurvey = free ? due.find((i) => i.id === "survey" && i.options.some((o) => o.id === "planner")) : undefined;
+  const surveyLead = freeSurvey ? { id: SURVEY_PROPOSAL, label: "Fly the AI's flight lines", onClick: () => perform(freeSurvey, "planner"), second: "Fly the lawnmower pattern (+12 min)" } : null;
+  const cardLead: GuideRun["lead"] = [surveyLead, assignLead].filter((x): x is NonNullable<typeof x> => !!x);
+  // the visitor's Send all in force: it says so, and Stop sending ends it (later teams wait for their say again)
+  const standingNow = on && !guide!.ended && !findDone ? standingAt(choices, rawUser, scenario, f) : null;
+  const standing = standingNow?.mine ? (
+    <p role="note" aria-label="Standing approval" data-standing="" style={{ ["--c" as string]: "var(--proposal)" }} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-line border-l-[3px] border-l-[var(--proposal)] bg-bg/40 px-2.5 py-2 text-small text-text-2">
+      <span className="min-w-0 flex-1">Your standing approval: each free team goes to the AI's next pick as it comes back.</span>
+      <button
+        type="button"
+        onClick={() => useMission.getState().emit("mission.note", `Standing approval stopped: free teams wait for your say (by ${operatorName()})`, null, { action: STANDING_STOP, by: operatorName() })}
+        className="sl-tap rounded-full border border-border px-3 py-0.5 text-caption text-text hover:bg-surface-strong"
+      >
+        Stop sending
+      </button>
+    </p>
+  ) : null;
   const pendingCount = useMission((m) => m.proposals.filter((p) => p.status === "pending").length);
   const clockBar =
     free && !guide!.ended ? (
@@ -658,7 +708,7 @@ export function useGuideRun({
     on,
     fixtureClock: on ? iso(f) : null,
     missionClock: on ? iso(clockMs) : null,
-    opts: on ? guidedOptsFor(scenario, seed, choices, user) : null,
+    opts: on ? guidedOptsFor(scenario, seed, choices, user, free) : null,
     costs,
     proposals: (all) => (on && !free ? all.filter((p) => p.status !== "pending" || (reached && p.id === active?.proposal) || isSightingProposal(p)) : [...all]),
     cards: (all) => (on && !free ? (reached && card ? all.filter((c) => c.id === card.id) : []) : [...all]),
@@ -666,6 +716,7 @@ export function useGuideRun({
     needsHighlight: on && !free && !guide!.ended ? needsHighlight : null,
     decide,
     lead: on ? cardLead : null,
+    standing: on ? standing : null,
     photoStep: on && reached && active?.id === "triage" && card ? { n: active.cards!.indexOf(card) + 1, of: active.cards!.length } : null,
     dock,
     overlay,
