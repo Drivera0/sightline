@@ -8,7 +8,7 @@ are as of `main` at #180 (2026-10-22); the hostile review of that day re-checked
 
 1. The detector misses 46 of the 337 people in the HERIDAL test set (recall 0.864, strict VOC), and 28 of those 46 are at two sites, MED and CAB: groups, clothing that matches pale or dark rock, people sitting or lying down (`docs/report/OPENCV_REPORT.md:853-855`; `docs/DETECTOR_LIMITS.md:39`, `:54`).
 2. The second look is a small gain: on test it finds 4 more of the 337 people for 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023]), it is advice a person approves, and on people under 60 px it mostly answers "unclear" (`docs/report/OPENCV_REPORT.md:537-540`).
-3. The fleet and the approvals in the demo are simulated: the drones, their flights and their photos are simulated, and the human approvals in the recorded traces are scripted; both are labelled so on screen and in the trace (`docs/report/OPENCV_REPORT.md:884-886`).
+3. The fleet is a simulation, the approvals are not: the drones, their flights and where each photo was taken are generated over real aerial photographs (HERIDAL), and the site's one "Simulation on real aerial photographs" chip says so. In the guided run and in free play the visitor makes every approval live in the browser (Watch instead, if they pick it, is logged as such), and every move in the log names its approver. Only the agent traces kept as evidence have pre-written human steps, and each trace says so (`docs/report/OPENCV_REPORT.md:884-886`, `:1210-1216`).
 
 The same three lines, for the web page and the video script: `docs/submission/WHAT_BREAKS_FIRST.md`.
 
@@ -16,7 +16,7 @@ The same three lines, for the web page and the video script: `docs/submission/WH
 
 1. The home page: https://sightline-iota-sandy.vercel.app (`#`): one measured claim over the survey's photos, four measured facts with their sources, how it works, who it is for, **Guided simulation** (five scenario cards on the same mountain and photos) and a **For judges** strip of links.
 2. **Start the simulation** on a scenario card (about 3 min, the guided search, `#m/demo?s=<seed>&guide=1`; the overdue hiker is marked "Start here"). You are the search manager: the clock runs to each decision and waits, the agent proposes, you decide, and the map, the teams and the clock show what your decision changed (the survey, triage including the 0.17 standing detection, f0273-d02, that the second look caught on this flight, the radio clue, the assignment, the lost link, assigning again, the find). **What you did** then compares your choices with the agent's line and prints every draw; **Watch instead** plays the agent's line. A team's pass finds the subject on a draw fixed by the seed, at the sector's POD (0.60). The old `#m/demo?t=0` to `?t=6` links open the plain console at those moments.
-3. The Trace view: OpenCV output changing the agent's next action, and which model did what (`#m/demo/trace`). In the plain console the fixture's own decisions are labelled "The scenario's search manager", and its stand-in model calls "Replayed" (not "This flight").
+3. The Trace view: OpenCV output changing the agent's next action, and which model did what (`#m/demo/trace`). In the recorded mission (the `?t=` checkpoint addresses) the scenario's own decisions read "the search manager", your own read "by you", and its stand-in model calls read "Replayed" (not "This flight").
 4. Conditions (W in the console): live Tavily facts with the quote and the page each came from (`#m/demo/map/conditions`).
 5. The Debrief: the measured results, what breaks first, and the links out (report, trace, code; a live mission's debrief to keep) (`#m/demo?t=6`; `&judges` opens this list there, and the old `#judges` redirects to it).
 6. About, at the end of the home page: who built it, the two entries, the colours and the limits (`#about`); the models, with their numbers, are under Built with.
@@ -27,7 +27,7 @@ The public build has no API address baked in, so New search (`#new`, the empty c
 mission server runs during demos and judging; this site is the demo", with the form disabled and "Load the
 demo mission" (`#m/demo/map`), which works without a server (`web/src/ingest/NewSearch.tsx:92-96`, `:128`). The demo
 mission is the whole public site and needs no server (`web/src/App.tsx:74-75`); `#` is the home page, whose scenario cards open it. The AWS API is stopped between demos to save cost
-(`README.md:235-236`), so at 10 pm a live mission is not available unless it was started. During judging
+(`README.md:250-251`), so at 10 pm a live mission is not available unless it was started. During judging
 `.github/workflows/judging-check.yml` checks the API every 6 hours and opens an issue when it fails
 (`deploy/aws/README.md:107-115`); whether the instance stays up all through judging is still to be decided.
 
@@ -94,13 +94,13 @@ the agent evaluation injects this and shows it in the trace (`docs/report/OPENCV
 ### 8. HERIDAL's original terms: may the imagery be shown on a public site?
 
 I use the VOC-format copy by Pyrrö (2021), which is published under CC BY 3.0, and attribute it
-(`README.md:263`, `:271`). I have not cited the original HERIDAL release's own terms page, so I don't
+(`README.md:278`, `:271`). I have not cited the original HERIDAL release's own terms page, so I don't
 know yet whether it adds conditions. Citing the original release page (or asking its authors) would
 resolve it.
 
 ### 9. AGPL + ONNX weights: can North Shore Rescue deploy on a Jetson without open-sourcing their stack?
 
-Sightline's code is AGPL-3.0 to match Ultralytics, which the detector is trained with (`README.md:271`), and I
+Sightline's code is AGPL-3.0 to match Ultralytics, which the detector is trained with (`README.md:286`), and I
 treat the exported ONNX weights as covered too. For a team running it unmodified, AGPL asks for source
 only when they distribute it or offer it over a network to others; for a modified stack it would. I
 am not a lawyer and have not asked. An answer from Ultralytics on its enterprise licence, or a detector
@@ -129,6 +129,6 @@ now resolves both. Two more voices and a set through a handheld radio are still 
 On a 16-core desktop with the GPU hidden, yes: `scripts/reproduce_cv2.py` runs the 101 test photos through
 OpenCV 5 `cv2.dnn` only and checks the three VOC scores against the published ones in 4 min 58 s (about
 5 min 10 s with the downloads), measured while another job used about 11 of the 32 threads
-(`README.md:169-180`, `docs/report/OPENCV_REPORT.md:1022-1035`). On a laptop I haven't timed it; the detector
+(`README.md:184-195`, `docs/report/OPENCV_REPORT.md:1022-1035`). On a laptop I haven't timed it; the detector
 needs about 30 CPU-seconds per full photo (`docs/report/OPENCV_REPORT.md:377`), so the time grows as the core
 count falls. Timing a clean run on a laptop would give an honest number.

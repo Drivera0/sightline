@@ -38,7 +38,7 @@ For search managers, Sightline turns drone photos and radio reports into one map
 
 1. The detector misses 46 of the 337 people in the HERIDAL test set (recall 0.864, strict VOC), and 28 of those 46 are at two sites, MED and CAB: groups, clothing that matches pale or dark rock, people sitting or lying down.
 2. The second look is a small gain: on test it finds 4 more of the 337 people for 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023]), it is advice a person approves, and on people under 60 px it mostly answers "unclear".
-3. The fleet is simulated: the drones, their flights and their positions are simulated, over real HERIDAL aerial photos. In the guided and hands-on runs the visitor makes every approval, and each is logged with who decided; the demo mission's recorded trace was generated offline with stand-in models and a scripted search manager. All of it is labelled so on screen and in the trace.
+3. The fleet is a simulation, the approvals are not: the drones, their flights and where each photo was taken are generated over real aerial photographs (HERIDAL), and the site's one "Simulation on real aerial photographs" chip says so. In the guided run and in free play the visitor makes every approval live in the browser (Watch instead, if they pick it, is logged as such), and every move in the log names its approver. The mission trace in the Trace view was generated offline with stand-in models and a pre-written search manager, and its header says so.
 
 Measured, with the caveat beside each number:
 
@@ -120,9 +120,9 @@ A Jetson field kit without internet; thermal for night searches; real drone phot
 4. `docs/report/OPENCV_REPORT.md:662-672`
 5. `docs/feedback/nebius.md:72-75`
 6. `docs/feedback/radio.md:84`, `:101`
-7. `docs/feedback/nebius.md:174-177`; `README.md:103`
+7. `docs/feedback/nebius.md:174-177`; `README.md:118`
 8. `docs/report/OPENCV_REPORT.md:884-886`, `:999-1002`; `web/src/command/README.md` (Free play, the visitor decides, Trace view); `web/src/command/TraceView.tsx` ("Replayed"); `web/src/command/compare.ts`
-9. `README.md:78`; `docs/architecture/agent.md` ("A second chain"); `scripts/creek_run.py`, `scripts/retask_chain.py`
+9. `README.md:93`; `docs/architecture/agent.md` ("A second chain"); `scripts/creek_run.py`, `scripts/retask_chain.py`
 10. Ultralytics, "NVIDIA Jetson" guide, Orin Nano Super benchmark table, YOLO26n, TensorRT FP16 (https://docs.ultralytics.com/guides/nvidia-jetson/, read 2026-10-22)
 11. `docs/feedback/radio.md:76-79`, `:115-120`
 12. `docs/report/AGENT_EVAL.md` (failure handling, correct target, approval gate); `docs/report/OPENCV_REPORT.md:547-562`, `:577`, `:583-587`
@@ -132,4 +132,4 @@ A Jetson field kit without internet; thermal for night searches; real drone phot
 16. `docs/report/TAVILY.md:134-147`, `:230-232`; `docs/evidence/subject/`
 17. `docs/REAL_FLIGHT.md:1-11`, `:73`; `scripts/real_flight.py:52`
 18. `docs/feedback/nebius.md:232-248`
-19. `README.md:91-101`; `README.md:265-267` (Credits)
+19. `README.md:106-116`; `README.md:280-282` (Credits)
