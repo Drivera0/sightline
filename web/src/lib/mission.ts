@@ -122,6 +122,33 @@ export interface MissionData {
   distractors?: DistractorFrame[];
 }
 
+/** Deep equality for plain data (the demo's mission state): arrays, typed arrays, plain objects, primitives. */
+export function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return Number.isNaN(a) && Number.isNaN(b);
+  if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) {
+    if (!ArrayBuffer.isView(a) || !ArrayBuffer.isView(b) || a.constructor !== b.constructor) return false;
+    const x = a as unknown as ArrayLike<number>;
+    const y = b as unknown as ArrayLike<number>;
+    if (x.length !== y.length) return false;
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+    return true;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameValue(a[i], b[i])) return false;
+    return true;
+  }
+  const proto = Object.getPrototypeOf(a);
+  if (proto !== Object.prototype || Object.getPrototypeOf(b) !== proto) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  const ra = a as Record<string, unknown>;
+  const rb = b as Record<string, unknown>;
+  for (const k of ka) if (!Object.prototype.hasOwnProperty.call(rb, k) || !sameValue(ra[k], rb[k])) return false;
+  return true;
+}
+
 export const EMPTY: MissionData = {
   mission: null, tasks: [], teams: [], clues: [], proposals: [], verdicts: [], fleet: null,
   conditions: null, events: [], survey: null, detections: null, promoted: [], mapBase: null, mapUpdates: [], sectors: [],
@@ -367,7 +394,12 @@ export const useMission = create<MissionStore>((set, get) => {
       // past the highest id loaded (a mission seen part-way through its timeline skips some), so a new
       // event never reuses one
       demoSeq = Math.max(data.events?.length ?? 0, ...(data.events ?? []).map((e) => Number(/^e(\d+)$/.exec(e.id)?.[1] ?? 0)));
-      set({ ...EMPTY, links: fleetLinksFromEvents(data.events ?? []), ...data, status: "demo", error: null, api: null });
+      // the guided clock calls this ten times a second: a value equal to the one already held keeps its
+      // reference, so the console's memos and the map's sources do not redo their work for nothing
+      const next: Record<string, unknown> = { ...EMPTY, links: fleetLinksFromEvents(data.events ?? []), ...data };
+      const prev = get() as unknown as Record<string, unknown>;
+      for (const k of Object.keys(next)) if (next[k] !== prev[k] && sameValue(next[k], prev[k])) next[k] = prev[k];
+      set({ ...(next as Partial<MissionData>), status: "demo", error: null, api: null });
     },
 
     disconnect: () => {

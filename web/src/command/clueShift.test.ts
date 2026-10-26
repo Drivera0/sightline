@@ -46,6 +46,21 @@ describe("clue shifts", () => {
     expect(clueNoteFor(old, null)).toBeNull();
   });
 
+  it("reads the same when the log grows or changes part-way (the replay picks up from a checkpoint)", () => {
+    const fresh = () => ({ ...base, prior: { ...base.prior } }) as MapBase; // a map with no replay kept
+    const all = fx.map_updates;
+    const clues = all.filter((u) => u.source === "clue");
+    const frames = all.filter((u) => u.source !== "clue");
+    const b = fresh();
+    // photos landing ahead of the clues' updates, as the guided clock does it: the clues stay last
+    for (const n of [10, 40, 41, 90, frames.length]) {
+      const log = [...frames.slice(0, n), ...clues];
+      expect(clueShifts(b, log, fx.sectors, fx.clues)).toEqual(clueShifts(fresh(), log, fx.sectors, fx.clues));
+    }
+    // and a shorter log again (another scenario on the same map)
+    expect(clueShifts(b, all.slice(0, 30), fx.sectors, fx.clues)).toEqual(clueShifts(fresh(), all.slice(0, 30), fx.sectors, fx.clues));
+  });
+
   it("ground searches and frames move the map but are not clues", () => {
     const steps = fx.map_updates.filter((u) => u.source !== "clue");
     expect(clueShifts(base, steps, fx.sectors).size).toBe(0);

@@ -12,7 +12,7 @@ import { demoAt, onMissionClock, poaOf, subjectOf, type DemoFull } from "./missi
 import { sectorAt } from "./console";
 import { shiftTimes } from "./scenarios";
 import { agentLine, fixtureOf, passesFrom, realOf, TEAM_POD } from "./sim";
-import { dwellFor, LAPSE, lapseRate, lapseStep } from "./story";
+import { dwellAt, dwellFor, LAPSE, lapseBeats, lapseRate, lapseSeconds, lapseStep, rowShape } from "./story";
 import { STORY_BANNED, STORY_NOT_A_PERSON, storyProposal } from "./storyCopy";
 
 type Fixture = Partial<MissionData> & { now: string; map_updates: MapUpdate[]; t0?: string };
@@ -201,12 +201,19 @@ describe("the step gate: the clock does not pass a decision until it is made", (
     expect(fixtureOf(clock, costsOf(choices))).toBe(triage.at);
   });
 
-  it("plays the time between two decisions as a time-lapse of 6 to 10 s, stopping on each row as it lands", () => {
+  it("plays the time between two decisions slowly, one beat at a time (15 to 25 s at 1x, a mission minute never under 0.25 s)", () => {
     const min = 60_000;
-    const secs = (span: number) => span / lapseRate({ from: 0, hold: span }) / 1000;
-    expect(secs(56 * min)).toBeCloseTo(56 * LAPSE.secPerMin); // 13:35 to 14:31: 8.4 s, not an instant
-    expect(secs(13 * min)).toBe(LAPSE.minS);
-    expect(secs(3 * 60 * min)).toBe(LAPSE.maxS);
+    const run = (l: { from: number; hold: number; beats: number[] }) => lapseSeconds(l);
+    // 13:35 to 14:31 with eight beats: 14 s of travel (0.25 s a minute) and 9.6 s of beats
+    const first = { from: 0, hold: 56 * min, beats: Array.from({ length: 8 }, (_, i) => (i + 1) * 6 * min) };
+    expect(run(first)).toBeCloseTo(56 * LAPSE.secPerMin + 8 * LAPSE.beatMs / 1000);
+    expect(run(first)).toBeGreaterThanOrEqual(LAPSE.minS);
+    expect(run(first)).toBeLessThanOrEqual(LAPSE.maxS);
+    // a 14-minute stretch with three beats still takes 15 s; a 2-minute one travels at 1 s a minute
+    expect(run({ from: 0, hold: 14 * min, beats: [2 * min, 5 * min, 9 * min] })).toBeCloseTo(LAPSE.minS);
+    expect(run({ from: 0, hold: 2 * min, beats: [] })).toBeCloseTo(2 * LAPSE.maxSecPerMin);
+    // never faster than 4 mission minutes a second, however long the stretch
+    for (const span of [9, 31, 56, 3 * 60]) expect(lapseRate({ from: 0, hold: span * min, beats: [] }) * 1000).toBeLessThanOrEqual(min / LAPSE.secPerMin + 1e-6);
     const l = { from: 0, hold: 20 * min, beats: [5 * min, 12 * min] };
     let c = 0;
     const stops: number[] = [];
@@ -218,14 +225,40 @@ describe("the step gate: the clock does not pass a decision until it is made", (
     }
     expect(stops).toEqual(l.beats);
     expect(c).toBe(l.hold);
-    // faster at 4x; reduced motion: row to row, no run between
+    // faster at 4x (the beats shorter by the square root); reduced motion: beat to beat, no travel between
     expect(lapseStep(0, l, 100, 4).clock).toBeCloseTo(4 * lapseStep(0, l, 100).clock);
+    expect(dwellAt(l, 4)).toBeCloseTo(dwellFor(l) / 2);
     expect(lapseStep(0, l, 100, 1, true)).toEqual({ clock: 5 * min, beat: true });
     expect(lapseStep(5 * min, l, 100, 1, true)).toEqual({ clock: 12 * min, beat: true });
     expect(lapseStep(12 * min, l, 100, 1, true)).toEqual({ clock: l.hold, beat: false });
-    // many rows share the pause, so a busy run stays short
-    expect(dwellFor({ beats: [1, 2] })).toBe(LAPSE.dwellMs);
-    expect(dwellFor({ beats: Array.from({ length: 12 }, (_, i) => i) })).toBe(LAPSE.dwellTotalMs / 12);
+    // each beat 1 to 1.5 s: 1.2 s, down to 1 s when there are many
+    expect(dwellFor({ beats: [1, 2] })).toBe(LAPSE.beatMs);
+    expect(dwellFor({ beats: Array.from({ length: 30 }, (_, i) => i) })).toBe(LAPSE.beatMinMs);
+  });
+
+  it("groups rows alike landing together into one beat, and gives rows at the same time a beat each", () => {
+    const at = (h: number, m: number) => Date.UTC(2026, 9, 24, h, m);
+    const beats = lapseBeats([
+      { at: at(21, 50), text: "Drone 3: flight line approved", team: null, sector: "B1" },
+      { at: at(21, 50), text: "Drone 2: flight line approved", team: null, sector: "B3" },
+      { at: at(21, 50), text: "Drone 1: flight line approved", team: null, sector: "B2" },
+      { at: at(21, 50), text: "Drone 1 · flight line over B2 started", sector: "B2" },
+      { at: at(21, 58), text: "Sightline, Team Four. Bravo Three searched, no sign of the subject, over.", team: "T4" },
+      { at: at(21, 58), text: "Sightline, Team Three. Bravo Two searched, no sign of the subject, over.", team: "T3" },
+      { at: at(22, 5), text: "Sightline, Team Two. Charlie Three searched, no sign of the subject, over.", team: "T2" },
+    ]);
+    expect(beats.map((b) => b.text)).toEqual([
+      "Drone 3: flight line approved · 3 drones",
+      "Drone 1 · flight line over B2 started",
+      "Sightline, Team Four. Bravo Three searched, no sign of the subject, over. · 2 teams",
+      "Sightline, Team Two. Charlie Three searched, no sign of the subject, over.",
+    ]);
+    expect(beats[0]!.sectors).toEqual(["B1", "B3", "B2"]);
+    expect(beats[2]!.teams).toEqual(["T4", "T3"]);
+    // strictly increasing, so the clock stops on each: the second beat at 21:50 lands a millisecond on
+    expect(beats[1]!.at).toBe(at(21, 50) + 1);
+    expect(beats[1]!.shown).toBe(at(21, 50));
+    expect(rowShape("Team One: position report")).toBe(rowShape("Team Two: position report"));
   });
 
   it("maps the mission clock and the fixtures' clock both ways through a cost", () => {

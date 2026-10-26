@@ -34,6 +34,19 @@ describe("drones glide between ticks", () => {
     expect(g.positions(200).D1).toEqual(mid);
   });
 
+  it("a steady stream of reports (the guided clock's) glides at a constant speed, no lurch and brake", () => {
+    const g = new FleetGlide();
+    g.update({ D1: [0, 0] }, 0);
+    g.update({ D1: [1, 0] }, 1000);
+    g.update({ D1: [2, 0] }, 1100); // 100 ms on: a steady glide over ~115 ms
+    const start = g.positions(1100).D1![0];
+    const steps = [20, 40, 60, 80].map((dt) => g.positions(1100 + dt).D1![0]);
+    const deltas = steps.map((x, i) => x - (i ? steps[i - 1]! : start));
+    for (const d of deltas) expect(d).toBeCloseTo(deltas[0]!, 6);
+    expect(g.positions(1100 + 115).D1).toEqual([2, 0]);
+    expect(g.animating(1100 + 120)).toBe(false);
+  });
+
   it("reduced motion: drawn at the report at once; gone drones are dropped", () => {
     const g = new FleetGlide();
     g.update({ D1: [0, 0], D2: [5, 5] }, 0);

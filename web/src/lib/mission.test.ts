@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Detection, MissionEvent, Proposal } from "../contract";
-import { applyEvent, EMPTY, photoProgress, useMission, userClueId, type MissionData } from "./mission";
+import { applyEvent, EMPTY, photoProgress, sameValue, useMission, userClueId, type MissionData } from "./mission";
 
 const AT = "2026-10-24T21:40:00Z";
 const API = "http://api.test";
@@ -23,6 +23,28 @@ const ev = (type: MissionEvent["type"], data: unknown, ref: string | null = null
 const base = (): MissionData => ({
   ...EMPTY,
   detections: { contract_version: "1.2", model: "m", save_threshold: 0.05, candidate_threshold: 0.29, frames: {} },
+});
+
+describe("useDemo keeps what did not change", () => {
+  it("a value equal to the one held keeps its reference (the console's memos and the map's sources rest)", () => {
+    const teams = [{ id: "T1", callsign: "Team One", status: "standby" }] as unknown as MissionData["teams"];
+    useMission.getState().useDemo({ teams, clues: [] });
+    const held = useMission.getState().teams;
+    useMission.getState().useDemo({ teams: JSON.parse(JSON.stringify(teams)), clues: [] });
+    expect(useMission.getState().teams).toBe(held);
+    useMission.getState().useDemo({ teams: [{ ...teams[0]!, status: "searching" }], clues: [] });
+    expect(useMission.getState().teams).not.toBe(held);
+    expect(useMission.getState().teams[0]!.status).toBe("searching");
+  });
+
+  it("compares plain data deeply: arrays, typed arrays, objects", () => {
+    expect(sameValue({ a: [1, { b: 2 }], p: new Float64Array([1, 2]) }, { a: [1, { b: 2 }], p: new Float64Array([1, 2]) })).toBe(true);
+    expect(sameValue({ a: [1, 2] }, { a: [1, 3] })).toBe(false);
+    expect(sameValue({ a: 1 }, { a: 1, b: undefined })).toBe(false);
+    expect(sameValue(new Float64Array([1]), new Float32Array([1]))).toBe(false);
+    expect(sameValue(NaN, NaN)).toBe(true);
+    expect(sameValue(null, {})).toBe(false);
+  });
 });
 
 describe("applyEvent", () => {

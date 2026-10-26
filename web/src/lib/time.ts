@@ -17,14 +17,22 @@ export function clock(at: string | Date, tz: Tz, seconds = false): string {
   const d = typeof at === "string" ? new Date(at) : at;
   if (Number.isNaN(d.getTime())) return typeof at === "string" ? at : "";
   const zone = timeZone(tz);
-  return d.toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    ...(seconds ? { second: "2-digit" } : {}),
-    hourCycle: "h23",
-    ...(zone ? { timeZone: zone } : {}),
-  });
+  // one formatter per zone (toLocaleTimeString builds one on every call: the console formats hundreds a second)
+  const key = `${zone ?? ""}|${seconds ? 1 : 0}`;
+  let f = formatters.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      ...(seconds ? { second: "2-digit" } : {}),
+      hourCycle: "h23",
+      ...(zone ? { timeZone: zone } : {}),
+    });
+    formatters.set(key, f);
+  }
+  return f.format(d);
 }
+const formatters = new Map<string, Intl.DateTimeFormat>();
 
 /** The zone a clock reading is in, for a label beside it: "UTC", or the zone's short name at that moment
  * ("PDT", or "GMT+2" where the zone has no abbreviation). */
