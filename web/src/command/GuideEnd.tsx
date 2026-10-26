@@ -14,9 +14,22 @@ import { Button } from "../shell/components";
 import { BY_EYE_S, DETECTOR_S, fmtDuration, fmtMin, REVIEWERS, type Column, type Comparison, type WithWithout } from "./compare";
 import type { Score } from "./goals";
 import type { HotWash } from "./guide";
+import { CHECKPOINTS } from "./missionTime";
 import type { Subject } from "./sim";
 
 const REPO = "https://github.com/Drivera0/sightline/blob/main/docs/report";
+
+/**
+ * How long the find took, from the call (the time the score compares) and, when the mission was opened
+ * earlier, from then too: the header's Elapsed counts from the opening (the cold test: "Elapsed 2 h 27 min"
+ * over "2 h 23 min from the call", two clocks with nothing to say so).
+ */
+export function foundAfter(foundAt: number, opened: string | null, t: (ms: number) => string): string {
+  const call = new Date(CHECKPOINTS[0]!.at).getTime();
+  const fromCall = `${fmtMin((foundAt - call) / 60_000)} after the call at ${t(call)}`;
+  const open = opened ? new Date(opened).getTime() : NaN;
+  return Number.isFinite(open) && open < call ? `${fromCall} (${fmtMin((foundAt - open) / 60_000)} after the mission was opened at ${t(open)}, the Elapsed in the header)` : fromCall;
+}
 
 /** The sectors as a small map: searched ones shaded by POD, the subject's sector ringed green. */
 function SectorMap({ sectors, searched, subject }: { sectors: readonly SectorNow[]; searched: ReadonlyMap<string, number>; subject: Subject | null }) {
@@ -68,7 +81,7 @@ function FindBars({ columns }: { columns: readonly Column[] }) {
   const tone = { manual: "bg-caution", you: "bg-accent", agent: "bg-text-3" } as const;
   return (
     <div className="flex flex-col gap-1" data-find-bars>
-      <span className="text-small text-text-2">Time to find, mission minutes from the call</span>
+      <span className="text-small text-text-2">Time to find, mission minutes from the call at {clock(CHECKPOINTS[0]!.at, DEMO_TZ)}</span>
       {columns.map((c) => (
         <div key={c.key} className="grid grid-cols-[7rem_1fr_auto] items-center gap-2 sm:grid-cols-[11rem_1fr_auto]">
           <span className="text-caption text-text-3">{c.title}</span>
@@ -128,6 +141,14 @@ function WithoutWith({ w }: { w: WithWithout }) {
         {w.followedNote && (
           <p className="text-caption text-text-3" data-followed>
             {w.followedNote}
+          </p>
+        )}
+        {w.timeMatters && (
+          <p className="text-small text-text-2" data-time-matters>
+            {w.timeMatters.text}{" "}
+            <a href={w.timeMatters.href} target="_blank" rel="noreferrer" className="sl-tap underline underline-offset-2 hover:text-text">
+              {w.timeMatters.source}
+            </a>
           </p>
         )}
       </div>
@@ -329,7 +350,10 @@ export function GuideEnd({
   onTrace,
   onClose,
   score = null,
+  opened = null,
 }: {
+  /** When the mission was opened (the header's Elapsed counts from it), ISO; null: not known. */
+  opened?: string | null;
   wash: HotWash;
   /** You vs the agent (compare.ts); the details stay below it, collapsed. */
   versus?: Comparison | null;
@@ -355,7 +379,7 @@ export function GuideEnd({
   const [detailsOpen, setDetailsOpen] = useState(!versus);
   const outcome =
     o.foundAt !== null
-      ? `Found at ${t(o.foundAt)} by ${callsign(o.team)} in ${o.sector}.`
+      ? `Found at ${t(o.foundAt)} by ${callsign(o.team)} in ${o.sector}, ${foundAfter(o.foundAt, opened, t)}.`
       : "Search suspended at last light. Operational period 2 begins at first light; the map carries over.";
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="guide-end-title" className="fixed inset-0 z-50 overflow-y-auto bg-bg/90 p-3 backdrop-blur sm:p-6">

@@ -61,8 +61,25 @@ export interface WithWithout {
   assumptions: Assumption[];
   /** Why each column misses the photo sightings it misses. */
   missedNotes: string[];
+  /** Why the minutes matter: the published finding on search time and survival, and this run's hours since last seen. */
+  timeMatters: Assumption | null;
   manual: Line;
 }
+
+/**
+ * Search time and survival (Adams, Schmidt, Newgard et al., "Search is a time-critical event: when search and
+ * rescue missions may become futile", Wilderness Environ Med 2007;18(2):95-101, PMID 17590071): 2,302 Oregon
+ * searches for 3,287 people (1997-2003); search time was the only variable the model kept, with a cut-point of
+ * 51 hours, 98.9 % and 99.3 % sensitive in the two cohorts. No per-minute survival rate is published, so none
+ * is shown.
+ */
+export const SURVIVAL_STUDY = {
+  searches: 2302,
+  people: 3287,
+  cutHours: 51,
+  source: "Adams et al. 2007, Wilderness & Environmental Medicine",
+  href: "https://pubmed.ncbi.nlm.nih.gov/17590071/",
+} as const;
 
 /** The manual line's start: the first assignment's time, plus the lawnmower's minutes when a survey flies. */
 export function manualStart(input: GuideInput): { start: number; flies: boolean } {
@@ -165,7 +182,20 @@ export function withWithout(input: GuideInput, lastLight: number, you: SideStats
     photos ? (reviewEnds >= manualEnd ? `Without Sightline: the review by eye ends at ${local(reviewEnds)}, after ${manual.found !== null ? "the find" : "last light"}, so no photo sighting reaches a team in time.` : `Without Sightline: about ${Math.round((1 - BY_EYE_RECALL) * 100)} % of people are missed by eye.`) : "",
     relook ? `With Sightline: the ${conf !== undefined ? `${conf.toFixed(2)} ` : ""}photo, under the detector's 0.29 review line, is in the queue because the ${TERMS.recheck} flagged it.` : "",
   ].filter(Boolean);
-  return { columns, headline, followedNote: followedAll ? "You followed the AI's pick every time, so your search is the AI's: one column for both." : null, assumptions, missedNotes, manual };
+  // why the minutes matter: the published finding, then this run's hours since the subject was last seen
+  const seen = input.full?.data.mission?.last_seen_at ? ms(input.full.data.mission.last_seen_at) : null;
+  const sinceSeen = (findMin: number | null) => (seen !== null && findMin !== null ? fmtMin((call + findMin * 60_000 - seen) / 60_000) : null);
+  const study = `In ${SURVIVAL_STUDY.searches.toLocaleString("en-US")} Oregon searches for ${SURVIVAL_STUDY.people.toLocaleString("en-US")} people, search time was the only thing that predicted whether a person was found alive, and about 99 % of those found alive were found within ${SURVIVAL_STUDY.cutHours} hours of searching.`;
+  const mineSeen = sinceSeen(me.findMin);
+  const theirs = sinceSeen(man.findMin);
+  const here =
+    mineSeen && theirs && me.findMin !== null && man.findMin !== null && man.findMin > me.findMin
+      ? ` Here the subject was found ${mineSeen} after they were last seen with Sightline, against ${theirs} without it.`
+      : mineSeen && man.findMin === null
+        ? ` Here the subject was found ${mineSeen} after they were last seen with Sightline; without it, the search went into the night.`
+        : "";
+  const timeMatters: Assumption | null = seen !== null ? { text: `Every hour counts. ${study}${here}`, source: SURVIVAL_STUDY.source, href: SURVIVAL_STUDY.href } : null;
+  return { columns, headline, followedNote: followedAll ? "You followed the AI's pick every time, so your search is the AI's: one column for both." : null, assumptions, missedNotes, timeMatters, manual };
 }
 
 export interface SideStats {
@@ -242,7 +272,11 @@ export function fmtDuration(msv: number): string {
   return `${m} min ${String(r % 60).padStart(2, "0")} s`;
 }
 
-export const fmtMin = (n: number) => (n < 60 ? `${Math.round(n)} min` : `${Math.floor(n / 60)} h ${String(Math.round(n % 60)).padStart(2, "0")} min`);
+/** "45 min", "2 h 05 min": rounded once to the minute, then split (59.6 was "60 min", 119.6 "1 h 60 min"). */
+export const fmtMin = (n: number) => {
+  const m = Math.round(n);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min`;
+};
 
 /**
  * One line's numbers from its passes, on the fixtures' clock: `until` is the find (or last light), and
