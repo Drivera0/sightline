@@ -29,6 +29,7 @@ describe("what the photo changes", () => {
     expect(look).toHaveTextContent("CLAHE");
     expect(reason).toHaveTextContent(secondLook.verdict.reason);
     expect(reason).toHaveTextContent("Nemotron-3.5-Super-VL");
+    expect(reason).toHaveTextContent("NVIDIA Nemotron VL, on Nebius Token Factory");
     expect(propose).toHaveTextContent("Add f0273-d02 to the review queue");
     expect(decide).toHaveTextContent("logged with your name and the time");
     // the two pictures are the frame (with the detector's box) and OpenCV's zoom

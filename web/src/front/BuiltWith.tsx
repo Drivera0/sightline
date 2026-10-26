@@ -1,8 +1,9 @@
-// "Built with": the technology inside Sightline, each piece with its job in the pipeline, one measured
-// number and the file that backs it. OpenCV first and largest: it finds the people (the detector on
-// OpenCV 5 cv2.dnn, CPU and CUDA), gives the second look its zoom, and lays each photo on the map. Then
-// NVIDIA's models, Nebius (where they run) and Tavily. Text wordmarks only, no logos. Every number here is
-// in docs/report/EVIDENCE_INDEX.md; change one only with its source.
+// "Built with": the technology inside Sightline, each piece with its job in the pipeline, its measured
+// numbers and the files that back them. OpenCV 5, NVIDIA and Nebius get the same card, side by side: OpenCV
+// sees (the detector on cv2.dnn, the second look's zoom, the map), NVIDIA's open models read, reason,
+// listen and speak, and Nebius runs every model call and the batch job. Tavily, a bonus prize, is the row
+// under them. Text wordmarks only, no logos. Every number here is in docs/report/EVIDENCE_INDEX.md; change
+// one only with its source.
 import { RadioClip } from "./RadioClip";
 import { REPO_URL, REPORT_URL } from "./judges";
 
@@ -13,8 +14,8 @@ export interface TechLink {
   href: string;
 }
 
-/** One thing OpenCV does in Sightline: where, what, and its measured number. */
-export interface OpenCvStep {
+/** One thing a piece of the stack does in Sightline: where, what, and its measured number. */
+export interface StackStep {
   step: string;
   title: string;
   body: string;
@@ -22,9 +23,20 @@ export interface OpenCvStep {
   stat: string | null;
 }
 
+/** One of the three equal cards: a wordmark, its job, three steps and the files behind them. */
+export interface StackCard {
+  id: string;
+  wordmark: string;
+  role: string;
+  lead: string;
+  steps: readonly StackStep[];
+  links: readonly TechLink[];
+}
+
 export const OPENCV = {
+  id: "built-opencv",
   wordmark: "OpenCV 5",
-  role: "Finds the people",
+  role: "Sees",
   lead: "Every photo goes through OpenCV 5 first. The detector runs on cv2.dnn alone, with no PyTorch at run time, and gives the same boxes on a CPU, a cloud server or a GPU.",
   steps: [
     {
@@ -48,79 +60,108 @@ export const OPENCV = {
       calls: "fillPoly · blur",
       stat: null,
     },
-  ] satisfies readonly OpenCvStep[],
+  ] satisfies readonly StackStep[],
   links: [
     { label: "Every OpenCV call", href: `${REPORT_URL}#38-every-opencv-call-sightline-makes` },
     { label: "cv2.dnn on CUDA", href: `${REPORT_URL}#34-cv2dnn-on-cuda` },
     { label: "Second look, scored once", href: `${REPORT_URL}#54-task-effectiveness` },
   ] satisfies readonly TechLink[],
+} as const satisfies StackCard;
+
+export const NVIDIA = {
+  id: "built-nvidia",
+  wordmark: "NVIDIA",
+  role: "Reads, reasons, listens, speaks",
+  lead: "Every language, vision and speech model in Sightline is an NVIDIA open model: Nemotron reads OpenCV's zooms and reasons, Parakeet hears the radio and Magpie speaks.",
+  steps: [
+    {
+      step: "1 · Read",
+      title: "The second look's verdict",
+      body: "Nemotron-3.5-Super-VL reads OpenCV's zoom of an unsure box and answers in JSON: person yes, no or unclear, with posture, clothing and how many.",
+      calls: "nvidia/Nemotron-3.5-Super-VL",
+      stat: "461 of 461 replies valid JSON; 1.35 s per verdict (p50)",
+    },
+    {
+      step: "2 · Reason",
+      title: "Briefings and the radio desk",
+      body: "Nemotron 3 Nano writes the teams' briefings and reads conditions pages, keeping each value with its sentence. Nemotron 3 Super makes the radio desk's tool calls and answers from the tools' data.",
+      calls: "NVIDIA-Nemotron-3-Nano-30B-A3B · nemotron-3-super-120b-a12b",
+      stat: "Radio: first sound in 2.5 s (p50), replies spoken by Magpie",
+    },
+    {
+      step: "3 · Listen and speak",
+      title: "The radio, by voice",
+      body: "Parakeet TDT 0.6B v2 turns a team's radio call into text; Magpie TTS speaks Sightline's replies and the simulated teams' voices. Both run on a GPU through NeMo.",
+      calls: "parakeet-tdt-0.6b-v2 · magpie_tts_multilingual_357m",
+      stat: "WER 0.025 on 20 radio phrases in one human voice, both coordinates exact",
+    },
+  ] satisfies readonly StackStep[],
+  links: [
+    { label: "Radio desk, measured", href: `${BLOB}/docs/feedback/radio.md` },
+    { label: "Nemotron VL, measured", href: `${BLOB}/docs/feedback/nebius.md#2-nemotron-35-super-vl-nvidianemotron-35-super-vl` },
+    { label: "Parakeet and Magpie", href: `${BLOB}/docs/feedback/nebius.md#7-parakeet-tdt-06b-v2-nvidiaparakeet-tdt-06b-v2-speech-to-text` },
+  ] satisfies readonly TechLink[],
+} as const satisfies StackCard;
+
+export const NEBIUS = {
+  id: "built-nebius",
+  wordmark: "Nebius",
+  role: "Runs every model call and the batch jobs",
+  lead: "Every language and vision model call goes through Nebius Token Factory, from one OpenAI-compatible client with the key on the server only. A Serverless Job ran the detector over the simulated fleet's photos.",
+  steps: [
+    {
+      step: "1 · Serve",
+      title: "Token Factory, every Nemotron call",
+      body: "Second looks, briefings, conditions and radio turns with tool calls, all through one client on the openai SDK. Each call is written to the mission's Trace.",
+      calls: "TokenFactoryClient · api.tokenfactory.nebius.com/v1",
+      stat: "Vision verdict p50 1.35 s, p90 1.65 s, over 461 calls",
+    },
+    {
+      step: "2 · Batch",
+      title: "A Serverless Job over the fleet's photos",
+      body: "The detector on OpenCV 5 cv2.dnn, CPU only, in one container image, over the creek scenario's 711 photos: the same boxes as the same image run locally.",
+      calls: "nebius ai job create · cpu-d3 · 16vcpu-64gb",
+      stat: "711 photos in 483 s on 16 vCPUs, about $0.10",
+    },
+    {
+      step: "3 · Fail fast",
+      title: "When Token Factory is down",
+      body: "After 4 failed attempts in a row a circuit breaker opens and the next calls fail fast, each fallback noted in the Trace. The agent still never moves anything without a person.",
+      calls: "CircuitOpen · 20 s per attempt",
+      stat: "Fully down: about 82 s per mission in all, not minutes per call",
+    },
+  ] satisfies readonly StackStep[],
+  links: [
+    { label: "Nebius, tool by tool", href: `${BLOB}/docs/feedback/nebius.md` },
+    { label: "Token Factory down, measured", href: `${BLOB}/docs/report/AGENT_EVAL.md#failure-handling-injected` },
+    { label: "The client: llm.py", href: `${BLOB}/sightline/agent/llm.py` },
+  ] satisfies readonly TechLink[],
+} as const satisfies StackCard;
+
+/** The three equal cards, in pipeline order: see, reason, run. */
+export const STACK: readonly StackCard[] = [OPENCV, NVIDIA, NEBIUS];
+
+/** Tavily, the Nebius bonus prize: the row under the three. */
+export const TAVILY = {
+  id: "built-tavily",
+  wordmark: "Tavily",
+  role: "Reads the web for the search",
+  body: "Live forecasts, warnings and trail alerts for the area, and the missing person's profile from a public bulletin. A value is kept only with the sentence it came from, quoted word for word.",
+  stat: "Conditions: at most 4 Tavily calls per area per hour",
+  link: { label: "Conditions and profile", href: `${BLOB}/docs/report/TAVILY.md` } satisfies TechLink,
 } as const;
-
-/** The other three: what each does, its models, one measured number, its source. */
-export interface Partner {
-  wordmark: string;
-  role: string;
-  body: string;
-  /** The models or services, by job. */
-  parts: readonly { name: string; job: string }[];
-  stat: string;
-  link: TechLink;
-}
-
-export const PARTNERS: readonly Partner[] = [
-  {
-    wordmark: "NVIDIA",
-    role: "Reads, writes and speaks",
-    body: "Every language, vision and speech model is an NVIDIA open model.",
-    parts: [
-      { name: "Nemotron-3.5-Super-VL", job: "the second look's verdict" },
-      { name: "Nemotron 3 Nano", job: "briefings, conditions, the debrief" },
-      { name: "Nemotron 3 Super", job: "the radio desk's tool calls" },
-      { name: "Parakeet TDT 0.6B v2", job: "radio speech to text" },
-      { name: "Magpie TTS", job: "Sightline's voice on the radio" },
-    ],
-    stat: "Radio: first sound in 2.5 s (p50), replies spoken by Magpie",
-    link: { label: "Radio desk, measured", href: `${BLOB}/docs/feedback/radio.md` },
-  },
-  {
-    wordmark: "Nebius",
-    role: "Runs the models",
-    body: "Every language and vision model call goes through Nebius Token Factory, the key on the server only. A Serverless Job ran the detector over the simulated fleet's photos.",
-    parts: [
-      { name: "Token Factory", job: "every Nemotron call" },
-      { name: "Serverless Job", job: "batch detection on cv2.dnn" },
-    ],
-    stat: "711 photos in 483 s on 16 vCPUs, about $0.10",
-    link: { label: "Nebius, tool by tool", href: `${BLOB}/docs/feedback/nebius.md` },
-  },
-  {
-    wordmark: "Tavily",
-    role: "Reads the web for the search",
-    body: "Live forecasts, warnings and trail alerts for the area, and the missing person's profile from a public bulletin. A value is kept only with the sentence it came from, quoted word for word.",
-    parts: [
-      { name: "Search and extract", job: "conditions and the subject's profile" },
-    ],
-    stat: "Conditions: at most 4 Tavily calls per area per hour",
-    link: { label: "Conditions and profile", href: `${BLOB}/docs/report/TAVILY.md` },
-  },
-];
 
 export const BUILT_WITH = {
   title: "Built with",
-  lead: "OpenCV finds the people; NVIDIA's models read, write and speak; Nebius runs them; Tavily reads the web. Each with its job, a measured number and the file behind it.",
+  lead: "OpenCV 5 sees, NVIDIA's open models read, reason, listen and speak, and Nebius runs every model call. Each with its steps, measured numbers and the files behind them.",
+  physical: "Physical AI: drones sense, the map decides where to look next, and drones and teams act, each move approved by a person. The fleet is simulated, flying over real aerial photos.",
 } as const;
 
 const linkCls = "text-small text-text-2 underline underline-offset-2 hover:text-text";
 
 /** A text wordmark, styled as a badge (no logos). */
-function Wordmark({ children, big = false }: { children: string; big?: boolean }) {
-  return (
-    <span
-      className={`inline-flex items-center self-start rounded-md border border-line bg-bg font-semibold tracking-[-0.02em] text-text ${big ? "px-3 py-1 text-[28px] leading-[36px] sm:text-[36px] sm:leading-[44px]" : "px-2 py-0.5 text-title"}`}
-    >
-      {children}
-    </span>
-  );
+function Wordmark({ children }: { children: string }) {
+  return <span className="inline-flex items-center self-start rounded-md border border-line bg-bg px-2.5 py-0.5 text-[24px] font-semibold leading-[32px] tracking-[-0.02em] text-text">{children}</span>;
 }
 
 function Out({ l }: { l: TechLink }) {
@@ -135,31 +176,30 @@ function Out({ l }: { l: TechLink }) {
   );
 }
 
-function OpenCvCard() {
+function Card({ c }: { c: StackCard }) {
   return (
-    <article aria-labelledby="built-opencv" className="flex flex-col gap-6 rounded-lg border border-line bg-surface-solid p-5 sm:p-7">
-      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between md:gap-8">
-        <div className="flex flex-col gap-3">
-          <Wordmark big>{OPENCV.wordmark}</Wordmark>
-          <h3 id="built-opencv" className="text-headline font-medium tracking-[-0.01em] text-text">
-            {OPENCV.role}
-          </h3>
-        </div>
-        <p className="max-w-[60ch] text-body text-text-2">{OPENCV.lead}</p>
+    <article aria-labelledby={c.id} className="flex min-w-0 flex-col gap-4 rounded-lg border border-line bg-surface-solid p-5">
+      <header className="flex flex-col gap-2">
+        <Wordmark>{c.wordmark}</Wordmark>
+        <h3 id={c.id} className="text-title font-medium text-text">
+          {c.role}
+        </h3>
+        <p className="text-small text-text-2">{c.lead}</p>
       </header>
-      <ol className="grid gap-px overflow-hidden rounded-md border border-line bg-line md:grid-cols-3">
-        {OPENCV.steps.map((s) => (
-          <li key={s.step} className="flex flex-col gap-2 bg-surface-solid p-4">
+      <ol className="flex flex-col gap-px overflow-hidden rounded-md border border-line bg-line">
+        {c.steps.map((s) => (
+          <li key={s.step} className="flex flex-col gap-1.5 bg-surface-solid p-4">
             <span className="text-label font-medium text-text-3">{s.step}</span>
-            <span className="text-title font-medium text-text">{s.title}</span>
+            <span className="text-small font-medium text-text">{s.title}</span>
             <span className="text-small text-text-2">{s.body}</span>
-            <code className="font-mono text-caption text-text-3">{s.calls}</code>
-            {s.stat && <span className="mt-auto border-t border-line pt-3 text-small font-medium text-text">{s.stat}</span>}
+            <code className="break-words font-mono text-caption text-text-3">{s.calls}</code>
+            {s.stat && <span className="border-t border-line pt-2 text-small font-medium text-text">{s.stat}</span>}
           </li>
         ))}
       </ol>
-      <p className="flex flex-wrap gap-x-5 gap-y-1">
-        {OPENCV.links.map((l) => (
+      {c.id === NVIDIA.id && <RadioClip />}
+      <p className="mt-auto flex flex-wrap gap-x-5 gap-y-1">
+        {c.links.map((l) => (
           <Out key={l.label} l={l} />
         ))}
       </p>
@@ -167,26 +207,20 @@ function OpenCvCard() {
   );
 }
 
-function PartnerCard({ p }: { p: Partner }) {
-  const id = `built-${p.wordmark.toLowerCase()}`;
+function TavilyRow() {
   return (
-    <article aria-labelledby={id} className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-5">
-      <Wordmark>{p.wordmark}</Wordmark>
-      <h3 id={id} className="text-title font-medium text-text">
-        {p.role}
-      </h3>
-      <p className="text-small text-text-2">{p.body}</p>
-      <dl className="flex flex-col gap-1 text-small">
-        {p.parts.map((x) => (
-          <div key={x.name} className="flex flex-wrap gap-x-2">
-            <dt className="font-medium text-text">{x.name}</dt>
-            <dd className="text-text-2">{x.job}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="mt-auto border-t border-line pt-3 text-small font-medium text-text">{p.stat}</p>
-      {p.wordmark === "NVIDIA" && <RadioClip />}
-      <Out l={p.link} />
+    <article aria-labelledby={TAVILY.id} className="flex flex-col gap-3 rounded-lg border border-line bg-surface-solid p-5 md:flex-row md:items-center md:gap-6">
+      <div className="flex shrink-0 flex-col gap-1 md:w-56">
+        <span className="inline-flex items-center self-start rounded-md border border-line bg-bg px-2 py-0.5 text-title font-semibold tracking-[-0.02em] text-text">{TAVILY.wordmark}</span>
+        <h3 id={TAVILY.id} className="text-small font-medium text-text">
+          {TAVILY.role}
+        </h3>
+      </div>
+      <p className="min-w-0 flex-1 text-small text-text-2">{TAVILY.body}</p>
+      <div className="flex shrink-0 flex-col gap-1 md:w-64">
+        <span className="text-small font-medium text-text">{TAVILY.stat}</span>
+        <Out l={TAVILY.link} />
+      </div>
     </article>
   );
 }
@@ -196,12 +230,13 @@ export function BuiltWith() {
   return (
     <div className="flex flex-col gap-4">
       <p className="-mt-1 max-w-[70ch] text-body text-text-2">{BUILT_WITH.lead}</p>
-      <OpenCvCard />
-      <div className="grid gap-4 md:grid-cols-3">
-        {PARTNERS.map((p) => (
-          <PartnerCard key={p.wordmark} p={p} />
+      <div className="grid gap-4 lg:grid-cols-3">
+        {STACK.map((c) => (
+          <Card key={c.id} c={c} />
         ))}
       </div>
+      <TavilyRow />
+      <p className="max-w-[80ch] text-small text-text-2">{BUILT_WITH.physical}</p>
     </div>
   );
 }

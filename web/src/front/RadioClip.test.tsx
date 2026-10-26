@@ -51,7 +51,7 @@ describe("RadioClip", () => {
 
   it("is on the home page, in Built with's NVIDIA card", () => {
     render(<Home />);
-    const nvidia = screen.getByRole("article", { name: "Reads, writes and speaks" });
+    const nvidia = screen.getByRole("article", { name: "Reads, reasons, listens, speaks" });
     expect(within(nvidia).getByRole("group", { name: "Sightline on the radio" })).toHaveTextContent(RADIO_CLIP.transcript);
   });
 
