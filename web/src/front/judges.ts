@@ -47,7 +47,7 @@ export const WHAT_BREAKS_FIRST: readonly { lead: string; rest: string }[] = [
   },
   {
     lead: "The fleet is a simulation, the approvals are not:",
-    rest: "the drones, their flights and where each photo was taken are generated over real aerial photographs (HERIDAL), and the site's one “Simulation on real aerial photographs” chip says so. In the guided run and in free play the visitor makes every approval live in the browser (Watch instead, if they pick it, is logged as such), and every move in the log names its approver. Only the agent traces kept as evidence have pre-written human steps, and each trace says so.",
+    rest: "the drones, their flights and where each photo was taken are generated over real aerial photographs (HERIDAL), and the site's one “Simulation on real aerial photographs” chip says so. In the guided run and in free play the visitor makes every approval live in the browser (Watch instead, if they pick it, is logged as such), and every move in the log names its approver. The mission trace in the Trace view was generated offline with stand-in models and a pre-written search manager, and its header says so.",
   },
 ];
 
