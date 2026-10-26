@@ -26,6 +26,7 @@ import { photoProgress, useMission } from "../lib/mission";
 import type { ModelCall } from "../lib/fixtureExtras";
 import { clockWithZone, ClockZone, DEMO_TZ, utcLabel } from "../lib/time";
 import { CommandView, storeActions } from "../command/CommandView";
+import { useNeedsTotal } from "../command/NeedsYou";
 import { useConsole } from "../command/consoleStore";
 import { useNotify } from "../shell/notify";
 import { Briefings, useRadioVoice } from "../command/RadioLink";
@@ -36,6 +37,8 @@ import { cardFor } from "../front/scenarios";
 import { SubjectStrip } from "../command/SubjectStrip";
 import { PhotoDrop, useDropped } from "../command/PhotoDrop";
 import { DEFAULT_SEED, presetFor, scenarioMission } from "../command/scenarios";
+import { activeSetup, PLAY_SEED, playName } from "../command/openPlay";
+import { applySetup } from "../command/openPlayMission";
 import { setClockedFlights, stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace, EXAMPLE_TRACE_LABEL } from "../command/demoMission";
@@ -50,7 +53,7 @@ import { MapStill, wantsStillMap } from "../map/MapStill";
 import { useSelection } from "../lib/selection";
 import { AppBar, rememberMission, type BarAction } from "../shell/AppBar";
 import { Button, modeOf, Page, Panel, Stat } from "../shell/components";
-import { DEMO_CONSOLE_HASH, guideHash, scenarioHash, SCENARIOS_HASH, viewHash, type Route, type View } from "../shell/flow";
+import { DEMO_CONSOLE_HASH, guideHash, PLAY_HASH, scenarioHash, SCENARIOS_HASH, viewHash, type Route, type View } from "../shell/flow";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS } from "../shell/shortcuts";
 import { liveCards, liveReviewItems, ReviewRail, type LiveAnswer, type ObjectKind } from "../review/LiveReview";
@@ -67,7 +70,7 @@ const BoxLayer = lazy(() => import("../detect/TryPhoto").then((m) => ({ default:
 const AssignmentCardView = lazy(() => import("../command/AssignmentCardView").then((m) => ({ default: m.AssignmentCardView })));
 
 /** Where the map goes while MapLibre loads: the same frame, empty, so nothing moves when it arrives. */
-const MAP_FRAME = <div aria-hidden="true" className="relative h-full min-h-[360px] rounded-lg border border-border" />;
+const MAP_FRAME = <div aria-hidden="true" className="relative h-full min-h-[360px] rounded-lg lg:min-h-[280px] border border-border" />;
 /** The still map's fade into the live map (MapStill.tsx), within 100–400 ms; none under reduced motion. */
 const STILL_FADE_MS = 300;
 const loading = (what: string) => <p className="text-small text-text-3">Loading {what}…</p>;
@@ -297,16 +300,19 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   }, [api, missionId, demo]);
   const cache = demo ? (demoData?.bundle ?? null) : bundle;
 
+  // Open play (`?s=play`, the #play page's Start): the visitor's own setup on its profile's scenario
+  const playSetup = useMemo(() => (seed === PLAY_SEED ? activeSetup() : null), [seed]);
+  const scenarioName = playSetup ? playName(playSetup) : presetFor(seed).name;
   // The scenario: the generator's fixture for its seed, or derived from the demo mission (scenarios.ts).
   useEffect(() => {
     if (!demo || !demoData) return undefined;
     let live = true;
     const load = (fixture: unknown) => loadDemoMission(fetch, async () => fixture as never, Promise.resolve(demoData.bundle.map)).then(({ data, now }) => ({ data, now }));
-    void scenarioMission(demoData.full, seed, load).then((f) => live && setScenario(f));
+    void scenarioMission(demoData.full, playSetup ? playSetup.profile : seed, load).then((f) => live && setScenario(playSetup ? applySetup(f, playSetup) : f));
     return () => {
       live = false;
     };
-  }, [demo, demoData, seed]);
+  }, [demo, demoData, seed, playSetup]);
 
   // The demo mission at the story's clock, the visitor's own actions on top. The guided search runs its own
   // clock: the fixtures' clock stands still while a decision's minutes are spent (sim.ts), and the console
@@ -318,7 +324,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const effSeed = seed ?? DEFAULT_SEED;
   const costs = useMemo(() => costsOf(guide?.choices ?? []), [guide?.choices]);
   const clockIso = guided ? new Date(fixtureOf(guide!.clock, costs)).toISOString().replace(/\.\d+Z$/, "Z") : storyClock(story);
-  const gOpts = useMemo(() => (guided ? guidedOptsFor(scenario, effSeed, guide!.choices, story.user) : null), [guided, scenario, effSeed, guide?.choices, story.user]);
+  const gOpts = useMemo(() => (guided ? guidedOptsFor(scenario, effSeed, guide!.choices, story.user, freePlay) : null), [guided, scenario, effSeed, guide?.choices, story.user, freePlay]);
   // the guided search's standing approval plays the agent's next picks as assignments of the visitor's
   const simUser = useMemo(() => (guided ? standingUser(scenario, effSeed, story.user, guide!.choices) : story.user), [guided, scenario, effSeed, story.user, guide?.choices]);
   // the visitor decides (judges 2026-10-23): once they play the clock outside the story, the scenario's own
@@ -528,7 +534,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     demo,
     scenario,
     seed: effSeed,
-    scenarioName: presetFor(seed).name,
+    scenarioName,
     cache,
     answer: (id, a) => answerRef.current(id, a),
     onPickOnMap: () => {
@@ -548,6 +554,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     onRestart: restartGuide,
     guideHref: guideHash(seed),
     scenariosHref: SCENARIOS_HASH,
+    setupHref: playSetup ? PLAY_HASH : null,
   });
   // each team's status as its tasks say it (a team assigned a sector is not on standby)
   const teams = useMemo(() => withTaskStatus(s.teams, s.tasks), [s.teams, s.tasks]);
@@ -603,9 +610,9 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // (no survey photo has landed while the drones wait on the ground: no AI re-check catch either)
   // each known survey photo carries the AI's pick against this scenario's subject (command/subjectMatch.ts)
   const cards = demo
-    ? [...dropped.cards, ...distractors, ...demoCards(cache, landed ?? [], imageUrl, frameCount > 0 && new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime())].map((c) => {
+    ? [...dropped.cards, ...distractors, ...demoCards(cache, landed ?? [], imageUrl, frameCount > 0 && new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime() + (gOpts?.dronesLate ?? 0))].map((c) => {
         const pick = aiPick(c.id, s.mission?.subject);
-        return pick ? { ...c, pick: pick.line } : c;
+        return pick ? { ...c, pick: pick.line, pickAnswer: pick.answer } : c;
       })
     : [];
   const answerDemo = (id: string, a: LiveAnswer, object?: ObjectKind) => {
@@ -709,7 +716,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const review =
     reviewCount > 0 || tried ? (
       demo ? (
-        <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id])} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Photos to review appear here as the survey's photos land." />
+        <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id])} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Photos to review appear here as the survey's photos land." step={run.photoStep} />
       ) : (
         <ReviewRail cards={live} answers={liveAnswers} onAnswer={answerLive} top={tried} />
       )
@@ -772,6 +779,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // once the subject is found, pending proposals and candidates are closed (Needs you folds them away)
   const needsCount = s.mission?.status === "found" ? 0 : (run.on ? run.proposals(s.proposals) : s.proposals).filter((p) => p.status === "pending").length + reviewCount;
   const inStory = demo && !guided && story.playing;
+  const needsTotal = useNeedsTotal((x) => x.total);
 
   return (
     <ClockZone.Provider value={clockZone}>
@@ -781,7 +789,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           views={{ current: view, onSelect: go, counts: { photos: inStory ? frameCount || undefined : undefined } }}
           tabs={{
             current: tab,
-            needs: needsCount || undefined,
+            // the count Needs you's head shows (one source, NeedsYou useNeedsTotal)
+            needs: (view === "map" ? needsTotal : needsCount) || undefined,
             onSelect: (x) => {
               useConsole.getState().setTab(x);
               if (x === "needs") toNeeds();
@@ -824,7 +833,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
         {/* which search is on screen, and the home page's cards to change it (front/ScenarioBanner.tsx) */}
         {/* the subject brief, always on the console (command/SubjectStrip.tsx): who, last seen when and where, LKP */}
         {demo ? (
-          <ScenarioBanner seed={seed} name={presetFor(seed).name} area={s.mission?.area?.name ?? "Mount Seymour"} clock={barClock} brief={ready ? <SubjectStrip mission={s.mission} now={demoNow ?? new Date()} tz={clockZone.tz} place={cardFor(seed).lastSeen} /> : null} />
+          <ScenarioBanner seed={seed} name={scenarioName} setupHref={playSetup ? PLAY_HASH : null} area={s.mission?.area?.name ?? "Mount Seymour"} clock={barClock} brief={ready ? <SubjectStrip mission={s.mission} now={demoNow ?? new Date()} tz={clockZone.tz} place={cardFor(seed).lastSeen} /> : null} />
         ) : (
           ready &&
           s.mission && (
@@ -844,7 +853,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           />
         )}
         {/* a phone's coach mark sits along the bottom: room under the last panel so any target can scroll to the top */}
-        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-2 pb-20 lg:p-3 lg:pb-3 ${guided && !freePlay ? "max-sm:pb-[55vh]" : ""}`}>
+        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-2 pb-20 lg:p-3 lg:pb-3 ${guided && !freePlay ? "max-sm:pb-28" : ""}`}>
           {s.error && (
             <p role="alert" className="text-small text-warn">
               {s.error}
@@ -879,6 +888,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               rightRail={rightRail}
               rightWide={view === "debrief"}
               aboveMap={photoStrip}
+              goals={run.on ? run.goals(cards.map((c) => c.id)) : undefined}
               cover={cover}
               review={review}
               reviewCount={reviewCount}
@@ -889,6 +899,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               needsHighlight={run.needsHighlight}
               dock={run.dock}
               lead={run.lead}
+              standing={run.standing}
               voice={voice}
               conditionsData={conditionsData}
               conditionsOpen={condOpen && view === "map"}
@@ -896,7 +907,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               map={
                 still ? (
                   // the map loads under the still image, which fades out once the map has drawn
-                  <div className="relative h-full min-h-[360px]">
+                  <div className="relative h-full min-h-[360px] lg:min-h-[280px]">
                     {mapOn && (
                       <div className="absolute inset-0">
                         <Suspense fallback={null}>

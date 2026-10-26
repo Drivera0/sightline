@@ -14,7 +14,8 @@
 // names no item, the guide's "none" between decisions, dims them all). Every item carries `data-need` (its id) and
 // `data-need-kind`. A reviewer's "Person" on a photo puts the agent's "Send the nearest team to the sighting"
 // at the top (missionTime.ts makes it), never dimmed: it came from the manager's own answer. Built by lane A.
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { create } from "zustand";
 import type { Clue, Drone, MissionEvent, Proposal, RadioTurn, Team, TimelineEvent } from "../contract";
 import { Icon, type IconName } from "../shell/icons";
 import { useClock } from "../lib/time";
@@ -23,6 +24,12 @@ import { plainWords, toReview } from "./terms";
 import { isSightingProposal, nearestFree, needs, sectorAt, sightingReports, type Heard } from "./console";
 import { SWEEP_MS, WALK_MS } from "./sim";
 import type { SectorNow } from "../lib/api";
+
+/**
+ * How many items wait in Needs you, as its head says it ("3 waiting"): the one count the phone's tab, free
+ * play's clock bar and the goals read, so they never disagree (the cold test: three counters, three numbers).
+ */
+export const useNeedsTotal = create<{ total: number }>(() => ({ total: 0 }));
 
 /** The kinds of thing that wait here, each with its colour token (shell/README.md) and its group's name. */
 export const NEED_KINDS = {
@@ -136,6 +143,8 @@ export function NeedsYou({
   onCall,
   onRecall,
   onConfirmClue,
+  onLogClue,
+  standing = null,
   found = null,
   tasks = [],
   onFound,
@@ -180,10 +189,14 @@ export function NeedsYou({
   onCall: (teamId: string, draft?: string) => void;
   onRecall: (teamId: string) => void;
   onConfirmClue: (clueId: string) => void;
+  /** Log a clue without mapping (the demo mission): a second button on its card. */
+  onLogClue?: (clueId: string) => void;
+  /** The visitor's standing approval in force (Send all) and its Stop, shown first. */
+  standing?: ReactNode;
   /** The subject is found (Mission.status "found"): when, if the record says. Proposals and candidates close. */
   found?: { at: string | null } | null;
   /** The guided assign step's main button on its card ("Send all N free teams…"). */
-  lead?: Lead | null;
+  lead?: Lead | readonly Lead[] | null;
   /** The item to point at (a need id, see above): ringed, the others hidden. Null: none. */
   highlight?: string | null;
 }) {
@@ -206,17 +219,21 @@ export function NeedsYou({
   const overdue = items.flatMap((i) => (i.kind === "overdue" ? [i] : []));
   const readbacks = found ? allReadbacks.filter((i) => !i.clue) : allReadbacks;
   const total = reports.length + items.reduce((n, i) => n + (found && (i.kind === "proposal" || i.kind === "review" || (i.kind === "readback" && i.clue)) ? 0 : i.kind === "review" ? i.count : 1), 0);
+  useEffect(() => {
+    if (useNeedsTotal.getState().total !== total) useNeedsTotal.setState({ total });
+  }, [total]);
   // the guided search points at one item: a group's head goes when none of its items is the one
   const off = (has: (id: string) => boolean) => !!highlight && !has(highlight);
   const pointed = !!highlight && (highlight === "review" ? !!review : reports.some((r) => `report-${r.team.id}` === highlight) || items.some((i) => i.kind !== "review" && i.id === highlight) || proposals.some((p) => p.id === highlight && p.status === "pending"));
   // a sighting proposal and a photo review's possible clue are never hidden (the manager's own answer made them)
-  const shownAnyway = sightingProps.length + readbacks.filter((i) => isClueCandidate(i.clue)).length;
+  // (nor a clue waiting for its read-back: the scenario's clues wait for the manager whatever the step)
+  const shownAnyway = sightingProps.length + readbacks.filter((i) => !!i.clue && i.id !== highlight).length;
   const after = highlight ? Math.max(0, total - shownAnyway - (pointed ? (highlight === "review" ? reviewCount : 1) : 0)) : 0;
   // the agent's "send the nearest team to the sighting": the manager's own answer made it, never hidden or dimmed
   const sighting = sightingProps.length > 0 && (
     <div role="group" aria-label="Possible sighting" className="flex flex-col gap-2">
       <NeedsHead kind="sighting" count={sightingProps.length} />
-      <ApprovalInbox proposals={sightingProps} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={null} feedHref={undefined} order="oldest" highlight={null} />
+      <ApprovalInbox proposals={sightingProps} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={null} feedHref={undefined} order="oldest" highlight={null} keys={!(Array.isArray(lead) ? lead.length : lead)} />
     </div>
   );
 
@@ -228,7 +245,8 @@ export function NeedsYou({
         {total > 1 && <span className="ml-auto text-caption font-normal text-text-3">most urgent first</span>}
       </h2>
       {/* never folded away: on a phone it scrolls inside a capped height, above the map */}
-      <div aria-label="Approvals rail" className="flex max-h-[60vh] min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 lg:max-h-none">
+      <div aria-label="Approvals rail" className="relative flex max-h-[60vh] min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 lg:max-h-none">
+        {standing}
         {total === 0 && !found && <p className="px-1 py-2 text-small text-text-3">Nothing needs you. AI suggestions, photos to review, overdue teams and clues to confirm appear here.</p>}
         {found && (
           <ClosedOnFind
@@ -277,7 +295,7 @@ export function NeedsYou({
             <ApprovalInbox proposals={others} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={storyProposal} feedHref={undefined} order="oldest" highlight={highlight} lead={lead} />
           </>
         )}
-        {readbacks.length > 0 && <NeedsHead kind="readback" count={readbacks.length} hidden={off((x) => readbacks.some((i) => i.id === x)) && !readbacks.some((i) => isClueCandidate(i.clue))} />}
+        {readbacks.length > 0 && <NeedsHead kind="readback" count={readbacks.length} hidden={off((x) => readbacks.some((i) => i.id === x)) && !readbacks.some((i) => !!i.clue)} />}
         {readbacks.map((i) => {
           // a clue candidate from an image review: the nearest team goes to look (the same walk and sweep as any assignment)
           const candidate = isClueCandidate(i.clue);
@@ -294,11 +312,13 @@ export function NeedsYou({
               turn={i.turn}
               who={callsign(i.team)}
               onConfirm={i.clue ? () => onConfirmClue(i.clue!.id) : undefined}
+              onLog={i.clue && !candidate && onLogClue ? () => onLogClue(i.clue!.id) : undefined}
               onReply={i.team ? () => onCall(i.team!, `${callsign(i.team)}, Sightline. `) : undefined}
               look={look}
               lookNote={lookNote}
-              // a candidate came from the manager's own answer: never dimmed, its Confirm always works
-              highlight={candidate ? null : highlight}
+              // a candidate came from the manager's own answer, and a clue waits for the manager whatever the
+              // step: never dimmed, its Confirm always works (only the step's own clue is ringed)
+              highlight={i.clue && highlight !== i.id ? null : highlight}
             />
           );
         })}
@@ -385,9 +405,9 @@ export function ClosedOnFind({ proposals, reviewCount, count, at, clues = [], le
 /** A clue an image reviewer answered "Object" on (contract 15.7): a candidate until a team on the ground sees it. */
 export const isClueCandidate = (c: Clue | null): boolean => c?.source === "review";
 
-function ReadBack({ id, clue, turn, who, onConfirm, onReply, highlight, look = null, lookNote = null }: { id: string; clue: Clue | null; turn: RadioTurn | null; who: string; onConfirm?: () => void; onReply?: () => void; highlight?: string | null; look?: { label: string; onClick: () => void } | null; lookNote?: string | null }) {
+function ReadBack({ id, clue, turn, who, onConfirm, onLog, onReply, highlight, look = null, lookNote = null }: { id: string; clue: Clue | null; turn: RadioTurn | null; who: string; onConfirm?: () => void; onLog?: () => void; onReply?: () => void; highlight?: string | null; look?: { label: string; onClick: () => void } | null; lookNote?: string | null }) {
   const candidate = isClueCandidate(clue);
-  const minor = [...(onReply ? [{ label: "Reply", onClick: onReply }] : [])];
+  const minor = [...(onLog ? [{ label: "Log without mapping", onClick: onLog }] : []), ...(onReply ? [{ label: "Reply", onClick: onReply }] : [])];
   if (candidate && clue) {
     // a team goes to look first (the primary), Confirm once they have seen it (always live)
     return (
@@ -414,7 +434,9 @@ function ReadBack({ id, clue, turn, who, onConfirm, onReply, highlight, look = n
         clue
           ? candidate
             ? "From Review photos, low reliability on the map. Send a team to look; Confirm once they have seen it."
-            : `${who ? `From ${who}. ` : ""}Read it back to the team to confirm it.`
+            : who
+              ? `From ${who}. Read it back to the team to confirm it; the map moves only once it is confirmed.`
+              : "Logged at the command post. Confirm it to put it on the map."
           : undefined
       }
       primary={onConfirm ? { label: "Confirm clue", onClick: onConfirm } : onReply ? { label: `Reply to ${who}`, onClick: onReply } : undefined}

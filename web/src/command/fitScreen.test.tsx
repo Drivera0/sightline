@@ -1,5 +1,5 @@
 // The console fits the screen (round 2 of the cold usability test: "I can't see the button"): the guided
-// search's other choices after the step's item on a short screen, the bar folded to a chip over the phone's
+// search's other choices after the step's item on a short screen, the bar a slim line on a phone (unless the choice is in it), over the phone's
 // review frame, the ring never over an overlay, the Leave confirm above everything with the clock waiting,
 // and no review frame opening over a confirm. The real layout at 1280 × 720 to 1920 × 1080 and 390 × 844
 // is checked in Chromium (elementFromPoint on every step's control). Built by lane A.
@@ -83,23 +83,45 @@ describe("the guided search on a short screen (1280 × 720)", () => {
 });
 
 describe("the guided search on a phone (390 × 844)", () => {
-  it("folds to a one-line chip while the review frame is open, so the answers are in reach; a tap opens it", async () => {
+  it("is one slim line over the tabs when the decision is on the console (the cold test: the sheet covered Needs you's buttons); a tap opens it", async () => {
     screenOf(390, 844);
-    mark({ heading: "Step 2 of 6 · Review photos, photo 1 of 3", options: [] });
-    expect(screen.getByRole("dialog", { name: /Your call/ })).toBeVisible();
-    act(() => useConsole.getState().openReview("f0336-d01"));
-    const chip = screen.getByRole("button", { name: /Show the guide/ });
-    // the step cut short on one line keeps its whole text on hover
-    expect(within(chip).getByTitle("Step 2 of 6 · Review photos, photo 1 of 3")).toBeInTheDocument();
+    const text = "Look at the photo beside the subject's description: is it the subject, another person, or not a person?";
+    mark({ heading: "Step 2 of 6 · Review photos, photo 1 of 3", options: [], text });
+    const chip = document.querySelector<HTMLElement>("[data-guide-chip]")!;
+    expect(chip).toBeInTheDocument();
+    // the instruction itself, in the slim bar, its whole text on hover
+    expect(within(chip).getByTitle(text)).toHaveTextContent("Look at the photo");
     expect(document.querySelector("[data-guide-mark]")).not.toBeVisible();
-    await userEvent.click(chip);
+    await userEvent.click(within(chip).getByRole("button", { name: "Guide" }));
     expect(screen.getByRole("dialog", { name: /Your call/ })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Hide" }));
-    expect(screen.getByRole("button", { name: /Show the guide/ })).toBeInTheDocument();
-    // the review frame closed: the bar is back
-    act(() => useConsole.getState().closeReview());
-    expect(screen.queryByRole("button", { name: /Show the guide/ })).toBeNull();
+    expect(document.querySelector("[data-guide-chip]")).toBeInTheDocument();
+    // the review frame open: still slim, the answers in reach
+    act(() => useConsole.getState().openReview("f0336-d01"));
+    expect(document.querySelector("[data-guide-mark]")).not.toBeVisible();
+  });
+
+  it("stays open on a phone when the choice is made in the bar itself (the survey's two patterns)", () => {
+    screenOf(390, 844);
+    mark({
+      heading: "Step 1 of 6 · Survey",
+      options: [
+        { key: "1", id: "planner", label: "The AI's flight lines", effect: "the likeliest sectors first", costMin: 0, agent: true },
+        { key: "2", id: "serpentine", label: "Lawnmower pattern, whole grid", effect: "every sector once", costMin: 12 },
+      ],
+    });
     expect(screen.getByRole("dialog", { name: /Your call/ })).toBeVisible();
+    expect(document.querySelector("[data-guide-chip]")).toBeNull();
+  });
+
+  it("shows the time-lapse's clock and caption in the slim bar, with Pause in reach", async () => {
+    screenOf(390, 844);
+    const p = mark({ mode: "watch", heading: "Next: Clue", clock: "14:15", caption: "Team Two and Team One checked in by radio with position reports." });
+    const chip = document.querySelector<HTMLElement>("[data-guide-chip]")!;
+    expect(chip).toHaveTextContent("14:15");
+    expect(chip).toHaveTextContent("checked in by radio");
+    await userEvent.click(within(chip).getByRole("button", { name: "Pause" }));
+    expect(p.onPause).toHaveBeenCalled();
   });
 });
 

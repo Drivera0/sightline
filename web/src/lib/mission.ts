@@ -279,6 +279,8 @@ interface MissionStore extends MissionData {
   recallDrone: (droneId: string) => Promise<void>;
   /** Confirm an unconfirmed clue: the read-back goes to the team that reported it. */
   confirmClue: (clueId: string) => Promise<void>;
+  /** Log a clue without mapping it (the demo only: it leaves Needs you, the map stays as it is). */
+  logClue: (clueId: string) => void;
   /** Demo only: an event as the server would have sent it, stamped with the demo's clock. */
   emit: (type: MissionEvent["type"], summary: string, ref: string | null, data: unknown) => void;
 }
@@ -620,6 +622,13 @@ export const useMission = create<MissionStore>((set, get) => {
           set({ error: e instanceof Error ? e.message : String(e) });
         }
       }
+    },
+
+    logClue: (clueId) => {
+      const c = get().clues.find((x) => x.id === clueId);
+      // (a live mission has no such call: its clues are confirmed on the server)
+      if (!c || get().api) return;
+      demoEvent("clue.added", `${c.id} logged without mapping`, c.id, { ...c, confirmed: false, logged: true, decided_by: operatorName() });
     },
 
     updateTeam: async (teamId, patch) => {
