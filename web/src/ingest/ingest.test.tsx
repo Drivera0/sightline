@@ -171,7 +171,7 @@ describe("review in live mode (test 8)", () => {
     expect(within(screen.getByLabelText("Photo to review f0001-d02")).getByRole("button", { name: SECOND_LOOK_LABEL })).toBeEnabled();
     expect(screen.getByAltText("Crop of f0001-d02")).toHaveAttribute("src", "/f/crops/nearmiss/f0001-d02.jpg");
     const card = screen.getByLabelText("Photo to review f0001-d02");
-    await userEvent.click(within(card).getByRole("button", { name: "Person" }));
+    await userEvent.click(within(card).getByRole("button", { name: "The subject" }));
     expect(onAnswer).toHaveBeenCalledWith("f0001-d02", "person");
   });
 });

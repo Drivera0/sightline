@@ -59,7 +59,10 @@ export type Route =
   | { kind: "new" };
 
 /** The home page's sections an address can land on. */
-export type HomeSection = "about";
+export type HomeSection = "about" | "scenarios";
+/** The home page scrolled to its scenario cards (front/Home.tsx `home-sim`). */
+export const SCENARIOS_HASH = "#scenarios";
+export const SCENARIOS_ID = "home-sim";
 /** The id of the home page's About section (front/About.tsx), where #about lands. */
 export const ABOUT_ID = "home-about";
 
@@ -119,6 +122,8 @@ export function routeFromHash(hash: string): Route {
   if (h === "#new") return { kind: "new" };
   // About was a sheet over the console; it is now a section of the home page, and old links land there
   if (h === "#about") return { kind: "home", section: "about" };
+  // the scenario cards (leaving the guided simulation lands here)
+  if (h === SCENARIOS_HASH) return { kind: "home", section: "scenarios" };
   const m = MISSION.exec(h);
   if (!m) return { kind: "home" };
   const [, id, rawView, rest, query] = m as unknown as [string, string, string | undefined, string | undefined, string | undefined];

@@ -24,6 +24,7 @@ import {
   injectDone,
   injects,
   lastLight,
+  searchEnd,
   PIPS,
   standingUser,
   TRIAGE_OPTIONS,
@@ -37,7 +38,7 @@ import { GuideStrip } from "./Scrubber";
 import { fixtureOf, passesFrom, realOf, type Cost } from "./sim";
 import { dwellFor, lapseStep, SPEEDS, useGuide, useStory, type Lapse, type Speed } from "./story";
 import { buildTimeline } from "./timeline";
-import { STORY_NOT_A_PERSON, storyClue } from "./storyCopy";
+import { storyClue } from "./storyCopy";
 import { clock as clockText, DEMO_TZ } from "../lib/time";
 import { podLabel } from "./terms";
 
@@ -60,7 +61,11 @@ export interface GuideRun {
   needsHighlight: string | null;
   /** An approval of an assignment sends the team (the fixtures' manager no longer does). */
   decide: Decide;
-  strip: ReactNode;
+  /** The assign step's main button on its card ("Send all N free teams…"); the card's own Approve becomes `second`. */
+  lead: { id: string; label: string; onClick: () => void; second: string | null } | null;
+  /** The coach bar and the step strip, docked outside the map (CommandView `dock`). */
+  dock: ReactNode;
+  /** The end screen. */
   overlay: ReactNode;
 }
 
@@ -114,10 +119,14 @@ export function useGuideRun({
   const card = currentCard(active, choices);
   const clockMs = guide?.clock ?? 0;
   const f = fixtureOf(clockMs, costs);
-  const light = realOf(lastLight(scenario), costs);
+  // the run goes on past last light (every free team out through the night: guide.ts standingFrom) until the find
+  const light = realOf(searchEnd(scenario), costs);
+  const dark = clockMs >= realOf(lastLight(scenario), costs);
   const activeAt = active ? realOf(active.at, costs) : null;
-  // nothing runs until the scenario is in; with no decision ahead (a pass under way) the clock runs to last light, never jumps there
-  const hold = on && scenario && !guide!.ended ? Math.min(activeAt ?? light, light) : null;
+  // the find recorded stops the mission clock where it is (no running on to last light behind the end screen)
+  const findDone = choices.some((c) => c.inject === "find");
+  // nothing runs until the scenario is in; with no decision ahead (a pass under way) the clock runs on, never jumps
+  const hold = on && scenario && !guide!.ended ? (findDone ? clockMs : Math.min(activeAt ?? light, light)) : null;
   const reached = on && activeAt !== null && clockMs >= activeAt && activeAt <= light;
   const [status, setStatus] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -196,14 +205,37 @@ export function useGuideRun({
     if (shownKey) useGuide.getState().show(shownKey);
   }, [shownKey]);
 
+  // triage: each photo opens large in the review frame, the subject's description beside it; closed after
+  const openedReview = useRef(false);
+  const triageCard = reached && active?.id === "triage" ? (card?.id ?? null) : null;
+  useEffect(() => {
+    if (triageCard) {
+      useConsole.getState().openReview(triageCard);
+      openedReview.current = true;
+    } else if (openedReview.current) {
+      openedReview.current = false;
+      useConsole.getState().closeReview();
+    }
+  }, [triageCard]);
+
   // phones: the decision's panel in front
   useEffect(() => {
     if (reached && (active?.id === "triage" || active?.id === "assign" || active?.id === "clue" || active?.id === "wind")) useConsole.getState().setTab("needs");
   }, [reached, active?.id]);
 
+  // the step a card's button answers, read when it is pressed (the card's own Approve is "send only")
+  const stepRef = useRef<{ active: Inject | null; reached: boolean; f: number }>({ active: null, reached: false, f: 0 });
+  stepRef.current = { active, reached: !!reached, f };
   const decide: Decide = useCallback(async (pid, decision, by, reason, edits) => {
     const m = useMission.getState();
     const p = m.proposals.find((x) => x.id === pid);
+    // recorded before the team's move lands, so the step is this decision (not a move made on the side)
+    const st = stepRef.current;
+    if (decision === "approve" && st.reached && st.active?.proposal === pid && (st.active.id === "assign" || st.active.id === "wind")) {
+      const team = edits?.team && edits.team !== p?.target.team ? edits.team : null;
+      const c = choiceFor(st.active, st.active.id === "wind" ? "recall" : team ? `team:${team}` : "approve", st.f);
+      useGuide.getState().choose(team ? { ...c, label: `${m.teams.find((t) => t.id === team)?.callsign ?? team} to ${p?.target.sector ?? ""}` } : c);
+    }
     await m.decide(pid, decision, by, reason, edits);
     if (decision === "approve" && p?.kind === "assign_sector" && p.target.sector) {
       const team = edits?.team ?? p.target.team;
@@ -216,19 +248,15 @@ export function useGuideRun({
     const teams = useMission.getState().teams;
     return teams.find((t) => t.id !== not && (t.status === "standby" || t.status === "assigned")) ?? teams.find((t) => t.id !== not);
   }
-  /** What a triage answer leads to beyond the review itself: a witness lead, or a team sent to check the bag. */
+  /** What a triage answer leads to beyond the review itself: another person (or a group) is a witness lead, on every photo alike. */
   function follow(c: { id: string }, a: TriageAnswer) {
     const m = useMission.getState();
-    if (a === "not_subject" && c.id !== STORY_NOT_A_PERSON) {
+    if (a === "not_subject" || a === "group") {
       const at = candidatePosition(cache, c.id);
       if (at) {
-        const text = `witness: another person on the ground in photo ${at.frame}, ask what they saw`;
+        const text = a === "group" ? `witness: a group of people in photo ${at.frame}, ask what they saw (the subject may be with them)` : `witness: another person on the ground in photo ${at.frame}, ask what they saw`;
         m.emit("clue.added", `other: ${text}`, `w-${c.id}`, { kind: "other", text, lat: at.lat, lon: at.lon, at_team_position: false, radius_m: 30, reliability: "low", reported_by: "command", source: "form", confirmed_by_turn: null, id: `w-${c.id}`, at: iso(f), confirmed: true });
       }
-    }
-    if (a === "person" && c.id === STORY_NOT_A_PERSON) {
-      const t = free();
-      if (t) void m.call(t.id, `check the pin from survey photo ${Number(c.id.slice(1, 5))}, over.`);
     }
   }
   /** The find recorded: the nearest other team goes to carry out. */
@@ -302,7 +330,6 @@ export function useGuideRun({
   }, [on, guide?.watch, guide?.ended, active?.key, card?.id, reached]);
 
   // the find marked: a moment on the console, then what you did
-  const findDone = choices.some((c) => c.inject === "find");
   useEffect(() => {
     if (!on || !findDone || guide!.ended) return undefined;
     const t = window.setTimeout(() => useGuide.getState().end(), 2500);
@@ -340,7 +367,8 @@ export function useGuideRun({
   // the pass under way, in words (never where the subject is)
   const out = passesFrom(seed, subject, user).find((p) => !p.cut && p.start <= f && p.end > f);
   const walking = out ? `${callsign(out.team)} ${f < out.arrive ? `walks to ${out.sector}` : `sweeps ${out.sector} at ${podLabel(out.pod)} a pass`}.` : null;
-  const lead = inCost && lastCost ? `${lastCost.label}: ${lastCost.costMs / 60_000} min on the clock.` : (walking ?? active?.lead ?? "The teams search; the clock runs until the radio has news.");
+  const night = dark ? "Last light has gone: every free team searches on through the night on the AI's picks. " : "";
+  const lead = night + (inCost && lastCost ? `${lastCost.label}: ${lastCost.costMs / 60_000} min on the clock.` : (walking ?? active?.lead ?? "The teams search; the clock runs until the radio has news."));
   // the time-lapse's caption: the row that landed last on this run, with its time (cause, then effect)
   // (a row more than ten mission minutes old gives way to what is under way now)
   const landed = [...rows].reverse().find((r) => r.at <= clockMs && clockMs - r.at <= 10 * 60_000);
@@ -348,7 +376,7 @@ export function useGuideRun({
 
   // triage: the card's own answers (no buttons on the bar), so A gives the agent's reference answer; Object
   // (O) is left to the card, which asks for the object's type
-  const options: GuideOption[] = !reached || !active ? [] : active.id === "triage" ? (card ? TRIAGE_OPTIONS.filter((o) => o.id !== "object").map((o) => ({ key: o.key, id: o.id, label: o.label, effect: triageEffect(card, o.id).effect, costMin: triageEffect(card, o.id).costMin, agent: o.id === card.line, on: "the photo's card in Needs you" })) : []) : active.options.map((o) => ({ ...o }));
+  const options: GuideOption[] = !reached || !active ? [] : active.id === "triage" ? (card ? TRIAGE_OPTIONS.filter((o) => o.id !== "object").map((o) => ({ key: o.key, id: o.id, label: o.label, effect: triageEffect(card, o.id).effect, costMin: triageEffect(card, o.id).costMin, agent: o.id === card.line, on: "the review frame's answers" })) : []) : active.options.map((o) => ({ ...o }));
   // triage is answered on the photo's card; what each answer does stays one click away
   const answerList =
     reached && active?.id === "triage" && card
@@ -365,27 +393,58 @@ export function useGuideRun({
   const readback = storyClue(scenario);
   const needsHighlight = !reached || !active ? "none" : active.id === "triage" ? "review" : active.id === "clue" && readback ? `clue-${readback.id}` : (active.id === "assign" || active.id === "wind") && active.proposal ? active.proposal : active.id === "find" && active.find ? `report-${active.find.team}` : "none";
 
-  const overlay = !on ? null : guide!.ended && wash ? (
-    <GuideEnd
-      wash={wash}
-      versus={versus}
-      sectors={scenario?.data.sectors ?? []}
-      subject={subject}
-      scenario={scenarioName}
-      seed={seed}
-      callsign={callsign}
-      onReplay={() => onRestart(false)}
-      onWatchAgent={() => onRestart(true)}
-      onReport={onReport}
-      onTrace={onTrace}
-      onClose={() => useGuide.getState().stop()}
-    />
+  // the end screen; "Stay on the console" puts it away and the console stays on this run, clock stopped
+  const followed = choices.length > 0 && choices.every((c) => c.agent);
+  const overlay =
+    on && guide!.ended && wash && !guide!.closed ? (
+      <GuideEnd
+        wash={wash}
+        versus={versus}
+        sectors={scenario?.data.sectors ?? []}
+        subject={subject}
+        scenario={scenarioName}
+        seed={seed}
+        callsign={callsign}
+        onReplay={() => onRestart(false)}
+        onWatchAgent={() => onRestart(true)}
+        followed={followed}
+        onReport={() => {
+          useGuide.getState().close();
+          onReport();
+        }}
+        onTrace={() => {
+          useGuide.getState().close();
+          onTrace();
+        }}
+        onClose={() => useGuide.getState().close()}
+      />
+    ) : null;
+
+  // the step's card's main button in Needs you: the same "send all" as the coach bar (one control per action)
+  const allOpt = reached && active?.id === "assign" && active.proposal ? active.options.find((o) => o.id === "all") : undefined;
+  const only = reached && active?.id === "assign" ? active.options.find((o) => o.id === "approve") : undefined;
+  const cardLead: GuideRun["lead"] =
+    allOpt && active?.proposal ? { id: active.proposal, label: allOpt.label, onClick: () => perform(active, "all"), second: only?.label ?? null } : null;
+
+  const dock = !on ? null : guide!.ended ? (
+    guide!.closed ? (
+      <div role="region" aria-label="Simulation ended" className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-solid px-3.5 py-2 text-small">
+        <span className="text-text">{wash?.outcome.foundAt != null ? `Found at ${clockText(iso(wash.outcome.foundAt), DEMO_TZ)}: the mission clock stopped there.` : "The simulation has ended."}</span>
+        <button type="button" onClick={() => useGuide.getState().close(false)} className="sl-tap rounded-full border border-border px-3 py-0.5 text-text hover:bg-surface-strong">
+          What you did
+        </button>
+        <button type="button" onClick={onLeave} className="sl-tap ml-auto text-text-2 underline underline-offset-2 hover:text-text">
+          Back to the scenarios
+        </button>
+      </div>
+    ) : null
   ) : (
     <GuideMark
       mode={reached ? "call" : "watch"}
       heading={heading}
       text={text}
-      target={reached && active ? (card ? [`[data-candidate="${card.id}"]`, ...[active.target].flat()] : active.target) : []}
+      strip={<GuideStrip pips={pips} at={iso(clockMs)} call={reached} paused={!!guide!.paused} announce={announce} />}
+      target={reached && active ? (card ? ['[data-review-frame] [aria-label="Answer"]', `[data-candidate="${card.id}"]`, ...[active.target].flat()] : active.target) : []}
       why={reached ? (card ? card.says : active?.agentSays) : undefined}
       options={options}
       answers={answerList}
@@ -419,7 +478,8 @@ export function useGuideRun({
     proposal: on && reached ? (active?.proposal ?? null) : null,
     needsHighlight: on && !guide!.ended ? needsHighlight : null,
     decide,
-    strip: on && !guide!.ended ? <GuideStrip pips={pips} at={iso(clockMs)} call={reached} paused={!!guide!.paused} announce={announce} /> : null,
+    lead: on ? cardLead : null,
+    dock,
     overlay,
   };
 }

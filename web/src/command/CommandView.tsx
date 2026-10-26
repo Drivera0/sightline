@@ -10,7 +10,7 @@ import type { Clue, ClueDraft, Conditions, Drone, FleetState, Mission, MissionEv
 import type { SectorNow } from "../lib/api";
 import { useMission, type FleetLinks } from "../lib/mission";
 import { DEMO_TZ, clock, zone, type Tz } from "../lib/time";
-import { type Decide } from "./ApprovalInbox";
+import { type Decide, type Lead } from "./ApprovalInbox";
 import { ConditionsPanel, type ConditionsData } from "./ConditionsPanel";
 import { dayNote } from "./conditions";
 import { FleetControls } from "./FleetControls";
@@ -111,6 +111,10 @@ export interface CommandProps {
   autoReview?: boolean;
   briefings?: ReactNode;
   storyProposal?: string | null;
+  /** The guided search's coach bar, docked above the timeline across the map and Needs you (never over the map). */
+  dock?: ReactNode;
+  /** The guided assign step's main button on its card (GuideRun `lead`). */
+  lead?: Lead | null;
   /** The guided search: the Needs you item its step is about (NeedsYou `highlight`, "none" between steps); no toasts while it runs. */
   needsHighlight?: string | null;
   voice?: TalkVoice | null;
@@ -175,10 +179,12 @@ export function CommandView(p: CommandProps) {
   };
   // the timeline's height: taller by default, dragged by its handle, remembered (TimelineResize.tsx)
   const [timelineH, setTimelineH] = useTimelineHeight();
+  // the guided search's bar sits in its own row above the timeline, across the map and Needs you
+  const docked = !!p.dock;
   const grid = wide
-    ? "lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]"
+    ? `lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] ${docked ? "lg:grid-rows-[minmax(0,1fr)_auto_var(--tl-h)]" : "lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]"}`
     : // Resources runs the full height on the left (the T-card board), the timeline under the map and Needs you
-      "lg:grid-cols-[19rem_minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]";
+      `lg:grid-cols-[19rem_minmax(0,1fr)_21rem] ${docked ? "lg:grid-rows-[minmax(0,1fr)_auto_var(--tl-h)]" : "lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]"}`;
   return (
     <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
       {p.conditionsOpen && p.conditionsData && (
@@ -187,7 +193,7 @@ export function CommandView(p: CommandProps) {
           <ConditionsPanel id={p.conditionsId ?? "conditions-panel"} data={{ ...p.conditionsData, lastSeen: p.mission?.last_seen_at ?? null }} now={panelNow} time={(iso) => `${clock(iso, tz)} ${zone(new Date(iso), tz)}${dayNote(iso, panelNow, tz)}`} />
         </div>
       )}
-      <div id="console-resources" className={`order-4 flex min-h-0 flex-col lg:order-none ${wide ? "lg:hidden" : "lg:row-span-2"}`}>
+      <div id="console-resources" className={`order-4 flex min-h-0 flex-col lg:order-none ${wide ? "lg:hidden" : docked ? "lg:row-span-3" : "lg:row-span-2"}`}>
         <Resources
           mission={p.mission}
           teams={p.teams}
@@ -265,10 +271,16 @@ export function CommandView(p: CommandProps) {
             onFound={p.actions.found}
             timeline={p.timeline}
             highlight={p.needsHighlight ?? null}
+            lead={p.lead ?? null}
           />
         )}
       </div>
-      <div id="console-timeline" className={`relative order-3 flex h-[28rem] min-h-0 flex-col lg:order-none lg:h-auto lg:col-span-2`}>
+      {p.dock && (
+        <div id="console-guide" className="order-2 min-w-0 lg:order-none lg:col-span-2">
+          {p.dock}
+        </div>
+      )}
+      <div id="console-timeline"className={`relative order-3 flex h-[28rem] min-h-0 flex-col lg:order-none lg:h-auto lg:col-span-2`}>
         <TimelineHandle height={timelineH} onResize={setTimelineH} />
         <Timeline
           events={p.events}
@@ -283,7 +295,7 @@ export function CommandView(p: CommandProps) {
       </div>
       {p.cover && <div className="absolute inset-0 z-30 overflow-y-auto rounded-lg bg-bg">{p.cover}</div>}
       <ToastStack onShow={showMe} />
-      {p.reviewFrame && <ReviewFrame cards={p.reviewFrame.cards} answers={p.reviewFrame.answers} onAnswer={p.reviewFrame.onAnswer} />}
+      {p.reviewFrame && <ReviewFrame cards={p.reviewFrame.cards} answers={p.reviewFrame.answers} onAnswer={p.reviewFrame.onAnswer} subject={p.mission?.subject ?? null} />}
     </div>
   );
 }

@@ -152,8 +152,9 @@ describe("the home page", () => {
     for (const [i, card] of SCENARIO_CARDS.entries()) {
       const el = cards[i]!;
       expect(el).toHaveTextContent(card.subject);
-      expect(el).toHaveTextContent(card.setting);
-      for (const clue of card.clues) expect(el).toHaveTextContent(clue);
+      // no spoilers: the clues come in during the run, never on the card
+      for (const clue of card.clues) expect(el).not.toHaveTextContent(clue);
+      expect(el).toHaveTextContent(card.lastSeen);
       expect(el).toHaveTextContent(card.length);
       expect(el.textContent!.includes("Start here")).toBe(card.seed === RECOMMENDED);
       const start = within(el).getByRole("link", { name: `Start the simulation: ${card.name}` });

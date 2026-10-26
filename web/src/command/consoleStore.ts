@@ -41,6 +41,12 @@ export interface ConsoleState {
   review: { open: boolean; id: string | null };
   /** The Add clue form, opened from the header, the map's right-click or a hint (bumped each time). */
   clue: { open: boolean; at: { lat: number; lon: number } | null; n: number };
+  /** The subject's full profile (the subject strip, "Subject not found" on the status line). */
+  profile: boolean;
+  /** A point for the map to centre on (the subject strip's LKP button), bumped each time. */
+  centre: { lat: number; lon: number; n: number } | null;
+  setProfile: (open: boolean) => void;
+  centreOn: (lat: number, lon: number) => void;
   /** A timeline row to bring into view and highlight ("Show me" on a radio call), by entry id or ref. */
   row: { ref: string; n: number } | null;
   openSector: (id: string, x: number, y: number) => void;
@@ -66,6 +72,8 @@ const INITIAL = { sector: null, picking: null, dragging: null as ConsoleState["d
   review: { open: false, id: null as string | null },
   clue: { open: false, at: null as { lat: number; lon: number } | null, n: 0 },
   row: null as { ref: string; n: number } | null,
+  profile: false,
+  centre: null as { lat: number; lon: number; n: number } | null,
 };
 
 export const useConsole = create<ConsoleState>((set) => ({
@@ -90,6 +98,8 @@ export const useConsole = create<ConsoleState>((set) => ({
   closeReview: () => set((s) => ({ review: { ...s.review, open: false } })),
   openClue: (at = null) => set((s) => ({ clue: { open: true, at, n: s.clue.n + 1 } })),
   closeClue: () => set((s) => ({ clue: { ...s.clue, open: false, at: null } })),
+  setProfile: (profile) => set({ profile }),
+  centreOn: (lat, lon) => set((s) => ({ centre: { lat, lon, n: (s.centre?.n ?? 0) + 1 } })),
   showRow: (ref) => set((s) => ({ row: { ref, n: (s.row?.n ?? 0) + 1 }, filter: "All" })),
   reset: () => set({ ...INITIAL, filter: savedFilter() }),
 }));

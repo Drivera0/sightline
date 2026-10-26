@@ -92,7 +92,8 @@ describe("Needs you", () => {
     );
     const card = screen.getByLabelText("Proposal p004");
     expect(card).toHaveAttribute("data-dimmed");
-    expect(card.className).toMatch(/pointer-events-none/);
+    // hidden, not dimmed (the cold test): only the step's item is on screen
+    expect(card.className).toMatch(/\bhidden\b/);
     expect(screen.getByRole("group", { name: "Photos to review" })).toHaveAttribute("data-dimmed");
   });
 

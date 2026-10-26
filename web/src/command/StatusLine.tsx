@@ -40,7 +40,10 @@ export function StatusLine({
   menu,
   disclose = false,
   outside = null,
+  onSubject,
 }: {
+  /** "Subject not found": opens the subject's full profile (SubjectStrip). */
+  onSubject?: () => void;
   /** The probability outside the search grid (console.outsideGrid), shown so the sectors' POA adds up. */
   outside?: number | null;
   /** Phones: the demo's disclosure chip lives here (the header has no room for it). */
@@ -124,7 +127,14 @@ export function StatusLine({
       <Item label="In the field" title={`${out.people} ${out.people === 1 ? "person" : "people"} in ${out.teams} ${out.teams === 1 ? "team" : "teams"} out on the ground`}>
         {out.teams} {out.teams === 1 ? "team" : "teams"} ({out.people} {out.people === 1 ? "person" : "people"})
       </Item>
-      {!found && <Item label="Subject">not found</Item>}
+      {!found &&
+        (onSubject ? (
+          <button type="button" onClick={onSubject} title="The subject's full profile" className="sl-tap shrink-0 rounded-sm hover:underline">
+            <Item label="Subject">not found</Item>
+          </button>
+        ) : (
+          <Item label="Subject">not found</Item>
+        ))}
       {outside !== null && (
         <Item label={TERMS.row} title={TERMS.rowTip}>
           {Math.round(outside * 100)} %

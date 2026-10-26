@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppBar } from "../shell/AppBar";
 import { Button, DISCLOSURE, DISCLOSURE_TITLE, Label } from "../shell/components";
-import { ABOUT_ID, type HomeSection } from "../shell/flow";
+import { ABOUT_ID, SCENARIOS_ID, type HomeSection } from "../shell/flow";
 import { AboutSection } from "./About";
 import { AgenticVision } from "./AgenticVision";
 import { Architecture } from "./Architecture";
@@ -467,6 +467,7 @@ export function Home({ section = null }: { section?: HomeSection | null } = {}) 
   const landed = useRef<HomeSection | null>(null);
   useEffect(() => {
     if (section === "about") goTo(ABOUT_ID);
+    else if (section === "scenarios") goTo(SCENARIOS_ID);
     else if (landed.current) window.scrollTo?.({ top: 0 }); // from #about back to # (the wordmark)
     landed.current = section;
   }, [section]);

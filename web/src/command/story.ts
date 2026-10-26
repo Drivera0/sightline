@@ -113,6 +113,8 @@ export interface GuideState {
   shown?: { key: string; at: number } | null;
   /** The time-lapse's speed between decisions (1×, 2×, 4×). */
   speed: Speed;
+  /** The end screen was put away ("Stay on the console"): the console stays on this run, its clock stopped. */
+  closed?: boolean;
 }
 
 /** The time-lapse's speeds (the coach bar's 1× 2× 4×). */
@@ -131,6 +133,8 @@ export const useGuide = create<{
   /** A decision is on screen (its choice key): stamps when, once, for the decision time. */
   show: (key: string) => void;
   end: () => void;
+  /** Put the end screen away (or back): the run's console stays, its clock stopped. */
+  close: (closed?: boolean) => void;
 }>((set, get) => ({
   guide: null,
   // a new run from the call: nothing of the last one but the speed the visitor picked
@@ -167,6 +171,10 @@ export const useGuide = create<{
   end: () => {
     const g = get().guide;
     if (g) set({ guide: { ...g, ended: true, paused: true } });
+  },
+  close: (closed = true) => {
+    const g = get().guide;
+    if (g) set({ guide: { ...g, closed } });
   },
 }));
 

@@ -21,6 +21,7 @@ import { Badge, EmptyState } from "../shell/components";
 import { SecondLook } from "./SecondLook";
 import { answerForKey, ObjectPicker, REVIEW_ANSWERS, usePickerKeys, type LiveAnswer, type ObjectKind } from "./answers";
 import { TERMS, thresholdNote } from "../command/terms";
+import { useConsole } from "../command/consoleStore";
 
 /** While the large review frame is open it owns P/N/U and J/K; the rail's own keys stand down. */
 export const reviewKeys = { frameOpen: false };
@@ -143,6 +144,8 @@ export function ObjectPhotoBadge({ className = "" }: { className?: string }) {
 /** One candidate: crop, score, verdict in words with its model chips, the answers (Object opens its type picker). */
 function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }: { c: ReviewCard; rank: number; answer: LiveAnswer | undefined; current: boolean; picking: boolean; onPicking: (on: boolean) => void; onAnswer: (a: LiveAnswer, object?: ObjectKind) => void; onPick?: () => void }) {
   const el = useRef<HTMLLIElement>(null);
+  // the less common answers (a group, an object, unsure) under More
+  const [more, setMore] = useState(false);
   // J/K bring the current candidate into view; the first one does not pull its rail (Needs you) down on arrival
   const was = useRef(current);
   useEffect(() => {
@@ -152,7 +155,10 @@ function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }
   return (
     <li ref={el} aria-label={`Photo to review ${c.id}`} aria-current={current || undefined} data-candidate={c.id} onClick={onPick} className={`sl-slide-in flex flex-col gap-2 rounded-lg border bg-surface-solid p-2.5 ${current ? "border-border" : "border-line"}`}>
       <div className="flex gap-3">
-        <img loading="lazy" decoding="async" width={80} height={80} src={c.crop} alt={`Crop of ${c.id}`} className="size-20 shrink-0 rounded-sm object-cover" />
+        {/* the photo opens large in the review frame, the subject's description beside it */}
+        <button type="button" title="Open the photo large" aria-label={`Open ${c.id} large`} onClick={(e) => (e.stopPropagation(), useConsole.getState().openReview(c.id))} className="sl-tap shrink-0 cursor-zoom-in rounded-sm">
+          <img loading="lazy" decoding="async" width={80} height={80} src={c.crop} alt={`Crop of ${c.id}`} className="size-20 rounded-sm object-cover" />
+        </button>
         <div className="flex min-w-0 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-small text-text-3">#{rank}</span>
@@ -165,7 +171,7 @@ function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }
       </div>
       <SecondLook c={c} />
       <div className="flex flex-wrap gap-1.5">
-        {REVIEW_ANSWERS.map((a) => (
+        {REVIEW_ANSWERS.filter((a) => !a.more || more || picking || answer === a.id).map((a) => (
           <button
             key={a.id}
             type="button"
@@ -177,6 +183,11 @@ function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }
             {a.label}
           </button>
         ))}
+        {!more && !picking && (
+          <button type="button" aria-expanded={false} onClick={(e) => (e.stopPropagation(), setMore(true))} className="sl-tap rounded-full px-2 py-0.5 text-small text-text-3 hover:text-text">
+            More…
+          </button>
+        )}
       </div>
       {picking && <ObjectPicker suggested={c.object} onPick={(o) => onAnswer("object", o)} onCancel={() => onPicking(false)} />}
       {c.note && <p className="text-caption text-text-3">{c.note}</p>}

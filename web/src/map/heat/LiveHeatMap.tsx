@@ -763,6 +763,11 @@ function LiveLayers({
     const t = teams.find((x) => x.id === selectedTeam);
     if (map && t?.position) map.flyTo({ center: [t.position.lon, t.position.lat], zoom: Math.max(map.getZoom(), 16), duration: prefersReducedMotion() ? 0 : 800 });
   }, [map, selectedTeam, teams]);
+  // the subject strip's LKP button: centre the map on the last known point
+  const centre = useConsole((s) => s.centre);
+  useEffect(() => {
+    if (map && centre) map.flyTo({ center: [centre.lon, centre.lat], zoom: Math.max(map.getZoom(), 15), duration: prefersReducedMotion() ? 0 : 800 });
+  }, [map, centre]);
   // a clue picked in the timeline: fly to it and say what it is (the one popup, unless its pin's is open)
   const selectedClue = useSelection((s) => s.selectedClueId);
   useEffect(() => {

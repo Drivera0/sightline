@@ -145,6 +145,14 @@ export function bringToTop(el: HTMLElement): void {
   rail.scrollTop += el.getBoundingClientRect().top - rail.getBoundingClientRect().top;
 }
 
+/** The guided assign step's main button on a card, and the words its own Approve takes ("Send only …"). */
+export interface Lead {
+  id: string;
+  label: string;
+  onClick: () => void;
+  second: string | null;
+}
+
 export function ApprovalInbox({
   proposals,
   teams,
@@ -156,10 +164,13 @@ export function ApprovalInbox({
   story = null,
   order = "newest",
   highlight = null,
+  lead = null,
 }: {
   /** Newest first (the inbox on its own), or oldest first (Needs you: what has waited longest on top). */
   order?: "newest" | "oldest";
-  /** A proposal to point at (the guided search): it is ringed, the others dimmed. Null: none. */
+  /** The guided assign step: its card's main button ("Send all N free teams…"); the card's Approve is second. */
+  lead?: Lead | null;
+  /** A proposal to point at (the guided search): it is ringed, the others hidden. Null: none. */
   highlight?: string | null;
   proposals: readonly Proposal[];
   teams: readonly Team[];
@@ -225,6 +236,7 @@ export function ApprovalInbox({
           clues={p.kind === "assign_sector" ? clueNoteFor(p.reason, clueNote?.(p) ?? null) : null}
           story={p.id === story}
           highlighted={highlight === p.id}
+          lead={lead?.id === p.id ? lead : null}
           dimmed={highlight !== null && highlight !== p.id}
           drones={drones}
           fresh={!known.current?.has(p.id)}
@@ -249,6 +261,7 @@ function PendingCard({
   story = false,
   fresh = false,
   highlighted = false,
+  lead = null,
   dimmed = false,
   drones = [],
   cardRef,
@@ -260,6 +273,7 @@ function PendingCard({
   drones?: readonly Drone[];
   /** Pointed at from outside (the guided search): ringed; `data-highlighted`. */
   highlighted?: boolean;
+  lead?: Lead | null;
   /** Another item is pointed at: this one steps back; `data-dimmed`. */
   dimmed?: boolean;
   by: string;
@@ -292,7 +306,7 @@ function PendingCard({
   };
   const keys = (e: KeyboardEvent) => {
     if (e.target !== e.currentTarget) return; // typing in a field inside the card
-    if (e.key === "a" || e.key === "A") approve();
+    if (e.key === "a" || e.key === "A") (lead ? lead.onClick() : approve());
     if (e.key === "x" || e.key === "X") setRejecting(true);
     if ((e.key === "e" || e.key === "E") && canEdit) setEditing((v) => !v);
   };
@@ -323,7 +337,7 @@ function PendingCard({
       inert={dimmed || undefined}
       {...(story ? { "data-story-proposal": "" } : {})}
       style={{ ["--c" as string]: "var(--proposal)" }}
-      className={`flex flex-col gap-2 rounded-md border border-line border-l-[3px] border-l-[var(--proposal)] bg-bg/40 p-2.5 transition-opacity focus:outline focus:outline-[var(--proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused || highlighted ? "sl-glow-proposal" : ""} ${dimmed ? "pointer-events-none opacity-50" : ""}`}
+      className={`flex flex-col gap-2 rounded-md border border-line border-l-[3px] border-l-[var(--proposal)] bg-bg/40 p-2.5 transition-opacity focus:outline focus:outline-[var(--proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused || highlighted ? "sl-glow-proposal" : ""} ${dimmed ? "hidden" : ""}`}
     >
       <div className="flex items-center gap-2">
         <StatusPill tone="proposal">{kindWords(p)}</StatusPill>
@@ -411,16 +425,36 @@ function PendingCard({
         </form>
       )}
       <div className="flex flex-wrap items-center gap-1.5">
+        {/* the guided assign step: one main button, every free team to the agent's picks; this card's own Approve second */}
+        {lead && (
+          <button
+            type="button"
+            onClick={lead.onClick}
+            data-primary=""
+            className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
+          >
+            <span className="truncate">{lead.label}</span> <KeyHint>A</KeyHint>
+          </button>
+        )}
         {/* the primary action says its outcome; "Approve" is in its name for screen readers and the A key */}
-        <button
-          type="button"
-          onClick={approve}
-          data-primary=""
-          className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
-        >
-          <span className="sr-only">Approve: </span>
-          <span className="truncate">{ask.action}</span> <KeyHint>A</KeyHint>
-        </button>
+        {lead ? (
+          lead.second && (
+            <button type="button" onClick={approve} className="sl-tap inline-flex h-8 max-w-full items-center rounded-full border border-border px-3 text-small text-text hover:bg-surface-strong">
+              <span className="sr-only">Approve: </span>
+              <span className="truncate">{lead.second}</span>
+            </button>
+          )
+        ) : (
+          <button
+            type="button"
+            onClick={approve}
+            data-primary=""
+            className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
+          >
+            <span className="sr-only">Approve: </span>
+            <span className="truncate">{ask.action}</span> <KeyHint>A</KeyHint>
+          </button>
+        )}
         {!rejecting && (
           <button type="button" onClick={() => setRejecting(true)} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-caption text-text-2 hover:bg-surface hover:text-text">
             Reject <KeyHint>X</KeyHint>

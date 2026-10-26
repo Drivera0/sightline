@@ -5,7 +5,7 @@
 // "group:" rings its first few matches together (two cards, a call and its clue). The old step-through
 // story's marks are gone: the walk-through is the guided search (GuideMark, below).
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { isTyping } from "../lib/keys";
 import { Button, KeyHint } from "../shell/components";
 
@@ -219,29 +219,6 @@ export interface GuideOption {
   on?: string;
 }
 
-/** Where the coach bar sits on a desktop: along the top of the map, clear of its legend; null on a phone. */
-function useMapAnchor(): Box | null {
-  const [box, setBox] = useState<Box | null>(null);
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = document.querySelector<HTMLElement>("#console-map");
-      const r = el?.getBoundingClientRect();
-      const next = r && window.innerWidth >= 640 && r.width >= 360 && r.top >= 0 && r.top < window.innerHeight - 160 ? { top: r.top, left: r.left, width: r.width, height: r.height } : null;
-      setBox((b) => (b && next && b.top === next.top && b.left === next.left && b.width === next.width && b.height === next.height ? b : next));
-    };
-    measure();
-    const id = window.setInterval(measure, 250);
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      window.clearInterval(id);
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-  }, []);
-  return box;
-}
-
 /** The coach bar's width on the map: room for the legend on the left. */
 export const barWidth = (mapWidth: number) => Math.max(320, Math.min(560, mapWidth - 240));
 
@@ -280,6 +257,7 @@ export function GuideMark({
   speeds = [1, 2, 4],
   onSpeed,
   onSkip,
+  strip,
 }: {
   mode: "call" | "watch";
   /** "Step 2 of 6 · Triage, 1 of 3". */
@@ -311,10 +289,12 @@ export function GuideMark({
   speeds?: readonly number[];
   onSpeed?: (speed: number) => void;
   onSkip?: () => void;
+  /** The step strip (Scrubber.tsx GuideStrip), on top of the bar. */
+  strip?: ReactNode;
 }) {
   const call = mode === "call";
   const { box, view } = useTargetBox(call ? target : []);
-  const anchor = useMapAnchor();
+
   const card = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLButtonElement>(null);
   const own = options.filter((o) => !o.on);
@@ -337,8 +317,8 @@ export function GuideMark({
     const onKey = (e: KeyboardEvent) => {
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
-      if (k === "Escape") onExit();
-      else if (k === "T" && watching) onTakeOver();
+      // Esc closes overlays only (theirs to handle); leaving the run is the Leave button, with a confirm
+      if (k === "T" && watching) onTakeOver();
       else if (k === " " && !call && !(e.target instanceof HTMLButtonElement)) onPause();
       else if (k === "ArrowRight" && !call && onSkip) onSkip();
       else if (call && !watching && k === "A" && agent) onPick?.(agent.id);
@@ -351,9 +331,23 @@ export function GuideMark({
     // capture: the view keys (1–6) wait while a decision is open; the review card's own keys (P/N/S/O/U) pass
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [call, watching, options, agent, onPick, onMap, onExit, onTakeOver, onPause, onSkip]);
+  }, [call, watching, options, agent, onPick, onMap, onTakeOver, onPause, onSkip]);
 
-  const w = anchor ? barWidth(anchor.width) : 0;
+  // Leave asks first: a stray click must not throw the run away
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    if (!leaving) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setLeaving(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [leaving]);
+
+
   // the ring's "do this first", unless the decision is in the bar itself (the survey on the map)
   const tag = call && box && onConsole;
   return (
@@ -362,7 +356,7 @@ export function GuideMark({
         <div
           aria-hidden
           data-guide-ring
-          className="sl-ring pointer-events-none fixed z-40 rounded-lg border-2 border-caution shadow-[0_0_0_9999px_rgba(10,11,13,0.35)] motion-safe:animate-pulse"
+          className="sl-ring pointer-events-none fixed z-40 rounded-lg border-2 border-caution motion-safe:animate-pulse"
           style={{ top: box.top - 4, left: box.left - 4, width: box.width + 8, height: box.height + 8 }}
         />
       )}
@@ -378,9 +372,9 @@ export function GuideMark({
         aria-label={call ? `Your call: ${heading}` : `Watch this: ${heading}`}
         data-guide-mark={mode}
         tabIndex={-1}
-        className={`sl-mark fixed z-50 flex flex-col gap-2 rounded-lg border bg-surface-solid px-3.5 py-3 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] ${call ? "border-caution/70" : "border-border"} ${anchor ? "" : "inset-x-3 bottom-3 max-h-[55vh] overflow-y-auto"}`}
-        style={anchor ? { top: anchor.top + 8, left: anchor.left + (anchor.width - w) / 2, width: w } : undefined}
+        className={`sl-mark flex flex-col gap-2 rounded-lg border bg-surface-solid px-3.5 py-2.5 max-sm:fixed max-sm:inset-x-3 max-sm:bottom-3 max-sm:z-[45] max-sm:max-h-[55vh] max-sm:overflow-y-auto max-sm:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] ${call ? "border-caution/70" : "border-border"}`}
       >
+        {strip && <div className="flex justify-center">{strip}</div>}
         <span className="flex items-center gap-2 text-caption">
           <span className={`sl-pill ${call ? "" : "opacity-80"}`} data-tone={call ? "caution" : "neutral"}>
             {call ? "Your call" : "Watch this"}
@@ -395,10 +389,21 @@ export function GuideMark({
               Watch instead
             </button>
           )}
-          <button type="button" onClick={onExit} className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
-            Leave <KeyHint>Esc</KeyHint>
+          <button type="button" onClick={() => setLeaving(true)} aria-expanded={leaving} className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
+            Leave
           </button>
         </span>
+        {leaving && (
+          <div role="alertdialog" aria-label="Leave the simulation?" className="flex flex-wrap items-center gap-2 rounded-md border border-alert/60 bg-[color-mix(in_srgb,var(--alert)_8%,transparent)] px-3 py-2">
+            <span className="min-w-0 flex-1 text-small text-text">Leave the simulation? Your decisions so far will be lost, and you go back to the scenarios.</span>
+            <Button variant="secondary" className="h-8! px-3!" onClick={() => setLeaving(false)} autoFocus>
+              Stay
+            </Button>
+            <Button variant="ghost" className="h-8! px-3!" onClick={onExit}>
+              Leave
+            </Button>
+          </div>
+        )}
         {call ? (
           <>
             <p className="text-body font-medium text-text">{text}</p>

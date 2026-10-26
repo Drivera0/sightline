@@ -17,7 +17,7 @@ import { useState, type ReactNode } from "react";
 import type { Clue, Drone, MissionEvent, Proposal, RadioTurn, Team, TimelineEvent } from "../contract";
 import { Icon, type IconName } from "../shell/icons";
 import { useClock } from "../lib/time";
-import { ApprovalInbox, type Decide } from "./ApprovalInbox";
+import { ApprovalInbox, type Decide, type Lead } from "./ApprovalInbox";
 import { needs, sightingReports } from "./console";
 import { plainWords, toReview } from "./terms";
 
@@ -32,10 +32,10 @@ export const NEED_KINDS = {
 export type NeedKind = keyof typeof NEED_KINDS;
 
 /** A group's head: its kind's colour, its name, how many wait. */
-export function NeedsHead({ kind, count, children }: { kind: NeedKind; count?: number; children?: ReactNode }) {
+export function NeedsHead({ kind, count, children, hidden = false }: { kind: NeedKind; count?: number; children?: ReactNode; hidden?: boolean }) {
   const k = NEED_KINDS[kind];
   return (
-    <h3 className="flex items-center gap-1.5 px-1 pt-1 text-caption font-medium text-text-2" style={{ ["--c" as string]: `var(${k.tone})` }}>
+    <h3 className={`flex items-center gap-1.5 px-1 pt-1 text-caption font-medium text-text-2 ${hidden ? "hidden" : ""}`} style={{ ["--c" as string]: `var(${k.tone})` }}>
       <span aria-hidden className="size-2 shrink-0 rounded-full bg-[var(--c)]" />
       {k.label}
       {count !== undefined && <span className="sl-num font-normal text-text-3">{count}</span>}
@@ -50,8 +50,8 @@ export function pointAt(id: string, kind: NeedKind, highlight: string | null | u
   const off = !!highlight && highlight !== id;
   return {
     attrs: { "data-need": id, "data-need-kind": kind, "data-highlighted": on ? "" : undefined, "data-dimmed": off ? "" : undefined, inert: off || undefined },
-    // dimmed: out of reach too, so the one to act on is the one that can be acted on ("after this step")
-    className: `transition-opacity ${on ? "outline-2 outline-offset-1 outline-[var(--c)]" : ""} ${off ? "pointer-events-none opacity-50" : ""}`,
+    // hidden, not dimmed: only what needs a decision now is on screen (one line says how many wait after this step)
+    className: `${on ? "outline-2 outline-offset-1 outline-[var(--c)]" : ""} ${off ? "hidden" : ""}`,
   };
 }
 
@@ -137,6 +137,7 @@ export function NeedsYou({
   onFound,
   highlight = null,
   timeline = [],
+  lead = null,
 }: {
   /** The server's timeline: a team's report of the subject there offers Record find too. */
   timeline?: readonly TimelineEvent[];
@@ -165,7 +166,9 @@ export function NeedsYou({
   onConfirmClue: (clueId: string) => void;
   /** The subject is found (Mission.status "found"): when, if the record says. Proposals and candidates close. */
   found?: { at: string | null } | null;
-  /** The item to point at (a need id, see above): ringed, the others dimmed. Null: none. */
+  /** The guided assign step's main button on its card ("Send all N free teams…"). */
+  lead?: Lead | null;
+  /** The item to point at (a need id, see above): ringed, the others hidden. Null: none. */
   highlight?: string | null;
 }) {
   const items = needs(proposals, teams, events, clues, now, checkInMin, reviewCount);
@@ -180,6 +183,10 @@ export function NeedsYou({
   const overdue = items.flatMap((i) => (i.kind === "overdue" ? [i] : []));
   const readbacks = items.flatMap((i) => (i.kind === "readback" ? [i] : []));
   const total = reports.length + items.reduce((n, i) => n + (found && (i.kind === "proposal" || i.kind === "review") ? 0 : i.kind === "review" ? i.count : 1), 0);
+  // the guided search points at one item: a group's head goes when none of its items is the one
+  const off = (has: (id: string) => boolean) => !!highlight && !has(highlight);
+  const pointed = !!highlight && (highlight === "review" ? !!review : reports.some((r) => `report-${r.team.id}` === highlight) || items.some((i) => i.kind !== "review" && i.id === highlight) || proposals.some((p) => p.id === highlight && p.status === "pending"));
+  const after = highlight ? Math.max(0, total - (pointed ? (highlight === "review" ? reviewCount : 1) : 0)) : 0;
 
   return (
     <section aria-label="Needs you" data-tour="needs" className="flex min-h-0 flex-col overflow-hidden lg:flex-1 rounded-lg border border-line bg-surface-solid">
@@ -199,7 +206,7 @@ export function NeedsYou({
             at={found.at ? time(found.at) : null}
           />
         )}
-        {reports.length > 0 && <NeedsHead kind="report" count={reports.length} />}
+        {reports.length > 0 && <NeedsHead kind="report" count={reports.length} hidden={off((x) => reports.some((r) => `report-${r.team.id}` === x))} />}
         {reports.map((r) => (
           <NeedItem
             key={r.team.id}
@@ -213,7 +220,7 @@ export function NeedsYou({
             highlight={highlight}
           />
         ))}
-        {overdue.length > 0 && <NeedsHead kind="overdue" count={overdue.length} />}
+        {overdue.length > 0 && <NeedsHead kind="overdue" count={overdue.length} hidden={off((x) => overdue.some((i) => i.id === x))} />}
         {overdue.map((i) => (
           <NeedItem
             key={i.id}
@@ -229,16 +236,21 @@ export function NeedsYou({
         ))}
         {pendingCount > 0 && (
           <>
-            <NeedsHead kind="proposal" count={pendingCount}>
+            <NeedsHead kind="proposal" count={pendingCount} hidden={off((x) => proposals.some((p) => p.id === x))}>
               <span className="font-normal text-text-3">· oldest first</span>
             </NeedsHead>
-            <ApprovalInbox proposals={proposals} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={storyProposal} feedHref={undefined} order="oldest" highlight={highlight} />
+            <ApprovalInbox proposals={proposals} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={storyProposal} feedHref={undefined} order="oldest" highlight={highlight} lead={lead} />
           </>
         )}
-        {readbacks.length > 0 && <NeedsHead kind="readback" count={readbacks.length} />}
+        {readbacks.length > 0 && <NeedsHead kind="readback" count={readbacks.length} hidden={off((x) => readbacks.some((i) => i.id === x))} />}
         {readbacks.map((i) => (
           <ReadBack key={i.id} id={i.id} clue={i.clue} turn={i.turn} who={callsign(i.team)} onConfirm={i.clue ? () => onConfirmClue(i.clue!.id) : undefined} onReply={i.team ? () => onCall(i.team!, `${callsign(i.team)}, Sightline. `) : undefined} highlight={highlight} />
         ))}
+        {after > 0 && (
+          <p role="note" data-after-step className="px-1 py-1 text-small text-text-3">
+            {after} more after this step
+          </p>
+        )}
         {briefings}
         {/* the review cards stay mounted (their keys J/K/P/N/U) while there are any; answered ones fold away */}
         {!found && review && (
