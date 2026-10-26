@@ -116,6 +116,33 @@ export interface ReviewCard {
   pickAnswer?: LiveAnswer;
 }
 
+/**
+ * Two candidates in one photo read the same ("Survey photo 273" twice, the cold test): each says which spot
+ * of the photo it is, left to right by its box ("Survey photo 273 · spot 1 of 2"), never the detection's
+ * id. A photo with one candidate in the queue keeps its plain name.
+ */
+export function withSpots<C extends Pick<ReviewCard, "id" | "frame" | "box">>(cards: readonly C[]): C[] {
+  const photoOf = (id: string) => /^(f\d+)-d\d+$/.exec(id)?.[1] ?? null;
+  const byPhoto = new Map<string, C[]>();
+  for (const c of cards) {
+    const ph = photoOf(c.id);
+    if (ph) byPhoto.set(ph, [...(byPhoto.get(ph) ?? []), c]);
+  }
+  const spot = new Map<string, string>();
+  for (const group of byPhoto.values()) {
+    if (group.length < 2) continue;
+    const ordered = [...group].sort((a, b) => (a.box?.[0] ?? 0) - (b.box?.[0] ?? 0) || a.id.localeCompare(b.id));
+    ordered.forEach((c, i) => spot.set(c.id, `spot ${i + 1} of ${group.length}`));
+  }
+  return cards.map((c) => {
+    const s = spot.get(c.id);
+    if (!s) return c;
+    // after the photo's name, before anything said about it ("· flagged by AI re-check")
+    const m = /^(Survey photo \S+|[^·]+?)(\s·\s.*)?$/.exec(c.frame);
+    return { ...c, frame: m ? `${m[1]} · ${s}${m[2] ?? ""}` : `${c.frame} · ${s}` };
+  });
+}
+
 /** The pipeline's detector: YOLO11s trained on HERIDAL, run by OpenCV 5's DNN module (sightline/ml/backend.py, cv2 by default). */
 export const DETECTOR_CV2 = "OpenCV 5 · cv2.dnn";
 /** Try a photo and dropped photos: the same weights in the browser. */
@@ -216,8 +243,13 @@ function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }
   );
 }
 
+/** The queue with the photos still waiting first, each kind in its own order: an answered photo goes below them (the cold test: answered ones stayed on top of the waiting). */
+export function waitingFirst<C extends { id: string }>(cards: readonly C[], answers: Readonly<Record<string, unknown>>): C[] {
+  return [...cards.filter((c) => !answers[c.id]), ...cards.filter((c) => answers[c.id])];
+}
+
 export function ReviewRail({
-  cards,
+  cards: given,
   answers,
   onAnswer,
   top,
@@ -233,6 +265,7 @@ export function ReviewRail({
   /** The guided search's review step, one photo at a time: its head counts that step ("photo 1 of 3"), as the review frame does. */
   step?: { n: number; of: number } | null;
 }) {
+  const cards = waitingFirst(given, answers);
   const done = cards.filter((c) => answers[c.id]).length;
   // J/K (or the arrows) move through the queue, P/N/U answer the current candidate (LANE_D §9.2)
   const [cur, setCur] = useState(0);
@@ -259,8 +292,10 @@ export function ReviewRail({
       }
       else if (id && answerForKey(k) === "object") setPicking(id);
       else if (id && answerForKey(k)) {
+        // a waiting photo answered goes below the waiting ones, and the next one waiting takes its place
+        const moves = !answers[id];
         answer(id, answerForKey(k)!);
-        setCur(Math.min(at + 1, cards.length - 1));
+        setCur(moves ? at : Math.min(at + 1, cards.length - 1));
       } else return;
       e.preventDefault();
     };
@@ -328,7 +363,7 @@ export function liveCards(
 ): ReviewCard[] {
   const latest = new Map<string, Verdict>();
   for (const v of verdicts) latest.set(v.detection_id, v);
-  return liveReviewItems(detections, promoted).map((d) => {
+  return withSpots(liveReviewItems(detections, promoted).map((d): ReviewCard => {
     const v = latest.get(d.id);
     const f = survey?.frames.find((x) => x.id === d.id.slice(0, 5));
     return {
@@ -347,7 +382,7 @@ export function liveCards(
       object: v?.object ?? null,
       ...(f ? { photo: imageUrl(f.file), size: [f.width_px, f.height_px] as [number, number], box: d.box_px } : {}),
     };
-  });
+  }));
 }
 
 /** A live mission's queue: its candidates and approved promotions, with the second look's verdicts. */
