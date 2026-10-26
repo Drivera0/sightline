@@ -15,6 +15,7 @@ import { LiveMission } from "./LiveMission";
 import { NewSearch } from "./NewSearch";
 import { batches, hostLabel, photoFiles, uploadCommand } from "./upload";
 import { UploadPanel, WatchPanel } from "./UploadPanel";
+import { BANNED } from "../command/terms";
 
 // MapLibre needs WebGL, which jsdom lacks; the real pick was checked in Chromium.
 vi.mock("./LkpPicker", () => ({ LkpPicker: () => <div aria-label="Pick the last known position on the map" /> }));
@@ -451,6 +452,11 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     for (const n of [1, 2, 3]) {
       const d = await nextCall(new RegExp(`Your call: Step 2 of \\d · Review photos, photo ${n} of 3`));
       expect(within(d).queryByRole("button", { name: /^Person|Not a person/ })).toBeNull();
+      // the photo opens large, the subject beside it, "photo n of 3", in plain words (no ids, no engine words)
+      const frame = await screen.findByRole("dialog", { name: "Review photos" });
+      expect(frame).toHaveTextContent(`photo ${n} of 3`);
+      expect(within(frame).getByLabelText("Looking for")).toBeInTheDocument();
+      for (const re of BANNED) expect(frame.textContent!).not.toMatch(new RegExp(re.source, re.flags.replace("g", "")));
       await userEvent.keyboard(n === 1 ? "s" : n === 2 ? "n" : "p");
     }
     // the radio clue, the assignment, the lost link: the agent's option each time (A: the real card's action)

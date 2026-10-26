@@ -58,7 +58,9 @@ describe("the review frame", () => {
     await userEvent.keyboard("p");
     expect(onAnswer).toHaveBeenLastCalledWith("f0336-d01", "person");
     expect(frame).toHaveTextContent("2 of 3");
-    expect(within(frame).getByText("f0273-d02")).toBeInTheDocument();
+    // the photo it moved on to, by its survey photo (no detection id on screen)
+    expect(within(frame).getByText("Survey photo f0273")).toBeInTheDocument();
+    expect(frame.textContent).not.toMatch(/f0\d{3}-d\d{2}/);
     await userEvent.keyboard("u");
     await userEvent.click(within(frame).getByRole("button", { name: /Not a person/ }));
     expect(onAnswer).toHaveBeenLastCalledWith("f0127-d01", "not_person");

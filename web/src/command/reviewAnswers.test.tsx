@@ -34,7 +34,7 @@ describe("review answers", () => {
     // the subject's description beside the photo
     expect(screen.getByLabelText("Looking for")).toHaveTextContent("Adult, red jacket, day hiker");
     const group = screen.getByRole("group", { name: "Answer" });
-    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["The subject Pa sighting pin on the map", "Another person Sa witness lead to ask", "Not a person Nleaves the queue", "More…"]);
+    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["The subject Pa sighting pin on the map", "Another person Sa witness lead to ask", "Not a person Nleaves the review", "More…"]);
     fireEvent.click(within(group).getByRole("button", { name: "More…" }));
     expect(within(group).getAllByRole("button").map((b) => b.textContent?.replace(/[A-Z]?(a |leaves|flagged).*$/, ""))).toHaveLength(6);
     expect(within(group).getByRole("button", { name: /A group \(2\+ people\)/ })).toBeInTheDocument();

@@ -106,7 +106,7 @@ export interface CommandProps {
   review: ReactNode;
   reviewCount: number;
   /** The candidates for the large review frame, their answers, and how to answer (V3 §3). */
-  reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: OnAnswer };
+  reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: OnAnswer; step?: { n: number; of: number } | null };
   /** Open the review frame by itself when the first candidates arrive (off inside the guided story). */
   autoReview?: boolean;
   briefings?: ReactNode;
@@ -291,7 +291,7 @@ export function CommandView(p: CommandProps) {
       </div>
       {p.cover && <div className="absolute inset-0 z-30 overflow-y-auto rounded-lg bg-bg">{p.cover}</div>}
       <ToastStack onShow={showMe} />
-      {p.reviewFrame && <ReviewFrame cards={p.reviewFrame.cards} answers={p.reviewFrame.answers} onAnswer={p.reviewFrame.onAnswer} subject={p.mission?.subject ?? null} />}
+      {p.reviewFrame && <ReviewFrame cards={p.reviewFrame.cards} answers={p.reviewFrame.answers} onAnswer={p.reviewFrame.onAnswer} subject={p.mission?.subject ?? null} step={p.reviewFrame.step ?? null} />}
     </div>
   );
 }

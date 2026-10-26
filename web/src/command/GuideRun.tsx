@@ -65,6 +65,8 @@ export interface GuideRun {
   lead: { id: string; label: string; onClick: () => void; second: string | null } | null;
   /** The coach bar and the step strip, docked outside the map (CommandView `dock`). */
   dock: ReactNode;
+  /** The guided review step's photo, for the review frame's head ("photo 1 of 3"). */
+  photoStep: { n: number; of: number } | null;
   /** The end screen. */
   overlay: ReactNode;
 }
@@ -479,6 +481,7 @@ export function useGuideRun({
     needsHighlight: on && !guide!.ended ? needsHighlight : null,
     decide,
     lead: on ? cardLead : null,
+    photoStep: on && reached && active?.id === "triage" && card ? { n: active.cards!.indexOf(card) + 1, of: active.cards!.length } : null,
     dock,
     overlay,
   };

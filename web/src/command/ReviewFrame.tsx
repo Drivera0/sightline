@@ -23,10 +23,10 @@ export function frameCard(cards: readonly ReviewCard[], answers: Readonly<Record
 const MEANS: Readonly<Record<LiveAnswer, string>> = {
   person: "a sighting pin on the map",
   not_subject: "a witness lead to ask",
-  not_person: "leaves the queue",
+  not_person: "leaves the review",
   group: "a pin and a witness lead",
   object: "a clue for a team to check",
-  unsure: "flagged for a second look",
+  unsure: "flagged for another reviewer",
 };
 
 export function ReviewFrame({
@@ -34,12 +34,15 @@ export function ReviewFrame({
   answers,
   onAnswer,
   subject = null,
+  step = null,
 }: {
   cards: readonly ReviewCard[];
   answers: Readonly<Record<string, LiveAnswer>>;
   onAnswer: OnAnswer;
   /** Who the search is for (Mission.subject), beside the photo so the answer is made against it. */
   subject?: string | null;
+  /** The guided search's review step: "photo 1 of 3" (it shows one photo at a time). */
+  step?: { n: number; of: number } | null;
 }) {
   const { open, id } = useConsole((s) => s.review);
   const close = () => useConsole.getState().closeReview();
@@ -121,7 +124,7 @@ export function ReviewFrame({
         <header className="sl-panel-head">
           <span>Review photos</span>
           <span className="text-caption font-normal text-text-3">
-            {c ? `${done + 1} of ${cards.length}` : `${done} of ${cards.length} answered`}
+            {step && c ? `photo ${step.n} of ${step.of}` : c ? `${done + 1} of ${cards.length}` : `${done} of ${cards.length} answered`}
           </span>
           <button type="button" onClick={close} className="sl-tap ml-auto rounded-full border border-line px-2.5 py-0.5 text-caption font-normal text-text-2 hover:text-text">
             Later <KeyHint>Esc</KeyHint>
@@ -143,7 +146,6 @@ export function ReviewFrame({
               </button>
               <figcaption className="flex flex-wrap items-baseline gap-x-3 text-caption text-text-3">
                 <span>{c.frame}</span>
-                <span className="font-mono">{c.id}</span>
                 <DetectorScore c={c} className="order-first" />
               </figcaption>
             </figure>

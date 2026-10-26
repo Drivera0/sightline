@@ -672,7 +672,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
         <ReviewRail cards={live} answers={liveAnswers} onAnswer={answerLive} top={tried} />
       )
     ) : null;
-  const reviewFrame = demo ? { cards: run.on ? run.cards(cards) : cards, answers: story.answers, onAnswer: answerDemo } : { cards: live, answers: liveAnswers, onAnswer: answerLive };
+  const reviewFrame = demo ? { cards: run.on ? run.cards(cards) : cards, answers: story.answers, onAnswer: answerDemo, step: run.photoStep } : { cards: live, answers: liveAnswers, onAnswer: answerLive };
   const debrief = (
     <Suspense fallback={loading("the debrief")}>
       <Debrief

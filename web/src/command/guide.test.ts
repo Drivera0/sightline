@@ -120,7 +120,7 @@ describe("every choice path reaches the find within the run (the cold test's end
     const p = storyProposal(overdue)!;
     const team = overdue.data.teams!.find((t) => t.id === p.target.team)!.callsign;
     expect(a.options[0]).toMatchObject({ id: "all", agent: true, label: sendAllLabel(4, team, p.target.sector!) });
-    expect(a.options[0]!.label).toBe("Send all 4 free teams to the agent's picks");
+    expect(a.options[0]!.label).toBe("Send all 4 free teams to the AI's picks");
     expect(a.options[1]).toMatchObject({ id: "approve", label: `Send only ${team} to ${p.target.sector}` });
     expect(a.options.filter((o) => o.agent)).toHaveLength(1);
   });
