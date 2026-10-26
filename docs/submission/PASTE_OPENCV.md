@@ -1,7 +1,6 @@
 # Paste-ready: OpenCV AI Competition 2026 (Devpost project form)
 
-> Repo links should point at the tag (`opencv-submit`) once created; until then `main`. To switch, replace
-> `/blob/main/` with `/blob/opencv-submit/` throughout. Fields only the owner can fill are marked `<OWNER: …>`.
+> Repo links point at the `opencv-submit` tag, the exact code submitted. Fields only the owner can fill are marked `<OWNER: …>`.
 > Every number below comes from `DEVPOST_OPENCV.md` here, whose sources list ties each one to its file.
 
 ---
@@ -58,7 +57,7 @@ On the [live site](https://sightline-iota-sandy.vercel.app) you are the search m
 
 - A real chain where OpenCV changes the decision: a person lying down, scored 0.18 (below the 0.29 threshold), zoomed from native pixels, called "yes, lying" by Nemotron VL, and proposed for review.
 - The detector finds 86.4 % of people on the HERIDAL test set (strict VOC; 89.6 % on the study's looser scoring, against 68 % by eye).
-- The whole loop live on AWS, and a [technical report](https://github.com/Drivera0/sightline/blob/main/docs/report/OPENCV_REPORT.md) where every number links to its evidence.
+- The whole loop live on AWS, and a [technical report](https://github.com/Drivera0/sightline/blob/opencv-submit/docs/report/OPENCV_REPORT.md) where every number links to its evidence.
 - What breaks first, stated up front: the detector misses 46 of 337 test people (groups, rock-coloured clothing, people sitting or lying); the second look adds only 4 people for 15 false alarms; the fleet is simulated over real HERIDAL photos.
 
 ## What I learned
@@ -82,7 +81,7 @@ opencv, python, onnx, yolo, ultralytics, pytorch, sahi, fastapi, pydantic, docke
 - https://sightline-iota-sandy.vercel.app/#new (a live search on the AWS API)
 - https://sightline-iota-sandy.vercel.app/#try (try your own aerial photo: the detector runs in your browser)
 - https://github.com/Drivera0/sightline
-- https://github.com/Drivera0/sightline/blob/main/docs/report/OPENCV_REPORT.md
+- https://github.com/Drivera0/sightline/blob/opencv-submit/docs/report/OPENCV_REPORT.md
 
 ## Video demo link
 
@@ -104,15 +103,15 @@ Files in `docs/submission/figures/` (and in the Desktop `devpost/` folder).
 ## Hackathon-specific questions
 
 **Special awards (opt in):** tick **Agentic Vision** and **Best Use of COOL**.
-- Agentic Vision evidence: [agent workflow and a real trace](https://github.com/Drivera0/sightline/blob/main/docs/architecture/agent.md) (OpenCV 5 output changing the next decision), [agent evaluation](https://github.com/Drivera0/sightline/blob/main/docs/report/AGENT_EVAL.md) (correct target in every run, approval gate 12 of 12, about 82 s in all with Token Factory down), report §5.
-- Best Use of COOL evidence: [COOL_GRAVITON.md](https://github.com/Drivera0/sightline/blob/main/docs/report/COOL_GRAVITON.md), report §15: on a c6g.4xlarge from the COOL-V3 AMI, the same HERIDAL test scores (0.802 / 0.864 / 0.868) and bit-identical boxes to the pip wheel (538 of 538, 101 of 101 photos); image processing 1.14 to 1.35× faster; `cv2.dnn` not faster; API and worker passed `remote_check.py` 6 of 6 three times; the run cost about $1.40.
+- Agentic Vision evidence: [agent workflow and a real trace](https://github.com/Drivera0/sightline/blob/opencv-submit/docs/architecture/agent.md) (OpenCV 5 output changing the next decision), [agent evaluation](https://github.com/Drivera0/sightline/blob/opencv-submit/docs/report/AGENT_EVAL.md) (correct target in every run, approval gate 12 of 12, about 82 s in all with Token Factory down), report §5.
+- Best Use of COOL evidence: [COOL_GRAVITON.md](https://github.com/Drivera0/sightline/blob/opencv-submit/docs/report/COOL_GRAVITON.md), report §15: on a c6g.4xlarge from the COOL-V3 AMI, the same HERIDAL test scores (0.802 / 0.864 / 0.868) and bit-identical boxes to the pip wheel (538 of 538, 101 of 101 photos); image processing 1.14 to 1.35× faster; `cv2.dnn` not faster; API and worker passed `remote_check.py` 6 of 6 three times; the run cost about $1.40.
 
 **How does the project use AWS? (deployment description)**
-The live pipeline runs in us-west-2, set up and torn down by scripts in [`deploy/aws/`](https://github.com/Drivera0/sightline/tree/main/deploy/aws). One EC2 c7i.2xlarge (Amazon Linux 2023) runs one Docker image as three containers: the API, the photo worker running OpenCV 5 `cv2.dnn` (no PyTorch in the image) and Caddy for HTTPS. Photos go to a private S3 bucket (deleted after 30 days), jobs to an SQS FIFO queue (one group per mission, dead-letter queue after 3 failures), metrics and logs to CloudWatch (`PhotoLatencyMs` per step, `DetectionsPerPhoto`, `AgentModelCalls`, a dashboard), and the Nebius and Tavily keys live in Secrets Manager. The instance role reaches only its own bucket prefix, queue, log group and secret; no SSH port is open (SSM). Measured: 7.1 s from upload to processed per 4000×3000 photo. The Arm path runs on COOL on Graviton (above). Report §4.
+The live pipeline runs in us-west-2, set up and torn down by scripts in [`deploy/aws/`](https://github.com/Drivera0/sightline/tree/opencv-submit/deploy/aws). One EC2 c7i.2xlarge (Amazon Linux 2023) runs one Docker image as three containers: the API, the photo worker running OpenCV 5 `cv2.dnn` (no PyTorch in the image) and Caddy for HTTPS. Photos go to a private S3 bucket (deleted after 30 days), jobs to an SQS FIFO queue (one group per mission, dead-letter queue after 3 failures), metrics and logs to CloudWatch (`PhotoLatencyMs` per step, `DetectionsPerPhoto`, `AgentModelCalls`, a dashboard), and the Nebius and Tavily keys live in Secrets Manager. The instance role reaches only its own bucket prefix, queue, log group and secret; no SSH port is open (SSM). Measured: 7.1 s from upload to processed per 4000×3000 photo. The Arm path runs on COOL on Graviton (above). Report §4.
 
 **AWS endpoint:** https://44-227-39-234.sslip.io (running through the judging period, Oct 27 – Nov 9; `GET /health` answers with the contract version and the cv2 backend)
 
-**Technical report:** https://github.com/Drivera0/sightline/blob/main/docs/report/OPENCV_REPORT.md (every claim, its file and how to regenerate it: [EVIDENCE_INDEX.md](https://github.com/Drivera0/sightline/blob/main/docs/report/EVIDENCE_INDEX.md))
+**Technical report:** https://github.com/Drivera0/sightline/blob/opencv-submit/docs/report/OPENCV_REPORT.md (every claim, its file and how to regenerate it: [EVIDENCE_INDEX.md](https://github.com/Drivera0/sightline/blob/opencv-submit/docs/report/EVIDENCE_INDEX.md))
 
 **Team and eligibility:** Daniel Rivera, Grace Chu, Harvir Nijjar and Jason Kim. `<OWNER: confirm age of majority and country/province of residence as the form asks>`
 
