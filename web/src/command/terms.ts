@@ -109,6 +109,7 @@ export function plainWords(text: string, ctx: PlainCtx = {}): string {
   s = s.replace(/\bapproved agent p\d+:/g, "approved the AI's suggestion:").replace(/\brejected agent p\d+:/g, "rejected the AI's suggestion:");
   s = s.replace(/^p\d+ approved by /, "Approved by ");
   s = s.replace(/^Agent proposes:/, `${TERMS.aiSuggests}:`);
+  s = s.replace(/\bthe agent's pick\b/g, "the AI's pick");
   // clues
   s = s.replace(/^Clue c\d+ \(([^)]*)\) confirmed from radio turn r\d+/, "Clue confirmed from the radio call: $1");
   s = s.replace(/\bc\d{3,}\b \(([^)]*)\)/g, "“$1”");

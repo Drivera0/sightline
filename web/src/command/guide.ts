@@ -238,7 +238,7 @@ export function injects(input: GuideInput): Inject[] {
       id: "assign",
       key: "assign",
       at: ms(p.created_at),
-      lead: "The agent ranks the sectors with what is on the map now.",
+      lead: "The AI ranks the sectors with what is on the map now.",
       prompt: `Assign a team: press Send ${callsign(p.target.team)} to ${p.target.sector} on the card in Needs you, Edit it to send another team, or click another sector on the map.`,
       // the reason's first clause (the card has the whole of it)
       agentSays: p.reason.split(/:\s/)[0],

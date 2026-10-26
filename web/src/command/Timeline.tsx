@@ -4,7 +4,7 @@
 // agent's and the search manager's direct actions alike), check-ins, drone legs. The talk bar under it is
 // the radio desk: hold V to talk to the team picked, or type. Add a clue is here too. Built by lane A.
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import type { ClueDraft, MissionEvent, Team, TimelineEvent } from "../contract";
+import type { ClueDraft, FleetState, MissionEvent, Team, TimelineEvent } from "../contract";
 import { useClock } from "../lib/time";
 import { useSelection } from "../lib/selection";
 import { Button, KeyHint } from "../shell/components";
@@ -71,7 +71,10 @@ export function Timeline({
   talk,
   clueForm,
   voicesKey = "",
+  fleet: fleetProp,
 }: {
+  /** The fleet on screen, for the flight lines' names ("Drone 1 · flight line 1"); else the mission store's. */
+  fleet?: FleetState | null;
   /** The mission (and scenario) on screen: a new one starts the radio voices afresh (its lines are history). */
   voicesKey?: string;
   events: readonly MissionEvent[];
@@ -89,7 +92,8 @@ export function Timeline({
   const adding = clue.open;
   const setAdding = (open: boolean) => (open ? useConsole.getState().openClue(null) : useConsole.getState().closeClue());
   const { time } = useClock();
-  const fleet = useMission((s) => s.fleet);
+  const stored = useMission((s) => s.fleet);
+  const fleet = fleetProp ?? stored;
   const legs = useMemo(() => flightLineNames(fleet?.legs, (id) => fleet?.drones.find((d) => d.id === id)?.name ?? id), [fleet]);
   const all = useMemo(() => buildTimeline(events, teams, server, { legs }), [events, teams, server, legs]);
   const shown = all.filter((e) => inFilter(e, filter)).slice(0, TIMELINE_LIMIT);

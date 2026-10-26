@@ -404,7 +404,7 @@ export function GuideMark({
             <p className="text-body font-medium text-text">{text}</p>
             {why && (
               <p className="text-small text-text-2">
-                <span className="text-accent-soft">Agent: </span>
+                <span className="text-accent-soft">AI suggests: </span>
                 {why}
               </p>
             )}
@@ -425,7 +425,7 @@ export function GuideMark({
                       <span className="text-small text-text">
                         {o.label}
                         {o.costMin ? <span className="text-caution"> · +{o.costMin} min</span> : null}
-                        {o.agent ? <span className="text-accent-soft"> · agent</span> : null}
+                        {o.agent ? <span className="text-accent-soft"> · AI's pick</span> : null}
                       </span>
                       <span className="text-caption text-text-3">{o.effect}</span>
                     </span>

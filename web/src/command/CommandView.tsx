@@ -274,6 +274,7 @@ export function CommandView(p: CommandProps) {
           events={p.events}
           server={p.timeline}
           teams={p.teams}
+          fleet={p.fleet}
           onConfirmClue={p.actions.confirmClue}
           voicesKey={`${p.mission?.mission_id ?? ""}|${p.mission?.scenario_seed ?? p.mission?.name ?? ""}`}
           talk={<TalkBar teams={p.teams} onSend={(team, text) => p.actions.call(team, text)} voice={p.voice} />}

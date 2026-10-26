@@ -12,7 +12,7 @@ export function withCallsigns(text: string, callsigns: readonly string[]): React
   const re = new RegExp(`(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "g");
   return text.split(re).map((part, i) =>
     names.includes(part) ? (
-      <span key={i} className="font-mono text-[0.95em] text-text">
+      <span key={i} className="font-mono text-text">
         {part}
       </span>
     ) : (

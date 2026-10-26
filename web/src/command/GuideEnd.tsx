@@ -171,7 +171,7 @@ function Versus({ v, onReplay, onWatchAgent }: { v: Comparison; onReplay: () => 
             </li>
           ))}
         </ol>
-        <p className="text-caption text-text-3">✓ the agent's pick. + min: mission minutes the choice put on the clock. The bar: how long you took.</p>
+        <p className="text-caption text-text-3">✓ the AI's pick. + min: mission minutes the choice put on the clock. The bar: how long you took.</p>
       </div>
 
       <div className="flex flex-wrap gap-2">

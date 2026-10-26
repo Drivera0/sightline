@@ -534,7 +534,7 @@ body {
   flex: none;
   padding: 0 12px;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: var(--text-small);
   line-height: 20px;
   font-weight: 500;
   color: var(--text);

@@ -282,7 +282,7 @@ function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, on
   const facts = (
     <span className="flex gap-2 text-caption whitespace-nowrap">
       <span className={linkTone}>link {link === "connected" ? "ok" : link}</span>
-      {leg.m > 0 && <span className="text-text-3">{TERMS.flightLine} {leg.n} of {leg.m}</span>}
+      {leg.m > 0 && <span className="text-text-3" title={`${TERMS.flightLine} ${leg.n} of ${leg.m}`}>line {leg.n} of {leg.m}</span>}
     </span>
   );
   const pill = (

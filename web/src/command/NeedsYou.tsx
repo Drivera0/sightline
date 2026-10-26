@@ -273,9 +273,8 @@ export function ClosedOnFind({ proposals, reviewCount, count, at }: { proposals:
         <ul className="flex flex-col gap-1 border-t border-line px-2.5 py-2 text-caption text-text-2">
           {shownProposals.map((p) => (
             <li key={p.id} className="flex items-baseline gap-2">
-              <span className="font-mono text-text-3">{p.id}</span>
-              <span className="min-w-0 flex-1 truncate" title={p.summary}>
-                {p.summary}
+              <span className="min-w-0 flex-1 truncate" title={`${p.id}: ${p.summary}`}>
+                {plainWords(p.summary)}
               </span>
               <span className="shrink-0 text-text-3">closed: subject found</span>
             </li>

@@ -99,7 +99,7 @@ export function SectorPopover({
               {ordered.map((t) => (
                 <button key={t.id} type="button" className={`${chip} ${t.id === pick ? "border-accent/60" : ""}`} onClick={() => actions.assign(t.id, id)}>
                   {t.callsign}
-                  {t.id === pick ? <span className="text-accent-soft">· agent's pick</span> : busyIn(t) ? <span className="text-text-3">· {busyIn(t)}</span> : null}
+                  {t.id === pick ? <span className="text-accent-soft">· AI's pick</span> : busyIn(t) ? <span className="text-text-3">· {busyIn(t)}</span> : null}
                 </button>
               ))}
             </div>
