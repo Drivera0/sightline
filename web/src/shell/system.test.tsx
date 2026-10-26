@@ -9,10 +9,10 @@ import { Brand } from "./Logo";
 afterEach(() => sessionStorage.clear());
 
 describe("Brand", () => {
-  it("is one link to the About sheet, at the title size", () => {
+  it("is one link to the home page, at the title size", () => {
     render(<Brand />);
     const link = screen.getByRole("link", { name: "Sightline" });
-    expect(link).toHaveAttribute("href", "#about");
+    expect(link).toHaveAttribute("href", "#");
     expect(link.className).toMatch(/text-title/);
   });
 });
@@ -79,7 +79,7 @@ describe("AppBar", () => {
   it("is one row: the wordmark, the mission with its mode and clock, the view switch and one button", () => {
     render(<AppBar mission={{ name: "Mount Seymour (demo)", mode: "demo", clock: "21:18 UTC" }} views={views()} action={{ label: "New search", href: "#new" }} />);
     const bar = screen.getByRole("banner");
-    expect(within(bar).getByRole("link", { name: "Sightline" })).toHaveAttribute("href", "#about");
+    expect(within(bar).getByRole("link", { name: "Sightline" })).toHaveAttribute("href", "#");
     expect(within(bar).getByText("Mount Seymour (demo)")).toBeInTheDocument();
     expect(within(bar).getByText("Demo")).toBeInTheDocument();
     expect(within(bar).getByText("21:18 UTC")).toBeInTheDocument();

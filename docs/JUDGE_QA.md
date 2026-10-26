@@ -19,7 +19,7 @@ The same three lines, for the web page and the video script: `docs/submission/WH
 3. The Trace view: OpenCV output changing the agent's next action, and which model did what (`#m/demo/trace`). In the plain console the fixture's own decisions are labelled "The scenario's search manager", and its stand-in model calls "Replayed" (not "This flight").
 4. Conditions (W in the console): live Tavily facts with the quote and the page each came from (`#m/demo/map/conditions`).
 5. The Debrief: the measured results, what breaks first, and the links out (report, trace, code; a live mission's debrief to keep) (`#m/demo?t=6`; `&judges` opens this list there, and the old `#judges` redirects to it).
-6. The About sheet: who built it, the two entries, the colours, the models, the limits and the licences (`#about`, or the wordmark).
+6. About, at the end of the home page: who built it, the two entries, the colours and the limits (`#about`); the models, with their numbers, are under Built with.
 
 ### 1. Why is there a New search if the public site can't start one? What do I see at 10 pm when the EC2 box is stopped?
 

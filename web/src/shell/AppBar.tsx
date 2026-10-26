@@ -1,4 +1,4 @@
-// The app's one header. Row one: the wordmark (it opens About), the mission on screen (name, Live/Demo,
+// The app's one header. Row one: the wordmark (it goes to the home page), the mission on screen (name, Live/Demo,
 // the one disclosure chip), the view switch (Map · Photos · Trace · Debrief, `aria-pressed`), the action,
 // the theme toggle (dark or light) and the shortcuts. Row two, on a mission: the status line (StatusLine.tsx). Under 1024 px the view switch
 // becomes four tabs along the bottom: Map, Needs you, Timeline, More (Photos, Trace, Debrief).

@@ -5,7 +5,7 @@
 **Track:** Physical AI
 **Repo:** https://github.com/Drivera0/sightline (AGPL-3.0, tag `nebius-submit`, created at submission)
 **Demo:** https://sightline-iota-sandy.vercel.app (no server needed). Start from the home page: press **Try the guided simulation** and pick a scenario under **Guided simulation** (**Start the simulation**; the overdue hiker is marked "Start here"). You are the search manager: the clock runs to each decision and waits, the AI proposes with its reason and what each option costs in minutes, you decide, and the simulation shows what your decisions change on the map, the teams and the clock. **What you did** at the end sets your line beside the agent's and prints every draw. `#m/demo/map` is the plain console at the end of the scenario's timeline.
-**Where to look, in order:** the home page (`#`) → **Start the simulation** on a scenario card (about 3 min, `#m/demo?s=<seed>&guide=1`) → **What you did** → the Trace view (`#m/demo/trace`) → Conditions, W in the console (`#m/demo/map/conditions`) → the Debrief: results, what breaks first and the links out (`#m/demo?t=6`; the old `#judges` redirects to its list for judges) → the About sheet for the method (`#about`)
+**Where to look, in order:** the home page (`#`) → **Start the simulation** on a scenario card (about 3 min, `#m/demo?s=<seed>&guide=1`) → **What you did** → the Trace view (`#m/demo/trace`) → Conditions, W in the console (`#m/demo/map/conditions`) → the Debrief: results, what breaks first and the links out (`#m/demo?t=6`; the old `#judges` redirects to its list for judges) → About on the home page (`#about`), and Built with for the models
 **Video:** <to add>
 
 <!--

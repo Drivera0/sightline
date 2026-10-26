@@ -1,12 +1,16 @@
 // The home page (`#`). It sells Sightline the way professional product pages in this space do (the
-// research and the eight rules it follows are in front/README.md): a claim, one measured proof and one
-// action above the fold, over the real aerial photos the detector reads; four measured facts with their
-// sources; how it works; who it is for; the guided simulation (the one place that explains it); the links
-// judges need; the footer with the credits, the licence and the one disclosure. The console is #m/demo.
+// research and the eight rules it follows are in front/README.md): the name, a claim, one measured proof
+// and one action above the fold, over the real aerial photos the detector reads; four measured facts with
+// their sources; what it is built with (OpenCV first); how it works; who it is for; the guided simulation
+// (the one place that explains it); the links judges need; About (`#about` lands there); the footer with
+// the credits, the licence and the one disclosure. The console is #m/demo.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppBar } from "../shell/AppBar";
 import { Button, DISCLOSURE, DISCLOSURE_TITLE, Label } from "../shell/components";
+import { ABOUT_ID, type HomeSection } from "../shell/flow";
+import { AboutSection } from "./About";
 import { Architecture } from "./Architecture";
+import { BUILT_WITH, BuiltWith } from "./BuiltWith";
 import { Icon } from "../shell/icons";
 import { FOOTER, HERO, INTAKE, WHO_ITS_FOR } from "./copy";
 import "./home.css";
@@ -19,14 +23,20 @@ const BLOB = `${REPO_URL}/blob/main`;
 export const SAMPLE_PHOTOS_URL = "/sample/sightline-sample-photos.zip";
 export const EVIDENCE_URL = `${BLOB}/docs/report/EVIDENCE_INDEX.md`;
 export const LICENCE_URL = `${BLOB}/LICENSE`;
+/** The rows of docs/report/EVIDENCE_INDEX.md (Home.test.tsx counts them, so this cannot drift). */
+export const EVIDENCE_CLAIMS = 101;
 
 export const HOME = {
   eyebrow: HERO.eyebrow,
-  title: HERO.tagline,
-  proof: "Sightline finds 86 % of the people in aerial test photos it never trained on, and turns drone photos and radio reports into one map of where to look next.",
+  title: HERO.title,
+  tagline: HERO.tagline,
+  proof: "Its OpenCV 5 detector finds 86 % of the people in aerial test photos it never trained on. Sightline turns those finds and the teams' radio reports into one map of where to look next.",
+  builtWith: "Built with",
+  stack: ["OpenCV 5 cv2.dnn", "NVIDIA Nemotron, Parakeet, Magpie", "Nebius Token Factory", "Tavily"],
   primary: "Try the guided simulation",
   secondary: "Open the console",
   facts: "Measured, with sources",
+  built: BUILT_WITH.title,
   how: "How it works",
   intake: "How photos get in",
   who: "Who it is for",
@@ -37,42 +47,56 @@ export const HOME = {
   judges: "For judges",
 } as const;
 
-/** A measured fact: the number counts up once when the row scrolls into view. */
+/** A measured fact: a big number, a short headline, one supporting line and its source. The number
+ *  counts up once when it scrolls into view, with a small picture of it (`viz`) filling alongside. */
 export interface Fact {
   value: number;
   decimals: number;
   unit: string;
-  label: string;
+  /** What the number means, in at most eight words. */
+  headline: string;
+  /** One line with the exact figures behind it. */
+  detail: string;
+  /** A small picture of the number: a share filled, two times side by side, or n of n squares. */
+  viz: { kind: "share"; of: number } | { kind: "versus"; a: [string, number]; b: [string, number] } | { kind: "count"; n: number } | null;
   source: { label: string; href: string };
 }
 
 export const FACTS: readonly Fact[] = [
   {
-    value: 5,
+    value: 86,
     decimals: 0,
-    unit: " min",
-    label: "to re-score the 86 % yourself: 101 held-out test photos, OpenCV only, on a CPU, beside three published results",
+    unit: " %",
+    headline: "of people found in photos it never saw",
+    detail: "291 of the 337 people in 101 held-out HERIDAL test photos (recall 0.864). Re-score it yourself on a CPU in about 5 minutes.",
+    viz: { kind: "share", of: 0.864 },
     source: { label: "Baseline table", href: `${BLOB}/docs/report/OPENCV_REPORT.md#310-published-results-on-heridal-side-by-side` },
   },
   {
     value: 0.3,
     decimals: 2,
     unit: " s",
-    label: "per 4000 × 3000 drone photo with OpenCV 5 cv2.dnn on one GPU, boxes identical to the CPU path",
+    headline: "per 12-megapixel drone photo, on one GPU",
+    detail: "OpenCV 5 cv2.dnn on CUDA; 1.97 s on a CPU, with the same 363 of 363 boxes.",
+    viz: { kind: "versus", a: ["GPU", 0.303], b: ["CPU", 1.97] },
     source: { label: "Benchmark", href: `${BLOB}/docs/report/CV2_CUDA.md` },
   },
   {
     value: 12,
     decimals: 0,
     unit: " of 12",
-    label: "agent test runs in which no drone or team moved before a person approved it, by name and time",
+    headline: "agent runs: nothing moved without a person",
+    detail: "No drone or team moved before a person approved it, and every approval names who and when.",
+    viz: { kind: "count", n: 12 },
     source: { label: "Agent evaluation", href: `${BLOB}/docs/report/AGENT_EVAL.md` },
   },
   {
-    value: 96,
+    value: EVIDENCE_CLAIMS,
     decimals: 0,
     unit: "",
-    label: "claims in the evidence index, each with its file and line; CI fails when one goes missing",
+    headline: "claims, each traced to a file and line",
+    detail: "The evidence index: CI fails when a cited file or line goes missing.",
+    viz: null,
     source: { label: "Evidence index", href: EVIDENCE_URL },
   },
 ];
@@ -180,15 +204,20 @@ function Hero() {
   return (
     <section ref={ref} aria-labelledby="home-title" className="relative isolate overflow-hidden border-b border-line">
       <PhotoWall paused={!onScreen} />
-      <div className="relative mx-auto flex min-h-[min(640px,calc(100svh-48px))] w-full max-w-6xl flex-col justify-center gap-5 px-4 py-16 lg:px-8">
-        <Label className="sl-home-in self-start">{HOME.eyebrow}</Label>
-        <h1 id="home-title" className="sl-home-in max-w-[18ch] text-[36px] font-medium leading-[42px] tracking-[-0.02em] text-text sm:text-[48px] sm:leading-[54px]" style={{ animationDelay: "60ms" }}>
-          {HOME.title}
-        </h1>
-        <p className="sl-home-in max-w-[46ch] text-lead text-text-2" style={{ animationDelay: "120ms" }}>
+      <div className="relative mx-auto flex min-h-[min(700px,calc(100svh-48px))] w-full max-w-6xl flex-col justify-center gap-5 px-4 py-14 lg:px-8">
+        <Label className="sl-home-in self-start rounded-full border border-line bg-bg px-3 py-1">{HOME.eyebrow}</Label>
+        <div className="flex flex-col gap-2">
+          <h1 id="home-title" className="sl-home-in text-[60px] font-semibold leading-[60px] tracking-[-0.045em] text-text sm:text-[96px] sm:leading-[92px]" style={{ animationDelay: "60ms" }}>
+            {HOME.title}
+          </h1>
+          <p className="sl-home-in max-w-[20ch] text-[26px] font-medium leading-[32px] tracking-[-0.02em] text-text sm:text-[36px] sm:leading-[42px]" style={{ animationDelay: "100ms" }}>
+            {HOME.tagline}
+          </p>
+        </div>
+        <p className="sl-home-in max-w-[48ch] text-lead text-text-2" style={{ animationDelay: "140ms" }}>
           {HOME.proof}
         </p>
-        <div className="sl-home-in flex flex-wrap items-center gap-3 pt-2" style={{ animationDelay: "180ms" }}>
+        <div className="sl-home-in flex flex-wrap items-center gap-3 pt-1" style={{ animationDelay: "180ms" }}>
           <Button variant="primary" size="lg" onClick={() => goTo("home-sim")}>
             {HOME.primary}
           </Button>
@@ -196,6 +225,20 @@ function Hero() {
             {HOME.secondary}
           </Button>
         </div>
+        <button
+          type="button"
+          onClick={() => goTo("home-built")}
+          aria-label={`${HOME.builtWith}: ${HOME.stack.join(", ")}`}
+          className="sl-home-in sl-tap group flex max-w-full flex-wrap items-center gap-x-2 gap-y-1.5 self-start pt-2 text-left text-small text-text-2"
+          style={{ animationDelay: "220ms" }}
+        >
+          <span className="text-text-3 group-hover:text-text-2">{HOME.builtWith}</span>
+          {HOME.stack.map((t, i) => (
+            <span key={t} className={`rounded-full border bg-bg px-2.5 py-0.5 group-hover:text-text ${i === 0 ? "border-text-3 font-medium text-text" : "border-line"}`}>
+              {t}
+            </span>
+          ))}
+        </button>
       </div>
     </section>
   );
@@ -217,49 +260,101 @@ function Reveal({ id, title, children, className = "" }: { id: string; title: st
 }
 
 const fmt = (v: number, d: number) => v.toFixed(d);
+/** The facts start one after another, this far apart (and their pictures fill as they count). */
+export const FACT_STAGGER_MS = 140;
+const COUNT_MS = 1100;
 
-/** A number that counts up once, from 0, when `go` turns true (the final value at once without motion). */
-function Count({ fact, go }: { fact: Fact; go: boolean }) {
-  const final = fmt(fact.value, fact.decimals);
-  const [shown, setShown] = useState(() => (canAnimate() ? fmt(0, fact.decimals) : final));
+/** 0 → 1 over COUNT_MS once `go` turns true, after `delay` (1 at once without motion). */
+function useProgress(go: boolean, delay: number): number {
+  const [p, setP] = useState(() => (canAnimate() ? 0 : 1));
   const done = useRef(!canAnimate());
   useEffect(() => {
     if (!go || done.current) return;
     done.current = true;
     let frame = 0;
-    const start = performance.now();
+    let start = 0;
     const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / 900);
-      setShown(fmt(fact.value * (1 - (1 - t) ** 3), fact.decimals));
+      if (!start) start = now + delay;
+      const t = Math.max(0, Math.min(1, (now - start) / COUNT_MS));
+      setP(1 - (1 - t) ** 3);
       if (t < 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [go, fact]);
+  }, [go, delay]);
+  return p;
+}
+
+/** The number as it counts (the final width is kept from the start, so nothing moves while it counts). */
+function Count({ fact, p }: { fact: Fact; p: number }) {
+  const final = fmt(fact.value, fact.decimals);
   return (
-    // the final width is kept from the start, so nothing moves while it counts
-    <span className="inline-block text-left" style={{ minWidth: `${final.length}ch` }} aria-hidden="true">
-      {shown}
+    // the final value, invisible, holds the width; the counting one sits over it
+    <span className="inline-grid text-left tabular-nums" aria-hidden="true">
+      <span className="invisible col-start-1 row-start-1">{final}</span>
+      <span className="col-start-1 row-start-1">{p >= 1 ? final : fmt(fact.value * p, fact.decimals)}</span>
+    </span>
+  );
+}
+
+/** The fact's small picture, filled to `p` of its final state. Decorative: the words say it all. */
+function FactViz({ viz, p }: { viz: NonNullable<Fact["viz"]>; p: number }) {
+  if (viz.kind === "share")
+    return (
+      <span className="relative block h-1.5 w-full overflow-hidden rounded-full bg-surface-strong">
+        <span className="absolute inset-y-0 left-0 rounded-full bg-[var(--found)]" style={{ width: `${viz.of * p * 100}%` }} />
+      </span>
+    );
+  if (viz.kind === "versus") {
+    const max = Math.max(viz.a[1], viz.b[1]);
+    return (
+      <span className="flex flex-col gap-1">
+        {[viz.a, viz.b].map(([label, v], i) => (
+          <span key={label} className="flex items-center gap-2 font-mono text-caption text-text-3">
+            <span className="w-7 shrink-0">{label}</span>
+            <span className="relative block h-1.5 flex-1 overflow-hidden rounded-full bg-surface-strong">
+              <span className={`absolute inset-y-0 left-0 rounded-full ${i === 0 ? "bg-[var(--drone)]" : "bg-[var(--text-3)]"}`} style={{ width: `${(v / max) * p * 100}%` }} />
+            </span>
+            <span className="w-12 shrink-0 text-right">{v.toFixed(2)} s</span>
+          </span>
+        ))}
+      </span>
+    );
+  }
+  return (
+    <span className="flex gap-1">
+      {Array.from({ length: viz.n }, (_, i) => (
+        <span key={i} className={`h-1.5 flex-1 rounded-full transition-colors duration-200 ${i < Math.round(p * viz.n) ? "bg-[var(--found)]" : "bg-surface-strong"}`} />
+      ))}
     </span>
   );
 }
 
 /** One fact: its number counts up when the fact itself is on screen (on a phone they are stacked). */
-function FactItem({ f }: { f: Fact }) {
-  const [ref, seen] = useSeenOnce<HTMLDivElement>(0.6);
+function FactItem({ f, i }: { f: Fact; i: number }) {
+  const [ref, seen] = useSeenOnce<HTMLDivElement>(0.5);
+  const delay = i * FACT_STAGGER_MS;
+  const p = useProgress(seen, delay);
   return (
-    <div ref={ref} className="flex flex-col gap-1.5">
-      <dt className="sr-only">{f.label}</dt>
-      <dd className="order-first font-mono text-headline text-text">
+    <div ref={ref} data-seen={seen ? "true" : "false"} className="sl-fact flex flex-col gap-2" style={{ transitionDelay: `${delay}ms` }}>
+      <dt className="order-2 text-title font-medium text-text">{f.headline}</dt>
+      <dd className="order-1 text-[44px] font-semibold leading-[48px] tracking-[-0.035em] text-text sm:text-[56px] sm:leading-[60px]">
         <span className="sr-only">
           {fmt(f.value, f.decimals)}
           {f.unit}
         </span>
-        <Count fact={f} go={seen} />
-        <span aria-hidden="true">{f.unit}</span>
+        <Count fact={f} p={p} />
+        <span aria-hidden="true" className="ml-0.5 text-[0.5em] font-medium tracking-[-0.01em] text-text-2">
+          {f.unit}
+        </span>
       </dd>
-      <dd className="text-small text-text-2">{f.label}</dd>
-      <dd className="text-caption">
+      {f.viz && (
+        <dd aria-hidden="true" className="order-3 pb-1">
+          <FactViz viz={f.viz} p={p} />
+        </dd>
+      )}
+      <dd className="order-4 text-small text-text-2">{f.detail}</dd>
+      <dd className="order-5 mt-auto text-caption">
         <a className="text-text-3 underline underline-offset-2 hover:text-text" href={f.source.href} target="_blank" rel="noreferrer">
           {f.source.label}
         </a>
@@ -271,9 +366,9 @@ function FactItem({ f }: { f: Fact }) {
 function Facts() {
   return (
     <section aria-label={HOME.facts} className="border-b border-line">
-      <dl className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-x-8 gap-y-6 px-4 py-8 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
-        {FACTS.map((f) => (
-          <FactItem key={f.source.label} f={f} />
+      <dl className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-x-10 gap-y-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
+        {FACTS.map((f, i) => (
+          <FactItem key={f.source.label} f={f} i={i} />
         ))}
       </dl>
     </section>
@@ -365,7 +460,14 @@ function JudgeStrip() {
   );
 }
 
-export function Home() {
+/** The home page; `section` scrolls to one of its sections on arrival (#about lands on About). */
+export function Home({ section = null }: { section?: HomeSection | null } = {}) {
+  const landed = useRef<HomeSection | null>(null);
+  useEffect(() => {
+    if (section === "about") goTo(ABOUT_ID);
+    else if (landed.current) window.scrollTo?.({ top: 0 }); // from #about back to # (the wordmark)
+    landed.current = section;
+  }, [section]);
   return (
     <div className="flex min-h-dvh flex-col">
       <AppBar />
@@ -373,6 +475,10 @@ export function Home() {
         <Hero />
         <Facts />
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 pb-12 pt-12 lg:px-8">
+          <Reveal id="home-built" title={HOME.built}>
+            <BuiltWith />
+          </Reveal>
+
           <Reveal id="home-how" title={HOME.how}>
             <Architecture />
             <Intake />
@@ -394,6 +500,8 @@ export function Home() {
             <JudgeStrip />
           </Reveal>
 
+          <AboutSection />
+
           <HomeFooter />
         </div>
       </main>
@@ -411,6 +519,9 @@ export function HomeFooter() {
       <p>{FOOTER.data}</p>
       <p>{PHOTO_CREDIT}</p>
       <p className="flex flex-wrap gap-x-5 gap-y-1">
+        <a className={link} href={FOOTER.codeUrl} target="_blank" rel="noreferrer">
+          {FOOTER.code}
+        </a>
         <a className={link} href={LICENCE_URL} target="_blank" rel="noreferrer">
           Code licence: AGPL-3.0
         </a>
