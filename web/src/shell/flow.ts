@@ -65,7 +65,9 @@ export type Route =
   | { kind: "home"; section?: HomeSection }
   | { kind: "new" }
   /** Open play's setup page (front/OpenPlay.tsx). */
-  | { kind: "play" };
+  | { kind: "play" }
+  /** Try your own photo: the detector on a page of its own (front/TryPage.tsx). */
+  | { kind: "try" };
 
 /** The home page's sections an address can land on. */
 export type HomeSection = "about" | "scenarios";
@@ -79,6 +81,8 @@ export const ABOUT_ID = "home-about";
 export const HOME = "#";
 /** Open play's setup page: the visitor's own search, then the console on it (command/openPlay.ts). */
 export const PLAY_HASH = "#play";
+/** Try your own photo: drop in a photo and the detector runs on it in this browser. */
+export const TRY_HASH = "#try";
 export const DEMO = "#m/demo";
 /** The console on its own: free play, a fresh mission at the call (no coach bar). */
 export const DEMO_CONSOLE_HASH = "#m/demo/map";
@@ -97,11 +101,10 @@ export const REDIRECTS: Readonly<Record<string, string>> = {
   // the old console aliases
   "#operate": DEMO_CONSOLE_HASH,
   "#command": DEMO_CONSOLE_HASH,
-  // For judges is a fold of the debrief; Try a photo an action in the Photos rail
+  // For judges is a fold of the debrief
   "#judges": `${DEMO}?t=6&judges`,
   // the debrief was t5 before the find had a checkpoint of its own
   "#m/demo?t=5&judges": `${DEMO}?t=6&judges`,
-  "#try": `${DEMO}/photos?try`,
 };
 
 /** The console's old tab names, inside a mission's address. */
@@ -134,6 +137,7 @@ export function routeFromHash(hash: string): Route {
   const h = redirectFromHash(hash) ?? hash;
   if (h === "#new") return { kind: "new" };
   if (h === PLAY_HASH) return { kind: "play" };
+  if (h === TRY_HASH) return { kind: "try" };
   // About was a sheet over the console; it is now a section of the home page, and old links land there
   if (h === "#about") return { kind: "home", section: "about" };
   // the scenario cards (leaving the guided simulation lands here)
