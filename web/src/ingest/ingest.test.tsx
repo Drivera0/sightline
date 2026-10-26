@@ -485,4 +485,33 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     expect(end).toHaveTextContent("How each pass went");
     expect(end.textContent).not.toMatch(/score|saved a life/i);
   }, 60_000);
+
+  it("Space during each step never makes a decision, even with a decision button focused (round 3)", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo?guide=1");
+    render(<App base={null} />);
+    await screen.findByRole("dialog", { name: /Your call: Step 1 of \d · Survey/ }, { timeout: 5000 });
+    const DECIDE = /^(Record find|Approve|Confirm|Send|Person|Not a person|The subject|Log without|Serpentine|Lawnmower|The AI's)/;
+    let found = false;
+    for (let guard = 0; guard < 12 && !found; guard++) {
+      const d = await nextCall(/Your call/);
+      const name = d.getAttribute("aria-label")!;
+      const made = () => [useGuide.getState().guide!.choices.length, useStory.getState().user.length, Object.keys(useStory.getState().answers).length].join();
+      const before = made();
+      // the worst case: every decision button on screen focused in turn, Space pressed on each
+      for (const b of screen.getAllByRole("button").filter((x) => DECIDE.test(x.textContent?.trim() ?? "") && !(x as HTMLButtonElement).disabled)) {
+        b.focus();
+        await userEvent.keyboard(" ");
+      }
+      expect(made()).toBe(before);
+      expect(screen.getByRole("dialog", { name })).toBeInTheDocument();
+      found = /Find/.test(name);
+      await userEvent.keyboard(/Review photos/.test(name) ? "p" : "a");
+      await waitFor(() => expect(screen.queryByRole("dialog", { name })).toBeNull(), { timeout: 3000 }).catch(() => undefined);
+    }
+    expect(found).toBe(true);
+    await waitFor(() => expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("Found"), { timeout: 3000 });
+  }, 90_000);
 });

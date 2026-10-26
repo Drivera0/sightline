@@ -362,7 +362,6 @@ export function GuideMark({
   const { box, view } = useTargetBox(call ? target : []);
 
   const card = useRef<HTMLDivElement>(null);
-  const first = useRef<HTMLButtonElement>(null);
   const own = options.filter((o) => !o.on);
   const agent = options.find((o) => o.agent);
 
@@ -424,29 +423,14 @@ export function GuideMark({
     };
   }, [leaving]);
 
-  // focus moves to the decision: the real control's, else the bar's first button; the control may render a
-  // moment later (Needs you filling in), so it is looked for again for a while, until the visitor moves focus
+  // focus moves to the bar itself (a dialog, read out with its heading), never onto a decision button: Space
+  // is Pause and Enter on a focused button stays the visitor's own act (round 3 of the usability test: Space
+  // on a focused "Record find" logged the find). The ring and the scroll show the control to press.
   useEffect(() => {
-    if (!call) return undefined;
-    if (first.current && !onConsole) {
-      first.current.focus({ preventScroll: true });
-      return undefined;
-    }
-    let tries = 0;
-    const attempt = () => {
-      const a = document.activeElement;
-      const ours = !a || a === document.body || a === card.current;
-      if (!ours) return true;
-      // the item's main button (Needs you's `data-primary`: "Send Team One to C2", "Confirm clue"), else The subject
-      const btn = primaryIn(findTarget(target));
-      (btn ?? card.current)?.focus({ preventScroll: true });
-      return !!btn;
-    };
-    if (attempt()) return undefined;
-    const id = window.setInterval(() => {
-      if (attempt() || ++tries > 12) window.clearInterval(id);
-    }, 250);
-    return () => window.clearInterval(id);
+    if (!call) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && isTyping(a)) return;
+    card.current?.focus({ preventScroll: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [call, text]);
 
@@ -456,7 +440,10 @@ export function GuideMark({
       const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
       // Esc closes overlays only (theirs to handle); leaving the run is the Leave button, with a confirm
       if (k === "T" && watching) onTakeOver();
-      else if (k === " " && !call && !(e.target instanceof HTMLButtonElement)) onPause();
+      else if (k === " ") {
+        // Space is Pause, everywhere in the run: never the click of whatever button has focus
+        if (!call && !e.repeat) onPause();
+      }
       else if (k === "ArrowRight" && !call && onSkip) onSkip();
       else if (call && !watching && k === "A" && agent) onPick?.(agent.id);
       else if (call && !watching && k === "M" && onMap) onMap();
@@ -465,15 +452,24 @@ export function GuideMark({
       e.preventDefault();
       e.stopImmediatePropagation();
     };
+    // a button clicks on Space's keyup: that one is swallowed too
+    const onUp = (e: KeyboardEvent) => {
+      if (leaving || e.key !== " " || isTyping(e.target)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
     // capture: the view keys (1–6) wait while a decision is open; the review card's own keys (P/N/S/O/U) pass
     window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    window.addEventListener("keyup", onUp, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keyup", onUp, true);
+    };
   }, [leaving, call, watching, options, agent, onPick, onMap, onTakeOver, onPause, onSkip]);
 
-  const optionButtons = own.map((o, i) => (
+  const optionButtons = own.map((o) => (
     <button
       key={o.id}
-      ref={i === 0 ? first : undefined}
       type="button"
       disabled={watching}
       title={o.effect}
