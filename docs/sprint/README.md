@@ -1,20 +1,34 @@
-# Sprint 2 record (Oct 20–30, 2026)
+# Build plan (Oct 20–30, 2026)
 
-How the team planned the second sprint, which turned the BCS Hackathon batch tool into a live system,
-and what was delivered. These are cleaned copies of the planning documents the lanes worked from. They
-are a historical record: the current descriptions of the system are `docs/00_OVERVIEW.md`,
-`docs/01_CONTRACT.md` and the lane files in `docs/`.
+The plan Sightline's second build phase was carried out from: the work that turned the BCS Hackathon
+batch tool into a live system, and what each planned task delivered. Sightline was built by one
+person, Daniel Rivera. The plan split the work into five workstreams (A–E) so that each part had its
+own folders, interfaces and cut order and could be built and tested on its own against one contract;
+the workstream letters survive in task IDs (A-X1, D-C1, …) and in the `LANE_*` file names.
+
+These files are a historical record. The current descriptions of the system are `docs/00_OVERVIEW.md`,
+`docs/01_CONTRACT.md` and the workstream files in `docs/` (`LANE_A_ML.md` and the others).
+
+## Workstreams
+
+| Letter | Workstream |
+|---|---|
+| A | Detect & Agent: `cv2.dnn` detector, second look, agent loop, Nebius Serverless Job, reports |
+| B | Geo & Conditions: conditions (Tavily), clue positions, map layers, assignment cards, photo clients |
+| C | Search & Fleet: live map, information-gain planner, fleet, debrief |
+| D | Pipeline & Platform: contract, mission store, API, ingest, AWS, integration |
+| E | Ops & Voice: home page, console, radio desk |
 
 ## Key dates
 
 | Date | Event |
 |---|---|
-| Mon Oct 20 | Sprint start; `cv2.dnn` smoke test (A-X1) |
-| Wed Oct 22, 8 pm | Gate 1: `cv2.dnn` parity, planner legs, one photo round trip |
-| Sat Oct 25, noon | OpenCV AI Competition 2026 code freeze |
-| Sun Oct 26 | OpenCV submission (deadline 11:45 pm PDT), tag `opencv-submit` |
-| Wed Oct 29 | Gate 2: order of the Nebius video |
-| Thu Oct 30 | Nebius × NVIDIA Global AI Hackathon submission (deadline 10:00 am PDT), tag `nebius-submit` |
+| Tue Oct 20 | Start; `cv2.dnn` smoke test (A-X1) |
+| Thu Oct 22, 8 pm | Gate 1: `cv2.dnn` parity, planner legs, one photo round trip |
+| Sun Oct 25, noon | OpenCV AI Competition 2026 code freeze (planned) |
+| Mon Oct 26 | OpenCV submission (deadline 11:45 pm PDT), tag `opencv-submit` |
+| Thu Oct 29 | Gate 2: order of the Nebius video |
+| Fri Oct 30 | Nebius × NVIDIA Global AI Hackathon submission (deadline 10:00 am PDT), tag `nebius-submit` |
 
 The work ran well ahead of this plan: almost every task below was merged between Oct 20 and Oct 22
 (pull requests #6 to #153). The status in these files is as of Oct 22; the submissions, tags and
@@ -28,17 +42,17 @@ Gate 2 were still ahead.
 
 ## Files
 
-| File | What it was | Superseded by |
+| File | What it is | Superseded by |
 |---|---|---|
-| [`00_SPRINT.md`](00_SPRINT.md) | Team brief: users, principles, lanes, task index with every task's status, gates, rules | `docs/00_OVERVIEW.md` |
+| [`00_SPRINT.md`](00_SPRINT.md) | Plan summary: users, principles, workstreams, task index with every task's status, gates, working rules | `docs/00_OVERVIEW.md` |
 | [`01_CONTRACT_v1.2.md`](01_CONTRACT_v1.2.md) | Draft of contract v1.2 (live missions) | `docs/01_CONTRACT.md` §12–§14 |
-| [`CROSS_LANE.md`](CROSS_LANE.md) | How lanes asked each other for work through GitHub issues | — |
-| [`MASTER_PLAN.md`](MASTER_PLAN.md) | The reasons behind the plan: positioning, architecture, nine workstreams, evaluation rules, risks | `docs/00_OVERVIEW.md`, `docs/report/OPENCV_REPORT.md` |
-| [`LANE_A_SPRINT.md`](LANE_A_SPRINT.md) | Lane A: `cv2.dnn` detector, second look, agent loop, Nebius Serverless Job | `docs/LANE_A_ML.md`, `docs/architecture/agent.md` |
-| [`LANE_B_SPRINT.md`](LANE_B_SPRINT.md) | Lane B: conditions (Tavily), clues and teams on the map, assignment cards, photo clients | `docs/LANE_B_GEO.md`, `docs/report/TAVILY.md` |
-| [`LANE_C_SPRINT.md`](LANE_C_SPRINT.md) | Lane C: live map, information-gain planner, fleet, debrief | `docs/LANE_C_SEARCH.md`, `sightline/search/README_LIVE.md` |
-| [`LANE_D_SPRINT.md`](LANE_D_SPRINT.md) | Lane D: contract, mission store, API, ingest, AWS, integration | `docs/LANE_D_PIPELINE.md`, `sightline/mission/README.md`, `deploy/aws/README.md` |
-| [`LANE_E_OPS_VOICE.md`](LANE_E_OPS_VOICE.md) | Lane E: front door, command view, radio desk | `web/src/command/README.md`, `sightline/radio/README.md`, `docs/feedback/radio.md` |
+| [`CROSS_LANE.md`](CROSS_LANE.md) | How dependencies between workstreams were tracked as GitHub issues | — |
+| [`MASTER_PLAN.md`](MASTER_PLAN.md) | The reasons behind the plan: positioning, architecture, nine product goals, evaluation rules, risks | `docs/00_OVERVIEW.md`, `docs/report/OPENCV_REPORT.md` |
+| [`LANE_A_SPRINT.md`](LANE_A_SPRINT.md) | Workstream A: `cv2.dnn` detector, second look, agent loop, Nebius Serverless Job | `docs/LANE_A_ML.md`, `docs/architecture/agent.md` |
+| [`LANE_B_SPRINT.md`](LANE_B_SPRINT.md) | Workstream B: conditions (Tavily), clues and teams on the map, assignment cards, photo clients | `docs/LANE_B_GEO.md`, `docs/report/TAVILY.md` |
+| [`LANE_C_SPRINT.md`](LANE_C_SPRINT.md) | Workstream C: live map, information-gain planner, fleet, debrief | `docs/LANE_C_SEARCH.md`, `sightline/search/README_LIVE.md` |
+| [`LANE_D_SPRINT.md`](LANE_D_SPRINT.md) | Workstream D: contract, mission store, API, ingest, AWS, integration | `docs/LANE_D_PIPELINE.md`, `sightline/mission/README.md`, `deploy/aws/README.md` |
+| [`LANE_E_OPS_VOICE.md`](LANE_E_OPS_VOICE.md) | Workstream E: home page, console, radio desk | `web/src/command/README.md`, `sightline/radio/README.md`, `docs/feedback/radio.md` |
 
 Every measured number quoted here comes from `docs/report/EVIDENCE_INDEX.md`, which says where each is
 backed and how to regenerate it.

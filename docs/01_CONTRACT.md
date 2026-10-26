@@ -1,15 +1,15 @@
 # 01 · The Data Contract (v1.3)
 
 > **Read this before writing any code that reads or writes the cache.**
-> This file is the single source of truth for every file the lanes exchange.
-> If your code and this file disagree, this file wins. Change it only by team agreement (see §10).
+> This file is the single source of truth for every file the modules ("lanes") exchange.
+> If your code and this file disagree, this file wins. Change it only through the process in §10.
 > §5–§9 are the static cache files; §12–§14 (v1.2) are live missions, the mission API and the in-process interfaces; §15 (v1.3) adds the command post: base camp, found, last heard, direct actions, one timeline, ICS 309 and the D4H log push.
 
 ---
 
 ## 1. Why this exists
 
-Sightline has four lanes (A ML, B Geo, C Search, D Pipeline) and one website. They never call each other over the network. They meet in one folder, the **cache**. If every lane reads and writes exactly the shapes below, everyone can build in parallel against fake data from hour 1, and real data drops in later with no code changes.
+Sightline has four lanes (A ML, B Geo, C Search, D Pipeline) and one website. They never call each other over the network. They meet in one folder, the **cache**. If every lane reads and writes exactly the shapes below, every lane can be built in parallel against fake data from hour 1, and real data drops in later with no code changes.
 
 Rules that follow from this:
 
@@ -338,7 +338,7 @@ Everything the metrics screen and the pitch quote. **Writers:** D, from A's, C's
 |---|---|---|
 | `detector` | A | On the full HERIDAL test set (101 images), tiled inference. `threshold` = `candidate_threshold` (chosen on the **validation** set by maximising F2). `recall` is a copy of `voc.recall` and is what C uses. `sar` uses the loose SAR-APD matching from the AIR paper. A writes this block plus `ablations` to `data/work/detect/detector_metrics.json` on the desktop; the pipeline reads it. |
 | `baseline_human` | fixed | Do not change these numbers; they're published. |
-| `ablations` | A | Same test set, same scoring, one row per variant. Names exactly as shown, in this order (`sightline/ml/evaluate.py` `ABLATION_NAMES`); a variant not measured is omitted, never written as zeros. The first two shrink the whole photo to 1024 px, the next two run the whole photo at full resolution (imgsz 4000) in one pass, "Trained and run on whole photos" trains and runs at 1920 px, and "Fine-tuned + tiling" is the reported detector. **Renamed 2026-10-18 (signed off by Dan, lane A):** "Fine-tuned, no tiling" is now "Fine-tuned on tiles, run on shrunk photos" and three rows were added; files written before then still carry the old name and four rows, and the web app maps the old name to the new one. |
+| `ablations` | A | Same test set, same scoring, one row per variant. Names exactly as shown, in this order (`sightline/ml/evaluate.py` `ABLATION_NAMES`); a variant not measured is omitted, never written as zeros. The first two shrink the whole photo to 1024 px, the next two run the whole photo at full resolution (imgsz 4000) in one pass, "Trained and run on whole photos" trains and runs at 1920 px, and "Fine-tuned + tiling" is the reported detector. **Renamed 2026-10-18 (lane A):** "Fine-tuned, no tiling" is now "Fine-tuned on tiles, run on shrunk photos" and three rows were added; files written before then still carry the old name and four rows, and the web app maps the old name to the new one. |
 | `ranking` | D | `frames_to_first_hit` = 1-based position of the first frame that truly contains a person, when frames are reviewed in that order. `expected_first_hit_random_order` = (N + 1) / (k + 1) for N frames and k positives: what flight order gives on average, so one lucky or unlucky shuffle can't mislead. |
 | `search_sim` | C | `median_cells` / `p90_cells` = how many cells a ground team checks, in descending probability order, before reaching the true cell, over trials where the drone did **not** find the person. Lower is better. `found_by_drone_rate` = share of trials where the survey itself found the person. **1.1:** `in_survey` is `null` or `{"trials": int, "methods": [same names, same order as methods]}`: the same statistics computed only over the not-found trials whose true cell was photographed by the survey (lane C's `simulate` fills it). In `in_survey` the true cell is ranked **only among photographed cells** (overlap > 0), the same rule as the Search next panel, so its values are "cells checked inside the surveyed area" and can never exceed the number of photographed cells. |
 
@@ -348,15 +348,15 @@ All zeros above are placeholders; the sample cache uses plausible fake numbers, 
 
 ## 10. Changing the contract
 
-1. Propose the change in the team channel: which field, why, which lanes it touches.
-2. Everyone affected agrees.
-3. D updates this file, bumps `contract_version` (1.0 → 1.1), updates `sightline/contract.py`, regenerates `web/src/contract.ts` and the sample cache, all in **one commit**.
-4. Nobody else edits `sightline/contract.py`.
+1. Write down the change: which field, why, which lanes it touches.
+2. Check it against every lane it touches.
+3. Update this file, bumps `contract_version` (1.0 → 1.1), updates `sightline/contract.py`, regenerates `web/src/contract.ts` and the sample cache, all in **one commit**.
+4. `sightline/contract.py` changes only in that commit.
 
 ### Changelog
 
-- **1.1** (additive, agreed by lanes C and D): `map.json` `params.prior_source: string | null`; `metrics.json` `search_sim.in_survey: {trials, methods} | null`. Writers stamp `"1.1"`; readers accept `"1.0"` and `"1.1"`.
-- **1.2** (2026-10-21, additive): live missions (§12–§14): mission files, `MapUpdate` (step + reweight), verdicts, tasks, teams, clues, proposals, fleet, conditions, assignment cards, events, agent trace, radio turns; the mission API; the in-process interfaces. The static cache files (§5–§9) are unchanged: writers stamp `"1.2"`, readers accept `"1.0"`–`"1.2"`. Merged from the v1.2 draft by lane A for lane D (issue #51).
+- **1.1** (additive, for lanes C and D): `map.json` `params.prior_source: string | null`; `metrics.json` `search_sim.in_survey: {trials, methods} | null`. Writers stamp `"1.1"`; readers accept `"1.0"` and `"1.1"`.
+- **1.2** (2026-10-21, additive): live missions (§12–§14): mission files, `MapUpdate` (step + reweight), verdicts, tasks, teams, clues, proposals, fleet, conditions, assignment cards, events, agent trace, radio turns; the mission API; the in-process interfaces. The static cache files (§5–§9) are unchanged: writers stamp `"1.2"`, readers accept `"1.0"`–`"1.2"`. Merged from the v1.2 draft (issue #51).
 - **1.3** (2026-10-22, additive): the command post (§15): `Mission.base_camp`, `status`, `found`, `check_in_min`; `Drone.home`; `Team.last_heard_at`, `eta_min` and the `overdue` status; direct actions; one timeline (`TimelineEntry`); ICS 309; the D4H log push. Every new field is optional with a default, so a 1.2 mission still loads. Writers stamp `"1.3"`, readers accept `"1.0"`–`"1.3"`.
 
 **Frozen at hour 3.** After that, only additive changes (new optional fields) unless the whole team agrees.
@@ -566,7 +566,7 @@ class Conditions(_Model):
     fetched_at: str
     stale: bool                         # true when served from cache older than 60 min or offline
     area: str
-    sources: list[str]                  # URLs Tavily returned and we used
+    sources: list[str]                  # URLs Tavily returned and Sightline used
     wind_kmh: float | None
     gust_kmh: float | None
     wind_dir_deg: float | None

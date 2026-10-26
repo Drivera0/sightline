@@ -1,14 +1,14 @@
-# 05 · Frontend (shared by everyone)
+# 05 · Frontend (shared rules for every screen)
 
-> **Who:** all four. D builds the shell early (hours 0–10); everyone builds their own screen in hours 18–26.
-> **Read first:** `00_OVERVIEW.md`, `01_CONTRACT.md`. Your lane file's §9 has your screen's details.
+> **Plan:** the shell (lane D) first, in hours 0–10; each module's screen in hours 18–26.
+> **Read first:** `00_OVERVIEW.md`, `01_CONTRACT.md`. Each lane file's §9 has that screen's details.
 
 ---
 
 ## 1. Rules for a shared frontend
 
-1. **One look.** D owns the shell, theme tokens and shared components, and has final say on visual consistency. Use the tokens; never hard-code colours or font sizes.
-2. **Your screen shows your data.** A: metrics. B: map base. C: heatmap + search panel. D: review queue. You debug what you built.
+1. **One look.** The shell, theme tokens and shared components live in D's folders and set the visual rules. Use the tokens; never hard-code colours or font sizes.
+2. **Each screen shows its module's data.** A: metrics. B: map base. C: heatmap + search panel. D: review queue.
 3. **Read-only cache.** The web app never writes to the cache. All interaction state lives in Zustand stores (§4).
 4. **Types come from `src/contract.ts`** (generated). No `any` for cache data.
 5. **The full click path (§7) must work by hour 26,** with Wi-Fi off. After that, polish only.
@@ -29,7 +29,7 @@
 
 ---
 
-## 3. Folder ownership
+## 3. Folders by module
 
 ```
 web/src/
@@ -49,9 +49,9 @@ web/src/
 
 ## 4. State and how screens talk to each other
 
-| Store | Owner | Holds | Used by |
+| Store | Module | Holds | Used by |
 |---|---|---|---|
-| `useCache` (`lib/cache.ts`) | D | The five loaded JSON files, loading/error | everyone |
+| `useCache` (`lib/cache.ts`) | D | The five loaded JSON files, loading/error | every screen |
 | `useSelection` (`lib/selection.ts`) | D | `selectedDetectionId`, `selectedFrameId` | queue ↔ map |
 | `useReview` (`review/store.ts`) | D | **ordered answer history** (the single source of truth for review state), derived answers per detection, undo, reset; persisted | queue, map pins, `useSearch` |
 | `useSearch` (`search/store.ts`) | C | `stepIndex` + map state derived from steps and `useReview`'s history; `found` | heat layer, panel, metrics |
@@ -122,7 +122,7 @@ Shared components D provides in `shell/`: `Panel`, `Stat` (big number + label + 
 
 At BCS the app was one guided flow with a step bar and the step in the URL hash; the hackathon plan's three tabs became these steps.
 
-| Step | Built by | What's on it |
+| Step | Module | What's on it |
 |---|---|---|
 | **Survey** | D | The photos the drone brought back, the place and the simulated flight path |
 | **Rank** | D (+ A's detector) | The detector scoring every photo, the ranked queue |
@@ -136,7 +136,7 @@ At BCS the app was one guided flow with a step bar and the step in the URL hash;
 
 ## 7. The demo click path (BCS; rehearse exactly this)
 
-> **Now:** the click path is the home page (`#`), **Start the simulation** on the overdue hiker (about 3 min, ending on What you did), the Trace view, Conditions (W), the Debrief and the About sheet. The table below is the BCS hackathon's.
+> **Now:** the click path is the home page (`#`), **Start the simulation** on the overdue hiker (about 3 min, ending on What you did), the Trace view, Conditions (W), the Debrief and the About section of the home page (`#about`). The table below is the BCS hackathon's.
 
 | Time | Screen | Action | Say |
 |---|---|---|---|
@@ -162,11 +162,11 @@ The person is confirmed before the scrub, so the "found" state must not freeze t
 
 ---
 
-## 9. For Claude (instructions when working under `web/`)
+## 9. Working rules under `web/`
 
-- Stay in your lane's folders (§3). Shared changes to `shell/` or `lib/` go through D.
+- Each module keeps to its folders (§3). Shared changes to `shell/` or `lib/` go through D's folders.
 - Use the CSS variables in §5 via the Tailwind theme in `shell/theme.css`; no new colours (the heat ramp in §5 is the one exception).
 - Import cache types from `src/contract.ts`; never redefine them.
 - Map work goes through B's `useMap()`; don't create a second MapLibre instance.
 - Use C's `update.ts` for any probability change; never reimplement the update.
-- Before finishing: `pnpm test && pnpm build`, then run the click path in §7 against `cache/sample`.
+- Before merging: `pnpm test && pnpm build`, then run the click path in §7 against `cache/sample`.

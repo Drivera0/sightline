@@ -1,7 +1,8 @@
 # Credits
 
-Third-party media in this repository, with where each came from and its licence. The code's own licence is
-in `LICENSE`.
+Sightline is built by Daniel Rivera; development used Claude Code (Anthropic) as an AI coding assistant (README, Credits).
+Third-party media in this repository, with where each came from and its licence, is below. The code's own
+licence is in `LICENSE`.
 
 | What | Where | Source and licence |
 |---|---|---|

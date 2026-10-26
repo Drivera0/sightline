@@ -55,7 +55,7 @@ found) and has 1 more box kept (390 vs 389).
   classic-engine row was stopped before it finished, since its new-engine row was already zero.
 - **ONNX Runtime makes the same INT8 file 1.5× faster; OpenCV 5 makes it 1.44× slower.** This fits
   OpenCV running the QDQ pairs as dequantize, then a float convolution, rather than fusing them
-  into int8 kernels. We have not checked this in OpenCV's source. The INT8 file has 248
+  into int8 kernels. I have not checked this in OpenCV's source. The INT8 file has 248
   QuantizeLinear and 375 DequantizeLinear nodes around 88 convolutions.
 
 ## Caveats
@@ -66,7 +66,7 @@ found) and has 1 more box kept (390 vs 389).
   The FP32 new-engine figure (92 ms per tile, 1.99 s per photo) agrees with the report's quiet-machine
   measurement (96 ms, 1.91 s), and the interleaving keeps the comparison fair. The absolute
   numbers on a quiet machine may be a few per cent lower.
-- **One calibration recipe.** We tried MinMax, per-tensor, 64 tiles, with the head float.
+- **One calibration recipe.** I tried MinMax, per-tensor, 64 tiles, with the head float.
   Per-channel weights, entropy or percentile calibration, or more tiles might recover the 0.02
   of AP50. None of them would change the speed result, which comes from how the engine runs QDQ.
 - The accuracy table is one deterministic pass. Timing used 40 tiles and 5 photos, a subset
@@ -77,7 +77,7 @@ found) and has 1 more box kept (390 vs 389).
 ## Conclusion
 
 On a desktop CPU with OpenCV 5.0's pip wheel, INT8 QDQ is not worth it for this detector. It
-loads and runs in the new engine, which answers the open question in our research notes, but it
+loads and runs in the new engine, which answers the open question in my research notes, but it
 costs 44 % more time and 0.02 AP50. The size goes down 3×, which would matter only for a download
 (the browser copy) and not on the server. FP32 on `ENGINE_NEW` stays the default.
 

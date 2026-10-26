@@ -13,7 +13,7 @@ v1.2 **added** files and endpoints for live missions and changed nothing in the 
   sector tasks, teams, clues, proposals, the fleet, conditions, assignment cards, events and the agent
   trace, plus the invariants `validate_mission()` checks.
 - §13, the mission API, with the radio router mounted under the same prefix.
-- §14, the in-process interfaces lanes call each other through: `MissionStore` (the only writer of
+- §14, the in-process interfaces the workstreams call each other through: `MissionStore` (the only writer of
   mission files), `LiveMap`, the planner, `fetch_conditions`, `assignment_card`, the Token Factory
   client and the agent hooks.
 

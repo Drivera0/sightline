@@ -1,6 +1,6 @@
 # Lane A · ML: the person detector
 
-> **Owner:** Dan · **Folders:** `sightline/ml/`, `scripts/` (data prep), `tests/ml/`, `web/src/metrics/`
+> The BCS Hackathon plan for the detector ("lane A" is the plan's name for this module) · **Folders:** `sightline/ml/`, `scripts/` (data prep), `tests/ml/`, `web/src/metrics/`
 > **Read first:** `00_OVERVIEW.md`, `01_CONTRACT.md` (§7 `detections.json`, §9 `metrics.json`)
 
 ---
@@ -30,9 +30,9 @@ Build a detector that finds 60-pixel people in drone photos, prove how good it i
 | Out | Crops | `data/work/detect/crops/<frame_id>-dNN.jpg` |
 | Out | Detect config | `data/work/detect/config.json`: weights path, model name, `candidate_threshold` |
 | Out | Metrics | `data/work/detect/detector_metrics.json`: contract `DetectorMetrics` + the `Ablation` rows (§6.3 step 2), written on the desktop (§6.3 step 7) |
-| Out | Shared test split for teammates | `data/heridal/test/` zipped to the team drive (before the event) |
+| Out | Test split for the downstream stages | `data/heridal/test/` zipped to shared storage (before the event) |
 
-You don't write cache files. Detection and evaluation need the GPU and the full dataset, so you run them on the desktop and write the files under `data/work/detect/`. D's pipeline reads those files and writes the cache. Share `data/work/detect/` on the team drive after each run.
+You don't write cache files. Detection and evaluation need the GPU and the full dataset, so you run them on the desktop and write the files under `data/work/detect/`. D's pipeline reads those files and writes the cache. Copy `data/work/detect/` to shared storage after each run.
 
 ---
 
@@ -40,9 +40,9 @@ You don't write cache files. Detection and evaluation need the GPU and the full 
 
 **The data.** HERIDAL: 1,647 photos of Croatian and Bosnian wilderness from 40–65 m, mostly 4000×3000 (a few 4000×2250), 3,229 labelled people. Official split: **1,546 train (2,892 people), 101 test (337 people)**. Every image contains at least one person. People average about **60×60 px**, about 0.03% of the image. Single class: person.
 
-**Why tiling.** Resizing a 4000×3000 image to the model's input (640 px by default, 1024 for us) shrinks a 60 px person to 10–15 px, and the detector misses them. So train and infer on **1024×1024 tiles at native resolution**. The SAHI library does sliced inference and merges boxes back. In a quick test, a stock COCO YOLO11m found 2 of about 12 people on 5 test photos without tiling and 4 with tiling: tiling helps, but fine-tuning is what makes it work. **Measured later (2026-10-18, §6.3):** what matters is native resolution, not slicing as such. Training on 1024 px tiles beats training on whole photos shrunk to 1920 px (test AP50 0.868 vs 0.776), but the tile-trained weights run on the *whole* photo at native scale in one pass (imgsz 4000, no slicing) do as well as tiled inference (test AP50 0.887 vs 0.868), in about a third of the time and with about 20× the GPU memory (5.7 GB vs 0.28 GB).
+**Why tiling.** Resizing a 4000×3000 image to the model's input (640 px by default, 1024 here) shrinks a 60 px person to 10–15 px, and the detector misses them. So train and infer on **1024×1024 tiles at native resolution**. The SAHI library does sliced inference and merges boxes back. In a quick test, a stock COCO YOLO11m found 2 of about 12 people on 5 test photos without tiling and 4 with tiling: tiling helps, but fine-tuning is what makes it work. **Measured later (2026-10-18, §6.3):** what matters is native resolution, not slicing as such. Training on 1024 px tiles beats training on whole photos shrunk to 1920 px (test AP50 0.868 vs 0.776), but the tile-trained weights run on the *whole* photo at native scale in one pass (imgsz 4000, no slicing) do as well as tiled inference (test AP50 0.887 vs 0.868), in about a third of the time and with about 20× the GPU memory (5.7 GB vs 0.28 GB).
 
-**What the published work got** (AIR, RetinaNet, Pyrrö et al. 2021): untuned baseline 4.5% recall; full method about 90% precision / 86% recall (VOC scoring). We don't need to beat AIR. **We need to beat the human baseline (59% P / 68% R) and report honestly.**
+**What the published work got** (AIR, RetinaNet, Pyrrö et al. 2021): untuned baseline 4.5% recall; full method about 90% precision / 86% recall (VOC scoring). The goal is not to beat AIR. **The goal is to beat the human baseline (59% P / 68% R) and report honestly.**
 
 **Hard negatives.** Bags, white objects, rocks and stumps fire as people. Collect your model's false positives on training images and train on those tiles with no labels, so it learns they're background.
 
@@ -173,9 +173,9 @@ yolo detect train model=yolo11s.pt data=data/heridal/yolo_tiles/dataset.yaml \
 
    For comparison, tiled run 2: threshold 0.29, 0.802 / 0.864 / 0.868, 0.25 to 0.38 s and 0.28 GB. On val the full-resolution single pass beat tiling by ΔF2 +0.032 (95 % CI [+0.0005, +0.064]); the whole-photo model lost by ΔF2 −0.054 (CI [−0.081, −0.029]). The reported model is unchanged; adopting full-resolution inference is open (its test score has now been seen).
 3. **VOC scoring:** greedy one-to-one matching in descending confidence, IoU ≥ 0.5. Precision and recall at the threshold; AP50 = all-point interpolated area under the PR curve over all confidences.
-4. **SAR scoring** (the loose scheme from the AIR paper, our implementation): a prediction is correct if its IoU with any true box is ≥ 0.0025, and one prediction may cover several people. Precision = correct predictions / all predictions; recall = true boxes matched by at least one prediction. Label it "SAR-style (approx. AIR)" in the UI.
+4. **SAR scoring** (the loose scheme from the AIR paper, Sightline's implementation): a prediction is correct if its IoU with any true box is ≥ 0.0025, and one prediction may cover several people. Precision = correct predictions / all predictions; recall = true boxes matched by at least one prediction. Label it "SAR-style (approx. AIR)" in the UI.
 5. `seconds_per_image` = mean wall time of `detect_tiled` on the test images, on the 4080 SUPER.
-6. `metrics.detector.recall` = the VOC recall of the final model. **Tell C the number as soon as you have it**, because it's their POD input.
+6. `metrics.detector.recall` = the VOC recall of the final model. **Pass the number to C as soon as it exists**, because it is C's POD input.
 7. `write_detector_metrics` → `data/work/detect/detector_metrics.json`: the contract `DetectorMetrics` (with `threshold` = `candidate_threshold`) and the 4 `Ablation` rows. D's `map` stage reads `recall` from it (0.80 placeholder if the file doesn't exist yet), and the `metrics` stage copies the rest into `metrics.json`. Re-write it whenever the model changes.
 
 ### 6.3a Tuning on val only (2026-10-18)
@@ -220,7 +220,7 @@ Run `run_survey(Path("data/survey/frames"), <best weights>, Path("data/work/dete
 - runs `make_crop` for every detection with `conf ≥ candidate_threshold` into `data/work/detect/crops/<frame_id>-dNN.jpg` (NN = 01, 02… by descending conf). Below the threshold there's no crop, and the contract's `crop` field is `null`.
 - Re-run this step after §6.5 with the final model.
 
-The detect stage needs the GPU, so it runs on the desktop. Copy `data/work/detect/` to the team drive so B, C and D can run the downstream stages on laptops.
+The detect stage needs the GPU, so it runs on the desktop. Copy `data/work/detect/` to shared storage so the downstream stages (B, C and D) can run on a laptop.
 
 ### 6.5 Hard-negative mining + fine-tune (hour 10–18, overnight)
 
@@ -282,7 +282,7 @@ uv run --extra ml python scripts/eval_verifier.py      # ~2 min, 170 model calls
 | (b) + promote near-misses the verifier calls `yes` | 0.667 | **0.892** | 0.836 | +0.005 [−0.009, +0.021] | **+0.033 [+0.016, +0.052]** |
 | (c) (b) + demote `no` below 0.5 (reported, never applied) | 0.672 | 0.892 | 0.837 | +0.006 [−0.007, +0.022] | +0.033 [+0.017, +0.052] |
 
-Paired bootstrap over val photos, 2,000 resamples, seed 7. **Rule (b) is the one we use**: it finds 11 more of the 333 people (recall +3.3 points, clearly above zero) at the cost of 45 more false alarms to dismiss (precision −6.8 points); F2 is not clearly better either way. Under the recall-first rule (§6.3) and because each promotion is only a proposal a person approves, (b) is worth it. Demotion barely changes anything (3 false alarms) and the agent never dismisses detections in v1, so (c) is reported only.
+Paired bootstrap over val photos, 2,000 resamples, seed 7. **Rule (b) is the one used**: it finds 11 more of the 333 people (recall +3.3 points, clearly above zero) at the cost of 45 more false alarms to dismiss (precision −6.8 points); F2 is not clearly better either way. Under the recall-first rule (§6.3) and because each promotion is only a proposal a person approves, (b) is worth it. Demotion barely changes anything (3 false alarms) and the agent never dismisses detections in v1, so (c) is reported only.
 
 What the verifier says (170 verified detections):
 
@@ -338,11 +338,11 @@ Tests must run on CPU without weights; use tiny fixtures.
 
 ---
 
-## 9. Your screen: Metrics (hours 18–26)
+## 9. Screen: Metrics (hours 18–26)
 
 `web/src/metrics/MetricsView.tsx`, reading `metrics.json` only. See `05_FRONTEND_SHARED.md` for the shell and look.
 
-- **Headline row:** three stat tiles: our recall vs. human 68%; our precision vs. human 59%; seconds per image, ours vs. 33 s.
+- **Headline row:** three stat tiles: Sightline's recall vs. human 68%; its precision vs. human 59%; seconds per image, Sightline vs. 33 s.
 - **Ablation table:** the 7 rows in `ABLATION_NAMES` order (an old 4-row file shows its 4, the old name mapped), VOC precision / recall / AP50, the row in use ("Fine-tuned + tiling") highlighted by name, not the best AP50. Results shows five of them as bars ("Why resolution matters").
 - **Ranking block** (D's numbers): frames reviewed before the first hit, ranked vs. flight order, and the random-order expectation.
 - **Search block** (C's numbers): median and 90th-percentile cells to find, three methods, with a **"Simulated"** badge.
@@ -350,24 +350,20 @@ Tests must run on CPU without weights; use tiny fixtures.
 
 ---
 
-## 10. Your part of the pitch
+## 10. Part of the pitch
 
-About 30 seconds: why tiling (the 10-pixel smudge), the stock-vs-ours jump from the ablation table, and our numbers vs. the human baseline. Have the "is it just CV?" answer ready: the stock model misses most people, and the tricks are the project.
+About 30 seconds: why tiling (the 10-pixel smudge), the stock-vs-fine-tuned jump from the ablation table, and Sightline's numbers vs. the human baseline. Have the "is it just CV?" answer ready: the stock model misses most people, and the tricks are the project.
 
 ---
 
-## 11. For Claude (instructions when this file is given to Claude Code)
+## 11. Working rules
 
-- You are working on **lane A** only. Edit `sightline/ml/`, `scripts/`, `tests/ml/`, `web/src/metrics/`. Don't touch other lanes' folders, `sightline/contract.py` or `web/src/contract.ts`.
+- This module's code is in `sightline/ml/`, `scripts/`, `tests/ml/` and `web/src/metrics/`. It does not change other modules' folders, `sightline/contract.py` or `web/src/contract.ts`.
 - **Never evaluate or tune on the test split** except in `evaluate` for final reporting. Thresholds come from val.
 - Keep all randomness seeded (`seed=7` default).
 - Large data lives under `data/`; never commit it. Tests use tiny fixtures in `tests/ml/fixtures/`.
-- GPU code must also import and fail clearly on a CPU machine (B, C and D run `uv sync` without the `ml` extra). Import torch/ultralytics/sahi lazily inside functions, not at module top level.
-- Before finishing: `uv run pytest tests/ml`, `uv run ruff check sightline/ml`.
-- Good first prompts:
-  1. "Read docs/LANE_A_ML.md §5–6.1. Write `scripts/convert_heridal.py` and `scripts/tile_dataset.py` with tests first."
-  2. "Implement `sightline/ml/evaluate.py` per §6.3 with the tests in §7. No GPU needed for tests."
-  3. "Implement `Detector` per §5, lazily importing ultralytics and sahi."
+- GPU code must also import and fail clearly on a CPU machine (the other modules run `uv sync` without the `ml` extra). Import torch/ultralytics/sahi lazily inside functions, not at module top level.
+- Before merging: `uv run pytest tests/ml`, `uv run ruff check sightline/ml`.
 
 ---
 
