@@ -113,7 +113,7 @@ describe("the command post", () => {
     const card = screen.getByRole("article", { name: "Drone Drone 1" });
     expect(card).toHaveTextContent("battery 22 %");
     expect(card).toHaveTextContent("link degraded");
-    expect(card).toHaveTextContent("leg 2/2");
+    expect(card).toHaveTextContent("flight line 2 of 2");
     expect(card).toHaveTextContent("C3");
     await userEvent.click(within(card).getByRole("button", { name: "Recall" }));
     expect(p.actions.recallDrone).toHaveBeenCalledWith("D1");
@@ -269,10 +269,10 @@ describe("the status line", () => {
     line();
     const s = screen.getByRole("status", { name: "Mission status" });
     expect(s).toHaveTextContent("Elapsed1 h 30 min");
-    expect(s).toHaveTextContent("Daylight2 h 40 min left");
-    expect(within(s).getByRole("button", { name: /Flyable to 00:40/ })).toHaveAttribute("title", expect.stringContaining("gusts under the limit"));
+    expect(s).toHaveTextContent("Daylight2 h 40 min left, light until 00:40");
+    expect(within(s).getByRole("button", { name: /Drones can fly until 00:40/ })).toHaveAttribute("title", expect.stringContaining("gusts under the limit"));
     expect(s).toHaveTextContent("Lower Seymour trail closed");
-    expect(s).toHaveTextContent("Out6 people");
+    expect(s).toHaveTextContent("In the field2 teams (6 people)");
     expect(s).toHaveTextContent("Subjectnot found");
     expect(s).toHaveTextContent("Clues0");
   });

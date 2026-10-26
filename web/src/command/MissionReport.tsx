@@ -5,13 +5,15 @@ import { useMemo, useState } from "react";
 import type { MissionData } from "../lib/mission";
 import { useClock } from "../lib/time";
 import { Label } from "../shell/components";
-import { buildReport, lastSeenWords, pct1, reportMarkdown } from "./report";
+import { buildReport, lastSeenWords, pct1, reportMarkdown, wasSearched } from "./report";
+import { flightLineNames } from "./terms";
 
 const LINK = "sl-tap inline-flex items-center gap-1 rounded-full border border-border px-3 py-0.5 text-small text-text-2 hover:border-text-3 hover:text-text";
 
 export function MissionReport({ data, now, missionUrl }: { data: Parameters<typeof buildReport>[0] & Pick<MissionData, "teams">; now: Date; missionUrl: string | null }) {
   const { time, tz } = useClock();
   const r = useMemo(() => buildReport(data, now), [data, now]);
+  const lineNames = useMemo(() => flightLineNames(r.legList.map((l) => ({ id: l.leg, drone_id: l.drone }))), [r]);
   const [team, setTeam] = useState(data.teams[0]?.id ?? "");
   const live = missionUrl !== null;
   const download = () => {
@@ -26,7 +28,7 @@ export function MissionReport({ data, now, missionUrl }: { data: Parameters<type
     { label: "ICS 204", href: live && team ? `${missionUrl}/ics204/${encodeURIComponent(team)}.md` : null, title: "Assignment list for the team picked" },
     { label: "ICS 214", href: live ? `${missionUrl}/ics214.md` : null, title: "Activity log" },
     { label: "ICS 309", href: live ? `${missionUrl}/ics309.md` : null, title: "Communications log" },
-    { label: "CalTopo", href: live ? `${missionUrl}/caltopo.geojson` : null, title: "Sectors, searched areas, legs, teams and clues as GeoJSON" },
+    { label: "CalTopo", href: live ? `${missionUrl}/caltopo.geojson` : null, title: "Sectors, searched areas, flight lines, teams and clues as GeoJSON" },
   ];
   return (
     <article aria-label="Mission report" className="sl-report flex flex-col gap-5">
@@ -125,22 +127,22 @@ export function MissionReport({ data, now, missionUrl }: { data: Parameters<type
                   <td className="py-0.5 pr-3 text-text">{s.sector}</td>
                   <td className="sl-num py-0.5 pr-3 text-text-2">{pct1(s.poa)}</td>
                   <td className="sl-num py-0.5 pr-3 text-text-2">{Math.round(s.coverage * 100)} %</td>
-                  <td className="sl-num py-0.5 text-text">{pct1(s.pod)}</td>
+                  <td className="sl-num py-0.5 text-text">{wasSearched(r, s.sector) ? pct1(s.pod) : <span className="text-text-3">not searched</span>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </section>
-      <section aria-label="Drone legs" className="flex flex-col gap-1.5">
-        <h2 className="text-small font-medium text-text">Drone legs</h2>
+      <section aria-label="Drone flight lines" className="flex flex-col gap-1.5">
+        <h2 className="text-small font-medium text-text">Drone flight lines</h2>
         {r.legList.length === 0 ? (
-          <p className="text-small text-text-3">No drone legs flown.</p>
+          <p className="text-small text-text-3">No drone flight lines flown.</p>
         ) : (
           <table className="text-small">
             <thead className="text-caption text-text-3">
               <tr>
-                <th className="py-1 pr-3 text-left font-normal">Leg</th>
+                <th className="py-1 pr-3 text-left font-normal">Flight line</th>
                 <th className="py-1 pr-3 text-left font-normal">Drone</th>
                 <th className="py-1 pr-3 text-left font-normal">Sector</th>
                 <th className="py-1 pr-3 text-left font-normal">Status</th>
@@ -151,7 +153,7 @@ export function MissionReport({ data, now, missionUrl }: { data: Parameters<type
             <tbody>
               {r.legList.map((l) => (
                 <tr key={l.leg} className="border-t border-line">
-                  <td className="py-0.5 pr-3 font-mono text-caption text-text-2">{l.leg}</td>
+                  <td className="py-0.5 pr-3 text-caption text-text-2" title={l.leg}>{lineNames.get(l.leg)?.replace(/^.* · /, "") ?? l.leg}</td>
                   <td className="py-0.5 pr-3 text-text">{l.drone}</td>
                   <td className="py-0.5 pr-3 text-text">{l.sector ?? ""}</td>
                   <td className="py-0.5 pr-3 text-text-2">{l.status}</td>
@@ -168,8 +170,8 @@ export function MissionReport({ data, now, missionUrl }: { data: Parameters<type
       <section aria-label="Resources and traffic" className="grid grid-cols-2 gap-x-4 gap-y-1 text-small sm:grid-cols-3">
         {[
           ["Survey photos", r.photos.survey],
-          ["Leg photos", r.photos.legs],
-          ["Drone legs", `${r.legs.flown} · ${r.legs.minutes} min`],
+          ["Flight-line photos", r.photos.legs],
+          ["Drone flight lines", `${r.legs.flown} · ${r.legs.minutes} min`],
           ["Radio turns", r.radioTurns],
           ["Clues", r.clues],
           ["Proposals accepted", r.proposals.accepted],

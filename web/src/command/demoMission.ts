@@ -11,6 +11,7 @@ import type { ConditionsData } from "./ConditionsPanel";
 import type { TraceRun } from "./TraceView";
 import cropUrl from "./__fixtures__/trace_crop.jpg?url";
 import zoomUrl from "./__fixtures__/trace_zoom_native.jpg?url";
+import { clockWithZone, DEMO_TZ } from "../lib/time";
 
 export const DEMO_MISSION_ID = "demo";
 export const DEMO_CACHE = "/cache/demo";
@@ -164,7 +165,7 @@ export async function loadDemoConditions(): Promise<ConditionsData> {
   return {
     conditions,
     lookup: latestLookup(parseTrace(trace.default)),
-    recorded: `Recorded live lookup for Mount Seymour, ${conditions.fetched_at.slice(0, 10)} ${conditions.fetched_at.slice(11, 16)} UTC`,
+    recorded: `Recorded live lookup for Mount Seymour, ${new Date(conditions.fetched_at).toLocaleDateString("en-CA", { timeZone: DEMO_TZ })} ${clockWithZone(conditions.fetched_at, DEMO_TZ)}`,
     limitKmh: null,
     drone: null,
   };

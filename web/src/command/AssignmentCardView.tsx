@@ -4,6 +4,7 @@
 // buttons; `@media print` gives white paper, black text, no buttons. Built by lane A for lane E (#70).
 import type { AssignmentCard } from "../contract";
 import { Label } from "../shell/components";
+import { useClock, zone } from "../lib/time";
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
 const latlon = (lat: number, lon: number) => `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
@@ -38,6 +39,7 @@ export function AssignmentCardView({
   backHref?: string;
 }) {
   const { path, entry } = outline(card);
+  const { time, tz } = useClock();
   const team = card.team_callsign ?? "Unassigned";
   const btn = "rounded-full border border-border px-4 py-1.5 text-small text-text";
   return (
@@ -144,7 +146,7 @@ export function AssignmentCardView({
         </p>
       </section>
       <p className="text-caption text-text-3 print:text-black">
-        Generated {card.generated_at.slice(0, 16).replace("T", " ")} UTC · mission {card.mission_id}
+        Generated {card.generated_at.slice(0, 10)} {time(card.generated_at)} {zone(new Date(card.generated_at), tz)} · mission {card.mission_id}
       </p>
     </article>
   );

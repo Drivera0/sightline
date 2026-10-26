@@ -73,12 +73,13 @@ describe("the guided search's injects", () => {
     expect(list.map((i) => i.id)).toEqual(["survey", "clue", "triage", "assign", "link", "wind"]);
   });
 
-  it("writes every prompt verb first, the key last, without first person or the banned words", () => {
+  it("writes every prompt verb first, with no key letters inside the sentence, without first person or the banned words", () => {
     for (const [full, seed] of [[overdue, "overdue-hiker"], [missingChild, "missing-child"], [load(despondent), "despondent"], [load(dementia), "dementia"], [load(hiker), "x"]] as const) {
       const { list } = playAgentLine(full, seed);
       for (const i of list) {
         expect(i.prompt).toMatch(/^[A-Z][a-z]+\b/);
-        expect(i.prompt).toMatch(/(\b[A-Z1-4]|M)\.$/);
+        // the keys are on the option buttons, never inside the sentence (usability test 2026-10-25)
+        expect(i.prompt).not.toMatch(/ (?:[A-Z]|[1-4])(?=[,.;)]|$)/);
         for (const s of [i.prompt, i.lead, i.agentSays ?? "", ...i.options.map((o) => `${o.label} ${o.effect}`)]) {
           expect(s).not.toMatch(STORY_BANNED);
           expect(s).not.toMatch(/\b(I|me|my|I'm)\b/);

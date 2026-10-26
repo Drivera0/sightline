@@ -14,7 +14,7 @@ const ev = (id: string, type: MissionEvent["type"], summary: string, ref: string
 describe("toastFor", () => {
   it("a proposal: violet, its summary, Show me focuses it", () => {
     const t = toastFor(ev("e1", "proposal.new", "p003 new", "p003", { id: "p003", summary: "Assign C2 to Team One", kind: "assign_sector" }), teams);
-    expect(t).toMatchObject({ tone: "proposal", title: "The agent proposes", body: "Assign C2 to Team One", target: { kind: "proposal", id: "p003" } });
+    expect(t).toMatchObject({ tone: "proposal", title: "AI suggests", body: "Assign C2 to Team One", target: { kind: "proposal", id: "p003" } });
   });
 
   it("a clue from a team, but not its read-back", () => {
@@ -39,7 +39,7 @@ describe("toastFor", () => {
       tone: "found", title: "Subject located", body: "Team One in C2",
     });
     expect(toastFor(ev("e8", "team.updated", "", "T2", { id: "T2", callsign: "Team Two", status: "overdue" }), teams)).toMatchObject({ tone: "alert", target: { kind: "team", id: "T2" } });
-    expect(toastFor(ev("e9", "verdict", "", "f0273-d02", { detection_id: "f0273-d02", person: "yes" }), teams)).toMatchObject({ body: "f0273-d02: likely a person", target: { kind: "candidate", id: "f0273-d02" } });
+    expect(toastFor(ev("e9", "verdict", "", "f0273-d02", { detection_id: "f0273-d02", person: "yes" }), teams)).toMatchObject({ body: "A near-miss photo: likely a person", target: { kind: "candidate", id: "f0273-d02" } });
     expect(toastFor(ev("e10", "fleet.updated", "D1 back at base camp (L004 done)", "L004", {}), teams)).toMatchObject({ tone: "drone" });
   });
 
@@ -77,7 +77,7 @@ describe("the notification store", () => {
     push(reviewToast(5));
     const s = useNotify.getState();
     expect(s.toasts).toHaveLength(1);
-    expect(s.toasts[0]).toMatchObject({ title: "5 candidates to review", count: 2 });
+    expect(s.toasts[0]).toMatchObject({ title: "5 photos to review", count: 2 });
     expect(unreadCount(s.log)).toBe(1);
     s.markRead();
     expect(unreadCount(useNotify.getState().log)).toBe(0);

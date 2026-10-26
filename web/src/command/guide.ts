@@ -13,13 +13,14 @@ import { SECOND_LOOK_ID } from "./demoReview";
 import { BOARD_AT, CHECKPOINTS, isFoundEvent, poaOf, subjectOf, type DemoFull } from "./missionTime";
 import { agentLine, passesFrom, playStanding, type Cost, type Line, type Pass } from "./sim";
 import { REGION, STORY_NOT_A_PERSON, storyClue, storyProposal } from "./storyCopy";
+import { podLabel, TERMS, thresholdNote } from "./terms";
 
 export type InjectId = "survey" | "triage" | "clue" | "assign" | "link" | "wind" | "find";
 
 /** The progress strip's names, in order. */
 export const PIPS: readonly { id: InjectId; label: string }[] = [
   { id: "survey", label: "Survey" },
-  { id: "triage", label: "Triage" },
+  { id: "triage", label: "Review photos" },
   { id: "clue", label: "Clue" },
   { id: "assign", label: "Assign" },
   { id: "link", label: "Link" },
@@ -146,7 +147,7 @@ export function triageCards(queue: GuideInput["queue"]): TriageCard[] {
   const out: TriageCard[] = [];
   if (plain) out.push({ id: plain.id, says: `Detector score ${plain.conf.toFixed(2)}.`, line: "person" });
   if (bag) out.push({ id: bag.id, says: `Detector score ${bag.conf.toFixed(2)}.`, line: "not_person" });
-  if (relook) out.push({ id: relook.id, says: `Detector score ${relook.conf.toFixed(2)}, under the queue's line; the AI second look says likely a person.`, line: "person" });
+  if (relook) out.push({ id: relook.id, says: `Detector score ${relook.conf.toFixed(2)}, under 0.29 (${thresholdNote(0.29)}); ${TERMS.recheckFlagged}: likely a person.`, line: "person" });
   return out;
 }
 
@@ -155,9 +156,9 @@ export function triageEffect(card: TriageCard, a: TriageAnswer): { effect: strin
   const bag = card.id === STORY_NOT_A_PERSON;
   const relook = card.id === SECOND_LOOK_ID;
   if (a === "person") return bag ? { effect: "a team walks to the pin to check it", costMin: 10 } : { effect: relook ? "a sighting pin goes on the map where the photo puts it" : "a sighting pin goes on the map", costMin: 0 };
-  if (a === "not_subject") return { effect: bag ? "it leaves the queue" : "another person on the ground: a witness lead to ask about", costMin: 0 };
-  if (a === "not_person") return { effect: relook ? "it leaves the queue and nothing goes on the map" : "it leaves the queue", costMin: 0 };
-  if (a === "object") return { effect: "a clue candidate for a team to confirm on the ground", costMin: 0 };
+  if (a === "not_subject") return { effect: bag ? `it leaves ${TERMS.review}` : "another person on the ground: a witness lead to ask about", costMin: 0 };
+  if (a === "not_person") return { effect: relook ? `it leaves ${TERMS.review} and nothing goes on the map` : `it leaves ${TERMS.review}`, costMin: 0 };
+  if (a === "object") return { effect: "a possible clue for a team to confirm on the ground", costMin: 0 };
   return { effect: "it stays flagged for a second reviewer", costMin: 0 };
 }
 
@@ -184,11 +185,11 @@ export function injects(input: GuideInput): Inject[] {
       key: "survey",
       at: ms(CHECKPOINTS[0]!.at),
       lead: "The call comes in; the agent drafts the survey.",
-      prompt: `Launch the survey: fly the planner's legs A, or a serpentine over the whole grid 2.`,
+      prompt: `Launch the survey: fly ${TERMS.aiChoices.replace("choices", "flight lines")}, or a ${TERMS.lawnmower}.`,
       agentSays: top.length ? `${top.map(([s]) => s).join(", ")} first: ${Math.round(share * 100)} % of the probability in ${top.length} of ${poa.length} sectors.` : undefined,
       options: [
-        { key: "1", id: "planner", label: "The planner's legs", costMin: 0, effect: `${droneWord(drones[0]!.id, full)} photographs the likeliest sectors first`, agent: true },
-        { key: "2", id: "serpentine", label: "Serpentine over the grid", costMin: 12, effect: "every sector once, in rows; the likeliest ones are photographed 12 min later" },
+        { key: "1", id: "planner", label: "The AI's flight lines", costMin: 0, effect: `${droneWord(drones[0]!.id, full)} photographs the likeliest sectors first`, agent: true },
+        { key: "2", id: "serpentine", label: "Lawnmower pattern, whole grid", costMin: 12, effect: "every sector once, row by row; the likeliest ones are photographed 12 min later" },
       ],
       target: [REGION.map],
     });
@@ -202,7 +203,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "triage",
       at: ms(CHECKPOINTS[2]!.at),
       lead: drones.length ? "The drones fly the survey; photos land and the detector ranks each one." : "The survey's photos land and the detector ranks each one.",
-      prompt: "Is it a person? Answer on the photo's card in Needs you: Person P, Not a person N, Not the subject S, Object O, Unsure U.",
+      prompt: "Is it a person? Answer on the photo's card in Needs you: Person, Not a person, Not the subject, Object or Unsure.",
       options: [],
       cards,
       target: [`${REGION.review} li[data-candidate]`, REGION.review, REGION.needs],
@@ -217,7 +218,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "clue",
       at: ms(clue.at),
       lead: "The teams stand by at base camp while the review lands.",
-      prompt: `Read back ${who}'s call: press Confirm clue on its card in Needs you A, or ask for a bearing 2, or log it without mapping 3.`,
+      prompt: `Read back ${who}'s call: press Confirm clue on its card in Needs you, ask for a bearing, or log it without mapping.`,
       agentSays: `${who}: ${clue.text}.`,
       options: [
         { key: "1", id: "confirm", label: `Confirm at ${clue.reliability ?? "low"} reliability`, costMin: 0, effect: "the map shifts toward it", agent: true, on: "Confirm clue on the card in Needs you" },
@@ -238,7 +239,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "assign",
       at: ms(p.created_at),
       lead: "The agent ranks the sectors with what is on the map now.",
-      prompt: `Assign a team: press Send ${callsign(p.target.team)} to ${p.target.sector} on the card in Needs you A, Edit it to send another team, or click another sector on the map M.`,
+      prompt: `Assign a team: press Send ${callsign(p.target.team)} to ${p.target.sector} on the card in Needs you, Edit it to send another team, or click another sector on the map.`,
       // the reason's first clause (the card has the whole of it)
       agentSays: p.reason.split(/:\s/)[0],
       options: [
@@ -259,12 +260,12 @@ export function injects(input: GuideInput): Inject[] {
       id: "link",
       key: "link",
       at: link.at,
-      lead: "Teams walk to their sectors; the drones fly their legs.",
-      prompt: `Handle the lost link: let ${droneWord(link.drone, full)} finish its leg A, or divert ${relay ? droneWord(relay.id, full) : "another drone"} as a relay 2.`,
-      agentSays: `${droneWord(link.drone, full)[0]!.toUpperCase()}${droneWord(link.drone, full).slice(1)} has lost its link and flies its approved leg on its own.`,
+      lead: "Teams walk to their sectors; the drones fly their flight lines.",
+      prompt: `Handle the lost link: let ${droneWord(link.drone, full)} finish its flight line, or divert ${relay ? droneWord(relay.id, full) : "another drone"} as a relay.`,
+      agentSays: `${droneWord(link.drone, full)[0]!.toUpperCase()}${droneWord(link.drone, full).slice(1)} has lost its link and flies its approved flight line on its own.`,
       options: [
-        { key: "1", id: "finish", label: "Let it finish the leg", costMin: 0, effect: "its photos arrive late, when the link comes back", agent: true },
-        { key: "2", id: "relay", label: `Divert ${relay ? droneWord(relay.id, full) : "a drone"} as a relay`, costMin: 0, effect: `the link comes back now; ${relay ? droneWord(relay.id, full) : "that drone"}'s own leg stops` },
+        { key: "1", id: "finish", label: "Let it finish the flight line", costMin: 0, effect: "its photos arrive late, when the link comes back", agent: true },
+        { key: "2", id: "relay", label: `Divert ${relay ? droneWord(relay.id, full) : "a drone"} as a relay`, costMin: 0, effect: `the link comes back now; ${relay ? droneWord(relay.id, full) : "that drone"}'s own flight line stops` },
       ],
       target: [`[data-drone="${link.drone}"]`, REGION.resources],
     });
@@ -278,11 +279,11 @@ export function injects(input: GuideInput): Inject[] {
       key: "wind",
       at: ms(r.created_at),
       lead: "Gusts build against the drones' limit.",
-      prompt: "Bring the drones in: press the recall card's button in Needs you A, or finish the current line first 2.",
+      prompt: "Bring the drones in: press the recall card's button in Needs you, or finish the current flight line first.",
       agentSays: r.reason,
       options: [
         { key: "1", id: "recall", label: "Recall now", costMin: 0, effect: "the drones turn for base; the ground teams carry the search", agent: true, on: "the card's button in Needs you" },
-        { key: "2", id: "finish", label: "Finish the line first", costMin: 2, effect: "two more minutes of photos, inside the margin" },
+        { key: "2", id: "finish", label: "Finish the flight line first", costMin: 2, effect: "two more minutes of photos, inside the margin" },
       ],
       target: [`[data-proposal="${r.id}"]`, REGION.needs],
       proposal: r.id,
@@ -309,10 +310,10 @@ export function injects(input: GuideInput): Inject[] {
         key: `assign-${k}`,
         at: x.end,
         lead: "The teams sweep their sectors.",
-        prompt: k === 2 ? "Assign again: press Send on the card in Needs you, and every free team takes the agent's picks until the find A; or click a sector on the map M." : "Assign again: press Send on the card in Needs you for the agent's next sector A, or click a sector on the map M.",
-        agentSays: `${x.sector} searched at POD ${x.pod.toFixed(2)}, no sign. The agent proposes the likeliest open sector next.`,
+        prompt: k === 2 ? "Assign again: press Send on the card in Needs you, and every free team takes the AI's picks until the find; or click a sector on the map." : "Assign again: press Send on the card in Needs you for the AI's next sector, or click a sector on the map.",
+        agentSays: `${x.sector} searched at ${podLabel(x.pod)}, no sign. The AI suggests the likeliest open sector next.`,
         options: [
-          { key: "1", id: "approve", label: k === 2 ? "The agent's picks, every free team" : "The agent's next sector", costMin: 0, effect: k === 2 ? "each team that comes free takes the likeliest open sector, until the find" : `${callsign(x.team)} walks to it and sweeps it`, agent: true, on: "the card's button in Needs you" },
+          { key: "1", id: "approve", label: k === 2 ? "The AI's picks, every free team" : "The AI's next sector", costMin: 0, effect: k === 2 ? "each team that comes free takes the likeliest open sector, until the find" : `${callsign(x.team)} walks to it and sweeps it`, agent: true, on: "the card's button in Needs you" },
           { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it", on: "a sector on the map" },
         ],
         target: ["[data-story-proposal]", REGION.needs],
@@ -327,7 +328,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "find",
       at: detected?.end ?? 0,
       lead: "The teams sweep their sectors.",
-      prompt: `Answer ${callsign(team)}'s call: press Record find on its card in Needs you A (the nearest team goes to carry out), or ask for a confirmation first 2.`,
+      prompt: `Answer ${callsign(team)}'s call: press Record find on its card in Needs you (the nearest team goes to carry out), or ask for a confirmation first.`,
       agentSays: detected ? `${callsign(team)}: subject located in ${detected.sector}, conscious and talking.` : undefined,
       options: [
         { key: "1", id: "found", label: "Mark Found, send a carry-out", costMin: 0, effect: "the status line flips to Found", agent: true, on: "Record find on the card in Needs you" },
@@ -507,28 +508,28 @@ export function hotWash(input: GuideInput, list: readonly Inject[]): HotWash {
     const d = Math.round((mine - theirs) / 60_000);
     lines.push(
       d === 0
-        ? `Your line and the agent's line found the subject at the same time, ${local(mine)}.`
+        ? `Your choices and the AI's choices found the subject at the same time, ${local(mine)}.`
         : d < 0
-          ? `Your line found the subject ${fmtMin(-d)} sooner than the agent's (${local(mine)} against ${local(theirs)}).`
-          : `The agent's line found the subject at ${local(theirs)}, ${fmtMin(d)} before yours (${local(mine)}).`,
+          ? `Your choices found the subject ${fmtMin(-d)} sooner than the AI's (${local(mine)} against ${local(theirs)}).`
+          : `The AI's choices found the subject at ${local(theirs)}, ${fmtMin(d)} before yours (${local(mine)}).`,
     );
-  } else if (mine === null && theirs !== null) lines.push(`The agent's line found the subject at ${local(theirs)}.`);
+  } else if (mine === null && theirs !== null) lines.push(`The AI's choices found the subject at ${local(theirs)}.`);
   // the agent's draws too, where its line went another way
   const sameLine = agent.passes.length === passes.length && agent.passes.every((x, i) => x.sector === passes[i]?.sector && x.team === passes[i]?.team);
   const draws = [...passes, ...(sameLine ? [] : agent.passes.map((x) => ({ ...x, agentLine: true })))].map((x) => {
-    const tag = "agentLine" in x ? "agent's line, " : "";
-    return `${tag}${x.sector} pass ${x.n}: POD ${x.pod.toFixed(2)}, draw ${x.draw.toFixed(2)} → ${x.detected ? "detected" : x.inside ? "missed (the subject was there)" : "no sign (the subject was elsewhere)"}`;
+    const tag = "agentLine" in x ? "the AI's choices, " : "";
+    return `${tag}${x.sector} pass ${x.n}: ${podLabel(x.pod)}, draw ${x.draw.toFixed(2)} → ${x.detected ? "detected" : x.inside ? "missed (the subject was there)" : "no sign (the subject was elsewhere)"}`;
   });
   const searched = new Map<string, number>();
   for (const x of passes) if (!x.detected && (mine === null || x.end <= (foundEv ? ms(foundEv.at) : Infinity))) searched.set(x.sector, 1 - (1 - (searched.get(x.sector) ?? 0)) * (1 - x.pod));
   const strengths: string[] = [];
   const tryNext: string[] = [];
   const tri = choices.filter((c) => c.inject === "triage");
-  if (tri.length && tri.every((c) => c.agent)) strengths.push("Triage matched the reference answers: the bag stayed off the map and the second look's catch went on it.");
+  if (tri.length && tri.every((c) => c.agent)) strengths.push("Review photos matched the reference answers: the bag stayed off the map and the photo flagged by the AI re-check went on it.");
   if (clueChoice && clueChoice.option !== "log") strengths.push("The radio clue was read back and mapped before the first assignment.");
   if (firstAssign && subject && firstAssign.label.endsWith(subject.sector)) strengths.push(`The first team went to ${subject.sector}, the sector that held the subject.`);
   if (clueChoice?.option === "log") tryNext.push("Confirm the radio clue next time and watch which sectors rise.");
   if (choices.some((c) => c.inject === "triage" && c.option === "person" && c.card && !c.agent)) tryNext.push("Look again at the grey bag before pinning it: the check cost a team 10 minutes.");
-  if (firstAssign && subject && !firstAssign.label.endsWith(subject.sector)) tryNext.push("Compare the sector you picked with the agent's reason on the card.");
+  if (firstAssign && subject && !firstAssign.label.endsWith(subject.sector)) tryNext.push("Compare the sector you picked with the AI's reason on the card.");
   return { outcome, agent, subject: subject ? { sector: subject.sector } : null, rows, lines, draws, searched, strengths, tryNext };
 }

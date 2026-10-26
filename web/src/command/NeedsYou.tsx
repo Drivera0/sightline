@@ -19,12 +19,13 @@ import { Icon, type IconName } from "../shell/icons";
 import { useClock } from "../lib/time";
 import { ApprovalInbox, type Decide } from "./ApprovalInbox";
 import { needs, sightingReports } from "./console";
+import { plainWords, toReview } from "./terms";
 
 /** The kinds of thing that wait here, each with its colour token (shell/README.md) and its group's name. */
 export const NEED_KINDS = {
   report: { label: "Subject reported", tone: "--found", icon: "found" },
   overdue: { label: "Teams not heard", tone: "--alert", icon: "team" },
-  proposal: { label: "Agent proposals", tone: "--proposal", icon: "decision" },
+  proposal: { label: "AI suggestions", tone: "--proposal", icon: "decision" },
   readback: { label: "Clues to confirm", tone: "--clue", icon: "clue" },
   review: { label: "Photos to review", tone: "--text-2", icon: "detection" },
 } as const satisfies Record<string, { label: string; tone: string; icon: IconName }>;
@@ -189,7 +190,7 @@ export function NeedsYou({
       </h2>
       {/* never folded away: on a phone it scrolls inside a capped height, above the map */}
       <div aria-label="Approvals rail" className="flex max-h-[60vh] min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 lg:max-h-none">
-        {total === 0 && !found && <p className="px-1 py-2 text-small text-text-3">Nothing needs you. Proposals, candidates to review, overdue teams and clues to read back appear here.</p>}
+        {total === 0 && !found && <p className="px-1 py-2 text-small text-text-3">Nothing needs you. AI suggestions, photos to review, overdue teams and clues to confirm appear here.</p>}
         {found && (
           <ClosedOnFind
             proposals={closedProposals}
@@ -282,7 +283,7 @@ export function ClosedOnFind({ proposals, reviewCount, count, at }: { proposals:
           {showReview && (
             <li className="flex items-baseline gap-2">
               <span className="min-w-0 flex-1">
-                {reviewCount} {reviewCount === 1 ? "candidate" : "candidates"} to review
+                {toReview(reviewCount)}
               </span>
               <span className="shrink-0 text-text-3">closed: subject found</span>
             </li>
@@ -310,13 +311,13 @@ function ReadBack({ id, clue, turn, who, onConfirm, onReply, highlight }: { id: 
     <NeedItem
       id={id}
       kind="readback"
-      label={candidate ? "Clue candidate to confirm" : "Awaiting read-back"}
-      ask={clue ? `${candidate ? "Clue candidate to confirm" : "Clue to confirm"}: ${clue.text}` : `Read-back to ${who}`}
+      label={candidate ? "Possible clue to confirm" : "Awaiting read-back"}
+      ask={clue ? `${candidate ? "Possible clue to confirm" : "Clue to confirm"}: ${plainWords(clue.text)}` : `Read-back to ${who}`}
       quote={turn?.reply ?? null}
       detail={
         clue
           ? candidate
-            ? "From an image review, low reliability on the map. Send a team to look; Confirm once they have seen it."
+            ? "From Review photos, low reliability on the map. Send a team to look; Confirm once they have seen it."
             : `${who ? `From ${who}. ` : ""}Read it back to the team to confirm it.`
           : undefined
       }

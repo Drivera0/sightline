@@ -16,6 +16,7 @@ import { StatusPill, type Tone } from "../shell/components";
 import { Icon } from "../shell/icons";
 import { duration, etaMin, legOf, linkWord, teamOrder, type Heard } from "./console";
 import { useConsole } from "./consoleStore";
+import { podLabel, TERMS } from "./terms";
 
 export const TEAM_DRAG = "application/x-sightline-team";
 export const DRONE_DRAG = "application/x-sightline-drone";
@@ -281,7 +282,7 @@ function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, on
   const facts = (
     <span className="flex gap-2 text-caption whitespace-nowrap">
       <span className={linkTone}>link {link === "connected" ? "ok" : link}</span>
-      {leg.m > 0 && <span className="text-text-3">leg {leg.n}/{leg.m}</span>}
+      {leg.m > 0 && <span className="text-text-3">{TERMS.flightLine} {leg.n} of {leg.m}</span>}
     </span>
   );
   const pill = (
@@ -319,7 +320,7 @@ function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, on
       <div className="flex flex-wrap items-center gap-1">
         {canFly && (
           <button type="button" className={primary} aria-pressed={picking} aria-expanded={picking} onClick={() => useConsole.getState().pick(picking ? null : { kind: "drone", id: d.id })}>
-            {picking ? "Pick a sector…" : "Fly a leg…"}
+            {picking ? "Pick a sector…" : "Fly over a sector…"}
           </button>
         )}
         <button type="button" className={minor} disabled={d.status !== "flying"} onClick={onRecall}>
@@ -364,7 +365,7 @@ function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[];
           <thead className="text-text-3">
             <tr>
               <th className="px-2.5 py-1 text-left font-normal">Sector</th>
-              <th className="sl-num px-2 py-1 font-normal">POA</th>
+              <th className="sl-num px-2 py-1 font-normal" title={TERMS.poaTip}>POA</th>
               <th className="px-2 py-1 text-left font-normal">State</th>
             </tr>
           </thead>
@@ -388,7 +389,7 @@ function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[];
                   </td>
                   <td className="sl-num px-2 py-1 text-text">{pct(s.poa)}</td>
                   <td className="px-2 py-1 text-text-2">
-                    {t ? (t.state === "searched" ? `searched, POD ${Math.round((t.pod ?? 0) * 100)} %` : STATE[t.state]) : "open"}
+                    {t ? (t.state === "searched" ? `searched, ${podLabel(t.pod ?? 0)}` : STATE[t.state]) : "open"}
                     {t?.team_id && t.state !== "searched" ? ` · ${callsign(t.team_id)}` : ""}
                   </td>
                 </tr>
@@ -398,8 +399,8 @@ function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[];
         </table>
       )}
       {all.length > 0 && (
-        <p className="border-t border-line px-2.5 py-1.5 text-caption text-text-3" title="The sectors tile the 1 km search grid; the rest of the probability is outside it.">
-          Outside the grid (rest of the world): <span className="text-text-2">{Math.round(Math.max(0, 1 - all.reduce((n, s) => n + s.poa, 0)) * 100)} %</span>
+        <p className="border-t border-line px-2.5 py-1.5 text-caption text-text-3" title={TERMS.rowTip}>
+          {TERMS.row}: <span className="text-text-2">{Math.round(Math.max(0, 1 - all.reduce((n, s) => n + s.poa, 0)) * 100)} %</span>
         </p>
       )}
       {all.length > SECTORS_SHOWN && (

@@ -16,6 +16,7 @@ import { DETECTOR_BROWSER, type ReviewCard } from "../review/LiveReview";
 import { cellsWithinRadius } from "../search/update";
 import { Button } from "../shell/components";
 import { Icon } from "../shell/icons";
+import { toReview } from "./terms";
 
 /** The hint on an empty Photos view. */
 export const DROP_HINT = "Drop a drone's photos here to see them ranked and placed";
@@ -87,7 +88,7 @@ export async function processDemoPhotos(items: readonly Item[], threshold: numbe
           at[id] = { lat, lon, photo: it.name, conf: d.conf };
           store.emit("detection.new", `${id} in the review queue`, id, { id, box_px: d.box, conf: d.conf, crop: null, lat, lon, radius_m: 10 });
         });
-        store.emit("mission.note", `Photo ${it.name} ranked and placed: ${dets.length} ${dets.length === 1 ? "candidate" : "candidates"}`, it.name, { photo: it.name });
+        store.emit("mission.note", `Photo ${it.name} ranked and on the map: ${toReview(dets.length)}`, it.name, { photo: it.name });
         useDropped.setState((s) => ({ cards: [...cards, ...s.cards], at: { ...s.at, ...at } }));
       } finally {
         bitmap.close();

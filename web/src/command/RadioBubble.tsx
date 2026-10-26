@@ -1,7 +1,7 @@
 // Two voices, never mixed up (V3 §3): what goes out on the air (a briefing the agent wrote for the radio,
 // a call from the desk) is a radio-styled bubble in the drone/radio teal with the callsigns in mono,
-// headed "Desk → Team One"; what the agent tells the search manager (its reason) is a plain violet note,
-// headed "Agent → you". Built by lane A.
+// headed "Radio to Team One"; what the agent tells the search manager (its reason) is a plain violet note,
+// headed "AI suggests". Built by lane A.
 import type { ReactNode } from "react";
 import { Icon } from "../shell/icons";
 
@@ -28,9 +28,8 @@ export function RadioBubble({ to, text, callsigns = [], from = "Desk", children 
       <figcaption className="flex items-center gap-1.5 text-caption text-[var(--drone)]">
         <Icon name="radio" size={12} />
         <span>
-          {from} → <span className="font-mono">{to}</span>
+          {from === "Desk" ? "Radio to" : `${from} to`} <span className="font-mono">{to}</span>
         </span>
-        <span className="text-text-3">on the radio</span>
       </figcaption>
       <blockquote className="relative rounded-md rounded-tl-sm border border-[color-mix(in_srgb,var(--drone)_45%,transparent)] bg-[color-mix(in_srgb,var(--drone)_9%,var(--bg))] px-2.5 py-1.5 text-small text-text-2">
         {withCallsigns(text, [to, ...callsigns])}
@@ -41,7 +40,7 @@ export function RadioBubble({ to, text, callsigns = [], from = "Desk", children 
 }
 
 /** What the agent says to the search manager: plain, violet, never styled as radio. */
-export function AgentNote({ children, label = "Agent → you" }: { children: ReactNode; label?: string }) {
+export function AgentNote({ children, label = "AI suggests" }: { children: ReactNode; label?: string }) {
   return (
     <div className="flex flex-col gap-0.5 border-l-2 border-[var(--proposal)] pl-2">
       <span className="text-caption font-medium text-[var(--proposal)]">{label}</span>

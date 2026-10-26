@@ -91,14 +91,14 @@ export function ReviewFrame({
         ref={box}
         role="dialog"
         aria-modal="true"
-        aria-label="Review candidates"
+        aria-label="Review photos"
         tabIndex={-1}
         data-review-frame=""
         onClick={(e) => e.stopPropagation()}
         className="sl-sheet flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-border bg-surface-solid shadow-[var(--shadow-pop)]"
       >
         <header className="sl-panel-head">
-          <span>Review candidates</span>
+          <span>Review photos</span>
           <span className="text-caption font-normal text-text-3">
             {c ? `${done + 1} of ${cards.length}` : `${done} of ${cards.length} answered`}
           </span>
@@ -108,7 +108,7 @@ export function ReviewFrame({
         </header>
         {!c ? (
           <div className="flex flex-col items-start gap-3 p-6">
-            <p className="text-title text-text">Every candidate has an answer.</p>
+            <p className="text-title text-text">Every photo has an answer.</p>
             <p className="text-body text-text-2">A Person is a pin on the map; the timeline has each answer.</p>
             <button type="button" onClick={close} className="sl-tap rounded-full border border-border px-4 py-1 text-small text-text">
               Back to the map

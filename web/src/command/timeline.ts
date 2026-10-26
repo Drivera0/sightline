@@ -3,6 +3,7 @@
 // (`TimelineEvent`s, GET /events and its SSE kinds) is shown as it is; otherwise the stream is built from
 // the mission's events, which every mission has. Pure. Built by lane A.
 import type { Clue, MissionEvent, Proposal, RadioTurn, SectorTask, Team, TimelineEvent } from "../contract";
+import { formatPod, plainWords, TERMS, type PlainCtx } from "./terms";
 
 export type EntryKind = TimelineEvent["kind"] | "note";
 
@@ -44,7 +45,7 @@ const entry = (e: Partial<Entry> & Pick<Entry, "id" | "at" | "kind" | "text">): 
   team: null, sector: null, detail: null, turn: null, clue: null, refs: [], repeats: 1, audio: null, ...e,
 });
 
-const pct = (v: number) => `${Math.round(v * 100)} %`;
+const pct = formatPod;
 
 /** A team id from an id or a callsign ("Team Two" → "T2"). */
 export function teamOf(teams: readonly Pick<Team, "id" | "callsign">[], who: string | null | undefined): string | null {
@@ -75,29 +76,30 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
       return entry({
         id: e.id, at: e.at, kind: "clue", team: by, refs: [c.id], clue: c.confirmed ? null : c,
         text: `${c.kind[0]!.toUpperCase()}${c.kind.slice(1)}: ${c.text}`,
-        detail: `${c.id} · ${by ? callsign(by) : c.reported_by === "command" ? "entered at command" : c.reported_by} · ${c.source === "radio" ? "by radio" : "entered at command"} · ${c.reliability ?? "medium"} reliability · ${c.confirmed ? "confirmed" : "awaiting read-back"}`,
+        detail: `${[by ? callsign(by) : c.reported_by === "command" ? null : c.reported_by, c.source === "radio" ? "by radio" : TERMS.commandPost].filter(Boolean).join(" · ")} · ${c.reliability ?? "medium"} reliability · ${c.confirmed ? "confirmed" : "awaiting read-back"}`,
       });
     }
     case "detection.new":
-      return entry({ id: e.id, at: e.at, kind: "detection", refs: e.ref ? [e.ref] : [], text: `Candidate ${e.ref ?? ""} in the review queue`.replace("  ", " ") });
+      return entry({ id: e.id, at: e.at, kind: "detection", refs: e.ref ? [e.ref] : [], text: `New ${TERMS.reviewItem} in ${TERMS.review}` });
     case "verdict": {
       const v = d as { detection_id?: string; person?: string; reason?: string } | null;
-      return entry({ id: e.id, at: e.at, kind: "detection", refs: e.ref ? [e.ref] : [], text: `Second look on ${v?.detection_id ?? e.ref}: ${v?.person === "yes" ? "likely a person" : v?.person === "no" ? "probably not a person" : "unclear"}` });
+      return entry({ id: e.id, at: e.at, kind: "detection", refs: e.ref ? [e.ref] : [], text: `${TERMS.recheck} of a near-miss photo: ${v?.person === "yes" ? "likely a person" : v?.person === "no" ? "probably not a person" : "unclear"}` });
     }
     case "photo.processed":
       // one entry when the flight starts and ends, never one per photo
       return /flight (starts|ends)/.test(e.summary) ? entry({ id: e.id, at: e.at, kind: "drone", refs: e.ref ? [e.ref] : [], text: e.summary.replace(/^f\d+ processed \((.*)\)$/, "Survey photos: $1") }) : null;
     case "proposal.new": {
       const p = d as unknown as Proposal | null;
-      return entry({ id: e.id, at: e.at, kind: "decision", sector: p?.target.sector ?? null, team: p?.target.team ?? null, refs: [e.ref ?? ""], text: `Agent proposes: ${p?.summary ?? e.summary}`, detail: p?.reason ?? null });
+      return entry({ id: e.id, at: e.at, kind: "decision", sector: p?.target.sector ?? null, team: p?.target.team ?? null, refs: [e.ref ?? ""], text: `${TERMS.aiSuggests}: ${p?.summary ?? e.summary}`, detail: p?.reason ?? null });
     }
     case "proposal.decided": {
       const p = d as unknown as Proposal | null;
       if (!p) return null;
-      const by = scenarioManager(p.decided_by ?? "someone");
+      // the visitor (the console's "Search manager") is "You"; the scenario's own is "The search manager"
+      const by = p.decided_by === "Search manager" ? "You" : scenarioManager(p.decided_by ?? "someone");
       return entry({
         id: e.id, at: e.at, kind: "decision", sector: p.target.sector ?? null, team: p.target.team ?? null, refs: [p.id],
-        text: `${by} ${p.status === "approved" ? "approved" : p.status === "rejected" ? "rejected" : p.status} agent ${p.id}: ${p.summary}`,
+        text: `${by} ${p.status === "approved" ? "approved" : p.status === "rejected" ? "rejected" : p.status} the AI's suggestion: ${p.summary}`,
         detail: p.decision_reason,
       });
     }
@@ -131,14 +133,15 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
 
 /**
  * The scenario's own search manager (the fixture's scripted decisions) is never shown as the visitor, who is
- * "Search manager" on this console (judges 2026-10-23): "The scenario's search manager approved…".
+ * "Search manager" on this console (judges 2026-10-23); the usability test (2026-10-25) found "the scenario's"
+ * confusing, so it reads "The search manager approved…" and the disclosure chip says the run is a simulation.
  */
 export const scenarioManager = (text: string) =>
-  text.replace(/(\b[Bb]y )?Search manager \(scripted for the demo fixture\)/g, (_, by: string | undefined) => (by ? `${by}the scenario's search manager` : "The scenario's search manager"));
+  text.replace(/(\b[Bb]y )?Search manager \(scripted for the demo fixture\)/g, (_, by: string | undefined) => (by ? `${by}the search manager` : "The search manager"));
 
 /** The demo's per-line notes ("scripted for the demo fixture", "simulated relay"): the one disclosure chip says it once. */
-export const plain = (text: string) =>
-  scenarioManager(text).replace(/\s*\((?:scripted|typed) for the demo fixture\)/g, "").replace(/\s*\(simulated(?: [a-z ]+)?\)/g, "").trim();
+export const plain = (text: string, ctx: PlainCtx = {}) =>
+  plainWords(scenarioManager(text).replace(/\s*\((?:scripted|typed) for the demo fixture\)/g, "").replace(/\s*\(simulated(?: [a-z ]+)?\)/g, "").trim(), ctx);
 
 /** A server's timeline entry as the console shows it. */
 export function fromTimeline(e: TimelineEvent, i: number, teams: readonly Team[], turns: readonly RadioTurn[] = []): Entry {
@@ -153,7 +156,8 @@ export function fromTimeline(e: TimelineEvent, i: number, teams: readonly Team[]
  * The timeline, newest first: the server's entries where it sends them (each carries the id of the event it
  * came from), and the mission's own events for the rest (a direct action just taken, the demo's moves).
  */
-export function buildTimeline(events: readonly MissionEvent[], teams: readonly Team[], server: readonly TimelineEvent[] = []): Entry[] {
+/** `ctx`: the fleet's leg names ("Drone 1 · flight line 1") for the lines that name a leg (terms.plainWords). */
+export function buildTimeline(events: readonly MissionEvent[], teams: readonly Team[], server: readonly TimelineEvent[] = [], ctx: PlainCtx = {}): Entry[] {
   const turns = events.filter((e) => e.type === "radio.turn" && e.data).map((e) => e.data as unknown as RadioTurn);
   const fromServer = server.map((e, i) => fromTimeline(e, i, teams, turns));
   const known = new Set(fromServer.map((e) => e.id));
@@ -166,6 +170,12 @@ export function buildTimeline(events: readonly MissionEvent[], teams: readonly T
   const last = server.reduce((m, e) => (e.at > m ? e.at : m), "");
   const fresh = (e: Entry) => !server.length || (!known.has(e.id) && (e.id.startsWith("u") || e.at > last));
   const all = [...fromServer, ...derived.filter(fresh)];
+  // every line in the console's words (the Trace keeps the engine's)
+  for (const e of all) {
+    if (e.kind === "radio") continue; // what a team said stays as said
+    e.text = plainWords(e.text, ctx);
+    if (e.detail) e.detail = plainWords(e.detail, ctx);
+  }
   return merge(all.sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id)));
 }
 

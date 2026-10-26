@@ -45,7 +45,7 @@ describe("the report's new fields", () => {
     expect(md).toMatch(/- \*\*Last seen:\*\* 19:48, 3 h 52 min before the call/);
     expect(md).toContain("## Every sector's final POD");
     expect(md).toContain("| A1 | 2.3 % | 0 % | 55 % |");
-    expect(md).toContain("## Drone legs");
+    expect(md).toContain("## Drone flight lines");
     expect(md).toContain("| L001 | Drone 1 | B3 | cancelled | 4.3 (reported) | 109 |");
     expect(md).not.toMatch(/\bclear(s|ed|ing)?\b|rule out/i);
   });
@@ -55,7 +55,7 @@ describe("the report's new fields", () => {
     expect(screen.getByText("Last seen")).toBeInTheDocument();
     const sectors = screen.getByRole("region", { name: "Every sector's final POD" });
     expect(within(sectors).getAllByRole("row")).toHaveLength(report.sectors.length + 1);
-    const legs = screen.getByRole("region", { name: "Drone legs" });
+    const legs = screen.getByRole("region", { name: "Drone flight lines" });
     expect(within(legs).getAllByRole("row")).toHaveLength(report.legs.length + 1);
     expect(within(legs).getByText("109")).toBeInTheDocument();
   });

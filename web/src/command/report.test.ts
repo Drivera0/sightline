@@ -33,7 +33,7 @@ describe("the after-action report", () => {
     expect(r.events.map((e) => e.text)).toEqual([
       "Survey photos: the flight starts",
       "Track: boot prints",
-      "Dana approved agent p003: Assign sector C2 to Team One",
+      "Dana approved the AI's suggestion: Assign sector C2 to Team One",
       "Found: Team One has the subject in C2",
     ]);
     expect(r.searched).toEqual([{ sector: "B4", pod: 0.6, team: "Team One", note: "both ditches" }]);

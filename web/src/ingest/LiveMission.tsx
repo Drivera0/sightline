@@ -583,7 +583,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     if (at && !s.clues.some((c) => c.text.includes(id))) {
       const draft = {
         kind: "sighting" as const,
-        text: `person confirmed by the image reviewer in ${at.frame} (${id}, detector ${at.conf.toFixed(2)})`,
+        text: `person confirmed in Review photos, survey photo ${at.frame.replace(/^f0*/, "")} (score ${at.conf.toFixed(2)})`,
         lat: at.lat,
         lon: at.lon,
         at_team_position: false,
@@ -644,7 +644,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
             <section aria-label="Progress" className="grid grid-cols-3 gap-3 rounded-lg border border-line bg-surface-solid p-3">
               <Stat value={progress.processed} label="Processed" />
               <Stat value={progress.medianS === null ? "–" : progress.medianS < 1 ? `${Math.round(progress.medianS * 1000)} ms` : `${progress.medianS.toFixed(1)} s`} label="Per photo" />
-              <Stat value={progress.candidates + s.promoted.length} label="Candidates" />
+              <Stat value={progress.candidates + s.promoted.length} label="Photos to review" />
             </section>
             <UploadPanel api={api} missionId={missionId} processed={progress.processed} />
             <WatchPanel base={api.base} missionId={missionId} />
@@ -664,7 +664,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const review =
     reviewCount > 0 || tried ? (
       demo ? (
-        <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id])} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Candidates appear here as the survey's photos land." />
+        <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id])} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Photos to review appear here as the survey's photos land." />
       ) : (
         <ReviewRail cards={live} answers={liveAnswers} onAnswer={answerLive} top={tried} />
       )
@@ -733,7 +733,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       <div className="flex min-h-dvh flex-col lg:h-dvh">
         <AppBar
           mission={{ name: (s.mission?.name ?? (demo ? "Mount Seymour" : "…")).replace(/\s*\(demo\)$/i, ""), mode: demo ? "demo" : modeOf(s.status), clock: barClock, clockTitle: barTitle, disclose: demo }}
-          views={{ current: view, onSelect: go, counts: { map: needsCount || undefined, photos: inStory ? frameCount || undefined : undefined } }}
+          views={{ current: view, onSelect: go, counts: { photos: inStory ? frameCount || undefined : undefined } }}
           tabs={{
             current: tab,
             needs: needsCount || undefined,

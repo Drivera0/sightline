@@ -270,7 +270,7 @@ export function useGuideRun({
         const team = optionId.startsWith("team:") ? optionId.slice(5) : undefined;
         void decide(i.proposal, "approve", by, undefined, team ? { team } : undefined);
       } else if (i.id === "link" && optionId === "relay") {
-        m.emit("mission.note", `Relay: a second drone holds over the ridge for the one that lost its link; its own leg stops (by ${by})`, null, { action: "relay", by });
+        m.emit("mission.note", `Relay: a second drone holds over the ridge for the one that lost its link; its own flight line stops (by ${by})`, null, { action: "relay", by });
       } else if (i.id === "find" && i.find) {
         const { team, sector } = i.find;
         if (optionId === "confirm") void m.call(team, "confirm the subject's description, over.");

@@ -13,6 +13,7 @@ import { useConsole } from "./consoleStore";
 import { distractorCards, objectClue } from "./demoReview";
 import { NeedsYou } from "./NeedsYou";
 import { ReviewFrame } from "./ReviewFrame";
+import { plainWords } from "./terms";
 
 const distractors = fixture.distractors as unknown as DistractorFrame[];
 const timeline = fixture.timeline as unknown as TimelineEvent[];
@@ -44,7 +45,7 @@ describe("review answers", () => {
   it("the candidate cards offer them too; Object opens the type picker, the second look's guess marked", async () => {
     const onAnswer = vi.fn();
     render(<ReviewRail cards={[card("f0501-d01", { object: "fire ring" })]} answers={{}} onAnswer={onAnswer} />);
-    const c = screen.getByLabelText("Candidate f0501-d01");
+    const c = screen.getByLabelText("Photo to review f0501-d01");
     expect(within(c).getAllByRole("button").map((b) => b.textContent).slice(-5)).toEqual(["Person", "Not a person", "Not the subject", "Object", "Unsure"]);
     await userEvent.click(within(c).getByRole("button", { name: "Object" }));
     const picker = within(c).getByRole("group", { name: "Object type" });
@@ -60,7 +61,7 @@ describe("review answers", () => {
     const all = distractorCards(distractors, timeline, events);
     expect(all.map((c) => c.id)).toEqual(distractors.map((d) => d.detection_id));
     const ring = all.find((c) => c.id === "f0501-d01")!;
-    expect(ring).toMatchObject({ object: "fire ring", size: [1000, 750], words: "Second look: probably not a person · looks like a fire ring" });
+    expect(ring).toMatchObject({ object: "fire ring", size: [1000, 750], words: "AI re-check: probably not a person · looks like a fire ring" });
     expect(ring.photo).toMatch(/cache-extras\/distractors\/fire-ring\.jpg$/);
   });
 
@@ -78,8 +79,8 @@ describe("review answers", () => {
     render(
       <NeedsYou proposals={[]} teams={[]} drones={[]} events={[]} clues={[candidate]} now={new Date(candidate.at)} checkInMin={30} onDecide={vi.fn()} imageUrl={(r) => r} review={null} reviewCount={0} onCall={vi.fn()} onRecall={vi.fn()} onConfirmClue={onConfirm} />,
     );
-    const item = screen.getByRole("article", { name: "Clue candidate to confirm" });
-    expect(item).toHaveTextContent(`Clue candidate to confirm: ${candidate.text}`);
+    const item = screen.getByRole("article", { name: "Possible clue to confirm" });
+    expect(item).toHaveTextContent(`Possible clue to confirm: ${plainWords(candidate.text)}`);
     await userEvent.click(within(item).getByRole("button", { name: "Confirm clue" }));
     expect(onConfirm).toHaveBeenCalledWith(candidate.id);
   });

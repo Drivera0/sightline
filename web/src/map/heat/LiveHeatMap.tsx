@@ -59,6 +59,7 @@ import { useTheme } from "../../shell/theme";
 import { gridCorners, HeatRaster, kindColors, kindPixels, surfaceTheme } from "./raster";
 import { type CandidatePlace, useFocusLayers } from "./focusLayers";
 import { ensureSurfaceLayers, pushSurface, setSurfaceMode, setSurfacePalette, surfaceIds } from "./surface";
+import { plainWords } from "../../command/terms";
 
 // The one glyph set the site serves (public/basemap/fonts). A symbol layer without "text-font" asks for
 // MapLibre's default stack, which is not there: a 404 and no labels.
@@ -300,7 +301,7 @@ function LiveLayers({
           layout: {
             "text-field": ["get", "text"],
             "text-font": GLYPH_FONT,
-            "text-size": 11,
+            "text-size": 13,
             "text-variable-anchor": ["center", "top", "bottom", "left", "right"],
             "text-radial-offset": 1.4,
             "text-allow-overlap": false,
@@ -861,7 +862,7 @@ function placedLabels(map: Map, points: readonly MissionFeature[], drones: reado
   for (const f of points) {
     const k = f.properties.kind;
     const base = { id: `${k}:${f.properties.id}`, at: px(f), geo: ll(f) };
-    if (k === "found") inputs.push({ ...base, kind: "found", text: f.properties.label, size: 12, required: true, color: toneColor.found! });
+    if (k === "found") inputs.push({ ...base, kind: "found", text: f.properties.label, size: 13, required: true, color: toneColor.found! });
     else if (k === "lkp") inputs.push({ ...base, kind: "lkp", text: f.properties.label, required: true, color: toneColor.text! });
     else if (k === "base") inputs.push({ ...base, kind: "base", text: f.properties.label, color: toneColor.text! });
     else if (k === "team" && !atBase.has(f.properties.id)) inputs.push({ ...base, kind: "team", text: String(f.properties.short ?? f.properties.id), color: toneColor[f.properties.tone] ?? toneColor.text! });
@@ -872,7 +873,7 @@ function placedLabels(map: Map, points: readonly MissionFeature[], drones: reado
     inputs.push({ id: "team:at-base", kind: "team", text: atBaseText(shorts), at: px(camp), geo: ll(camp), color: toneColor.text! });
   }
   for (const f of drones) {
-    inputs.push({ id: `drone:${f.properties.id}`, kind: "drone", text: `${f.properties.short ?? f.properties.id} ${f.properties.battery ?? ""}`.trim(), size: 11.5, at: px(f), geo: ll(f), color: f.properties.tone === "warn" ? toneColor.warn! : toneColor.drone! });
+    inputs.push({ id: `drone:${f.properties.id}`, kind: "drone", text: `${f.properties.short ?? f.properties.id} ${f.properties.battery ?? ""}`.trim(), size: 13, at: px(f), geo: ll(f), color: f.properties.tone === "warn" ? toneColor.warn! : toneColor.drone! });
   }
   const icons = [...points, ...drones].map(px);
   const placed = layoutPointLabels(inputs, icons, view, overlayBoxes(c));
@@ -998,7 +999,7 @@ export function mapTextAlternative({
       ? `Teams: ${teams.map((t) => `${t.callsign} ${TEAM_WORDS[t.status]}${t.position ? "" : ", no position"}`).join("; ")}.`
       : "No teams.",
     clues.length
-      ? `Clues: ${clues.map((c) => `${c.id} ${c.kind}: ${c.text} (${callsign(c.reported_by)}, ${c.confirmed ? "confirmed" : "unconfirmed"})`).join("; ")}.`
+      ? `Clues: ${clues.map((c) => `${c.kind}: ${plainWords(c.text)} (${c.reported_by === "command" ? "the command post" : callsign(c.reported_by)}, ${c.confirmed ? "confirmed" : "unconfirmed"})`).join("; ")}.`
       : "No clues yet.",
     drones.length
       ? `Drones${fleet?.simulated ? " (simulated)" : ""}: ${drones.map((d) => droneWords(d, links[d.id], now)).join("; ")}.`
@@ -1159,9 +1160,9 @@ const LEGEND: readonly { key: string; title?: string; content: ReactNode }[] = [
   { key: "teams", content: <><Mark name="team" className="text-team" />Team out<Mark name="team" className="ml-2 text-alert" />overdue<Mark name="team" className="ml-2 text-text-3" />at base</> },
   { key: "drone", title: "Hover or focus a drone for its name, battery, link and when it was last heard", content: <><Mark name="drone" className="text-drone" />Drone, battery<Mark name="drone" className="ml-2 text-warn" />link degraded</> },
   { key: "clue", content: <><Mark name="clue" className="text-clue" />Clue<Mark name="found" className="ml-2 text-found" />Found</> },
-  { key: "route", content: <><Line className="h-0.5 bg-drone" />Active drone leg<Line className="ml-2 h-0.5 bg-team" />team route</> },
+  { key: "route", content: <><Line className="h-0.5 bg-drone" />Drone flight line<Line className="ml-2 h-0.5 bg-team" />team route</> },
   { key: "past", content: <><Line className="h-0.5 bg-text/20" />Flown<Line className="ml-2 border-t border-dashed border-drone" />planned</> },
-  { key: "retask", content: <><Line className="border-t border-dashed border-text-2" />Re-tasked: where a drone turned</> },
+  { key: "retask", content: <><Line className="border-t border-dashed border-text-2" />Sent elsewhere: where a drone turned</> },
   { key: "relay", content: <><Line className="border-t-2 border-dotted border-drone" />Relay: a drone carries a cut-off team</> },
 ];
 

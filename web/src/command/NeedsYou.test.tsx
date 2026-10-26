@@ -57,7 +57,7 @@ describe("Needs you", () => {
     expect(within(closed).getAllByText("closed: subject found")).toHaveLength(2); // the first two, then a link
     await userEvent.click(within(closed).getByRole("button", { name: "Show 1 more" }));
     expect(within(closed).getAllByText("closed: subject found")).toHaveLength(3); // two proposals, the candidates
-    expect(closed).toHaveTextContent("14 candidates to review");
+    expect(closed).toHaveTextContent("14 photos to review");
   });
 
   it("still asks about an overdue team after the find, and Recall still works", async () => {

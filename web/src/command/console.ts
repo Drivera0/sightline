@@ -26,11 +26,11 @@ export function daylightMin(c: Conditions | null, now: Date): number | null {
   return Math.max(0, (ms(c.civil_twilight_end) - now.getTime()) / MIN);
 }
 
-/** Flyability as one word with the gate time ("Flyable to 18:36"), its tone, and the reason (the tooltip). */
+/** Flyability in plain words with the gate time ("Drones can fly until 18:36"), its tone, and the reason (the tooltip). */
 export function flyWord(c: Conditions | null, tz: Tz): { word: string; tone: "ok" | "alert" | "muted"; reason: string } {
-  if (!c || c.flyable === null) return { word: "Flyability unknown", tone: "muted", reason: c?.flyability_reason || "conditions not looked up yet" };
-  if (!c.flyable) return { word: "Not flyable", tone: "alert", reason: c.flyability_reason };
-  return { word: c.flyable_until ? `Flyable to ${clock(c.flyable_until, tz)}` : "Flyable", tone: "ok", reason: c.flyability_reason };
+  if (!c || c.flyable === null) return { word: "Drone flying: not known", tone: "muted", reason: c?.flyability_reason || "conditions not looked up yet" };
+  if (!c.flyable) return { word: "Drones grounded", tone: "alert", reason: c.flyability_reason };
+  return { word: c.flyable_until ? `Drones can fly until ${clock(c.flyable_until, tz)}` : "Drones can fly", tone: "ok", reason: c.flyability_reason };
 }
 
 const OUT: readonly Team["status"][] = ["assigned", "searching", "returning", "overdue"];
