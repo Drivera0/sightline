@@ -15,6 +15,7 @@ import { useConsole } from "./consoleStore";
 import { DRAIN_PCT_PER_MIN, flights, fleetNow, legSortie } from "./fleetSim";
 import { demoAt, placeOf } from "./missionTime";
 import { buildTimeline } from "./timeline";
+import { NeedsYou } from "./NeedsYou";
 import { passesFrom } from "./sim";
 
 const MIN = 60_000;
@@ -228,5 +229,21 @@ describe("a sighting changes the plan", () => {
     expect(send.reason).toMatch(/nearest team/);
     const p002 = s.proposals!.find((p) => p.id === "p002")!;
     expect(p002.reason).toMatch(/possible sighting in [A-D]\d waits for a team/);
+    // not the team the first assignment asks for, while another can go
+    expect(send.target.team).not.toBe(p002.target.team);
+  });
+
+  it("in the guided search it is never hidden by the step's pointer, nor counted in 'N more after this step'", () => {
+    const p = (id: string, team: string, sector: string) => ({ ...fx.proposals!.find((x) => x.id === "p002")!, id, status: "pending" as const, decided_at: null, decided_by: null, target: { team, sector }, summary: `Send ${team} to the sighting in ${sector} (+16 min)` });
+    render(
+      <NeedsYou proposals={[p("sight-s-x", "T2", "C3"), p("p002", "T1", "C2")]} teams={fx.teams ?? []} drones={[]} events={[]} clues={[]} now={new Date("2026-10-24T21:45:00Z")} checkInMin={30} onDecide={vi.fn()} imageUrl={(r) => r} review={null} reviewCount={0} onCall={vi.fn()} onRecall={vi.fn()} onConfirmClue={vi.fn()} highlight="review" />,
+    );
+    const group = screen.getByRole("group", { name: "Possible sighting" });
+    const card = group.querySelector("[data-proposal='sight-s-x']")!;
+    expect(card).not.toHaveAttribute("data-dimmed");
+    expect(card.className).not.toMatch(/\bhidden\b/);
+    expect(within(group).getByRole("button", { name: /Send Team Two to the sighting/ })).toBeInTheDocument();
+    // the hidden one is the C2 proposal, and only it
+    expect(screen.getByRole("note")).toHaveTextContent("1 more after this step");
   });
 });

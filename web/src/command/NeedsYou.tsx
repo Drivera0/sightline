@@ -208,6 +208,13 @@ export function NeedsYou({
   // a sighting proposal and a photo review's possible clue are never hidden (the manager's own answer made them)
   const shownAnyway = sightingProps.length + readbacks.filter((i) => isClueCandidate(i.clue)).length;
   const after = highlight ? Math.max(0, total - shownAnyway - (pointed ? (highlight === "review" ? reviewCount : 1) : 0)) : 0;
+  // the agent's "send the nearest team to the sighting": the manager's own answer made it, never hidden or dimmed
+  const sighting = sightingProps.length > 0 && (
+    <div role="group" aria-label="Possible sighting" className="flex flex-col gap-2">
+      <NeedsHead kind="sighting" count={sightingProps.length} />
+      <ApprovalInbox proposals={sightingProps} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={null} feedHref={undefined} order="oldest" highlight={null} />
+    </div>
+  );
 
   return (
     <section aria-label="Needs you" data-tour="needs" className="flex min-h-0 flex-col overflow-hidden lg:flex-1 rounded-lg border border-line bg-surface-solid">
@@ -241,13 +248,7 @@ export function NeedsYou({
             highlight={highlight}
           />
         ))}
-        {sightingProps.length > 0 && (
-          <>
-            <NeedsHead kind="sighting" count={sightingProps.length} />
-            {/* the manager's own answer made it: never dimmed by the guided search's pointer */}
-            <ApprovalInbox proposals={sightingProps} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={null} feedHref={undefined} order="oldest" highlight={null} />
-          </>
-        )}
+        {!highlight && sighting}
         {overdue.length > 0 && <NeedsHead kind="overdue" count={overdue.length} hidden={off((x) => overdue.some((i) => i.id === x))} />}
         {overdue.map((i) => (
           <NeedItem
@@ -307,6 +308,8 @@ export function NeedsYou({
             {review}
           </div>
         )}
+        {/* the guided search: right under the step's item (the rest is hidden), never hidden itself */}
+        {highlight && sighting}
       </div>
     </section>
   );

@@ -225,7 +225,8 @@ export function injects(input: GuideInput): Inject[] {
       id: "clue",
       key: "clue",
       at: ms(clue.at),
-      lead: "The teams stand by at base camp while the review lands.",
+      // the team that radios it is out on a hasty search along the trail (missionTime.ts hastyAt), the others at base camp
+      lead: `${who}, out on a hasty search along the trail, radios a clue.`,
       prompt: `Read back ${who}'s call: press Confirm clue on its card in Needs you, ask for a bearing, or log it without mapping.`,
       agentSays: `${who}: ${clue.text}.`,
       options: [
@@ -427,6 +428,21 @@ export function choiceFor(i: Inject, optionId: string, f: number, card: TriageCa
 }
 
 /**
+ * An assignment that carried out an approved sighting proposal (`sight-…`, missionTime.ts): the same team
+ * and sector, within a minute of the approval.
+ */
+export function sightingSend(user: readonly MissionEvent[], e: MissionEvent): boolean {
+  const t = e.data as { team_id?: string; sector_id?: string } | null;
+  if (e.type !== "task.updated" || !t) return false;
+  return user.some((x) => {
+    if (x.type !== "proposal.decided" || !x.ref?.startsWith("sight-")) return false;
+    const p = x.data as unknown as Proposal | null;
+    if (!p || p.status !== "approved") return false;
+    return (p.edits?.team ?? p.target.team) === t.team_id && p.target.sector === t.sector_id && Math.abs(ms(e.at) - ms(x.at)) <= 60_000;
+  });
+}
+
+/**
  * A decision the visitor made on the console itself (not on the mark): an answer in the review queue, a
  * read-back confirmed, an assignment (Approve on the card, Edit, a sector on the map), the find recorded.
  */
@@ -444,7 +460,8 @@ export function choiceFromConsole(i: Inject, input: GuideInput, answers: Readonl
   }
   if (i.id === "assign") {
     // the visitor's own move, made by now (not the agent's standing picks, which come later and alone)
-    const e = input.user.find((x) => after(x) && ms(x.at) <= f && !x.id.startsWith("auto-") && x.type === "task.updated" && (x.data as { state?: string } | null)?.state === "assigned");
+    // sending a team to a reviewer's sighting (the AI's "Send Team Two to the sighting") is its own decision, not this step's
+    const e = input.user.find((x) => after(x) && ms(x.at) <= f && !x.id.startsWith("auto-") && x.type === "task.updated" && (x.data as { state?: string } | null)?.state === "assigned" && !sightingSend(input.user, x));
     if (!e) return null;
     const t = e.data as unknown as { team_id: string; sector_id: string };
     const p = input.full?.data.proposals?.find((x) => x.id === i.proposal);

@@ -7,7 +7,7 @@ import despondent from "./__fixtures__/scenarios/despondent.json";
 import dementia from "./__fixtures__/scenarios/dementia.json";
 import hiker from "./__fixtures__/scenarios/overdue-hiker.json";
 import { SECOND_LOOK_ID } from "./demoReview";
-import { activeInject, agentOption, choiceFor, costsOf, currentCard, hotWash, injects, lastLight, PIPS, searchEnd, sendAllLabel, standingUser, type Choice, type GuideInput, type Inject } from "./guide";
+import { activeInject, agentOption, choiceFor, choiceFromConsole, costsOf, currentCard, hotWash, injects, lastLight, PIPS, searchEnd, sendAllLabel, standingUser, type Choice, type GuideInput, type Inject } from "./guide";
 import { demoAt, onMissionClock, poaOf, subjectOf, type DemoFull } from "./missionTime";
 import { shiftTimes } from "./scenarios";
 import { agentLine, fixtureOf, passesFrom, realOf, TEAM_POD } from "./sim";
@@ -113,6 +113,46 @@ describe("every choice path reaches the find within the run (the cold test's end
         // one team at a time can run past last light; from there every free team goes (the fallback)
         if (name.startsWith("send all")) expect(new Date(found.at).getTime()).toBeLessThan(lastLight(full));
       });
+
+  it("approving the sighting first is its own decision: the Assign step still waits with its proposal, and the run reaches the find", () => {
+    for (const [full, seed] of scenarios) {
+      const choices: Choice[] = [];
+      const mine: MissionEvent[] = [];
+      let sent = false;
+      for (let guard = 0; guard < 80 && !(choices.at(-1)?.inject === "find"); guard++) {
+        const user = standingUser(full, seed, mine, choices);
+        const input: GuideInput = { full, seed, user, choices, queue };
+        const i = activeInject(injects(input), choices)!;
+        expect(i).toBeTruthy();
+        if (i.key === "assign" && !sent) {
+          // a reviewer's Person on a photo in the subject's area, then the AI's "send the nearest team" approved
+          const subject = subjectOf(full)!;
+          const at = i.at - 60_000;
+          mine.push({ id: `u${++seq}`, type: "clue.added", at: iso(at), summary: "sighting", ref: "s-x", data: { id: "s-x", kind: "sighting", text: "person confirmed", lat: subject.lat, lon: subject.lon, radius_m: 10, at: iso(at), at_team_position: false, reliability: "high", reported_by: "command", source: "form", confirmed: true, confirmed_by_turn: null } as never });
+          const p = (demoAt(full, iso(i.at), mine, { seed }).proposals ?? []).find((x) => x.id === "sight-s-x")!;
+          expect(p.status).toBe("pending");
+          mine.push({ id: `u${++seq}`, type: "proposal.decided", at: iso(i.at), summary: "", ref: p.id, data: { ...p, status: "approved", decided_by: "Search manager", decided_at: iso(i.at) } as never });
+          mine.push(assignEv(p.target.team!, p.target.sector!, i.at));
+          sent = true;
+          // not this step's decision: the step and its proposal are still there
+          const after = standingUser(full, seed, mine, choices);
+          expect(choiceFromConsole(i, { full, seed, user: after, choices, queue }, {}, i.at)).toBeNull();
+          expect(activeInject(injects({ full, seed, user: after, choices, queue }), choices)!.key).toBe("assign");
+          expect((demoAt(full, iso(i.at), after, { seed }).proposals ?? []).find((x) => x.id === i.proposal)?.status).toBe("pending");
+          continue;
+        }
+        const card = currentCard(i, choices);
+        choices.push(choiceFor(i, agentOption(i, card).id, i.at, card, true));
+        if (i.id === "assign") {
+          const target = i.key === "assign" ? storyProposal(full)!.target : (demoAt(full, iso(i.at + 1000), user, { seed }).proposals ?? []).find((x) => x.id === i.proposal)?.target;
+          if (target?.team && target.sector) mine.push(assignEv(target.team, target.sector, i.at));
+        }
+        if (i.id === "find" && i.find) mine.push(foundEv(i.find.team, i.find.sector, i.at));
+      }
+      expect(sent).toBe(true);
+      expect(choices.at(-1)!.inject).toBe("find");
+    }
+  });
 
   it("offers one primary at the assign step, the same words as the card, and 'send only' second", () => {
     const list = injects({ full: overdue, seed: "overdue-hiker", user: [], choices: [], queue });

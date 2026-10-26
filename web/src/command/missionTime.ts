@@ -735,7 +735,9 @@ function withSightings(s: MissionData, full: DemoFull, passes: readonly Pass[], 
     if (proposals.some((p) => p.id === id)) continue;
     const sector = sectorAt(s.sectors, clue);
     if (!sector || passes.some((p) => p.sector === sector && p.start >= ms(clue.at) && !p.cut)) continue;
-    const near = nearestTeam(s.teams, clue, HOME);
+    // not a team another pending assignment asks for (the first assignment's team), unless no other can go
+    const asked = proposals.filter((p) => p.status === "pending" && p.kind === "assign_sector" && !p.id.startsWith("sight-") && p.target.team).map((p) => p.target.team as string);
+    const near = nearestTeam(s.teams, clue, HOME, asked) ?? nearestTeam(s.teams, clue, HOME);
     if (!near) continue;
     const where = near.team.status === "standby" ? "at base camp" : near.team.status === "returning" ? "on its way back" : `out in ${s.tasks.find((t) => t.team_id === near.team.id)?.sector_id ?? "the field"}`;
     proposals = [
