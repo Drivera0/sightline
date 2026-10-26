@@ -42,13 +42,13 @@ launch() {
   fi
   aws iam attach-role-policy --role-name "$role" --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
   aws iam put-role-policy --role-name "$role" --policy-name "$PREFIX-results" --policy-document \
-    "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"s3:PutObject\",\"Resource\":\"arn:aws:s3:::$BUCKET/cool/*\"}]}"
+    "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"s3:PutObject\",\"Resource\":\"arn:aws:s3:::$BUCKET/cool/*\"},{\"Effect\":\"Allow\",\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::$BUCKET/cool/inputs/*\"}]}"
   if ! aws iam get-instance-profile --instance-profile-name "$role" >/dev/null 2>&1; then
     aws iam create-instance-profile --instance-profile-name "$role" >/dev/null
     aws iam add-role-to-instance-profile --instance-profile-name "$role" --role-name "$role"
     sleep 15  # a new instance profile takes a moment before EC2 accepts it
   fi
-  say "IAM role $role (SSM, s3:PutObject on $BUCKET/cool/*)"
+  say "IAM role $role (SSM, s3:PutObject on $BUCKET/cool/*, s3:GetObject on cool/inputs/*)"
 
   local vpc sg
   vpc=$(aws ec2 describe-vpcs --filters Name=is-default,Values=true --query 'Vpcs[0].VpcId' --output text)
