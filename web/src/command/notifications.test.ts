@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { MissionEvent } from "../contract";
 import { useNotify, TOAST_MAX, unreadCount } from "../shell/notify";
 import { ringAlpha } from "../map/heat/clueFlash";
+import { REVIEW_ANSWERS } from "../review/answers";
 import { BURST, freshEvents, reviewToast, toastFor } from "./notifications";
 
 const AT = "2026-10-24T21:40:00Z";
@@ -67,6 +68,14 @@ describe("freshEvents", () => {
   it("a burst (the story seeking) or the clock going back is a jump: no toasts", () => {
     expect(freshEvents(new Set(["e0"]), list(BURST + 5))).toBeNull();
     expect(freshEvents(new Set(list(5).map((e) => e.id)), list(2))).toBeNull();
+  });
+});
+
+describe("reviewToast", () => {
+  it("names the answers by the buttons' own labels", () => {
+    const body = reviewToast(3).body ?? "";
+    for (const a of REVIEW_ANSWERS.filter((x) => !x.more)) expect(body).toContain(a.label);
+    expect(body).not.toMatch(/\bPerson\b|\bUnsure\b/);
   });
 });
 

@@ -1,8 +1,8 @@
 // The Review view: the console's right rail of candidates, most confident first, each with the second
-// look's verdict in words and which models made it, and the answers (answers.tsx: Person, Not a person,
-// Not the subject, Object with its type, Unsure). One list for a
-// live mission (answers go to POST /reviews through useMission, LANE_D §5.5 D-Q1), the demo mission (a
-// Person pins a sighting on the map) and Try a photo (your own photo's boxes, at the top).
+// look's verdict in words and which models made it, and the answers (answers.tsx: The subject, Another person,
+// Not a person; under More a group, Object with its type, Unsure). One list for a
+// live mission (answers go to POST /reviews through useMission, LANE_D §5.5 D-Q1), the demo mission (The
+// subject pins a sighting on the map) and Try a photo (your own photo's boxes, at the top).
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isTyping } from "../lib/keys";
