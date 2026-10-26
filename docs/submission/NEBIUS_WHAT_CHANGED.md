@@ -1,6 +1,6 @@
 # What changed during the submission period (Nebius × NVIDIA Global AI Hackathon)
 
-Sightline existed before this hackathon's build: it was built in 36 hours at BCS Hackathon 2026
+Sightline existed before this hackathon's build: it was built in 36 hours at BCS Hackathon 2026 by a team of four: Daniel Rivera, [@bamobam](https://github.com/bamobam), [@har-vir](https://github.com/har-vir) and [@jkiim](https://github.com/jkiim); everything below was added solo since
 (Oct 16–17, tag `bcs-final-submission`). That version was a batch tool. It took one drone survey,
 ranked the photos with a tiled detector, put each detection on a map and ran a Bayesian probability
 map over the survey area, all from a precomputed cache.
