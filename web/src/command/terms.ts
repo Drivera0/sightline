@@ -79,6 +79,8 @@ export interface PlainCtx {
 export function plainWords(text: string, ctx: PlainCtx = {}): string {
   const leg = (id: string) => ctx.legs?.get(id) ?? null;
   let s = text;
+  // the mission's first line: its name, never "(demo)" (the header's chip says what kind of search this is)
+  s = s.replace(/^mission created: (.+?) \(demo\)$/, "Mission opened: $1");
   // the scenario's prior, said plainly (the model and its citations stay in the Trace)
   s = s.replace(/^Demo scenario: ([^(;]+?) \(seed \d+\);.*\bprior$/, (_, name: string) => `Search area drawn from how ${priorWho(name)} usually travel (ISRID)`);
   // the scenario's scripted decisions are the search manager's

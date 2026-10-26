@@ -184,6 +184,7 @@ describe("grounded drones (problem 5)", () => {
 describe("the leftover strings (problem 10)", () => {
   it("the scenario's prior is said plainly, its seed and model kept for the Trace", () => {
     expect(plainWords("Demo scenario: Missing child (seed 2202); placeholder × terrain affinity (Jacobs 2015 ISRID find locations) prior")).toBe("Search area drawn from how lost children usually travel (ISRID)");
+    expect(plainWords("mission created: Missing child (demo)")).toBe("Mission opened: Missing child");
     expect(plainWords("Demo scenario: Dementia walk-away (seed 4404); Koester lost-person rings, dementia/temperate_mountainous (n=1207; Koester, LPB Updates, ICAR 2025, p. 15 (ISRID 2.0)), weight 0.8 + uniform × terrain affinity (Jacobs 2015 ISRID find locations) prior")).toBe("Search area drawn from how people with dementia usually travel (ISRID)");
   });
 
