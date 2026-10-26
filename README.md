@@ -1,6 +1,6 @@
 # Sightline
 
-![Sightline demo console: Team One's radio clue (three whistle blasts to the south-west) is confirmed and moves the map, the agent proposes sending Team One to sector C2, the proposal is approved on its card, and the teams go out while the drones fly their legs, Drone 2 flying on after it loses its link](docs/report/figures/demo.gif)
+![Sightline's photo review: a drone photo the detector scored only 0.17, below the 0.29 review line, is enlarged; the AI re-check cuts the spot again with OpenCV 5's native-pixel zoom and NVIDIA Nemotron VL on Nebius Token Factory answers "likely a person, 2 people standing"; the search manager marks it as the subject and the console proposes sending the nearest team to the sighting](docs/report/figures/demo.gif)
 
 *The console on the demo mission, 16 s, captured by `scripts/demo_video/run.sh` before the guided search replaced the step-through story, so the coach mark and the checkpoint strip in the clip are that story's (`#m/demo?t=3` now opens the console at Where next with no marks): the agent's proposal approved, then the mission clock runs on, teams go out, the drones fly and B4 is searched at POD 60 %. The guided search as it is now: the still under "Live missions" and [docs/report/figures/v3/](docs/report/figures/v3/).*
 
