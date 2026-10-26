@@ -40,6 +40,29 @@ describe("the guided search's mark", () => {
     expect(screen.queryByRole("button", { name: /^(Back|Next|Skip)/ })).toBeNull();
   });
 
+  it("Esc never leaves the run; Leave asks first, Stay keeps it, Leave leaves", async () => {
+    const a = mark();
+    await userEvent.keyboard("{Escape}");
+    expect(a.onExit).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Leave" }));
+    const ask = screen.getByRole("alertdialog", { name: "Leave the simulation?" });
+    expect(ask).toHaveTextContent("Your decisions so far will be lost");
+    await userEvent.keyboard("{Escape}"); // closes the question, not the run
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(a.onExit).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Leave" }));
+    await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Stay" }));
+    expect(a.onExit).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Leave" }));
+    await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Leave" }));
+    expect(a.onExit).toHaveBeenCalledOnce();
+  });
+
+  it("never greys the screen around its ring", () => {
+    mark();
+    for (const el of document.querySelectorAll("[data-guide-ring]")) expect((el as HTMLElement).className).not.toMatch(/9999px/);
+  });
+
   it("takes the decision from the keyboard: A the agent's option, a number the option with that key", async () => {
     const a = mark();
     await userEvent.keyboard("a");

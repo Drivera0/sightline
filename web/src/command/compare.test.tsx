@@ -200,6 +200,15 @@ describe("the guide store's decision timing", () => {
 });
 
 describe("the end screen", () => {
+  it("offers no 'Replay, following the agent' when every decision already was the agent's", () => {
+    const r = play(() => null, 20_000);
+    const wash = hotWash(r.input, r.list);
+    const noop = () => {};
+    render(<GuideEnd wash={wash} versus={compare(r.input, wash, lastLight(full))} sectors={[]} subject={null} scenario="Overdue hiker" seed={seed} callsign={(id) => id ?? ""} onReplay={noop} onWatchAgent={noop} followed onReport={noop} onTrace={noop} onClose={noop} />);
+    expect(screen.queryByText("Replay, following the agent")).toBeNull();
+    expect(screen.getAllByText("Try again").length).toBeGreaterThan(0);
+  });
+
   it("puts you vs the agent on top, the details collapsed below, in plain words", () => {
     const r = play((i) => (i.id === "survey" ? "serpentine" : null), 20_000);
     const wash = hotWash(r.input, r.list);

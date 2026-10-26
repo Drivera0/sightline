@@ -253,7 +253,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "assign",
       at: ms(p.created_at),
       lead: "The AI ranks the sectors with what is on the map now.",
-      prompt: n > 1 ? `Send the teams: press ${sendAllLabel(n, team, p.target.sector)} on the card in Needs you, send only ${team} to ${p.target.sector}, or click another sector on the map.` : `Send the team: press ${sendAllLabel(n, team, p.target.sector)} on the card in Needs you, or click another sector on the map.`,
+      prompt: n > 1 ? `Send the teams: press ${sendAllLabel(n, team, p.target.sector)} on its card in Needs you, or send only ${team}.` : `Send the team: press ${sendAllLabel(n, team, p.target.sector)} on its card in Needs you.`,
       // the reason's first clause (the card has the whole of it)
       agentSays: p.reason.split(/:\s/)[0],
       options: [
@@ -323,7 +323,7 @@ export function injects(input: GuideInput): Inject[] {
       key: `assign-${k}`,
       at: x.end,
       lead: "The teams sweep their sectors.",
-      prompt: n > 1 ? `Send the teams again: press ${sendAllLabel(n, team, "the AI's pick")} on the card in Needs you, send only ${team}, or click a sector on the map.` : `Send ${team} again: press its card's button in Needs you for the AI's next sector, or click a sector on the map.`,
+      prompt: n > 1 ? `Send the teams again: press ${sendAllLabel(n, team, "the AI's pick")} on its card in Needs you, or send only ${team}.` : `Send ${team} again: press its card's button in Needs you for the AI's next sector.`,
       agentSays: `${x.sector} searched at ${podLabel(x.pod)}, no sign. The AI suggests the likeliest open sector next.`,
       options: [
         { key: "1", id: "all", label: sendAllLabel(n, team, "the AI's pick"), costMin: 0, effect: "each free team takes the likeliest open sector, and each team that comes back the next one, until the find", agent: true, on: "the card's main button in Needs you" },

@@ -111,7 +111,7 @@ export interface CommandProps {
   autoReview?: boolean;
   briefings?: ReactNode;
   storyProposal?: string | null;
-  /** The guided search's coach bar, docked above the timeline across the map and Needs you (never over the map). */
+  /** The guided search's coach bar, docked at the top of the Needs you column (never over the map). */
   dock?: ReactNode;
   /** The guided assign step's main button on its card (GuideRun `lead`). */
   lead?: Lead | null;
@@ -180,11 +180,10 @@ export function CommandView(p: CommandProps) {
   // the timeline's height: taller by default, dragged by its handle, remembered (TimelineResize.tsx)
   const [timelineH, setTimelineH] = useTimelineHeight();
   // the guided search's bar sits in its own row above the timeline, across the map and Needs you
-  const docked = !!p.dock;
   const grid = wide
-    ? `lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] ${docked ? "lg:grid-rows-[minmax(0,1fr)_auto_var(--tl-h)]" : "lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]"}`
+    ? `lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]`
     : // Resources runs the full height on the left (the T-card board), the timeline under the map and Needs you
-      `lg:grid-cols-[19rem_minmax(0,1fr)_21rem] ${docked ? "lg:grid-rows-[minmax(0,1fr)_auto_var(--tl-h)]" : "lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]"}`;
+      `${p.dock ? "lg:grid-cols-[19rem_minmax(0,1fr)_24rem]" : "lg:grid-cols-[19rem_minmax(0,1fr)_21rem]"} lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]`;
   return (
     <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
       {p.conditionsOpen && p.conditionsData && (
@@ -193,7 +192,7 @@ export function CommandView(p: CommandProps) {
           <ConditionsPanel id={p.conditionsId ?? "conditions-panel"} data={{ ...p.conditionsData, lastSeen: p.mission?.last_seen_at ?? null }} now={panelNow} time={(iso) => `${clock(iso, tz)} ${zone(new Date(iso), tz)}${dayNote(iso, panelNow, tz)}`} />
         </div>
       )}
-      <div id="console-resources" className={`order-4 flex min-h-0 flex-col lg:order-none ${wide ? "lg:hidden" : docked ? "lg:row-span-3" : "lg:row-span-2"}`}>
+      <div id="console-resources" className={`order-4 flex min-h-0 flex-col lg:order-none ${wide ? "lg:hidden" : "lg:row-span-2"}`}>
         <Resources
           mission={p.mission}
           teams={p.teams}
@@ -242,7 +241,9 @@ export function CommandView(p: CommandProps) {
           {p.overMap && <div className="pointer-events-none absolute inset-x-2 bottom-7 z-10 flex justify-center sm:inset-x-3">{p.overMap}</div>}
         </div>
       </div>
-      <div id="console-needs" className="order-1 flex min-h-0 flex-col lg:order-none">
+      <div id="console-needs" className="order-1 flex min-h-0 flex-col gap-2 lg:order-none">
+        {/* the guided search's bar: on top of the decisions column, never over the map (a bottom sheet on a phone) */}
+        {p.dock && <div id="console-guide" className="min-w-0 shrink-0 lg:max-h-[62%] lg:overflow-y-auto">{p.dock}</div>}
         {p.rightRail ? (
           <aside aria-label="View" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
             {p.rightRail}
@@ -275,12 +276,7 @@ export function CommandView(p: CommandProps) {
           />
         )}
       </div>
-      {p.dock && (
-        <div id="console-guide" className="order-2 min-w-0 lg:order-none lg:col-span-2">
-          {p.dock}
-        </div>
-      )}
-      <div id="console-timeline"className={`relative order-3 flex h-[28rem] min-h-0 flex-col lg:order-none lg:h-auto lg:col-span-2`}>
+      <div id="console-timeline" className={`relative order-3 flex h-[28rem] min-h-0 flex-col lg:order-none lg:h-auto lg:col-span-2`}>
         <TimelineHandle height={timelineH} onResize={setTimelineH} />
         <Timeline
           events={p.events}

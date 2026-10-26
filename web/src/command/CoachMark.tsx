@@ -223,15 +223,15 @@ export interface GuideOption {
 export const barWidth = (mapWidth: number) => Math.max(320, Math.min(560, mapWidth - 240));
 
 /**
- * The guided search's coach bar, along the top of the map (a bottom sheet on a phone): it never covers
- * Needs you, and it holds no button the console already has. "Your call": the step ("Step 2 of 6 ·
+ * The guided search's coach bar, docked at the top of the Needs you column (never over the map; a bottom sheet on a phone), with the step strip on top. It
+ * holds no button the console already has. "Your call": the step ("Step 2 of 6 ·
  * Triage"), one line saying where to act, the agent's reason, an amber ring and "Do this first" on the
  * real control (the card's Approve, Confirm on the read-back, the photo's answers), the clock paused;
  * buttons only for the choices the console has no control for (a serpentine survey, a relay drone), with
  * what each costs. The keys work either way: A the agent's option, 1–4 an option, M a sector on the map.
  * "Watch this": the time-lapse to the next decision, the mission clock large, the row that just landed,
  * Pause (Space), the speed and Skip ahead (→). "Watch instead" plays the agent's line; T takes over. Esc
- * leaves.
+ * closes overlays only: Leave asks to confirm first.
  */
 export function GuideMark({
   mode,
@@ -375,11 +375,11 @@ export function GuideMark({
         className={`sl-mark flex flex-col gap-2 rounded-lg border bg-surface-solid px-3.5 py-2.5 max-sm:fixed max-sm:inset-x-3 max-sm:bottom-3 max-sm:z-[45] max-sm:max-h-[55vh] max-sm:overflow-y-auto max-sm:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] ${call ? "border-caution/70" : "border-border"}`}
       >
         {strip && <div className="flex justify-center">{strip}</div>}
-        <span className="flex items-center gap-2 text-caption">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption">
           <span className={`sl-pill ${call ? "" : "opacity-80"}`} data-tone={call ? "caution" : "neutral"}>
             {call ? "Your call" : "Watch this"}
           </span>
-          <span className="min-w-0 flex-1 truncate text-text-2">{heading}</span>
+          <span className="min-w-0 flex-1 text-text-2">{heading}</span>
           {watching ? (
             <button type="button" onClick={onTakeOver} className="sl-tap shrink-0 text-small text-text hover:underline">
               Take over <KeyHint>T</KeyHint>

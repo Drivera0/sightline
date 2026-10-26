@@ -445,7 +445,7 @@ export function useGuideRun({
       text={text}
       strip={<GuideStrip pips={pips} at={iso(clockMs)} call={reached} paused={!!guide!.paused} announce={announce} />}
       target={reached && active ? (card ? ['[data-review-frame] [aria-label="Answer"]', `[data-candidate="${card.id}"]`, ...[active.target].flat()] : active.target) : []}
-      why={reached ? (card ? card.says : active?.agentSays) : undefined}
+      why={reached ? (card ? card.says : active?.id === "assign" || active?.id === "wind" ? undefined : active?.agentSays) : undefined}
       options={options}
       answers={answerList}
       onPick={(id) => active && perform(active, id)}

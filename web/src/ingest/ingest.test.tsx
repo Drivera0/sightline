@@ -470,6 +470,10 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("not found"); // only the manager marks it
     await userEvent.keyboard("a");
     await waitFor(() => expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("Found"), { timeout: 3000 });
+    // Record find stops the mission clock: no running on toward last light behind the end screen
+    const atFind = useGuide.getState().guide!.clock;
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(useGuide.getState().guide!.clock).toBe(atFind);
     const end = await screen.findByRole("dialog", { name: "What you did" }, { timeout: 5000 });
     expect(end).toHaveTextContent(/Found at \d\d:\d\d by Team/);
     expect(end).toHaveTextContent("Every draw");
