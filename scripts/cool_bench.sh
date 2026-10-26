@@ -11,7 +11,7 @@
 #   cool: /opt/cool/venvs/python_3.12, the AMI's own OpenCV build, used as shipped
 #   pip:  a fresh venv with opencv-python==5.0.0.93 (the version the project pins) and the same
 #         numpy version as the COOL venv
-# Pure-Python dependencies (pydantic) come from one shared --target directory, so cv2 is the only
+# Other dependencies (pydantic, Pillow for JPEG headers) come from one shared --target directory, so cv2 is the only
 # thing that differs. Each environment runs, on the 101 HERIDAL test photos:
 #   1. cv2.getBuildInformation()
 #   2. scripts/cool_imgproc_bench.py: the imgproc calls of the second look and the map
@@ -43,7 +43,7 @@ phase "start $(git rev-parse HEAD)"
   done
   echo; uname -a; echo; cat /etc/os-release; echo; lscpu; echo; free -g
   echo; echo "COOL venv: $COOL_VENV"; ls -la /opt/cool /opt/cool/venvs 2>&1 || true
-  find /opt/cool -maxdepth 2 -iname '*version*' -o -maxdepth 2 -iname '*.md' -o -maxdepth 2 -iname '*.txt' 2>/dev/null | head -20
+  find /opt/cool -maxdepth 2 -iname '*version*' -o -maxdepth 2 -iname '*.md' -o -maxdepth 2 -iname '*.txt' 2>/dev/null | head -20 || true
 } > "$OUT/machine.txt" 2>&1
 for f in $(find /opt/cool -maxdepth 2 \( -iname '*version*' -o -iname 'README*' \) -type f 2>/dev/null | head -5); do
   echo "== $f" >> "$OUT/cool_files.txt"; head -100 "$f" >> "$OUT/cool_files.txt"
@@ -87,7 +87,7 @@ if [ ! -x "$WORK/venv-pip/bin/python" ]; then
 fi
 "$WORK/venv-pip/bin/python" -m pip install -q --upgrade pip
 "$WORK/venv-pip/bin/python" -m pip install -q "numpy==$NUMPY_V" "$PIP_OPENCV"
-"$WORK/venv-pip/bin/python" -m pip install -q --target "$WORK/deps" pydantic
+"$WORK/venv-pip/bin/python" -m pip install -q --target "$WORK/deps" pydantic pillow
 "$WORK/venv-pip/bin/python" -m pip list > "$OUT/pip-list-pip.txt" 2>&1
 declare -A PY=([cool]="$COOL_PY" [pip]="$WORK/venv-pip/bin/python")
 export PYTHONPATH="$REPO:$WORK/deps" PYTHONUNBUFFERED=1
@@ -126,7 +126,7 @@ for env in cool pip; do
   phase "$env bench start"
   /usr/bin/time -v -o "$OUT/time-bench-$env.txt" "$py" scripts/bench_cv2_backend.py \
     --backend cpu --onnx "$ONNX" --runs "$RUNS" "${LIMIT[@]}" --out "$OUT/bench-$env.json" \
-    > "$OUT/bench-$env.log" 2>&1
+    > "$OUT/bench-$env.log" 2>&1 || echo "bench exit $?" >> "$OUT/bench-$env.log"
   phase "$env done"
 done
 # imgproc a second time in the other order, to see drift between the first and the last run.
