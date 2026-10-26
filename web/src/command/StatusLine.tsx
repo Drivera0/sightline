@@ -8,7 +8,7 @@ import { DisclosureChip, KeyHint } from "../shell/components";
 import { Icon } from "../shell/icons";
 import { clock, type Tz } from "../lib/time";
 import { daylightMin, duration, elapsedMin, flyWord, isLogged, peopleOut, subjectWord } from "./console";
-import { TERMS } from "./terms";
+import { plainWords, TERMS } from "./terms";
 import { isOverride } from "./conditions";
 import { NotifyBell } from "../shell/notifyBell";
 import { showMe } from "./showMe";
@@ -62,7 +62,9 @@ export function StatusLine({
 }) {
   const elapsed = elapsedMin(mission, now);
   const day = daylightMin(conditions, now);
-  const fly = flyWord(conditions, tz);
+  const fly0 = flyWord(conditions, tz);
+  // the reason in plain words: no drone brand, the forecast time local
+  const fly = { ...fly0, reason: plainWords(fly0.reason) };
   const out = peopleOut(teams);
   const found = mission?.status === "found";
   const unconfirmed = clues.filter((c) => !c.confirmed && !isLogged(c)).length;

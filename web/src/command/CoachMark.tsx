@@ -44,7 +44,21 @@ export function showControl(btn: HTMLElement) {
       return;
     }
   }
-  if (typeof btn.scrollIntoView === "function") btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+  scrollWithin(btn);
+}
+
+/**
+ * The element brought into view inside its own scrolling column, never by scrolling the page: a page scroll
+ * left a blank band under the console (round 3 of the usability test, after Send all). No column: nothing.
+ */
+export function scrollWithin(el: HTMLElement, block: "nearest" | "start" = "nearest") {
+  let sc: HTMLElement | null = el.parentElement;
+  while (sc && sc !== document.body && sc !== document.documentElement && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+  if (!sc || sc === document.body || sc === document.documentElement || sc.clientHeight <= 0) return;
+  const r = el.getBoundingClientRect();
+  const b = sc.getBoundingClientRect();
+  if (block === "start" || r.height > b.height || r.top < b.top) sc.scrollTop += r.top - b.top;
+  else if (r.bottom > b.bottom) sc.scrollTop += r.bottom - b.bottom;
 }
 
 /**
@@ -210,9 +224,10 @@ function useTargetBox(target: Target): { box: Box | null; avoid: Box[]; view: { 
       const el = els[0]!;
       if (!phone) for (const x of els) remember(x);
       // a group: its last one in view first, then its first, so both ends are on screen where they fit
-      if (!phone && els.length > 1) els.at(-1)!.scrollIntoView({ block: "nearest", inline: "nearest" });
-      // on a phone the card sits along the bottom: bring the target to the top
-      el.scrollIntoView({ block: phone ? "start" : "nearest", inline: "nearest" });
+      if (!phone && els.length > 1) scrollWithin(els.at(-1)!);
+      // on a phone the card sits along the bottom: bring the target to the top (a desktop: in its column only)
+      if (phone) el.scrollIntoView({ block: "start", inline: "nearest" });
+      else scrollWithin(el);
       // and the control itself ("Do this first"), when the item is taller than its panel
       if (!phone) showControl(primaryIn(el) ?? el);
       want = el.getBoundingClientRect().top;

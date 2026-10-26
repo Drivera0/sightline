@@ -20,7 +20,7 @@ import { Icon, type IconName } from "../shell/icons";
 import { useClock } from "../lib/time";
 import { ApprovalInbox, type Decide, type Lead } from "./ApprovalInbox";
 import { plainWords, toReview } from "./terms";
-import { isSightingProposal, nearestTeam, needs, sectorAt, sightingReports, type Heard } from "./console";
+import { isSightingProposal, nearestFree, needs, sectorAt, sightingReports, type Heard } from "./console";
 import { SWEEP_MS, WALK_MS } from "./sim";
 import type { SectorNow } from "../lib/api";
 
@@ -283,7 +283,7 @@ export function NeedsYou({
           const candidate = isClueCandidate(i.clue);
           const sector = candidate && i.clue ? sectorAt(sectors, i.clue) : null;
           const sent = sector ? tasks.find((t) => t.sector_id === sector && t.team_id && (t.state === "assigned" || t.state === "in_progress")) : undefined;
-          const near = candidate && i.clue && sector && !sent && onAssign ? nearestTeam(teams, i.clue, base) : null;
+          const near = candidate && i.clue && sector && !sent && onAssign ? nearestFree(teams, i.clue, base) : null;
           const look = near && sector ? { label: `Send ${near.team.callsign} to look (+${Math.round((WALK_MS + SWEEP_MS) / 60_000)} min)`, onClick: () => onAssign!(near.team.id, sector) } : null;
           const lookNote = sent ? `${callsign(sent.team_id)} is on the way to ${sector}.` : null;
           return (

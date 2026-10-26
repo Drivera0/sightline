@@ -576,7 +576,8 @@ export const useMission = create<MissionStore>((set, get) => {
       const a = get().api;
       // an image review's clue candidate: a team saw it on the ground, so it counts at medium reliability
       const seen = c.source === "review" ? { reliability: "medium" as const } : {};
-      if (!a) demoEvent("clue.added", `${c.id} confirmed`, c.id, { ...c, ...seen, confirmed: true });
+      // who confirmed it, in the log ("confirmed by you")
+      if (!a) demoEvent("clue.added", `${c.id} confirmed`, c.id, { ...c, ...seen, confirmed: true, decided_by: operatorName() });
       else if (c.source === "review") {
         try {
           const clue = await api.confirmClueCandidate(a, mid(), c.id, operatorName());

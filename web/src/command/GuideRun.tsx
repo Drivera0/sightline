@@ -25,6 +25,7 @@ import {
   injectDone,
   injects,
   lastLight,
+  photoTitle,
   searchEnd,
   PIPS,
   standingUser,
@@ -199,7 +200,10 @@ export function useGuideRun({
       // what follows from it, as when it is made by key or by Watch instead
       if (active.id === "triage" && c.card) {
         const tc = active.cards?.find((x) => x.id === c.card);
-        if (tc) follow(tc, c.option as TriageAnswer);
+        if (tc) {
+          follow(tc, c.option as TriageAnswer);
+          logAnswer(active, tc.id, c.option as TriageAnswer, operatorName());
+        }
       } else if (active.id === "find" && active.find) carryOut(active.find.team, active.find.sector);
       setHint(null);
     }
@@ -233,6 +237,9 @@ export function useGuideRun({
   // the step a card's button answers, read when it is pressed (the card's own Approve is "send only")
   const stepRef = useRef<{ active: Inject | null; reached: boolean; f: number }>({ active: null, reached: false, f: 0 });
   stepRef.current = { active, reached: !!reached, f };
+  // a decision being carried out (Send all's approvals, one after another): it was recorded once already, and
+  // the step that comes up meanwhile must not take its approvals as its own decision
+  const carrying = useRef(false);
   const decide: Decide = useCallback(async (pid, decision, by, reason, edits0) => {
     const m = useMission.getState();
     const p = m.proposals.find((x) => x.id === pid);
@@ -241,7 +248,7 @@ export function useGuideRun({
     // recorded before the team's move lands, so the step is this decision (not a move made on the side)
     const st = stepRef.current;
     const watched = by === WATCH_BY;
-    if (decision === "approve" && st.reached && st.active?.proposal === pid && (st.active.id === "assign" || st.active.id === "wind") && !watched) {
+    if (decision === "approve" && !carrying.current && st.reached && st.active?.proposal === pid && (st.active.id === "assign" || st.active.id === "wind") && !watched) {
       const team = edits?.team && edits.team !== p?.target.team ? edits.team : null;
       const c = choiceFor(st.active, st.active.id === "wind" ? "recall" : team ? `team:${team}` : "approve", st.f);
       useGuide.getState().choose(team ? { ...c, label: `${m.teams.find((t) => t.id === team)?.callsign ?? team} to ${p?.target.sector ?? ""}` } : c);
@@ -269,6 +276,12 @@ export function useGuideRun({
       }
     }
   }
+  /** A photo's answer in the log, with who gave it (round 3: the answers were in no decision line). */
+  function logAnswer(i: Inject, id: string, a: TriageAnswer, by: string) {
+    const label = TRIAGE_OPTIONS.find((o) => o.id === a)?.label ?? a;
+    const who = by === WATCH_BY ? `${WATCH_BY} chose it` : "answered by you";
+    useMission.getState().emit("mission.note", `${photoTitle(i, id)}: ${label} (${who})`, id, { action: "photo_answer", by, answer: a });
+  }
   /** The find recorded: the nearest other team goes to carry out. */
   function carryOut(team: string, sector: string) {
     // (a radio call only: who goes is the radio's; the board shows the finding team on the carry-out)
@@ -294,6 +307,7 @@ export function useGuideRun({
         const a = optionId as TriageAnswer;
         answer(c.id, a);
         follow(c, a);
+        logAnswer(i, c.id, a, by);
       } else if (i.id === "clue") {
         const clue = storyClue(scenario);
         if (!clue) return;
@@ -311,11 +325,22 @@ export function useGuideRun({
       } else if ((i.id === "assign" || i.id === "wind") && i.proposal) {
         const team = optionId.startsWith("team:") ? optionId.slice(5) : undefined;
         const pid = i.proposal;
+        // the proposals as they stand at the click: what the button said is what is approved
+        const sights = optionId === "all" ? m.proposals.filter((x) => x.status === "pending" && isSightingProposal(x)).map((x) => x.id) : [];
+        carrying.current = true;
         void (async () => {
-          // Send all takes in a sighting still waiting for a team: the nearest team goes there first, approved by name
-          if (optionId === "all") for (const sp of useMission.getState().proposals.filter((x) => x.status === "pending" && isSightingProposal(x))) await decide(sp.id, "approve", by);
-          await decide(pid, "approve", by, undefined, team ? { team } : undefined);
+          try {
+            // Send all takes in a sighting still waiting for a team: the nearest team goes there first, approved by name
+            for (const id of sights) await decide(id, "approve", by);
+            await decide(pid, "approve", by, undefined, team ? { team } : undefined);
+          } finally {
+            carrying.current = false;
+          }
         })();
+      } else if (i.id === "survey" && (optionId === "planner" || optionId === "serpentine")) {
+        // the survey choice is a decision in the log like the others (round 3: it was in none of them)
+        const who = watched ? `${WATCH_BY} chose it` : "you chose it";
+        m.emit("mission.note", `Survey: ${optionId === "planner" ? "the AI's flight lines, the likeliest sectors first" : "a lawnmower pattern over the whole grid (+12 min)"} (${who})`, null, { action: "survey", by, option: optionId });
       } else if (i.id === "survey" && optionId === "override") {
         m.emit("mission.note", `Drones fly anyway: an override of the grounding (${scenario?.data.conditions?.flyability_reason ?? "over the drones' limits"}), approved by ${by}`, null, { action: "fly_override", by });
       } else if (i.id === "survey" && optionId === "wait") {

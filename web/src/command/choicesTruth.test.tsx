@@ -194,7 +194,8 @@ describe("every move in a guided run says who decided it", () => {
     expect(hastyFact(full)).toMatch(/^Teams One and Two are already out on a hasty search along the trail \(sent at the call, 13:35: pre-planned in the scenario, before you took over\)\. $/);
     expect(first.prompt.startsWith(hastyFact(full))).toBe(true);
     expect(legApprover(null)).toBe("pre-planned in the scenario, before you took over");
-    expect(legApprover({ option: "serpentine", watched: false })).toBe("pre-planned in the scenario, before you took over");
+    expect(legApprover({ option: "serpentine", watched: false })).toBe("auto-approved: guided survey, you chose the lawnmower pattern");
+    expect(legApprover({ option: "serpentine", watched: true })).toMatch(/Watch instead chose the lawnmower pattern/);
     expect(legApprover({ option: "planner", watched: true })).toMatch(/Watch instead chose/);
   });
 

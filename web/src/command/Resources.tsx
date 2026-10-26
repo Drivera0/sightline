@@ -56,12 +56,15 @@ export interface ResourceActions {
 /** The board at a glance: how many teams are free, out, overdue; how many drones fly. Zero counts are left out. */
 export function resourceSummary(teams: readonly { team: Team; heard: Heard }[], drones: readonly Drone[]): { teams: string; drones: string | null } {
   const n = (k: number, word: string) => (k ? `${k} ${word}` : null);
-  const free = teams.filter(({ team, heard }) => team.status === "standby" && !heard.overdue).length;
-  const overdue = teams.filter(({ team, heard }) => team.status === "overdue" || (heard.overdue && team.status !== "standby")).length;
-  const searching = teams.filter(({ team, heard }) => team.status === "searching" && !heard.overdue).length;
-  const assigned = teams.filter(({ team, heard }) => team.status === "assigned" && !heard.overdue).length;
-  const returning = teams.filter(({ team, heard }) => team.status === "returning" && !heard.overdue).length;
-  const teamParts = [n(free, "free"), n(assigned, "assigned"), n(searching, "searching"), n(returning, "returning"), n(overdue, "overdue")].filter(Boolean);
+  // the team with the subject is on the carry-out, never "searching" (round 3: "1 searching" after the find)
+  const carry = teams.filter(({ team }) => team.note === "carry-out").length;
+  const rest = teams.filter(({ team }) => team.note !== "carry-out");
+  const free = rest.filter(({ team, heard }) => team.status === "standby" && !heard.overdue).length;
+  const overdue = rest.filter(({ team, heard }) => team.status === "overdue" || (heard.overdue && team.status !== "standby")).length;
+  const searching = rest.filter(({ team, heard }) => team.status === "searching" && !heard.overdue).length;
+  const assigned = rest.filter(({ team, heard }) => team.status === "assigned" && !heard.overdue).length;
+  const returning = rest.filter(({ team, heard }) => team.status === "returning" && !heard.overdue).length;
+  const teamParts = [n(free, "free"), n(assigned, "assigned"), n(searching, "searching"), n(carry, "carry-out"), n(returning, "returning"), n(overdue, "overdue")].filter(Boolean);
   const flying = drones.filter((d) => d.status === "flying").length;
   const atBase = drones.filter((d) => d.status === "idle" || d.status === "charging").length;
   const back = drones.filter((d) => d.status === "returning").length;

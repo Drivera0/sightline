@@ -63,6 +63,12 @@ export function verdictChips(v: Verdict | undefined): string[] {
 }
 
 /** "Survey photo f0336" → "Survey photo 336": the photo's number, not its id (the id is on hover and in the Trace). */
+/** A detection's photo for a screen reader: "survey photo 336" (never the detection's id). */
+export const photoLabel = (id: string): string => {
+  const n = /^f0*(\d+)/.exec(id)?.[1];
+  return n ? `survey photo ${n}` : "the photo";
+};
+
 export const photoName = (frame: string) => frame.replace(/\bf0*(\d+)\b/, "$1").replace(/, below the [\d.]+ review threshold/, "");
 
 export function liveReviewItems(detections: Detections | null, promoted: readonly string[]): Detection[] {
@@ -168,7 +174,7 @@ function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }
     <li ref={el} aria-label={`Photo to review ${c.id}`} aria-current={current || undefined} data-candidate={c.id} onClick={onPick} className={`sl-slide-in flex flex-col gap-2 rounded-lg border bg-surface-solid p-2.5 ${current ? "border-border" : "border-line"}`}>
       <div className="flex gap-3">
         {/* the photo opens large in the review frame, the subject's description beside it */}
-        <button type="button" title="Open the photo large" aria-label={`Open ${c.id} large`} onClick={(e) => (e.stopPropagation(), useConsole.getState().openReview(c.id))} className="sl-tap shrink-0 cursor-zoom-in rounded-sm">
+        <button type="button" title="Open the photo large" aria-label={`Open ${photoLabel(c.id)} large`} onClick={(e) => (e.stopPropagation(), useConsole.getState().openReview(c.id))} className="sl-tap shrink-0 cursor-zoom-in rounded-sm">
           <img loading="lazy" decoding="async" width={80} height={80} src={c.crop} alt={`Crop of ${c.id}`} className="size-20 rounded-sm object-cover" />
         </button>
         <div className="flex min-w-0 flex-col gap-1">

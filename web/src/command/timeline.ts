@@ -33,6 +33,8 @@ export interface Entry {
    * the same team and sector are one row (the approval's, else the note's). `sector|team` and a rank (lower wins).
    */
   assign?: { key: string; rank: number } | null;
+  /** A clue the manager decided on (confirmed, a bearing, logged without mapping): a Decisions row too. */
+  decided?: boolean;
 }
 
 export const FILTERS = ["All", "Radio", "Clues", "Drone", "Decisions"] as const;
@@ -46,7 +48,7 @@ const IN_FILTER: Record<Filter, readonly EntryKind[] | null> = {
   Decisions: ["decision", "found"],
 };
 
-export const inFilter = (e: Entry, f: Filter) => IN_FILTER[f]?.includes(e.kind) ?? true;
+export const inFilter = (e: Entry, f: Filter) => (f === "Decisions" && e.decided) || (IN_FILTER[f]?.includes(e.kind) ?? true);
 
 const entry = (e: Partial<Entry> & Pick<Entry, "id" | "at" | "kind" | "text">): Entry => ({
   team: null, sector: null, detail: null, turn: null, clue: null, refs: [], repeats: 1, audio: null, ...e,
@@ -80,13 +82,14 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
       const c = d as unknown as Clue | null;
       if (!c) return null;
       const by = teamOf(teams, c.reported_by);
+      const decidedBy = (d as { decided_by?: string } | null)?.decided_by;
       // who and how, each said once ("entered at command · entered at command" was said twice)
       const who = by ? callsign(by) : c.reported_by === "command" ? null : c.reported_by;
       const how = c.source === "radio" ? "by radio" : c.source === "review" ? "from a photo review" : TERMS.commandPost;
       return entry({
-        id: e.id, at: e.at, kind: "clue", team: by, refs: [c.id], clue: c.confirmed ? null : c,
+        id: e.id, at: e.at, kind: "clue", team: by, refs: [c.id], clue: c.confirmed ? null : c, decided: !!decidedBy,
         text: `${c.kind[0]!.toUpperCase()}${c.kind.slice(1)}: ${c.text}`,
-        detail: [who, how, `${c.reliability ?? "medium"} reliability`, clueState(c, (d as { decided_by?: string } | null)?.decided_by)].filter(Boolean).join(" · "),
+        detail: [who, how, `${c.reliability ?? "medium"} reliability`, clueState(c, decidedBy)].filter(Boolean).join(" · "),
       });
     }
     case "detection.new":
@@ -178,7 +181,7 @@ export const byWords = (by: string | null | undefined): string => (!by ? "" : by
 
 /** A clue's state in the log: confirmed (and by whom), logged without mapping, or waiting for its read-back. */
 function clueState(c: Clue, by: string | undefined): string {
-  const who = !by ? "" : by === WATCH_BY ? " (Watch instead chose it)" : by === operatorName() ? " by you" : "";
+  const who = !by ? "" : by === WATCH_BY ? " (Watch instead chose it)" : by === operatorName() ? " by you" : ` by ${scenarioManager(by)}`;
   if (isLogged(c)) return `logged without mapping${who}: not confirmed, the map unchanged`;
   return c.confirmed ? `confirmed${who}` : "awaiting read-back";
 }

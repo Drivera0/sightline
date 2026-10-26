@@ -379,12 +379,14 @@ export function injects(input: GuideInput): Inject[] {
     if (since !== null && x.end >= since) continue;
     const team = callsign(x.team);
     const fr = freeAt(x.end);
-    // the team whose pass just ended is the one asked about: it counts as free here
-    const free = fr.free.some((t) => t.id === x.team) ? fr.free : [...fr.free, ...teams.filter((t) => t.id === x.team)];
-    const n = Math.max(1, free.length);
+    // the team whose pass just ended is the one asked about: counted where the board has it (walking back),
+    // so the button's numbers are the header's (round 3: "Send all 3 free teams" over "2 free · 1 returning")
+    const mine = fr.free.some((t) => t.id === x.team) || fr.returning.some((t) => t.id === x.team);
+    const returning = mine ? fr.returning : [...fr.returning, ...teams.filter((t) => t.id === x.team)];
+    const n = fr.free.length;
     const seen = pendingSightings(full, input.user, passes, x.end)[0]?.sector ?? null;
-    const ext = { returning: fr.returning.filter((t) => t.id !== x.team).length, hasty: fr.hasty.length, sighting: seen };
-    const many = n > 1 || ext.returning + ext.hasty > 0;
+    const ext = { returning: returning.length, hasty: fr.hasty.length, sighting: seen };
+    const many = n + ext.returning + ext.hasty > 1;
     out.push({
       id: "assign",
       key: `assign-${k}`,
@@ -434,7 +436,9 @@ export function sendAllLabel(n: number, team: string, sector: string, ext: { ret
   const h = ext.hasty ?? 0;
   const first = ext.sighting ? `, the nearest one to the sighting in ${ext.sighting} first` : "";
   if (!r && !h) return n > 1 ? `Send all ${n} free teams to the AI's picks${first}` : ext.sighting ? `Send ${team} to ${sector}, and the nearest team to the sighting in ${ext.sighting}` : `Send ${team} to ${sector}`;
-  const parts = [`the ${n} free ${n === 1 ? "team" : "teams"}`];
+  if (!n && r + h === 1) return ext.sighting ? `Send ${team} to ${sector}, and the nearest team to the sighting in ${ext.sighting}` : `Send ${team} to ${sector}`;
+  // the counts are the board's (Resources: free, returning, out on the hasty search), never one team twice
+  const parts = n ? [`the ${n} free ${n === 1 ? "team" : "teams"}`] : [];
   // the returning ones (and any still on the hasty search) go now too, from where they are on the trail
   if (r) parts.push(`the ${r} returning ${r === 1 ? "one" : "ones"}`);
   if (h) parts.push(`the ${h} on the hasty search`);

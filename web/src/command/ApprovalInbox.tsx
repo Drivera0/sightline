@@ -140,11 +140,12 @@ function scroller(el: HTMLElement): HTMLElement | null {
   return null;
 }
 
-/** Scroll `el`'s rail so `el` sits at its top; with no rail, the page brings it into view. */
+/** Scroll `el`'s rail so `el` sits at its top; with no rail, only a phone's page brings it into view. */
 export function bringToTop(el: HTMLElement): void {
   const rail = scroller(el);
+  // no rail of its own: a desktop's page never scrolls (it left a blank band under the console, round 3)
   if (!rail) {
-    el.scrollIntoView?.({ block: "nearest" });
+    if (window.innerWidth < 640) el.scrollIntoView?.({ block: "nearest" });
     return;
   }
   rail.scrollTop += el.getBoundingClientRect().top - rail.getBoundingClientRect().top;

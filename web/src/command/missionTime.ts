@@ -12,7 +12,7 @@ import { teamOf } from "./timeline";
 import { LiveHeat, lookedAt } from "../search/live";
 import { agentPick, passesFrom, poaAfter, realOf, RETURN_MS, SWEEP_MS, type Cost, type Pass, type Subject } from "./sim";
 import { flightNotes, flights, fleetNow, legPhotos, legSortie, surveySorties, userSorties, type Sortie } from "./fleetSim";
-import { metres, nearestTeam, sectorAt, sightings } from "./console";
+import { committed, metres, nearestTeam, sectorAt, sightings } from "./console";
 
 export type Checkpoint = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export const CHECKPOINTS_ALL: readonly Checkpoint[] = [0, 1, 2, 3, 4, 5, 6];
@@ -301,7 +301,7 @@ function fixtureSorties(d: Partial<MissionData>, by: string): Sortie[] {
  * manager's own legs and recalls (`user`, null: the console's own flights are wall-clock, the clock pinned).
  * The fleet's own notes for each leg's end and landing, and the photos the manager's legs take, come with it.
  */
-export function fleetAt(d: Partial<MissionData>, c: number, user: readonly MissionEvent[] | null, by = "the search manager"): { fleet: FleetState | null; notes: MissionEvent[]; photos: MapUpdate[]; skipped: Set<string> } {
+export function fleetAt(d: Partial<MissionData>, c: number, user: readonly MissionEvent[] | null, by = "the search manager", stopAt: number | null = null): { fleet: FleetState | null; notes: MissionEvent[]; photos: MapUpdate[]; skipped: Set<string> } {
   const fleet = d.fleet;
   const skipped = new Set<string>();
   if (!fleet) return { fleet: null, notes: [], photos: [], skipped };
@@ -311,7 +311,8 @@ export function fleetAt(d: Partial<MissionData>, c: number, user: readonly Missi
   // a scenario leg for a drone the manager has in the air on a leg of their own is not flown: theirs stands
   const own = flights(fleet.drones, mine, HOME);
   for (const x of fixtureSorties(d, by)) if (x.kind === "leg" && x.leg && own.some((f) => f.sortie.drone === x.drone && f.sortie.start <= x.start && f.landed > x.start)) skipped.add(x.leg);
-  const sorties = [...fixtureSorties(d, by).filter((x) => !x.leg || !skipped.has(x.leg)), ...mine].filter((x) => x.start <= c);
+  // (after the find no scenario flight line starts: the drones are on their way home)
+  const sorties = [...fixtureSorties(d, by).filter((x) => (!x.leg || !skipped.has(x.leg)) && (stopAt === null || x.start <= stopAt)), ...mine].filter((x) => x.start <= c);
   const all = flights(fleet.drones, sorties, HOME);
   const userLegs = (user ?? []).flatMap((e) => (e.type === "fleet.updated" && ms(e.at) <= c ? ((e.data as unknown as FleetState | null)?.legs ?? []).filter((l) => mine.some((m) => m.leg === l.id)) : []));
   const legs = [...fleet.legs.filter((l) => !skipped.has(l.id)), ...userLegs.filter((l, i) => userLegs.findIndex((x) => x.id === l.id) === i && !fleet.legs.some((x) => x.id === l.id))];
@@ -528,6 +529,8 @@ export interface GuidedOpts {
  */
 export function legApprover(survey: GuidedOpts["survey"]): string {
   if (survey?.option === "planner") return survey.watched ? "auto-approved: guided survey, Watch instead chose the AI's flight lines" : "auto-approved: guided survey, you chose the AI's flight lines";
+  // the lawnmower pattern is the visitor's choice too (round 3: its lines said "pre-planned in the scenario")
+  if (survey?.option === "serpentine") return survey.watched ? "auto-approved: guided survey, Watch instead chose the lawnmower pattern" : "auto-approved: guided survey, you chose the lawnmower pattern";
   // "Fly anyway": the AI's flight lines flown on the manager's override of the grounding
   if (survey?.option === "override") return survey.watched ? "approved on an override of the grounding, Watch instead chose it" : "approved on your override of the grounding";
   return PRE_PLANNED;
@@ -636,7 +639,8 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   const mine = user.filter((e) => ms(e.at) <= c);
   const legBy = legApprover(opts.survey);
   // grounded: every drone at base camp, nothing in the air (no survey, no flight line of the manager's either)
-  const fly = opts.dronesWait ? { fleet: d.fleet ? fleetNow(d.fleet, [], c, HOME, []) : null, notes: [] as MissionEvent[], photos: [] as MapUpdate[], skipped: new Set<string>() } : fleetAt(d, c, mine, legBy);
+  const back = opts.dronesWait ? [] : findRecalls(d, mine, legBy);
+  const fly = opts.dronesWait ? { fleet: d.fleet ? fleetNow(d.fleet, [], c, HOME, []) : null, notes: [] as MissionEvent[], photos: [] as MapUpdate[], skipped: new Set<string>() } : fleetAt(d, c, [...mine, ...back], legBy, back.length ? ms(back[0]!.at) : null);
   const notMoot = (e: MissionEvent) => !(e.type === "proposal.new" && e.ref && mootIds.has(e.ref));
   const events = [...(d.events ?? []).filter((e) => eventTime(e) <= c && !managersOwn(e) && notMoot(e) && !aboutSkipped(e, fly.skipped)).map((e) => approver(e, legBy))]
     // the read-back clue waits for the manager's decision in the log too
@@ -650,6 +654,12 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   // a hasty team sent on by the manager stops its hasty rows there
   const sentAt = (id: string) => Math.min(...sent.filter((x) => x.team === id).map((x) => x.at));
   timeline.push(...hastyRows(d.teams ?? [], d.clues ?? [], c, sentAt), ...noteRows(fly.notes));
+  if (back.length) {
+    const grounded = conditionsAt(d, ms(back[0]!.at))?.flyable === false;
+    const names = back.map((e) => (d.fleet?.drones ?? []).find((x) => x.id === e.ref)?.name ?? e.ref ?? "");
+    const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]!;
+    timeline.push({ id: "find-recall", at: back[0]!.at, kind: "drone", team: null, sector: null, direction: null, refs: [], turn_id: null, drone: null, by: null, text: `${list} recalled to base camp at the find${grounded ? ": the drones are grounded, the safety recall stands" : ""}` });
+  }
   // the wind looked at again when the manager was told it would be: the reading as it stands then
   const w = opts.dronesWait && c >= opts.dronesWait.recheck ? conditionsAt(d, opts.dronesWait.recheck) : null;
   if (opts.dronesWait && w) {
@@ -697,10 +707,12 @@ function relayed(s: MissionData, mine: readonly MissionEvent[]): MissionData {
   const e = [...mine].reverse().find((x) => x.type === "mission.note" && (x.data as { action?: string } | null)?.action === "relay");
   const r = e?.data as { drone?: string; lost?: string } | null;
   if (!e || !r?.drone || !s.fleet) return s;
+  // the find recalls the relay drone with the others (findRecalls): its row says Returning, not Relay
+  const home = mine.some(isFoundEvent);
   const lost = s.fleet.drones.find((x) => x.id === r.lost);
   const legs = s.fleet.legs.map((l) => (l.drone_id === r.drone && l.status === "flying" ? { ...l, status: "cancelled" as const } : l));
   const over = lost?.position ? { lat: (lost.position.lat + HOME.lat) / 2, lon: (lost.position.lon + HOME.lon) / 2 } : { ...HOME };
-  const drones = s.fleet.drones.map((x) => (x.id === r.drone ? ({ ...x, status: "flying" as const, leg_id: null, position: over, relay: true } as typeof x) : x));
+  const drones = home ? s.fleet.drones : s.fleet.drones.map((x) => (x.id === r.drone ? ({ ...x, status: "flying" as const, leg_id: null, position: over, relay: true } as typeof x) : x));
   const links = { ...s.links, drones: { ...s.links.drones } };
   if (r.lost && links.drones[r.lost]) links.drones[r.lost] = { ...links.drones[r.lost]!, link: "connected" };
   // from the relay on, its old flight line's ending and landing are not what happened: the log leaves them out
@@ -743,17 +755,42 @@ export function closedOnFind(s: MissionData, mine: readonly MissionEvent[]): Mis
   const f = mine.find(isFoundEvent);
   if (!f) return s;
   const at = f.at;
-  const open = s.proposals.filter((p) => p.status === "pending");
+  // a safety recall is never cancelled by closing the case: it stands (the drones come home, findRecalls)
+  const recall = (p: Proposal) => p.kind === "retask_drone" && p.target.home !== undefined;
+  const open = s.proposals.filter((p) => p.status === "pending" && !recall(p));
+  const stands = s.proposals.filter((p) => p.status === "pending" && recall(p));
   const clues = s.clues.filter((x) => !x.confirmed && !(x as { logged?: boolean }).logged);
-  if (!open.length && !clues.length) return s;
-  const proposals = s.proposals.map((p) => (p.status === "pending" ? { ...p, status: "superseded" as const, decided_at: at, decided_by: null, decision_reason: "closed: subject found" } : p));
+  if (!open.length && !clues.length && !stands.length) return s;
+  const proposals = s.proposals.map((p) =>
+    stands.includes(p) ? { ...p, status: "approved" as const, decided_at: at, decided_by: null, decision_reason: "the safety recall stands at the find" } : open.includes(p) ? { ...p, status: "superseded" as const, decided_at: at, decided_by: null, decision_reason: "closed: subject found" } : p,
+  );
   const row = (id: string, text: string, team: string | null, sector: string | null): TimelineEvent => ({ id, at, kind: "decision", team, sector, text, direction: null, refs: [], turn_id: null, drone: null, by: null });
   const timeline = [
     ...s.timeline,
     ...open.map((p) => row(`closed-${p.id}`, `Closed: subject found: the AI's suggestion "${p.summary}"`, p.target.team ?? null, p.target.sector ?? null)),
+    ...stands.map((p) => row(`stands-${p.id}`, `The safety recall stands at the find: ${p.summary}`, null, null)),
     ...clues.map((x) => row(`closed-${x.id}`, `Closed: subject found: the clue "${x.text}" left unconfirmed`, null, null)),
   ].sort((a, b) => a.at.localeCompare(b.at));
   return { ...s, proposals, clues: s.clues.map((x) => (clues.includes(x) ? ({ ...x, closed: true } as typeof x) : x)), timeline };
+}
+
+/**
+ * The find recalls every drone still in the air (a flight line, a relay): closing the case never leaves a
+ * drone flying, and under "Drones grounded" never cancels the safety recall (round 3: three drones flew on
+ * after the find). As recall sorties at the find (fleetSim.ts userSorties), so their rows say Returning.
+ */
+export function findRecalls(d: Partial<MissionData>, mine: readonly MissionEvent[], by: string): MissionEvent[] {
+  const found = mine.find(isFoundEvent);
+  if (!found || !d.fleet) return [];
+  const at = ms(found.at);
+  const before = mine.filter((e) => ms(e.at) <= at);
+  const up = (fleetAt(d, at, before, by).fleet?.drones ?? []).filter((x) => x.status === "flying").map((x) => x.id);
+  // the relay drone holds over the ridge (relayed): in the air too
+  const relay = [...before].reverse().find((x) => x.type === "mission.note" && (x.data as { action?: string } | null)?.action === "relay");
+  const r = (relay?.data as { drone?: string } | null)?.drone;
+  const ids = [...new Set([...up, ...(r ? [r] : [])])];
+  const name = (id: string) => d.fleet?.drones.find((x) => x.id === id)?.name ?? id;
+  return ids.map((id) => ({ id: `find-recall-${id}`, type: "fleet.updated" as const, at: found.at, summary: `${name(id)} recalled to base camp by the find`, ref: id, data: null }));
 }
 
 /** Where a sector's teams walk to: the middle of its outline. */
@@ -923,7 +960,9 @@ function withSightings(s: MissionData, full: DemoFull, passes: readonly Pass[], 
     const asked = proposals.filter((p) => p.status === "pending" && p.kind === "assign_sector" && !p.id.startsWith("sight-") && p.target.team).map((p) => p.target.team as string);
     // the nearest team to any photo of it, and that distance
     const nearOf = (not: readonly string[]) => group.map((x) => nearestTeam(s.teams, x, HOME, not)).filter((x): x is NonNullable<typeof x> => !!x).sort((a, b) => a.m - b.m)[0] ?? null;
-    const near = nearOf(asked) ?? nearOf([]);
+    // never a team already committed to a fresh task or the carry-out, while another can go
+    const busy = s.teams.filter(committed).map((t) => t.id);
+    const near = nearOf([...asked, ...busy]) ?? nearOf(busy) ?? nearOf(asked) ?? nearOf([]);
     if (!near) continue;
     const where = near.team.status === "standby" ? "at base camp" : near.team.status === "returning" ? "on its way back" : `out in ${s.tasks.find((t) => t.team_id === near.team.id)?.sector_id ?? "the field"}`;
     proposals = [
