@@ -1,3 +1,5 @@
+import { REVIEW_ANSWERS } from "../review/answers";
+
 export interface ShortcutGroup {
   title: string;
   shortcuts: { keys: string[]; description: string }[];
@@ -32,9 +34,8 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["E"], description: "Edit the focused proposal before approving (team, briefing)" },
       { keys: ["J", "↓"], description: "Next photo to review" },
       { keys: ["K", "↑"], description: "Previous photo to review" },
-      { keys: ["P"], description: "Person" },
-      { keys: ["N"], description: "Not a person" },
-      { keys: ["U"], description: "Unsure" },
+      // the review answers, named as their buttons are (review/answers.tsx)
+      ...REVIEW_ANSWERS.map((a) => ({ keys: [a.key], description: a.more ? `${a.label.replace(/…$/, "")} (under More)` : a.label })),
     ],
   },
   {
@@ -61,7 +62,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["M"], description: "Pick a sector on the map instead" },
       { keys: ["T"], description: "Take over from Watch instead at the next decision" },
       { keys: ["Space"], description: "Pause or resume between decisions" },
-      { keys: ["Esc"], description: "Leave the guided simulation" },
+      { keys: ["Esc"], description: "Close an overlay (Leave the simulation asks first)" },
     ],
   },
 ];

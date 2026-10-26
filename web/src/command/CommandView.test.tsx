@@ -252,9 +252,26 @@ describe("the command post", () => {
     const { SHORTCUT_GROUPS } = await import("../shell/shortcuts");
     const keys = (title: string) => SHORTCUT_GROUPS.find((g) => g.title === title)?.shortcuts.flatMap((s) => s.keys);
     expect(keys("Views")).toEqual(["1", "2", "4", "5", "C", "?", "Esc"]);
-    expect(keys("Needs you")).toEqual(["3", "Tab", "A", "X", "E", "J", "↓", "K", "↑", "P", "N", "U"]);
+    expect(keys("Needs you")).toEqual(["3", "Tab", "A", "X", "E", "J", "↓", "K", "↑", "P", "S", "N", "G", "O", "U"]);
     expect(keys("Map")).toEqual(["W", "L", "Esc"]);
     expect(keys("Timeline and radio")).toEqual(["6", "V", "Space"]);
+  });
+
+  it("the guided search's bar and Needs you share one scroll column, the bar first (theme.css data-guided)", () => {
+    setup({ dock: <div data-testid="bar">the guide</div> });
+    const column = document.getElementById("console-needs")!;
+    expect(column).toHaveAttribute("data-guided");
+    expect(column.className).toMatch(/lg:overflow-y-auto/);
+    // the bar, then Needs you, in one column (no box of its own with a scroll cut short)
+    const kids = [...column.children];
+    expect(kids[0]).toContainElement(screen.getByTestId("bar"));
+    expect(kids[0]!.className).not.toMatch(/overflow|max-h/);
+    expect(kids[1]).toHaveAttribute("aria-label", "Needs you");
+  });
+
+  it("without the guided search, Needs you scrolls on its own", () => {
+    setup();
+    expect(document.getElementById("console-needs")).not.toHaveAttribute("data-guided");
   });
 
   it('never says "clear"', () => {

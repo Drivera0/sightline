@@ -110,7 +110,8 @@ export function ReviewFrame({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-bg/70 p-2 backdrop-blur-[2px] sm:p-6" onClick={close}>
+    // under the phone's bottom tabs' height, so they stay in reach (AppBar's tab bar sits above the frame)
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-bg/70 p-2 backdrop-blur-[2px] max-lg:pb-[calc(3.5rem+env(safe-area-inset-bottom))] sm:p-6" onClick={close}>
       <div
         ref={box}
         role="dialog"
@@ -139,8 +140,10 @@ export function ReviewFrame({
             </button>
           </div>
         ) : (
-          <div key={c.id} className="sl-slide-in grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-            <figure className="flex min-h-0 flex-col gap-1.5">
+          // a phone: one column, the photo, then the crop under it (never squeezed onto the photo); the guide's
+          // one-line chip sits along the bottom, so the last answers scroll up past it
+          <div key={c.id} className="sl-slide-in grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3 max-sm:pb-16 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+            <figure className="flex flex-col gap-1.5 md:min-h-0">
               <button type="button" onClick={() => setBig(true)} title="Enlarge the photo" aria-label="Enlarge the photo" className="sl-tap block w-full cursor-zoom-in rounded-md text-left">
                 <Photo c={c} />
               </button>
