@@ -11,7 +11,7 @@ import type { MissionData } from "../lib/mission";
 import demo from "./__fixtures__/demo_mission.json";
 import { ApprovalInbox } from "./ApprovalInbox";
 import { needs, sectorAt, subjectWord, WATCH_BY } from "./console";
-import { activeInject, agentOption, choiceFor, currentCard, hastyFact, injects, sendAllLabel, standingUser, type Choice, type GuideInput } from "./guide";
+import { activeInject, agentOption, choiceFor, currentCard, hastyFact, injects, sendAllLabel, STANDING_NOTE, standingUser, type Choice, type GuideInput } from "./guide";
 import { guidedOptsFor } from "./GuideRun";
 import { closedOnFind, demoAt, legApprover, placeOf, subjectOf, type DemoFull } from "./missionTime";
 import { passesFrom } from "./sim";
@@ -139,7 +139,7 @@ describe("sightings: one proposal per place, never dropped without a logged outc
   it("Send all names the sighting while it waits, and its free count leaves out the returning teams", () => {
     const list = injects({ full, seed: SEED, user: two, choices: [], queue });
     const a = list.find((i) => i.key === "assign")!;
-    expect(a.options[0]!.label).toMatch(new RegExp(`the nearest one to the sighting in ${where} first$`));
+    expect(a.options[0]!.label).toMatch(new RegExp(`the nearest one to the sighting in ${where} first${STANDING_NOTE}$`));
     expect(a.options[0]!.label).toMatch(/^Send the 2 free teams and the 2 returning ones/);
     expect(sendAllLabel(2, "Team One", "C2", { returning: 2 })).toBe("Send the 2 free teams and the 2 returning ones to the AI's picks now");
   });
@@ -194,8 +194,8 @@ describe("every move in a guided run says who decided it", () => {
     expect(hastyFact(full)).toMatch(/^Teams One and Two are already out on a hasty search along the trail \(sent at the call, 13:35: pre-planned in the scenario, before you took over\)\. $/);
     expect(first.prompt.startsWith(hastyFact(full))).toBe(true);
     expect(legApprover(null)).toBe("pre-planned in the scenario, before you took over");
-    expect(legApprover({ option: "serpentine", watched: false })).toBe("auto-approved: guided survey, you chose the lawnmower pattern");
-    expect(legApprover({ option: "serpentine", watched: true })).toMatch(/Watch instead chose the lawnmower pattern/);
+    expect(legApprover({ option: "serpentine", watched: false })).toBe("approved with the survey you chose: the lawnmower pattern");
+    expect(legApprover({ option: "serpentine", watched: true })).toMatch(/Watch instead chose: the lawnmower pattern/);
     expect(legApprover({ option: "planner", watched: true })).toMatch(/Watch instead chose/);
   });
 

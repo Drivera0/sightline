@@ -317,7 +317,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const effSeed = seed ?? DEFAULT_SEED;
   const costs = useMemo(() => costsOf(guide?.choices ?? []), [guide?.choices]);
   const clockIso = guided ? new Date(fixtureOf(guide!.clock, costs)).toISOString().replace(/\.\d+Z$/, "Z") : storyClock(story);
-  const gOpts = useMemo(() => (guided ? guidedOptsFor(scenario, effSeed, guide!.choices, story.user) : null), [guided, scenario, effSeed, guide?.choices, story.user]);
+  const gOpts = useMemo(() => (guided ? guidedOptsFor(scenario, effSeed, guide!.choices, story.user, freePlay) : null), [guided, scenario, effSeed, guide?.choices, story.user, freePlay]);
   // the guided search's standing approval plays the agent's next picks as assignments of the visitor's
   const simUser = useMemo(() => (guided ? standingUser(scenario, effSeed, story.user, guide!.choices) : story.user), [guided, scenario, effSeed, story.user, guide?.choices]);
   // the visitor decides (judges 2026-10-23): once they play the clock outside the story, the scenario's own
@@ -602,9 +602,9 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // (no survey photo has landed while the drones wait on the ground: no AI re-check catch either)
   // each known survey photo carries the AI's pick against this scenario's subject (command/subjectMatch.ts)
   const cards = demo
-    ? [...dropped.cards, ...distractors, ...demoCards(cache, landed ?? [], imageUrl, frameCount > 0 && new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime())].map((c) => {
+    ? [...dropped.cards, ...distractors, ...demoCards(cache, landed ?? [], imageUrl, frameCount > 0 && new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime() + (gOpts?.dronesLate ?? 0))].map((c) => {
         const pick = aiPick(c.id, s.mission?.subject);
-        return pick ? { ...c, pick: pick.line } : c;
+        return pick ? { ...c, pick: pick.line, pickAnswer: pick.answer } : c;
       })
     : [];
   const answerDemo = (id: string, a: LiveAnswer, object?: ObjectKind) => {
@@ -888,6 +888,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               needsHighlight={run.needsHighlight}
               dock={run.dock}
               lead={run.lead}
+              standing={run.standing}
               voice={voice}
               conditionsData={conditionsData}
               conditionsOpen={condOpen && view === "map"}

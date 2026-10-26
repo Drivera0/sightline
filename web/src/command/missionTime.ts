@@ -108,17 +108,24 @@ export function frameTime(index: number, count: number): number {
   return count <= 1 ? b : a + ((b - a) * index) / (count - 1);
 }
 
-/** When an update becomes visible: frames by flight order, the clues and ground searches at their own time. */
-function updateTimes(updates: readonly MapUpdate[]): number[] {
+/**
+ * When an update becomes visible: frames by flight order, the clues and ground searches at their own time.
+ * `late`: the survey flew that many ms after the scenario's own minute (free play: when it was approved).
+ */
+function updateTimes(updates: readonly MapUpdate[], late = 0): number[] {
   // the survey flight's photos are spread over the flight; a leg's photos (after it) land at their own time
-  const legPhoto = (u: MapUpdate) => u.source === "frame" && ms(u.at) > ms(FLIGHT.end);
+  const legPhoto = (u: MapUpdate) => u.source === "frame" && ms(u.at) > ms(FLIGHT.end) + late;
   const frames = updates.filter((u) => u.source === "frame" && !legPhoto(u)).length;
   let k = 0;
   return updates.map((u) => {
-    if (u.source === "frame" && !legPhoto(u)) return frameTime(k++, frames);
+    if (u.source === "frame" && !legPhoto(u)) return frameTime(k++, frames) + late;
     return ms(u.at);
   });
 }
+
+/** How late the drones of a fleet fly against the scenario's own minutes (`dronesLater`), in ms. */
+const LATE = new WeakMap<object, number>();
+const lateOf = (d: Partial<MissionData>): number => (d.fleet ? (LATE.get(d.fleet) ?? 0) : 0);
 
 type LL = { lat: number; lon: number };
 /** Where teams stage and drones launch and land: the mission's base camp (the trailhead lot by default). */
@@ -281,9 +288,10 @@ function fixtureSorties(d: Partial<MissionData>, by: string): Sortie[] {
   const fleet = d.fleet;
   const events = d.events ?? [];
   const timeOf = (re: RegExp) => events.find((e) => re.test(e.summary))?.at ?? null;
-  const out: Sortie[] = surveySorties(fleet.drones, d.sectors ?? [], ms(FLIGHT.start), ms(FLIGHT.end), HOME);
+  const late = lateOf(d);
+  const out: Sortie[] = surveySorties(fleet.drones, d.sectors ?? [], ms(FLIGHT.start) + late, ms(FLIGHT.end) + late, HOME);
   for (const l of fleet.legs.filter((x) => x.status !== "proposed")) {
-    const started = timeOf(new RegExp(`leg ${l.id} .*started`)) ?? timeOf(new RegExp(`^${l.id} approved`)) ?? FLEET_OUT;
+    const started = timeOf(new RegExp(`leg ${l.id} .*started`)) ?? timeOf(new RegExp(`^${l.id} approved`)) ?? iso(ms(FLEET_OUT) + late);
     const done = timeOf(new RegExp(`leg ${l.id} .*done`));
     const drone = fleet.drones.find((x) => x.id === l.drone_id);
     const speed = Math.max(1, drone?.speed_ms ?? 8);
@@ -306,7 +314,7 @@ export function fleetAt(d: Partial<MissionData>, c: number, user: readonly Missi
   const skipped = new Set<string>();
   if (!fleet) return { fleet: null, notes: [], photos: [], skipped };
   // before the survey flight nothing has flown: no drone on the map (no marker, no battery label) until t1
-  if (c < ms(FLIGHT.start)) return { fleet: { ...fleet, legs: [], drones: [] }, notes: [], photos: [], skipped };
+  if (c < ms(FLIGHT.start) + lateOf(d)) return { fleet: { ...fleet, legs: [], drones: [] }, notes: [], photos: [], skipped };
   const mine = user ? userSorties(user.filter((e) => ms(e.at) <= c)) : [];
   // a scenario leg for a drone the manager has in the air on a leg of their own is not flown: theirs stands
   const own = flights(fleet.drones, mine, HOME);
@@ -521,16 +529,48 @@ export interface GuidedOpts {
    * `recheck` is when the wind is looked at again (fixtures' clock, ms).
    */
   dronesWait?: { recheck: number } | null;
+  /**
+   * No survey chosen yet: the drones wait at base camp (nothing flies before a person approves it). With
+   * `ask`, the AI's survey waits in Needs you as a suggestion (free play: `SURVEY_PROPOSAL`): its reason.
+   */
+  awaitSurvey?: { ask: string | null } | null;
+  /** How long after the call the survey was approved (ms): the scenario's drones fly that much later. */
+  dronesLate?: number;
+}
+
+/** Free play's survey suggestion in Needs you (a proposal of the scenario's own drones, approved or not by the visitor). */
+export const SURVEY_PROPOSAL = "fly-survey";
+
+/** The AI's survey as a suggestion waiting in Needs you, created at the call. */
+function surveyProposal(at: string, reason: string): Proposal {
+  return {
+    id: SURVEY_PROPOSAL,
+    kind: "drone_leg",
+    summary: "Fly the survey: the AI's flight lines, or the lawnmower pattern?",
+    reason: `${reason} The drones stay at base camp until you approve a survey.`,
+    briefing: null,
+    target: {},
+    evidence: [],
+    status: "pending",
+    created_by: "planner",
+    created_at: at,
+    decided_at: null,
+    decided_by: null,
+    decision_reason: null,
+    edits: null,
+  };
 }
 
 /**
- * Who approved the scenario's flight lines, in the log's words: the guided survey only when the visitor (or
- * Watch instead) chose the AI's flight lines; else they were pre-planned in the scenario.
+ * Who approved the scenario's flight lines, in the log's words: the survey the visitor (or Watch instead)
+ * chose; else they were pre-planned in the scenario. The lawnmower pattern's own lines are the only ones it
+ * approves: the scenario's later flight lines come with the AI's flight lines only (`dronesLater`).
  */
 export function legApprover(survey: GuidedOpts["survey"]): string {
-  if (survey?.option === "planner") return survey.watched ? "auto-approved: guided survey, Watch instead chose the AI's flight lines" : "auto-approved: guided survey, you chose the AI's flight lines";
+  const who = survey?.watched ? "Watch instead" : "you";
+  if (survey?.option === "planner") return `approved with the survey ${who} chose: the AI's flight lines`;
   // the lawnmower pattern is the visitor's choice too (round 3: its lines said "pre-planned in the scenario")
-  if (survey?.option === "serpentine") return survey.watched ? "auto-approved: guided survey, Watch instead chose the lawnmower pattern" : "auto-approved: guided survey, you chose the lawnmower pattern";
+  if (survey?.option === "serpentine") return `approved with the survey ${who} chose: the lawnmower pattern`;
   // "Fly anyway": the AI's flight lines flown on the manager's override of the grounding
   if (survey?.option === "override") return survey.watched ? "approved on an override of the grounding, Watch instead chose it" : "approved on your override of the grounding";
   return PRE_PLANNED;
@@ -554,6 +594,46 @@ function onTheGround(d: Partial<MissionData>): Partial<MissionData> {
     mapUpdates: (d.mapUpdates ?? []).filter((u) => u.source !== "frame" && u.source !== "review"),
     fleet: d.fleet ? { ...d.fleet, legs: [] } : d.fleet,
   };
+}
+
+/** A timeline row about the drones (a flight line, a second look, a link, a relay through a drone). */
+const droneRow = (e: TimelineEvent): boolean => e.kind === "drone" || e.kind === "detection" || /\bvia D\d|\blink (lost|degraded)|\bno signal\b/.test(e.text);
+
+const laterCache = new WeakMap<object, Map<string, Partial<MissionData>>>();
+/**
+ * The scenario's drones as the manager approved them (the guided search and free play): the survey and
+ * everything after it `late` ms after the scenario's own minutes (free play: it flies when the visitor
+ * approves it, not at 13:42 on its own), and, without `legs`, none of the scenario's flight lines after the
+ * survey (the lawnmower pattern covers the grid; the scenario's lines came with the AI's flight lines only,
+ * so no line is credited to a choice that did not include it: the cold test's 15:04 "auto-approved: you chose
+ * the lawnmower pattern"). The fleet object is new, so the flights read its lateness (`lateOf`). Memoised.
+ */
+export function dronesLater(d: Partial<MissionData>, late: number, legs: boolean): Partial<MissionData> {
+  if (!d.fleet || (late <= 0 && legs)) return d;
+  const key = `${late}|${legs}`;
+  const hit = laterCache.get(d)?.get(key);
+  if (hit) return hit;
+  const sh = (at: string) => iso(ms(at) + late);
+  const shP = (p: Proposal): Proposal => ({ ...p, created_at: sh(p.created_at), decided_at: p.decided_at ? sh(p.decided_at) : p.decided_at });
+  // without the scenario's flight lines: nothing of the drones after the survey's photos are in
+  const after = ms(FLIGHT.end) + late + 5 * MIN_MS;
+  const kept = (at: string) => legs || ms(at) <= after;
+  const events = (d.events ?? [])
+    .map((e) => {
+      if (!aboutDrones(e)) return e;
+      const p = (e.type === "proposal.new" || e.type === "proposal.decided") && e.data ? shP(e.data as unknown as Proposal) : null;
+      return { ...e, at: sh(e.at), ...(p ? { data: p as unknown as MissionEvent["data"] } : {}) };
+    })
+    .filter((e) => !aboutDrones(e) || kept(e.at));
+  const timeline = (d.timeline ?? []).map((e) => (droneRow(e) ? { ...e, at: sh(e.at) } : e)).filter((e) => !droneRow(e) || kept(e.at));
+  const proposals = (d.proposals ?? []).map((p) => (DRONE_KINDS.has(p.kind) ? shP(p) : p)).filter((p) => !DRONE_KINDS.has(p.kind) || kept(p.created_at));
+  const mapUpdates = (d.mapUpdates ?? []).map((u) => (u.source === "frame" || u.source === "review" ? { ...u, at: sh(u.at) } : u)).filter((u) => (u.source !== "frame" && u.source !== "review") || kept(u.at));
+  const fleet = { ...d.fleet, legs: legs ? d.fleet.legs : [] };
+  LATE.set(fleet, Math.max(0, late));
+  const out = { ...d, events, timeline, proposals, mapUpdates, fleet };
+  if (!laterCache.has(d)) laterCache.set(d, new Map());
+  laterCache.get(d)!.set(key, out);
+  return out;
 }
 
 /**
@@ -618,16 +698,33 @@ function managersOwn(e: MissionEvent): boolean {
 }
 
 function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], opts: GuidedOpts): Partial<MissionData> {
-  const d = opts.dronesWait ? onTheGround(full.data) : full.data;
+  // nothing flies before a person approves it: grounded by the wind, or no survey chosen yet (free play asks
+  // for it in Needs you); once chosen, the scenario's drones fly from then, its later flight lines only with
+  // the AI's flight lines (the lawnmower pattern approves its own lines, none after it)
+  const ground = !!opts.dronesWait || !!opts.awaitSurvey;
+  const d = ground ? onTheGround(full.data) : opts.survey ? dronesLater(full.data, opts.dronesLate ?? 0, opts.survey.option !== "serpentine") : full.data;
   const c = ms(clock);
   HOME = d.mission?.base_camp ? { lat: d.mission.base_camp.lat, lon: d.mission.base_camp.lon } : { ...TRAILHEAD };
   const mission = d.mission ? { ...d.mission, found: null, status: d.mission.status === "found" ? ("searching" as const) : d.mission.status } : null;
-  const held = (u: MapUpdate) => u.source === "ground" || (u.source === "clue" && !!opts.readback && u.ref === opts.readback && !opts.mapClue);
+  const mine = user.filter((e) => ms(e.at) <= c);
+  // every clue the scenario brings waits for the manager (the cold test: the water bottle logged "high
+  // reliability · confirmed" in the minute Team Two said "Holding it for the search manager to confirm"):
+  // unconfirmed until the visitor confirms it (or logs it without mapping), and on the map only once confirmed
+  const scenarioClues = new Set((d.clues ?? []).map((x) => x.id));
+  const decision = (id: string) => [...mine].reverse().find((e) => e.type === "clue.added" && e.ref === id);
+  const mapped = (id: string) => {
+    const e = decision(id)?.data as { confirmed?: boolean; logged?: boolean } | null | undefined;
+    return e ? !!e.confirmed && !e.logged : id === opts.readback && !!opts.mapClue;
+  };
+  const held = (u: MapUpdate) => u.source === "ground" || (u.source === "clue" && !!u.ref && scenarioClues.has(u.ref) && !mapped(u.ref));
   const allUpdates = (d.mapUpdates ?? []).filter((u) => !held(u));
-  const times = updateTimes(allUpdates);
+  const times = updateTimes(allUpdates, lateOf(d));
   const mapUpdates = allUpdates.filter((_, i) => (times[i] as number) <= c);
   const tasks: SectorTask[] = c < ms(BOARD_AT) ? [] : (d.tasks ?? []).map((t) => ({ ...t, state: "proposed" as const, team_id: null, pod: null, note: null, updated_at: BOARD_AT }));
-  const clues = (d.clues ?? []).filter((x) => ms(x.at) <= c).map((x) => (x.id === opts.readback ? { ...x, confirmed: false } : x));
+  // a radio clue lands with the call that brings it (its card offers Confirm from the first moment, not only Reply)
+  const turnAt = new Map((d.events ?? []).filter((e) => e.type === "radio.turn" && e.ref).map((e) => [e.ref as string, ms(e.at)]));
+  const lands = (x: Clue) => Math.min(ms(x.at), (x.confirmed_by_turn && turnAt.get(x.confirmed_by_turn)) || Infinity);
+  const clues = (d.clues ?? []).filter((x) => lands(x) <= c).map((x) => ({ ...x, confirmed: false }));
   // the fixtures' later assignment proposals for a team or a sector the visitor has already sent are moot: the agent does
   // not propose them (the cold test: "C3 to Team Three" right after Team Three went to B3)
   const sent = user.filter((e) => e.type === "task.updated" && (e.data as { state?: string } | null)?.state === "assigned").map((e) => ({ at: ms(e.at), team: (e.data as { team_id?: string }).team_id, sector: (e.data as { sector_id?: string }).sector_id }));
@@ -635,16 +732,20 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   const firstAssign = [...(d.proposals ?? [])].filter((p) => p.kind === "assign_sector").sort((a, b) => a.created_at.localeCompare(b.created_at))[0]?.id;
   const moot = (p: Proposal) => p.kind === "assign_sector" && p.id !== firstAssign && sent.some((x) => x.at <= ms(p.created_at) && (x.team === p.target.team || x.sector === p.target.sector));
   const mootIds = new Set((d.proposals ?? []).filter(moot).map((p) => p.id));
-  const proposals = (d.proposals ?? []).filter((p) => ms(p.created_at) <= c && !mootIds.has(p.id)).map((p) => proposalAt(p, -Infinity));
-  const mine = user.filter((e) => ms(e.at) <= c);
+  const call = ms(CHECKPOINTS[0]!.at);
+  // free play: the AI's survey waits in Needs you until the visitor approves one (or rejects it)
+  const ask = opts.awaitSurvey?.ask != null && !opts.dronesWait && c >= call ? [surveyProposal(iso(call), opts.awaitSurvey.ask)] : [];
+  const proposals = [...ask, ...(d.proposals ?? []).filter((p) => ms(p.created_at) <= c && !mootIds.has(p.id)).map((p) => proposalAt(p, -Infinity))];
   const legBy = legApprover(opts.survey);
-  // grounded: every drone at base camp, nothing in the air (no survey, no flight line of the manager's either)
-  const back = opts.dronesWait ? [] : findRecalls(d, mine, legBy);
-  const fly = opts.dronesWait ? { fleet: d.fleet ? fleetNow(d.fleet, [], c, HOME, []) : null, notes: [] as MissionEvent[], photos: [] as MapUpdate[], skipped: new Set<string>() } : fleetAt(d, c, [...mine, ...back], legBy, back.length ? ms(back[0]!.at) : null);
+  // on the ground: every drone at base camp, nothing in the air (no survey, no flight line of the manager's
+  // either); and at base camp until the approved survey takes off
+  const back = ground ? [] : findRecalls(d, mine, legBy);
+  const atBase = { fleet: d.fleet ? fleetNow(d.fleet, [], c, HOME, []) : null, notes: [] as MissionEvent[], photos: [] as MapUpdate[], skipped: new Set<string>() };
+  const fly = ground || c < ms(FLIGHT.start) + lateOf(d) ? atBase : fleetAt(d, c, [...mine, ...back], legBy, back.length ? ms(back[0]!.at) : null);
   const notMoot = (e: MissionEvent) => !(e.type === "proposal.new" && e.ref && mootIds.has(e.ref));
   const events = [...(d.events ?? []).filter((e) => eventTime(e) <= c && !managersOwn(e) && notMoot(e) && !aboutSkipped(e, fly.skipped)).map((e) => approver(e, legBy))]
-    // the read-back clue waits for the manager's decision in the log too
-    .map((e) => (e.type === "clue.added" && e.ref === opts.readback && e.data ? { ...e, data: { ...(e.data as object), confirmed: false } as MissionEvent["data"] } : e))
+    // the scenario's clues wait for the manager's decision in the log too
+    .map((e) => (e.type === "clue.added" && e.ref && scenarioClues.has(e.ref) && e.data ? { ...e, data: { ...(e.data as object), confirmed: false } as MissionEvent["data"] } : e))
     .sort((a, b) => a.at.localeCompare(b.at));
   // the manager's decisions, the teams' check-ins and the find are the visitor's now; after the board is seeded the teams' radio too
   const timeline = (d.timeline ?? [])
@@ -694,7 +795,8 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   // the drones fly by the clock (fleetSim.ts); the manager's legs photograph the map as they go
   const s = relayed({ ...s0, fleet: fly.fleet, mapUpdates: [...s0.mapUpdates, ...fly.photos] }, mine);
   const ranked = rankPending(s, d.mapBase ? sectorsAt(d.mapBase, s.sectors, s.mapUpdates) : s.sectors);
-  const told = opts.readback && !opts.mapClue ? unmappedReason(ranked, opts.readback) : ranked;
+  // a clue not on the map (waiting for its read-back, or logged without mapping) raised nothing: the reasons say so
+  const told = [...scenarioClues].filter((id) => !mapped(id) && clues.some((x) => x.id === id)).reduce((x, id) => unmappedReason(x, id, decision(id) ? "logged" : "waiting"), ranked);
   return closedOnFind(told, mine);
 }
 
@@ -729,7 +831,7 @@ function relayed(s: MissionData, mine: readonly MissionEvent[]): MissionData {
  * sector (the cold test: "Log without mapping" and the card still said the whistle "raised" C2), and the
  * sector's share is the one the map shows.
  */
-export function unmappedReason(s: MissionData, clueId: string): MissionData {
+export function unmappedReason(s: MissionData, clueId: string, state: "logged" | "waiting" = "logged"): MissionData {
   const cite = new RegExp(`(?:,? and )?\\b${clueId} \\([^)]*\\)(?: and )?`, "g");
   const retell = (p: Proposal): Proposal => {
     if (!new RegExp(`\\b${clueId}\\b`).test(p.reason)) return p;
@@ -738,8 +840,10 @@ export function unmappedReason(s: MissionData, clueId: string): MissionData {
     const sector = p.target.sector;
     const now = s.sectors.find((x) => x.sector_id === sector);
     if (sector && now) reason = reason.replace(new RegExp(`^${sector} · [\\d.]+ % of remaining probability(?:, up from [\\d.]+ %)?`), `${sector} · ${(now.poa * 100).toFixed(1)} % of remaining probability`);
-    const said = s.clues.find((x) => x.id === clueId)?.text;
-    return { ...p, reason: `${reason} The radio clue${said ? ` “${said}”` : ""} is logged without mapping: it moved nothing on the map.` };
+    const c = s.clues.find((x) => x.id === clueId);
+    const said = c?.text ? ` “${c.text}”` : "";
+    const what = c?.source === "radio" ? "The radio clue" : "The clue";
+    return { ...p, reason: `${reason} ${what}${said} ${state === "logged" ? "is logged without mapping: it moved nothing on the map." : "waits for your read-back: it moves nothing on the map until you confirm it."}` };
   };
   // the card and the log's "AI suggests" line alike
   const proposals = s.proposals.map((p) => (p.status === "pending" ? retell(p) : p));
