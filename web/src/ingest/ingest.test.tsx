@@ -298,7 +298,7 @@ describe("the demo mission: the story on the one console", () => {
     await settle();
     await userEvent.click(screen.getByRole("button", { name: "Follow the search (3 min)" }));
     await waitFor(() => expect(window.location.hash).toBe("#m/demo?guide=1"));
-    expect(await screen.findByRole("dialog", { name: /Your call: Decision 1 of \d · Survey/ }, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: /Your call: Step 1 of \d · Survey/ }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: /The story/ })).toBeNull();
     useGuide.getState().stop();
   });
@@ -392,6 +392,42 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     useGuide.getState().stop();
   });
 
+  /** The next decision: Skip ahead (→) through the time-lapse until its bar asks. */
+  async function nextCall(name: RegExp): Promise<HTMLElement> {
+    for (let k = 0; k < 40; k++) {
+      const d = screen.queryByRole("dialog", { name });
+      if (d) return d;
+      if (screen.queryByRole("dialog", { name: /Watch this/ })) await userEvent.keyboard("{ArrowRight}");
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return screen.findByRole("dialog", { name }, { timeout: 3000 });
+  }
+
+  it("a new run never opens at the last one's end: Start on a home card after the end screen opens at the call", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo?s=overdue-hiker&guide=1");
+    render(<App base={null} />);
+    await screen.findByRole("dialog", { name: /Your call: Step 1 of \d · Survey/ }, { timeout: 5000 });
+    // a run that has ended, with an action of the visitor's on the console
+    await userEvent.keyboard("a");
+    act(() => useGuide.getState().end());
+    await screen.findByRole("dialog", { name: "What you did" }, { timeout: 5000 });
+    // Try another scenario (the home page), then Start on the same scenario's card
+    act(() => {
+      window.location.hash = "#";
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "What you did" })).toBeNull());
+    act(() => {
+      window.location.hash = "#m/demo?s=overdue-hiker&guide=1";
+    });
+    await screen.findByRole("dialog", { name: /Your call: Step 1 of \d · Survey/ }, { timeout: 5000 });
+    expect(screen.queryByRole("dialog", { name: "What you did" })).toBeNull();
+    expect(useGuide.getState().guide).toMatchObject({ ended: false, choices: [] });
+    expect(useStory.getState().user).toEqual([]);
+  }, 30_000);
+
   it("waits at each decision with the clock paused, takes it from the keyboard, and ends with what you did", async () => {
     vi.stubGlobal("fetch", demoFetch());
     useMission.setState({ ...EMPTY, status: "idle" });
@@ -399,7 +435,7 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     window.history.replaceState(null, "", "#m/demo?guide=1");
     render(<App base={null} />);
     // no pitch bar, no story marks, no scrubber: the first decision at the call
-    const survey = await screen.findByRole("dialog", { name: /Your call: Decision 1 of \d · Survey/ }, { timeout: 5000 });
+    const survey = await screen.findByRole("dialog", { name: /Your call: Step 1 of \d · Survey/ }, { timeout: 5000 });
     expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Mission time" })).toBeNull();
     expect(screen.getByText("Mission clock paused")).toBeInTheDocument();
@@ -411,24 +447,26 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     expect(clockText()).toBe(before);
     expect(survey).toHaveTextContent("+12 min");
     await userEvent.keyboard("a");
-    // triage: three candidates, one at a time, each its own key
+    // triage: three candidates, one at a time, answered on the photo's own card (its keys), never on the bar
     for (const n of [1, 2, 3]) {
-      await screen.findByRole("dialog", { name: new RegExp(`Your call: Decision 2 of \\d · Triage, ${n} of 3`) }, { timeout: 5000 });
-      await userEvent.keyboard(n === 1 ? "3" : n === 2 ? "2" : "1");
+      const d = await nextCall(new RegExp(`Your call: Step 2 of \\d · Triage, photo ${n} of 3`));
+      expect(within(d).queryByRole("button", { name: /^Person|Not a person/ })).toBeNull();
+      await userEvent.keyboard(n === 1 ? "s" : n === 2 ? "n" : "p");
     }
-    // the radio clue, the assignment, the lost link: the agent's option each time
-    await screen.findByRole("dialog", { name: /Your call: Decision 3 of \d · Clue/ }, { timeout: 5000 });
+    // the radio clue, the assignment, the lost link: the agent's option each time (A: the real card's action)
+    await nextCall(/Your call: Step 3 of \d · Clue/);
     await userEvent.keyboard("a");
-    const assign = await screen.findByRole("dialog", { name: /Your call: Decision 4 of \d · Assign/ }, { timeout: 5000 });
+    const assign = await nextCall(/Your call: Step 4 of \d · Assign/);
     expect(assign).toHaveTextContent("Team One");
+    expect(within(assign).queryByRole("button", { name: /Team One to/ })).toBeNull(); // Approve is on the card
     await userEvent.keyboard("a");
     for (let guard = 0; guard < 6; guard++) {
-      const d = await screen.findByRole("dialog", { name: /Your call/ }, { timeout: 8000 });
+      const d = await nextCall(/Your call/);
       if (/Find/.test(d.getAttribute("aria-label") ?? "")) break;
       await userEvent.keyboard("a");
       await waitFor(() => expect(screen.queryByRole("dialog", { name: d.getAttribute("aria-label")! })).toBeNull(), { timeout: 3000 }).catch(() => undefined);
     }
-    await screen.findByRole("dialog", { name: /Your call: Decision \d of \d · Find/ }, { timeout: 8000 });
+    await nextCall(/Your call: Step \d of \d · Find/);
     expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("not found"); // only the manager marks it
     await userEvent.keyboard("a");
     await waitFor(() => expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("Found"), { timeout: 3000 });

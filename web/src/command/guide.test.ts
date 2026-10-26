@@ -11,7 +11,7 @@ import { activeInject, agentOption, choiceFor, costsOf, currentCard, hotWash, in
 import { demoAt, onMissionClock, poaOf, subjectOf, type DemoFull } from "./missionTime";
 import { shiftTimes } from "./scenarios";
 import { agentLine, fixtureOf, passesFrom, realOf, TEAM_POD } from "./sim";
-import { guideStep } from "./story";
+import { dwellFor, LAPSE, lapseRate, lapseStep } from "./story";
 import { STORY_BANNED, STORY_NOT_A_PERSON, storyProposal } from "./storyCopy";
 
 type Fixture = Partial<MissionData> & { now: string; map_updates: MapUpdate[]; t0?: string };
@@ -98,6 +98,13 @@ describe("the step gate: the clock does not pass a decision until it is made", (
       const a = activeInject(injects(input()), choices);
       return a ? realOf(a.at, costsOf(choices)) : null;
     };
+    // a second of real time on, toward the hold (no rows on the way here)
+    let run: { from: number; hold: number } | null = null;
+    const guideStep = (c: number, h: number | null, dt: number) => {
+      if (h === null) return c;
+      if (!run || run.hold !== h) run = { from: c, hold: h };
+      return lapseStep(c, { ...run, beats: [] }, dt).clock;
+    };
     for (let k = 0; k < 100; k++) clock = guideStep(clock, hold(), 1000);
     const survey = injects(input())[0]!;
     expect(clock).toBe(survey.at);
@@ -110,6 +117,33 @@ describe("the step gate: the clock does not pass a decision until it is made", (
     // the serpentine costs 12 minutes: triage comes 12 minutes later on the mission clock
     expect(clock).toBe(triage.at + 12 * 60_000);
     expect(fixtureOf(clock, costsOf(choices))).toBe(triage.at);
+  });
+
+  it("plays the time between two decisions as a time-lapse of 6 to 10 s, stopping on each row as it lands", () => {
+    const min = 60_000;
+    const secs = (span: number) => span / lapseRate({ from: 0, hold: span }) / 1000;
+    expect(secs(56 * min)).toBeCloseTo(56 * LAPSE.secPerMin); // 13:35 to 14:31: 8.4 s, not an instant
+    expect(secs(13 * min)).toBe(LAPSE.minS);
+    expect(secs(3 * 60 * min)).toBe(LAPSE.maxS);
+    const l = { from: 0, hold: 20 * min, beats: [5 * min, 12 * min] };
+    let c = 0;
+    const stops: number[] = [];
+    for (let k = 0; k < 400 && c < l.hold; k++) {
+      const r = lapseStep(c, l, 100);
+      if (r.beat) stops.push(r.clock);
+      expect(r.clock).toBeLessThanOrEqual(l.hold);
+      c = r.clock;
+    }
+    expect(stops).toEqual(l.beats);
+    expect(c).toBe(l.hold);
+    // faster at 4x; reduced motion: row to row, no run between
+    expect(lapseStep(0, l, 100, 4).clock).toBeCloseTo(4 * lapseStep(0, l, 100).clock);
+    expect(lapseStep(0, l, 100, 1, true)).toEqual({ clock: 5 * min, beat: true });
+    expect(lapseStep(5 * min, l, 100, 1, true)).toEqual({ clock: 12 * min, beat: true });
+    expect(lapseStep(12 * min, l, 100, 1, true)).toEqual({ clock: l.hold, beat: false });
+    // many rows share the pause, so a busy run stays short
+    expect(dwellFor({ beats: [1, 2] })).toBe(LAPSE.dwellMs);
+    expect(dwellFor({ beats: Array.from({ length: 12 }, (_, i) => i) })).toBe(LAPSE.dwellTotalMs / 12);
   });
 
   it("maps the mission clock and the fixtures' clock both ways through a cost", () => {
