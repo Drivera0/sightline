@@ -26,7 +26,7 @@ export const SAMPLE_PHOTOS_URL = "/sample/sightline-sample-photos.zip";
 export const EVIDENCE_URL = `${BLOB}/docs/report/EVIDENCE_INDEX.md`;
 export const LICENCE_URL = `${BLOB}/LICENSE`;
 /** The rows of docs/report/EVIDENCE_INDEX.md (Home.test.tsx counts them, so this cannot drift). */
-export const EVIDENCE_CLAIMS = 101;
+export const EVIDENCE_CLAIMS = 105;
 
 export const HOME = {
   eyebrow: HERO.eyebrow,
