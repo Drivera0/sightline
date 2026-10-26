@@ -42,7 +42,7 @@ For search managers, Sightline turns drone photos and radio reports into one map
 
 1. The detector misses 46 of the 337 people in the HERIDAL test set (recall 0.864, strict VOC), and 28 of those 46 are at two sites, MED and CAB: groups, clothing that matches pale or dark rock, people sitting or lying down.
 2. The second look is a small gain: on test it finds 4 more of the 337 people for 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023]), it is advice a person approves, and on people under 60 px it mostly answers "unclear".
-3. The fleet and the approvals in the demo are simulated: the drones, their flights and their photos are simulated, and the human approvals in the recorded traces are scripted; both are labelled so on screen and in the trace.
+3. The fleet is a simulation, the approvals are not: the drones, their flights and where each photo was taken are generated over real aerial photographs (HERIDAL), and the site's one "Simulation on real aerial photographs" chip says so. In the guided run and in free play the visitor makes every approval live in the browser (Watch instead, if they pick it, is logged as such), and every move in the log names its approver. Only the agent traces kept as evidence have pre-written human steps, and each trace says so.
 
 Measured, with the caveat beside each number:
 
@@ -105,7 +105,7 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 - A word error rate on real volunteers' voices over real handsets.
 - A field trial with a search-and-rescue team.
 
-**Limits, stated plainly:** the detector misses groups, clothing that matches pale or dark rock, and people sitting or lying down [14]. The fleet, the demo flight path and the search-map evaluation are simulated and labelled so on screen. The human approvals in the recorded agent traces are scripted and labelled so in the trace [15]; on the site, the fixture's scripted decisions read "The scenario's search manager" and its stand-in model calls "Replayed", and the guided simulation's find comes from seeded draws at the sector's POD (0.60), printed on its end screen.
+**Limits, stated plainly:** the detector misses groups, clothing that matches pale or dark rock, and people sitting or lying down [14]. The fleet, the demo flight path and the search-map evaluation are simulated and labelled so on screen. On the site the visitor approves every step live, and each move names its approver; the recorded mission at the checkpoint addresses keeps the scenario's own decisions, which read "the search manager", and its stand-in model calls read "Replayed" in the Trace view. The human approvals in the recorded agent traces are scripted and labelled so in the trace [15]. The guided simulation's find comes from seeded draws at the sector's POD (0.60), printed on its end screen.
 
 ---
 
