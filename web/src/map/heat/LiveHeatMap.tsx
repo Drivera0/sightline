@@ -2,7 +2,7 @@
 // heat from `useMission().mapBase` + `mapUpdates` (search/live.ts, a checkpoint every 25 updates),
 // animated as each `map.updated` arrives (reduced motion: no tween); sector outlines with their POA
 // now; the last-known point; clues; teams at their last position. Demo caches keep HeatLayer.
-// The fleet moves: drones glide between telemetry ticks (map/base/fleetMotion.ts), a re-tasked leg
+// The fleet moves: drones and teams glide between reports (map/base/fleetMotion.ts), a re-tasked leg
 // fades out with a dashed trail to the new one (legLayer.ts), each drone's ring says its simulated
 // link (ok, degraded, lost), and dots travel along a drone's relay for a cut-off team (relayLayer.ts).
 // One requestAnimationFrame loop, only while something moves.
@@ -30,7 +30,7 @@ import { usePick } from "../pick";
 import { clueArcFeatures, clueFeatures } from "../base/clueLayer";
 import { droneFeatures, droneLinkWords } from "../base/droneLayer";
 import { ensureFleetImages, FLEET_IMAGES } from "../base/fleetImages";
-import { FleetGlide, type LonLat } from "../base/fleetMotion";
+import { FleetGlide, glidePoints, type LonLat } from "../base/fleetMotion";
 import { legFeatures, noteCancels, retaskAnimating, retaskFeatures, type SeenCancel } from "../base/legLayer";
 import { point, type MissionFeature } from "../base/missionFeature";
 import { relayFeatures } from "../base/relayLayer";
@@ -208,6 +208,8 @@ function LiveLayers({
   const links = useMission((s) => s.links);
   const { tz } = useClock();
   const glide = useMemo(() => new FleetGlide(), []);
+  // the teams glide too (the clock reports them ten times a second, like the drones)
+  const teamGlide = useMemo(() => new FleetGlide(), []);
   const seen = useRef<Record<string, SeenCancel>>({});
   const firstLook = useRef(true);
   const pending = usePick((s) => s.pending);
@@ -487,20 +489,36 @@ function LiveLayers({
   }, [raster, kinds, colors, base]);
 
   useEffect(() => {
-    if (!map || !ready) return;
+    if (!map || !ready) return undefined;
     const short = (id: string | null) => (id ? (teams.find((t) => t.id === id) ? teamShort(teams.find((t) => t.id === id)!) : id) : null);
     const teamIn = (sector: string) => short(tasks.find((t) => t.sector_id === sector && (t.state === "assigned" || t.state === "in_progress"))?.team_id ?? null);
     const { lines, labels } = sectorFeatures(sectors, teamIn);
     setData(map, LIVE_IDS.sectors, lines);
     setData(map, LIVE_IDS.sectorLabels, labels);
     const points = pointFeatures(base, clues, teams, null, now ?? new Date(), (iso) => clock(iso, tz), mission);
-    setData(map, LIVE_IDS.points, points);
     const callsign = (id: string) => teams.find((t) => t.id === id)?.callsign ?? id;
     setData(map, LIVE_IDS.clueArcs, clueArcFeatures(clues, teams, callsign) as unknown as Feature[]);
-    syncTargets(map, teamTargets.current, points.filter((p) => p.properties.kind === "team"), "team");
-    pointsNow.current = points;
-    relabel.current();
-  }, [map, ready, base, sectors, clues, teams, now, tz, mission, tasks]);
+    // the teams glide from where they are drawn to their newest report, as the drones do
+    const reduced = prefersReducedMotion();
+    const targets: Record<string, LonLat> = {};
+    for (const p of points) if (p.properties.kind === "team" && p.geometry.type === "Point") targets[p.properties.id] = p.geometry.coordinates as LonLat;
+    teamGlide.update(targets, performance.now(), reduced);
+    let raf = 0;
+    let first = true;
+    const frame = () => {
+      const t = performance.now();
+      const placed = glidePoints(points, teamGlide.positions(t), "team");
+      setData(map, LIVE_IDS.points, placed);
+      pointsNow.current = placed;
+      if (first) syncTargets(map, teamTargets.current, placed.filter((p) => p.properties.kind === "team"), "team");
+      else for (const p of placed) if (p.properties.kind === "team") teamTargets.current[p.properties.id]?.marker.setLngLat(p.geometry.coordinates as LonLat);
+      first = false;
+      relabel.current();
+      if (!reduced && teamGlide.animating(t)) raf = requestAnimationFrame(frame);
+    };
+    frame();
+    return () => cancelAnimationFrame(raf);
+  }, [map, ready, base, sectors, clues, teams, now, tz, mission, tasks, teamGlide]);
 
   // Every mark's label in one pass (map/base/pointLabels.ts): found, last known point, base camp, teams,
   // drones, clues; each next to its mark or, displaced, with a leader line; again whenever the view moves.
