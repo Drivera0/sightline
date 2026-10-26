@@ -200,3 +200,72 @@ export function fixtureOf(r: number, costs: readonly Cost[]): number {
 export function realOf(f: number, costs: readonly Cost[]): number {
   return f + costs.filter((c) => c.f < f).reduce((n, c) => n + c.ms, 0);
 }
+
+// ---- the manual line: the same search without Sightline (the end screen's first column) ----
+
+/** The lawnmower survey's extra minutes over the AI's flight lines (the guide's survey step, "+12 min"). */
+export const LAWNMOWER_MS = 12 * 60_000;
+
+/**
+ * The sectors in lawnmower order: row by row (the number), across the columns (the letter), turning at
+ * each row's end. Ids that are not a letter and a number keep their place at the end.
+ */
+export function lawnmowerOrder(sectors: readonly string[]): string[] {
+  const grid = sectors.map((id) => ({ id, m: /^([A-Z]+)(\d+)$/.exec(id) })).filter((x) => x.m);
+  const rows = [...new Set(grid.map((x) => Number(x.m![2])))].sort((a, b) => a - b);
+  const out = rows.flatMap((r, k) => {
+    const row = grid.filter((x) => Number(x.m![2]) === r).sort((a, b) => a.m![1]!.localeCompare(b.m![1]!));
+    return (k % 2 ? row.reverse() : row).map((x) => x.id);
+  });
+  return [...out, ...sectors.filter((id) => !out.includes(id))];
+}
+
+/**
+ * A hand split: the lawnmower order cut into one block of neighbouring sectors per team, in team order
+ * (the hand-split baseline of docs/report/FLEET_V2.md: the same order cut in three).
+ */
+export function handSplit(sectors: readonly string[], teams: readonly string[]): Map<string, string[]> {
+  const order = lawnmowerOrder(sectors);
+  const out = new Map<string, string[]>();
+  teams.forEach((t, k) => out.set(t, order.slice(Math.round((k * order.length) / teams.length), Math.round(((k + 1) * order.length) / teams.length))));
+  return out;
+}
+
+/**
+ * The manual line through the same engine (`pass`, the same rolls): every team goes out at `start` and
+ * works its block of the hand split in order, then the block again, one pass after another. There is no
+ * map, so a pass with no find changes nobody's plan. Until a pass detects the subject or light runs out.
+ */
+export function manualLine(seed: string, subject: Subject | null, sectors: readonly string[], teams: readonly string[], start: number, lastLight: number): Line {
+  const split = handSplit(sectors, teams);
+  const passes: Pass[] = [];
+  const count = new Map<string, number>();
+  const next = new Map(teams.map((t) => [t, 0]));
+  const send = (team: string, at: number): Pass | null => {
+    const block = split.get(team) ?? [];
+    if (!block.length || at >= lastLight) return null;
+    const k = next.get(team)!;
+    const sector = block[k % block.length]!;
+    next.set(team, k + 1);
+    const n = (count.get(sector) ?? 0) + 1;
+    count.set(sector, n);
+    const p = pass(seed, subject, team, sector, n, at);
+    passes.push(p);
+    return p;
+  };
+  // passes start in time order, so each sector's n-th pass is numbered as passesFrom would number it
+  const last = new Map<string, Pass>();
+  for (const t of teams) {
+    const p = send(t, start);
+    if (p) last.set(t, p);
+  }
+  for (let guard = 0; guard < 5000 && !passes.some((p) => p.detected); guard++) {
+    const done = [...last.values()].filter((p) => p.end < lastLight).sort((a, b) => a.end - b.end || a.team.localeCompare(b.team))[0];
+    if (!done) break;
+    const p = send(done.team, done.end);
+    if (p) last.set(done.team, p);
+    else last.delete(done.team);
+  }
+  const hit = passes.filter((p) => p.detected).sort((a, b) => a.end - b.end)[0];
+  return { passes, found: hit && hit.end < lastLight ? hit.end : null };
+}
