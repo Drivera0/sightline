@@ -36,8 +36,9 @@ const ALLOWED_URLS = [
   // The end screen's source for search time and survival (Adams et al. 2007, src/command/compare.ts): a link
   // opened only when a viewer clicks it, never fetched by the page.
   "https://pubmed.ncbi.nlm.nih.gov/17590071/",
-  // About's "Who built it": the BCS Hackathon teammates' GitHub profiles (src/front/About.tsx BCS_TEAM),
+  // About's "Who built it": the BCS Hackathon team's GitHub profiles (src/front/About.tsx BCS_TEAM),
   // opened on click only.
+  "https://github.com/Drivera0",
   "https://github.com/bamobam",
   "https://github.com/har-vir",
   "https://github.com/jkiim",
