@@ -1,10 +1,12 @@
-/** A viewfinder ring with a centre dot: what the product does, in one glyph. */
+/** Contour heat: the probability map's filled isolines, cooler to hotter, with the find in the hottest ring. */
 export function Logo() {
   return (
     <svg viewBox="0 0 24 24" className="size-6" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.5" fill="none" stroke="var(--accent)" strokeWidth="1.75" />
-      <path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4" stroke="var(--accent)" strokeWidth="1.75" strokeLinecap="round" />
-      <circle cx="12" cy="12" r="2.25" fill="var(--text)" />
+      <path d="M12 1.8c5.8 0 10.2 4 10.2 9.6 0 6.3-4.9 10.8-10.6 10.8C6 22.2 1.8 17.9 1.8 12.3 1.8 6 6.4 1.8 12 1.8z" fill="#c2410c" />
+      <path d="M12.6 4.6c4 0 7 3 7 6.9 0 4.4-3.3 7.6-7.4 7.6-4 0-7-3-7-7.1 0-4.3 3.3-7.4 7.4-7.4z" fill="#ff7a1a" />
+      <path d="M13.4 7.4c2.4 0 4.2 1.8 4.2 4.2 0 2.7-2 4.6-4.5 4.6-2.4 0-4.2-1.9-4.2-4.3 0-2.6 2-4.5 4.5-4.5z" fill="#ffc24d" />
+      <circle cx="13.9" cy="11.4" r="2" fill="#fff6d6" />
+      <circle cx="13.9" cy="11.4" r=".95" fill="#17181a" />
     </svg>
   );
 }
