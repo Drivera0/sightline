@@ -6,6 +6,7 @@
 // story's marks are gone: the walk-through is the guided search (GuideMark, below).
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { isTyping } from "../lib/keys";
 import { Button, KeyHint } from "../shell/components";
 import { useConsole } from "./consoleStore";
@@ -716,7 +717,8 @@ export function GuideMark({
 export const RESTART_ASK = "Restart this search from the call? Your decisions so far will be lost.";
 
 /**
- * Restart this search? Above every sheet; the mission clock waits while it is open (consoleStore
+ * Restart this search? Above every sheet, in document.body (inside free play's clock bar it was drawn on top
+ * but its buttons took no clicks: the bar's stacking context held it); the mission clock waits while it is open (consoleStore
  * `confirming`), and Esc stays.
  */
 export function RestartConfirm({ onStay, onRestart }: { onStay: () => void; onRestart: () => void }) {
@@ -736,7 +738,7 @@ export function RestartConfirm({ onStay, onRestart }: { onStay: () => void; onRe
       useConsole.getState().setConfirming(false);
     };
   }, []);
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-bg/70 p-4 backdrop-blur-[2px]" onClick={onStay}>
       <div
         role="alertdialog"
@@ -756,13 +758,14 @@ export function RestartConfirm({ onStay, onRestart }: { onStay: () => void; onRe
           </Button>
         </span>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
-/** Leave the simulation? Above every sheet and modal (the review frame, the shortcuts list). */
+/** Leave the simulation? Above every sheet and modal (the review frame, the shortcuts list), in document.body. */
 function LeaveConfirm({ onStay, onLeave }: { onStay: () => void; onLeave: () => void }) {
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-bg/70 p-4 backdrop-blur-[2px]" onClick={onStay}>
       <div
         role="alertdialog"
@@ -782,6 +785,7 @@ function LeaveConfirm({ onStay, onLeave }: { onStay: () => void; onLeave: () => 
           </Button>
         </span>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
