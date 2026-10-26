@@ -96,11 +96,11 @@ nvidia, nemotron, nvidia-nemo, parakeet, magpie, nebius, nebius-token-factory, n
 
 Files in `docs/submission/figures/` (and in the Desktop `devpost/` folder).
 
-1. `console-t0-the-call-pitch-bar.png`: 13:35, the call: the console on the overdue-hiker mission, the lost-hiker rings around the last known point on the probability map, the teams on standby.
+1. `console-t0-the-call-pitch-bar.png`: 13:35, the call: the console on the overdue-hiker mission, the lost-hiker rings around the last known point on the probability map, two teams out on a hasty search and two at base camp.
 2. `photos-land-t1-each-photo-ranked-and-placed.png`: Photos landing: each real HERIDAL photo, on a simulated drone's flight path, is ranked by the detector and placed on the probability map as it lands.
 3. `second-look-t2-a-017-candidate-this-flight-opencv5-zoom-nemotron-vl.png`: The second look: a 0.17 candidate below the review threshold; Nemotron 3.5 Super VL on Nebius Token Factory calls it two people standing, and a person decides.
-4. `trace-which-model-did-what-second-look.png`: Which NVIDIA model did what: the Trace view's model strip and the chain step by step, from detection to the proposal waiting for a person.
-5. `run-t4-fleet-flying-b4-pod-60-conditions.png`: Physical AI: three simulated drones and four teams act on one map; the Conditions panel (Tavily pages read by Nemotron 3 Nano, each value with its quote) decides whether drones may fly.
+4. `trace-which-model-did-what-second-look.png`: Which NVIDIA model did what: the Trace view, step by step: the OpenCV zoom, the Nemotron VL call with the images it saw and its JSON verdict, then the proposal waiting for a person.
+5. `run-t4-fleet-flying-b4-pod-60-conditions.png`: Physical AI: simulated drones (one flying on with its link lost, one relaying a team's radio) and ground teams act on one map; the Conditions panel (Tavily pages read by Nemotron 3 Nano, each value with its quote) decides whether drones may fly.
 6. `debrief-t6-after-action-report-what-breaks-first.png`: The Debrief after the find: the after-action report, the areas searched at their POD, and what breaks first.
 
 ---
@@ -108,6 +108,8 @@ Files in `docs/submission/figures/` (and in the Desktop `devpost/` folder).
 ## Hackathon-specific questions
 
 **Track:** Physical AI.
+
+**Bonus awards (opt in if the form offers it):** Best Use of Tavily and Most Valuable Feedback. Not City Winner Awards (no in-person event).
 
 **Representative:** `<OWNER TO FILL>`
 
