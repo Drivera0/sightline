@@ -8,11 +8,11 @@ instance (it never unmounts while you stay on a mission), one clock.
 | File | What |
 |---|---|
 | `flow.ts` | The address map: routes, views and every old address redirected (table below). |
-| `AppBar.tsx` | The one header. Row one: wordmark (opens About) · mission name, Live/Demo chip, the demo's one disclosure chip ("Simulation on real aerial photographs") · view switch (Map · Photos · Trace · Debrief, `aria-pressed`) · one button · the theme toggle · `?`. Row two: the status line (`command/StatusLine.tsx`). Under 1024 px four tabs along the bottom: Map, Needs you (its count), Timeline, More (Photos, Trace, Debrief). |
+| `AppBar.tsx` | The one header. Row one: wordmark (the home page) · mission name, Live/Demo chip, the demo's one disclosure chip ("Simulation on real aerial photographs") · view switch (Map · Photos · Trace · Debrief, `aria-pressed`) · one button · the theme toggle · `?`. Row two: the status line (`command/StatusLine.tsx`). Under 1024 px four tabs along the bottom: Map, Needs you (its count), Timeline, More (Photos, Trace, Debrief). |
 | `icons.tsx` | The one icon set: drone, team, clue, base camp, last known point, the find, radio, decision, detection, check-in; 24-unit paths, 2-unit round strokes, no emoji. The map draws the same paths (`map/base/iconImages.ts`). |
-| `Sheet.tsx` | A sheet over the console (About): slides in, Esc or the dim closes it, focus goes back. |
+| `Sheet.tsx` | A sheet over the console (Change scenario, the guided simulation's sheets): slides in, Esc or the dim closes it, focus goes back. |
 | `components.tsx` | The visual system from #159: `Button` (one orange primary per screen), `Panel` (opaque), `PageHeader`, `Page`, `Stat`, `Badge`, `StatusPill`, `ModeChip`, `DisclosureChip`, `KeyHint`, `EmptyState`. |
-| `Logo.tsx` | `Brand`: the logo and the name, a link to `#about`. |
+| `Logo.tsx` | `Brand`: the logo and the name, a link to the home page (`#`). |
 | `ShortcutOverlay.tsx`, `shortcuts.ts` | `?`: About and the home page, then the keys by region: Views, Needs you, Map, Timeline and radio, Guided simulation. |
 | `theme.css` | Tokens for both themes (Colour, below), type scale, the status pill, motion (sheets and the guided search's marks 200–300 ms; none under reduced motion). |
 | `notify.ts`, `toasts.tsx`, `notifyBell.tsx` | The notification centre: the store (toasts that merge by key, a log with an unread count), the toast stack (bottom right, 5 s, Show me) and the status line's bell. Which event becomes which toast is `command/notifications.ts`. |
@@ -64,7 +64,7 @@ Never write a hex value in a component: when a colour is missing, add a token he
 | `#m/<id>/map/conditions` · `trace?log` · `debrief?judges` · `photos?try` | the Conditions panel, the event log, For judges, Try a photo open |
 | `#m/<id>/card/<sector>` | a sector's printable assignment card (live missions) |
 | `#new` | the empty console: start a search or load the demo mission |
-| `#about` | the About sheet over the console last on screen: who built it, the two entries, how photos get in, the colours, the models, the limits, the licences |
+| `#about` | the home page, scrolled to its About section: who built it, the two entries, the colours, the limits, the licences, where to ask (it was a sheet over the console; old links land here) |
 
 Old addresses, kept so links in the docs, the Devposts and the video still land somewhere sensible:
 

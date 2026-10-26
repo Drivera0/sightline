@@ -28,9 +28,11 @@ describe("routes: one console", () => {
     expect(routeFromHash("#m/0a1b2c3d/radio")).toMatchObject({ view: "map", open: { radio: true } }); // the talk bar
   });
 
-  it("knows New search, About and a sector's card", () => {
+  it("knows New search, About (a section of the home page now) and a sector's card", () => {
     expect(routeFromHash("#new")).toEqual({ kind: "new" });
-    expect(routeFromHash("#about")).toEqual({ kind: "about" });
+    expect(routeFromHash("#about")).toEqual({ kind: "home", section: "about" });
+    expect(redirectFromHash("#about")).toBeNull(); // the address stays: a bookmark lands on the same section
+    expect(routeFromHash("#")).toEqual({ kind: "home" });
     expect(routeFromHash("#m/0a1b2c3d/card/B3")).toEqual({ kind: "card", id: "0a1b2c3d", sector: "B3" });
   });
 

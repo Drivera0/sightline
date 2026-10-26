@@ -5,7 +5,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RADIO_CLIP } from "./copy";
-import { AboutSheet } from "./About";
+import { Home } from "./Home";
 import { RadioClip } from "./RadioClip";
 
 afterEach(() => vi.restoreAllMocks());
@@ -49,9 +49,10 @@ describe("RadioClip", () => {
     expect(play).toHaveBeenCalledTimes(2);
   });
 
-  it("is in the About sheet, under the pitch", () => {
-    render(<AboutSheet onClose={() => undefined} />);
-    expect(within(screen.getByRole("dialog", { name: "About Sightline" })).getByRole("group", { name: "Sightline on the radio" })).toHaveTextContent(RADIO_CLIP.transcript);
+  it("is on the home page, in Built with's NVIDIA card", () => {
+    render(<Home />);
+    const nvidia = screen.getByRole("article", { name: "Reads, writes and speaks" });
+    expect(within(nvidia).getByRole("group", { name: "Sightline on the radio" })).toHaveTextContent(RADIO_CLIP.transcript);
   });
 
   it("ships the clip: an MP3 of at most 300 KB in public/front", () => {

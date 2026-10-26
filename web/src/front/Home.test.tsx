@@ -1,10 +1,14 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { AboutSheet, ENTRIES, LICENCES, MODELS } from "./About";
+import { ABOUT, AboutSection, COLOURS, ENTRIES } from "./About";
+import { BUILT_WITH, OPENCV, PARTNERS } from "./BuiltWith";
+import { ABOUT_ID } from "../shell/flow";
 import { glowFrames, NODES, trip, TRIP } from "./Architecture";
 import { INTAKE } from "./copy";
-import { FACTS, Home, HOME, JUDGE_STRIP, WALL, WALL_LOOP_PX, WALL_PX_PER_S } from "./Home";
+import { EVIDENCE_CLAIMS, FACTS, Home, HOME, JUDGE_STRIP, WALL, WALL_LOOP_PX, WALL_PX_PER_S } from "./Home";
 import { PHOTOS } from "./photos";
 import { ScenarioBanner } from "./ScenarioBanner";
 import { RECOMMENDED, SCENARIO_CARDS } from "./scenarios";
@@ -12,11 +16,14 @@ import { RECOMMENDED, SCENARIO_CARDS } from "./scenarios";
 const words = () => document.body.textContent ?? "";
 
 describe("the home page", () => {
-  it("leads with the claim, one measured proof and one primary action", () => {
+  it("leads with the name, the claim, one measured proof naming OpenCV, and one primary action", () => {
     render(<Home />);
     const top = screen.getByRole("heading", { level: 1 });
-    expect(top).toHaveTextContent("The brain of a drone search.");
-    expect(top.nextElementSibling).toHaveTextContent("86 %");
+    expect(top).toHaveTextContent(/^Sightline$/);
+    expect(top.nextElementSibling).toHaveTextContent("The brain of a drone search.");
+    const proof = top.parentElement!.nextElementSibling!;
+    expect(proof).toHaveTextContent("86 %");
+    expect(proof).toHaveTextContent("OpenCV 5");
     expect(screen.getByRole("button", { name: HOME.primary })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: HOME.secondary })).toHaveAttribute("href", "#m/demo/map");
     expect(document.querySelectorAll(".bg-accent")).toHaveLength(1);
@@ -44,16 +51,51 @@ describe("the home page", () => {
     expect(wall.closest("[aria-hidden='true']")).not.toBeNull();
   });
 
-  it("gives four measured facts, each with its source", () => {
+  it("gives four measured facts: a number, a headline of at most eight words, one line and its source", () => {
     render(<Home />);
     const facts = screen.getByRole("region", { name: HOME.facts });
     expect(within(facts).getAllByRole("link")).toHaveLength(4);
     for (const f of FACTS) {
-      expect(facts).toHaveTextContent(f.label);
+      expect(f.headline.split(/\s+/).length).toBeLessThanOrEqual(8);
+      expect(facts).toHaveTextContent(f.headline);
+      expect(facts).toHaveTextContent(f.detail);
       expect(within(facts).getByRole("link", { name: f.source.label }).getAttribute("href")).toMatch(/^https:\/\/github\.com\/Drivera0\/sightline\//);
     }
+    // no IntersectionObserver here: every number is already at its final value, never 0
+    expect(facts).toHaveTextContent("86 %");
     expect(facts).toHaveTextContent("0.30 s");
     expect(facts).toHaveTextContent("12 of 12");
+    expect(facts).toHaveTextContent("291 of the 337 people");
+  });
+
+  it("counts the evidence index's claims exactly", () => {
+    const index = readFileSync(resolve(__dirname, "../../../docs/report/EVIDENCE_INDEX.md"), "utf8");
+    const rows = index.split("\n").filter((l) => l.startsWith("| ") && !l.startsWith("| Claim"));
+    expect(EVIDENCE_CLAIMS).toBe(rows.length);
+  });
+
+  it("shows what it is built with, OpenCV first and largest, each with a measured number and its source", () => {
+    render(<Home />);
+    const built = screen.getByRole("region", { name: BUILT_WITH.title });
+    const cards = within(built).getAllByRole("article");
+    expect(cards.map((c) => c.getAttribute("aria-labelledby"))).toEqual(["built-opencv", "built-nvidia", "built-nebius", "built-tavily"]);
+    const opencv = cards[0]!;
+    expect(opencv).toHaveTextContent(OPENCV.wordmark);
+    expect(within(opencv).getAllByRole("listitem")).toHaveLength(OPENCV.steps.length);
+    for (const s of OPENCV.steps) if (s.stat) expect(opencv).toHaveTextContent(s.stat);
+    expect(opencv).toHaveTextContent("cv2.dnn");
+    expect(opencv).toHaveTextContent("0.30 s per photo on CUDA");
+    for (const [i, p] of PARTNERS.entries()) {
+      const card = cards[i + 1]!;
+      expect(card).toHaveTextContent(p.stat);
+      for (const part of p.parts) expect(card).toHaveTextContent(part.name);
+      expect(within(card).getByRole("link", { name: new RegExp(p.link.label) }).getAttribute("href")).toMatch(/^https:\/\/github\.com\/Drivera0\/sightline\//);
+    }
+    // the models, by name
+    for (const m of ["Nemotron-3.5-Super-VL", "Nemotron 3 Nano", "Nemotron 3 Super", "Parakeet TDT 0.6B v2", "Magpie TTS", "Token Factory", "Tavily"]) expect(built).toHaveTextContent(m);
+    // the hero names the stack, OpenCV first, and takes you here
+    const stack = screen.getByRole("button", { name: /^Built with: OpenCV 5 cv2\.dnn, / });
+    expect(stack).toBeInTheDocument();
   });
 
   it("draws how it works, one plain line per step and the models named small", () => {
@@ -139,7 +181,7 @@ describe("the home page", () => {
     expect(strip).toHaveTextContent("Devpost");
   });
 
-  it("has no link to the About sheet, and no link twice outside the judges' strip and the cards", () => {
+  it("has no link to #about (About is on this page), and no link twice outside the judges' strip and the cards", () => {
     render(<Home />);
     const hrefs = screen
       .getAllByRole("link")
@@ -147,6 +189,28 @@ describe("the home page", () => {
       .map((l) => l.getAttribute("href"));
     expect(hrefs).not.toContain("#about");
     expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  it("ends with About: who built it, the entries, the colours, the limits and where to ask", () => {
+    render(<Home />);
+    const about = screen.getByRole("region", { name: ABOUT.title });
+    expect(within(about).getByRole("heading", { level: 2, name: ABOUT.title })).toHaveAttribute("id", ABOUT_ID);
+    expect(within(about).getByRole("heading", { name: ABOUT.who })).toBeInTheDocument();
+    expect(about).toHaveTextContent("Daniel Rivera");
+    for (const e of ENTRIES) expect(within(about).getByRole("link", { name: e.name })).toBeInTheDocument();
+    for (const c of COLOURS) expect(about).toHaveTextContent(c.label);
+    expect(about).toHaveTextContent("It struggles with groups");
+    expect(about).toHaveTextContent("every move needs a person");
+    expect(within(about).getByRole("link", { name: "Questions and issues" })).toHaveAttribute("href", "https://github.com/Drivera0/sightline/issues");
+    // the section stands alone too
+    document.body.innerHTML = "";
+    render(<AboutSection />);
+    expect(screen.getByRole("heading", { level: 2, name: ABOUT.title })).toBeInTheDocument();
+  });
+
+  it("lands on About and focuses its heading when the address is #about", () => {
+    render(<Home section="about" />);
+    expect(document.activeElement).toBe(screen.getByRole("heading", { level: 2, name: ABOUT.title }));
   });
 
   it("has the footer: the one disclosure, the credits and the licence", () => {
@@ -174,24 +238,5 @@ describe("the scenario banner", () => {
     const sheet = screen.getByRole("dialog", { name: "Choose a search" });
     expect(within(sheet).getAllByRole("link", { name: /^Start the simulation: / })).toHaveLength(5);
     expect(within(sheet).getByRole("heading", { name: /Missing child/ })).toHaveTextContent("on screen");
-  });
-});
-
-describe("About", () => {
-  it("says only what the home page does not: who built it, the entries, the colours, the models, the limits, the licences", () => {
-    render(<AboutSheet onClose={() => undefined} />);
-    const sheet = screen.getByRole("dialog", { name: "About Sightline" });
-    expect(within(sheet).queryAllByRole("img").filter((i) => i.tagName === "IMG")).toHaveLength(0);
-    expect(within(sheet).queryByRole("figure", { name: "How Sightline fits together" })).toBeNull();
-    expect(within(sheet).getByRole("heading", { name: "Who built it" })).toBeInTheDocument();
-    for (const e of ENTRIES) expect(within(sheet).getByRole("link", { name: e.name })).toBeInTheDocument();
-    expect(within(sheet).getByRole("heading", { name: "What the colours mean" })).toBeInTheDocument();
-    for (const m of MODELS) expect(sheet).toHaveTextContent(m.model);
-    for (const l of LICENCES) expect(sheet).toHaveTextContent(l.licence);
-    expect(sheet).toHaveTextContent("Simulation on real aerial photographs");
-    expect(sheet).toHaveTextContent("It struggles with groups");
-    expect(within(sheet).getByRole("list", { name: "How photos get in" })).toHaveTextContent(/not live video/i);
-    expect(within(sheet).getByRole("link", { name: "Home page" })).toHaveAttribute("href", "#");
-    expect(within(sheet).getByRole("link", { name: "The report" })).toBeInTheDocument();
   });
 });

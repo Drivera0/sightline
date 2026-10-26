@@ -1,5 +1,5 @@
 // "Hear Sightline on the radio": one standard briefing in Sightline's voice (NVIDIA Magpie TTS, speaker 0,
-// E-13), generated offline and served from this site, with its transcript. In the About sheet and the Debrief.
+// E-13), generated offline and served from this site, with its transcript. In the home page's Built with (NVIDIA) and the Debrief.
 // Built by lane A.
 import { useEffect, useRef, useState } from "react";
 import { RADIO_CLIP } from "./copy";

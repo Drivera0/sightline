@@ -1,5 +1,5 @@
 // The site's words (first LANE_E §6.2's front door): the home page's hero and sections (front/Home.tsx),
-// the About sheet (#about) and the Debrief's footer. Propose changes to Dan, don't improvise. Built by lane A for lane E (issue #70).
+// its About section (#about) and the Debrief's footer. Propose changes to Dan, don't improvise. Built by lane A for lane E (issue #70).
 
 export const HERO = {
   title: "Sightline",
@@ -12,7 +12,7 @@ export const HERO = {
 
 /**
  * How photos get in, and whether it is live: three paths, one line each, with an icon from the shared
- * set (shell/icons.tsx). `short` is the About sheet's line. The 70 px / 15 px line is the README's.
+ * set (shell/icons.tsx). `short` is the one-line form. The 70 px / 15 px line is the README's.
  */
 export const INTAKE = [
   {
