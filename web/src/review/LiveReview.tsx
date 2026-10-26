@@ -112,6 +112,8 @@ export interface ReviewCard {
   detector?: string;
   /** The AI's pick against the subject's description, one line ("AI: another person — …"; command/subjectMatch.ts). */
   pick?: string;
+  /** The AI's own answer behind `pick` (the review frame marks that one answer, never The subject by default). */
+  pickAnswer?: LiveAnswer;
 }
 
 /** The pipeline's detector: YOLO11s trained on HERIDAL, run by OpenCV 5's DNN module (sightline/ml/backend.py, cv2 by default). */

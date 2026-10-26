@@ -37,6 +37,8 @@ export interface ConsoleActions extends SectorActions {
   recall: (teamId: string) => void;
   recallDrone: (droneId: string) => void;
   confirmClue: (clueId: string) => void;
+  /** Log a clue without mapping it (the demo mission: the scenario's clues wait for the manager). */
+  logClue?: (clueId: string) => void;
 }
 
 /** The console's actions on the mission store (useMission): live missions call the API, the demo acts in memory. */
@@ -52,6 +54,7 @@ export function storeActions(): ConsoleActions {
     recall: (team) => void m().recall(team),
     recallDrone: (drone) => void m().recallDrone(drone),
     confirmClue: (clue) => void m().confirmClue(clue),
+    logClue: (clue) => m().logClue(clue),
   };
 }
 
@@ -116,7 +119,9 @@ export interface CommandProps {
   /** The guided search's coach bar, docked at the top of the Needs you column (never over the map). */
   dock?: ReactNode;
   /** The guided assign step's main button on its card (GuideRun `lead`). */
-  lead?: Lead | null;
+  lead?: Lead | readonly Lead[] | null;
+  /** The visitor's standing approval in force (Send all), with its Stop (GuideRun `standing`), at the top of Needs you. */
+  standing?: ReactNode;
   /** The guided search: the Needs you item its step is about (NeedsYou `highlight`, "none" between steps); no toasts while it runs. */
   needsHighlight?: string | null;
   voice?: TalkVoice | null;
@@ -286,6 +291,8 @@ export function CommandView(p: CommandProps) {
             onCall={(id, draft) => call(id, draft)}
             onRecall={p.actions.recall}
             onConfirmClue={p.actions.confirmClue}
+            onLogClue={p.status === "demo" ? p.actions.logClue : undefined}
+            standing={p.standing}
             found={p.mission?.status === "found" ? { at: p.mission.found?.at ?? null } : null}
             tasks={p.tasks}
             onFound={p.actions.found}

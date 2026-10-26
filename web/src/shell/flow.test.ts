@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEMO, DEMO_CONSOLE_HASH, DEMO_END_HASH, guideHash, HOME, REDIRECTS, redirectFromHash, routeFromHash, scenarioHash, viewHash, VIEWS } from "./flow";
+import { DEMO, DEMO_CONSOLE_HASH, DEMO_END_HASH, guideHash, HOME, PLAY_HASH, REDIRECTS, redirectFromHash, routeFromHash, scenarioHash, viewHash, VIEWS } from "./flow";
 
 describe("routes: one console", () => {
   it("opens the home page at the root and on an unknown address; the console is at #m/demo", () => {
@@ -9,6 +9,16 @@ describe("routes: one console", () => {
     expect(routeFromHash(HOME)).toEqual({ kind: "home" });
     expect(routeFromHash("#nowhere")).toEqual({ kind: "home" });
     expect(routeFromHash(DEMO)).toEqual({ kind: "mission", id: "demo", view: null, t: null, open: {} });
+  });
+
+  it("opens open play's setup at #play, and its Start lands in free play on the visitor's setup", () => {
+    expect(PLAY_HASH).toBe("#play");
+    expect(routeFromHash(PLAY_HASH)).toEqual({ kind: "play" });
+    expect(redirectFromHash(PLAY_HASH)).toBeNull();
+    expect(scenarioHash("play", false)).toBe("#m/demo/map?s=play");
+    expect(routeFromHash(scenarioHash("play", false))).toEqual({ kind: "mission", id: "demo", view: "map", t: null, open: { free: true }, seed: "play" });
+    // the console's own address and the cards' still open free play on a scenario
+    expect(routeFromHash("#m/demo/map?s=missing-child")).toMatchObject({ open: { free: true }, seed: "missing-child" });
   });
 
   it("opens a scenario with its guided simulation on, or just the console", () => {

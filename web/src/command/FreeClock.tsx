@@ -19,6 +19,7 @@ export function FreeClock({
   onRestart,
   guideHref,
   scenariosHref,
+  setupHref = null,
   waiting,
   atCall = false,
   caption = null,
@@ -33,6 +34,8 @@ export function FreeClock({
   onRestart: () => void;
   guideHref: string;
   scenariosHref: string;
+  /** Open play: the visitor's own setup (#play), offered in place of the guided search. */
+  setupHref?: string | null;
   /** Items waiting in Needs you (its own count, NeedsYou `useNeedsTotal`), said beside the clock. */
   waiting: number;
   /** Still at the call, never played: the console is the visitor's to set up first. */
@@ -42,15 +45,21 @@ export function FreeClock({
 }) {
   const [asking, setAsking] = useState(false);
   const [more, setMore] = useState(false);
-  const status = waiting ? `${waiting} waiting in Needs you` : paused && atCall ? "Nothing runs until you press Play: assign teams, add a clue or try a photo first" : paused ? "Paused" : "Time passes; decisions wait in Needs you";
+  const status = paused && atCall ? "Nothing runs until you press Play: approve the survey, assign teams, add a clue or try a photo first" : waiting ? `${waiting} waiting in Needs you` : paused ? "Paused" : "Time passes; decisions wait in Needs you";
   const ways = (
     <>
       <button type="button" onClick={() => setAsking(true)} aria-haspopup="dialog" aria-expanded={asking} className="sl-tap text-caption text-text-2 hover:text-text">
         Restart
       </button>
-      <a href={guideHref} className="sl-tap text-caption text-text-2 underline underline-offset-2 hover:text-text">
-        Start the guided simulation instead
-      </a>
+      {setupHref ? (
+        <a href={setupHref} className="sl-tap text-caption text-text-2 underline underline-offset-2 hover:text-text">
+          Edit setup
+        </a>
+      ) : (
+        <a href={guideHref} className="sl-tap text-caption text-text-2 underline underline-offset-2 hover:text-text">
+          Start the guided simulation instead
+        </a>
+      )}
       <a href={scenariosHref} className="sl-tap text-caption text-text-2 underline underline-offset-2 hover:text-text">
         Change scenario
       </a>
