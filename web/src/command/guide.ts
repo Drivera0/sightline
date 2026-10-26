@@ -282,7 +282,7 @@ export function injects(input: GuideInput): Inject[] {
       at: ms(clue.at),
       // the team that radios it is out on a hasty search along the trail (missionTime.ts hastyAt), the others at base camp
       lead: `${who}, out on a hasty search along the trail, radios a clue.`,
-      prompt: `Read back ${who}'s call: press Confirm clue on its card in Needs you, ask for a bearing, or log it without mapping.`,
+      prompt: `Read back ${who}'s call. In Needs you, press “Confirm clue” on its card; or ask for a bearing, or log it without mapping.`,
       agentSays: `${who}: ${clue.text}.`,
       options: [
         { key: "1", id: "confirm", label: `Confirm at ${clue.reliability ?? "low"} reliability`, costMin: 0, effect: "the map shifts toward it", agent: true, on: "Confirm clue on the card in Needs you" },
@@ -313,7 +313,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "assign",
       at: ms(p.created_at),
       lead: "The AI ranks the sectors with what is on the map now.",
-      prompt: many ? `Send the teams: press ${sendAllLabel(n, team, p.target.sector, ext)} on its card in Needs you, or send only ${team}.` : `Send the team: press ${sendAllLabel(n, team, p.target.sector, ext)} on its card in Needs you.`,
+      prompt: many ? `Send the teams. On the AI's card in Needs you, press “${sendAllLabel(n, team, p.target.sector, ext)}”; or send only ${team}.` : `Send the team. On the AI's card in Needs you, press “${sendAllLabel(n, team, p.target.sector, ext)}”.`,
       // the reason's first clause (the card has the whole of it)
       agentSays: p.reason.split(/:\s/)[0],
       options: [
@@ -392,7 +392,7 @@ export function injects(input: GuideInput): Inject[] {
       key: `assign-${k}`,
       at: x.end,
       lead: "The teams sweep their sectors.",
-      prompt: many ? `Send the teams again: press ${sendAllLabel(n, team, "the AI's pick", ext)} on its card in Needs you, or send only ${team}.` : `Send ${team} again: press its card's button in Needs you for the AI's next sector.`,
+      prompt: many ? `Send the teams again (a team is back). On the AI's card in Needs you, press “${sendAllLabel(n, team, "the AI's pick", ext)}”; or send only ${team}.` : `Send ${team} again (it is back). On the AI's card in Needs you, press its main button for the AI's next sector.`,
       agentSays: `${x.sector} searched at ${podLabel(x.pod)}, no sign. The AI suggests the likeliest open sector next.`,
       options: [
         { key: "1", id: "all", label: sendAllLabel(n, team, "the AI's pick", ext), costMin: 0, effect: `${seen ? `the nearest team to the sighting in ${seen} first; ` : ""}each free team takes the likeliest open sector, and each team that comes back the next one, until the find`, agent: true, on: "the card's main button in Needs you" },
@@ -410,7 +410,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "find",
       at: detected?.end ?? 0,
       lead: "The teams sweep their sectors.",
-      prompt: `Answer ${callsign(team)}'s call: press Record find on its card in Needs you (the nearest team goes to carry out), or ask for a confirmation first.`,
+      prompt: `Answer ${callsign(team)}'s call. In Needs you, press “Record find” on its card (the nearest team goes to carry out); or ask for a confirmation first.`,
       agentSays: detected ? `${callsign(team)}: subject located in ${detected.sector}, conscious and talking.` : undefined,
       options: [
         { key: "1", id: "found", label: "Mark Found, send a carry-out", costMin: 0, effect: "the status line flips to Found", agent: true, on: "Record find on the card in Needs you" },

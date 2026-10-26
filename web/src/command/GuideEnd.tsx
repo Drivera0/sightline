@@ -1,15 +1,18 @@
-// The guided search's end screen, "What you did" (.documents/SIM_DESIGN.md §5): a no-fault hot wash, not
-// a grade. The outcome, each decision against the agent's, the map with every searched sector at its POD
-// and the subject's true cell, every draw the engine made, one line per divergence, what went well and
-// what to try. No score, and no claim about who found the subject. On top, "You vs the agent"
-// (compare.ts): the two lines' numbers side by side, the visitor's measured decision time, each decision
-// against the agent's pick, a verdict; the detail sits below it, collapsed. Built by lane A.
+// The guided search's end screen, "What you did" (.documents/SIM_DESIGN.md §5): a no-fault hot wash. The
+// outcome, each decision against the agent's, the map with every searched sector at its POD and the
+// subject's true cell, every draw the engine made, one line per divergence, what went well and what to
+// try; no claim about who found the subject. First, the score out of 100 (goals.ts: the mission goals and
+// the time to find against the manual line), every part with how it is worked out, and the best on this
+// scenario; then "You vs the agent" (compare.ts): the two lines' numbers side by side, the visitor's
+// measured decision time, each decision against the agent's pick, a verdict; the detail sits below it,
+// collapsed. Built by lane A.
 
 import { useState } from "react";
 import type { SectorNow } from "../lib/api";
 import { clock, DEMO_TZ } from "../lib/time";
 import { Button } from "../shell/components";
 import { BY_EYE_S, DETECTOR_S, fmtDuration, fmtMin, REVIEWERS, type Column, type Comparison, type WithWithout } from "./compare";
+import type { Score } from "./goals";
 import type { HotWash } from "./guide";
 import type { Subject } from "./sim";
 
@@ -178,8 +181,66 @@ function WithoutWith({ w }: { w: WithWithout }) {
   );
 }
 
+/** The score's parts, worked out in the open, and the best kept on this scenario. */
+export interface EndScore {
+  score: Score;
+  /** The best before this run (null: none yet). */
+  best: number | null;
+  /** This run set a new best. */
+  beat: boolean;
+  /** Kept as a best at all (Watch instead's runs are the AI's, not kept). */
+  kept: boolean;
+}
+
+function ScoreCard({ s, onReplay, onWatchAgent, followed }: { s: EndScore; onReplay: () => void; onWatchAgent: () => void; followed: boolean }) {
+  const { score } = s;
+  const bestLine = !s.kept
+    ? "Watch instead made the decisions: this score is the AI's, not kept as yours."
+    : s.beat
+      ? s.best === null
+        ? "Your first score on this scenario: the one to beat."
+        : `A new best on this scenario (was ${s.best}).`
+      : `Your best on this scenario: ${s.best}.`;
+  return (
+    <section aria-labelledby="guide-score-title" data-score className="flex flex-col gap-3 rounded-lg border border-line p-3 sm:p-4">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h3 id="guide-score-title" className="text-body font-medium text-text-2">
+          Score
+        </h3>
+        <p className="font-mono text-title text-text tabular-nums" data-score-total>
+          {score.total} <span className="text-body text-text-3">/ {score.max}</span>
+        </p>
+        <p className={`text-small ${s.beat && s.kept ? "text-ok" : "text-text-2"}`} data-best>
+          {bestLine}
+        </p>
+      </div>
+      <div className="flex flex-col gap-1">
+        <h4 className="text-small font-medium text-text-2">How the score is worked out</h4>
+        <ul className="flex flex-col" aria-label="Score parts">
+          {score.parts.map((p) => (
+            <li key={p.id} data-part={p.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-t border-line py-1.5">
+              <span className="min-w-0 flex-1 text-small text-text sm:w-56 sm:flex-none">{p.label}</span>
+              <span className="order-last w-full text-caption text-text-3 sm:order-none sm:w-auto sm:min-w-0 sm:flex-1">{p.how}</span>
+              <span className="ml-auto shrink-0 text-right font-mono text-small text-text tabular-nums">
+                {Number.isInteger(p.points) ? p.points : p.points.toFixed(1)} / {p.max}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" onClick={onReplay}>
+          Beat your score
+        </Button>
+        <Button href="#scenarios">Try another scenario</Button>
+        {!followed && <Button onClick={onWatchAgent}>Replay, following the agent</Button>}
+      </div>
+    </section>
+  );
+}
+
 /** "You vs the agent": the two lines' numbers, your decision time, each decision, a verdict. */
-function Versus({ v, onReplay, onWatchAgent, followed, free = false }: { v: Comparison; onReplay: () => void; onWatchAgent: () => void; followed: boolean; free?: boolean }) {
+function Versus({ v, onReplay, onWatchAgent, followed, free = false, actions = true }: { v: Comparison; onReplay: () => void; onWatchAgent: () => void; followed: boolean; free?: boolean; actions?: boolean }) {
   const maxThink = Math.max(1, ...v.times.map((t) => t.ms));
   const mine = v.times.length;
   const timeLine =
@@ -239,13 +300,15 @@ function Versus({ v, onReplay, onWatchAgent, followed, free = false }: { v: Comp
         <p className="text-caption text-text-3">✓ the AI's pick. + min: mission minutes the choice put on the clock. The bar: how long you took.</p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button variant="primary" onClick={onReplay}>
-          Try again
-        </Button>
-        {!followed && <Button onClick={onWatchAgent}>Replay, following the agent</Button>}
-        <Button href="#scenarios">Another scenario</Button>
-      </div>
+      {actions && (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="primary" onClick={onReplay}>
+            Beat your score
+          </Button>
+          {!followed && <Button onClick={onWatchAgent}>Replay, following the agent</Button>}
+          <Button href="#scenarios">Try another scenario</Button>
+        </div>
+      )}
     </section>
   );
 }
@@ -265,6 +328,7 @@ export function GuideEnd({
   onReport,
   onTrace,
   onClose,
+  score = null,
 }: {
   wash: HotWash;
   /** You vs the agent (compare.ts); the details stay below it, collapsed. */
@@ -283,6 +347,8 @@ export function GuideEnd({
   onReport: () => void;
   onTrace: () => void;
   onClose: () => void;
+  /** The score out of 100 and the best on this scenario (goals.ts). */
+  score?: EndScore | null;
 }) {
   const t = (ms: number) => clock(new Date(ms).toISOString(), DEMO_TZ);
   const o = wash.outcome;
@@ -304,7 +370,9 @@ export function GuideEnd({
           </p>
         </header>
 
-        {versus && <Versus v={versus} onReplay={onReplay} onWatchAgent={onWatchAgent} followed={followed} free={free} />}
+        {score && <ScoreCard s={score} onReplay={onReplay} onWatchAgent={onWatchAgent} followed={followed} />}
+
+        {versus && <Versus v={versus} onReplay={onReplay} onWatchAgent={onWatchAgent} followed={followed} free={free} actions={!score} />}
 
         <details className="group rounded-lg border border-line" open={detailsOpen} onToggle={(e) => setDetailsOpen((e.currentTarget as HTMLDetailsElement).open)} data-details>
           <summary className="cursor-pointer list-none rounded-lg p-3 text-small font-medium text-text-2 hover:bg-surface-strong [&::-webkit-details-marker]:hidden">
@@ -390,10 +458,10 @@ export function GuideEnd({
             {!versus && (
               <>
                 <Button variant="primary" onClick={onReplay}>
-                  Try again
+                  Beat your score
                 </Button>
                 {!followed && <Button onClick={onWatchAgent}>Replay, following the agent</Button>}
-                <Button href="#scenarios">Another scenario</Button>
+                <Button href="#scenarios">Try another scenario</Button>
               </>
             )}
             <Button variant="ghost" onClick={onClose}>

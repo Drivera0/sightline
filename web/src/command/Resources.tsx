@@ -124,7 +124,7 @@ export function Resources({
           Radio check-in every {checkIn} min
         </span>
       </h2>
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
+      <div className="relative flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
         <p aria-label="Resources summary" className="flex flex-col px-1 text-caption text-text-2">
           <span>{summary.teams}</span>
           {summary.drones && <span>{summary.drones}</span>}

@@ -188,7 +188,7 @@ export function ReviewFrame({
                 )}
               </div>
               {picking && <ObjectPicker large suggested={c.object} onPick={(o) => answer("object", o)} onCancel={() => setPicking(false)} />}
-              <p className="text-caption text-text-3">{waiting > 1 ? `${waiting - 1} more after this one; each answer moves on by itself.` : "The last one waiting."}</p>
+              <p className="text-caption text-text-3">{step ? (step.n < step.of ? `${step.of - step.n} more after this one; each answer moves on by itself.` : "The last photo of this step.") : waiting > 1 ? `${waiting - 1} more after this one; each answer moves on by itself.` : "The last one waiting."}</p>
             </div>
           </div>
         )}

@@ -171,7 +171,14 @@ export function ApprovalInbox({
   order = "newest",
   highlight = null,
   lead = null,
+  keys = true,
 }: {
+  /**
+   * Whether this list's cards show their keys (A, X, E). Each key letter shows on one card only, the one it
+   * acts on (the cold test: two cards both said A): the guided step's card with the main button, else the
+   * card in focus. False: none here (another list holds the guided step's A).
+   */
+  keys?: boolean;
   /** Newest first (the inbox on its own), or oldest first (Needs you: what has waited longest on top). */
   order?: "newest" | "oldest";
   /** The guided assign step: its card's main button ("Send all N free teams…"); the card's Approve is second. */
@@ -243,6 +250,7 @@ export function ApprovalInbox({
           story={p.id === story}
           highlighted={highlight === p.id}
           lead={lead?.id === p.id ? lead : null}
+          hints={!keys ? "none" : lead ? (lead.id === p.id ? "always" : "none") : "focus"}
           dimmed={highlight !== null && highlight !== p.id}
           drones={drones}
           fresh={!known.current?.has(p.id)}
@@ -271,7 +279,10 @@ function PendingCard({
   dimmed = false,
   drones = [],
   cardRef,
+  hints = "focus",
 }: {
+  /** Its key badges: always (the guided step's card), while it has focus (where its keys act), or none. */
+  hints?: "always" | "focus" | "none";
   p: Proposal;
   teams: readonly Team[];
   drone?: Drone;
@@ -336,13 +347,23 @@ function PendingCard({
   // an edited team: the main button is rebuilt from it ("Send only Team Four to C2"); Send all no longer fits
   const callsignOf = (id: string) => teams.find((t) => t.id === id)?.callsign ?? id;
   const shownLead = lead && edited ? null : lead;
+  // the key letters show where they act: on this card while it has focus (or always, the guided step's)
+  const [within, setWithin] = useState(false);
+  const showKeys = hints === "always" || (hints === "focus" && within);
+  const key = (k: string) => (showKeys ? <KeyHint>{k}</KeyHint> : null);
   const editedAction = edited && p.target.sector ? (lead ? `Send only ${callsignOf(team)} to ${p.target.sector}` : ask.action) : ask.action;
   return (
     <div
       ref={cardRef}
       tabIndex={0}
       onKeyDown={keys}
-      onFocus={take}
+      onFocus={() => {
+        setWithin(true);
+        take();
+      }}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setWithin(false);
+      }}
       onClick={take}
       data-focused={focused || undefined}
       aria-label={`Proposal ${p.id}`}
@@ -450,7 +471,7 @@ function PendingCard({
             data-primary=""
             className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
           >
-            <span className="truncate">{shownLead.label}</span> <KeyHint>A</KeyHint>
+            <span className="truncate">{shownLead.label}</span> {key("A")}
           </button>
         )}
         {/* the primary action says its outcome; "Approve" is in its name for screen readers and the A key */}
@@ -469,17 +490,17 @@ function PendingCard({
             className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
           >
             <span className="sr-only">Approve: </span>
-            <span className="truncate">{editedAction}</span> <KeyHint>A</KeyHint>
+            <span className="truncate">{editedAction}</span> {key("A")}
           </button>
         )}
         {!rejecting && (
           <button type="button" onClick={() => setRejecting(true)} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-caption text-text-2 hover:bg-surface hover:text-text">
-            Reject <KeyHint>X</KeyHint>
+            Reject {key("X")}
           </button>
         )}
         {canEdit && (
           <button type="button" aria-pressed={editing} onClick={() => setEditing(!editing)} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-caption text-text-2 hover:bg-surface hover:text-text aria-pressed:text-text">
-            {p.kind === "assign_sector" ? "Edit team or briefing" : "Edit briefing"} <KeyHint>E</KeyHint>
+            {p.kind === "assign_sector" ? "Edit team or briefing" : "Edit briefing"} {key("E")}
           </button>
         )}
       </div>

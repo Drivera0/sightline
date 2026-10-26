@@ -190,7 +190,9 @@ function union(boxes: readonly Box[]): Box | null {
 }
 
 /** Where a mark's target is on screen, followed as it renders late, moves or scrolls; and what to keep clear of. */
-function useTargetBox(target: Target): { box: Box | null; avoid: Box[]; view: { w: number; h: number }; anchor: { current: Target } } {
+function useTargetBox(target: Target, phoneScroll = true): { box: Box | null; avoid: Box[]; view: { w: number; h: number }; anchor: { current: Target } } {
+  const scrollPhone = useRef(phoneScroll);
+  scrollPhone.current = phoneScroll;
   const [box, setBox] = useState<Box | null>(null);
   const [avoid, setAvoid] = useState<Box[]>([]);
   const anchor = useRef(target);
@@ -238,10 +240,13 @@ function useTargetBox(target: Target): { box: Box | null; avoid: Box[]; view: { 
       const el = els[0] ?? null;
       const phone = window.innerWidth < 640;
       if (el && el !== scrolled && typeof el.scrollIntoView === "function") {
-        scrollTo(els, phone);
+        // a phone whose decision is in the bar itself (the survey) stays where it is: arriving lands at the top
+        if (!phone || scrollPhone.current) {
+          scrollTo(els, phone);
+          settleUntil = performance.now() + 3000;
+        }
         scrolled = el;
-        settleUntil = performance.now() + 3000;
-      } else if (el && phone && !moved && performance.now() < settleUntil && Math.abs(el.getBoundingClientRect().top - want) > 8) {
+      } else if (el && phone && scrollPhone.current && !moved && performance.now() < settleUntil && Math.abs(el.getBoundingClientRect().top - want) > 8) {
         scrollTo(els, phone);
       } else if (el && !phone && !wheeled && els.some(clipped)) {
         // the panel reordered under the mark (teams go out, drones sort by battery): bring the cards back in view
@@ -378,14 +383,15 @@ export function GuideMark({
   strip?: ReactNode;
 }) {
   const call = mode === "call";
-  const { box, view } = useTargetBox(call ? target : []);
-
-  const card = useRef<HTMLDivElement>(null);
   const own = options.filter((o) => !o.on);
   const agent = options.find((o) => o.agent);
-
   // the agent's choice is on the console (the card's Approve, Confirm): that is the one to do first
   const onConsole = own.length === 0 || !!agent?.on;
+  // the decision is made in the bar itself (the survey's two patterns): the bar is what to look at
+  const inBar = call && !onConsole;
+  const { box, view } = useTargetBox(call ? target : [], !inBar);
+
+  const card = useRef<HTMLDivElement>(null);
   // A desktop: the bar shares one scroll column with Needs you (CommandView), the step's item under the
   // instruction; on a short screen (under 800 px) the other choices go after Needs you, so the control to
   // press first is on screen at 1280 × 720 too, and a link in the bar scrolls to them. A phone: the bar is
@@ -421,7 +427,10 @@ export function GuideMark({
   const reviewOpen = useConsole((s) => s.review.open);
   const [unfolded, setUnfolded] = useState(false);
   useEffect(() => setUnfolded(false), [reviewOpen, heading]);
-  const folded = phone && reviewOpen && !unfolded;
+  // A phone (the cold test: the sheet covered the map and Needs you's buttons): the bar is one slim line
+  // over the tabs, the instruction or the time-lapse's caption in it, unless the decision is in the bar
+  // itself; a tap opens the whole of it. While the review frame is open it is slim too.
+  const folded = phone && (reviewOpen || !inBar) && !unfolded;
 
   // Leave asks first: a stray click must not throw the run away. The confirm sits above every sheet, the
   // mission clock waits while it is open, and no review frame opens over it (consoleStore `confirming`).
@@ -537,21 +546,29 @@ export function GuideMark({
         </span>
       )}
       {folded && (
-        <button
-          type="button"
+        <div
           data-guide-chip
-          aria-expanded={false}
-          onClick={() => setUnfolded(true)}
-          className="sl-tap fixed inset-x-3 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-[45] flex items-center gap-2 rounded-full border border-caution/70 bg-surface-solid px-3 py-1.5 text-left text-small shadow-[0_12px_30px_-8px_rgba(0,0,0,0.8)]"
+          className={`fixed inset-x-3 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-[45] flex items-center gap-2 rounded-xl border bg-surface-solid px-3 py-1.5 text-small shadow-[0_12px_30px_-8px_rgba(0,0,0,0.8)] ${call ? "border-caution/70" : "border-border"}`}
         >
-          <span className="sl-pill shrink-0" data-tone={call ? "caution" : "neutral"}>
-            {call ? "Your call" : "Watch this"}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-text-2" title={heading}>
-            {heading}
-          </span>
-          <span className="shrink-0 text-caption text-text-3">Show the guide</span>
-        </button>
+          {call ? (
+            <span className="sl-pill shrink-0" data-tone="caution">
+              Your call
+            </span>
+          ) : (
+            clock && <span className="shrink-0 font-mono text-body text-text tabular-nums">{clock}</span>
+          )}
+          <button type="button" aria-expanded={false} onClick={() => setUnfolded(true)} className="sl-tap min-w-0 flex-1 text-left" title={call ? text : (caption ?? text)}>
+            <span className="line-clamp-2 text-text-2">{call ? emphasize(text) : (caption ?? text)}</span>
+          </button>
+          {!call && (
+            <button type="button" onClick={onPause} className="sl-tap shrink-0 rounded-full border border-border px-2.5 py-0.5 text-caption text-text">
+              {paused ? "Resume" : "Pause"}
+            </button>
+          )}
+          <button type="button" aria-expanded={false} onClick={() => setUnfolded(true)} className="sl-tap shrink-0 text-caption text-text-3 underline underline-offset-2">
+            Guide
+          </button>
+        </div>
       )}
       <div
         ref={card}
@@ -573,7 +590,7 @@ export function GuideMark({
             {call ? "Your call" : "Watch this"}
           </span>
           <span className="min-w-0 flex-1 text-text-2">{heading}</span>
-          {phone && reviewOpen && (
+          {phone && (reviewOpen || !inBar) && (
             <button type="button" onClick={() => setUnfolded(false)} className="sl-tap shrink-0 text-small text-text-2 hover:text-text">
               Hide
             </button>
@@ -599,7 +616,7 @@ export function GuideMark({
         {call ? (
           <>
             <p ref={said} className="text-body font-medium text-text">
-              {text}
+              {emphasize(text)}
             </p>
             {why && (
               <p data-guide-why className="text-small text-text-2" title={/^AI: /.test(why) ? why : `AI suggests: ${why}`} data-ai-pick={/^AI: /.test(why) ? "" : undefined}>
@@ -711,6 +728,12 @@ export function GuideMark({
       )}
     </>
   );
+}
+
+/** A prompt with the button it names (“Confirm clue”) set apart in bold, so the label never runs into the sentence. */
+export function emphasize(text: string): ReactNode {
+  const parts = text.split(/(“[^”]+”)/);
+  return parts.length === 1 ? text : parts.map((p, i) => (p.startsWith("“") ? <strong key={i} data-guide-button className="font-semibold text-text">{p}</strong> : p));
 }
 
 /** The restart confirm's words (the guided run's bar and free play's clock bar alike). */

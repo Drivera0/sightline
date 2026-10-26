@@ -96,6 +96,8 @@ export interface CommandProps {
   overMap?: ReactNode;
   /** Right above the map, phones only (the Photos view's strip). */
   aboveMap?: ReactNode;
+  /** Above the map on a guided or free run: the Mission goals strip (GoalsStrip.tsx). */
+  goals?: ReactNode;
   /** The right-hand column in place of Needs you (the Photos or Debrief view). */
   rightRail?: ReactNode;
   /** The right-hand column is the wide debrief; the resources step aside on a desktop. */
@@ -195,7 +197,7 @@ export function CommandView(p: CommandProps) {
     : // Resources runs the full height on the left (the T-card board), the timeline under the map and Needs you
       `${p.dock ? "lg:grid-cols-[19rem_minmax(0,1fr)_24rem]" : "lg:grid-cols-[19rem_minmax(0,1fr)_21rem]"} lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]`;
   return (
-    <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: p.dock ? `min(${timelineH}px, 28vh)` : `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
+    <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: p.dock || p.goals ? `min(${timelineH}px, 28vh)` : `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
       {p.conditionsOpen && p.conditionsData && (
         // over the console, under the status line (the map keeps its place); W or Esc closes it
         <div className="absolute inset-x-0 top-0 z-30 max-h-[75vh] overflow-y-auto rounded-lg shadow-[var(--shadow-pop)]">
@@ -220,6 +222,7 @@ export function CommandView(p: CommandProps) {
         />
       </div>
       <div id="console-map" className="order-2 flex min-h-0 flex-col gap-2 lg:order-none">
+        {p.goals}
         {p.aboveMap}
         <div ref={setMapBox} className="relative h-[52vh] min-h-0 lg:h-auto lg:flex-1">
           {p.map}
@@ -254,10 +257,10 @@ export function CommandView(p: CommandProps) {
       </div>
       {/* the guided search: its bar and Needs you share this column's one scroll (theme.css `data-guided`): the
           bar, the step's item, the bar's other choices; never over the map (a bottom sheet on a phone) */}
-      <div id="console-needs" data-guided={p.dock ? "" : undefined} className={`order-1 flex min-h-0 flex-col gap-2 lg:order-none ${p.dock ? "lg:overflow-y-auto lg:overscroll-contain" : ""}`}>
+      <div id="console-needs" data-guided={p.dock ? "" : undefined} className={`relative order-1 flex min-h-0 flex-col gap-2 lg:order-none ${p.dock ? "lg:overflow-y-auto lg:overscroll-contain" : ""}`}>
         {p.dock && <div id="console-guide" className="min-w-0 shrink-0">{p.dock}</div>}
         {p.rightRail ? (
-          <aside aria-label="View" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+          <aside aria-label="View" className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
             {p.rightRail}
           </aside>
         ) : (
