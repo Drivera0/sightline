@@ -1241,3 +1241,43 @@ alternating rounds), as the listing's focus on image processing suggests. Two li
 only Graviton2 types in us-west-2 (dry-run `UnsupportedOperation` for c8g, c7g, m8g, m7g), and COOL-V3
 is OpenCV 4.12, while the project pins 5.0, whose wheel already has most of COOL's image-processing
 gain on this CPU. Per photo, Graviton2 costs about 40 % more than the x86 c7i.4xlarge for this model.
+
+## 16. What changed on Oct 25
+
+I ran three cold usability tests of the console with a BC search-and-rescue manager persona and changed
+the site after each (PRs #217–#236). The engine, the detector and every measured number above are
+unchanged; these are changes to how the console asks, shows and logs.
+
+- **One place to decide** (#220). The guide is a slim coach bar. Each decision is made on the console's
+  own control (the photo's card, the proposal's button, Confirm clue, Record find), which gets the ring
+  and "Do this first"; the bar shows a button only for a choice the console has no control for.
+- **A time-lapse paced by beats** (#220, #234). Between decisions the clock plays the timeline: rows that
+  look alike and land within 5 mission minutes are one beat, the clock stops 1.2 s on each beat, and it
+  never runs faster than 4 mission minutes a second (`web/src/command/story.ts`, `LAPSE`). In headless
+  Chromium on a production build, the first time-lapse went from 30 to 58 frames a second (#234).
+- **The subject strip** (#224). Under the status line on every console: who is missing, what they wear,
+  where and when they were last seen, with LKP (centre the map) and Profile.
+- **A hands-on console with Restart** (#236). `#m/demo/map`, the home page's Open the console, is free
+  play: a fresh mission at the call with the console's own controls and a clock bar (Play/Pause, 1×, 2×,
+  4×, Restart). Restart is on the guided bar too, and asks first.
+- **"Without Sightline vs with Sightline"** (#235). The end screen compares the visitor's run with a
+  manual search on the same engine and seed. Its assumptions are on the screen with their sources: the
+  survey flies a lawnmower pattern 12 min longer; one reviewer looks at every photo by eye at 33 s each
+  and finds 68 % of people (Pyrrö, Naseri and Jung 2021, §3.9); teams take a fixed hand split of the grid;
+  the detector takes 4.7 s a photo on the deployed server (§4) (`web/src/command/compare.ts`). The manual
+  line is that engine under those assumptions, not a measured human search.
+- **Team status from one clock** (#226). One last-heard time per team feeds the Resources rows, Needs
+  you, the overdue toasts and the bell; a team after a pass is Returning until it is back at base; the
+  drones fly out, drain 2 % a minute and land by the mission clock (`web/src/command/fleetSim.ts`).
+- **An approver on every move** (#226, #229, #231). Every assignment, flight, clue and photo answer in
+  the log says who decided: "You approved…", "Watch instead chose…", "auto-approved: guided survey", or
+  the scenario's own "the search manager".
+- **The AI's photo pick against the subject's description** (#228). The pick reads age and clothing from
+  the subject's description and compares them with what each photo shows; only a match is "the subject",
+  and the same photo in another scenario is "another person", a witness lead
+  (`web/src/command/subjectMatch.ts`).
+- **Grounded drones** (#228). The console shows the conditions as they stood at the clock. If they ground
+  the drones at the call, step 1 offers ground teams first while the drones wait for the wind, or flying
+  anyway as an override logged with its approver.
+- **The look** (#232, #233). A contour-heat logo replaces the crosshair, and the home page gives OpenCV 5,
+  NVIDIA Nemotron and Nebius Token Factory three equal cards, each with its measured numbers.

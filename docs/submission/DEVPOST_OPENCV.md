@@ -114,7 +114,7 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 
 ### Sources for every number
 
-1. `README.md:89` (70 px, tiling, shrinking to 1024 px gives recall 0.234)
+1. `README.md:104` (70 px, tiling, shrinking to 1024 px gives recall 0.234)
 2. `docs/report/OPENCV_REPORT.md:34-35`, `:295`
 3. `docs/report/OPENCV_REPORT.md:139-148`
 4. `docs/report/OPENCV_REPORT.md:153-160`, `:187-191`
@@ -138,7 +138,7 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 22. `docs/report/OPENCV_REPORT.md:322-353`
 23. `docs/report/AGENT_EVAL.md:203-229`, `:238-247`
 24. `docs/EXPORTS.md`; `tests/geo/test_exports.py`
-25. `web/src/command/README.md:127-171`, `:173-212`, `:103-116`; `README.md:58-68`
-26. `README.md:91-101` (Built with NVIDIA + Nebius: every model, what it does, where it runs); `README.md:265-267` (Credits)
-27. `web/src/front/Home.tsx` (Built with: OpenCV, NVIDIA and Nebius cards side by side, PR #232); `README.md:91-101`
+25. `web/src/command/README.md:127-171`, `:173-212`, `:103-116`; `README.md:58-67`
+26. `README.md:106-116` (Built with NVIDIA + Nebius: every model, what it does, where it runs); `README.md:280-282` (Credits)
+27. `web/src/front/Home.tsx` (Built with: OpenCV, NVIDIA and Nebius cards side by side, PR #232); `README.md:106-116`
 28. `docs/report/COOL_GRAVITON.md:9-36` (result), `:221-225` (cost of the run: c6g.4xlarge about $1.34 plus the volume, COOL free in the trial); `docs/report/OPENCV_REPORT.md:1216-1240` (§15); `docs/evidence/cool/`
