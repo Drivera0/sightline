@@ -716,7 +716,7 @@ function openSighting(clues: readonly Clue[], passes: readonly Pass[], sectors: 
 }
 
 /** What a proposal's reason says of a sighting still waiting for a team. */
-const sightingLine = (o: { clue: Clue; sector: string }) => ` A possible sighting in ${o.sector} (${o.clue.text}) waits for a team: sending the nearest one there comes first.`;
+const sightingLine = (o: { clue: Clue; sector: string }) => ` A possible sighting in ${o.sector} waits for a team: sending the nearest one there comes first.`;
 
 /** A team's walk out and one pass, in minutes (the cost of sending it anywhere). */
 export const PASS_MIN = Math.round((WALK_MS + SWEEP_MS) / MIN_MS);
@@ -745,7 +745,7 @@ function withSightings(s: MissionData, full: DemoFull, passes: readonly Pass[], 
         evidence: [{ kind: "clue", ref: clue.id, caption: clue.text }],
         target: { team: near.team.id, sector },
         summary: `Send ${call(near.team.id)} to the sighting in ${sector} (+${PASS_MIN} min)`,
-        reason: `A reviewer marked a person on a photo (${clue.text}): a possible sighting in ${sector}. ${call(near.team.id)} is the nearest team (${Math.round(near.m)} m, ${where}); the walk and one pass take about ${PASS_MIN} min. If it is not the subject, the plan by POA stands.`,
+        reason: `A reviewer marked a person on a survey photo: a possible sighting in ${sector}. ${call(near.team.id)} is the nearest team (${Math.round(near.m)} m, ${where}); the walk and one pass take about ${PASS_MIN} min. If it is not the subject, the plan by POA stands.`,
       },
     ];
   }

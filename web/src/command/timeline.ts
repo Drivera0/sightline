@@ -135,7 +135,7 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
     case "fleet.updated":
       // a demo flight's position reports are not news; the leg's start and end are
       if (/ on L\d+$/.test(e.summary)) return null;
-      return entry({ id: e.id, at: e.at, kind: "drone", refs: e.ref ? [e.ref] : [], text: sentByYou(e.summary.replace(/ \(simulated fleet\)$/, "")) });
+      return entry({ id: e.id, at: e.at, kind: "drone", refs: e.ref ? [e.ref] : [], text: sentByYou(e.summary.replace(/ \(simulated fleet\)$/, "").replace(/^(L\d+) for Drone \d+ over /, "$1 over ")) });
     case "conditions.updated":
       return entry({ id: e.id, at: e.at, kind: "note", text: `Conditions looked up for ${(d as { area?: string } | null)?.area ?? "the area"}` });
     case "mission.note": {
