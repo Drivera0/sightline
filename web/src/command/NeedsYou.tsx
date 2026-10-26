@@ -14,7 +14,8 @@
 // names no item, the guide's "none" between decisions, dims them all). Every item carries `data-need` (its id) and
 // `data-need-kind`. A reviewer's "Person" on a photo puts the agent's "Send the nearest team to the sighting"
 // at the top (missionTime.ts makes it), never dimmed: it came from the manager's own answer. Built by lane A.
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { create } from "zustand";
 import type { Clue, Drone, MissionEvent, Proposal, RadioTurn, Team, TimelineEvent } from "../contract";
 import { Icon, type IconName } from "../shell/icons";
 import { useClock } from "../lib/time";
@@ -23,6 +24,12 @@ import { plainWords, toReview } from "./terms";
 import { isSightingProposal, nearestFree, needs, sectorAt, sightingReports, type Heard } from "./console";
 import { SWEEP_MS, WALK_MS } from "./sim";
 import type { SectorNow } from "../lib/api";
+
+/**
+ * How many items wait in Needs you, as its head says it ("3 waiting"): the one count the phone's tab, free
+ * play's clock bar and the goals read, so they never disagree (the cold test: three counters, three numbers).
+ */
+export const useNeedsTotal = create<{ total: number }>(() => ({ total: 0 }));
 
 /** The kinds of thing that wait here, each with its colour token (shell/README.md) and its group's name. */
 export const NEED_KINDS = {
@@ -212,6 +219,9 @@ export function NeedsYou({
   const overdue = items.flatMap((i) => (i.kind === "overdue" ? [i] : []));
   const readbacks = found ? allReadbacks.filter((i) => !i.clue) : allReadbacks;
   const total = reports.length + items.reduce((n, i) => n + (found && (i.kind === "proposal" || i.kind === "review" || (i.kind === "readback" && i.clue)) ? 0 : i.kind === "review" ? i.count : 1), 0);
+  useEffect(() => {
+    if (useNeedsTotal.getState().total !== total) useNeedsTotal.setState({ total });
+  }, [total]);
   // the guided search points at one item: a group's head goes when none of its items is the one
   const off = (has: (id: string) => boolean) => !!highlight && !has(highlight);
   const pointed = !!highlight && (highlight === "review" ? !!review : reports.some((r) => `report-${r.team.id}` === highlight) || items.some((i) => i.kind !== "review" && i.id === highlight) || proposals.some((p) => p.id === highlight && p.status === "pending"));
@@ -223,7 +233,7 @@ export function NeedsYou({
   const sighting = sightingProps.length > 0 && (
     <div role="group" aria-label="Possible sighting" className="flex flex-col gap-2">
       <NeedsHead kind="sighting" count={sightingProps.length} />
-      <ApprovalInbox proposals={sightingProps} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={null} feedHref={undefined} order="oldest" highlight={null} />
+      <ApprovalInbox proposals={sightingProps} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={null} feedHref={undefined} order="oldest" highlight={null} keys={!(Array.isArray(lead) ? lead.length : lead)} />
     </div>
   );
 
@@ -235,7 +245,7 @@ export function NeedsYou({
         {total > 1 && <span className="ml-auto text-caption font-normal text-text-3">most urgent first</span>}
       </h2>
       {/* never folded away: on a phone it scrolls inside a capped height, above the map */}
-      <div aria-label="Approvals rail" className="flex max-h-[60vh] min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 lg:max-h-none">
+      <div aria-label="Approvals rail" className="relative flex max-h-[60vh] min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 lg:max-h-none">
         {standing}
         {total === 0 && !found && <p className="px-1 py-2 text-small text-text-3">Nothing needs you. AI suggestions, photos to review, overdue teams and clues to confirm appear here.</p>}
         {found && (

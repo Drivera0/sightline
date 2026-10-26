@@ -157,7 +157,8 @@ export function Timeline({
           {clueForm(() => setAdding(false), clue.at)}
         </div>
       )}
-      <ol ref={list} aria-label="Timeline entries" className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
+      {/* relative: its rows' screen-reader text (absolute) is clipped by this list, never lengthening the page (the cold test: 1765 px at 1440 × 900) */}
+      <ol ref={list} aria-label="Timeline entries" className="relative min-h-0 flex-1 overflow-y-auto px-1 py-1">
         {shown.length === 0 && <li className="px-2 py-2 text-small text-text-3">Nothing here yet.</li>}
         {shown.map((e) => (
           <li

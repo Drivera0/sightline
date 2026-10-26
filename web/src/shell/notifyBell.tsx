@@ -58,12 +58,11 @@ export function NotifyBell({ onShow }: { onShow: (target: ShowTarget | null | un
           <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z" />
           <path d="M10 21h4" />
         </svg>
-        {unread > 0 ? (
-          <span data-testid="bell-count" className="min-w-4 rounded-full bg-text px-1 text-center text-caption font-medium text-bg">
-            {unread}
+        {/* news not read yet, said as "new" (Needs you's count says what waits: the cold test read a "0" here beside "1 waiting") */}
+        {unread > 0 && (
+          <span data-testid="bell-count" className="min-w-4 rounded-full bg-text px-1.5 text-center text-caption font-medium text-bg">
+            {unread} new
           </span>
-        ) : (
-          <span className="text-text-3">0</span>
         )}
       </button>
       {open && at && (

@@ -222,6 +222,7 @@ export function ReviewRail({
   onAnswer,
   top,
   empty = "Photos to review appear here as the drones' photos are processed.",
+  step = null,
 }: {
   cards: readonly ReviewCard[];
   answers: Readonly<Record<string, LiveAnswer>>;
@@ -229,6 +230,8 @@ export function ReviewRail({
   /** Above the queue: your own photo from Try a photo. */
   top?: ReactNode;
   empty?: string;
+  /** The guided search's review step, one photo at a time: its head counts that step ("photo 1 of 3"), as the review frame does. */
+  step?: { n: number; of: number } | null;
 }) {
   const done = cards.filter((c) => answers[c.id]).length;
   // J/K (or the arrows) move through the queue, P/N/U answer the current candidate (LANE_D §9.2)
@@ -270,11 +273,22 @@ export function ReviewRail({
       <div className="flex items-baseline gap-1.5 px-1 pt-1">
         <span aria-hidden className="size-2 shrink-0 self-center rounded-full bg-text-2" />
         <span className="text-caption font-medium text-text-2">{TERMS.review}</span>
-        {cards.length > 0 && <span className="sl-num text-caption text-text-3">{cards.length - done}</span>}
-        {cards.length > 0 && (
-          <span className="ml-auto text-caption text-text-3">
-            {done} of {cards.length} answered
-          </span>
+        {step ? (
+          <>
+            <span className="sl-num text-caption text-text-3">{step.of - step.n + 1}</span>
+            <span className="ml-auto text-caption text-text-3">
+              photo {step.n} of {step.of}
+            </span>
+          </>
+        ) : (
+          <>
+            {cards.length > 0 && <span className="sl-num text-caption text-text-3">{cards.length - done}</span>}
+            {cards.length > 0 && (
+              <span className="ml-auto text-caption text-text-3">
+                {done} of {cards.length} answered
+              </span>
+            )}
+          </>
         )}
       </div>
       {top}

@@ -25,6 +25,7 @@ import { cacheUrl, loadCache } from "../lib/cache";
 import { photoProgress, useMission } from "../lib/mission";
 import { clockWithZone, ClockZone, DEMO_TZ, utcLabel } from "../lib/time";
 import { CommandView, storeActions } from "../command/CommandView";
+import { useNeedsTotal } from "../command/NeedsYou";
 import { useConsole } from "../command/consoleStore";
 import { useNotify } from "../shell/notify";
 import { Briefings, useRadioVoice } from "../command/RadioLink";
@@ -68,7 +69,7 @@ const BoxLayer = lazy(() => import("../detect/TryPhoto").then((m) => ({ default:
 const AssignmentCardView = lazy(() => import("../command/AssignmentCardView").then((m) => ({ default: m.AssignmentCardView })));
 
 /** Where the map goes while MapLibre loads: the same frame, empty, so nothing moves when it arrives. */
-const MAP_FRAME = <div aria-hidden="true" className="relative h-full min-h-[360px] rounded-lg border border-border" />;
+const MAP_FRAME = <div aria-hidden="true" className="relative h-full min-h-[360px] rounded-lg lg:min-h-[280px] border border-border" />;
 /** The still map's fade into the live map (MapStill.tsx), within 100–400 ms; none under reduced motion. */
 const STILL_FADE_MS = 300;
 const loading = (what: string) => <p className="text-small text-text-3">Loading {what}…</p>;
@@ -714,7 +715,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const review =
     reviewCount > 0 || tried ? (
       demo ? (
-        <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id])} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Photos to review appear here as the survey's photos land." />
+        <ReviewRail cards={run.on ? run.cards(cards) : cards.filter((c) => !story.answers[c.id])} answers={story.answers} onAnswer={answerDemo} top={tried} empty="Photos to review appear here as the survey's photos land." step={run.photoStep} />
       ) : (
         <ReviewRail cards={live} answers={liveAnswers} onAnswer={answerLive} top={tried} />
       )
@@ -777,6 +778,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // once the subject is found, pending proposals and candidates are closed (Needs you folds them away)
   const needsCount = s.mission?.status === "found" ? 0 : (run.on ? run.proposals(s.proposals) : s.proposals).filter((p) => p.status === "pending").length + reviewCount;
   const inStory = demo && !guided && story.playing;
+  const needsTotal = useNeedsTotal((x) => x.total);
 
   return (
     <ClockZone.Provider value={clockZone}>
@@ -786,7 +788,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           views={{ current: view, onSelect: go, counts: { photos: inStory ? frameCount || undefined : undefined } }}
           tabs={{
             current: tab,
-            needs: needsCount || undefined,
+            // the count Needs you's head shows (one source, NeedsYou useNeedsTotal)
+            needs: (view === "map" ? needsTotal : needsCount) || undefined,
             onSelect: (x) => {
               useConsole.getState().setTab(x);
               if (x === "needs") toNeeds();
@@ -849,7 +852,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           />
         )}
         {/* a phone's coach mark sits along the bottom: room under the last panel so any target can scroll to the top */}
-        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-2 pb-20 lg:p-3 lg:pb-3 ${guided && !freePlay ? "max-sm:pb-[55vh]" : ""}`}>
+        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-2 pb-20 lg:p-3 lg:pb-3 ${guided && !freePlay ? "max-sm:pb-28" : ""}`}>
           {s.error && (
             <p role="alert" className="text-small text-warn">
               {s.error}
@@ -884,6 +887,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               rightRail={rightRail}
               rightWide={view === "debrief"}
               aboveMap={photoStrip}
+              goals={run.on ? run.goals(cards.map((c) => c.id)) : undefined}
               cover={cover}
               review={review}
               reviewCount={reviewCount}
@@ -902,7 +906,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               map={
                 still ? (
                   // the map loads under the still image, which fades out once the map has drawn
-                  <div className="relative h-full min-h-[360px]">
+                  <div className="relative h-full min-h-[360px] lg:min-h-[280px]">
                     {mapOn && (
                       <div className="absolute inset-0">
                         <Suspense fallback={null}>

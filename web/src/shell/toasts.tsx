@@ -29,8 +29,8 @@ export function ToastStack({ onShow }: { onShow: (target: ShowTarget | null | un
       onPointerLeave={() => setHeld(false)}
       onFocus={() => setHeld(true)}
       onBlur={() => setHeld(false)}
-      // above the phone's bottom tabs; on a desktop over the right column's foot
-      className="pointer-events-none fixed right-3 bottom-20 z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2 lg:right-4 lg:bottom-4"
+      // above the phone's bottom tabs; on a desktop above the talk bar, never over its Send (the cold test)
+      className="pointer-events-none fixed right-3 bottom-20 z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2 lg:right-4 lg:bottom-[5.5rem]"
     >
       {toasts.map((t) => (
         <Toast key={t.id} note={t} held={held} onShow={onShow} />
