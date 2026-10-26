@@ -81,7 +81,7 @@ breaks: &breaks
   text: >-
     The detector misses forty-six of the three hundred thirty-seven people in the HERIDAL test set,
     recall zero point eight six four, strict VOC, and twenty-eight of those forty-six are at two sites,
-    MED and CAB. The second look is a small gain. The fleet and the approvals in the demo are simulated.
+    MED and CAB. The second look is a small gain. The fleet is a simulation; the approvals are not.
 
 # The finding team's call and the desk's reply, read off the fixture (story_facts.py), as they land on the timeline
 radio: &radio

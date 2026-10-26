@@ -53,7 +53,7 @@ turns with tool calls.
 
 **Onboarding.** Zero to the first chat reply: about 10 hours (sign-up → key, waiting on the
 account) then about 3 minutes (key → first call, 2026-10-20 13:29 → 13:32 PDT by our session log). The
-first tool call that parsed came 2.5 hours after the key, nearly all of it our own client code. The one-line check we now give others is in `README.md:124`.
+first tool call that parsed came 2.5 hours after the key, nearly all of it our own client code. The one-line check we now give others is in `README.md:139`.
 
 **Would we build with it again?** Yes. One OpenAI-compatible client for vision, text and tools, with
 reliable structured output, is what let a small team wire five jobs to NVIDIA models in a week.
