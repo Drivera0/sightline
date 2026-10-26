@@ -3,7 +3,7 @@
 **OpenCV AI Competition 2026 · technical report · code freeze Sun Oct 25, 12:00 PT**
 
 > Every number comes from a file in the repo or a cited source; anything simulated is labelled
-> simulated, and what I could not verify is marked. Author: Daniel Rivera; development used Claude Code (Anthropic) as an AI coding assistant (§11.4). Every claim, its file and line, and how to regenerate it: [`EVIDENCE_INDEX.md`](EVIDENCE_INDEX.md).
+> simulated, and what I could not verify is marked. Author: Daniel Rivera (the BCS Hackathon 2026 version was built by a team of four: Daniel Rivera, @bamobam, @har-vir and @jkiim; everything added for this hackathon is solo); development used Claude Code (Anthropic) as an AI coding assistant (§11.4). Every claim, its file and line, and how to regenerate it: [`EVIDENCE_INDEX.md`](EVIDENCE_INDEX.md).
 
 Repository: https://github.com/Drivera0/sightline (tag `opencv-submit`) · Live demo:
 https://sightline-iota-sandy.vercel.app (the home page: **Try the guided simulation**, then **Start the simulation** on a scenario card, `#m/demo?s=<seed>&guide=1`; the Debrief's list for judges is `#m/demo?t=6&judges`, where the old `#judges` redirects) · Live
@@ -994,7 +994,7 @@ branch) was searched for API keys, tokens, private keys and committed `.env` fil
 
 ### 11.4 Disclosures
 
-1. **Existing project:** started at BCS Hackathon 2026 (§13); eligibility confirmed by the organizers.
+1. **Existing project:** started at BCS Hackathon 2026 by a team of four, extended solo since (§13); eligibility confirmed by the organizers.
 2. **Test-seen choices (sprint 1):** keeping training run 2 over run 1, and dropping the
    hard-negative fine-tune, were made with test scores in view; the mirror-TTA setting was
    scored on test and not adopted (README). Test numbers are therefore slightly optimistic; the best
@@ -1105,7 +1105,7 @@ uv run python scripts/remote_check.py --api https://<address>   # is the deploym
 
 ## 13. What changed since BCS
 
-Sightline was first built in 36 hours at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`):
+Sightline was first built in 36 hours by a team of four: Daniel Rivera, [@bamobam](https://github.com/bamobam), [@har-vir](https://github.com/har-vir) and [@jkiim](https://github.com/jkiim) at BCS Hackathon 2026; everything this section lists was added solo since (Oct 16–17, tag `bcs-final-submission`):
 the tiled detector, the review queue and the Bayesian search map, run as a batch over a demo survey.
 The OpenCV organizers confirmed the existing project is eligible. Built for this competition between Oct 20 and the code freeze on Sun Oct 25, 12:00 PT:
 
