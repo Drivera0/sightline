@@ -499,7 +499,8 @@ to use it, and professional." With the cold test's layout findings. Screenshots 
 - **Mission goals** (`goals.ts` `missionGoals`, `GoalsStrip.tsx`, above the map on a guided or free run):
   Find the subject before last light; Review every photo flagged (the guided run: its review step's photos
   once the step is up; free play: every photo landed for review); Confirm each radio clue (read back or
-  with a bearing; logged without mapping does not count); Keep every team within its radio check-in (a
+  with a bearing; logged without mapping does not count; the guided run: its read-back once that step is
+  up, the one radio clue it asks about; free play: every clue by radio); Keep every team within its radio check-in (a
   team past it on two readings of a running clock, `console.ts` `overdueTeams`; a jump of Skip ahead is no
   missed check-in). Each chip: ✓ met, ○ to play for, ✕ missed, the progress on hover.
 - **The score** (`goals.ts` `missionScore`, the end screen's first section): 40 for the find before last

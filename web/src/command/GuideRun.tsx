@@ -566,7 +566,11 @@ export function useGuideRun({
     const tri = list.find((i) => i.id === "triage");
     if (reviewIds && free) reviewRef.current = { flagged: reviewIds.length, answered: reviewIds.filter((id) => !!answers[id]).length };
     const photos = free ? reviewRef.current : { flagged: tri && realOf(tri.at, costs) <= clockMs ? (tri.cards?.length ?? 0) : 0, answered: choices.filter((c) => c.inject === "triage").length };
-    const radio = m.clues.filter((c) => c.source === "radio");
+    // the radio clues: the guided run's read-back (once its step is up: the run asks for no other), free
+    // play's every one by radio
+    const cl = list.find((i) => i.id === "clue");
+    const asked = storyClue(scenario)?.id;
+    const radio = free ? m.clues.filter((c) => c.source === "radio") : cl && realOf(cl.at, costs) <= clockMs ? m.clues.filter((c) => c.id === asked) : [];
     const found = foundAt ?? (findDone || m.mission?.status === "found" ? clockMs : null);
     return missionGoals({
       found,
