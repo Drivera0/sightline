@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import type { Frame } from "../contract";
 import { Label } from "../shell/components";
 import { Icon } from "../shell/icons";
+import { toReview } from "./terms";
 
 /** How many of the newest photos are shown as pictures (each is a full survey photo). */
 export const PHOTO_TILES = 12;
@@ -37,10 +38,10 @@ export function PhotoStrip({
     <section aria-label="Photos landing" data-tour="photos" className="flex flex-col gap-1.5 rounded-lg border border-line bg-surface-solid p-2 lg:hidden">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-small text-text">
-          {landed.length} <span className="text-text-3">of {total} placed</span>
+          {landed.length}{landed.length < total ? <span className="text-text-3"> of {total}</span> : null} <span className="text-text-3">photos on the map</span>
         </span>
         <span className="text-caption text-text-2">
-          {candidates} {candidates === 1 ? "candidate" : "candidates"}
+          {toReview(candidates)}
         </span>
       </div>
       <div className="relative h-1 overflow-hidden rounded-full bg-surface-strong">
@@ -55,7 +56,7 @@ export function PhotoStrip({
             <li key={f.id} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-surface-strong">
               {!playing && <img src={imageUrl(f.file)} alt={`Survey photo ${f.id}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
               <span className="absolute bottom-0 left-0.5 font-mono text-caption text-text-2">{f.id}</span>
-              {f.n_candidates > 0 && <span aria-label="Has a candidate" className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-accent ring-1 ring-bg" />}
+              {f.n_candidates > 0 && <span aria-label="Has a photo to review" className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-accent ring-1 ring-bg" />}
             </li>
           ))}
         </ul>
@@ -112,10 +113,10 @@ export function PhotosRail({
           <div className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-small text-text">
-                {landed.length} <span className="text-text-3">of {total} placed</span>
+                {landed.length}{landed.length < total ? <span className="text-text-3"> of {total}</span> : null} <span className="text-text-3">photos on the map</span>
               </span>
               <span className="text-caption text-text-2">
-                {candidates} {candidates === 1 ? "candidate" : "candidates"}
+                {toReview(candidates)}
               </span>
             </div>
             <div className="relative h-1.5 overflow-hidden rounded-full bg-surface-strong">
@@ -133,7 +134,7 @@ export function PhotosRail({
                   <li key={f.id} className="relative aspect-[4/3] overflow-hidden rounded-sm bg-surface-strong">
                     {!playing && <img src={imageUrl(f.file)} alt={`Survey photo ${f.id}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
                     <span className="absolute bottom-0.5 left-1 rounded-sm bg-bg/80 px-1 font-mono text-caption text-text-2">{f.id}</span>
-                    {f.n_candidates > 0 && <span aria-label="Has a candidate" className="absolute right-1 top-1 size-2 rounded-full bg-accent ring-2 ring-bg" />}
+                    {f.n_candidates > 0 && <span aria-label="Has a photo to review" className="absolute right-1 top-1 size-2 rounded-full bg-accent ring-2 ring-bg" />}
                   </li>
                 ))}
               </ul>

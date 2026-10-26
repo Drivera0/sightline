@@ -22,7 +22,7 @@ export const FEED_FILTERS: Record<string, readonly MissionEvent["type"][] | null
 /** Each event type in words, for the feed's label column (the raw type stays in the tooltip). */
 export const EVENT_WORDS: Record<MissionEvent["type"], string> = {
   "photo.processed": "Photo",
-  "detection.new": "Candidate",
+  "detection.new": "Photo to review",
   verdict: "Review",
   "map.updated": "Map",
   "proposal.new": "Proposal",

@@ -15,6 +15,7 @@ import { clueNoteFor } from "./clueShift";
 import { domain, OVERRIDE_SOURCE } from "./conditions";
 import { useConsole } from "./consoleStore";
 import { AgentNote, RadioBubble } from "./RadioBubble";
+import { plainWords, TERMS } from "./terms";
 
 export type Decide = (
   pid: string,
@@ -26,10 +27,10 @@ export type Decide = (
 
 const KIND_WORDS: Record<Proposal["kind"], string> = {
   drone_leg: "Drone",
-  retask_drone: "Re-task drone",
+  retask_drone: "Drone sent elsewhere",
   assign_sector: "Team",
-  promote_detection: "Review queue",
-  dismiss_detection: "Review queue",
+  promote_detection: TERMS.review,
+  dismiss_detection: TERMS.review,
   alert: "Alert",
 };
 const IMAGE_EVIDENCE: readonly EvidenceRef["kind"][] = ["crop", "frame", "relook"];
@@ -61,25 +62,33 @@ export function proposalAsk(p: Proposal, teams: readonly Team[], drones: readonl
   const sector = p.target.sector ?? p.leg?.sector_id;
   const drone = droneName(p.target.drone ?? p.leg?.drone_id);
   const det = p.target.detection;
-  const fallback = { ask: p.summary, action: "Approve" };
+  const fallback = { ask: plainWords(p.summary), action: "Approve" };
   switch (p.kind) {
     case "assign_sector": {
       const t = callsign(team || p.edits?.team || p.target.team);
+      // the agent's answer to a reviewer's "Person": the sighting, and what the walk and the pass cost
+      if (t && sector && p.id.startsWith("sight-")) {
+        const cost = /\(\+(\d+) min\)/.exec(p.summary)?.[1];
+        return { ask: `Send ${t} to the sighting in ${sector}?${cost ? ` (+${cost} min)` : ""}`, action: `Send ${t} to the sighting` };
+      }
       return t && sector ? { ask: `Send ${t} to ${sector}?`, action: `Send ${t} to ${sector}` } : fallback;
     }
     case "drone_leg":
       return drone && sector ? { ask: `Fly ${drone} over ${sector}?`, action: `Fly ${drone} over ${sector}` } : fallback;
     case "retask_drone":
       if (isRecall(p)) return drone ? { ask: `Bring ${drone} back to base now?`, action: `Bring ${drone} home` } : fallback;
-      return drone && sector ? { ask: `Re-task ${drone} to ${sector}?`, action: `Re-task ${drone} to ${sector}` } : fallback;
+      return drone && sector ? { ask: `Send ${drone} elsewhere, to ${sector}?`, action: `Send ${drone} to ${sector}` } : fallback;
     case "promote_detection":
-      return det ? { ask: `Put ${det} in the review queue?`, action: `Add ${det} to review` } : fallback;
+      return det ? { ask: `Put this photo in ${TERMS.review}?`, action: `Add it to ${TERMS.review}` } : fallback;
     case "dismiss_detection":
-      return det ? { ask: `Drop ${det} from the review queue?`, action: `Drop ${det}` } : fallback;
+      return det ? { ask: `Drop this photo from ${TERMS.review}?`, action: "Drop it" } : fallback;
     default:
-      return { ask: p.summary, action: "Acknowledge" };
+      return { ask: plainWords(p.summary), action: "Acknowledge" };
   }
 }
+
+/** An evidence image's caption in the console's words ("zoom_native" is the AI re-check's zoom). */
+export const evidenceCaption = (caption: string) => plainWords(caption.replace(/^zoom_native$/, `${TERMS.recheck} zoom`).replace(/^detector confidence /, "detector score "));
 
 /** The fact that grounded the drones, where it came from, and the drone's battery and position. */
 function RecallFacts({ p, drone }: { p: Proposal; drone: Drone | undefined }) {
@@ -141,6 +150,14 @@ export function bringToTop(el: HTMLElement): void {
   rail.scrollTop += el.getBoundingClientRect().top - rail.getBoundingClientRect().top;
 }
 
+/** The guided assign step's main button on a card, and the words its own Approve takes ("Send only …"). */
+export interface Lead {
+  id: string;
+  label: string;
+  onClick: () => void;
+  second: string | null;
+}
+
 export function ApprovalInbox({
   proposals,
   teams,
@@ -152,10 +169,13 @@ export function ApprovalInbox({
   story = null,
   order = "newest",
   highlight = null,
+  lead = null,
 }: {
   /** Newest first (the inbox on its own), or oldest first (Needs you: what has waited longest on top). */
   order?: "newest" | "oldest";
-  /** A proposal to point at (the guided search): it is ringed, the others dimmed. Null: none. */
+  /** The guided assign step: its card's main button ("Send all N free teams…"); the card's Approve is second. */
+  lead?: Lead | null;
+  /** A proposal to point at (the guided search): it is ringed, the others hidden. Null: none. */
   highlight?: string | null;
   proposals: readonly Proposal[];
   teams: readonly Team[];
@@ -221,6 +241,7 @@ export function ApprovalInbox({
           clues={p.kind === "assign_sector" ? clueNoteFor(p.reason, clueNote?.(p) ?? null) : null}
           story={p.id === story}
           highlighted={highlight === p.id}
+          lead={lead?.id === p.id ? lead : null}
           dimmed={highlight !== null && highlight !== p.id}
           drones={drones}
           fresh={!known.current?.has(p.id)}
@@ -245,6 +266,7 @@ function PendingCard({
   story = false,
   fresh = false,
   highlighted = false,
+  lead = null,
   dimmed = false,
   drones = [],
   cardRef,
@@ -256,6 +278,7 @@ function PendingCard({
   drones?: readonly Drone[];
   /** Pointed at from outside (the guided search): ringed; `data-highlighted`. */
   highlighted?: boolean;
+  lead?: Lead | null;
   /** Another item is pointed at: this one steps back; `data-dimmed`. */
   dimmed?: boolean;
   by: string;
@@ -288,7 +311,7 @@ function PendingCard({
   };
   const keys = (e: KeyboardEvent) => {
     if (e.target !== e.currentTarget) return; // typing in a field inside the card
-    if (e.key === "a" || e.key === "A") approve();
+    if (e.key === "a" || e.key === "A") (lead ? lead.onClick() : approve());
     if (e.key === "x" || e.key === "X") setRejecting(true);
     if ((e.key === "e" || e.key === "E") && canEdit) setEditing((v) => !v);
   };
@@ -319,18 +342,22 @@ function PendingCard({
       inert={dimmed || undefined}
       {...(story ? { "data-story-proposal": "" } : {})}
       style={{ ["--c" as string]: "var(--proposal)" }}
-      className={`flex flex-col gap-2 rounded-md border border-line border-l-[3px] border-l-[var(--proposal)] bg-bg/40 p-2.5 transition-opacity focus:outline focus:outline-[var(--proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused || highlighted ? "sl-glow-proposal" : ""} ${dimmed ? "pointer-events-none opacity-50" : ""}`}
+      className={`flex flex-col gap-2 rounded-md border border-line border-l-[3px] border-l-[var(--proposal)] bg-bg/40 p-2.5 transition-opacity focus:outline focus:outline-[var(--proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused || highlighted ? "sl-glow-proposal" : ""} ${dimmed ? "hidden" : ""}`}
     >
       <div className="flex items-center gap-2">
         <StatusPill tone="proposal">{kindWords(p)}</StatusPill>
-        <span className="ml-auto font-mono text-caption text-text-3" title={`proposed by the ${p.created_by}`}>
-          {p.id}
-        </span>
+        {/* the ids are for the Trace; here they wait under a small "details" */}
+        <details className="ml-auto text-caption text-text-3">
+          <summary className="cursor-pointer select-none">details</summary>
+          <span className="font-mono">
+            {[p.id, p.target.detection, ...p.evidence.filter((ev) => !IMAGE_EVIDENCE.includes(ev.kind)).map((ev) => `${ev.kind} ${ev.ref}`)].filter(Boolean).join(" · ")} · proposed by the {p.created_by}
+          </span>
+        </details>
       </div>
       <span className="text-body font-medium text-text">{ask.ask}</span>
       {isRecall(p) && <span className="text-caption text-text-2">{recallSummary(p.summary, drone?.battery_pct)}</span>}
       <AgentNote>
-        <p className={open || p.reason.length <= REASON_SHORT ? "" : "line-clamp-2"}>{p.reason}</p>
+        <p className={open || p.reason.length <= REASON_SHORT ? "" : "line-clamp-2"}>{plainWords(p.reason)}</p>
         {p.reason.length > REASON_SHORT && (
           <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="sl-tap self-start text-caption text-text-2 underline underline-offset-2 hover:text-text">
             {open ? "Show less" : "Show the whole reason"}
@@ -340,24 +367,20 @@ function PendingCard({
       {clues && (
         <p aria-label="Clues behind it" className="text-small text-text-2">
           <span className="text-text-3">Clues behind it, from the map log: </span>
-          {clues}.
+          {plainWords(clues)}.
         </p>
       )}
       {isRecall(p) && <RecallFacts p={p} drone={drone} />}
-      {p.evidence.length > 0 && !isRecall(p) && (
+      {p.evidence.some((ev) => IMAGE_EVIDENCE.includes(ev.kind)) && !isRecall(p) && (
         <div role="group" className="flex flex-wrap gap-2" aria-label="Evidence">
-          {p.evidence.map((ev) =>
-            IMAGE_EVIDENCE.includes(ev.kind) ? (
+          {p.evidence
+            .filter((ev) => IMAGE_EVIDENCE.includes(ev.kind))
+            .map((ev) => (
               <figure key={ev.ref} className="flex w-24 flex-col gap-1">
-                <img loading="lazy" decoding="async" src={imageUrl(ev.ref)} alt={ev.caption} className="aspect-square w-24 rounded-sm object-cover" />
-                <figcaption className="text-caption text-text-3">{ev.caption}</figcaption>
+                <img loading="lazy" decoding="async" src={imageUrl(ev.ref)} alt={evidenceCaption(ev.caption)} className="aspect-square w-24 rounded-sm object-cover" />
+                <figcaption className="text-caption text-text-3">{evidenceCaption(ev.caption)}</figcaption>
               </figure>
-            ) : (
-              <span key={ev.ref} className="rounded-sm bg-surface-strong px-2 py-1 text-caption text-text-2">
-                {ev.kind} {ev.ref}
-              </span>
-            ),
-          )}
+            ))}
         </div>
       )}
       {!editing && p.briefing && (
@@ -407,16 +430,36 @@ function PendingCard({
         </form>
       )}
       <div className="flex flex-wrap items-center gap-1.5">
+        {/* the guided assign step: one main button, every free team to the agent's picks; this card's own Approve second */}
+        {lead && (
+          <button
+            type="button"
+            onClick={lead.onClick}
+            data-primary=""
+            className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
+          >
+            <span className="truncate">{lead.label}</span> <KeyHint>A</KeyHint>
+          </button>
+        )}
         {/* the primary action says its outcome; "Approve" is in its name for screen readers and the A key */}
-        <button
-          type="button"
-          onClick={approve}
-          data-primary=""
-          className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
-        >
-          <span className="sr-only">Approve: </span>
-          <span className="truncate">{ask.action}</span> <KeyHint>A</KeyHint>
-        </button>
+        {lead ? (
+          lead.second && (
+            <button type="button" onClick={approve} className="sl-tap inline-flex h-8 max-w-full items-center rounded-full border border-border px-3 text-small text-text hover:bg-surface-strong">
+              <span className="sr-only">Approve: </span>
+              <span className="truncate">{lead.second}</span>
+            </button>
+          )
+        ) : (
+          <button
+            type="button"
+            onClick={approve}
+            data-primary=""
+            className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
+          >
+            <span className="sr-only">Approve: </span>
+            <span className="truncate">{ask.action}</span> <KeyHint>A</KeyHint>
+          </button>
+        )}
         {!rejecting && (
           <button type="button" onClick={() => setRejecting(true)} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-caption text-text-2 hover:bg-surface hover:text-text">
             Reject <KeyHint>X</KeyHint>

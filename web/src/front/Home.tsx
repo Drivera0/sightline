@@ -1,14 +1,16 @@
 // The home page (`#`). It sells Sightline the way professional product pages in this space do (the
 // research and the eight rules it follows are in front/README.md): the name, a claim, one measured proof
 // and one action above the fold, over the real aerial photos the detector reads; four measured facts with
-// their sources; what it is built with (OpenCV first); how it works; who it is for; the guided simulation
-// (the one place that explains it); the links judges need; About (`#about` lands there); the footer with
+// their sources; what the photo changes (one real chain of the agent's loop, and Try your own photo);
+// what it is built with (OpenCV first); how it works; who it is for; the guided simulation (the one place
+// that explains it); the links judges need; About (`#about` lands there); the footer with
 // the credits, the licence and the one disclosure. The console is #m/demo.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppBar } from "../shell/AppBar";
 import { Button, DISCLOSURE, DISCLOSURE_TITLE, Label } from "../shell/components";
-import { ABOUT_ID, type HomeSection } from "../shell/flow";
+import { ABOUT_ID, SCENARIOS_ID, type HomeSection } from "../shell/flow";
 import { AboutSection } from "./About";
+import { AgenticVision } from "./AgenticVision";
 import { Architecture } from "./Architecture";
 import { BUILT_WITH, BuiltWith } from "./BuiltWith";
 import { Icon } from "../shell/icons";
@@ -465,6 +467,7 @@ export function Home({ section = null }: { section?: HomeSection | null } = {}) 
   const landed = useRef<HomeSection | null>(null);
   useEffect(() => {
     if (section === "about") goTo(ABOUT_ID);
+    else if (section === "scenarios") goTo(SCENARIOS_ID);
     else if (landed.current) window.scrollTo?.({ top: 0 }); // from #about back to # (the wordmark)
     landed.current = section;
   }, [section]);
@@ -475,6 +478,8 @@ export function Home({ section = null }: { section?: HomeSection | null } = {}) 
         <Hero />
         <Facts />
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 pb-12 pt-12 lg:px-8">
+          <AgenticVision onDecide={() => goTo("home-sim")} />
+
           <Reveal id="home-built" title={HOME.built}>
             <BuiltWith />
           </Reveal>

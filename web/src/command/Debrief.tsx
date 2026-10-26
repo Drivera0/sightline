@@ -20,7 +20,7 @@ export function missionSoFar(s: Pick<MissionData, "mapUpdates" | "tasks" | "clue
   const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
   const pods = searched.map((t) => `${t.sector_id} at POD ${Math.round((t.pod ?? 0) * 100)} %`).join(", ");
   return [
-    `${n(photos.survey, "survey photo")}${photos.legs ? ` and ${n(photos.legs, "leg photo")}` : ""} on the map`,
+    `${n(photos.survey, "survey photo")}${photos.legs ? ` and ${n(photos.legs, "flight-line photo")}` : ""} on the map`,
     n(decided, "proposal") + " decided",
     searched.length ? `${n(searched.length, "sector")} searched (${pods})` : "no sector searched yet",
     n(s.clues.length, "clue"),
@@ -161,7 +161,7 @@ export function Exports({ missionUrl, teams }: { missionUrl: string | null; team
   const links: { label: string; title: string; href: string | null }[] = [
     { label: "ICS-204", title: "ICS 204 Assignment List for the team picked, Markdown", href: live && picked ? `${missionUrl}/ics204/${encodeURIComponent(picked)}.md` : null },
     { label: "ICS-214", title: "ICS 214 Activity Log for the mission, Markdown", href: live ? `${missionUrl}/ics214.md` : null },
-    { label: "CalTopo GeoJSON", title: "Sectors, searched areas, drone legs, teams and clues, for CalTopo or SARTopo's Import", href: live ? `${missionUrl}/caltopo.geojson` : null },
+    { label: "CalTopo GeoJSON", title: "Sectors, searched areas, drone flight lines, teams and clues, for CalTopo or SARTopo's Import", href: live ? `${missionUrl}/caltopo.geojson` : null },
   ];
   return (
     <div role="group" aria-label="Exports" className="flex flex-col gap-1.5">

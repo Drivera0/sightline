@@ -8,7 +8,7 @@ The file keeps its old name (`COSMOS_VERIFIER.md`) so existing links work.
 ## Question
 
 Would a second vision-language model, ideally from a different family than Nemotron VL, do the
-second look as well? We score both on the same val near-miss and queue detections with the same
+second look as well? I score both on the same val near-miss and queue detections with the same
 prompt. The first candidate was NVIDIA's physical-AI reasoner, Cosmos Reason.
 
 ## What runs at run time is unchanged

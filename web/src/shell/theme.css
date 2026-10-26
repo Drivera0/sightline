@@ -134,8 +134,8 @@
 
 /* Type: one family (Geist Sans, self-hosted through @fontsource, tabular numerals on everywhere) and
    monospace (Geist Mono) only for ids and coordinates ("f0396-d01", "49.37121, -122.94379").
-   Five sizes, nothing under 12 px (size / line height):
-     caption  12/16  meta lines, chips, timestamps, table headers
+   Five sizes, nothing under 13 px on a desktop and 14 px on a phone (size / line height):
+     caption  13/18  meta lines, chips, timestamps, table headers (14/20 on a phone)
      small    13/20  the console's working size: cards, rows, buttons
      body     15/22  reading text: a proposal's reason, the debrief, sheets
      title    18/24  panel and sheet titles
@@ -145,10 +145,11 @@
    Spacing is the 4 px grid (Tailwind's 1 = 4 px): 4 inside a control, 8 between controls, 12 inside a
    card, 16 between panels. Every panel header is --panel-head (40 px) tall. */
 @theme {
-  --text-caption: 12px;
-  --text-caption--line-height: 16px;
-  --text-label: 12px;
-  --text-label--line-height: 16px;
+  /* 13 px is the smallest text a search manager reads on a desktop, 14 px on a phone (the media query below) */
+  --text-caption: 13px;
+  --text-caption--line-height: 18px;
+  --text-label: 13px;
+  --text-label--line-height: 18px;
   --text-small: 13px;
   --text-small--line-height: 20px;
   --text-body: 15px;
@@ -162,6 +163,17 @@
   --text-display: 24px;
   --text-display--line-height: 30px;
   --tracking-label: 0;
+}
+
+/* A phone: nothing a search manager reads under 14 px (usability test 2026-10-25) */
+@media (max-width: 767.98px) {
+  :root {
+    --text-caption: 14px;
+    --text-caption--line-height: 20px;
+    --text-label: 14px;
+    --text-label--line-height: 20px;
+    --text-small: 14px;
+  }
 }
 
 html,
@@ -195,8 +207,8 @@ body {
   flex: none;
   border-radius: 999px;
   padding: 0 8px;
-  height: 20px;
-  font-size: 12px;
+  height: 22px;
+  font-size: var(--text-caption);
   line-height: 16px;
   font-weight: 500;
   white-space: nowrap;
@@ -522,7 +534,7 @@ body {
   flex: none;
   padding: 0 12px;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: var(--text-small);
   line-height: 20px;
   font-weight: 500;
   color: var(--text);

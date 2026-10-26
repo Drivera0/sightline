@@ -10,7 +10,7 @@ import type { Clue, ClueDraft, Conditions, Drone, FleetState, Mission, MissionEv
 import type { SectorNow } from "../lib/api";
 import { useMission, type FleetLinks } from "../lib/mission";
 import { DEMO_TZ, clock, zone, type Tz } from "../lib/time";
-import { type Decide } from "./ApprovalInbox";
+import { type Decide, type Lead } from "./ApprovalInbox";
 import { ConditionsPanel, type ConditionsData } from "./ConditionsPanel";
 import { dayNote } from "./conditions";
 import { FleetControls } from "./FleetControls";
@@ -20,7 +20,7 @@ import { Resources } from "./Resources";
 import { SectorPopover, type SectorActions } from "./SectorPopover";
 import { ClueForm, Timeline, TalkBar, type TalkVoice } from "./Timeline";
 import { useEventToasts, useOverdueToasts } from "./notifications";
-import { teamOrder } from "./console";
+import { overdueTeams, teamOrder } from "./console";
 import { showMe } from "./showMe";
 import { ToastStack } from "../shell/toasts";
 import { TimelineHandle, useTimelineHeight } from "./TimelineResize";
@@ -106,11 +106,15 @@ export interface CommandProps {
   review: ReactNode;
   reviewCount: number;
   /** The candidates for the large review frame, their answers, and how to answer (V3 §3). */
-  reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: OnAnswer };
+  reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: OnAnswer; step?: { n: number; of: number } | null };
   /** Open the review frame by itself when the first candidates arrive (off inside the guided story). */
   autoReview?: boolean;
   briefings?: ReactNode;
   storyProposal?: string | null;
+  /** The guided search's coach bar, docked at the top of the Needs you column (never over the map). */
+  dock?: ReactNode;
+  /** The guided assign step's main button on its card (GuideRun `lead`). */
+  lead?: Lead | null;
   /** The guided search: the Needs you item its step is about (NeedsYou `highlight`, "none" between steps); no toasts while it runs. */
   needsHighlight?: string | null;
   voice?: TalkVoice | null;
@@ -134,7 +138,15 @@ export function CommandView(p: CommandProps) {
   const waiting = p.mission?.status === "found" ? 0 : p.reviewCount;
   useEventToasts(p.events, p.teams, waiting, p.proposals, p.needsHighlight != null);
   const checkIn = p.mission?.check_in_min ?? 30;
-  useOverdueToasts(teamOrder(p.teams, p.events, now(), checkIn).filter((x) => x.heard.overdue).map((x) => ({ team: x.team, min: x.heard.min })), checkIn);
+  // one truth for the teams: when each was last heard, computed once and read by the Resources rows, Needs
+  // you, the overdue toasts and the bell (the cold test: they disagreed)
+  const board = teamOrder(p.teams, p.events, now(), checkIn, p.timeline ?? []);
+  useOverdueToasts(
+    overdueTeams(board).map((x) => ({ team: x.team, at: x.heard.at })),
+    checkIn,
+    (iso) => clock(iso, tz),
+    (id) => board.find((x) => x.team.id === id)?.heard.at ?? null,
+  );
   // photos landed and candidates arrived where there were none: the first one opens in the review frame
   const wasWaiting = useRef<number | null>(null);
   useEffect(() => {
@@ -175,16 +187,17 @@ export function CommandView(p: CommandProps) {
   };
   // the timeline's height: taller by default, dragged by its handle, remembered (TimelineResize.tsx)
   const [timelineH, setTimelineH] = useTimelineHeight();
+  // the guided search's bar sits in its own row above the timeline, across the map and Needs you
   const grid = wide
-    ? "lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]"
+    ? `lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]`
     : // Resources runs the full height on the left (the T-card board), the timeline under the map and Needs you
-      "lg:grid-cols-[19rem_minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]";
+      `${p.dock ? "lg:grid-cols-[19rem_minmax(0,1fr)_24rem]" : "lg:grid-cols-[19rem_minmax(0,1fr)_21rem]"} lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]`;
   return (
-    <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
+    <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: p.dock ? `min(${timelineH}px, 28vh)` : `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
       {p.conditionsOpen && p.conditionsData && (
         // over the console, under the status line (the map keeps its place); W or Esc closes it
         <div className="absolute inset-x-0 top-0 z-30 max-h-[75vh] overflow-y-auto rounded-lg shadow-[var(--shadow-pop)]">
-          <ConditionsPanel id={p.conditionsId ?? "conditions-panel"} data={p.conditionsData} now={panelNow} time={(iso) => `${clock(iso, tz)} ${zone(new Date(iso), tz)}${dayNote(iso, panelNow, tz)}`} />
+          <ConditionsPanel id={p.conditionsId ?? "conditions-panel"} data={{ ...p.conditionsData, lastSeen: p.mission?.last_seen_at ?? null }} now={panelNow} time={(iso) => `${clock(iso, tz)} ${zone(new Date(iso), tz)}${dayNote(iso, panelNow, tz)}`} />
         </div>
       )}
       <div id="console-resources" className={`order-4 flex min-h-0 flex-col lg:order-none ${wide ? "lg:hidden" : "lg:row-span-2"}`}>
@@ -197,6 +210,7 @@ export function CommandView(p: CommandProps) {
           links={p.links}
           events={p.events}
           now={t}
+          board={board}
           glow={glow}
           proposals={p.proposals}
           actions={{ onCall: (id) => call(id), onRecall: p.actions.recall, onRecallDrone: p.actions.recallDrone, onAssign: p.actions.assign, onDroneLeg: p.actions.droneLeg, onFound: p.mission?.status === "found" ? undefined : p.actions.found }}
@@ -214,7 +228,7 @@ export function CommandView(p: CommandProps) {
           )}
           {dragging && (
             <p role="status" className="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-accent bg-bg/90 px-3 py-1 text-small text-text">
-              {dragging.kind === "team" ? `Drop ${dragName} on a sector to assign it` : `Drop ${dragName} on a sector to fly a leg there`}
+              {dragging.kind === "team" ? `Drop ${dragName} on a sector to assign it` : `Drop ${dragName} on a sector to fly over it`}
             </p>
           )}
           {sel && popSector && Number.isFinite(sel.x) && mapBox && (
@@ -236,7 +250,9 @@ export function CommandView(p: CommandProps) {
           {p.overMap && <div className="pointer-events-none absolute inset-x-2 bottom-7 z-10 flex justify-center sm:inset-x-3">{p.overMap}</div>}
         </div>
       </div>
-      <div id="console-needs" className="order-1 flex min-h-0 flex-col lg:order-none">
+      <div id="console-needs" className="order-1 flex min-h-0 flex-col gap-2 lg:order-none">
+        {/* the guided search's bar: on top of the decisions column, never over the map (a bottom sheet on a phone) */}
+        {p.dock && <div id="console-guide" className="min-w-0 shrink-0 lg:max-h-[62%] lg:overflow-y-auto">{p.dock}</div>}
         {p.rightRail ? (
           <aside aria-label="View" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
             {p.rightRail}
@@ -249,6 +265,10 @@ export function CommandView(p: CommandProps) {
             events={p.events}
             clues={p.clues}
             now={t}
+            board={board}
+            sectors={p.sectors}
+            base={p.mission?.base_camp ?? null}
+            onAssign={p.actions.assign}
             checkInMin={p.mission?.check_in_min ?? 30}
             onDecide={p.onDecide}
             imageUrl={p.imageUrl}
@@ -265,6 +285,7 @@ export function CommandView(p: CommandProps) {
             onFound={p.actions.found}
             timeline={p.timeline}
             highlight={p.needsHighlight ?? null}
+            lead={p.lead ?? null}
           />
         )}
       </div>
@@ -274,7 +295,7 @@ export function CommandView(p: CommandProps) {
           events={p.events}
           server={p.timeline}
           teams={p.teams}
-          onConfirmClue={p.actions.confirmClue}
+          fleet={p.fleet}
           voicesKey={`${p.mission?.mission_id ?? ""}|${p.mission?.scenario_seed ?? p.mission?.name ?? ""}`}
           talk={<TalkBar teams={p.teams} onSend={(team, text) => p.actions.call(team, text)} voice={p.voice} />}
           clueForm={(close, at) => <ClueForm teams={p.teams} onAddClue={p.onAddClue} onPickOnMap={p.onPickOnMap} onDone={close} at={at} />}
@@ -282,7 +303,7 @@ export function CommandView(p: CommandProps) {
       </div>
       {p.cover && <div className="absolute inset-0 z-30 overflow-y-auto rounded-lg bg-bg">{p.cover}</div>}
       <ToastStack onShow={showMe} />
-      {p.reviewFrame && <ReviewFrame cards={p.reviewFrame.cards} answers={p.reviewFrame.answers} onAnswer={p.reviewFrame.onAnswer} />}
+      {p.reviewFrame && <ReviewFrame cards={p.reviewFrame.cards} answers={p.reviewFrame.answers} onAnswer={p.reviewFrame.onAnswer} subject={p.mission?.subject ?? null} step={p.reviewFrame.step ?? null} />}
     </div>
   );
 }

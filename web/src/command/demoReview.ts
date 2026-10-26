@@ -11,6 +11,7 @@ import { DETECTOR_CV2, verdictChips, verdictWords, type ObjectKind, type ReviewC
 import secondLook from "./__fixtures__/second_look/verdict.json";
 import cropUrl from "./__fixtures__/second_look/f0273-d02-crop.jpg?url";
 import zoomUrl from "./__fixtures__/second_look/f0273-d02-zoom_native.jpg?url";
+import { TERMS, thresholdNote } from "./terms";
 
 /** The detection the second look is on: a real near miss of the demo cache, so its pin has a place. */
 export const SECOND_LOOK_ID: string = secondLook.detection.id;
@@ -24,7 +25,7 @@ export function secondLookCard(): ReviewCard {
     id: SECOND_LOOK_ID,
     conf: secondLook.detection.conf,
     crop: cropUrl,
-    frame: "Second look · this flight",
+    frame: `Survey photo ${SECOND_LOOK_ID.slice(0, 5)} · ${TERMS.recheckFlagged}`,
     words: verdictWords(v),
     chips: verdictChips(v),
     relook: v.relook_crops.map((name) => ({ url: zoomUrl, name })),
@@ -34,7 +35,7 @@ export function secondLookCard(): ReviewCard {
     // the review line the live run's trace states ("below the 0.29 review threshold")
     threshold: 0.29,
     detector: DETECTOR_CV2,
-    note: `Survey photo ${SECOND_LOOK_ID.slice(0, 5)}, below the 0.29 review threshold, so the queue would have dropped it; the agent promoted it after the second look (OpenCV 5 zoom, then Nemotron VL, a live call): "${v.reason}"`,
+    note: `Scored ${secondLook.detection.conf.toFixed(2)}, under 0.29 (${thresholdNote(0.29)}), so it would have been skipped; the ${TERMS.recheck} (OpenCV 5 zoom, then Nemotron VL, a live call) said: "${v.reason}"`,
   };
 }
 

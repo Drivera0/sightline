@@ -1,7 +1,8 @@
 # Credits
 
-Third-party media in this repository, with where each came from and its licence. The code's own licence is
-in `LICENSE`.
+Sightline began at BCS Hackathon 2026, built by a team of four: Daniel Rivera, [@bamobam](https://github.com/bamobam), [@har-vir](https://github.com/har-vir) and [@jkiim](https://github.com/jkiim); everything since, for the OpenCV and Nebius hackathons, is Daniel Rivera's solo work; development used Claude Code (Anthropic) as an AI coding assistant (README, Credits).
+Third-party media in this repository, with where each came from and its licence, is below. The code's own
+licence is in `LICENSE`.
 
 | What | Where | Source and licence |
 |---|---|---|

@@ -57,7 +57,7 @@ describe("Needs you", () => {
     expect(within(closed).getAllByText("closed: subject found")).toHaveLength(2); // the first two, then a link
     await userEvent.click(within(closed).getByRole("button", { name: "Show 1 more" }));
     expect(within(closed).getAllByText("closed: subject found")).toHaveLength(3); // two proposals, the candidates
-    expect(closed).toHaveTextContent("14 candidates to review");
+    expect(closed).toHaveTextContent("14 photos to review");
   });
 
   it("still asks about an overdue team after the find, and Recall still works", async () => {
@@ -92,7 +92,8 @@ describe("Needs you", () => {
     );
     const card = screen.getByLabelText("Proposal p004");
     expect(card).toHaveAttribute("data-dimmed");
-    expect(card.className).toMatch(/pointer-events-none/);
+    // hidden, not dimmed (the cold test): only the step's item is on screen
+    expect(card.className).toMatch(/\bhidden\b/);
     expect(screen.getByRole("group", { name: "Photos to review" })).toHaveAttribute("data-dimmed");
   });
 

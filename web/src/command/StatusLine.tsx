@@ -6,8 +6,9 @@ import type { ReactNode } from "react";
 import type { Clue, Conditions, Mission, Team } from "../contract";
 import { DisclosureChip, KeyHint } from "../shell/components";
 import { Icon } from "../shell/icons";
-import type { Tz } from "../lib/time";
-import { daylightMin, duration, elapsedMin, flyWord, peopleOut } from "./console";
+import { clock, type Tz } from "../lib/time";
+import { daylightMin, duration, elapsedMin, flyWord, peopleOut, subjectWord } from "./console";
+import { TERMS } from "./terms";
 import { isOverride } from "./conditions";
 import { NotifyBell } from "../shell/notifyBell";
 import { showMe } from "./showMe";
@@ -38,7 +39,10 @@ export function StatusLine({
   menu,
   disclose = false,
   outside = null,
+  onSubject,
 }: {
+  /** "Subject not found": opens the subject's full profile (SubjectStrip). */
+  onSubject?: () => void;
   /** The probability outside the search grid (console.outsideGrid), shown so the sectors' POA adds up. */
   outside?: number | null;
   /** Phones: the demo's disclosure chip lives here (the header has no room for it). */
@@ -79,9 +83,9 @@ export function StatusLine({
       <Item label="Elapsed" title={mission ? `Since the mission opened (${mission.created_at})` : undefined}>
         {elapsed === null ? "–" : duration(elapsed)}
       </Item>
-      <span className="flex shrink-0 items-center gap-2" title="Daylight left: to the end of civil twilight">
+      <span className="flex shrink-0 items-center gap-2" title={conditions?.civil_twilight_end ? `Daylight left: light until ${clock(conditions.civil_twilight_end, tz)}, civil twilight` : "Daylight left: to the end of civil twilight"}>
         <Item label="Daylight" tone={day !== null && day < 60 ? "caution" : undefined}>
-          {day === null ? "–" : day === 0 ? "after dark" : `${duration(day)} left`}
+          {day === null ? "–" : day === 0 ? "after dark" : `${duration(day)} left${conditions?.civil_twilight_end ? `, light until ${clock(conditions.civil_twilight_end, tz)}` : ""}`}
         </Item>
         {day !== null && (
           <span aria-hidden className="relative h-1 w-14 overflow-hidden rounded-full bg-surface-strong">
@@ -95,7 +99,7 @@ export function StatusLine({
           onClick={onConditions}
           aria-expanded={conditionsOpen}
           aria-controls={conditionsId}
-          title={`${fly.reason} (W: the Conditions panel, sources and quotes)`}
+          title={`${fly.reason}. W opens the Conditions panel: sources and quotes.`}
           data-tone={fly.tone}
           className="sl-pill sl-tap shrink-0 cursor-pointer hover:brightness-125"
         >
@@ -119,12 +123,19 @@ export function StatusLine({
           {conditions.alerts.length === 1 ? conditions.alerts[0]!.title : `${conditions.alerts.length} alerts`}
         </span>
       ) : null}
-      <Item label="Out" title={`${out.people} people in ${out.teams} ${out.teams === 1 ? "team" : "teams"} in the field`}>
-        {out.people} {out.people === 1 ? "person" : "people"}
+      <Item label="In the field" title={`${out.people} ${out.people === 1 ? "person" : "people"} in ${out.teams} ${out.teams === 1 ? "team" : "teams"} out on the ground`}>
+        {out.teams} {out.teams === 1 ? "team" : "teams"} ({out.people} {out.people === 1 ? "person" : "people"})
       </Item>
-      {!found && <Item label="Subject">not found</Item>}
+      {!found &&
+        (onSubject ? (
+          <button type="button" onClick={onSubject} title="The subject's full profile" className="sl-tap shrink-0 rounded-sm hover:underline">
+            <Item label="Subject">{subjectWord(clues, (iso) => clock(iso, tz))}</Item>
+          </button>
+        ) : (
+          <Item label="Subject">{subjectWord(clues, (iso) => clock(iso, tz))}</Item>
+        ))}
       {outside !== null && (
-        <Item label="Outside the grid" title="The probability the subject is outside the 1 km search grid (the rest of the world). The sectors hold the rest; together they make 100 %.">
+        <Item label={TERMS.row} title={TERMS.rowTip}>
           {Math.round(outside * 100)} %
         </Item>
       )}

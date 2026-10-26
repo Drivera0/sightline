@@ -33,7 +33,7 @@ describe("the Debrief's line", () => {
       clues: [{}] as never,
       proposals: [{ status: "approved" }, { status: "pending" }] as never,
     });
-    expect(line).toBe("1 survey photo and 1 leg photo on the map · 1 proposal decided · 1 sector searched (B4 at POD 60 %) · 1 clue");
+    expect(line).toBe("1 survey photo and 1 flight-line photo on the map · 1 proposal decided · 1 sector searched (B4 at POD 60 %) · 1 clue");
     expect(line).not.toMatch(/\bclear/i);
   });
 });

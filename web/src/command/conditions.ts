@@ -112,9 +112,28 @@ export function dayNote(iso: string, now: Date, tz: Tz = true): string {
   return day(t) === day(now) ? "" : `, ${t.toLocaleDateString("en-GB", opts)}`;
 }
 
+/**
+ * The exposure note in the mission's clock: the server wrote "4 h since last seen" when it looked the
+ * weather up; the console says how long it is now ("3 h 05 min since last seen at 10:30"), and the
+ * caveat in plain words.
+ */
+export function exposureWords(note: string, lastSeen: string | null | undefined, now: Date, time: (iso: string) => string): string {
+  let s = note.replace(/\s*\(planning heuristic, not a medical assessment\)/, "").replace(/^(low|moderate|high|severe): /, "");
+  if (lastSeen) {
+    const min = Math.max(0, Math.round((now.getTime() - new Date(lastSeen).getTime()) / 60000));
+    const h = Math.floor(min / 60);
+    const since = `${h ? `${h} h ${String(min % 60).padStart(2, "0")} min` : `${min} min`} since last seen at ${time(lastSeen)}`;
+    s = s.replace(/\d+ h since last seen/, since);
+  }
+  return `${s}. A rough planning guide, not a medical assessment.`;
+}
+
 /** Each fact the agent uses, with its value and where it came from. Empty fields say so: nothing is guessed. */
-/** `now`: the mission clock, so a time on another day says its date ("01:40 UTC, 23 Oct"). */
-export function conditionsFacts(c: Conditions, lookup: Lookup | null, now: Date = new Date()): Fact[] {
+/**
+ * `now`: the mission clock; `time` formats a moment in the mission's zone ("18:36 PDT", with the date when it
+ * is another day); `lastSeen`: when the subject was last seen (the exposure note counts from it).
+ */
+export function conditionsFacts(c: Conditions, lookup: Lookup | null, now: Date = new Date(), time: (iso: string) => string = (iso) => `${hhmmUtc(iso)}${dayNote(iso, now)}`, lastSeen: string | null = null): Fact[] {
   const override = isOverride(c);
   const quoted = (field: string, label: string, value: number | null, show: (v: number) => string): Fact => {
     const f = lookup?.fields[field];
@@ -136,23 +155,21 @@ export function conditionsFacts(c: Conditions, lookup: Lookup | null, now: Date 
   if (c.visibility_km !== null) facts.push(quoted("visibility_km", "Visibility", c.visibility_km, (v) => `${v} km`));
   facts.push({
     id: "twilight",
-    label: "Civil twilight ends",
-    value: c.civil_twilight_end
-      ? `${hhmmUtc(c.civil_twilight_end)}${dayNote(c.civil_twilight_end, now)}${c.sunset ? ` (sunset ${hhmmUtc(c.sunset)})` : ""}`
-      : "unknown",
+    label: "Light until (civil twilight)",
+    value: c.civil_twilight_end ? `${time(c.civil_twilight_end)}${c.sunset ? ` (sunset ${time(c.sunset)})` : ""}` : "unknown",
     source: { kind: "computed", how: "computed for the area's date and position (astral), not read from a page" },
   });
   facts.push({
     id: "visibility_factor",
-    label: "Visibility factor",
-    value: `×${c.visibility_factor.toFixed(1)}`,
-    source: { kind: "heuristic", how: "planning heuristic: fog or haze in the forecast or a warning lowers it, and each photo then lowers the remaining probability less" },
+    label: "How well the photos see",
+    value: c.visibility_factor >= 0.95 ? "normal" : `reduced: each photo counts for less (×${c.visibility_factor.toFixed(1)})`,
+    source: { kind: "heuristic", how: "fog, haze or a weather warning lowers it; then a photo with nobody in it lowers the sector's probability less" },
   });
   facts.push({
     id: "exposure",
-    label: "Exposure",
+    label: "Exposure risk to the subject",
     value: c.exposure_band ?? "unknown",
-    source: { kind: "heuristic", how: c.exposure_note || "planning heuristic, not a medical assessment" },
+    source: { kind: "heuristic", how: c.exposure_note ? exposureWords(c.exposure_note, lastSeen, now, time) : "A rough planning guide, not a medical assessment." },
   });
   return facts;
 }
@@ -169,15 +186,16 @@ export interface Gate {
 export function flyGate(c: Conditions, limitKmh: number | null, drone: string | null, until: (iso: string) => string): Gate {
   const fromReason = /limit of (\d+(?:\.\d+)?) km\/h/.exec(c.flyability_reason)?.[1];
   const limit = limitKmh ?? (fromReason ? Number(fromReason) : 38);
-  const who = limitKmh !== null ? (drone ? `, ${drone}` : "") : ", default: no fleet attached";
+  // whose limit: the fleet's lowest, or (no fleet yet) the usual one for these drones
+  const whose = limitKmh !== null ? (drone ? `${drone}'s` : "the drones'") : "the usual";
   const gust = c.gust_kmh ?? c.wind_kmh;
-  const lim = `gust limit ${limit.toFixed(0)} km/h = ${ms1(limit)}${who}`;
-  if (c.flyable === true) return { tone: "ok", text: `Flyable until ~${c.flyable_until ? until(c.flyable_until) : "dusk"} (${lim})` };
+  const lim = `${whose} gust limit of ${limit.toFixed(0)} km/h (${ms1(limit)})`;
+  if (c.flyable === true) return { tone: "ok", text: `Drones can fly until ~${c.flyable_until ? until(c.flyable_until) : "dusk"} (wind under ${lim}; light until civil twilight)` };
   if (c.flyable === false) {
-    const over = gust !== null && gust >= limit ? `${c.gust_kmh !== null ? "gusts" : "wind"} ${gust.toFixed(0)} km/h (${ms1(gust)}) ≥ ${lim}` : null;
+    const over = gust !== null && gust >= limit ? `${c.gust_kmh !== null ? "gusts" : "wind"} ${gust.toFixed(0)} km/h (${ms1(gust)}), at or over ${lim}` : null;
     // the server's reason first (it checks light before wind); the wind check when it fails too
-    if (over && /gust|wind/.test(c.flyability_reason)) return { tone: "alert", text: `Not flyable: ${over}` };
-    return { tone: "alert", text: `Not flyable: ${c.flyability_reason}${over ? `; also ${over}` : ""}` };
+    if (over && /gust|wind/.test(c.flyability_reason)) return { tone: "alert", text: `Drones grounded: ${over}` };
+    return { tone: "alert", text: `Drones grounded: ${c.flyability_reason}${over ? `; also ${over}` : ""}` };
   }
-  return { tone: "muted", text: `Flyability unknown: ${c.flyability_reason || "no wind data"}` };
+  return { tone: "muted", text: `Drone flying not known: ${c.flyability_reason || "no wind data"}` };
 }

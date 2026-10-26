@@ -12,8 +12,10 @@ export interface ScenarioCard {
   subject: string;
   /** Where: the ground and base camp. */
   setting: string;
-  /** The clues the field will report, in order. */
+  /** The clues the field will report, in order (kept for the fixtures' check; never shown on a card: no spoilers). */
   clues: readonly string[];
+  /** Where the subject was last seen, as the console's subject strip says it ("at the trailhead lot"). */
+  lastSeen: string;
   /** How long: the mission's span and the guided simulation's. */
   length: string;
 }
@@ -35,6 +37,7 @@ export const SCENARIO_CARDS: readonly ScenarioCard[] = [
       "blue water bottle by the creek crossing",
       "possible whistle, three blasts, to the south-west",
     ],
+    lastSeen: "at the trailhead lot",
     length: LENGTH,
   },
   {
@@ -43,6 +46,7 @@ export const SCENARIO_CARDS: readonly ScenarioCard[] = [
     subject: "Child, 8, missing from a family picnic, yellow raincoat",
     setting: "Mount Seymour · base at the trailhead lot",
     clues: ["a small yellow hood caught on a bush", "small shoe prints in the mud", "a juice box, half full"],
+    lastSeen: "at the family picnic",
     length: LENGTH,
   },
   {
@@ -51,6 +55,7 @@ export const SCENARIO_CARDS: readonly ScenarioCard[] = [
     subject: "Despondent adult, left a note, grey jacket",
     setting: "Mount Seymour · base at the trailhead lot",
     clues: ["a grey scarf on a rock", "a phone case, the subject's colour", "a cyclist saw someone sitting alone near the viewpoint"],
+    lastSeen: "at the trailhead lot (a note left in the car)",
     length: LENGTH,
   },
   {
@@ -59,6 +64,7 @@ export const SCENARIO_CARDS: readonly ScenarioCard[] = [
     subject: "Older adult with dementia, walked away, slippers",
     setting: "Mount Seymour · base at the trailhead lot",
     clues: ["a slipper on the path", "a neighbour saw someone in a dressing gown walking slowly", "shuffling prints on the gravel", "a cardigan on a fence"],
+    lastSeen: "near the trailhead lot",
     length: LENGTH,
   },
   {
@@ -67,6 +73,7 @@ export const SCENARIO_CARDS: readonly ScenarioCard[] = [
     subject: "A new search each time: one of the profiles above, its last known point and base camp moved",
     setting: "Mount Seymour · the same photos, a different afternoon",
     clues: ["four clues from that profile (a report, an object, a track, a sound), placed by the seed"],
+    lastSeen: "at the last known point",
     length: LENGTH,
   },
 ];

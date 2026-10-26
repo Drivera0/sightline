@@ -38,7 +38,7 @@ describe("the mission pages' clock", () => {
         <EventFeed events={[ev]} />
       </ClockZone.Provider>,
     );
-    expect(screen.getByText(/Ana approved agent p001/)).toBeInTheDocument();
+    expect(screen.getByText(/Ana approved the AI's suggestion/)).toBeInTheDocument();
     expect(screen.getByText("15:01")).toBeInTheDocument();
     expect(screen.getByText("15:01:09")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\d{2}:\d{2} [AP]M/);

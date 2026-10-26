@@ -19,7 +19,7 @@ has at least one person (3.5 on average, up to crowds of more than ten).
 How it differs from HERIDAL, which the detector was trained on (Croatian and Bosnian wilderness,
 mostly 4000×3000 photos from 40–65 m, people about 60×60 px, `docs/LANE_A_ML.md:41`):
 
-- **Terrain and season.** In the photos we looked at: pine and birch forest, ploughed fields, a
+- **Terrain and season.** In the photos I looked at: pine and birch forest, ploughed fields, a
   snow-covered park. By a colour proxy (half or more of the photo bright and unsaturated) 308 of the
   1,365 photos are mostly snow. HERIDAL has no snow scenes.
 - **Poses.** LADD's authors chose 24 poses in which lost people are typically found (Dataset Ninja's
@@ -68,7 +68,7 @@ all outside what the detector learned from HERIDAL.
 
 - **This is the honest number for new terrain.** HERIDAL's 0.864 is measured on the dataset the
   model was trained on. The 0.825 at unseen HERIDAL sites is still the same kind of terrain. LADD shows
-  that a different country, season and set of poses takes recall down to about half. We do not claim
+  that a different country, season and set of poses takes recall down to about half. I do not claim
   0.86 anywhere outside HERIDAL-like terrain.
 - **It is not a bug in the evaluation.** The photos go through the same functions that reproduce the
   HERIDAL test numbers exactly (`scripts/reproduce_cv2.py`), the boxes are scored by the same
@@ -114,7 +114,7 @@ uv run python scripts/analysis/ladd_breakdown.py runs/ladd/<ts> --data-root data
   (`https://cloud.mail.ru/public/2k53/2bJVwYSa7`) answers `not_exists`, and the Kaggle copy
   (`mersico/lacmus-drone-dataset-ladd-v40`) needs a login. Dataset Ninja's copy has the same photo
   and box counts as its published LADD statistics (1,365 / 4,733) and states the GPL-3.0 licence. No
-  hash is published for it, so the sha256 above is the one we measured. Its boxes are the LADD VOC
+  hash is published for it, so the sha256 above is the one I measured. Its boxes are the LADD VOC
   boxes converted to Supervisely JSON by Dataset Ninja; one photo has EXIF orientation 3 (rotated
   180°), which `cv2.imread` applies; whether the labels follow it was not checked, and one photo of
   1,365 cannot move the scores.
@@ -126,5 +126,5 @@ dataset, but also to ALL SOFTWARE products that use it to one degree or another"
 train on LADD and ships nothing from it: no photo, label or derived weight is in the repository or a
 release. The data sits under the git-ignored `data/` folder on the machine that ran the evaluation,
 and the evidence files hold only aggregate scores. Measuring a model on the dataset and reporting
-the result is not distribution, so we do not take the clause as reaching Sightline's code. If the
+the result is not distribution, so I do not take the clause as reaching Sightline's code. If the
 owners read it otherwise, the evidence files can be removed without touching anything else.

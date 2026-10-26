@@ -160,16 +160,16 @@ export function compare(input: GuideInput, wash: HotWash, lastLight: number): Co
   const deltaMin = you.findMin !== null && agent.findMin !== null ? Math.round(you.findMin - agent.findMin) : null;
 
   let verdict: string;
-  if (followedAll) verdict = "Every decision went the agent's way, so your search and the agent's line are the same search.";
+  if (followedAll) verdict = "Every decision went the AI's way, so your search and the AI's choices are the same search.";
   else if (deltaMin !== null)
     verdict =
       deltaMin === 0
-        ? `Your search and the agent's line found the subject at the same mission minute, with ${differed} of your ${choices.length} decisions different from its picks.`
+        ? `Your search and the AI's choices found the subject at the same mission minute, with ${differed} of your ${choices.length} decisions different from its picks.`
         : deltaMin < 0
-          ? `Your search found the subject ${fmtMin(-deltaMin)} sooner than the agent's line.`
-          : `The agent's line found the subject ${fmtMin(deltaMin)} sooner; ${differed} of your ${choices.length} decisions went another way.`;
-  else if (you.findMin === null && agent.findMin !== null) verdict = "Your search suspended at last light; the agent's line found the subject before it.";
-  else if (you.findMin !== null && agent.findMin === null) verdict = "Your search found the subject; the agent's line suspended at last light.";
+          ? `Your search found the subject ${fmtMin(-deltaMin)} sooner than the AI's choices.`
+          : `The AI's choices found the subject ${fmtMin(deltaMin)} sooner; ${differed} of your ${choices.length} decisions went another way.`;
+  else if (you.findMin === null && agent.findMin !== null) verdict = "Your search suspended at last light; the AI's choices found the subject before it.";
+  else if (you.findMin !== null && agent.findMin === null) verdict = "Your search found the subject; the AI's choices suspended at last light.";
   else verdict = "Neither line found the subject before last light.";
 
   return {

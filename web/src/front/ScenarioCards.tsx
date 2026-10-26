@@ -1,5 +1,5 @@
-// The guided simulation's searches: one card per scenario, each saying who is missing, the setting, the
-// clues the field will report and the length. "Start the simulation" opens the console on it with the
+// The guided simulation's searches: one card per scenario, each saying the setting, who is missing and
+// where they were last seen, and the length (never the clues the run will bring: no spoilers). "Start the simulation" opens the console on it with the
 // guided simulation on; "Open the console only" opens it without the story. The first card is marked as
 // the one to start with. On the home page and in the console's "Change scenario" sheet.
 import type { MouseEvent } from "react";
@@ -7,18 +7,6 @@ import { buttonClass } from "../shell/components";
 import { Icon } from "../shell/icons";
 import { scenarioHash } from "../shell/flow";
 import { newShuffleSeed, RECOMMENDED, SCENARIO_CARDS, type ScenarioCard } from "./scenarios";
-
-/** The clues shown before a hover opens the rest (every clue shows on touch screens). */
-const FIRST_CLUES = 2;
-
-function Clue({ text }: { text: string }) {
-  return (
-    <li className="flex items-start gap-1.5 text-text">
-      <Icon name="clue" size={14} className="mt-[3px] shrink-0 text-clue" />
-      {text}
-    </li>
-  );
-}
 
 function Card({ card, current, onPick }: { card: ScenarioCard; current: boolean; onPick?: () => void }) {
   const shuffle = card.seed === "shuffle";
@@ -32,8 +20,6 @@ function Card({ card, current, onPick }: { card: ScenarioCard; current: boolean;
     onPick?.();
   };
   const titleId = `scenario-${card.seed}`;
-  const shown = card.clues.slice(0, FIRST_CLUES);
-  const more = card.clues.slice(FIRST_CLUES);
   return (
     <li aria-labelledby={titleId} className={`sl-card flex flex-col gap-3 rounded-lg border bg-surface-solid p-4 ${current ? "border-text-3" : "border-line"}`}>
       <div className="flex flex-col gap-1">
@@ -46,7 +32,6 @@ function Card({ card, current, onPick }: { card: ScenarioCard; current: boolean;
           )}
           {current && <span className="text-caption font-normal text-text-3">on screen</span>}
         </h3>
-        <p className="text-small text-text-2">{card.subject}</p>
       </div>
       <dl className="flex flex-col gap-2 text-small">
         <div>
@@ -54,30 +39,10 @@ function Card({ card, current, onPick }: { card: ScenarioCard; current: boolean;
           <dd className="text-text">{card.setting}</dd>
         </div>
         <div>
-          <dt className="text-caption text-text-3">Clues it will throw</dt>
-          <dd>
-            <ul className="flex flex-col gap-1">
-              {shown.map((c) => (
-                <Clue key={c} text={c} />
-              ))}
-            </ul>
-            {more.length > 0 && (
-              <>
-                <div className="sl-more">
-                  {/* the clipped box has no padding of its own, so it closes to nothing */}
-                  <div>
-                    <ul className="flex flex-col gap-1 pt-1">
-                      {more.map((c) => (
-                        <Clue key={c} text={c} />
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                <span aria-hidden className="sl-more-hint pt-1 text-caption text-text-3">
-                  and {more.length} more
-                </span>
-              </>
-            )}
+          <dt className="text-caption text-text-3">Who is missing</dt>
+          <dd className="flex items-start gap-1.5 text-text">
+            <Icon name="clue" size={14} className="mt-[3px] shrink-0 text-clue" />
+            {card.subject}, last seen {card.lastSeen}
           </dd>
         </div>
         <div>

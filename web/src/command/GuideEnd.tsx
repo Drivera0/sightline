@@ -85,8 +85,8 @@ function SideCard({ title, s, mine }: { title: string; s: SideStats; mine: boole
     ["Sectors searched", String(s.sectors)],
     ["Team-hours on passes", `${s.teamHours.toFixed(1)} h`],
     ["Probability searched before the find", `${Math.round(s.covered * 100)} %`],
-    ["Photo candidates triaged", String(s.candidates)],
-    ["Decisions unlike the agent's", `${s.differed} of ${s.decisions}`],
+    ["Photos reviewed", String(s.candidates)],
+    ["Decisions unlike the AI's", `${s.differed} of ${s.decisions}`],
   ];
   return (
     <div className={`flex flex-col gap-1 rounded-lg border p-3 ${mine ? "border-accent" : "border-line"}`} data-side={mine ? "you" : "agent"}>
@@ -106,7 +106,7 @@ function SideCard({ title, s, mine }: { title: string; s: SideStats; mine: boole
 }
 
 /** "You vs the agent": the two lines' numbers, your decision time, each decision, a verdict. */
-function Versus({ v, onReplay, onWatchAgent }: { v: Comparison; onReplay: () => void; onWatchAgent: () => void }) {
+function Versus({ v, onReplay, onWatchAgent, followed }: { v: Comparison; onReplay: () => void; onWatchAgent: () => void; followed: boolean }) {
   const maxThink = Math.max(1, ...v.times.map((t) => t.ms));
   const mine = v.times.length;
   const timeLine =
@@ -122,17 +122,17 @@ function Versus({ v, onReplay, onWatchAgent }: { v: Comparison; onReplay: () => 
         <p className="text-body text-text" data-verdict>
           {v.verdict}
         </p>
-        <p className="text-caption text-text-3">The agent's line is this scenario and seed with every decision its pick, through the same engine and the same draws.</p>
+        <p className="text-caption text-text-3">The AI's choices: this same scenario with every decision taken the AI's way, through the same engine.</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <SideCard title="Your search" s={v.you} mine />
-        <SideCard title="Agent's line" s={v.agent} mine={false} />
+        <SideCard title="The AI's choices" s={v.agent} mine={false} />
       </div>
 
       <FindBars you={v.you.findMin} agent={v.agent.findMin} />
       <p className="text-caption text-text-3">
-        Mission time, with every decision's minutes on the clock. Team-hours: each pass's walk and sweep, up to the find. Probability searched: the share of the agent's map that teams swept without a find, at POD 0.60 a pass.
+        Mission time, with every decision's minutes on the clock. Team-hours: each pass's walk and sweep, up to the find. Probability searched: the share of the agent's map that teams swept without a find, at POD 60 % a pass.
       </p>
 
       <div className="flex flex-col gap-2">
@@ -171,15 +171,15 @@ function Versus({ v, onReplay, onWatchAgent }: { v: Comparison; onReplay: () => 
             </li>
           ))}
         </ol>
-        <p className="text-caption text-text-3">✓ the agent's pick. + min: mission minutes the choice put on the clock. The bar: how long you took.</p>
+        <p className="text-caption text-text-3">✓ the AI's pick. + min: mission minutes the choice put on the clock. The bar: how long you took.</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <Button variant="primary" onClick={onReplay}>
           Try again
         </Button>
-        <Button onClick={onWatchAgent}>Follow the agent this time</Button>
-        <Button href="#">Another scenario</Button>
+        {!followed && <Button onClick={onWatchAgent}>Replay, following the agent</Button>}
+        <Button href="#scenarios">Another scenario</Button>
       </div>
     </section>
   );
@@ -195,6 +195,7 @@ export function GuideEnd({
   callsign,
   onReplay,
   onWatchAgent,
+  followed = false,
   onReport,
   onTrace,
   onClose,
@@ -209,6 +210,8 @@ export function GuideEnd({
   callsign: (id: string | null) => string;
   onReplay: () => void;
   onWatchAgent: () => void;
+  /** Every decision was the agent's already: no "Replay, following the agent". */
+  followed?: boolean;
   onReport: () => void;
   onTrace: () => void;
   onClose: () => void;
@@ -228,11 +231,11 @@ export function GuideEnd({
           </h2>
           <p className="text-body text-text">{outcome}</p>
           <p className="text-small text-text-3">
-            {scenario}, seed {seed}. The subject's position is the scenario's{subject ? `: sector ${subject.sector}` : ""}, fixed before the search began and shown only now.
+            {scenario}. The subject's position is the scenario's{subject ? `: sector ${subject.sector}` : ""}, fixed before the search began and shown only now.
           </p>
         </header>
 
-        {versus && <Versus v={versus} onReplay={onReplay} onWatchAgent={onWatchAgent} />}
+        {versus && <Versus v={versus} onReplay={onReplay} onWatchAgent={onWatchAgent} followed={followed} />}
 
         <details className="group rounded-lg border border-line" open={!versus} data-details>
           <summary className="cursor-pointer list-none rounded-lg p-3 text-small font-medium text-text-2 hover:bg-surface-strong [&::-webkit-details-marker]:hidden">
@@ -243,7 +246,7 @@ export function GuideEnd({
           </summary>
           <div className="flex flex-col gap-5 p-3 pt-1">
             <section aria-label="Decisions" className="flex flex-col gap-2">
-              <h3 className="text-small font-medium text-text-2">Your decisions and the agent's</h3>
+              <h3 className="text-small font-medium text-text-2">Your decisions and the AI's</h3>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[36rem] text-left text-small">
                   <thead className="text-caption text-text-3">
@@ -251,7 +254,7 @@ export function GuideEnd({
                       <th className="py-1 pr-3 font-normal">Time</th>
                       <th className="py-1 pr-3 font-normal">Decision</th>
                       <th className="py-1 pr-3 font-normal">You</th>
-                      <th className="py-1 pr-3 font-normal">Agent's line</th>
+                      <th className="py-1 pr-3 font-normal">The AI's choice</th>
                       <th className="py-1 font-normal">What changed</th>
                     </tr>
                   </thead>
@@ -285,7 +288,7 @@ export function GuideEnd({
               </div>
               <div className="flex flex-col gap-2">
                 <h3 className="text-small font-medium text-text-2">Every draw</h3>
-                <p className="text-caption text-text-3">A pass detects the subject when its sector holds them and its draw is under its POD. The draws are fixed by the seed and the pass: the same choices give the same result.</p>
+                <p className="text-caption text-text-3">A pass detects the subject when its sector holds them and its draw is under its POD. The draws are fixed by the seed ({seed}) and the pass: the same choices give the same result.</p>
                 <ul className="flex flex-col gap-0.5 font-mono text-caption text-text-2">
                   {wash.draws.map((d) => (
                     <li key={d}>{d}</li>
@@ -317,8 +320,8 @@ export function GuideEnd({
                 <Button variant="primary" onClick={onReplay}>
                   Try again
                 </Button>
-                <Button onClick={onWatchAgent}>Follow the agent this time</Button>
-                <Button href="#">Another scenario</Button>
+                {!followed && <Button onClick={onWatchAgent}>Replay, following the agent</Button>}
+                <Button href="#scenarios">Another scenario</Button>
               </>
             )}
             <Button variant="ghost" onClick={onClose}>

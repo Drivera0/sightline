@@ -143,7 +143,7 @@ four regions, every action logged to one timeline.
   the map); Call, Recall and Record find are smaller. Rows carry a drag handle and the hint "Drag a row onto a
   sector, or press Assign": while a row is dragged (`consoleStore.dragging`) the map outlines the sector under
   the pointer and says "Drop Team Two on a sector to assign it"; a drone dropped on a sector flies a leg there.
-  Most overdue first. The sectors by POA follow. All four teams and three drones show at 1440 × 900.
+  The rows keep a stable order (out in the field, free, off duty; the roster order within); an overdue team carries a red "Overdue · not heard N min" badge; a returning team counts down "back ~N min"; a free team away from base camp says "in the field". The sectors by POA follow. All four teams and three drones show at 1440 × 900.
 - **Map** (centre, about 55 % of 1440 px): click a sector for its popover (`SectorPopover.tsx`: assign any
   team, the agent's pick first; send a drone leg; mark searched at a POD of at most 90 %; recheck; record the
   find). Base camp, one icon set, only the active leg solid. The scrubber shows only inside the story.
@@ -161,7 +161,7 @@ four regions, every action logged to one timeline.
   15:00, subject found", expands to them (each "closed: subject found"); the header and the Map tab's count
   stop counting them. Overdue teams and read-backs stay, and every direct action still works.
 - **Timeline** (`Timeline.tsx`, `timeline.ts`, bottom): one stream, All / Radio / Clues / Drone / Decisions,
-  Reply on radio entries, Confirm on clues awaiting read-back, Show on map; repeats merge. The talk bar is
+  read-only rows (decisions are made in Needs you) with one Show link each; repeats merge, and one assignment said three ways is one line. The talk bar is
   the radio desk: hold `V` (a live radio server) or type, to the team picked. Add a clue is here.
 - **Direct actions** (`lib/mission.ts`): assign, call, recall, searched, recheck, found, drone leg, confirm a
   clue. A live mission calls `POST /missions/{id}/teams/{team}/assign|call|recall`,
@@ -199,7 +199,7 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
   when the scenario's agent proposes a recall: none of the fixtures do yet), Find. A scenario without drones
   has no Survey or Link. Each option shows what it does and what it costs before the commit; A picks the
   agent's, 1–4 an option, M the map, T takes over from Watch instead, Space pauses between decisions, →
-  skips ahead to the next one, Esc leaves. The console's own actions count too (P/N/U in the queue, Approve or Edit on the card, a sector's
+  skips ahead to the next one; Leave (with a confirm) leaves. The console's own actions count too (P/N/U in the queue, Approve or Edit on the card, a sector's
   popover, Confirm on a read-back, Record the find). Needs you shows the current decision only.
 - **One place to decide** (Dan's review, 2026-10-25): a decision lives where it lives on the real console:
   the photo's card (P/N/S/O/U), the proposal's main button ("Send Team One to C2") or Edit, Confirm clue on
@@ -253,6 +253,33 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
   `demoMission.ts` (a team walks a sector, searched at POD, found if the subject is inside; the survey
   proposal at t0) were not on main, so the minimal rule lives here. Screenshots:
   `docs/report/figures/v3/guided-step-*.webp`.
+
+### After the cold usability test (2026-10-25, `a/subject-guide`)
+
+Lead with the subject and the map; show only what needs a decision; one control per action.
+
+- **Subject strip** (`SubjectStrip.tsx`): under the status line on every console, guided or not: the profile
+  (`Mission.subject`), "last seen 10:30 at the trailhead lot · 3 h 05 min ago" in the mission's local time
+  (`last_seen_at`, the scenario card's `lastSeen` place), LKP (centres the map: `consoleStore.centreOn`) and
+  Profile; "Subject not found" on the status line opens the same profile. The home page's scenario cards no
+  longer list the clues the run will bring.
+- **One Send action**: the assign step's one primary, on the card and on the coach bar alike, is "Send all N
+  free teams to the agent's picks" (`sendAllLabel`, option `all`: from then on every team that comes back
+  takes the agent's next pick, `standingFrom`); the card's own Approve becomes "Send only Team X to C2". After
+  every pass with no find the agent proposes again for that team, and from last light every free team goes on
+  the agent's picks through the night (`searchEnd`), so every choice path ends in the find (`guide.test.ts`,
+  "every choice path reaches the find"). Nothing is asked after the find (a later lost link or gust).
+- **The bar never covers the map**: the coach bar and the step strip sit at the top of the Needs you column
+  (a bottom sheet on a phone); the ring no longer greys the screen; out-of-step Needs you items are hidden,
+  not dimmed, with "N more after this step".
+- **Esc** closes overlays only. Leave asks "Leave the simulation? Your decisions so far will be lost" and goes
+  to the home page's scenario cards (`#scenarios`). The shortcuts overlay sits above everything.
+- **Triage** opens each photo in the review frame, the subject's description beside it, the photo enlargeable;
+  the answers have one meaning on every photo: The subject (a pin), Another person (a witness lead), Not a
+  person; under More: A group (2+ people) (a pin and a witness lead; sent to the server as `person`), Object…,
+  Unsure. Keys stay (P S N G O U) as badges on desktop only; no key letters inside sentences.
+- **Record find stops the clock**; "Stay on the console" keeps the run on screen, stopped, with "What you did"
+  and "Back to the scenarios". "Replay, following the agent" shows only when the visitor did not already.
 
 ## Feedback, review and the visitor's decisions (v3 interaction, lane A)
 
@@ -330,3 +357,31 @@ clue-candidate, report-fields, map-still, object-photo).
   legs with their minutes (reported or planned) and photos, in the view and the Markdown export.
 - **Object photo badge**: a distractor frame's photo (ground level, among the aerial ones) carries an "object
   photo" badge in the review frame and on its card.
+
+## Status truth (lane A, the cold usability test 2026-10-25)
+
+A BC SAR search manager: "Clever, but I can't trust what it tells me about my teams." What changed:
+
+- **One last-heard clock** (`console.ts` `lastHeard`, `teamOrder`): the newest of a team's `last_heard_at`, its
+  radio turns and check-ins in the events, and its calls and check-ins in the server's timeline. `CommandView`
+  computes the board once; the Resources rows, Needs you, the overdue toasts and the bell all read it. A toast
+  says "not heard since 14:05" (true as the clock runs); once the team is heard again its toast leaves and the
+  bell's line becomes "Team Three heard again" (`notify.resolve`). The header reads "Radio check-in every 30 min".
+- **Where teams are** (`missionTime.ts` `placeOf`, `hastyAt`): a team walks out, sweeps, and after a pass with no
+  find (or a recall, `sim.ts` `passesFrom`) walks back, Returning with an ETA that counts down, then Free at base
+  camp. A team that radios clues before the board is seeded was out on a hasty search along the trail, with a
+  position report every 20 minutes. The guided search drops a scenario proposal for a team or sector the
+  visitor already sent (never the first assignment).
+- **Drones by the clock** (`fleetSim.ts`): out to the leg at the drone's speed, the leg's own minutes, back,
+  landed, a pack swap (Charging), then At base with a full pack; 2 % battery a minute in the air. The survey
+  flight is a sortie too. A leg the manager sends photographs the map as it flies; a scenario leg for a drone
+  the manager has in the air is not flown. Every approval names the approver: "You approved…", "(sent by you)",
+  "auto-approved: guided survey", "(by the search manager)".
+- **Sightings change the plan**: a reviewer's Person makes the agent propose "Send Team Two to the sighting in
+  C3 (+16 min)" (`sight-<clue>`), at the top of Needs you and never dimmed by the guide; the status line says
+  "Possible sighting · 14:31"; the agent's other assignment proposals say the sighting comes first; its
+  next-sector proposals take the table's top open sector, or name the higher one another proposal asks for.
+- **Stale items**: a radio call held for read-back leaves Needs you once its clue is on the board; the timeline
+  has no Confirm or Reply; a clue candidate from an image review offers "Send Team Two to look (+16 min)" and a
+  live Confirm.
+- Held in `statusTruth.test.tsx` (every minute of a run: rows = Needs you = toasts = bell).

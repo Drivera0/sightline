@@ -7,16 +7,24 @@ import { useEffect } from "react";
 import type { Verdict } from "../contract";
 import { KeyHint } from "../shell/components";
 
-export type LiveAnswer = "person" | "not_person" | "not_subject" | "object" | "unsure";
+export type LiveAnswer = "person" | "not_person" | "not_subject" | "group" | "object" | "unsure";
 export type ObjectKind = NonNullable<Verdict["object"]>;
 
-export const REVIEW_ANSWERS: readonly { id: LiveAnswer; label: string; key: string; title: string }[] = [
-  { id: "person", label: "Person", key: "P", title: "A person: a sighting pin on the map" },
-  { id: "not_person", label: "Not a person", key: "N", title: "Not a person: the map counts the look" },
-  { id: "not_subject", label: "Not the subject", key: "S", title: "A person, but not the one missing (another hiker): the map counts the look as for Not a person" },
-  { id: "object", label: "Object", key: "O", title: "A thing the subject may have left or used: a clue candidate for a team to confirm on the ground" },
-  { id: "unsure", label: "Unsure", key: "U", title: "Can't tell: the area stays held until someone answers" },
+/**
+ * One fixed meaning per answer, on every photo (the cold test: Person meant a pin on one photo and a
+ * team's walk on the next). The first three are the main buttons; `more` ones sit under a More toggle.
+ */
+export const REVIEW_ANSWERS: readonly { id: LiveAnswer; label: string; key: string; title: string; more?: boolean }[] = [
+  { id: "person", label: "The subject", key: "P", title: "The missing person: a sighting pin on the map where the photo puts it" },
+  { id: "not_subject", label: "Another person", key: "S", title: "A person, not the one missing: a witness lead to ask what they saw (the map counts the look as for Not a person)" },
+  { id: "not_person", label: "Not a person", key: "N", title: "Not a person: it leaves the queue, and the map counts the look" },
+  { id: "group", label: "A group (2+ people)", key: "G", title: "Two or more people together: a sighting pin and a witness lead, since the subject may be with them", more: true },
+  { id: "object", label: "Object…", key: "O", title: "A thing the subject may have left or used: a clue candidate for a team to confirm on the ground", more: true },
+  { id: "unsure", label: "Unsure", key: "U", title: "Can't tell: it stays flagged for a second reviewer", more: true },
 ];
+
+/** What the server takes (contract 15.7 has no group): a group is people, so a person sighting. */
+export const serverAnswer = (a: LiveAnswer): Exclude<LiveAnswer, "group"> => (a === "group" ? "person" : a);
 
 /** The answer a review key gives (P, N, S, O, U), or null. */
 export function answerForKey(key: string): LiveAnswer | null {

@@ -159,7 +159,7 @@ Reading the numbers:
   0.067 s (`cv2.imread`, mean over the 101 photos), and the rest is letterboxing, decoding and NMS
   in Python on the CPU. The slices go through one at a time (batch 1).
 - **FP16 gives nothing here** (10.8 against 10.5 ms per slice, within the run-to-run spread),
-  while it changes a few boxes. We did not look into why; at batch 1 on a small model the time may
+  while it changes a few boxes. I did not look into why; at batch 1 on a small model the time may
   be dominated by kernel launches and copies more than by arithmetic. FP32 is the variant to quote.
 
 ## Caveats
@@ -171,7 +171,7 @@ Reading the numbers:
   uses the new engine; the GPU rows use the classic engine. FP32 gives the same boxes either way
   on this model.
 - **CUDA 12.9 from conda-forge, not the system toolkit** (there is none). The driver reports CUDA
-  13.4 support, and the project's Torch uses CUDA 13.0 wheels; we built against 12.9 (it compiled
+  13.4 support, and the project's Torch uses CUDA 13.0 wheels; I built against 12.9 (it compiled
   with no source changes) rather than try CUDA 13 with OpenCV's CUDA code first.
 - **One machine, shared, under WSL2.** Other jobs used the CPU and the GPU's memory during the
   runs. The Torch 0.25 s is a single run from the evaluation (`detector_metrics.json`); the parity

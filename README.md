@@ -8,7 +8,7 @@ Sightline is the brain of a drone search for a missing person: it finds the like
 
 **[Live demo](https://sightline-iota-sandy.vercel.app) · [Demo console, now](https://sightline-iota-sandy.vercel.app/#m/demo/map) · [Report](docs/report/OPENCV_REPORT.md) · [Architecture](docs/architecture/sightline-architecture.html) · [Run it](#reproduce-the-results-cpu-only-about-14-minutes)**
 
-**For judges:** open the [live site](https://sightline-iota-sandy.vercel.app) (the home page), press **Try the guided simulation**, and on a card under **Guided simulation** press **Start the simulation** (the overdue hiker is marked "Start here"; about 3 min). The home page's **For judges** strip links the report, the evidence index, the trace and this list. You are the search manager: the clock runs to each decision and waits, the agent proposes with its reason and what each option costs, you decide, and **What you did** at the end sets your line beside the agent's. The Debrief has "For judges: where to look, in order" ([`#m/demo?t=6&judges`](https://sightline-iota-sandy.vercel.app/#m/demo?t=6&judges); the old `#judges` redirects there). Answers to the questions we expect, with their evidence, in [docs/JUDGE_QA.md](docs/JUDGE_QA.md).
+**For judges:** open the [live site](https://sightline-iota-sandy.vercel.app) (the home page), press **Try the guided simulation**, and on a card under **Guided simulation** press **Start the simulation** (the overdue hiker is marked "Start here"; about 3 min). The home page's **For judges** strip links the report, the evidence index, the trace and this list. You are the search manager: the clock runs to each decision and waits, the agent proposes with its reason and what each option costs, you decide, and **What you did** at the end sets your line beside the agent's. The Debrief has "For judges: where to look, in order" ([`#m/demo?t=6&judges`](https://sightline-iota-sandy.vercel.app/#m/demo?t=6&judges); the old `#judges` redirects there). Answers to the questions I expect, with their evidence, in [docs/JUDGE_QA.md](docs/JUDGE_QA.md).
 
 ![Sightline system architecture](docs/architecture/system.png)
 
@@ -37,12 +37,12 @@ Beyond the detector (simulated or with fake models where marked; every headline 
 | Fleet v2 (simulated): three drones, coordinated on one shared map vs a hand split of the area, with a clue at the start | found within 30 min in 22.7 % vs 20.0 % of trials (ideal), 15.9 % vs 11.5 % (realistic wind, battery, GPS and link loss), 13.5 % vs 10.0 % (harsh); level with no clue ([FLEET_V2.md](docs/report/FLEET_V2.md)) | `uv run python scripts/fleet_eval.py` (about 2 min) |
 
 - **The human row is a reference point, not a head-to-head.** Pyrrö, Naseri & Jung (2021, arXiv:2111.09406) quote it from Pyrrö's master's thesis: "the average human achieves roughly ... 59% PRC, 68% RCL and 33 s ATI, with less than around 200 images to inspect". They don't say who the people were or whether they saw these 101 photos. SAR-APD is loose on purpose (one box may cover a group; an IoU of 0.0025 counts), so every other number in this repo uses the strict VOC scoring. Report §3.9.
-- **Disclosure:** the threshold and every inference setting were chosen on the validation split, but two earlier model choices were made with test scores in view: keeping training run 2 over run 1, and dropping the hard-negative fine-tune (test F2 0.840 vs 0.850). The test numbers above are therefore slightly optimistic; **our best estimate of true test recall is about 0.86, the reported 0.864 or slightly below**, and 0.825 at the four test sites the model never saw. Since then every choice is made on validation only ([scripts/README.md](scripts/README.md)).
+- **Disclosure:** the threshold and every inference setting were chosen on the validation split, but two earlier model choices were made with test scores in view: keeping training run 2 over run 1, and dropping the hard-negative fine-tune (test F2 0.840 vs 0.850). The test numbers above are therefore slightly optimistic; **my best estimate of true test recall is about 0.86, the reported 0.864 or slightly below**, and 0.825 at the four test sites the model never saw. Since then every choice is made on validation only ([scripts/README.md](scripts/README.md)).
 - **GPU time** is from the evaluation run on an RTX 4080 SUPER (`detector_metrics.json`: 0.251 s); the separate OpenCV parity run on the same GPU measured 0.30 s for the same Torch path (report §3.1).
-- **Mirror-image experiment (not in the demo).** Running each photo and its mirror image and fusing the boxes passed our validation rule (val F2 0.857 vs 0.831, 95% CI of the gain [+0.004, +0.048]). Scored once on test it gave recall 0.858, precision 0.835, AP50 0.872 at 0.50 s per photo: within noise of the single view, with 2 fewer people found and twice the time. The demo's photos were detected single-view and there was no time to rebuild the demo and every number around it, so the single-view model stays the reported one. That last decision was made after the mirror test score was seen, so both are reported here. Details: [docs/LANE_A_ML.md](docs/LANE_A_ML.md) §6.3a.
+- **Mirror-image experiment (not in the demo).** Running each photo and its mirror image and fusing the boxes passed the validation rule (val F2 0.857 vs 0.831, 95% CI of the gain [+0.004, +0.048]). Scored once on test it gave recall 0.858, precision 0.835, AP50 0.872 at 0.50 s per photo: within noise of the single view, with 2 fewer people found and twice the time. The demo's photos were detected single-view and there was no time to rebuild the demo and every number around it, so the single-view model stays the reported one. That last decision was made after the mirror test score was seen, so both are reported here. Details: [docs/LANE_A_ML.md](docs/LANE_A_ML.md) §6.3a.
 - **Ranking (demo survey):** all 6 photos with a person were in the first 7 photos of the review queue; the first one is photo 1.
 - **Search map (simulated, 1,341 trials with the person in a photographed cell, 5 m cells):** a ground team checks a median of 1,213 cells with Sightline's map, against 1,743 for a naive map that treats every photographed cell as searched for certain (seed 7, the best of the three seeds tried). In the robustness check on the same 5 m map it was better in all 15 runs (3 seeds × 5 noise levels): 28–30% fewer cells at the default noise, 19–23% with noise matching the canopy estimate's measured error (docs/LANE_C_SEARCH.md).
-- **Where it fails:** groups of people, clothing that matches pale or dark rock, people sitting or lying down. While analysing the misses we found 42 test labels squashed by a size bug in four photos; fixing it moved recall from 0.769 to 0.864. Details: [docs/DETECTOR_LIMITS.md](docs/DETECTOR_LIMITS.md).
+- **Where it fails:** groups of people, clothing that matches pale or dark rock, people sitting or lying down. While analysing the misses I found 42 test labels squashed by a size bug in four photos; fixing it moved recall from 0.769 to 0.864. Details: [docs/DETECTOR_LIMITS.md](docs/DETECTOR_LIMITS.md).
 
 Published results on the HERIDAL test set, in per cent (the full table, sources and caveats: report §3.10):
 
@@ -53,7 +53,7 @@ Published results on the HERIDAL test set, in per cent (the full table, sources 
 | Two-stage multimodel CNN (Kundid Vasić & Papić 2020, as quoted by AIR) | 68.9 | 94.7 | — |
 | **Sightline, strict VOC (IoU ≥ 0.5)** | **80.2** | **86.4** | **86.8** |
 
-The rows are not strictly comparable: the published ones do not state their matching rule on the page, each is one operating point, and we have not checked that they scored the same 101 photos and labels. Ours is the row you can check in about 5 minutes on a CPU (`scripts/reproduce_cv2.py`, below).
+The rows are not strictly comparable: the published ones do not state their matching rule on the page, each is one operating point, and I have not checked that they scored the same 101 photos and labels. Sightline's is the row you can check in about 5 minutes on a CPU (`scripts/reproduce_cv2.py`, below).
 
 ## What the demo shows
 
@@ -123,7 +123,7 @@ uv run python -c "from sightline.agent.llm import MODEL_FAST, token_factory_clie
 SIGHTLINE_FAKE_LLM=1 ...                                         # run anything without a key (scripted replies)
 ```
 
-The Nemotron models think before they answer, and the thinking counts against `max_tokens`; our client defaults to 2048 and can turn thinking off with `extra_body={"chat_template_kwargs": {"enable_thinking": False}}` (`NO_THINKING` in `llm.py`).
+The Nemotron models think before they answer, and the thinking counts against `max_tokens`; Sightline's client defaults to 2048 and can turn thinking off with `extra_body={"chat_template_kwargs": {"enable_thinking": False}}` (`NO_THINKING` in `llm.py`).
 
 ## Conditions with Tavily
 
@@ -137,19 +137,19 @@ What it changes during a search:
 
 Live, Mount Seymour on the evening of Oct 21 (PDT): wind NW 20 km/h gusting 40 (quoted "NW 20", "gusts 40"), a fog advisory (visibility factor 0.6), not flyable ("after civil twilight"); the same values on two runs (`sightline/geo/README.md`). A later run that evening, whose trace is committed, found the same wind and no fog (visibility factor 1.0). Every Tavily call and every extracted value with its quote and source URL is in the mission trace (`actor="conditions"`). The full write-up, with a live run's trace: [docs/report/TAVILY.md](docs/report/TAVILY.md). The key lives on the server only (AWS Secrets Manager); `SIGHTLINE_FAKE_TAVILY=1` runs without it.
 
-## Team and lanes
+## Code layout
 
-| Lane | Owns | Code |
+Sightline is built by one person, Daniel Rivera. The code is split into five modules ("lanes" in the doc file names), each with its own folders and tests:
+
+| Module | Covers | Code |
 |---|---|---|
-| A · Detector | data prep, training, evaluation, metrics screen | `sightline/ml/`, `scripts/` |
-| B · Geo | camera poses, footprints, pins, base map, real-GPS survey | `sightline/geo/`, `web/src/map/` |
-| C · Search | probability map, simulation, Search next | `sightline/search/`, `web/src/map/heat/` |
+| A · Detect & Agent | data prep, training, evaluation, the `cv2.dnn` detector, the second look, the agent, the Nebius Serverless Job, the reports | `sightline/ml/`, `sightline/agent/`, `scripts/`, `deploy/nebius/` |
+| B · Geo | camera poses, footprints, pins, base map, real-GPS survey, clues, conditions (Tavily) | `sightline/geo/`, `web/src/map/` |
+| C · Search | probability map, live map, planner, simulated fleet, Search next | `sightline/search/`, `web/src/map/heat/` |
 | D · Pipeline | contract, pipeline, mission store and API, website shell, review queue, AWS | `sightline/pipeline/`, `sightline/mission/`, `sightline/api/`, `web/src/shell/`, `deploy/aws/` |
-| E · Ops & Voice | About sheet (was the front door), the console's map (was the command view), radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` |
+| E · Ops & Voice | the home page and its About section (`#about`; was the front door), the console (was the command view), radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` |
 
-In the live-missions sprint lane A also owns the second look and the agent (`sightline/agent/`), the Nebius Serverless Job (`deploy/nebius/`) and the reports.
-
-The lanes meet at one contract (`docs/01_CONTRACT.md`): only the pipeline writes the cache, every cache file is validated against it, and the website only reads the cache.
+The modules meet at one contract (`docs/01_CONTRACT.md`): only the pipeline writes the cache, every cache file is validated against it, and the website only reads the cache.
 
 ## Quick start
 
@@ -220,9 +220,9 @@ and writes `data/`, so you can run one alone (`python -m sightline.pipeline plac
 (`--skip detect` after copying `data/work/detect/` from the GPU desktop). The real-GPS survey is
 built with `python -m sightline.pipeline real` (see `docs/LANE_B_GEO.md`).
 
-If a lane's function is missing, its stage writes a labelled **placeholder** and says so in the
+If a module's function is missing, its stage writes a labelled **placeholder** and says so in the
 command output and in `manifest.json`. See `docs/LANE_INTERFACES.md` for what the pipeline calls in
-lanes A, B and C.
+modules A, B and C.
 
 ## Mission API
 
@@ -238,11 +238,11 @@ a zip of JPEGs → `cache/upload-<id>/`) still works.
 
 ## Docs
 
-- `docs/00_OVERVIEW.md`: what Sightline is, its users, the pipeline, the lanes, what is real and what is simulated. Read this first.
-- `docs/01_CONTRACT.md`: the exact shape of every file the lanes exchange.
-- `docs/LANE_A_ML.md`, `docs/LANE_B_GEO.md`, `docs/LANE_C_SEARCH.md`, `docs/LANE_D_PIPELINE.md`: one per lane.
+- `docs/00_OVERVIEW.md`: what Sightline is, its users, the pipeline, the modules, what is real and what is simulated. Read this first.
+- `docs/01_CONTRACT.md`: the exact shape of every file the modules exchange.
+- `docs/LANE_A_ML.md`, `docs/LANE_B_GEO.md`, `docs/LANE_C_SEARCH.md`, `docs/LANE_D_PIPELINE.md`: one per module.
 - `docs/DETECTOR_LIMITS.md`: where the detector fails, with figures.
-- `docs/LANE_INTERFACES.md`: the functions the pipeline calls in other lanes.
+- `docs/LANE_INTERFACES.md`: the functions the pipeline calls in the other modules.
 - `docs/05_FRONTEND_SHARED.md`: the shared website rules and look.
 - `docs/report/OPENCV_REPORT.md`: the OpenCV report (live missions, agentic vision chains, measurements).
 - `docs/feedback/nebius.md`, `docs/feedback/radio.md`: what worked and what didn't with Token Factory, Serverless Jobs, Parakeet and Magpie.
@@ -255,13 +255,17 @@ path, the search-map evaluation, the 10 m position uncertainty, the drone fleet,
 
 - **Never rules an area out.** Searched sectors say how well they were searched ("searched at POD 60 %"); a sector's POD is capped below 1, and tests scan every proposal, briefing, radio reply and screen string for the word clear (report §11).
 - **A person approves every action**, and every decision is logged with who and when; the radio transmits only approved briefings, when the operator presses Transmit.
-- **Privacy:** the mission API has no login (anyone who can reach it can list missions and see their photos), so keep it on `127.0.0.1` or your own network; the public AWS demo holds only HERIDAL and synthetic photos and is stopped between demos. On AWS, original photos sit in a private S3 bucket and are deleted after 30 days. Crops of detections at confidence ≥ 0.15 (no full photos, GPS or EXIF) go to Nebius Token Factory (`nvidia/Nemotron-3.5-Super-VL`) for the second look; radio speech stays on our GPU and only text goes to Token Factory. No face detection or recognition, no identity data. CORS allows only the deployed site and localhost, with no credentials. Details: report §11.1.
+- **Privacy:** the mission API has no login (anyone who can reach it can list missions and see their photos), so keep it on `127.0.0.1` or your own network; the public AWS demo holds only HERIDAL and synthetic photos and is stopped between demos. On AWS, original photos sit in a private S3 bucket and are deleted after 30 days. Crops of detections at confidence ≥ 0.15 (no full photos, GPS or EXIF) go to Nebius Token Factory (`nvidia/Nemotron-3.5-Super-VL`) for the second look; radio speech stays on the GPU desktop and only text goes to Token Factory. No face detection or recognition, no identity data. CORS allows only the deployed site and localhost, with no credentials. Details: report §11.1.
 - **Licences:** AGPL-3.0 code and model weights (from Ultralytics; what a team deploying it must do is in report §11.2); HERIDAL imagery from a CC BY 3.0 copy, original terms not verified (below).
 
 ## Attribution
 
 Imagery from the HERIDAL dataset (Božić-Štulić, Marušić & Gotovac, IJCV 2019), from the VOC-format copy by Pyrrö (2021, [Zenodo 5662351](https://zenodo.org/records/5662351)), which is licensed CC BY 3.0. The original dataset's own terms could not be checked (its site did not answer on 22 Oct 2026); see report §11.2.
 
+## Credits
+
+The BCS Hackathon 2026 version (tag `bcs-final-submission`) was built by a team of four: Daniel Rivera, [@bamobam](https://github.com/bamobam), [@har-vir](https://github.com/har-vir) and [@jkiim](https://github.com/jkiim). Since then, for the OpenCV and Nebius hackathons, Daniel Rivera has extended it solo. Development used Claude Code (Anthropic) as an AI coding assistant. It is not part of the running product: the agent is the runtime loop above (Nemotron on Nebius Token Factory proposing actions that a person approves), and every model call the product makes is listed in [Built with NVIDIA + Nebius](#built-with-nvidia--nebius). Third-party media: [`CREDITS.md`](CREDITS.md).
+
 ## License
 
-Code is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0-or-later), matching Ultralytics YOLO, which the detector is trained with. Ultralytics treats trained models as AGPL-3.0 too, so we treat the released weights and their ONNX export the same way. The HERIDAL imagery keeps its own license (see Attribution).
+Code is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0-or-later), matching Ultralytics YOLO, which the detector is trained with. Ultralytics treats trained models as AGPL-3.0 too, so the released weights and their ONNX export are treated the same way. The HERIDAL imagery keeps its own license (see Attribution).

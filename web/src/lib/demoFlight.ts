@@ -15,6 +15,17 @@ export const TICK_MS = 600;
 
 const timers = new Map<string, number>();
 
+/**
+ * When the demo's clock runs (the guided search, a played clock), a leg flies by that clock instead
+ * (command/fleetSim.ts, in missionTime's demoAt): no wall-clock ticks, which were all stamped with the paused
+ * clock (the cold test: a leg "done" the minute it was sent).
+ */
+let clocked = false;
+export function setClockedFlights(on: boolean): void {
+  clocked = on;
+  if (on) stopAllDemoFlights();
+}
+
 /** Where drones launch and land: the mission's base camp, else the trailhead lot. */
 export function baseCamp(): { lat: number; lon: number } {
   const b = useMission.getState().mission?.base_camp;
@@ -22,7 +33,7 @@ export function baseCamp(): { lat: number; lon: number } {
 }
 
 export function startDemoFlight(legId: string, ticks = FLIGHT_TICKS, ms = TICK_MS): void {
-  if (timers.has(legId) || typeof window === "undefined") return;
+  if (clocked || timers.has(legId) || typeof window === "undefined") return;
   const store = useMission.getState;
   const fleet0 = store().fleet;
   const leg = fleet0?.legs.find((l) => l.id === legId);

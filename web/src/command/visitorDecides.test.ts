@@ -19,13 +19,13 @@ describe("the visitor decides", () => {
     const s = demoAt(full, NOW_AT, [userDecides("p002", "2026-10-24T21:42:30Z")]);
     const lines = buildTimeline(s.events ?? [], s.teams ?? [], s.timeline ?? []).filter((e) => e.kind === "decision" && e.refs.includes("p002") && /approved/.test(e.text));
     expect(lines).toHaveLength(1);
-    expect(lines[0]!.text).toMatch(/^Search manager approved agent p002/);
+    expect(lines[0]!.text).toMatch(/^You approved the AI's suggestion/);
   });
 
   it("(3) free mode: the scenario's approvals are the scenario's search manager's, never the visitor's", () => {
     const s = demoAt(full, NOW_AT);
     const p3 = buildTimeline(s.events ?? [], s.teams ?? [], s.timeline ?? []).find((e) => e.kind === "decision" && e.refs.includes("p003"))!;
-    expect(p3.text).toMatch(/^The scenario's search manager approved agent p003/);
+    expect(p3.text).toMatch(/^The search manager approved the AI's suggestion/);
   });
 
   it("(3) holding: nothing is approved without the visitor, nothing follows from it, no find", () => {
@@ -34,7 +34,7 @@ describe("the visitor decides", () => {
     expect(s.tasks!.some((t) => t.team_id === "T1" && t.sector_id === "C2")).toBe(false);
     expect(s.mission!.found).toBeNull();
     const tl = buildTimeline(s.events ?? [], s.teams ?? [], s.timeline ?? []);
-    expect(tl.some((e) => /approved agent p00[234]/.test(e.text))).toBe(false);
+    expect(tl.some((e) => e.kind === "decision" && e.refs.some((r) => /^p00[234]$/.test(r)) && /approved/.test(e.text))).toBe(false);
     expect(tl.filter((e) => /Subject located|Subject found/.test(e.text))).toEqual([]);
   });
 

@@ -1,8 +1,8 @@
-# Lane A · Sprint 2: OpenCV detector path, second look and agent
+# Workstream A · Detect & Agent: OpenCV detector path, second look and agent
 
 > Superseded by [`docs/LANE_A_ML.md`](../LANE_A_ML.md) §6.7–§6.8 (the `cv2.dnn` runtime and the
 > verifier) and [`docs/architecture/agent.md`](../architecture/agent.md) (the agent, with real traces).
-> This file keeps the sprint plan and each task's outcome.
+> This file keeps the plan and each task's outcome.
 
 **Folders:** `sightline/ml/`, `sightline/agent/`, ML, agent and eval `scripts/`, `tests/ml/`,
 `tests/agent/`, `deploy/nebius/`, `web/src/metrics/`, `web/src/detect/`, `docs/architecture/`,
@@ -17,7 +17,7 @@
 3. **Run the agent:** one loop that turns verdicts, the planner's legs, clues and conditions into
    proposals a person approves, every step in the trace.
 
-Plus the shared Token Factory client and trace helpers other lanes call, the Nebius Serverless Job, and
+Plus the shared Token Factory client and trace helpers the other workstreams call, the Nebius Serverless Job, and
 assembling the reports.
 
 ## 2. Design decisions
@@ -69,7 +69,7 @@ assembling the reports.
 
 Built beyond the plan: an agent evaluation (#140, `docs/report/AGENT_EVAL.md`), INT8 and CUDA
 experiments for `cv2.dnn` (#143, #146), a `cv2.dnn`-only reproduction of the test table (#136,
-`scripts/reproduce_cv2.py`), and a large share of lane E's screens.
+`scripts/reproduce_cv2.py`).
 
 ## 4. Tests
 

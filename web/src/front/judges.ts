@@ -42,7 +42,7 @@ export const WHAT_BREAKS_FIRST: readonly { lead: string; rest: string }[] = [
     rest: "groups, clothing that matches pale or dark rock, people sitting or lying down.",
   },
   {
-    lead: "The second look is a small gain:",
+    lead: "The AI re-check is a small gain:",
     rest: "on test it finds 4 more of the 337 people for 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023]), it is advice a person approves, and on people under 60 px it mostly answers “unclear”.",
   },
   {
@@ -59,7 +59,7 @@ export const HONESTY = {
   ],
   real: [
     "The aerial photos (HERIDAL) and every detection the detector makes on them",
-    "The second look: OpenCV 5 re-look tools and Nemotron VL, recorded in the Trace",
+    "The AI re-check: OpenCV 5 re-look tools and Nemotron VL, recorded in the Trace",
     "Conditions from Tavily with verbatim quotes, and the radio desk's Nemotron turns",
   ],
 } as const;

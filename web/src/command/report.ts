@@ -8,6 +8,7 @@
 import type { MissionData } from "../lib/mission";
 import { clock, type Tz } from "../lib/time";
 import { buildTimeline, type Entry } from "./timeline";
+import { TERMS } from "./terms";
 
 export interface MissionReport {
   incident: string;
@@ -68,7 +69,7 @@ export function legRows(s: Data): MissionReport["legList"] {
 /** The key events: the first photo, every clue, every decision (with who), the find; oldest first. */
 function keyEvents(entries: readonly Entry[]): Entry[] {
   const firstPhoto = [...entries].reverse().find((e) => e.kind === "drone" && /photos|flight/i.test(e.text));
-  const keep = entries.filter((e) => e.kind === "clue" || e.kind === "found" || (e.kind === "decision" && !e.text.startsWith("Agent proposes")));
+  const keep = entries.filter((e) => e.kind === "clue" || e.kind === "found" || (e.kind === "decision" && !e.text.startsWith(`${TERMS.aiSuggests}:`)));
   return [...(firstPhoto ? [firstPhoto] : []), ...keep].sort((a, b) => a.at.localeCompare(b.at));
 }
 
@@ -123,6 +124,15 @@ const pct = (v: number) => `${Math.round(v * 100)} %`;
 export const pct1 = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)} %`;
 
 /** "19:48, 3 h 52 min before the call": when the subject was last seen, against the mission's start. */
+/**
+ * Whether anything looked at a sector (a drone photo over it, or a ground search): a final POD is shown only
+ * for those; a sector nobody searched says so (the usability test's "Final POD 77 %" for an unflown sector).
+ */
+export function wasSearched(r: Pick<MissionReport, "sectors" | "searched">, sector: string): boolean {
+  const s = r.sectors.find((x) => x.sector === sector);
+  return (s?.coverage ?? 0) > 0 || (s?.pod ?? 0) > 0 || r.searched.some((x) => x.sector === sector);
+}
+
 export function lastSeenWords(r: Pick<MissionReport, "lastSeen" | "period">, t: (iso: string) => string): string | null {
   if (!r.lastSeen) return null;
   const min = Math.round((new Date(r.period.from).getTime() - new Date(r.lastSeen).getTime()) / 60000);
@@ -154,22 +164,22 @@ export function reportMarkdown(r: MissionReport, tz: Tz): string {
     "## Every sector's final POD",
     "",
     ...(r.sectors.length
-      ? ["| Sector | POA | Drone coverage | Final POD |", "|---|---:|---:|---:|", ...r.sectors.map((s) => `| ${s.sector} | ${pct1(s.poa)} | ${pct(s.coverage)} | ${pct1(s.pod)} |`)]
+      ? ["| Sector | POA | Drone coverage | Final POD |", "|---|---:|---:|---:|", ...r.sectors.map((s) => `| ${s.sector} | ${pct1(s.poa)} | ${pct(s.coverage)} | ${wasSearched(r, s.sector) ? pct1(s.pod) : "not searched"} |`)]
       : ["No sectors recorded."]),
     "",
-    "## Drone legs",
+    "## Drone flight lines",
     "",
     ...(r.legList.length
-      ? ["| Leg | Drone | Sector | Status | Minutes | Photos |", "|---|---|---|---|---:|---:|", ...r.legList.map((l) => `| ${l.leg} | ${l.drone} | ${l.sector ?? ""} | ${l.status} | ${l.minutes.toFixed(1)} (${l.minutesFrom}) | ${l.photos} |`)]
-      : ["No drone legs flown."]),
+      ? ["| Flight line | Drone | Sector | Status | Minutes | Photos |", "|---|---|---|---|---:|---:|", ...r.legList.map((l) => `| ${l.leg} | ${l.drone} | ${l.sector ?? ""} | ${l.status} | ${l.minutes.toFixed(1)} (${l.minutesFrom}) | ${l.photos} |`)]
+      : ["No drone flight lines flown."]),
     "",
     "## Resources and traffic",
     "",
-    `- Photos processed: ${r.photos.survey} from the survey flight, ${r.photos.legs} from drone legs`,
-    `- Drone legs flown: ${r.legs.flown} (${r.legs.minutes} flight minutes planned)`,
+    `- Photos processed: ${r.photos.survey} from the survey flight, ${r.photos.legs} from drone flight lines`,
+    `- Drone flight lines flown: ${r.legs.flown} (${r.legs.minutes} flight minutes planned)`,
     `- Radio turns: ${r.radioTurns}`,
     `- Clues: ${r.clues}`,
-    `- Agent proposals: ${r.proposals.accepted} accepted, ${r.proposals.rejected} rejected, ${r.proposals.pending} still open`,
+    `- AI suggestions: ${r.proposals.accepted} accepted, ${r.proposals.rejected} rejected, ${r.proposals.pending} still open`,
     "",
   ];
   return lines.join("\n");

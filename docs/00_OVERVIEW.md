@@ -1,7 +1,7 @@
 # 00 · Sightline: read this first
 
 > What Sightline is today, who it is for, how it works, what is real and what is simulated, and where
-> to read next. Then read `01_CONTRACT.md` and the lane file for the part you are touching.
+> to read next. Then read `01_CONTRACT.md` and the module file for the part you are touching.
 
 ---
 
@@ -66,19 +66,22 @@ mission state and logs a clue only after a readback the team confirms.
 Architecture figures: `docs/architecture/sightline-architecture.html` (system, ML pipeline, a live mission
 on AWS, the agent workflow).
 
-## 5. Lanes
+## 5. Modules
 
-| Lane | Owns | Code | Lane file |
+The code is split into five modules, called lanes in the file names (`LANE_A_ML.md` and so on), each with
+its own folders and tests.
+
+| Module | Covers | Code | Module file |
 |---|---|---|---|
 | **A · Detect & Agent** | data, training, evaluation, the `cv2.dnn` detector, the second look, the agent loop, the Nebius Serverless Job, the reports | `sightline/ml/`, `sightline/agent/`, `scripts/`, `deploy/nebius/` | `LANE_A_ML.md` |
 | **B · Geo** | camera poses, footprints, pins, base map, clues, conditions (Tavily) | `sightline/geo/`, `web/src/map/` | `LANE_B_GEO.md` |
 | **C · Search** | probability map, live map, sectors, planner, simulated fleet and evaluations | `sightline/search/`, `web/src/map/heat/` | `LANE_C_SEARCH.md` |
 | **D · Pipeline** | contract, pipeline, mission store and API, website shell, review queue, AWS | `sightline/pipeline/`, `sightline/mission/`, `sightline/api/`, `web/src/shell/`, `deploy/aws/` | `LANE_D_PIPELINE.md` |
-| **E · Ops & Voice** | the home page and the About sheet (was the front door), the console: the command post and the guided simulation (was the command view), radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` | `web/src/command/README.md`, `sightline/radio/README.md` |
+| **E · Ops & Voice** | the home page and its About section (`#about`; was the front door), the console: the command post and the guided simulation (was the command view), radio desk | `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/` | `web/src/command/README.md`, `sightline/radio/README.md` |
 
-The lanes meet at one contract (`01_CONTRACT.md`, v1.2): only the pipeline and the `MissionStore` write
+The modules meet at one contract (`01_CONTRACT.md`, v1.2): only the pipeline and the `MissionStore` write
 files, every write is validated against the contract, and the website only reads. How the pipeline calls
-the lanes: `LANE_INTERFACES.md`. Shared website rules: `05_FRONTEND_SHARED.md`.
+the modules: `LANE_INTERFACES.md`. Shared website rules: `05_FRONTEND_SHARED.md`.
 
 ## 6. Real and simulated
 
@@ -114,12 +117,12 @@ and the guided simulation's find comes from seeded draws at the sector's POD, pr
 - `docs/feedback/nebius.md`, `docs/feedback/radio.md`: what worked and what didn't with Token Factory,
   Serverless Jobs, Parakeet and Magpie.
 - `deploy/aws/README.md`: the AWS deployment and the remote check.
-- Lane files: `LANE_A_ML.md`, `LANE_B_GEO.md`, `LANE_C_SEARCH.md`, `LANE_D_PIPELINE.md`.
-- `docs/sprint/README.md`: how the Oct 20–30 sprint was planned, and what each planned task became.
+- Module files: `LANE_A_ML.md`, `LANE_B_GEO.md`, `LANE_C_SEARCH.md`, `LANE_D_PIPELINE.md`.
+- `docs/sprint/README.md`: the build plan for Oct 20–30, and what each planned task became.
 
 ## 8. History
 
-Sightline began at **BCS Hackathon 2026** (Oct 16–17, 36 hours, a team of four, tag
+Sightline began at **BCS Hackathon 2026**, built by a team of four: Daniel Rivera, [@bamobam](https://github.com/bamobam), [@har-vir](https://github.com/har-vir) and [@jkiim](https://github.com/jkiim) (Oct 16–17, 36 hours, tag
 `bcs-final-submission`) as a batch tool: the tiled detector, the review queue and the Bayesian search map,
 run once over a 500-frame demo survey and played back in the browser with no server. For the OpenCV AI
 Competition 2026 and the Nebius × NVIDIA hackathon it became a live system: the detector moved to OpenCV 5

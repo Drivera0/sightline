@@ -52,6 +52,11 @@ interface NotifyState {
   log: Note[];
   push: (d: NoteDraft, now?: number) => Note;
   dismiss: (id: number) => void;
+  /**
+   * What a key said is no longer true (an overdue team heard again): its toast leaves, and its line in the
+   * log becomes `with` (read, no new count), or leaves too.
+   */
+  resolve: (key: string, withNote?: NoteDraft, now?: number) => void;
   markRead: () => void;
   reset: () => void;
 }
@@ -74,6 +79,11 @@ export const useNotify = create<NotifyState>((set, get) => ({
     return note;
   },
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  resolve: (key, withNote, now = Date.now()) =>
+    set((s) => ({
+      toasts: s.toasts.filter((t) => t.key !== key),
+      log: s.log.flatMap((n) => (n.key !== key ? [n] : withNote ? [{ ...n, ...withNote, key, count: 1, at: now, read: true }] : [])),
+    })),
   markRead: () => set((s) => ({ log: s.log.map((n) => (n.read ? n : { ...n, read: true })) })),
   reset: () => set({ toasts: [], log: [] }),
 }));

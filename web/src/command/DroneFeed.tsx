@@ -1,6 +1,12 @@
-// The drone feed tile (PR #215's feed clips): while a drone leg flies, a small tile at the bottom left of the
-// map plays the fixture's clip for that leg (web/public/feed/), with its poster, muted and looping. The clips
-// are public-domain U.S. Forest Service footage, never this flight, and the tile says so in its label.
+// The drone feed tile (PR #215's feed clips): while a drone flies a flight line, a small "Drone feed" button
+// sits at the bottom left of the map; pressed, it opens a tile that plays the fixture's clip for that line
+// (web/public/feed/), with its poster, muted and looping. It never opens by itself over the map (usability
+// test 2026-10-25: it appeared unannounced). The clips are public-domain U.S. Forest Service footage, never
+// this flight, and the tile says so in its label.
+// - Headless Chromium (software GL) draws a ghost of any playing <video> over a WebGL canvas: a pale
+//   rectangle the video's size near the canvas's top left (the "blank white box" in the test's screenshots).
+//   A plain page with one <video> over one WebGL canvas shows it too, so it is the browser's, not the map's;
+//   the feed staying folded until asked keeps it out of the console's screenshots and first look.
 // - A phone never starts it before the visitor has tapped or pressed a key on the page; until then it shows
 //   the poster with a play button (and so does reduced motion).
 // - Hidden with prefers-reduced-data (the clips are about a megabyte each).
@@ -62,8 +68,8 @@ export function DroneFeed({ feeds, fleet, selectedDrone = null, raised = false }
   const [asked, setAsked] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const [hidden] = useState(reducedData);
-  // folded to a pill by its own button (the map under it stays reachable); a phone starts folded
-  const [folded, setFolded] = useState(isPhone);
+  // folded to a pill until the visitor opens it, and again by its own button (the map under it stays reachable)
+  const [folded, setFolded] = useState(true);
   // a desktop plays it at once (muted); a phone, or reduced motion, waits for a gesture or the play button
   const waits = isPhone() || prefersReducedMotion();
   const play = !!now && (asked || (!waits ? true : gesture && !prefersReducedMotion()));
@@ -79,7 +85,7 @@ export function DroneFeed({ feeds, fleet, selectedDrone = null, raised = false }
   const at = `pointer-events-auto absolute left-2 z-10 sm:left-3 ${raised ? "bottom-24" : "bottom-2 sm:bottom-3"}`;
   if (folded)
     return (
-      <button type="button" onClick={() => setFolded(false)} aria-label="Show the drone feed" className={`${at} sl-tap inline-flex h-7 items-center gap-1.5 rounded-full border border-line bg-bg/90 px-2.5 text-caption text-text`}>
+      <button type="button" onClick={() => setFolded(false)} aria-label="Show the drone feed" title={`${now.drone}${now.sector ? ` over ${now.sector}` : ""}: ${FEED_LABEL}`} className={`${at} sl-tap inline-flex h-7 items-center gap-1.5 rounded-full border border-line bg-bg/90 px-2.5 text-caption text-text`}>
         <span aria-hidden className="size-1.5 rounded-full bg-[var(--drone)]" />
         Drone feed
       </button>
@@ -128,7 +134,7 @@ export function DroneFeed({ feeds, fleet, selectedDrone = null, raised = false }
           </>
         )}
       </div>
-      <figcaption className="px-2 py-1 text-[0.6875rem] leading-tight text-text-3" title={f.credit}>
+      <figcaption className="px-2 py-1 text-caption leading-tight text-text-3" title={f.credit}>
         {FEED_LABEL}
       </figcaption>
     </figure>

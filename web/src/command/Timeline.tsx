@@ -1,10 +1,10 @@
 // The timeline (COMMAND_POST.md §5, along the bottom): one stream of what happened, newest first, with
-// filter chips (All, Radio, Clues, Drone, Decisions). Radio turns with Reply (it addresses the talk bar to
-// that team), clues awaiting read-back with Confirm, a clue's Show on map, detections, decisions (the
+// filter chips (All, Radio, Clues, Drone, Decisions). The rows are read-only (decisions are made in Needs you), each
+// with a Show link to what it is about on the map: radio turns, clues, detections, decisions (the
 // agent's and the search manager's direct actions alike), check-ins, drone legs. The talk bar under it is
 // the radio desk: hold V to talk to the team picked, or type. Add a clue is here too. Built by lane A.
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import type { ClueDraft, MissionEvent, Team, TimelineEvent } from "../contract";
+import type { ClueDraft, FleetState, MissionEvent, Team, TimelineEvent } from "../contract";
 import { useClock } from "../lib/time";
 import { useSelection } from "../lib/selection";
 import { Button, KeyHint } from "../shell/components";
@@ -13,11 +13,13 @@ import { useConsole } from "./consoleStore";
 import { RadioAudio } from "../radio/RadioAudio";
 import { withCallsigns } from "./RadioBubble";
 import { buildTimeline, FILTERS, inFilter, type Entry, type EntryKind } from "./timeline";
+import { useMission } from "../lib/mission";
+import { flightLineNames } from "./terms";
 
 const ICON: Record<EntryKind, IconName> = {
   radio: "radio", clue: "clue", detection: "detection", decision: "decision", checkin: "checkin", drone: "drone", found: "found", note: "note",
 };
-const btn = "sl-tap inline-flex h-6 items-center rounded-full border border-line px-2 text-caption text-text-2 hover:border-border hover:text-text";
+const showLink = "sl-tap inline-flex h-6 items-center px-1 text-caption text-text-2 underline underline-offset-2 hover:text-text";
 /** The newest this many; the Trace view's event log has them all. */
 export const TIMELINE_LIMIT = 120;
 /** Each kind's colour (theme.css, the v3 colour block): a new row's highlight is in it. */
@@ -65,17 +67,20 @@ export function Timeline({
   events,
   server = [],
   teams,
-  onConfirmClue,
   talk,
   clueForm,
   voicesKey = "",
+  fleet: fleetProp,
 }: {
+  /** The fleet on screen, for the flight lines' names ("Drone 1 · flight line 1"); else the mission store's. */
+  fleet?: FleetState | null;
   /** The mission (and scenario) on screen: a new one starts the radio voices afresh (its lines are history). */
   voicesKey?: string;
   events: readonly MissionEvent[];
   server?: readonly TimelineEvent[];
   teams: readonly Team[];
-  onConfirmClue: (clueId: string) => void;
+  /** Kept for callers; the timeline confirms nothing itself (Needs you does). */
+  onConfirmClue?: (clueId: string) => void;
   /** The talk bar (TalkBar), under the stream. */
   talk: ReactNode;
   /** The Add a clue form, opened from the header. */
@@ -87,7 +92,10 @@ export function Timeline({
   const adding = clue.open;
   const setAdding = (open: boolean) => (open ? useConsole.getState().openClue(null) : useConsole.getState().closeClue());
   const { time } = useClock();
-  const all = useMemo(() => buildTimeline(events, teams, server), [events, teams, server]);
+  const stored = useMission((s) => s.fleet);
+  const fleet = fleetProp ?? stored;
+  const legs = useMemo(() => flightLineNames(fleet?.legs, (id) => fleet?.drones.find((d) => d.id === id)?.name ?? id), [fleet]);
+  const all = useMemo(() => buildTimeline(events, teams, server, { legs }), [events, teams, server, legs]);
   const shown = all.filter((e) => inFilter(e, filter)).slice(0, TIMELINE_LIMIT);
   const fresh = useFreshRows(all);
   const callsigns = useMemo(() => teams.map((t) => t.callsign), [teams]);
@@ -103,10 +111,12 @@ export function Timeline({
     requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-entry="${CSS.escape(e.id)}"]`)?.scrollIntoView?.({ block: "nearest" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row]);
-  const reply = (e: Entry) => {
-    if (!e.team) return;
-    const cs = teams.find((t) => t.id === e.team)?.callsign ?? e.team;
-    useConsole.getState().talk(e.team, `${cs}, Sightline. `);
+  // the one thing a row does: show what it is about (the clue, the team, the sector) on the map
+  const show = (e: Entry): (() => void) | null => {
+    if (e.kind === "clue" && e.refs[0]) return () => useSelection.getState().selectClue(e.refs[0]!);
+    if (e.team && teams.some((t) => t.id === e.team)) return () => useSelection.getState().selectTeam(e.team);
+    if (e.sector) return () => useConsole.getState().openSector(e.sector!, Number.NaN, Number.NaN);
+    return null;
   };
   return (
     <section aria-label="Timeline" data-tour="timeline" className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-surface-solid">
@@ -183,19 +193,11 @@ export function Timeline({
               {e.detail && <span className="block line-clamp-2 text-caption text-text-3" title={e.detail}>{e.detail}</span>}
             </span>
             <span className="flex shrink-0 gap-1">
-              {e.kind === "radio" && e.team && (
-                <button type="button" className={btn} onClick={() => reply(e)}>
-                  Reply
-                </button>
-              )}
-              {e.clue && (
-                <button type="button" className={btn} onClick={() => onConfirmClue(e.clue!.id)}>
-                  Confirm
-                </button>
-              )}
-              {e.kind === "clue" && e.refs[0] && (
-                <button type="button" className={btn} onClick={() => useSelection.getState().selectClue(e.refs[0]!)}>
-                  Show on map
+              {/* read-only: decisions are made in Needs you (one place; the cold test found two Confirm
+                  buttons); a row only shows what it is about on the map */}
+              {show(e) && (
+                <button type="button" className={showLink} onClick={show(e)!} title="Show it on the map">
+                  Show
                 </button>
               )}
             </span>

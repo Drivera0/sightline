@@ -1,11 +1,11 @@
-# Lane E · Ops & Voice: front door, command view, radio desk
+# Workstream E · Ops & Voice: front door, command view, radio desk
 
 > Superseded by [`web/src/command/README.md`](../../web/src/command/README.md),
 > [`web/src/front/README.md`](../../web/src/front/README.md),
 > [`sightline/radio/README.md`](../../sightline/radio/README.md) and
 > [`docs/feedback/radio.md`](../feedback/radio.md) (measured latency and tool-calling results). This
-> file keeps the sprint plan, the radio's safety frame and each task's outcome. The lane started without
-> a dedicated owner; lane A built much of it.
+> file keeps the plan, the radio's safety frame and each task's outcome. The front door is now the home
+> page and the command view is the console.
 
 **Folders:** `web/src/front/`, `web/src/command/`, `web/src/radio/`, `sightline/radio/`, `tests/radio/`,
 `scripts/radio_*.py`, `docs/feedback/radio.md`.

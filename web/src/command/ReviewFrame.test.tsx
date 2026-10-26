@@ -50,7 +50,7 @@ describe("the review frame", () => {
     render(<Harness onAnswer={onAnswer} />);
     expect(screen.queryByRole("dialog")).toBeNull();
     act(() => useConsole.getState().openReview(null));
-    const frame = screen.getByRole("dialog", { name: "Review candidates" });
+    const frame = screen.getByRole("dialog", { name: "Review photos" });
     expect(frame).toHaveTextContent("1 of 3");
     expect(within(frame).getByAltText("Survey photo f0336, the whole photo")).toHaveAttribute("src", "/f/f0336.jpg");
     expect(useSelection.getState().selectedDetectionId).toBe("f0336-d01"); // the map pans to it
@@ -58,11 +58,13 @@ describe("the review frame", () => {
     await userEvent.keyboard("p");
     expect(onAnswer).toHaveBeenLastCalledWith("f0336-d01", "person");
     expect(frame).toHaveTextContent("2 of 3");
-    expect(within(frame).getByText("f0273-d02")).toBeInTheDocument();
+    // the photo it moved on to, by its survey photo (no detection id on screen)
+    expect(within(frame).getByText("Survey photo f0273")).toBeInTheDocument();
+    expect(frame.textContent).not.toMatch(/f0\d{3}-d\d{2}/);
     await userEvent.keyboard("u");
     await userEvent.click(within(frame).getByRole("button", { name: /Not a person/ }));
     expect(onAnswer).toHaveBeenLastCalledWith("f0127-d01", "not_person");
-    expect(frame).toHaveTextContent("Every candidate has an answer.");
+    expect(frame).toHaveTextContent("Every photo has an answer.");
   });
 
   it("runs the AI second look from its button, its progress then the result, and Esc closes", async () => {
@@ -72,9 +74,9 @@ describe("the review frame", () => {
     const frame = screen.getByRole("dialog");
     expect(within(frame).getByText("Nemotron-3.5-Super-VL")).toBeInTheDocument();
     await userEvent.click(within(frame).getByRole("button", { name: SECOND_LOOK_LABEL }));
-    expect(within(frame).getByLabelText("Second look running")).toBeInTheDocument();
+    expect(within(frame).getByLabelText("AI re-check running")).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(RUN_MAX_MS));
-    expect(within(frame).getByLabelText("Second look result")).toHaveTextContent("AI second look done in 1.7 s");
+    expect(within(frame).getByLabelText("AI re-check result")).toHaveTextContent("AI re-check done in 1.7 s");
     expect(within(frame).getByAltText("Re-look image relook/f0273-d02-zoom_native.jpg")).toBeInTheDocument();
     vi.useRealTimers();
     await userEvent.keyboard("{Escape}");
@@ -86,6 +88,6 @@ describe("the review frame", () => {
     render(<Harness onAnswer={vi.fn()} />);
     act(() => useConsole.getState().openReview("f0127-d01"));
     expect(screen.getByRole("button", { name: SECOND_LOOK_LABEL })).toBeDisabled();
-    expect(screen.getByRole("dialog")).toHaveTextContent("No second look on this one");
+    expect(screen.getByRole("dialog")).toHaveTextContent("No AI re-check on this one");
   });
 });

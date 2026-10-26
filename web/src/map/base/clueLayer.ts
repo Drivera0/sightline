@@ -11,7 +11,7 @@ import { point, type MissionFeature, type Tone } from "./missionFeature";
 export const CLUE_TONE: Record<Clue["kind"], Tone> = { object: "clue", track: "clue", sighting: "clue", sound: "clue", other: "clue" };
 
 /** How a clue came in, in words. */
-const howCame = (c: Clue) => (c.source === "radio" ? "by radio" : c.source === "review" ? "from an image review" : "entered at command");
+const howCame = (c: Clue) => (c.source === "radio" ? "by radio" : c.source === "review" ? "from Review photos" : "logged at the command post");
 
 /** `time`: the page's clock (lib/time); by default the clue's UTC HH:MM. */
 export function clueFeatures(

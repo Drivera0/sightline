@@ -5,7 +5,7 @@ import { GuideMark } from "./CoachMark";
 import { GuideStrip } from "./Scrubber";
 
 const options = [
-  { key: "1", id: "planner", label: "The planner's legs", effect: "the likeliest sectors first", costMin: 0, agent: true },
+  { key: "1", id: "planner", label: "The AI's flight lines", effect: "the likeliest sectors first", costMin: 0, agent: true },
   { key: "2", id: "serpentine", label: "Serpentine over the grid", effect: "every sector once", costMin: 12 },
 ];
 
@@ -13,7 +13,7 @@ function mark(over: Partial<Parameters<typeof GuideMark>[0]> = {}) {
   const props = {
     mode: "call" as const,
     heading: "Decision 1 of 6 · Survey",
-    text: "Launch the survey: approve the planner's legs A, or fly a serpentine over the whole grid 2.",
+    text: "Launch the survey: fly the AI's flight lines, or a lawnmower pattern over the whole grid.",
     target: "#nowhere",
     options,
     onPick: vi.fn(),
@@ -34,10 +34,33 @@ describe("the guided search's mark", () => {
     mark();
     const dialog = screen.getByRole("dialog", { name: /Your call/ });
     expect(dialog).toHaveTextContent("+12 min");
-    expect(dialog).toHaveTextContent("agent");
-    expect(screen.getByRole("button", { name: /The planner's legs/ })).toHaveFocus();
+    expect(dialog).toHaveTextContent("AI's pick");
+    expect(screen.getByRole("button", { name: /The AI's flight lines/ })).toHaveFocus();
     // no Back, no Next, no Skip on a decision
     expect(screen.queryByRole("button", { name: /^(Back|Next|Skip)/ })).toBeNull();
+  });
+
+  it("Esc never leaves the run; Leave asks first, Stay keeps it, Leave leaves", async () => {
+    const a = mark();
+    await userEvent.keyboard("{Escape}");
+    expect(a.onExit).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Leave" }));
+    const ask = screen.getByRole("alertdialog", { name: "Leave the simulation?" });
+    expect(ask).toHaveTextContent("Your decisions so far will be lost");
+    await userEvent.keyboard("{Escape}"); // closes the question, not the run
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(a.onExit).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Leave" }));
+    await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Stay" }));
+    expect(a.onExit).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Leave" }));
+    await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Leave" }));
+    expect(a.onExit).toHaveBeenCalledOnce();
+  });
+
+  it("never greys the screen around its ring", () => {
+    mark();
+    for (const el of document.querySelectorAll("[data-guide-ring]")) expect((el as HTMLElement).className).not.toMatch(/9999px/);
   });
 
   it("takes the decision from the keyboard: A the agent's option, a number the option with that key", async () => {

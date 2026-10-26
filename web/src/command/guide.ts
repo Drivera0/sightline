@@ -13,13 +13,14 @@ import { SECOND_LOOK_ID } from "./demoReview";
 import { BOARD_AT, CHECKPOINTS, isFoundEvent, poaOf, subjectOf, type DemoFull } from "./missionTime";
 import { agentLine, passesFrom, playStanding, type Cost, type Line, type Pass } from "./sim";
 import { REGION, STORY_NOT_A_PERSON, storyClue, storyProposal } from "./storyCopy";
+import { podLabel, TERMS, thresholdNote } from "./terms";
 
 export type InjectId = "survey" | "triage" | "clue" | "assign" | "link" | "wind" | "find";
 
 /** The progress strip's names, in order. */
 export const PIPS: readonly { id: InjectId; label: string }[] = [
   { id: "survey", label: "Survey" },
-  { id: "triage", label: "Triage" },
+  { id: "triage", label: "Review photos" },
   { id: "clue", label: "Clue" },
   { id: "assign", label: "Assign" },
   { id: "link", label: "Link" },
@@ -53,12 +54,13 @@ export interface TriageCard {
   line: TriageAnswer;
 }
 
-export type TriageAnswer = "person" | "not_person" | "not_subject" | "object" | "unsure";
+export type TriageAnswer = "person" | "not_person" | "not_subject" | "group" | "object" | "unsure";
 /** The review card's own answers and keys (review/answers.tsx): triage is answered on the card. */
 export const TRIAGE_OPTIONS: readonly { key: string; id: TriageAnswer; label: string }[] = [
-  { key: "P", id: "person", label: "Person" },
+  { key: "P", id: "person", label: "The subject" },
+  { key: "S", id: "not_subject", label: "Another person" },
   { key: "N", id: "not_person", label: "Not a person" },
-  { key: "S", id: "not_subject", label: "Not the subject" },
+  { key: "G", id: "group", label: "A group (2+ people)" },
   { key: "O", id: "object", label: "Object" },
   { key: "U", id: "unsure", label: "Unsure" },
 ];
@@ -146,19 +148,26 @@ export function triageCards(queue: GuideInput["queue"]): TriageCard[] {
   const out: TriageCard[] = [];
   if (plain) out.push({ id: plain.id, says: `Detector score ${plain.conf.toFixed(2)}.`, line: "person" });
   if (bag) out.push({ id: bag.id, says: `Detector score ${bag.conf.toFixed(2)}.`, line: "not_person" });
-  if (relook) out.push({ id: relook.id, says: `Detector score ${relook.conf.toFixed(2)}, under the queue's line; the AI second look says likely a person.`, line: "person" });
+  if (relook) out.push({ id: relook.id, says: `Detector score ${relook.conf.toFixed(2)}, under 0.29 (${thresholdNote(0.29)}); ${TERMS.recheckFlagged}: likely a person.`, line: "person" });
   return out;
 }
 
-/** What one triage answer does, shown before the commit. */
-export function triageEffect(card: TriageCard, a: TriageAnswer): { effect: string; costMin: number } {
-  const bag = card.id === STORY_NOT_A_PERSON;
-  const relook = card.id === SECOND_LOOK_ID;
-  if (a === "person") return bag ? { effect: "a team walks to the pin to check it", costMin: 10 } : { effect: relook ? "a sighting pin goes on the map where the photo puts it" : "a sighting pin goes on the map", costMin: 0 };
-  if (a === "not_subject") return { effect: bag ? "it leaves the queue" : "another person on the ground: a witness lead to ask about", costMin: 0 };
-  if (a === "not_person") return { effect: relook ? "it leaves the queue and nothing goes on the map" : "it leaves the queue", costMin: 0 };
-  if (a === "object") return { effect: "a clue candidate for a team to confirm on the ground", costMin: 0 };
-  return { effect: "it stays flagged for a second reviewer", costMin: 0 };
+/** Each answer's one meaning, whatever the photo (the review frame and the cards say the same). */
+export const ANSWER_EFFECT: Readonly<Record<TriageAnswer, string>> = {
+  person: "a sighting pin goes on the map where the photo puts it",
+  not_subject: "a witness lead goes on the map: someone to ask what they saw",
+  group: "a sighting pin for the group and a witness lead: the subject may be with them",
+  not_person: `it leaves ${TERMS.review}; the map counts the look`,
+  object: "a possible clue for a team to confirm on the ground",
+  unsure: "it stays flagged for a second reviewer",
+};
+
+/**
+ * What one triage answer does, shown before the commit: one meaning per answer on every photo (the cold
+ * test found Person meant a pin on one photo and a team's walk on the next).
+ */
+export function triageEffect(_card: TriageCard, a: TriageAnswer): { effect: string; costMin: number } {
+  return { effect: ANSWER_EFFECT[a], costMin: 0 };
 }
 
 /**
@@ -184,11 +193,11 @@ export function injects(input: GuideInput): Inject[] {
       key: "survey",
       at: ms(CHECKPOINTS[0]!.at),
       lead: "The call comes in; the agent drafts the survey.",
-      prompt: `Launch the survey: fly the planner's legs A, or a serpentine over the whole grid 2.`,
+      prompt: `Launch the survey: fly ${TERMS.aiChoices.replace("choices", "flight lines")}, or a ${TERMS.lawnmower}.`,
       agentSays: top.length ? `${top.map(([s]) => s).join(", ")} first: ${Math.round(share * 100)} % of the probability in ${top.length} of ${poa.length} sectors.` : undefined,
       options: [
-        { key: "1", id: "planner", label: "The planner's legs", costMin: 0, effect: `${droneWord(drones[0]!.id, full)} photographs the likeliest sectors first`, agent: true },
-        { key: "2", id: "serpentine", label: "Serpentine over the grid", costMin: 12, effect: "every sector once, in rows; the likeliest ones are photographed 12 min later" },
+        { key: "1", id: "planner", label: "The AI's flight lines", costMin: 0, effect: `${droneWord(drones[0]!.id, full)} photographs the likeliest sectors first`, agent: true },
+        { key: "2", id: "serpentine", label: "Lawnmower pattern, whole grid", costMin: 12, effect: "every sector once, row by row; the likeliest ones are photographed 12 min later" },
       ],
       target: [REGION.map],
     });
@@ -202,7 +211,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "triage",
       at: ms(CHECKPOINTS[2]!.at),
       lead: drones.length ? "The drones fly the survey; photos land and the detector ranks each one." : "The survey's photos land and the detector ranks each one.",
-      prompt: "Is it a person? Answer on the photo's card in Needs you: Person P, Not a person N, Not the subject S, Object O, Unsure U.",
+      prompt: "Look at the photo beside the subject's description: is it the subject, another person, or not a person?",
       options: [],
       cards,
       target: [`${REGION.review} li[data-candidate]`, REGION.review, REGION.needs],
@@ -216,8 +225,9 @@ export function injects(input: GuideInput): Inject[] {
       id: "clue",
       key: "clue",
       at: ms(clue.at),
-      lead: "The teams stand by at base camp while the review lands.",
-      prompt: `Read back ${who}'s call: press Confirm clue on its card in Needs you A, or ask for a bearing 2, or log it without mapping 3.`,
+      // the team that radios it is out on a hasty search along the trail (missionTime.ts hastyAt), the others at base camp
+      lead: `${who}, out on a hasty search along the trail, radios a clue.`,
+      prompt: `Read back ${who}'s call: press Confirm clue on its card in Needs you, ask for a bearing, or log it without mapping.`,
       agentSays: `${who}: ${clue.text}.`,
       options: [
         { key: "1", id: "confirm", label: `Confirm at ${clue.reliability ?? "low"} reliability`, costMin: 0, effect: "the map shifts toward it", agent: true, on: "Confirm clue on the card in Needs you" },
@@ -228,25 +238,32 @@ export function injects(input: GuideInput): Inject[] {
     });
   }
 
-  // 4. the first assignment
+  // 4. the first assignment: one primary (every free team to the agent's picks), "only this team" second
   const p = storyProposal(full);
   const subject = subjectOf(full);
+  const passes = passesFrom(input.seed, subject, input.user);
+  const live = passes.filter((x) => !x.cut);
+  /** The teams with nothing to do at `at` (no pass under way). */
+  const freeAt = (at: number) => teams.filter((t) => t.status !== "off_duty" && !live.some((x) => x.team === t.id && x.start <= at && x.end > at));
   if (p?.target.team && p.target.sector) {
     const other = teams.find((t) => t.id !== p.target.team && t.status !== "off_duty") ?? teams.find((t) => t.id !== p.target.team);
+    const team = callsign(p.target.team);
+    const n = Math.max(1, freeAt(ms(p.created_at)).length);
     out.push({
       id: "assign",
       key: "assign",
       at: ms(p.created_at),
-      lead: "The agent ranks the sectors with what is on the map now.",
-      prompt: `Assign a team: press Send ${callsign(p.target.team)} to ${p.target.sector} on the card in Needs you A, Edit it to send another team, or click another sector on the map M.`,
+      lead: "The AI ranks the sectors with what is on the map now.",
+      prompt: n > 1 ? `Send the teams: press ${sendAllLabel(n, team, p.target.sector)} on its card in Needs you, or send only ${team}.` : `Send the team: press ${sendAllLabel(n, team, p.target.sector)} on its card in Needs you.`,
       // the reason's first clause (the card has the whole of it)
       agentSays: p.reason.split(/:\s/)[0],
       options: [
-        { key: "1", id: "approve", label: `${callsign(p.target.team)} to ${p.target.sector}`, costMin: 0, effect: `${callsign(p.target.team)} walks out and sweeps ${p.target.sector}`, agent: true, on: "the card's button in Needs you" },
-        ...(other ? [{ key: "2", id: `team:${other.id}`, label: `${callsign(other.id)} to ${p.target.sector}`, costMin: 0, effect: `${callsign(other.id)} walks out and sweeps ${p.target.sector}`, on: "Edit on the card, then its button" }] : []),
+        { key: "1", id: "all", label: sendAllLabel(n, team, p.target.sector), costMin: 0, effect: `${team} to ${p.target.sector}${n > 1 ? ", every other free team to the next likeliest sector" : ""}; each team that comes back takes the AI's next pick, until the find`, agent: true, on: "the card's main button in Needs you" },
+        ...(n > 1 ? [{ key: "2", id: "approve", label: sendOnlyLabel(team, p.target.sector), costMin: 0, effect: `${team} walks out and sweeps ${p.target.sector}; the other teams wait at base camp`, on: "the card's second button" }] : []),
+        ...(other ? [{ key: "3", id: `team:${other.id}`, label: `${callsign(other.id)} to ${p.target.sector}`, costMin: 0, effect: `${callsign(other.id)} walks out and sweeps ${p.target.sector}`, on: "Edit on the card, then its button" }] : []),
         { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it", on: "a sector on the map" },
       ],
-      target: ["[data-story-proposal]", `[data-proposal="${p.id}"]`, REGION.needs],
+      target: ["[data-story-proposal] button[data-primary]", "[data-story-proposal]", `[data-proposal="${p.id}"]`, REGION.needs],
       proposal: p.id,
     });
   }
@@ -259,12 +276,12 @@ export function injects(input: GuideInput): Inject[] {
       id: "link",
       key: "link",
       at: link.at,
-      lead: "Teams walk to their sectors; the drones fly their legs.",
-      prompt: `Handle the lost link: let ${droneWord(link.drone, full)} finish its leg A, or divert ${relay ? droneWord(relay.id, full) : "another drone"} as a relay 2.`,
-      agentSays: `${droneWord(link.drone, full)[0]!.toUpperCase()}${droneWord(link.drone, full).slice(1)} has lost its link and flies its approved leg on its own.`,
+      lead: "Teams walk to their sectors; the drones fly their flight lines.",
+      prompt: `Handle the lost link: let ${droneWord(link.drone, full)} finish its flight line, or divert ${relay ? droneWord(relay.id, full) : "another drone"} as a relay.`,
+      agentSays: `${droneWord(link.drone, full)[0]!.toUpperCase()}${droneWord(link.drone, full).slice(1)} has lost its link and flies its approved flight line on its own.`,
       options: [
-        { key: "1", id: "finish", label: "Let it finish the leg", costMin: 0, effect: "its photos arrive late, when the link comes back", agent: true },
-        { key: "2", id: "relay", label: `Divert ${relay ? droneWord(relay.id, full) : "a drone"} as a relay`, costMin: 0, effect: `the link comes back now; ${relay ? droneWord(relay.id, full) : "that drone"}'s own leg stops` },
+        { key: "1", id: "finish", label: "Let it finish the flight line", costMin: 0, effect: "its photos arrive late, when the link comes back", agent: true },
+        { key: "2", id: "relay", label: `Divert ${relay ? droneWord(relay.id, full) : "a drone"} as a relay`, costMin: 0, effect: `the link comes back now; ${relay ? droneWord(relay.id, full) : "that drone"}'s own flight line stops` },
       ],
       target: [`[data-drone="${link.drone}"]`, REGION.resources],
     });
@@ -278,47 +295,45 @@ export function injects(input: GuideInput): Inject[] {
       key: "wind",
       at: ms(r.created_at),
       lead: "Gusts build against the drones' limit.",
-      prompt: "Bring the drones in: press the recall card's button in Needs you A, or finish the current line first 2.",
+      prompt: "Bring the drones in: press the recall card's button in Needs you, or finish the current flight line first.",
       agentSays: r.reason,
       options: [
         { key: "1", id: "recall", label: "Recall now", costMin: 0, effect: "the drones turn for base; the ground teams carry the search", agent: true, on: "the card's button in Needs you" },
-        { key: "2", id: "finish", label: "Finish the line first", costMin: 2, effect: "two more minutes of photos, inside the margin" },
+        { key: "2", id: "finish", label: "Finish the flight line first", costMin: 2, effect: "two more minutes of photos, inside the margin" },
       ],
       target: [`[data-proposal="${r.id}"]`, REGION.needs],
       proposal: r.id,
     });
 
-  // 7. the find, once a pass detects the subject; or another assignment after a pass with no find
-  const passes = passesFrom(input.seed, subject, input.user);
+  // 7. the find, once a pass detects the subject; or, after every pass with no find, the agent's next pick
+  // for that team (it keeps proposing until the find, so no team waits at base camp with nobody asked)
   const detected = passes.find((x) => x.detected && !x.cut);
   const foundMarked = input.user.some(isFoundEvent);
-  const live = passes.filter((x) => !x.cut);
+  const since = standingFrom(input.choices, full);
   let k = 1;
-  for (const x of live) {
-    if (x.detected) break;
-    // a pass with no find, with nobody else still out and nobody sent since: the agent's next proposal waits
-    const sentSince = input.user.some((e) => e.type === "task.updated" && ms(e.at) > x.start && (e.data as { state?: string } | null)?.state === "assigned");
-    const othersOut = live.some((o) => o !== x && o.start < x.end && o.end > x.end);
-    if (othersOut) continue;
+  // (the clock waits at each pass's end, so whatever the visitor does there is that step's decision)
+  for (const x of [...live].sort((a, b) => a.end - b.end || a.start - b.start)) {
+    if (x.detected || (detected && x.end > detected.end)) continue;
     k += 1;
-    // the second assignment can stand for the rest: the agent's picks in turn until the find, no more decisions
-    if (k > 2 && standing(input.choices)) continue;
-    if (!sentSince || input.choices.some((c) => c.key === `assign-${k}`)) {
-      out.push({
-        id: "assign",
-        key: `assign-${k}`,
-        at: x.end,
-        lead: "The teams sweep their sectors.",
-        prompt: k === 2 ? "Assign again: press Send on the card in Needs you, and every free team takes the agent's picks until the find A; or click a sector on the map M." : "Assign again: press Send on the card in Needs you for the agent's next sector A, or click a sector on the map M.",
-        agentSays: `${x.sector} searched at POD ${x.pod.toFixed(2)}, no sign. The agent proposes the likeliest open sector next.`,
-        options: [
-          { key: "1", id: "approve", label: k === 2 ? "The agent's picks, every free team" : "The agent's next sector", costMin: 0, effect: k === 2 ? "each team that comes free takes the likeliest open sector, until the find" : `${callsign(x.team)} walks to it and sweeps it`, agent: true, on: "the card's button in Needs you" },
-          { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it", on: "a sector on the map" },
-        ],
-        target: ["[data-story-proposal]", REGION.needs],
-        proposal: `g${String(passes.indexOf(x) + 1).padStart(3, "0")}`,
-      });
-    }
+    // "send all" (or last light): the agent's picks go to each team as it comes back, until the find
+    if (since !== null && x.end >= since) continue;
+    const team = callsign(x.team);
+    const n = Math.max(1, freeAt(x.end).length);
+    out.push({
+      id: "assign",
+      key: `assign-${k}`,
+      at: x.end,
+      lead: "The teams sweep their sectors.",
+      prompt: n > 1 ? `Send the teams again: press ${sendAllLabel(n, team, "the AI's pick")} on its card in Needs you, or send only ${team}.` : `Send ${team} again: press its card's button in Needs you for the AI's next sector.`,
+      agentSays: `${x.sector} searched at ${podLabel(x.pod)}, no sign. The AI suggests the likeliest open sector next.`,
+      options: [
+        { key: "1", id: "all", label: sendAllLabel(n, team, "the AI's pick"), costMin: 0, effect: "each free team takes the likeliest open sector, and each team that comes back the next one, until the find", agent: true, on: "the card's main button in Needs you" },
+        ...(n > 1 ? [{ key: "2", id: "approve", label: `Send only ${team} to the AI's pick`, costMin: 0, effect: `${team} walks to it and sweeps it; the other free teams wait at base camp`, on: "the card's second button" }] : []),
+        { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it", on: "a sector on the map" },
+      ],
+      target: ["[data-story-proposal] button[data-primary]", "[data-story-proposal]", REGION.needs],
+      proposal: `g${String(passes.indexOf(x) + 1).padStart(3, "0")}`,
+    });
   }
   if (detected || foundMarked) {
     const team = detected?.team ?? "";
@@ -327,7 +342,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "find",
       at: detected?.end ?? 0,
       lead: "The teams sweep their sectors.",
-      prompt: `Answer ${callsign(team)}'s call: press Record find on its card in Needs you A (the nearest team goes to carry out), or ask for a confirmation first 2.`,
+      prompt: `Answer ${callsign(team)}'s call: press Record find on its card in Needs you (the nearest team goes to carry out), or ask for a confirmation first.`,
       agentSays: detected ? `${callsign(team)}: subject located in ${detected.sector}, conscious and talking.` : undefined,
       options: [
         { key: "1", id: "found", label: "Mark Found, send a carry-out", costMin: 0, effect: "the status line flips to Found", agent: true, on: "Record find on the card in Needs you" },
@@ -337,23 +352,44 @@ export function injects(input: GuideInput): Inject[] {
       find: detected ? { team, sector: detected.sector } : undefined,
     });
   }
-  return out.sort((a, b) => a.at - b.at || PIPS.findIndex((x) => x.id === a.id) - PIPS.findIndex((x) => x.id === b.id));
+  const sorted = out.sort((a, b) => a.at - b.at || PIPS.findIndex((x) => x.id === a.id) - PIPS.findIndex((x) => x.id === b.id));
+  // nothing comes after the find (a lost link or the gusts that would have come later never ask)
+  const find = sorted.find((i) => i.id === "find");
+  return find && detected ? sorted.filter((i) => i.at <= find.at || i.id === "find" || injectDone(i, input.choices)) : sorted;
 }
 
-/** The second assignment approved as standing: the agent's next picks go without asking. */
-export const standing = (choices: readonly Choice[]): boolean => choices.some((c) => c.key === "assign-2" && c.option === "approve");
-
-/** The teams the standing approval sends: every team on the mission. */
-const teamIds = (full: DemoFull) => (full.data.teams ?? []).map((t) => t.id);
+/** The assign step's one primary, the same words on the card and the coach bar. */
+export const sendAllLabel = (n: number, team: string, sector: string): string => (n > 1 ? `Send all ${n} free teams to the AI's picks` : `Send ${team} to ${sector}`);
+/** The assign step's second choice: the proposal's own team only. */
+export const sendOnlyLabel = (team: string, sector: string): string => `Send only ${team} to ${sector}`;
 
 /**
- * The visitor's events with the standing approval played out (sim.ts playStanding): from the second
- * assignment on, after each pass with no find, that team and every free team go to the agent's next picks.
+ * When the agent's picks start going to every free team without asking (fixtures' clock): when "send all"
+ * was chosen, or at last light at the latest (the fallback: the search goes on through the night with every
+ * team out, so a run where the visitor sent one team at a time still reaches the find). Null: no scenario.
+ */
+export function standingFrom(choices: readonly Choice[], full: DemoFull | null): number | null {
+  const c = choices.find((x) => x.inject === "assign" && x.option === "all");
+  const xs = [c?.f, full ? lastLight(full) : undefined].filter((x): x is number => typeof x === "number");
+  return xs.length ? Math.min(...xs) : null;
+}
+
+/** How long the guided search runs on after last light (night search) before it would suspend. */
+export const NIGHT_MS = 8 * 3600_000;
+/** The end of the guided run on the fixtures' clock: last light and the night after it. */
+export const searchEnd = (full: DemoFull | null): number => lastLight(full) + NIGHT_MS;
+
+/** The teams the standing approval sends: every team on the mission. */
+const teamIds = (full: DemoFull) => (full.data.teams ?? []).filter((t) => t.status !== "off_duty").map((t) => t.id);
+
+/**
+ * The visitor's events with "send all" played out (sim.ts playStanding): from that choice on, every free
+ * team goes to the agent's picks at once, and after each pass with no find that team takes the next one.
  */
 export function standingUser(full: DemoFull | null, seed: string, user: readonly MissionEvent[], choices: readonly Choice[]): MissionEvent[] {
-  if (!standing(choices) || !full) return [...user];
-  const from = choices.find((c) => c.key === "assign-2")!.f;
-  return playStanding(seed, subjectOf(full), poaOf(full), user, teamIds(full), from, lastLight(full), isFoundEvent, true);
+  const from = standingFrom(choices, full);
+  if (from === null || !full) return [...user];
+  return playStanding(seed, subjectOf(full), poaOf(full), user, teamIds(full), from, searchEnd(full), isFoundEvent, true);
 }
 
 /** The inject waiting for a decision: the first not yet decided (triage: until all three cards are). */
@@ -392,6 +428,21 @@ export function choiceFor(i: Inject, optionId: string, f: number, card: TriageCa
 }
 
 /**
+ * An assignment that carried out an approved sighting proposal (`sight-…`, missionTime.ts): the same team
+ * and sector, within a minute of the approval.
+ */
+export function sightingSend(user: readonly MissionEvent[], e: MissionEvent): boolean {
+  const t = e.data as { team_id?: string; sector_id?: string } | null;
+  if (e.type !== "task.updated" || !t) return false;
+  return user.some((x) => {
+    if (x.type !== "proposal.decided" || !x.ref?.startsWith("sight-")) return false;
+    const p = x.data as unknown as Proposal | null;
+    if (!p || p.status !== "approved") return false;
+    return (p.edits?.team ?? p.target.team) === t.team_id && p.target.sector === t.sector_id && Math.abs(ms(e.at) - ms(x.at)) <= 60_000;
+  });
+}
+
+/**
  * A decision the visitor made on the console itself (not on the mark): an answer in the review queue, a
  * read-back confirmed, an assignment (Approve on the card, Edit, a sector on the map), the find recorded.
  */
@@ -408,7 +459,9 @@ export function choiceFromConsole(i: Inject, input: GuideInput, answers: Readonl
     return ok ? choiceFor(i, "confirm", f) : null;
   }
   if (i.id === "assign") {
-    const e = input.user.find((x) => after(x) && x.type === "task.updated" && (x.data as { state?: string } | null)?.state === "assigned");
+    // the visitor's own move, made by now (not the agent's standing picks, which come later and alone)
+    // sending a team to a reviewer's sighting (the AI's "Send Team Two to the sighting") is its own decision, not this step's
+    const e = input.user.find((x) => after(x) && ms(x.at) <= f && !x.id.startsWith("auto-") && x.type === "task.updated" && (x.data as { state?: string } | null)?.state === "assigned" && !sightingSend(input.user, x));
     if (!e) return null;
     const t = e.data as unknown as { team_id: string; sector_id: string };
     const p = input.full?.data.proposals?.find((x) => x.id === i.proposal);
@@ -495,7 +548,11 @@ export function hotWash(input: GuideInput, list: readonly Inject[]): HotWash {
   });
   const lines: string[] = [];
   const firstAssign = choices.find((c) => c.key === "assign");
-  if (firstAssign && !firstAssign.agent && p && subject) {
+  // the sector the first team went to: the proposal's for "send all" and "send only", else the label's end
+  const firstSector = firstAssign && p ? (firstAssign.option === "all" || firstAssign.option === "approve" ? p.target.sector : /\b([A-Z]\d+)$/.exec(firstAssign.label)?.[1]) : null;
+  if (firstAssign && firstAssign.option === "approve" && p) {
+    lines.push(`You sent only ${calls(p.target.team)} to ${p.target.sector} at ${local(real(ms(p.created_at)))}; the AI would have sent every free team at once.`);
+  } else if (firstAssign && !firstAssign.agent && p && subject) {
     lines.push(`The agent would have sent ${calls(p.target.team)} to ${p.target.sector} at ${local(real(ms(p.created_at)))}; you sent ${firstAssign.label}; the subject was in ${subject.sector}.`);
   }
   for (const c of choices) if (!c.agent && c.costMs > 0 && c.inject !== "assign") lines.push(`${PIPS.find((x) => x.id === c.inject)?.label}: ${c.label} added ${c.costMs / 60_000} min to the clock.`);
@@ -507,28 +564,28 @@ export function hotWash(input: GuideInput, list: readonly Inject[]): HotWash {
     const d = Math.round((mine - theirs) / 60_000);
     lines.push(
       d === 0
-        ? `Your line and the agent's line found the subject at the same time, ${local(mine)}.`
+        ? `Your choices and the AI's choices found the subject at the same time, ${local(mine)}.`
         : d < 0
-          ? `Your line found the subject ${fmtMin(-d)} sooner than the agent's (${local(mine)} against ${local(theirs)}).`
-          : `The agent's line found the subject at ${local(theirs)}, ${fmtMin(d)} before yours (${local(mine)}).`,
+          ? `Your choices found the subject ${fmtMin(-d)} sooner than the AI's (${local(mine)} against ${local(theirs)}).`
+          : `The AI's choices found the subject at ${local(theirs)}, ${fmtMin(d)} before yours (${local(mine)}).`,
     );
-  } else if (mine === null && theirs !== null) lines.push(`The agent's line found the subject at ${local(theirs)}.`);
+  } else if (mine === null && theirs !== null) lines.push(`The AI's choices found the subject at ${local(theirs)}.`);
   // the agent's draws too, where its line went another way
   const sameLine = agent.passes.length === passes.length && agent.passes.every((x, i) => x.sector === passes[i]?.sector && x.team === passes[i]?.team);
   const draws = [...passes, ...(sameLine ? [] : agent.passes.map((x) => ({ ...x, agentLine: true })))].map((x) => {
-    const tag = "agentLine" in x ? "agent's line, " : "";
-    return `${tag}${x.sector} pass ${x.n}: POD ${x.pod.toFixed(2)}, draw ${x.draw.toFixed(2)} → ${x.detected ? "detected" : x.inside ? "missed (the subject was there)" : "no sign (the subject was elsewhere)"}`;
+    const tag = "agentLine" in x ? "the AI's choices, " : "";
+    return `${tag}${x.sector} pass ${x.n}: ${podLabel(x.pod)}, draw ${x.draw.toFixed(2)} → ${x.detected ? "detected" : x.inside ? "missed (the subject was there)" : "no sign (the subject was elsewhere)"}`;
   });
   const searched = new Map<string, number>();
   for (const x of passes) if (!x.detected && (mine === null || x.end <= (foundEv ? ms(foundEv.at) : Infinity))) searched.set(x.sector, 1 - (1 - (searched.get(x.sector) ?? 0)) * (1 - x.pod));
   const strengths: string[] = [];
   const tryNext: string[] = [];
   const tri = choices.filter((c) => c.inject === "triage");
-  if (tri.length && tri.every((c) => c.agent)) strengths.push("Triage matched the reference answers: the bag stayed off the map and the second look's catch went on it.");
+  if (tri.length && tri.every((c) => c.agent)) strengths.push("Review photos matched the reference answers: the bag stayed off the map and the photo flagged by the AI re-check went on it.");
   if (clueChoice && clueChoice.option !== "log") strengths.push("The radio clue was read back and mapped before the first assignment.");
-  if (firstAssign && subject && firstAssign.label.endsWith(subject.sector)) strengths.push(`The first team went to ${subject.sector}, the sector that held the subject.`);
+  if (firstAssign && subject && firstSector === subject.sector) strengths.push(`The first team went to ${subject.sector}, the sector that held the subject.`);
   if (clueChoice?.option === "log") tryNext.push("Confirm the radio clue next time and watch which sectors rise.");
-  if (choices.some((c) => c.inject === "triage" && c.option === "person" && c.card && !c.agent)) tryNext.push("Look again at the grey bag before pinning it: the check cost a team 10 minutes.");
-  if (firstAssign && subject && !firstAssign.label.endsWith(subject.sector)) tryNext.push("Compare the sector you picked with the agent's reason on the card.");
+  if (choices.some((c) => c.inject === "triage" && c.option === "person" && c.card && !c.agent)) tryNext.push("Look again at the grey bag before pinning it: a pin on it pulls the search toward an empty spot.");
+  if (firstAssign && subject && firstSector !== subject.sector) tryNext.push("Compare the sector you picked with the AI's reason on the card.");
   return { outcome, agent, subject: subject ? { sector: subject.sector } : null, rows, lines, draws, searched, strengths, tryNext };
 }

@@ -14,8 +14,9 @@ import type { FleetLinks } from "../lib/mission";
 import { useSelection } from "../lib/selection";
 import { StatusPill, type Tone } from "../shell/components";
 import { Icon } from "../shell/icons";
-import { duration, etaMin, legOf, linkWord, teamOrder, type Heard } from "./console";
+import { atBase, duration, etaMin, legOf, linkWord, teamOrder, type Heard } from "./console";
 import { useConsole } from "./consoleStore";
+import { podLabel, TERMS } from "./terms";
 
 export const TEAM_DRAG = "application/x-sightline-team";
 export const DRONE_DRAG = "application/x-sightline-drone";
@@ -85,7 +86,10 @@ export function Resources({
   footer,
   glow = null,
   proposals = [],
+  board,
 }: {
+  /** The teams with when each was last heard (CommandView computes it once for every panel); else computed here. */
+  board?: readonly { team: Team; heard: Heard }[];
   /** The agent's pending proposals: Task's list puts its pick for a team or drone first. */
   proposals?: readonly Proposal[];
   /** The team or drone the proposal in focus would send: its card glows violet (V3 §2). */
@@ -103,8 +107,9 @@ export function Resources({
   actions: ResourceActions;
 }) {
   const checkIn = mission?.check_in_min ?? 30;
-  const ordered = teamOrder(teams, events, now, checkIn);
-  const drones = [...(fleet?.drones ?? [])].sort((a, b) => a.battery_pct - b.battery_pct);
+  const ordered = board ?? teamOrder(teams, events, now, checkIn);
+  // the fleet's own order (Drone 1, 2, 3): a row never jumps as a battery drains
+  const drones = fleet?.drones ?? [];
   const picking = useConsole((s) => s.picking);
   const summary = resourceSummary(ordered, drones);
   const canDrag = !!actions.onAssign;
@@ -112,8 +117,8 @@ export function Resources({
     <section aria-label="Resources" data-tour="tasks" className="flex min-h-0 flex-col overflow-hidden lg:flex-1 rounded-lg border border-line bg-surface-solid">
       <h2 className="sl-panel-head">
         Resources
-        <span className="ml-auto whitespace-nowrap text-caption font-normal text-text-3" title={`A team turns amber near the check-in interval and red past it (${checkIn} min, a planning choice for this mission).`}>
-          check-in {checkIn} min
+        <span className="ml-auto whitespace-nowrap text-caption font-normal text-text-3" title={`Teams in the field radio in at least every ${checkIn} min (a planning choice for this mission). A team turns amber ten minutes before and is overdue past it.`}>
+          Radio check-in every {checkIn} min
         </span>
       </h2>
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
@@ -153,13 +158,17 @@ export function Resources({
   );
 }
 
-function heardWords(h: Heard, status: Team["status"]): [string, string] {
+function heardWords(h: Heard, status: Team["status"], home: boolean): [string, string] {
   // at base camp the team is at the command post: no radio check-in to keep
-  if (status === "standby" || status === "off_duty") return ["at base camp", "text-text-3"];
-  if (h.min === null) return ["not heard yet", "text-text-3"];
+  const free = status === "standby" || status === "off_duty";
+  if (free && home) return ["at base camp", "text-text-3"];
+  // a free team away from base camp says where it is (the map shows it there)
+  const where = free ? "in the field · " : "";
+  if (h.min === null) return [`${where}not heard yet`, "text-text-3"];
   const m = Math.round(h.min);
-  if (h.overdue) return [`not heard ${m} min`, "text-alert font-medium"];
-  return [`heard ${m} min`, h.due ? "text-caution" : "text-text-2"];
+  // overdue: the row's red badge says it
+  if (h.overdue) return ["", ""];
+  return [`${where}heard ${m} min`, h.due ? "text-caution" : "text-text-2"];
 }
 
 interface PickerData {
@@ -190,21 +199,28 @@ function Grip({ name }: { name: string }) {
 function TeamCard({ team, heard, task, base, picking, glow = false, actions, picker }: { team: Team; heard: Heard; task?: SectorTask; base?: Mission["base_camp"]; picking: boolean; glow?: boolean; actions: ResourceActions; picker?: PickerData }) {
   const selected = useSelection((s) => s.selectedTeamId === team.id);
   const dragging = useConsole((s) => s.dragging?.id === team.id);
-  const [word, tone] = STATUS[heard.overdue && team.status !== "standby" ? "overdue" : team.status];
-  const [heardText, heardClass] = heardWords(heard, team.status);
+  const overdue = heard.overdue && team.status !== "standby";
+  const [word, tone] = STATUS[overdue ? "overdue" : team.status];
+  const home = atBase(team, base);
+  const [heardText, heardClass] = heardWords(heard, team.status, home);
   const eta = etaMin(team, base);
   const inField = team.status !== "standby" && team.status !== "off_duty";
   const canAssign = !!actions.onAssign;
+  // overdue: one red badge with how long ("Overdue · not heard 45 min"), the same minutes as Needs you
+  const overdueWords = heard.min === null ? "not heard yet" : `not heard ${Math.round(heard.min)} min`;
+  const hasty = team.note === "hasty search" && !task && team.status === "searching";
   const pill = (
     <StatusPill tone={tone} dot={team.status === "searching" || team.status === "returning"} className="shrink-0">
-      {word}
-      {task ? ` · ${task.sector_id}` : ""}
+      {overdue ? `Overdue · ${overdueWords}` : word}
+      {task ? ` · ${task.sector_id}` : hasty ? " · hasty search" : ""}
     </StatusPill>
   );
   return (
     <article
       aria-label={`Team ${team.callsign}`}
       data-team={team.id}
+      data-overdue={overdue || undefined}
+      data-status={overdue ? "overdue" : team.status}
       data-tone={tone}
       draggable={canAssign}
       onDragStart={(e) => dragStart(e, "team", team.id, team.callsign)}
@@ -281,7 +297,7 @@ function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, on
   const facts = (
     <span className="flex gap-2 text-caption whitespace-nowrap">
       <span className={linkTone}>link {link === "connected" ? "ok" : link}</span>
-      {leg.m > 0 && <span className="text-text-3">leg {leg.n}/{leg.m}</span>}
+      {leg.m > 0 && <span className="text-text-3" title={`${TERMS.flightLine} ${leg.n} of ${leg.m}`}>line {leg.n} of {leg.m}</span>}
     </span>
   );
   const pill = (
@@ -319,7 +335,7 @@ function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, on
       <div className="flex flex-wrap items-center gap-1">
         {canFly && (
           <button type="button" className={primary} aria-pressed={picking} aria-expanded={picking} onClick={() => useConsole.getState().pick(picking ? null : { kind: "drone", id: d.id })}>
-            {picking ? "Pick a sector…" : "Fly a leg…"}
+            {picking ? "Pick a sector…" : "Fly over a sector…"}
           </button>
         )}
         <button type="button" className={minor} disabled={d.status !== "flying"} onClick={onRecall}>
@@ -364,7 +380,7 @@ function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[];
           <thead className="text-text-3">
             <tr>
               <th className="px-2.5 py-1 text-left font-normal">Sector</th>
-              <th className="sl-num px-2 py-1 font-normal">POA</th>
+              <th className="sl-num px-2 py-1 font-normal" title={TERMS.poaTip}>POA</th>
               <th className="px-2 py-1 text-left font-normal">State</th>
             </tr>
           </thead>
@@ -388,7 +404,7 @@ function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[];
                   </td>
                   <td className="sl-num px-2 py-1 text-text">{pct(s.poa)}</td>
                   <td className="px-2 py-1 text-text-2">
-                    {t ? (t.state === "searched" ? `searched, POD ${Math.round((t.pod ?? 0) * 100)} %` : STATE[t.state]) : "open"}
+                    {t ? (t.state === "searched" ? `searched, ${podLabel(t.pod ?? 0)}` : STATE[t.state]) : "open"}
                     {t?.team_id && t.state !== "searched" ? ` · ${callsign(t.team_id)}` : ""}
                   </td>
                 </tr>
@@ -398,8 +414,8 @@ function SectorsByPoa({ tasks, sectors, teams }: { tasks: readonly SectorTask[];
         </table>
       )}
       {all.length > 0 && (
-        <p className="border-t border-line px-2.5 py-1.5 text-caption text-text-3" title="The sectors tile the 1 km search grid; the rest of the probability is outside it.">
-          Outside the grid (rest of the world): <span className="text-text-2">{Math.round(Math.max(0, 1 - all.reduce((n, s) => n + s.poa, 0)) * 100)} %</span>
+        <p className="border-t border-line px-2.5 py-1.5 text-caption text-text-3" title={TERMS.rowTip}>
+          {TERMS.row}: <span className="text-text-2">{Math.round(Math.max(0, 1 - all.reduce((n, s) => n + s.poa, 0)) * 100)} %</span>
         </p>
       )}
       {all.length > SECTORS_SHOWN && (

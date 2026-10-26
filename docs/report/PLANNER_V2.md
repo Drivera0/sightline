@@ -88,10 +88,10 @@ each cell a multiplier: trails 2.0 within 25 m falling to 1.0 at 100 m, streams 
 the kernels multiply, then the raster is scaled to mean 1. The figures behind it are Jacobs 2015
 (*Terrain Based Probability Models for SAR*, Mountain Rescue Association, 1455 ISRID backcountry
 finds), Table 1: trails 5x, streams 2x, stream/trail interfaces 7x, roads 3x for uninjured subjects,
-with little gain past about 100 m (§5.2) and no effect of canopy or land cover (§4.6.2). Our trail
+with little gain past about 100 m (§5.2) and no effect of canopy or land cover (§4.6.2). Sightline's trail
 and stream multipliers are milder than his, by hand (his are for narrow bands, and mapped trails
 carry position error). Roads are set below 1 on purpose, against his 3x: a subject within reach of
-a road is usually not lost. The water and cliff values are ours. The prior becomes rings × affinity,
+a road is usually not lost. The water and cliff values are Sightline's own. The prior becomes rings × affinity,
 rescaled to the same in-grid mass, so `outside` and `prior_mass_outside` do not change (0.747 for
 the demo hiker either way). On the demo grid 81 % of cells lie within 100 m of a mapped trail, so
 the multiplier ranges only 0.11 to 1.45 after scaling to mean 1.

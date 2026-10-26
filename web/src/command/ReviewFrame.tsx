@@ -19,14 +19,30 @@ export function frameCard(cards: readonly ReviewCard[], answers: Readonly<Record
   return waiting.find((c) => c.id === want) ?? waiting[0] ?? null;
 }
 
+/** Each answer's one meaning, short, under its button (the same on every photo). */
+const MEANS: Readonly<Record<LiveAnswer, string>> = {
+  person: "a sighting pin on the map",
+  not_subject: "a witness lead to ask",
+  not_person: "leaves the review",
+  group: "a pin and a witness lead",
+  object: "a clue for a team to check",
+  unsure: "flagged for another reviewer",
+};
+
 export function ReviewFrame({
   cards,
   answers,
   onAnswer,
+  subject = null,
+  step = null,
 }: {
   cards: readonly ReviewCard[];
   answers: Readonly<Record<string, LiveAnswer>>;
   onAnswer: OnAnswer;
+  /** Who the search is for (Mission.subject), beside the photo so the answer is made against it. */
+  subject?: string | null;
+  /** The guided search's review step: "photo 1 of 3" (it shows one photo at a time). */
+  step?: { n: number; of: number } | null;
 }) {
   const { open, id } = useConsole((s) => s.review);
   const close = () => useConsole.getState().closeReview();
@@ -55,7 +71,14 @@ export function ReviewFrame({
 
   // Object asks what it is first (1–4 or a click), then answers
   const [picking, setPicking] = useState(false);
-  useEffect(() => setPicking(false), [c?.id]);
+  // More: a group, an object, unsure; Enlarge: the photo over the whole screen
+  const [more, setMore] = useState(false);
+  const [big, setBig] = useState(false);
+  useEffect(() => {
+    setPicking(false);
+    setMore(false);
+    setBig(false);
+  }, [c?.id]);
   const answer = (a: LiveAnswer, object?: ObjectKind) => {
     if (!c) return;
     if (a === "object" && !object) return setPicking(true);
@@ -71,7 +94,8 @@ export function ReviewFrame({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        return close();
+        // the enlarged photo closes first, then the frame
+        return big ? setBig(false) : close();
       }
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey || !c) return;
       const a = answerForKey(e.key);
@@ -91,16 +115,16 @@ export function ReviewFrame({
         ref={box}
         role="dialog"
         aria-modal="true"
-        aria-label="Review candidates"
+        aria-label="Review photos"
         tabIndex={-1}
         data-review-frame=""
         onClick={(e) => e.stopPropagation()}
         className="sl-sheet flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-border bg-surface-solid shadow-[var(--shadow-pop)]"
       >
         <header className="sl-panel-head">
-          <span>Review candidates</span>
+          <span>Review photos</span>
           <span className="text-caption font-normal text-text-3">
-            {c ? `${done + 1} of ${cards.length}` : `${done} of ${cards.length} answered`}
+            {step && c ? `photo ${step.n} of ${step.of}` : c ? `${done + 1} of ${cards.length}` : `${done} of ${cards.length} answered`}
           </span>
           <button type="button" onClick={close} className="sl-tap ml-auto rounded-full border border-line px-2.5 py-0.5 text-caption font-normal text-text-2 hover:text-text">
             Later <KeyHint>Esc</KeyHint>
@@ -108,7 +132,7 @@ export function ReviewFrame({
         </header>
         {!c ? (
           <div className="flex flex-col items-start gap-3 p-6">
-            <p className="text-title text-text">Every candidate has an answer.</p>
+            <p className="text-title text-text">Every photo has an answer.</p>
             <p className="text-body text-text-2">A Person is a pin on the map; the timeline has each answer.</p>
             <button type="button" onClick={close} className="sl-tap rounded-full border border-border px-4 py-1 text-small text-text">
               Back to the map
@@ -117,35 +141,60 @@ export function ReviewFrame({
         ) : (
           <div key={c.id} className="sl-slide-in grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             <figure className="flex min-h-0 flex-col gap-1.5">
-              <Photo c={c} />
+              <button type="button" onClick={() => setBig(true)} title="Enlarge the photo" aria-label="Enlarge the photo" className="sl-tap block w-full cursor-zoom-in rounded-md text-left">
+                <Photo c={c} />
+              </button>
               <figcaption className="flex flex-wrap items-baseline gap-x-3 text-caption text-text-3">
                 <span>{c.frame}</span>
-                <span className="font-mono">{c.id}</span>
                 <DetectorScore c={c} className="order-first" />
               </figcaption>
             </figure>
             <div className="flex min-w-0 flex-col gap-3">
+              {subject && (
+                <p aria-label="Looking for" className="rounded-md border border-line bg-bg/40 px-3 py-2 text-body text-text">
+                  <span className="block text-caption text-text-3">Looking for</span>
+                  {subject.charAt(0).toUpperCase() + subject.slice(1)}
+                </p>
+              )}
               {/* once the second look is done its result shows the crop beside the OpenCV 5 image */}
               {!looked && <img src={c.crop} alt={`Crop of ${c.id}`} className="aspect-square w-full max-w-72 rounded-md object-cover" />}
               <SecondLook c={c} large />
               {c.note && <p className="text-caption text-text-3">{c.note}</p>}
               <div role="group" aria-label="Answer" className="mt-auto flex flex-wrap gap-2">
-                {REVIEW_ANSWERS.map((a) => (
+                {REVIEW_ANSWERS.filter((a) => !a.more || more || picking).map((a) => (
                   <button
                     key={a.id}
                     type="button"
                     title={a.title}
                     aria-pressed={a.id === "object" ? picking : undefined}
                     onClick={() => (a.id === "object" ? setPicking(!picking) : answer(a.id))}
-                    className={`sl-tap inline-flex h-9 items-center gap-2 rounded-full border px-4 text-small text-text ${a.id === "person" ? "border-found bg-found/10 hover:bg-found/20" : a.id === "object" && picking ? "border-[var(--clue)]" : "border-border hover:bg-surface-strong"}`}
+                    className={`sl-tap inline-flex min-h-11 flex-col items-start justify-center rounded-lg border px-3.5 py-1 text-left text-small text-text ${a.id === "person" ? "border-found bg-found/10 hover:bg-found/20" : a.id === "object" && picking ? "border-[var(--clue)]" : "border-border hover:bg-surface-strong"}`}
                   >
-                    {a.label} <KeyHint>{a.key}</KeyHint>
+                    <span className="flex items-center gap-2 font-medium">
+                      {a.label} <KeyHint>{a.key}</KeyHint>
+                    </span>
+                    <span className="text-caption text-text-3">{MEANS[a.id]}</span>
                   </button>
                 ))}
+                {!more && !picking && (
+                  <button type="button" aria-expanded={false} onClick={() => setMore(true)} className="sl-tap inline-flex min-h-11 items-center rounded-lg px-3 text-small text-text-2 hover:text-text">
+                    More…
+                  </button>
+                )}
               </div>
               {picking && <ObjectPicker large suggested={c.object} onPick={(o) => answer("object", o)} onCancel={() => setPicking(false)} />}
               <p className="text-caption text-text-3">{waiting > 1 ? `${waiting - 1} more after this one; each answer moves on by itself.` : "The last one waiting."}</p>
             </div>
+          </div>
+        )}
+        {big && c && (
+          <div role="dialog" aria-label="The photo, enlarged" className="fixed inset-0 z-[60] flex items-center justify-center bg-bg/95 p-2" onClick={() => setBig(false)}>
+            <div className="w-full max-w-[min(96vw,calc(92vh*4/3))]">
+              <Photo c={c} />
+            </div>
+            <button type="button" onClick={() => setBig(false)} className="sl-tap absolute top-3 right-3 rounded-full border border-border bg-surface-solid px-3 py-1 text-small text-text">
+              Close <KeyHint>Esc</KeyHint>
+            </button>
           </div>
         )}
       </div>
