@@ -109,6 +109,8 @@ Files in `docs/submission/figures/` (and in the Desktop `devpost/` folder).
 
 **Track:** Physical AI.
 
+**Bonus awards (opt in if the form offers it):** Best Use of Tavily and Most Valuable Feedback. Not City Winner Awards (no in-person event).
+
 **Representative:** `<OWNER TO FILL>`
 
 **Team:** Solo, Daniel Rivera. `<OWNER: confirm age of majority and country/province of residence as the form asks>`
