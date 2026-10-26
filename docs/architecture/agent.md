@@ -445,8 +445,8 @@ when it is. The reason is at most 45 words (`planner.REASON_WORDS`), so a 60-wor
 it; the trigger in front of a leg's reason ("After clue c001 in sector C2.") counts. It never says
 "clear" or "rule out" (`tests/pipeline/test_no_clear_scan.py`).
 
-The demo fixture (`web/src/command/__fixtures__/demo_trace.jsonl`, `scripts/make_command_fixtures.py`,
-fake models, scripted approval), proposal p003:
+The demo fixture (`web/src/command/__fixtures__/demo_trace.jsonl`, `scripts/make_command_fixtures.py`), an earlier version made
+with fake models (the fixture's model calls are now recorded Nemotron calls on Token Factory), scripted approval, proposal p003:
 
 ```text
 2026-10-24T21:42:00Z  planner  tool_call  propose_assignments: T1 → C2 (map v504, 15 sectors ranked)
@@ -462,7 +462,7 @@ fake models, scripted approval), proposal p003:
 ```
 
 On the site this decision reads "The scenario's search manager approved…" in the plain console's timeline
-(`web/src/command/timeline.ts`), and the Trace view shows the fixture's `fake/<model>` calls as Replayed. In
+(`web/src/command/timeline.ts`); the fixture's model calls are Nemotron calls on Nebius Token Factory, recorded word for word (`scripts/make_command_fixtures.py --live`, traced `recorded/<model>`). In
 the guided simulation (`#m/demo?s=<seed>&guide=1`) the fixture's manager steps aside: the visitor makes
 this assignment, the planner's reason sits on the card, and what follows plays through one engine
 (`web/src/command/sim.ts`).
