@@ -19,11 +19,13 @@ describe("routes: one console", () => {
     // free play is only the plain console address (a seed at most); checkpoints and opened panels keep their old meaning
     expect(routeFromHash(DEMO_CONSOLE_HASH)).toEqual({ kind: "mission", id: "demo", view: "map", t: null, open: { free: true } });
     expect(routeFromHash(DEMO_END_HASH)).toEqual({ kind: "mission", id: "demo", view: "map", t: 6, open: {} });
-    expect(routeFromHash("#m/demo/map?t=0").open).toEqual({});
-    expect(routeFromHash("#m/demo/map?needs").open).toEqual({ needs: true });
-    expect(routeFromHash("#m/demo/map/conditions").open).toEqual({ conditions: true });
-    expect(routeFromHash("#m/demo/photos").open).toEqual({});
-    expect(routeFromHash("#m/0a1b2c3d/map").open).toEqual({}); // a live mission is never free play
+    expect(routeFromHash("#m/demo/map?t=0")).toMatchObject({ open: {} });
+    expect(routeFromHash("#m/demo/map?needs")).toMatchObject({ open: { needs: true } });
+    expect(routeFromHash("#m/demo/map/conditions")).toMatchObject({ open: { conditions: true } });
+    expect(routeFromHash("#m/demo/photos")).toMatchObject({ open: {} });
+    expect(routeFromHash("#m/0a1b2c3d/map")).toMatchObject({ open: {} }); // a live mission is never free play
+    for (const h of ["#m/demo/map?t=0", "#m/demo/map?needs", "#m/demo/map/conditions", "#m/demo/photos", "#m/0a1b2c3d/map", "#m/demo", "#m/demo?guide=1"])
+      expect((routeFromHash(h) as { open: object }).open).not.toHaveProperty("free");
     expect(routeFromHash("#m/0a1b2c3d/map?guide=1")).toEqual({ kind: "mission", id: "0a1b2c3d", view: "map", t: null, open: {} }); // only the demo has a guide
   });
 

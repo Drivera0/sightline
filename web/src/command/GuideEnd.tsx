@@ -106,7 +106,7 @@ function SideCard({ title, s, mine }: { title: string; s: SideStats; mine: boole
 }
 
 /** "You vs the agent": the two lines' numbers, your decision time, each decision, a verdict. */
-function Versus({ v, onReplay, onWatchAgent, followed }: { v: Comparison; onReplay: () => void; onWatchAgent: () => void; followed: boolean }) {
+function Versus({ v, onReplay, onWatchAgent, followed, free = false }: { v: Comparison; onReplay: () => void; onWatchAgent: () => void; followed: boolean; free?: boolean }) {
   const maxThink = Math.max(1, ...v.times.map((t) => t.ms));
   const mine = v.times.length;
   const timeLine =
@@ -141,7 +141,7 @@ function Versus({ v, onReplay, onWatchAgent, followed }: { v: Comparison; onRepl
           {timeLine}
           {v.watched > 0 && mine > 0 ? ` Watch instead made ${v.watched} more for you.` : ""}
         </p>
-        <p className="text-caption text-text-3">Measured on this device, from when each decision was shown to when you made it. The mission clock waits while you decide.</p>
+        <p className="text-caption text-text-3">{free ? "Measured on this device, from when each item reached Needs you to when you acted on it. The mission clock ran on meanwhile." : "Measured on this device, from when each decision was shown to when you made it. The mission clock waits while you decide."}</p>
         <ol className="flex flex-col" aria-label="Each decision">
           {v.rows.map((r) => (
             <li key={r.key} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 border-t border-line py-1.5 sm:grid-cols-[9rem_1fr_4.5rem_9rem]" data-row={r.key} data-same={r.same}>
@@ -196,6 +196,7 @@ export function GuideEnd({
   onReplay,
   onWatchAgent,
   followed = false,
+  free = false,
   onReport,
   onTrace,
   onClose,
@@ -212,6 +213,8 @@ export function GuideEnd({
   onWatchAgent: () => void;
   /** Every decision was the agent's already: no "Replay, following the agent". */
   followed?: boolean;
+  /** Free play: the clock ran on while the visitor decided. */
+  free?: boolean;
   onReport: () => void;
   onTrace: () => void;
   onClose: () => void;
@@ -235,7 +238,7 @@ export function GuideEnd({
           </p>
         </header>
 
-        {versus && <Versus v={versus} onReplay={onReplay} onWatchAgent={onWatchAgent} followed={followed} />}
+        {versus && <Versus v={versus} onReplay={onReplay} onWatchAgent={onWatchAgent} followed={followed} free={free} />}
 
         <details className="group rounded-lg border border-line" open={!versus} data-details>
           <summary className="cursor-pointer list-none rounded-lg p-3 text-small font-medium text-text-2 hover:bg-surface-strong [&::-webkit-details-marker]:hidden">

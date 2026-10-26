@@ -31,6 +31,7 @@ import {
   standingUser,
   TRIAGE_OPTIONS,
   triageEffect,
+  type Choice,
   type GuideInput,
   type Inject,
   type TriageAnswer,
@@ -148,6 +149,8 @@ export function useGuideRun({
   const reached = on && !free && activeAt !== null && clockMs >= activeAt && activeAt <= light;
   // free play: every decision that has come up and is not made yet (they wait together in Needs you)
   const due = useMemo(() => (free ? list.filter((i) => !injectDone(i, choices) && realOf(i.at, costs) <= clockMs) : []), [free, list, choices, costs, clockMs]);
+  const dueSince = useRef<Record<string, number>>({});
+  const lastClock = useRef(0);
   const [status, setStatus] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
 
@@ -260,12 +263,17 @@ export function useGuideRun({
   // photo, the read-back confirmed, an approval, the find recorded), in any order
   useEffect(() => {
     if (!free || guide!.ended) return;
+    // when each item reached Needs you (wall clock), for the end screen's decision time; a restart clears it
+    if (clockMs < lastClock.current) dueSince.current = {};
+    lastClock.current = clockMs;
+    const now = Date.now();
+    for (const i of due) for (const k of i.id === "triage" ? (i.cards ?? []).map((c) => `triage:${c.id}`) : [i.key]) dueSince.current[k] ??= now;
     for (const i of due) {
       if (i.id === "triage") {
         for (const tc of i.cards ?? []) {
           const a = answers[tc.id] as TriageAnswer | undefined;
           if (!a || choices.some((x) => x.key === `triage:${tc.id}`)) continue;
-          useGuide.getState().choose(choiceFor(i, a, f, tc));
+          useGuide.getState().choose(stamp(choiceFor(i, a, f, tc)));
           follow(tc, a);
           logAnswer(i, tc.id, a, operatorName());
         }
@@ -273,11 +281,15 @@ export function useGuideRun({
       }
       const c = choiceFromConsole(i, input, answers, f);
       if (!c) continue;
-      useGuide.getState().choose(c);
+      useGuide.getState().choose(stamp(c));
       if (i.id === "find" && i.find) carryOut(i.find.team, i.find.sector);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [free, due, input, answers, f]);
+  /** Free play: a choice with when its item reached Needs you. */
+  function stamp(c: Choice): Choice {
+    return freeRef.current.free ? { ...c, shownAt: c.shownAt ?? dueSince.current[c.key] } : c;
+  }
 
   // a decision made on the console itself counts
   useEffect(() => {
@@ -349,7 +361,7 @@ export function useGuideRun({
     if (i) {
       const team = edits?.team && edits.team !== p?.target.team ? edits.team : null;
       const c = choiceFor(i, i.id === "wind" ? "recall" : team && i.key === "assign" ? `team:${team}` : "approve", fr.f);
-      useGuide.getState().choose(team ? { ...c, label: `${m.teams.find((t) => t.id === team)?.callsign ?? team} to ${p?.target.sector ?? ""}` } : c);
+      useGuide.getState().choose(stamp(team ? { ...c, label: `${m.teams.find((t) => t.id === team)?.callsign ?? team} to ${p?.target.sector ?? ""}` } : c));
     }
     await m.decide(pid, decision, by, reason, edits);
     if (decision === "approve" && p?.kind === "assign_sector" && p.target.sector) {
@@ -397,7 +409,7 @@ export function useGuideRun({
         onPickOnMap();
         return;
       }
-      useGuide.getState().choose(choiceFor(i, optionId, f, c, watched));
+      useGuide.getState().choose(stamp(choiceFor(i, optionId, f, c, watched)));
       // who decided, in the log: the visitor, or Watch instead (never "You approved" for Watch instead's)
       const by = watched ? WATCH_BY : operatorName();
       const teams = m.teams;
@@ -557,6 +569,7 @@ export function useGuideRun({
         onReplay={() => onRestart(false, free)}
         onWatchAgent={() => onRestart(true)}
         followed={followed}
+        free={free}
         onReport={() => {
           useGuide.getState().close();
           onReport();
