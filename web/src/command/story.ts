@@ -108,6 +108,8 @@ export interface GuideState {
   choices: Choice[];
   /** The end screen ("What you did") is up. */
   ended: boolean;
+  /** The decision on screen (its choice key) and when it was shown (wall clock, ms): the end screen's decision time. */
+  shown?: { key: string; at: number } | null;
 }
 
 /** Mission minutes per real second while the guided clock runs (an hour in ten seconds). */
@@ -121,6 +123,8 @@ export const useGuide = create<{
   pause: (paused?: boolean) => void;
   setWatch: (watch: boolean) => void;
   choose: (c: Choice) => void;
+  /** A decision is on screen (its choice key): stamps when, once, for the decision time. */
+  show: (key: string) => void;
   end: () => void;
 }>((set, get) => ({
   guide: null,
@@ -140,7 +144,15 @@ export const useGuide = create<{
   },
   choose: (c) => {
     const g = get().guide;
-    if (g && !g.choices.some((x) => x.key === c.key)) set({ guide: { ...g, choices: [...g.choices, c], paused: false } });
+    if (!g || g.choices.some((x) => x.key === c.key)) return;
+    // the wall-clock time the decision took: from when it was shown to now
+    const now = Date.now();
+    const timed = { ...c, shownAt: c.shownAt ?? (g.shown?.key === c.key ? g.shown.at : undefined), decidedAt: c.decidedAt ?? now };
+    set({ guide: { ...g, choices: [...g.choices, timed], paused: false } });
+  },
+  show: (key) => {
+    const g = get().guide;
+    if (g && g.shown?.key !== key && !g.choices.some((x) => x.key === key)) set({ guide: { ...g, shown: { key, at: Date.now() } } });
   },
   end: () => {
     const g = get().guide;
