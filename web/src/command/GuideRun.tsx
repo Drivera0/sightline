@@ -694,6 +694,7 @@ export function useGuideRun({
         }}
         onClose={() => useGuide.getState().close()}
         score={score ? { score, best: best?.best ?? null, beat: !!best?.beat, kept: !!best?.kept } : null}
+        opened={scenario?.data.mission?.created_at ?? null}
       />
     ) : null;
 
