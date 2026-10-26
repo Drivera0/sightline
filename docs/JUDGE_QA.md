@@ -27,7 +27,7 @@ The public build has no API address baked in, so New search (`#new`, the empty c
 mission server runs during demos and judging; this site is the demo", with the form disabled and "Load the
 demo mission" (`#m/demo/map`), which works without a server (`web/src/ingest/NewSearch.tsx:92-96`, `:128`). The demo
 mission is the whole public site and needs no server (`web/src/App.tsx:74-75`); `#` is the home page, whose scenario cards open it. The AWS API is stopped between demos to save cost
-(`README.md:235-236`), so at 10 pm a live mission is not available unless it was started. During judging
+(`README.md:250-251`), so at 10 pm a live mission is not available unless it was started. During judging
 `.github/workflows/judging-check.yml` checks the API every 6 hours and opens an issue when it fails
 (`deploy/aws/README.md:107-115`); whether the instance stays up all through judging is still to be decided.
 
@@ -94,13 +94,13 @@ the agent evaluation injects this and shows it in the trace (`docs/report/OPENCV
 ### 8. HERIDAL's original terms: may the imagery be shown on a public site?
 
 I use the VOC-format copy by Pyrrö (2021), which is published under CC BY 3.0, and attribute it
-(`README.md:263`, `:271`). I have not cited the original HERIDAL release's own terms page, so I don't
+(`README.md:278`, `:271`). I have not cited the original HERIDAL release's own terms page, so I don't
 know yet whether it adds conditions. Citing the original release page (or asking its authors) would
 resolve it.
 
 ### 9. AGPL + ONNX weights: can North Shore Rescue deploy on a Jetson without open-sourcing their stack?
 
-Sightline's code is AGPL-3.0 to match Ultralytics, which the detector is trained with (`README.md:271`), and I
+Sightline's code is AGPL-3.0 to match Ultralytics, which the detector is trained with (`README.md:286`), and I
 treat the exported ONNX weights as covered too. For a team running it unmodified, AGPL asks for source
 only when they distribute it or offer it over a network to others; for a modified stack it would. I
 am not a lawyer and have not asked. An answer from Ultralytics on its enterprise licence, or a detector
@@ -129,6 +129,6 @@ now resolves both. Two more voices and a set through a handheld radio are still 
 On a 16-core desktop with the GPU hidden, yes: `scripts/reproduce_cv2.py` runs the 101 test photos through
 OpenCV 5 `cv2.dnn` only and checks the three VOC scores against the published ones in 4 min 58 s (about
 5 min 10 s with the downloads), measured while another job used about 11 of the 32 threads
-(`README.md:169-180`, `docs/report/OPENCV_REPORT.md:1022-1035`). On a laptop I haven't timed it; the detector
+(`README.md:184-195`, `docs/report/OPENCV_REPORT.md:1022-1035`). On a laptop I haven't timed it; the detector
 needs about 30 CPU-seconds per full photo (`docs/report/OPENCV_REPORT.md:377`), so the time grows as the core
 count falls. Timing a clean run on a laptop would give an honest number.

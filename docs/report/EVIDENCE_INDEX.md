@@ -5,7 +5,7 @@ on 2026-10-22; CI runs `python docs/report/check_evidence_index.py`, which fails
 missing or a cited line is past the end of its file. `runs/` is not committed (it is in `.gitignore`); the small summary files of the runs cited here
 are copied to `docs/evidence/`, and the committed write-up that quotes a run is listed first. "(sim)" marks a simulated result. Setup
 for the detector rows (`uv sync`, the `data-v1`, `weights-v2` and `model-onnx-v2` releases):
-`README.md:165-193`.
+`README.md:180-208`.
 
 | Claim | Evidence (file:line or run folder) | How to regenerate |
 |---|---|---|
@@ -76,8 +76,8 @@ for the detector rows (`uv sync`, the `data-v1`, `weights-v2` and `model-onnx-v2
 | Detector energy for 500 photos about 17 Wh (estimate: 15,000 vCPU-s × 3.5 W × PUE 1.135, Cloud Carbon Footprint coefficients) | `docs/report/OPENCV_REPORT.md:436-440` | arithmetic; 30 CPU-s per photo from `remote_check.py` on each instance size |
 | What breaks first: 46 of 337 test people missed (28 at MED and CAB); second look +4 people for +15 false alarms, advisory; fleet a simulation, approvals made live by the visitor | `docs/submission/WHAT_BREAKS_FIRST.md`; `docs/JUDGE_QA.md:7-13` | the sources listed in `WHAT_BREAKS_FIRST.md` |
 | Never "clear": proposals, briefings, radio replies and screen strings are checked | `docs/report/OPENCV_REPORT.md:909-918`; `web/src/noClear.test.ts:8-15` | `uv run pytest tests/agent tests/radio tests/pipeline/test_mission.py`; `cd web && pnpm test noClear` |
-| Reproduce the test table with `cv2.dnn` only: 4 min 58 s (about 5 min 10 s end to end) | `README.md:169-180`; `scripts/reproduce_cv2.py:1-30` | the commands at `README.md:171-178` |
-| Both backends on CPU: 12 min 48 s (about 14 min end to end) | `README.md:182-195` | the commands at `README.md:184-193` |
+| Reproduce the test table with `cv2.dnn` only: 4 min 58 s (about 5 min 10 s end to end) | `README.md:184-195`; `scripts/reproduce_cv2.py:1-30` | the commands at `README.md:186-193` |
+| Both backends on CPU: 12 min 48 s (about 14 min end to end) | `README.md:197-210` | the commands at `README.md:199-208` |
 | Docker dress run from nothing: 492 s; pytest 1373 passed, 14 skipped | `deploy/dressrun/README.md:57-89`; `docs/evidence/dressrun/20261022-192933/times.md` | `bash deploy/dressrun/run.sh` (writes `runs/dressrun/<timestamp>/times.md`) |
 | Real footage is checked before it is sent: per file GPS, relative altitude, gimbal, focal length, GSD and a verdict (usable as-is / needs geotag from log / unusable, with why); stripped or messenger-re-encoded GPS is flagged | `docs/REAL_FLIGHT.md` (inspect); `scripts/real_flight.py:75` (`photo_verdict`); `tests/client/test_real_flight.py` | `uv run python scripts/real_flight.py inspect FOLDER`; `uv run pytest tests/client/test_real_flight.py -k inspect` |
 | Video frames are geotagged only from a DJI SRT (both formats) or an Airdata / DJI flight record CSV point within 1 s; the rest are skipped and counted, never given a position; derived and owner-stated values are named per frame | `sightline/geo/geotag.py:279`, `:304`, `:398`; `scripts/real_flight.py:378`; `geotag.json` in the frames folder | `uv run pytest tests/geo/test_geotag.py tests/client/test_real_flight.py -k frames` (needs ffmpeg) |
