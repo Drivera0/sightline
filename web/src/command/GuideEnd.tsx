@@ -5,10 +5,11 @@
 // (compare.ts): the two lines' numbers side by side, the visitor's measured decision time, each decision
 // against the agent's pick, a verdict; the detail sits below it, collapsed. Built by lane A.
 
+import { useState } from "react";
 import type { SectorNow } from "../lib/api";
 import { clock, DEMO_TZ } from "../lib/time";
 import { Button } from "../shell/components";
-import { fmtDuration, fmtMin, type Comparison, type SideStats } from "./compare";
+import { BY_EYE_S, DETECTOR_S, fmtDuration, fmtMin, REVIEWERS, type Column, type Comparison, type WithWithout } from "./compare";
 import type { HotWash } from "./guide";
 import type { Subject } from "./sim";
 
@@ -58,50 +59,122 @@ function SectorMap({ sectors, searched, subject }: { sectors: readonly SectorNow
   );
 }
 
-/** Time to find for both lines, as two bars on one scale (last light: no bar). */
-function FindBars({ you, agent }: { you: number | null; agent: number | null }) {
-  const max = Math.max(you ?? 0, agent ?? 0);
-  const row = (who: string, v: number | null, tone: string) => (
-    <div className="grid grid-cols-[5.5rem_1fr_auto] items-center gap-2 sm:grid-cols-[6.5rem_1fr_auto]">
-      <span className="text-caption text-text-3">{who}</span>
-      <span className="h-2 rounded-full bg-surface-strong" aria-hidden="true">
-        {v !== null && max > 0 ? <span className={`block h-2 rounded-full ${tone}`} style={{ width: `${Math.max(2, (v / max) * 100)}%` }} /> : null}
-      </span>
-      <span className="min-w-[5rem] text-right font-mono text-small text-text">{v === null ? "last light" : fmtMin(v)}</span>
-    </div>
-  );
+/** Time to find for each column, as bars on one scale (not found by last light: no bar). */
+function FindBars({ columns }: { columns: readonly Column[] }) {
+  const max = Math.max(0, ...columns.map((c) => c.findMin ?? 0));
+  const tone = { manual: "bg-caution", you: "bg-accent", agent: "bg-text-3" } as const;
   return (
     <div className="flex flex-col gap-1" data-find-bars>
       <span className="text-small text-text-2">Time to find, mission minutes from the call</span>
-      {row("Your search", you, "bg-accent")}
-      {row("The AI's choices", agent, "bg-text-3")}
+      {columns.map((c) => (
+        <div key={c.key} className="grid grid-cols-[7rem_1fr_auto] items-center gap-2 sm:grid-cols-[11rem_1fr_auto]">
+          <span className="text-caption text-text-3">{c.title}</span>
+          <span className="h-2 rounded-full bg-surface-strong" aria-hidden="true">
+            {c.findMin !== null && max > 0 ? <span className={`block h-2 rounded-full ${tone[c.key]}`} style={{ width: `${Math.max(2, (c.findMin / max) * 100)}%` }} /> : null}
+          </span>
+          <span className="min-w-[5rem] text-right font-mono text-small text-text">{c.findMin === null ? "last light" : fmtMin(c.findMin)}</span>
+        </div>
+      ))}
     </div>
   );
 }
 
-/** One line's headline card: the time to find, then the rest of its numbers. */
-function SideCard({ title, s, mine }: { title: string; s: SideStats; mine: boolean }) {
-  const rows: [string, string][] = [
-    ["Sectors searched", String(s.sectors)],
-    ["Team-hours on passes", `${s.teamHours.toFixed(1)} h`],
-    ["Probability searched before the find", `${Math.round(s.covered * 100)} %`],
-    ["Photos reviewed", String(s.candidates)],
-    ["Decisions unlike the AI's", `${s.differed} of ${s.decisions}`],
+/** One cell: the value, and a small line under it. */
+const cell = (v: string, sub = "") => ({ v, sub });
+
+/** The rows of "Without Sightline vs with Sightline", one value per column. */
+export function rowsOf(w: WithWithout): { key: string; label: string; cells: { v: string; sub: string }[] }[] {
+  return [
+    { key: "find", label: "Time to find", cells: w.columns.map((c) => (c.findMin === null ? cell("not found by last light") : cell(fmtMin(c.findMin), "from the call"))) },
+    {
+      key: "review",
+      label: "Photo review, a person's time",
+      cells: w.columns.map((c) =>
+        c.key === "manual"
+          ? c.personMs
+            ? cell(fmtMin(c.personMs / 60_000), `${c.photos} × ${BY_EYE_S} s, ${REVIEWERS} reviewer`)
+            : cell("no photos")
+          : c.key === "agent"
+            ? cell("—", "the AI's picks")
+            : c.personMs !== null
+              ? cell(fmtDuration(c.personMs), "yours, measured")
+              : cell("—", "Watch instead answered"),
+      ),
+    },
+    { key: "detector", label: "Detector's time", cells: w.columns.map((c) => (c.machineMs === null ? cell("none", c.key === "manual" ? "no detector" : "no photos") : cell(fmtMin(c.machineMs / 60_000), `${DETECTOR_S} s a photo, as they land`))) },
+    { key: "photos", label: "Photos a person looks at", cells: w.columns.map((c) => cell(String(c.photos), c.key === "manual" ? "every photo" : c.answered !== null ? `ranked; you answered ${c.answered}` : "ranked")) },
+    { key: "missed", label: "Photo sightings missed", cells: w.columns.map((c) => cell(String(c.missed), c.key === "manual" ? "not reviewed in time" : c.key === "you" ? "marked not a person" : "")) },
+    { key: "sectors", label: "Sectors searched", cells: w.columns.map((c) => cell(String(c.sectors))) },
+    { key: "hours", label: "Team-hours on passes", cells: w.columns.map((c) => cell(`${c.teamHours.toFixed(1)} h`)) },
   ];
+}
+
+/** Without Sightline vs with Sightline: the headline, the columns, and how each number is worked out. */
+function WithoutWith({ w }: { w: WithWithout }) {
+  const rows = rowsOf(w);
+  const grid = w.columns.length === 3 ? "grid-cols-[minmax(5.5rem,1.3fr)_1fr_1fr_1fr]" : "grid-cols-[minmax(5.5rem,1.3fr)_1fr_1fr]";
   return (
-    <div className={`flex flex-col gap-1 rounded-lg border p-3 ${mine ? "border-accent" : "border-line"}`} data-side={mine ? "you" : "agent"}>
-      <span className="text-caption text-text-3">{title}</span>
-      <span className="text-title font-medium text-text">{s.findMin === null ? "Suspended at last light" : fmtMin(s.findMin)}</span>
-      <span className="text-caption text-text-3">{s.findMin === null ? "no find before last light" : "from the call to the find"}</span>
-      <dl className="mt-1 flex flex-col">
-        {rows.map(([k, val]) => (
-          <div key={k} className="flex items-baseline justify-between gap-3 border-t border-line py-1">
-            <dt className="text-small text-text-2">{k}</dt>
-            <dd className="font-mono text-small text-text">{val}</dd>
+    <section aria-labelledby="guide-with-title" className="flex flex-col gap-3" data-with-without>
+      <div className="flex flex-col gap-1">
+        <h3 id="guide-with-title" className="text-body font-medium text-text">
+          Without Sightline vs with Sightline
+        </h3>
+        <p className="text-body text-text" data-headline>
+          {w.headline}
+        </p>
+        {w.followedNote && (
+          <p className="text-caption text-text-3" data-followed>
+            {w.followedNote}
+          </p>
+        )}
+      </div>
+      <div role="table" aria-label="Without Sightline vs with Sightline" className="flex flex-col text-small">
+        <div role="row" className={`grid ${grid} gap-x-2 pb-1 sm:gap-x-3`}>
+          <span role="columnheader">
+            <span className="sr-only">Measure</span>
+          </span>
+          {w.columns.map((c) => (
+            <span key={c.key} role="columnheader" className={`text-caption font-medium ${c.key === "you" ? "text-accent-soft" : "text-text-3"}`} data-column={c.key}>
+              {c.title}
+            </span>
+          ))}
+        </div>
+        {rows.map((r) => (
+          <div key={r.key} role="row" className={`grid ${grid} gap-x-2 border-t border-line py-1.5 sm:gap-x-3`} data-measure={r.key}>
+            <span role="rowheader" className="text-text-2">
+              {r.label}
+            </span>
+            {r.cells.map((c, i) => (
+              <span key={w.columns[i]!.key} role="cell" className="flex min-w-0 flex-col">
+                <span className="font-mono text-text">{c.v}</span>
+                {c.sub && <span className="text-caption text-text-3">{c.sub}</span>}
+              </span>
+            ))}
           </div>
         ))}
-      </dl>
-    </div>
+      </div>
+      {w.missedNotes.length > 0 && (
+        <ul className="flex flex-col gap-0.5 text-caption text-text-3">
+          {w.missedNotes.map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ul>
+      )}
+      <FindBars columns={w.columns} />
+      <div className="flex flex-col gap-1">
+        <h4 className="text-small font-medium text-text-2">How this is worked out</h4>
+        <ul className="flex flex-col gap-1 text-caption text-text-2" data-assumptions>
+          {w.assumptions.map((a) => (
+            <li key={a.text}>
+              {a.text}{" "}
+              <a className="text-accent-soft underline" href={a.href} target="_blank" rel="noreferrer">
+                Source: {a.source}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
   );
 }
 
@@ -115,25 +188,17 @@ function Versus({ v, onReplay, onWatchAgent, followed, free = false }: { v: Comp
       : "Watch instead made every decision; the AI proposed each as the data landed.";
   return (
     <section aria-labelledby="guide-versus-title" className="flex flex-col gap-4" data-versus>
-      <div className="flex flex-col gap-1">
+      <WithoutWith w={v.sightline} />
+
+      <div className="flex flex-col gap-1 border-t border-line pt-3">
         <h3 id="guide-versus-title" className="text-body font-medium text-text">
           You vs the agent
         </h3>
-        <p className="text-body text-text" data-verdict>
+        <p className="text-small text-text" data-verdict>
           {v.verdict}
         </p>
         <p className="text-caption text-text-3">The AI's choices: this same scenario with every decision taken the AI's way, through the same engine.</p>
       </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <SideCard title="Your search" s={v.you} mine />
-        <SideCard title="The AI's choices" s={v.agent} mine={false} />
-      </div>
-
-      <FindBars you={v.you.findMin} agent={v.agent.findMin} />
-      <p className="text-caption text-text-3">
-        Mission time, with every decision's minutes on the clock. Team-hours: each pass's walk and sweep, up to the find. Probability searched: the share of the agent's map that teams swept without a find, at POD 60 % a pass.
-      </p>
 
       <div className="flex flex-col gap-2">
         <h4 className="text-small font-medium text-text-2">Your decision time</h4>
@@ -221,6 +286,7 @@ export function GuideEnd({
 }) {
   const t = (ms: number) => clock(new Date(ms).toISOString(), DEMO_TZ);
   const o = wash.outcome;
+  const [detailsOpen, setDetailsOpen] = useState(!versus);
   const outcome =
     o.foundAt !== null
       ? `Found at ${t(o.foundAt)} by ${callsign(o.team)} in ${o.sector}.`
@@ -240,13 +306,15 @@ export function GuideEnd({
 
         {versus && <Versus v={versus} onReplay={onReplay} onWatchAgent={onWatchAgent} followed={followed} free={free} />}
 
-        <details className="group rounded-lg border border-line" open={!versus} data-details>
+        <details className="group rounded-lg border border-line" open={detailsOpen} onToggle={(e) => setDetailsOpen((e.currentTarget as HTMLDetailsElement).open)} data-details>
           <summary className="cursor-pointer list-none rounded-lg p-3 text-small font-medium text-text-2 hover:bg-surface-strong [&::-webkit-details-marker]:hidden">
             <span className="mr-1.5 inline-block transition-transform group-open:rotate-90" aria-hidden="true">
               ›
             </span>
             Show the details: every decision, the sectors and how each pass went
           </summary>
+          {/* the details render when opened: the sheet's first paint stays small */}
+          {detailsOpen && (
           <div className="flex flex-col gap-5 p-3 pt-1">
             <section aria-label="Decisions" className="flex flex-col gap-2">
               <h3 className="text-small font-medium text-text-2">Your decisions and the AI's</h3>
@@ -314,6 +382,7 @@ export function GuideEnd({
             )}
 
           </div>
+          )}
         </details>
 
         <footer className="flex flex-col gap-3 border-t border-line pt-4">

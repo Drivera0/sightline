@@ -483,6 +483,12 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     expect(useGuide.getState().guide!.clock).toBe(atFind);
     const end = await screen.findByRole("dialog", { name: "What you did" }, { timeout: 5000 });
     expect(end).toHaveTextContent(/Found at \d\d:\d\d by Team/);
+    // the details render when opened
+    const details = end.querySelector("[data-details]") as HTMLDetailsElement;
+    act(() => {
+      details.open = true;
+      details.dispatchEvent(new Event("toggle"));
+    });
     expect(end).toHaveTextContent("How each pass went");
     expect(end.textContent).not.toMatch(/score|saved a life/i);
   }, 60_000);

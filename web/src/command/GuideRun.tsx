@@ -490,11 +490,10 @@ export function useGuideRun({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [on, guide?.watch, guide?.ended, active?.key, card?.id, reached, confirming]);
 
-  // the find marked: a moment on the console, then what you did
+  // the find marked: what you did opens at once (the owner: a 2.5 s wait here read as lag)
   useEffect(() => {
-    if (!on || !findDone || guide!.ended || confirming) return undefined;
-    const t = window.setTimeout(() => useGuide.getState().end(), 2500);
-    return () => window.clearTimeout(t);
+    if (!on || !findDone || guide!.ended || confirming) return;
+    useGuide.getState().end();
   }, [on, findDone, guide?.ended, confirming]);
 
   // ---- what is on screen ----
