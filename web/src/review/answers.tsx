@@ -1,7 +1,7 @@
-// The image reviewer's answers (contract 15.7, `POST /reviews`): Person, Not a person, Not the subject (a
-// person, not the missing one: the map counts the look as for Not a person), Object (a thing a lost person
-// may have left or used: it becomes a clue candidate a team on the ground confirms, with its type) and
-// Unsure. The review rail and the large review frame share them, their keys and the object type picker.
+// The image reviewer's answers (contract 15.7, `POST /reviews`): The subject, Another person (a person,
+// not the missing one: the map counts the look as for Not a person), Not a person, and under More: A group,
+// Object (a thing a lost person may have left or used: it becomes a clue candidate a team on the ground
+// confirms, with its type) and Unsure. The review rail and the large review frame share them, their keys and the object type picker.
 // Built by lane A.
 import { useEffect } from "react";
 import type { Verdict } from "../contract";
@@ -17,7 +17,7 @@ export type ObjectKind = NonNullable<Verdict["object"]> | "clothing" | "water bo
 export const serverObject = (o: ObjectKind | null | undefined): NonNullable<Verdict["object"]> | undefined => (o === "clothing" || o === "water bottle / gear" ? "other" : (o ?? undefined));
 
 /**
- * One fixed meaning per answer, on every photo (the cold test: Person meant a pin on one photo and a
+ * One fixed meaning per answer, on every photo (the cold test: the person answer meant a pin on one photo and a
  * team's walk on the next). The first three are the main buttons; `more` ones sit under a More toggle.
  */
 export const REVIEW_ANSWERS: readonly { id: LiveAnswer; label: string; key: string; title: string; more?: boolean }[] = [

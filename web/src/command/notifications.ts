@@ -112,7 +112,7 @@ export function reviewToast(waiting: number): NoteDraft {
     key: "review",
     tone: "review",
     title: toReview(waiting),
-    body: "Photos landed: answer Person, Not a person or Unsure on each.",
+    body: "Photos landed: answer The subject, Another person or Not a person on each (More: a group, an object, unsure).",
     target: { kind: "candidate", id: null },
     action: "Review now",
   };
