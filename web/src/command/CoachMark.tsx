@@ -44,7 +44,21 @@ export function showControl(btn: HTMLElement) {
       return;
     }
   }
-  if (typeof btn.scrollIntoView === "function") btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+  scrollWithin(btn);
+}
+
+/**
+ * The element brought into view inside its own scrolling column, never by scrolling the page: a page scroll
+ * left a blank band under the console (round 3 of the usability test, after Send all). No column: nothing.
+ */
+export function scrollWithin(el: HTMLElement, block: "nearest" | "start" = "nearest") {
+  let sc: HTMLElement | null = el.parentElement;
+  while (sc && sc !== document.body && sc !== document.documentElement && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+  if (!sc || sc === document.body || sc === document.documentElement || sc.clientHeight <= 0) return;
+  const r = el.getBoundingClientRect();
+  const b = sc.getBoundingClientRect();
+  if (block === "start" || r.height > b.height || r.top < b.top) sc.scrollTop += r.top - b.top;
+  else if (r.bottom > b.bottom) sc.scrollTop += r.bottom - b.bottom;
 }
 
 /**
@@ -210,9 +224,10 @@ function useTargetBox(target: Target): { box: Box | null; avoid: Box[]; view: { 
       const el = els[0]!;
       if (!phone) for (const x of els) remember(x);
       // a group: its last one in view first, then its first, so both ends are on screen where they fit
-      if (!phone && els.length > 1) els.at(-1)!.scrollIntoView({ block: "nearest", inline: "nearest" });
-      // on a phone the card sits along the bottom: bring the target to the top
-      el.scrollIntoView({ block: phone ? "start" : "nearest", inline: "nearest" });
+      if (!phone && els.length > 1) scrollWithin(els.at(-1)!);
+      // on a phone the card sits along the bottom: bring the target to the top (a desktop: in its column only)
+      if (phone) el.scrollIntoView({ block: "start", inline: "nearest" });
+      else scrollWithin(el);
       // and the control itself ("Do this first"), when the item is taller than its panel
       if (!phone) showControl(primaryIn(el) ?? el);
       want = el.getBoundingClientRect().top;
@@ -362,7 +377,6 @@ export function GuideMark({
   const { box, view } = useTargetBox(call ? target : []);
 
   const card = useRef<HTMLDivElement>(null);
-  const first = useRef<HTMLButtonElement>(null);
   const own = options.filter((o) => !o.on);
   const agent = options.find((o) => o.agent);
 
@@ -424,29 +438,14 @@ export function GuideMark({
     };
   }, [leaving]);
 
-  // focus moves to the decision: the real control's, else the bar's first button; the control may render a
-  // moment later (Needs you filling in), so it is looked for again for a while, until the visitor moves focus
+  // focus moves to the bar itself (a dialog, read out with its heading), never onto a decision button: Space
+  // is Pause and Enter on a focused button stays the visitor's own act (round 3 of the usability test: Space
+  // on a focused "Record find" logged the find). The ring and the scroll show the control to press.
   useEffect(() => {
-    if (!call) return undefined;
-    if (first.current && !onConsole) {
-      first.current.focus({ preventScroll: true });
-      return undefined;
-    }
-    let tries = 0;
-    const attempt = () => {
-      const a = document.activeElement;
-      const ours = !a || a === document.body || a === card.current;
-      if (!ours) return true;
-      // the item's main button (Needs you's `data-primary`: "Send Team One to C2", "Confirm clue"), else The subject
-      const btn = primaryIn(findTarget(target));
-      (btn ?? card.current)?.focus({ preventScroll: true });
-      return !!btn;
-    };
-    if (attempt()) return undefined;
-    const id = window.setInterval(() => {
-      if (attempt() || ++tries > 12) window.clearInterval(id);
-    }, 250);
-    return () => window.clearInterval(id);
+    if (!call) return;
+    const a = document.activeElement;
+    if (a && a !== document.body && isTyping(a)) return;
+    card.current?.focus({ preventScroll: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [call, text]);
 
@@ -456,7 +455,10 @@ export function GuideMark({
       const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
       // Esc closes overlays only (theirs to handle); leaving the run is the Leave button, with a confirm
       if (k === "T" && watching) onTakeOver();
-      else if (k === " " && !call && !(e.target instanceof HTMLButtonElement)) onPause();
+      else if (k === " ") {
+        // Space is Pause, everywhere in the run: never the click of whatever button has focus
+        if (!call && !e.repeat) onPause();
+      }
       else if (k === "ArrowRight" && !call && onSkip) onSkip();
       else if (call && !watching && k === "A" && agent) onPick?.(agent.id);
       else if (call && !watching && k === "M" && onMap) onMap();
@@ -465,15 +467,24 @@ export function GuideMark({
       e.preventDefault();
       e.stopImmediatePropagation();
     };
+    // a button clicks on Space's keyup: that one is swallowed too
+    const onUp = (e: KeyboardEvent) => {
+      if (leaving || e.key !== " " || isTyping(e.target)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
     // capture: the view keys (1–6) wait while a decision is open; the review card's own keys (P/N/S/O/U) pass
     window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    window.addEventListener("keyup", onUp, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keyup", onUp, true);
+    };
   }, [leaving, call, watching, options, agent, onPick, onMap, onTakeOver, onPause, onSkip]);
 
-  const optionButtons = own.map((o, i) => (
+  const optionButtons = own.map((o) => (
     <button
       key={o.id}
-      ref={i === 0 ? first : undefined}
       type="button"
       disabled={watching}
       title={o.effect}

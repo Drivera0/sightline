@@ -30,12 +30,12 @@ function mark(over: Partial<Parameters<typeof GuideMark>[0]> = {}) {
 }
 
 describe("the guided search's mark", () => {
-  it("asks for the decision with its options, what each costs, and the agent's marked; focus on the first", () => {
+  it("asks for the decision with its options, what each costs, and the agent's marked; focus on the bar, never a button", () => {
     mark();
     const dialog = screen.getByRole("dialog", { name: /Your call/ });
     expect(dialog).toHaveTextContent("+12 min");
     expect(dialog).toHaveTextContent("AI's pick");
-    expect(screen.getByRole("button", { name: /The AI's flight lines/ })).toHaveFocus();
+    expect(dialog).toHaveFocus();
     // no Back, no Next, no Skip on a decision
     expect(screen.queryByRole("button", { name: /^(Back|Next|Skip)/ })).toBeNull();
   });
@@ -93,11 +93,29 @@ describe("the guided search's mark", () => {
     const dialog = screen.getByRole("dialog", { name: /Your call: Step 4 of 6/ });
     expect(within(dialog).queryByRole("group", { name: "Options" })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: /Team One to C2/ })).toBeNull();
-    // focus goes to the real control's main button
-    expect(screen.getByRole("button", { name: "Send Team One to C2" })).toHaveFocus();
+    // focus stays on the bar: a decision button never takes it (Space would press it)
+    expect(dialog).toHaveFocus();
     await userEvent.keyboard("a");
     expect(a.onPick).toHaveBeenLastCalledWith("approve");
     document.getElementById("card")?.remove();
+  });
+
+  it("Space never presses a decision button, even one with focus; Enter on it still does", async () => {
+    document.body.insertAdjacentHTML("beforeend", '<article id="card2"><button type="button" data-primary>Record find</button></article>');
+    const clicked = vi.fn();
+    document.querySelector("#card2 button")!.addEventListener("click", clicked);
+    const a = mark({ target: "#card2" });
+    const own = screen.getByRole("button", { name: /Serpentine/ });
+    for (const b of [screen.getByRole("button", { name: "Record find" }), own]) {
+      b.focus();
+      await userEvent.keyboard(" ");
+    }
+    expect(clicked).not.toHaveBeenCalled();
+    expect(a.onPick).not.toHaveBeenCalled();
+    screen.getByRole("button", { name: "Record find" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(clicked).toHaveBeenCalledOnce();
+    document.getElementById("card2")?.remove();
   });
 
   it("between decisions: the time-lapse, the clock large, the row that landed, Pause, speed and Skip ahead", async () => {

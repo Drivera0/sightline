@@ -7,7 +7,7 @@
 // (the candidates stay in Needs you). The map pans to and pulses the candidate in view. Built by lane A.
 import { useEffect, useRef, useState } from "react";
 import { isTyping } from "../lib/keys";
-import { AiPick, DetectorScore, focusCandidate, ObjectPhotoBadge, photoName, reviewKeys, type LiveAnswer, type OnAnswer, type ReviewCard } from "../review/LiveReview";
+import { AiPick, DetectorScore, focusCandidate, ObjectPhotoBadge, photoLabel, photoName, reviewKeys, type LiveAnswer, type OnAnswer, type ReviewCard } from "../review/LiveReview";
 import { answerForKey, ObjectPicker, REVIEW_ANSWERS, usePickerKeys, type ObjectKind } from "../review/answers";
 import { SecondLook, useSecondLook } from "../review/SecondLook";
 import { KeyHint } from "../shell/components";
@@ -161,10 +161,11 @@ export function ReviewFrame({
               )}
               {c.pick && <AiPick line={c.pick} className="text-small" />}
               {/* once the second look is done its result shows the crop beside the OpenCV 5 image */}
-              {!looked && <img src={c.crop} alt={`Crop of ${c.id}`} className="aspect-square w-full max-w-72 rounded-md object-cover" />}
+              {!looked && <img src={c.crop} alt={`Crop of ${photoLabel(c.id)}`} className="aspect-square w-full max-w-72 rounded-md object-cover" />}
               <SecondLook c={c} large />
               {c.note && <p className="text-caption text-text-3">{c.note}</p>}
-              <div role="group" aria-label="Answer" className="mt-auto flex flex-wrap gap-2">
+              {/* the answers stay in view at the frame's foot (round 3: at 1280 x 720 two of them were below it) */}
+              <div role="group" aria-label="Answer" className="mt-auto flex flex-wrap gap-2 md:sticky md:bottom-0 md:z-10 md:-mb-3 md:border-t md:border-line md:bg-surface-solid md:pt-2 md:pb-3">
                 {REVIEW_ANSWERS.filter((a) => !a.more || more || picking).map((a) => (
                   <button
                     key={a.id}
@@ -213,7 +214,7 @@ function Photo({ c }: { c: ReviewCard }) {
   if (!c.photo || !c.size || !c.box)
     return (
       <div className="relative">
-        <img src={c.crop} alt={`Crop of ${c.id}, large`} className="max-h-[60vh] w-full rounded-md object-contain" />
+        <img src={c.crop} alt={`Crop of ${photoLabel(c.id)}, large`} className="max-h-[60vh] w-full rounded-md object-contain" />
         {badge}
       </div>
     );

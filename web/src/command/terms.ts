@@ -4,6 +4,8 @@
 // fixtures and the simulation carry (legs, second looks, internal ids) at render time. The Trace keeps the
 // ids and the engine's own words. Pure. Built by lane A.
 
+import { clockWithZone, DEMO_TZ, type Tz } from "../lib/time";
+
 /** The words, once. */
 export const TERMS = {
   /** The probability outside the grid (the rest of the world). */
@@ -69,6 +71,29 @@ export function flightLineNames(legs: readonly LegLike[] | null | undefined, dro
 export interface PlainCtx {
   /** Leg id → "Drone 1 · flight line 1" (flightLineNames); without it a leg is "a flight line". */
   legs?: ReadonlyMap<string, string>;
+  /** The zone a forecast's "as of 20:25 UTC" is said in (default: the demo's, Vancouver). */
+  tz?: Tz;
+}
+
+/**
+ * No third-party trademark on screen (the drone's model stays in the Trace): "DJI Mavic 3E limit 43 km/h"
+ * reads "drone gust limit 43 km/h".
+ */
+export function brandFree(text: string): string {
+  return text
+    .replace(/\b(?:DJI )?(?:Mavic|Matrice)[ -][\w-]+(?:'s)? (?:gust |wind )?limit\b/g, "drone gust limit")
+    .replace(/\b(?:DJI )?(?:Mavic|Matrice)[ -][\w-]+'s\b/g, "the drones'")
+    .replace(/\b(?:DJI )?(?:Mavic|Matrice)[ -][\w-]+/g, "drone")
+    .replace(/\bDJI\s?/g, "");
+}
+
+/** "as of 20:25 UTC" in the console's local time ("as of 13:25 PDT"). */
+export function localForecastTime(text: string, tz: Tz = DEMO_TZ): string {
+  return text.replace(/\bas of (\d\d):(\d\d) UTC\b/g, (_, h: string, m: string) => {
+    const now = new Date();
+    const at = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), Number(h), Number(m)));
+    return `as of ${clockWithZone(at, tz)}`;
+  });
 }
 
 /**
@@ -78,7 +103,7 @@ export interface PlainCtx {
  */
 export function plainWords(text: string, ctx: PlainCtx = {}): string {
   const leg = (id: string) => ctx.legs?.get(id) ?? null;
-  let s = text;
+  let s = localForecastTime(brandFree(text), ctx.tz);
   // the mission's first line: its name, never "(demo)" (the header's chip says what kind of search this is)
   s = s.replace(/^mission created: (.+?) \(demo\)$/, "Mission opened: $1");
   // the scenario's prior, said plainly (the model and its citations stay in the Trace)

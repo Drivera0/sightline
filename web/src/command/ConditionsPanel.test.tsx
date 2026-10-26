@@ -41,10 +41,10 @@ describe("conditions from the trace", () => {
 
   it("states the flyability gate with the limit it was checked against", () => {
     const c = { gust_kmh: 15, wind_kmh: 8, flyable: true, flyable_until: "2026-10-25T01:36:46Z", flyability_reason: "gusts 15 km/h below the drones' limit of 38 km/h" } as Conditions;
-    expect(flyGate(c, 43.2, "Mavic 3E", utc)).toEqual({ tone: "ok", text: "Drones can fly until ~01:36 UTC (wind under Mavic 3E's gust limit of 43 km/h (12.0 m/s); light until civil twilight)" });
+    expect(flyGate(c, 43.2, "Mavic 3E", utc)).toEqual({ tone: "ok", text: "Drones can fly until ~01:36 UTC (wind under the drones' gust limit of 43 km/h (12.0 m/s); light until civil twilight)" });
     expect(flyGate(c, null, null, utc).text).toBe("Drones can fly until ~01:36 UTC (wind under the usual gust limit of 38 km/h (10.6 m/s); light until civil twilight)");
     const windy = { ...c, gust_kmh: 50, flyable: false, flyable_until: null, flyability_reason: "gusts 50 km/h at or above the drones' limit of 43 km/h" };
-    expect(flyGate(windy, 43.2, "Mavic 3E", utc)).toEqual({ tone: "alert", text: "Drones grounded: gusts 50 km/h (13.9 m/s), at or over Mavic 3E's gust limit of 43 km/h (12.0 m/s)" });
+    expect(flyGate(windy, 43.2, "Mavic 3E", utc)).toEqual({ tone: "alert", text: "Drones grounded: gusts 50 km/h (13.9 m/s), at or over the drones' gust limit of 43 km/h (12.0 m/s)" });
     const dark = { ...c, gust_kmh: 40, flyable: false, flyable_until: null, flyability_reason: "after civil twilight: no light for photos" };
     expect(flyGate(dark, null, null, utc).text).toBe(
       "Drones grounded: after civil twilight: no light for photos; also gusts 40 km/h (11.1 m/s), at or over the usual gust limit of 38 km/h (10.6 m/s)",

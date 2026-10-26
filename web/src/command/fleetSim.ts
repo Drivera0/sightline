@@ -111,7 +111,8 @@ export function flights(drones: readonly Drone[], sorties: readonly Sortie[], ho
       const there = s.start + out1;
       const swept = there + (s.path.length ? s.sweepMs : 0);
       const last = s.path.at(-1) ?? from;
-      const landed = swept + (metres(last, home) / speed) * 1000;
+      // a recall flies straight home: landed when it gets there (never the way home twice)
+      const landed = s.kind === "recall" ? there : swept + (metres(last, home) / speed) * 1000;
       const f: Flight = { sortie: s, from, battery0, there, swept, landed, cut: null };
       out.push(f);
       prev = f;
@@ -126,6 +127,8 @@ const batteryAt = (f: Flight, t: number) => Math.max(RESERVE_PCT, f.battery0 - (
 function stateIn(f: Flight, t: number, home: LL): DroneNow {
   const s = f.sortie;
   const battery = batteryAt(f, t);
+  // recalled: on its way home from where it was (round 3: recalled drones said "Flying" all the way)
+  if (s.kind === "recall" && t < f.landed) return { status: "returning", position: along([f.from, home], (t - s.start) / Math.max(1, f.landed - s.start)), battery, leg: null };
   if (t < f.there) return { status: "flying", position: along([f.from, s.path[0] ?? home], (t - s.start) / Math.max(1, f.there - s.start)), battery, leg: s.leg };
   if (t < f.swept) return { status: "flying", position: along(s.path, (t - f.there) / Math.max(1, f.swept - f.there)), battery, leg: s.leg };
   if (t < f.landed) return { status: "returning", position: along([s.path.at(-1) ?? f.from, home], (t - f.swept) / Math.max(1, f.landed - f.swept)), battery, leg: s.leg };

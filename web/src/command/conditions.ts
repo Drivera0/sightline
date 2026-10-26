@@ -5,6 +5,7 @@
 // two. Built by lane A.
 import type { Conditions, TraceEntry } from "../contract";
 import type { Tz } from "../lib/time";
+import { brandFree } from "./terms";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -186,8 +187,10 @@ export interface Gate {
 export function flyGate(c: Conditions, limitKmh: number | null, drone: string | null, until: (iso: string) => string): Gate {
   const fromReason = /limit of (\d+(?:\.\d+)?) km\/h/.exec(c.flyability_reason)?.[1];
   const limit = limitKmh ?? (fromReason ? Number(fromReason) : 38);
-  // whose limit: the fleet's lowest, or (no fleet yet) the usual one for these drones
-  const whose = limitKmh !== null ? (drone ? `${drone}'s` : "the drones'") : "the usual";
+  // whose limit: the fleet's lowest, or (no fleet yet) the usual one for these drones; never the drone's
+  // model on screen (no third-party trademark in the video: the model stays in the Trace)
+  void drone;
+  const whose = limitKmh !== null ? "the drones'" : "the usual";
   const gust = c.gust_kmh ?? c.wind_kmh;
   const lim = `${whose} gust limit of ${limit.toFixed(0)} km/h (${ms1(limit)})`;
   if (c.flyable === true) return { tone: "ok", text: `Drones can fly until ~${c.flyable_until ? until(c.flyable_until) : "dusk"} (wind under ${lim}; light until civil twilight)` };
@@ -195,7 +198,7 @@ export function flyGate(c: Conditions, limitKmh: number | null, drone: string | 
     const over = gust !== null && gust >= limit ? `${c.gust_kmh !== null ? "gusts" : "wind"} ${gust.toFixed(0)} km/h (${ms1(gust)}), at or over ${lim}` : null;
     // the server's reason first (it checks light before wind); the wind check when it fails too
     if (over && /gust|wind/.test(c.flyability_reason)) return { tone: "alert", text: `Drones grounded: ${over}` };
-    return { tone: "alert", text: `Drones grounded: ${c.flyability_reason}${over ? `; also ${over}` : ""}` };
+    return { tone: "alert", text: `Drones grounded: ${brandFree(c.flyability_reason)}${over ? `; also ${over}` : ""}` };
   }
-  return { tone: "muted", text: `Drone flying not known: ${c.flyability_reason || "no wind data"}` };
+  return { tone: "muted", text: `Drone flying not known: ${brandFree(c.flyability_reason) || "no wind data"}` };
 }

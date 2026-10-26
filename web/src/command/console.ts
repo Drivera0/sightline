@@ -252,6 +252,19 @@ export function nearestTeam(teams: readonly Team[], at: { lat: number; lon: numb
 }
 
 /**
+ * A team already committed: walking to or sweeping a sector of its own (not the hasty search, which it is
+ * pulled from), or on the carry-out. A sighting card never names one (round 3: Send all took Team Four off
+ * the C2 it had just been sent to).
+ */
+export const committed = (t: Team): boolean => t.note === "carry-out" || ((t.status === "assigned" || t.status === "searching") && t.note !== "hasty search");
+
+/** The nearest team to send to a point, a free (uncommitted) one first, else any that can go. */
+export function nearestFree(teams: readonly Team[], at: { lat: number; lon: number }, base: { lat: number; lon: number } | null | undefined, not: readonly string[] = []): { team: Team; m: number } | null {
+  const busy = teams.filter(committed).map((t) => t.id);
+  return nearestTeam(teams, at, base, [...not, ...busy]) ?? nearestTeam(teams, at, base, busy) ?? nearestTeam(teams, at, base, not) ?? nearestTeam(teams, at, base);
+}
+
+/**
  * A radio clue the manager logged without mapping (the guided search's "Log without mapping"): not
  * confirmed, the map unchanged, and no longer waiting for a read-back.
  */

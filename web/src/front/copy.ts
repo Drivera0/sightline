@@ -77,7 +77,7 @@ export const PRINCIPLES = [
 export const ROADMAP_LABEL = "Next";
 export const ROADMAP = [
   "Thermal cameras for night searches",
-  "Direct connection to DJI FlightHub 2 so photos arrive automatically",
+  "Direct connection to the drone maker's cloud so photos arrive automatically",
   "Several drones on one search (try it in the demo)",
   "Runs on an NVIDIA Jetson field kit with no internet",
   "Field trials with a SAR team",

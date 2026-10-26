@@ -34,7 +34,7 @@ export function WatchPanel({ base, missionId }: { base: string; missionId: strin
       <button type="button" className="sl-tap self-start rounded-full border border-border px-3 py-1 text-small text-text-2" onClick={copy}>
         {copied ? "Copied" : "Copy the command"}
       </button>
-      <p className="text-small text-text-3">In production the drone's own cloud upload (DJI FlightHub 2) would post here directly (roadmap).</p>
+      <p className="text-small text-text-3">In production the drone maker's own cloud upload would post here directly (roadmap).</p>
     </Panel>
   );
 }
