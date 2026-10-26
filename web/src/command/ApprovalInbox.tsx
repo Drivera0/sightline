@@ -1,6 +1,8 @@
 // The agent's proposals in Needs You (LANE_E §7.2, E-07; COMMAND_POST.md §5): each waits here for a
-// person, newest on top, with a one-line reason (the rest on a click). Approve (A), Reject (X, needs a
-// one-line reason), Edit before approving (E: the team for an assignment, the briefing text). Decided ones
+// person, newest on top (Needs you asks for oldest first), as one question ("Send Team One to C2?") with a
+// one-line reason (the rest on a click). Approve (A) is a button that says the outcome ("Send Team One to
+// C2"), Reject (X, needs a one-line reason) and Edit before approving (E: the team for an assignment, the
+// briefing text) are smaller. `highlight` rings one card and dims the rest (the guided search). Decided ones
 // leave for the timeline ("Search manager approved agent p003"). An approved briefing goes to the radio's
 // outbound queue; nothing is transmitted from here. Keys act on the focused card only. The person acting is
 // the console's one name (lib/mission operatorName). Built by lane A for lane E (issue #70).
@@ -47,6 +49,36 @@ export function recallSummary(summary: string, liveBatteryPct?: number): string 
     const now = liveBatteryPct === undefined ? "" : `, now ${liveBatteryPct.toFixed(0)}%`;
     return `battery ${at}% at proposal${now}`;
   });
+}
+
+/**
+ * What a proposal asks, as one question, and its Approve button in the words of the outcome ("Send Team One
+ * to C2"): the search manager reads what pressing it does, not "Approve". `team` is the team picked in Edit.
+ */
+export function proposalAsk(p: Proposal, teams: readonly Team[], drones: readonly Drone[] = [], team?: string): { ask: string; action: string } {
+  const callsign = (id: string | undefined) => (id === "all" ? "all teams" : (teams.find((t) => t.id === id)?.callsign ?? id));
+  const droneName = (id: string | undefined) => drones.find((d) => d.id === id)?.name ?? id;
+  const sector = p.target.sector ?? p.leg?.sector_id;
+  const drone = droneName(p.target.drone ?? p.leg?.drone_id);
+  const det = p.target.detection;
+  const fallback = { ask: p.summary, action: "Approve" };
+  switch (p.kind) {
+    case "assign_sector": {
+      const t = callsign(team || p.edits?.team || p.target.team);
+      return t && sector ? { ask: `Send ${t} to ${sector}?`, action: `Send ${t} to ${sector}` } : fallback;
+    }
+    case "drone_leg":
+      return drone && sector ? { ask: `Fly ${drone} over ${sector}?`, action: `Fly ${drone} over ${sector}` } : fallback;
+    case "retask_drone":
+      if (isRecall(p)) return drone ? { ask: `Bring ${drone} back to base now?`, action: `Bring ${drone} home` } : fallback;
+      return drone && sector ? { ask: `Re-task ${drone} to ${sector}?`, action: `Re-task ${drone} to ${sector}` } : fallback;
+    case "promote_detection":
+      return det ? { ask: `Put ${det} in the review queue?`, action: `Add ${det} to review` } : fallback;
+    case "dismiss_detection":
+      return det ? { ask: `Drop ${det} from the review queue?`, action: `Drop ${det}` } : fallback;
+    default:
+      return { ask: p.summary, action: "Acknowledge" };
+  }
 }
 
 /** The fact that grounded the drones, where it came from, and the drone's battery and position. */
@@ -118,7 +150,13 @@ export function ApprovalInbox({
   feedHref,
   clueNote,
   story = null,
+  order = "newest",
+  highlight = null,
 }: {
+  /** Newest first (the inbox on its own), or oldest first (Needs you: what has waited longest on top). */
+  order?: "newest" | "oldest";
+  /** A proposal to point at (the guided search): it is ringed, the others dimmed. Null: none. */
+  highlight?: string | null;
   proposals: readonly Proposal[];
   teams: readonly Team[];
   /** The fleet's drones now (a recall shows the drone's battery and position). */
@@ -133,7 +171,7 @@ export function ApprovalInbox({
   story?: string | null;
 }) {
   const newestFirst = [...proposals].sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
-  const pending = newestFirst.filter((p) => p.status === "pending");
+  const pending = (order === "oldest" ? newestFirst.reverse() : newestFirst).filter((p) => p.status === "pending");
   // the proposals the inbox opened with are not new; one that comes later slides in with a slow ring
   const known = useRef<Set<string> | null>(null);
   if (known.current === null) known.current = new Set(proposals.map((p) => p.id));
@@ -182,6 +220,9 @@ export function ApprovalInbox({
           imageUrl={imageUrl}
           clues={p.kind === "assign_sector" ? clueNoteFor(p.reason, clueNote?.(p) ?? null) : null}
           story={p.id === story}
+          highlighted={highlight === p.id}
+          dimmed={highlight !== null && highlight !== p.id}
+          drones={drones}
           fresh={!known.current?.has(p.id)}
           cardRef={(el) => {
             if (el) cards.current.set(p.id, el);
@@ -203,11 +244,20 @@ function PendingCard({
   clues = null,
   story = false,
   fresh = false,
+  highlighted = false,
+  dimmed = false,
+  drones = [],
   cardRef,
 }: {
   p: Proposal;
   teams: readonly Team[];
   drone?: Drone;
+  /** Every drone (the question names the drone a leg would fly). */
+  drones?: readonly Drone[];
+  /** Pointed at from outside (the guided search): ringed; `data-highlighted`. */
+  highlighted?: boolean;
+  /** Another item is pointed at: this one steps back; `data-dimmed`. */
+  dimmed?: boolean;
   by: string;
   onDecide: Decide;
   imageUrl: (rel: string) => string;
@@ -251,6 +301,7 @@ function PendingCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const ask = proposalAsk(p, teams, drones.length ? drones : drone ? [drone] : [], team);
   return (
     <div
       ref={cardRef}
@@ -261,9 +312,13 @@ function PendingCard({
       data-focused={focused || undefined}
       aria-label={`Proposal ${p.id}`}
       data-proposal={p.id}
+      data-need={p.id}
+      data-need-kind="proposal"
+      data-highlighted={highlighted || undefined}
+      data-dimmed={dimmed || undefined}
       {...(story ? { "data-story-proposal": "" } : {})}
       style={{ ["--c" as string]: "var(--proposal)" }}
-      className={`flex flex-col gap-2 rounded-md border border-line border-l-2 border-l-[var(--proposal)] bg-bg/40 p-2.5 focus:outline focus:outline-[var(--proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused ? "sl-glow-proposal" : ""}`}
+      className={`flex flex-col gap-2 rounded-md border border-line border-l-[3px] border-l-[var(--proposal)] bg-bg/40 p-2.5 transition-opacity focus:outline focus:outline-[var(--proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused || highlighted ? "sl-glow-proposal" : ""} ${dimmed ? "opacity-50" : ""}`}
     >
       <div className="flex items-center gap-2">
         <StatusPill tone="proposal">{kindWords(p)}</StatusPill>
@@ -271,7 +326,8 @@ function PendingCard({
           {p.id}
         </span>
       </div>
-      <span className="text-small font-medium text-text">{isRecall(p) ? recallSummary(p.summary, drone?.battery_pct) : p.summary}</span>
+      <span className="text-body font-medium text-text">{ask.ask}</span>
+      {isRecall(p) && <span className="text-caption text-text-2">{recallSummary(p.summary, drone?.battery_pct)}</span>}
       <AgentNote>
         <p className={open || p.reason.length <= REASON_SHORT ? "" : "line-clamp-2"}>{p.reason}</p>
         {p.reason.length > REASON_SHORT && (
@@ -350,17 +406,24 @@ function PendingCard({
         </form>
       )}
       <div className="flex flex-wrap items-center gap-1.5">
-        <button type="button" onClick={approve} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full border border-accent bg-accent/15 px-3 text-small text-text">
-          Approve <KeyHint>A</KeyHint>
+        {/* the primary action says its outcome; "Approve" is in its name for screen readers and the A key */}
+        <button
+          type="button"
+          onClick={approve}
+          data-primary=""
+          className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
+        >
+          <span className="sr-only">Approve: </span>
+          <span className="truncate">{ask.action}</span> <KeyHint>A</KeyHint>
         </button>
         {!rejecting && (
-          <button type="button" onClick={() => setRejecting(true)} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full border border-border px-3 text-small text-text-2">
+          <button type="button" onClick={() => setRejecting(true)} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-caption text-text-2 hover:bg-surface hover:text-text">
             Reject <KeyHint>X</KeyHint>
           </button>
         )}
         {canEdit && (
-          <button type="button" aria-pressed={editing} onClick={() => setEditing(!editing)} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full border border-border px-3 text-small text-text-2">
-            Edit <KeyHint>E</KeyHint>
+          <button type="button" aria-pressed={editing} onClick={() => setEditing(!editing)} className="sl-tap inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-caption text-text-2 hover:bg-surface hover:text-text aria-pressed:text-text">
+            {p.kind === "assign_sector" ? "Edit team or briefing" : "Edit briefing"} <KeyHint>E</KeyHint>
           </button>
         )}
       </div>

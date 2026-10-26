@@ -18,6 +18,8 @@ export const ICONS = {
   note: { d: ["M12 11v5.5", "M12 7.6v.1"], c: [[12, 12, 8.5]] },
   speaker: { d: ["M4 9.5h3.5L12 5.5v13l-4.5-4H4z", "M15.5 9a4.2 4.2 0 0 1 0 6", "M18.2 6.5a7.8 7.8 0 0 1 0 11"], c: [] },
   mute: { d: ["M4 9.5h3.5L12 5.5v13l-4.5-4H4z", "M16 9.5l5 5", "M21 9.5l-5 5"], c: [] },
+  /** A drag handle: the card can be dragged (a T-card onto a sector on the map). */
+  grip: { d: [], c: [[9, 6, 1.2], [15, 6, 1.2], [9, 12, 1.2], [15, 12, 1.2], [9, 18, 1.2], [15, 18, 1.2]] },
 } as const satisfies Record<string, { d: readonly string[]; c: readonly (readonly [number, number, number])[] }>;
 
 export type IconName = keyof typeof ICONS;

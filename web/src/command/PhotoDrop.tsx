@@ -12,7 +12,7 @@ import { uploadPhotos, type Api } from "../lib/api";
 import { cacheUrl } from "../lib/cache";
 import { footprintRadiusM, readPose, type PhotoPose } from "../lib/exif";
 import { DRONE_POD, useMission } from "../lib/mission";
-import type { ReviewCard } from "../review/LiveReview";
+import { DETECTOR_BROWSER, type ReviewCard } from "../review/LiveReview";
 import { cellsWithinRadius } from "../search/update";
 import { Button } from "../shell/components";
 import { Icon } from "../shell/icons";
@@ -83,7 +83,7 @@ export async function processDemoPhotos(items: readonly Item[], threshold: numbe
           const lat = pose.lat - south / M_PER_DEG;
           const lon = pose.lon + east / (M_PER_DEG * Math.cos((pose.lat * Math.PI) / 180));
           const id = `${it.name.replace(/\.[^.]+$/, "")}-d${String(i + 1).padStart(2, "0")}`;
-          cards.push({ id, conf: d.conf, crop: crop(bitmap, d.box), frame: `Dropped photo ${it.name}`, words: null, note: "Ranked in this browser by the same detector; placed from the photo's EXIF." });
+          cards.push({ id, conf: d.conf, crop: crop(bitmap, d.box), frame: `Dropped photo ${it.name}`, words: null, detector: DETECTOR_BROWSER, note: "Ranked in this browser by the same detector; placed from the photo's EXIF." });
           at[id] = { lat, lon, photo: it.name, conf: d.conf };
           store.emit("detection.new", `${id} in the review queue`, id, { id, box_px: d.box, conf: d.conf, crop: null, lat, lon, radius_m: 10 });
         });

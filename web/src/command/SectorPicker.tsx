@@ -70,7 +70,14 @@ export function SectorPicker({
   }, [onClose]);
   return (
     <div ref={box} role="group" aria-label={`Task ${name}`} className="sl-slide-in flex flex-col gap-1 rounded-md border border-border bg-surface-solid p-1.5">
-      <p className="px-1 text-caption text-text-3">Send {name} to… (or click a sector on the map)</p>
+      <p className="px-1 text-caption text-text-2">
+        {kind === "team" ? `Send ${name} to:` : `Fly ${name} over:`} <span className="text-text-3">tap a row, or click a sector on the map</span>
+      </p>
+      <p aria-hidden className="flex gap-2 px-1.5 text-caption text-text-3">
+        <span className="w-12">Sector</span>
+        <span className="w-12">POA</span>
+        <span>state</span>
+      </p>
       <ul className="flex flex-col">
         {shown.map((r) => (
           <li key={r.sector}>
@@ -80,7 +87,7 @@ export function SectorPicker({
               onClick={() => onPick(r.sector)}
               className={`sl-tap flex w-full items-center gap-2 rounded-sm px-1.5 py-1 text-left text-small hover:bg-surface-strong ${r.pick ? "shadow-[inset_2px_0_0_var(--proposal)]" : ""}`}
             >
-              <span className="w-8 font-medium text-text">{r.sector}</span>
+              <span className="w-12 font-medium text-text">{r.sector}</span>
               <span className="sl-num w-12 text-text">{pct(r.poa)}</span>
               <span className="min-w-0 flex-1 truncate text-caption text-text-3">{r.state}</span>
               {r.pick && <span className="shrink-0 rounded-full bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-1.5 text-caption text-[var(--proposal)]">Agent's pick</span>}

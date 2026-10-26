@@ -25,6 +25,8 @@ export interface ConsoleState {
   sector: { id: string; x: number; y: number } | null;
   /** Task mode: the next sector clicked on the map goes to this team or drone. */
   picking: { kind: "team" | "drone"; id: string } | null;
+  /** A T-card being dragged toward the map: the map outlines the sector under it and says what a drop does. */
+  dragging: { kind: "team" | "drone"; id: string } | null;
   filter: Filter;
   /** The talk bar's recipient (a team id). */
   talkTo: string | null;
@@ -44,6 +46,7 @@ export interface ConsoleState {
   openSector: (id: string, x: number, y: number) => void;
   closeSector: () => void;
   pick: (p: ConsoleState["picking"]) => void;
+  drag: (d: ConsoleState["dragging"]) => void;
   setFilter: (f: Filter) => void;
   /** Address the talk bar to a team and put the cursor there. */
   talk: (team: string, draft?: string) => void;
@@ -58,7 +61,7 @@ export interface ConsoleState {
   reset: () => void;
 }
 
-const INITIAL = { sector: null, picking: null, filter: savedFilter(), talkTo: null, talkFocus: 0, talkDraft: "", tab: "map" as PhoneTab,
+const INITIAL = { sector: null, picking: null, dragging: null as ConsoleState["dragging"], filter: savedFilter(), talkTo: null, talkFocus: 0, talkDraft: "", tab: "map" as PhoneTab,
   focus: null as Focus | null,
   review: { open: false, id: null as string | null },
   clue: { open: false, at: null as { lat: number; lon: number } | null, n: 0 },
@@ -70,6 +73,7 @@ export const useConsole = create<ConsoleState>((set) => ({
   openSector: (id, x, y) => set({ sector: { id, x, y } }),
   closeSector: () => set({ sector: null }),
   pick: (picking) => set({ picking, sector: null }),
+  drag: (dragging) => set({ dragging }),
   setFilter: (filter) => {
     try {
       globalThis.localStorage?.setItem(FILTER_KEY, filter);

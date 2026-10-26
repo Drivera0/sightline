@@ -133,16 +133,30 @@ four regions, every action logged to one timeline.
   shrinks), flyability as one word with its gate time (the reason on hover, the Conditions panel behind `W`),
   people out, found or not, clues; the demo's scenario menu and the clock on the right. It replaces the
   conditions row and the KPI sentence.
-- **Resources** (`Resources.tsx`, left): a T-card per team (status, sector, "heard N min" from its last radio
-  turn or check-in, amber near the check-in interval and red past it, back in ~N min) and per drone (battery,
-  link, leg n/m); Call (addresses the talk bar), Task (pick a sector on the map), Recall. Most overdue first.
-  Drag a card onto a sector to assign. The sectors by POA fold below.
+- **Resources** (`Resources.tsx`, left, the full height beside the map and the timeline): a summary line
+  ("4 teams: 1 free · 1 assigned · 2 searching", "3 drones: 3 flying", `resourceSummary`), then a compact
+  T-card row per team (a left bar in its status colour, status and sector in words, "heard N min" from its
+  last radio turn or check-in, amber near the check-in interval and red past it, back in ~N min) and per drone
+  (status and sector, battery, link, leg n/m). Each row has one primary action in words: **Assign to
+  sector…** (a team at base; **Reassign…** for one out) or **Fly a leg…** (a drone), which opens the sector
+  list under it (`SectorPicker.tsx`: the agent's pick first, POA shown, a tap assigns; or click a sector on
+  the map); Call, Recall and Record find are smaller. Rows carry a drag handle and the hint "Drag a row onto a
+  sector, or press Assign": while a row is dragged (`consoleStore.dragging`) the map outlines the sector under
+  the pointer and says "Drop Team Two on a sector to assign it"; a drone dropped on a sector flies a leg there.
+  Most overdue first. The sectors by POA follow. All four teams and three drones show at 1440 × 900.
 - **Map** (centre, about 55 % of 1440 px): click a sector for its popover (`SectorPopover.tsx`: assign any
   team, the agent's pick first; send a drone leg; mark searched at a POD of at most 90 %; recheck; record the
   find). Base camp, one icon set, only the active leg solid. The scrubber shows only inside the story.
-- **Needs you** (`NeedsYou.tsx`, right): decisions only. The agent's proposals (`ApprovalInbox.tsx`, a
-  one-line reason, A/X/E), candidates to review (the review queue lives here now), teams past their
-  check-in, clues awaiting read-back, a live radio's briefings to send (`RadioLink.tsx`). Once
+- **Needs you** (`NeedsYou.tsx`, right): decisions only, grouped by kind under a head in the kind's colour
+  with its count, most urgent first: a team reporting the subject, teams past their check-in, the agent's
+  proposals (`ApprovalInbox.tsx`, oldest first), clues awaiting read-back, a live radio's briefings to send
+  (`RadioLink.tsx`), then the candidates to review. Each item is one question ("Send Team One to C2?",
+  `proposalAsk`) with one primary button that says the outcome ("Send Team One to C2", A; "Call Team Three";
+  "Confirm clue"; "Record find in C2"), the rest smaller (Reject X, Edit team or briefing E, Recall, Reply).
+  For the guided search: `highlight` (a need id: a proposal's id, `overdue-<team>`, `clue-<clue>`,
+  `turn-<turn>`, `report-<team>`, `review`) rings that item (`data-highlighted`) and dims the rest
+  (`data-dimmed`); every item carries `data-need` and `data-need-kind`, and `ApprovalInbox` takes
+  `highlight` and `order` too. Once
   `Mission.status` is `found`, pending proposals and candidates are closed: one row, "16 items closed at
   15:00, subject found", expands to them (each "closed: subject found"); the header and the Map tab's count
   stop counting them. Overdue teams and read-backs stay, and every direct action still works.
@@ -230,8 +244,15 @@ heat-tween-1..3; 1440 and 390):
   (`map/base/onePopup.ts`).
 - **Review frame** (`ReviewFrame.tsx`): when candidates arrive where there were none, a toast says how many and
   the first opens large (outside the guided story): the photo with the box, the crop, the AI second look, P/N/U,
-  moving on by itself. The second look is a button with its two model chips, a progress state and the result
-  inline (`review/SecondLook.tsx`).
+  moving on by itself. The second look (`review/SecondLook.tsx`) says what it does, runs from one button
+  (Run AI second look) with its model chips and its two steps, then shows the verdict first ("Likely a
+  person", `verdictHead`), its details (2 people · standing · red jacket…), the detector's crop beside the
+  OpenCV 5 image the VL model saw, each step with what it said (`secondLookSteps`: the OpenCV 5 cv2.dnn
+  detector's score and the review line, each OpenCV 5 re-look tool, Nemotron VL's answer and reason) and the
+  time; only the verdict's own fields, no invented scores. The detector score carries what made it
+  (`DetectorScore`: "OpenCV 5 · cv2.dnn 0.17" on the survey's and a live mission's candidates, "ONNX Runtime
+  Web" on dropped photos, no name on a distractor whose box was placed by hand); the demo cache re-detects
+  identically on cv2.dnn (`docs/LANE_A_ML.md`). Rail cards with no second look say so in one line.
 - **Timeline**: 20 rem by default, a handle to resize it (remembered), readable rows, a remembered filter with
   counts, Add clue in its header; right-click or long-press the map adds a clue there (what, who reported,
   reliability); the first radio call brings a one-time hint.
