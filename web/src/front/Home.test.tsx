@@ -208,7 +208,7 @@ describe("the home page", () => {
     expect(within(about).getByRole("heading", { name: ABOUT.who })).toBeInTheDocument();
     expect(about).toHaveTextContent("Daniel Rivera");
     // the BCS Hackathon team that built the first version, each linked to their GitHub profile
-    expect(about).toHaveTextContent("Daniel Rivera, Grace Chu (@bamobam), Harvir Nijjar (@har-vir) and Jason Kim (@jkiim). We built the first version together at BCS Hackathon 2026");
+    expect(about).toHaveTextContent("Daniel Rivera (@Drivera0), Grace Chu (@bamobam), Harvir Nijjar (@har-vir) and Jason Kim (@jkiim). We built the first version together at BCS Hackathon 2026");
     for (const m of BCS_TEAM) expect(within(about).getByRole("link", { name: `@${m.handle}` })).toHaveAttribute("href", `https://github.com/${m.handle}`);
     for (const e of ENTRIES) expect(within(about).getByRole("link", { name: e.name })).toBeInTheDocument();
     for (const c of COLOURS) expect(about).toHaveTextContent(c.label);

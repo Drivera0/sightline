@@ -122,7 +122,7 @@ and the guided simulation's find comes from seeded draws at the sector's POD, pr
 
 ## 8. History
 
-Sightline began at **BCS Hackathon 2026**, where Daniel Rivera, Grace Chu ([@bamobam](https://github.com/bamobam)), Harvir Nijjar ([@har-vir](https://github.com/har-vir)) and Jason Kim ([@jkiim](https://github.com/jkiim)) built it together (Oct 16–17, 36 hours, tag
+Sightline began at **BCS Hackathon 2026**, where Daniel Rivera ([@Drivera0](https://github.com/Drivera0)), Grace Chu ([@bamobam](https://github.com/bamobam)), Harvir Nijjar ([@har-vir](https://github.com/har-vir)) and Jason Kim ([@jkiim](https://github.com/jkiim)) built it together (Oct 16–17, 36 hours, tag
 `bcs-final-submission`) as a batch tool: the tiled detector, the review queue and the Bayesian search map,
 run once over a 500-frame demo survey and played back in the browser with no server. For the OpenCV AI
 Competition 2026 and the Nebius × NVIDIA hackathon it became a live system: the detector moved to OpenCV 5
