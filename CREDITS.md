@@ -1,6 +1,6 @@
 # Credits
 
-Sightline was built by Daniel Rivera, Grace Chu ([@bamobam](https://github.com/bamobam)), Harvir Nijjar ([@har-vir](https://github.com/har-vir)) and Jason Kim ([@jkiim](https://github.com/jkiim)): the four of us built the first version together at BCS Hackathon 2026, and it has been extended since for the OpenCV and Nebius hackathons; development used Claude Code (Anthropic) as an AI coding assistant (README, Credits).
+Sightline was built by Daniel Rivera ([@Drivera0](https://github.com/Drivera0)), Grace Chu ([@bamobam](https://github.com/bamobam)), Harvir Nijjar ([@har-vir](https://github.com/har-vir)) and Jason Kim ([@jkiim](https://github.com/jkiim)): the four of us built the first version together at BCS Hackathon 2026, and it has been extended since for the OpenCV and Nebius hackathons; development used Claude Code (Anthropic) as an AI coding assistant (README, Credits).
 Third-party media in this repository, with where each came from and its licence, is below. The code's own
 licence is in `LICENSE`.
 

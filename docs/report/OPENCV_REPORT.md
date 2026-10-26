@@ -3,7 +3,7 @@
 **OpenCV AI Competition 2026 · technical report · code freeze Sun Oct 25, 12:00 PT**
 
 > Every number comes from a file in the repo or a cited source; anything simulated is labelled
-> simulated, and what I could not verify is marked. Built by Daniel Rivera, Grace Chu (@bamobam), Harvir Nijjar (@har-vir) and Jason Kim (@jkiim): we built the first version together at BCS Hackathon 2026, and it has been extended since for this hackathon; development used Claude Code (Anthropic) as an AI coding assistant (§11.4). Every claim, its file and line, and how to regenerate it: [`EVIDENCE_INDEX.md`](EVIDENCE_INDEX.md).
+> simulated, and what I could not verify is marked. Built by Daniel Rivera (@Drivera0), Grace Chu (@bamobam), Harvir Nijjar (@har-vir) and Jason Kim (@jkiim): we built the first version together at BCS Hackathon 2026, and it has been extended since for this hackathon; development used Claude Code (Anthropic) as an AI coding assistant (§11.4). Every claim, its file and line, and how to regenerate it: [`EVIDENCE_INDEX.md`](EVIDENCE_INDEX.md).
 
 Repository: https://github.com/Drivera0/sightline (tag `opencv-submit`) · Live demo:
 https://sightline-iota-sandy.vercel.app (the home page: **Try the guided simulation**, then **Start the simulation** on a scenario card, `#m/demo?s=<seed>&guide=1`; the Debrief's list for judges is `#m/demo?t=6&judges`, where the old `#judges` redirects) · Live
@@ -1106,7 +1106,7 @@ bash deploy/aws/cool/cool.sh launch                          # §15, COOL on Gra
 
 ## 13. What changed since BCS
 
-Our team of four, Daniel Rivera, Grace Chu ([@bamobam](https://github.com/bamobam)), Harvir Nijjar ([@har-vir](https://github.com/har-vir)) and Jason Kim ([@jkiim](https://github.com/jkiim)), built the first version of Sightline together in 36 hours at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`). Everything this section lists was added since:
+Our team of four, Daniel Rivera ([@Drivera0](https://github.com/Drivera0)), Grace Chu ([@bamobam](https://github.com/bamobam)), Harvir Nijjar ([@har-vir](https://github.com/har-vir)) and Jason Kim ([@jkiim](https://github.com/jkiim)), built the first version of Sightline together in 36 hours at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`). Everything this section lists was added since:
 the tiled detector, the review queue and the Bayesian search map, run as a batch over a demo survey.
 The OpenCV organizers confirmed the existing project is eligible. Built for this competition between Oct 20 and the code freeze on Sun Oct 25, 12:00 PT:
 
