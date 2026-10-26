@@ -130,9 +130,13 @@ export function freshEvents(seen: ReadonlySet<string> | null, events: readonly M
 
 /**
  * Watch the mission's events: each new one that is news becomes a toast. `onHint`: the first radio call
- * that lands on this console, once per browser, gets the "add a clue" hint.
+ * that lands on this console, once per browser, gets the "add a clue" hint. `quiet` (the guided search,
+ * whose coach bar says each row as it lands and whose decision is in one place): nothing is pushed, but
+ * what was seen is kept, so leaving it brings no burst.
  */
-export function useEventToasts(events: readonly MissionEvent[], teams: readonly Team[], waiting: number, proposals: readonly Proposal[] = []): void {
+export function useEventToasts(events: readonly MissionEvent[], teams: readonly Team[], waiting: number, proposals: readonly Proposal[] = [], quiet = false): void {
+  const quietRef = useRef(quiet);
+  quietRef.current = quiet;
   const proposalsRef = useRef(proposals);
   proposalsRef.current = proposals;
   const seen = useRef<Set<string> | null>(null);
@@ -141,7 +145,7 @@ export function useEventToasts(events: readonly MissionEvent[], teams: readonly 
   useEffect(() => {
     const fresh = freshEvents(seen.current, events);
     seen.current = new Set(events.map((e) => e.id));
-    if (!fresh) return;
+    if (!fresh || quietRef.current) return;
     const push = useNotify.getState().push;
     for (const e of fresh) {
       const t = toastFor(e, teamsRef.current);
@@ -159,7 +163,7 @@ export function useEventToasts(events: readonly MissionEvent[], teams: readonly 
   useEffect(() => {
     const was = before.current;
     before.current = waiting;
-    if (was !== null && waiting > was) useNotify.getState().push(reviewToast(waiting));
+    if (was !== null && waiting > was && !quietRef.current) useNotify.getState().push(reviewToast(waiting));
   }, [waiting]);
 }
 

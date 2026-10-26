@@ -95,7 +95,8 @@ export function storyClock(s: Pick<StoryState, "t" | "progress"> & { guide?: Gui
   return clockAt(s.t, s.progress);
 }
 
-// ---- The guided search (`?guide=1`, guide.ts): its own clock, which waits at every decision ----
+// ---- The guided search (`?guide=1`, guide.ts): its own clock, which waits at every decision and plays
+// the time between them as a time-lapse ----
 
 export interface GuideState {
   /** The mission clock (ms). It runs toward the next decision and stops there until it is made. */
@@ -110,10 +111,13 @@ export interface GuideState {
   ended: boolean;
   /** The decision on screen (its choice key) and when it was shown (wall clock, ms): the end screen's decision time. */
   shown?: { key: string; at: number } | null;
+  /** The time-lapse's speed between decisions (1×, 2×, 4×). */
+  speed: Speed;
 }
 
-/** Mission minutes per real second while the guided clock runs (an hour in ten seconds). */
-export const GUIDE_RATE = 360;
+/** The time-lapse's speeds (the coach bar's 1× 2× 4×). */
+export const SPEEDS = [1, 2, 4] as const;
+export type Speed = (typeof SPEEDS)[number];
 
 export const useGuide = create<{
   guide: GuideState | null;
@@ -122,13 +126,15 @@ export const useGuide = create<{
   setClock: (ms: number) => void;
   pause: (paused?: boolean) => void;
   setWatch: (watch: boolean) => void;
+  setSpeed: (speed: Speed) => void;
   choose: (c: Choice) => void;
   /** A decision is on screen (its choice key): stamps when, once, for the decision time. */
   show: (key: string) => void;
   end: () => void;
 }>((set, get) => ({
   guide: null,
-  start: (opts = {}) => set({ guide: { clock: new Date(CHECKPOINTS[0]!.at).getTime(), paused: false, watch: !!opts.watch, choices: [], ended: false } }),
+  // a new run from the call: nothing of the last one but the speed the visitor picked
+  start: (opts = {}) => set({ guide: { clock: new Date(CHECKPOINTS[0]!.at).getTime(), paused: false, watch: !!opts.watch, choices: [], ended: false, speed: get().guide?.speed ?? 1 } }),
   stop: () => set({ guide: null }),
   setClock: (ms) => {
     const g = get().guide;
@@ -141,6 +147,10 @@ export const useGuide = create<{
   setWatch: (watch) => {
     const g = get().guide;
     if (g) set({ guide: { ...g, watch } });
+  },
+  setSpeed: (speed) => {
+    const g = get().guide;
+    if (g) set({ guide: { ...g, speed } });
   },
   choose: (c) => {
     const g = get().guide;
@@ -161,13 +171,43 @@ export const useGuide = create<{
 }));
 
 /**
- * The guided clock's next reading: `step` ms of real time on from `clock`, at GUIDE_RATE, never past
- * `hold` (the next decision, on the mission clock). Reduced motion: straight to the hold.
+ * The time-lapse between two decisions: the run from one to the next takes 6–10 s at 1× whatever its
+ * length in mission minutes (0.15 s a mission minute, held to that range), and the clock stops at each
+ * timeline row on the way for a moment (dwellMs, shared out so a run takes about 8–12 s in all) so
+ * the visitor sees what happened and when. Under reduced motion there is no run: the clock steps from
+ * row to row.
  */
-export function guideStep(clock: number, hold: number | null, stepMs: number, reduced = false): number {
-  if (hold === null) return clock;
-  if (clock >= hold) return clock;
-  return reduced ? hold : Math.min(hold, clock + stepMs * GUIDE_RATE);
+export const LAPSE = { secPerMin: 0.15, minS: 6, maxS: 10, dwellMs: 800, dwellTotalMs: 2000 } as const;
+
+export interface Lapse {
+  /** Where the run started and the decision it stops at (mission clock, ms). */
+  from: number;
+  hold: number;
+  /** When each timeline row on the way lands (mission clock, ms), in order. */
+  beats: readonly number[];
+}
+
+/** Mission ms per real ms for a run at 1×. */
+export function lapseRate(l: Pick<Lapse, "from" | "hold">): number {
+  const span = Math.max(0, l.hold - l.from);
+  const s = Math.max(LAPSE.minS, Math.min(LAPSE.maxS, (span / 60_000) * LAPSE.secPerMin));
+  return span / (s * 1000);
+}
+
+/** How long the clock stays on each row of a run (real ms at 1×). */
+export const dwellFor = (l: Pick<Lapse, "beats">): number => Math.min(LAPSE.dwellMs, LAPSE.dwellTotalMs / Math.max(1, l.beats.length));
+
+/**
+ * The guided clock's next reading: `dt` ms of real time on from `clock` at the run's rate times `speed`,
+ * stopped at the next row on the way (`beat`: the caller holds it there for dwellFor), never past the hold.
+ * Reduced motion: straight to the next row (or the hold).
+ */
+export function lapseStep(clock: number, l: Lapse, dt: number, speed = 1, reduced = false): { clock: number; beat: boolean } {
+  if (clock >= l.hold) return { clock, beat: false };
+  const next = l.beats.find((b) => b > clock && b < l.hold);
+  const to = reduced ? (next ?? l.hold) : Math.min(l.hold, clock + dt * lapseRate(l) * speed);
+  if (next !== undefined && to >= next) return { clock: next, beat: true };
+  return { clock: to, beat: false };
 }
 
 /** The landing: t0 with the pitch bar. */

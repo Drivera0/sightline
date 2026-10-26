@@ -119,7 +119,7 @@ cache (`/cache/demo`). Screenshots: `docs/report/figures/one-console/`.
 The first bundle holds the shell and the console; MapLibre, the Trace view, the radio desk, the Debrief (and its
 charts), About, Try a photo and the assignment card are their own chunks (`React.lazy`). The demo console appears
 whole once its fixtures and recorded conditions are in (nothing moves as they arrive), and the map mounts after
-that frame has painted (`afterPaint` in `ingest/LiveMission.tsx`), or when the About sheet over it closes.
+that frame has painted (`afterPaint` in `ingest/LiveMission.tsx`). About is a section of the home page now (`#about` scrolls there), not a sheet over the console.
 Before/after scores: `docs/report/figures/audit/`.
 
 
@@ -198,9 +198,29 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
   pick a sector on the map), Link (let the drone finish its leg, or divert another as a relay), Wind (only
   when the scenario's agent proposes a recall: none of the fixtures do yet), Find. A scenario without drones
   has no Survey or Link. Each option shows what it does and what it costs before the commit; A picks the
-  agent's, 1–4 an option, M the map, T takes over from Watch instead, Space pauses between decisions, Esc
-  leaves. The console's own actions count too (P/N/U in the queue, Approve or Edit on the card, a sector's
+  agent's, 1–4 an option, M the map, T takes over from Watch instead, Space pauses between decisions, →
+  skips ahead to the next one, Esc leaves. The console's own actions count too (P/N/U in the queue, Approve or Edit on the card, a sector's
   popover, Confirm on a read-back, Record the find). Needs you shows the current decision only.
+- **One place to decide** (Dan's review, 2026-10-25): a decision lives where it lives on the real console:
+  the photo's card (P/N/S/O/U), the proposal's main button ("Send Team One to C2") or Edit, Confirm clue on
+  the read-back, a sector on the
+  map, Record find on the team's report in Needs you (`sightingReports` reads the server timeline too). The
+  coach bar names the control, rings it ("Do this first") and focuses its `data-primary` button; it shows buttons only for choices the console
+  has no control for (the serpentine survey, the relay drone, ask for a bearing, log without mapping, ask for
+  a confirmation), with what each costs; `Option.on` marks the others. The keys still work (A, 1–4, M).
+  Needs you keeps its grouping and uses its one pointing system, `highlight` (#219): the step's item (`review`,
+  `clue-<id>`, the proposal's id, `report-<team>`) ringed, every other one `data-dimmed` and out of reach
+  (pointer events off) until its step; "none" between decisions dims them all. No toasts while the run is on (`useEventToasts` `quiet`): the bar says each row.
+- **Time passing** (`story.ts` `lapseStep`): the time between two decisions plays as a time-lapse of 6–10 s
+  at 1× whatever its length (0.15 s a mission minute), stopping up to 0.8 s on each timeline row (2 s shared out in all, so a run takes about 8–12 s) as it
+  lands (the rows read from the mission as it will stand at the next decision, `demoAt` once per run), the
+  clock large on the bar with the row's time and words ("14:05 · Drone 1: leg L001 (sector C2)"), Pause
+  (Space), 1× 2× 4×, Skip ahead (→). Reduced motion: no run, the clock steps row to row. Watch instead uses
+  the same pacing. The clock reads real elapsed time, so a slow frame does not slow the mission.
+- **A new run each time**: arriving at `?guide=1` (a home card's Start, Try another scenario then Start)
+  always starts a new run from the call, with the last run's actions, answers, toasts and flights gone
+  (`storyFromRoute`, `freshConsole` in `ingest/LiveMission.tsx`); before, a finished run on the same seed
+  opened again at its end screen (held in `ingest.test.tsx`).
 - **The consequence model** (`sim.ts`, `missionTime.ts` `guidedAt` and `simulate`): the fixtures' own
   manager steps aside (its decisions, the teams' moves and the find are filtered out), the subject's
   position is the scenario's find, and a team the manager sends walks out (6 min) and sweeps its sector
@@ -222,8 +242,9 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
   trace has no latency for the agent's proposals, so it says they came as the data landed), each decision
   with its clock cost, and a one-line verdict; Try again, Follow the agent this time, Another scenario.
   The detail above sits under "Show the details". No no-agent baseline yet (sim.ts has none).
-- **On screen** (`GuideRun.tsx`, mounted by `ingest/LiveMission.tsx`): `GuideMark` in `CoachMark.tsx`
-  ("Your call": amber ring, options, clock paused; "Watch this": progress bar, clock running) and
+- **On screen** (`GuideRun.tsx`, mounted by `ingest/LiveMission.tsx`): `GuideMark` in `CoachMark.tsx`, a
+  coach bar along the top of the map, never over Needs you ("Your call": "Step 2 of 6 · Triage", where to
+  act, the agent's reason, an amber ring on the real control, clock paused; "Watch this": the time-lapse) and
   `GuideStrip` in `Scrubber.tsx` (the decisions with a check on each one made, a live region for screen
   readers). Phones get the same flow with the mark as a bottom sheet.
 - **Not yet:** the counterfactual is computed live from the same engine, not from an offline decision tree;

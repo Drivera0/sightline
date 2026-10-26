@@ -1,5 +1,6 @@
 // The guided search's mark on the real console (driver.js's pattern, hand-rolled: no dependency): a ring
-// around the region a decision is about and a card beside it. A mark names its element by a CSS selector,
+// around the real control a decision is about, and a coach bar along the top of the map that says where to
+// act (never a second set of the console's buttons). A mark names its element by a CSS selector,
 // or by several in order of preference (the card it is about, else its panel); a selector that starts with
 // "group:" rings its first few matches together (two cards, a call and its clue). The old step-through
 // story's marks are gone: the walk-through is the guided search (GuideMark, below).
@@ -205,7 +206,7 @@ function useTargetBox(target: Target): { box: Box | null; avoid: Box[]; view: { 
   return { box, avoid, view, anchor };
 }
 
-// ---- The guided search's mark (guide.ts): "Your call" or "Watch this", never both ----
+// ---- The guided search's coach bar (guide.ts): "Your call" or "Watch this", never both ----
 
 export interface GuideOption {
   key: string;
@@ -214,25 +215,57 @@ export interface GuideOption {
   effect: string;
   costMin: number;
   agent?: boolean;
+  /** The console's own control that does it (guide.ts Option.on): no button here, the key still works. */
+  on?: string;
 }
 
+/** Where the coach bar sits on a desktop: along the top of the map, clear of its legend; null on a phone. */
+function useMapAnchor(): Box | null {
+  const [box, setBox] = useState<Box | null>(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = document.querySelector<HTMLElement>("#console-map");
+      const r = el?.getBoundingClientRect();
+      const next = r && window.innerWidth >= 640 && r.width >= 360 && r.top >= 0 && r.top < window.innerHeight - 160 ? { top: r.top, left: r.left, width: r.width, height: r.height } : null;
+      setBox((b) => (b && next && b.top === next.top && b.left === next.left && b.width === next.width && b.height === next.height ? b : next));
+    };
+    measure();
+    const id = window.setInterval(measure, 250);
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, []);
+  return box;
+}
+
+/** The coach bar's width on the map: room for the legend on the left. */
+export const barWidth = (mapWidth: number) => Math.max(320, Math.min(560, mapWidth - 240));
+
 /**
- * The guided search's card on the console. "Your call": an amber ring that pulses on the region the
- * decision is about, the clock paused, the options with what each costs before the commit (keys 1–4, A
- * the agent's, M a sector on the map). "Watch this": no ring, a thin progress bar, the clock running
- * (Space pauses). "Watch instead" plays the agent's line; T takes over at the next decision. Esc leaves.
+ * The guided search's coach bar, along the top of the map (a bottom sheet on a phone): it never covers
+ * Needs you, and it holds no button the console already has. "Your call": the step ("Step 2 of 6 ·
+ * Triage"), one line saying where to act, the agent's reason, an amber ring and "Do this first" on the
+ * real control (the card's Approve, Confirm on the read-back, the photo's answers), the clock paused;
+ * buttons only for the choices the console has no control for (a serpentine survey, a relay drone), with
+ * what each costs. The keys work either way: A the agent's option, 1–4 an option, M a sector on the map.
+ * "Watch this": the time-lapse to the next decision, the mission clock large, the row that just landed,
+ * Pause (Space), the speed and Skip ahead (→). "Watch instead" plays the agent's line; T takes over. Esc
+ * leaves.
  */
 export function GuideMark({
   mode,
   heading,
   text,
   target,
-  agentSays,
-  image,
+  why,
   options = [],
+  answers,
   onPick,
   onMap,
-  progress,
   status,
   watching,
   onWatch,
@@ -240,21 +273,29 @@ export function GuideMark({
   paused,
   onPause,
   onExit,
+  clock,
+  caption,
+  progress,
+  speed = 1,
+  speeds = [1, 2, 4],
+  onSpeed,
+  onSkip,
 }: {
   mode: "call" | "watch";
-  /** "Decision 2 of 6 · Triage, 1 of 3". */
+  /** "Step 2 of 6 · Triage, 1 of 3". */
   heading: string;
+  /** Your call: where and how to act. Watch this: what leads to the next decision. */
   text: string;
   target: Target;
-  agentSays?: string;
-  image?: { src: string; alt: string };
+  /** The agent's reason, in one line. */
+  why?: string;
   options?: readonly GuideOption[];
+  /** What each of the card's answers does (triage), folded under the line. */
+  answers?: readonly { key: string; label: string; effect: string; costMin: number }[];
   onPick?: (id: string) => void;
   /** M: pick on the map. */
   onMap?: () => void;
-  /** Watch this: 0..1 of the way to the next decision. */
-  progress?: number;
-  /** One line under the options ("Agent's choice: …"). */
+  /** One line under the rest ("Agent's choice: …"). */
   status?: string;
   watching: boolean;
   onWatch: () => void;
@@ -262,15 +303,34 @@ export function GuideMark({
   paused: boolean;
   onPause: () => void;
   onExit: () => void;
+  /** Watch this: the mission clock as it reads ("14:05"), the row that just landed, 0..1 of the way. */
+  clock?: string;
+  caption?: string | null;
+  progress?: number;
+  speed?: number;
+  speeds?: readonly number[];
+  onSpeed?: (speed: number) => void;
+  onSkip?: () => void;
 }) {
-  const { box, avoid, view } = useTargetBox(target);
+  const call = mode === "call";
+  const { box, view } = useTargetBox(call ? target : []);
+  const anchor = useMapAnchor();
   const card = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLButtonElement>(null);
-  const call = mode === "call";
+  const own = options.filter((o) => !o.on);
+  const agent = options.find((o) => o.agent);
 
-  // focus moves to the decision
+  // the agent's choice is on the console (the card's Approve, Confirm): that is the one to do first
+  const onConsole = own.length === 0 || !!agent?.on;
+  // focus moves to the decision: the real control's, else the bar's first button
   useEffect(() => {
-    if (call) (first.current ?? card.current)?.focus({ preventScroll: true });
+    if (!call) return;
+    if (first.current && !onConsole) return first.current.focus({ preventScroll: true });
+    const el = findTarget(target);
+    // the item's main button (Needs you's `data-primary`: "Send Team One to C2", "Confirm clue"), else Person
+    const btn = el ? (el.querySelector<HTMLButtonElement>("button[data-primary]") ?? [...el.querySelectorAll<HTMLButtonElement>("button")].find((b) => /^(Person|Record find|Confirm)\b/.test(b.textContent?.trim() ?? ""))) : null;
+    (btn ?? card.current)?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [call, text]);
 
   useEffect(() => {
@@ -279,20 +339,23 @@ export function GuideMark({
       const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
       if (k === "Escape") onExit();
       else if (k === "T" && watching) onTakeOver();
-      else if (k === " " && !(e.target instanceof HTMLButtonElement)) onPause();
-      else if (call && !watching && k === "A" && options.some((o) => o.agent)) onPick?.(options.find((o) => o.agent)!.id);
+      else if (k === " " && !call && !(e.target instanceof HTMLButtonElement)) onPause();
+      else if (k === "ArrowRight" && !call && onSkip) onSkip();
+      else if (call && !watching && k === "A" && agent) onPick?.(agent.id);
       else if (call && !watching && k === "M" && onMap) onMap();
       else if (call && !watching && options.some((o) => o.key === k && k !== "M")) onPick?.(options.find((o) => o.key === k)!.id);
       else return;
       e.preventDefault();
       e.stopImmediatePropagation();
     };
-    // capture: the review queue's own keys (P/N/U) and the view keys (1–6) wait while a decision is open
+    // capture: the view keys (1–6) wait while a decision is open; the review card's own keys (P/N/S/O/U) pass
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [call, watching, options, onPick, onMap, onExit, onTakeOver, onPause]);
+  }, [call, watching, options, agent, onPick, onMap, onExit, onTakeOver, onPause, onSkip]);
 
-  const at = placeCard(box, view.w, view.h, card.current?.offsetHeight ?? 220, avoid);
+  const w = anchor ? barWidth(anchor.width) : 0;
+  // the ring's "do this first", unless the decision is in the bar itself (the survey on the map)
+  const tag = call && box && onConsole;
   return (
     <>
       {box && call && (
@@ -303,6 +366,11 @@ export function GuideMark({
           style={{ top: box.top - 4, left: box.left - 4, width: box.width + 8, height: box.height + 8 }}
         />
       )}
+      {tag && box && (
+        <span aria-hidden data-guide-tag className="pointer-events-none fixed z-40 rounded-full bg-caution px-2 py-0.5 text-caption font-medium text-bg shadow" style={{ top: Math.max(4, box.top - 14), right: Math.max(4, view.w - box.left - box.width) }}>
+          Do this first
+        </span>
+      )}
       <div
         ref={card}
         role="dialog"
@@ -310,70 +378,114 @@ export function GuideMark({
         aria-label={call ? `Your call: ${heading}` : `Watch this: ${heading}`}
         data-guide-mark={mode}
         tabIndex={-1}
-        className={`sl-mark fixed z-50 flex flex-col gap-2.5 rounded-lg border bg-surface-solid p-4 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] ${call ? "border-caution/70" : "border-border"} ${at ? "" : "inset-x-3 bottom-3 max-h-[60vh] overflow-y-auto sm:right-auto sm:left-1/2 sm:w-96 sm:-translate-x-1/2 lg:bottom-6"}`}
-        style={at ? { top: at.top, left: at.left, width: CARD_W } : undefined}
+        className={`sl-mark fixed z-50 flex flex-col gap-2 rounded-lg border bg-surface-solid px-3.5 py-3 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] ${call ? "border-caution/70" : "border-border"} ${anchor ? "" : "inset-x-3 bottom-3 max-h-[55vh] overflow-y-auto"}`}
+        style={anchor ? { top: anchor.top + 8, left: anchor.left + (anchor.width - w) / 2, width: w } : undefined}
       >
         <span className="flex items-center gap-2 text-caption">
           <span className={`sl-pill ${call ? "" : "opacity-80"}`} data-tone={call ? "caution" : "neutral"}>
             {call ? "Your call" : "Watch this"}
           </span>
-          <span className="truncate text-text-3">{heading}</span>
-        </span>
-        {image && <img src={image.src} alt={image.alt} className="max-h-48 w-full rounded-md bg-surface-strong object-contain" />}
-        {agentSays && <p className="text-small text-text-2">{agentSays}</p>}
-        <p className="text-body text-text">{text}</p>
-        {call && options.length > 0 && (
-          <div className="flex flex-col gap-1.5" role="group" aria-label="Options">
-            {options.map((o, i) => (
-              <button
-                key={o.id}
-                ref={i === 0 ? first : undefined}
-                type="button"
-                disabled={watching}
-                onClick={() => (o.key === "M" ? onMap?.() : onPick?.(o.id))}
-                className={`sl-tap flex items-start gap-2 rounded-md border px-2.5 py-1.5 text-left disabled:opacity-60 ${o.agent ? "border-accent/60 hover:border-accent" : "border-border hover:border-text-3"}`}
-              >
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-small text-text">
-                    {o.label}
-                    {o.costMin ? <span className="text-caution"> · +{o.costMin} min</span> : null}
-                    {o.agent ? <span className="text-accent-soft"> · agent</span> : null}
-                  </span>
-                  <span className="text-caption text-text-3">{o.effect}</span>
-                </span>
-                <span className="flex shrink-0 gap-1 max-sm:hidden">
-                  {o.agent && <KeyHint>A</KeyHint>}
-                  <KeyHint>{o.key}</KeyHint>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-        {!call && progress !== undefined && (
-          <span aria-hidden className="h-0.5 w-full overflow-hidden rounded-full bg-surface-strong">
-            <span className="block h-full bg-text-3" style={{ width: `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%` }} />
-          </span>
-        )}
-        {status && <p className="text-small text-accent-soft">{status}</p>}
-        <div className="flex flex-wrap items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-text-2">{heading}</span>
           {watching ? (
-            <Button variant="secondary" onClick={onTakeOver}>
+            <button type="button" onClick={onTakeOver} className="sl-tap shrink-0 text-small text-text hover:underline">
               Take over <KeyHint>T</KeyHint>
-            </Button>
+            </button>
           ) : (
-            <Button variant="ghost" onClick={onWatch}>
+            <button type="button" onClick={onWatch} className="sl-tap shrink-0 text-small text-text-2 hover:text-text">
               Watch instead
-            </Button>
+            </button>
           )}
-          {!call && (
-            <Button variant="ghost" onClick={onPause}>
-              {paused ? "Resume" : "Pause"} <KeyHint>Space</KeyHint>
-            </Button>
-          )}
-          <button type="button" onClick={onExit} className="sl-tap ml-auto text-small text-text-3 hover:text-text">
+          <button type="button" onClick={onExit} className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
             Leave <KeyHint>Esc</KeyHint>
           </button>
-        </div>
+        </span>
+        {call ? (
+          <>
+            <p className="text-body font-medium text-text">{text}</p>
+            {why && (
+              <p className="text-small text-text-2">
+                <span className="text-accent-soft">Agent: </span>
+                {why}
+              </p>
+            )}
+            {own.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Options">
+                {onConsole && <span className="w-full text-caption text-text-3">Or, instead:</span>}
+                {own.map((o, i) => (
+                  <button
+                    key={o.id}
+                    ref={i === 0 ? first : undefined}
+                    type="button"
+                    disabled={watching}
+                    title={o.effect}
+                    onClick={() => (o.key === "M" ? onMap?.() : onPick?.(o.id))}
+                    className={`sl-tap flex min-w-0 flex-1 basis-48 items-start gap-2 rounded-md border px-2.5 py-1.5 text-left disabled:opacity-60 ${o.agent ? "border-accent/60 hover:border-accent" : "border-border hover:border-text-3"}`}
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-small text-text">
+                        {o.label}
+                        {o.costMin ? <span className="text-caution"> · +{o.costMin} min</span> : null}
+                        {o.agent ? <span className="text-accent-soft"> · agent</span> : null}
+                      </span>
+                      <span className="text-caption text-text-3">{o.effect}</span>
+                    </span>
+                    <span className="flex shrink-0 gap-1 max-sm:hidden">
+                      {o.agent && <KeyHint>A</KeyHint>}
+                      <KeyHint>{o.key}</KeyHint>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {answers && answers.length > 0 && (
+              <details className="text-caption text-text-3">
+                <summary className="sl-tap cursor-pointer text-text-2 hover:text-text">What each answer does</summary>
+                <ul className="mt-1 flex flex-col gap-0.5">
+                  {answers.map((a) => (
+                    <li key={a.key}>
+                      <span className="text-text-2">{a.label}</span> <KeyHint>{a.key}</KeyHint>: {a.effect}
+                      {a.costMin ? <span className="text-caution"> · +{a.costMin} min</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="flex items-baseline gap-3">
+              {clock && <span className="font-mono text-title text-text tabular-nums" aria-label={`Mission clock ${clock}`}>{clock}</span>}
+              <span className="min-w-0 flex-1 text-body text-text" data-guide-caption>
+                {caption ?? text}
+              </span>
+            </p>
+            {progress !== undefined && (
+              <span aria-hidden className="h-1 w-full overflow-hidden rounded-full bg-surface-strong">
+                <span className="block h-full bg-text-3 transition-[width] duration-100" style={{ width: `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%` }} />
+              </span>
+            )}
+            <span className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" className="h-8! px-3!" onClick={onPause}>
+                {paused ? "Resume" : "Pause"} <KeyHint>Space</KeyHint>
+              </Button>
+              {onSpeed && (
+                <span role="group" aria-label="Speed" className="flex items-center gap-0.5 rounded-full border border-line p-0.5">
+                  {speeds.map((s) => (
+                    <button key={s} type="button" aria-pressed={s === speed} onClick={() => onSpeed(s)} className={`sl-tap rounded-full px-2.5 py-0.5 text-caption ${s === speed ? "bg-surface-strong text-text" : "text-text-2 hover:text-text"}`}>
+                      {s}×
+                    </button>
+                  ))}
+                </span>
+              )}
+              {onSkip && (
+                <Button variant="ghost" className="ml-auto h-8! px-3!" onClick={onSkip}>
+                  Skip ahead <KeyHint>→</KeyHint>
+                </Button>
+              )}
+            </span>
+          </>
+        )}
+        {status && <p className="text-small text-accent-soft">{status}</p>}
       </div>
     </>
   );

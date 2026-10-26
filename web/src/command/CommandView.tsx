@@ -111,6 +111,8 @@ export interface CommandProps {
   autoReview?: boolean;
   briefings?: ReactNode;
   storyProposal?: string | null;
+  /** The guided search: the Needs you item its step is about (NeedsYou `highlight`, "none" between steps); no toasts while it runs. */
+  needsHighlight?: string | null;
   voice?: TalkVoice | null;
   /** The Conditions panel (W): its data, and whether it is open (the status line toggles it). */
   conditionsData?: ConditionsData | null;
@@ -130,7 +132,7 @@ export function CommandView(p: CommandProps) {
   const tz = missionTz(p.status);
   // what changed, said once: a toast (and the bell's log) for every event that is news (V3 §2)
   const waiting = p.mission?.status === "found" ? 0 : p.reviewCount;
-  useEventToasts(p.events, p.teams, waiting, p.proposals);
+  useEventToasts(p.events, p.teams, waiting, p.proposals, p.needsHighlight != null);
   const checkIn = p.mission?.check_in_min ?? 30;
   useOverdueToasts(teamOrder(p.teams, p.events, now(), checkIn).filter((x) => x.heard.overdue).map((x) => ({ team: x.team, min: x.heard.min })), checkIn);
   // photos landed and candidates arrived where there were none: the first one opens in the review frame
@@ -261,6 +263,8 @@ export function CommandView(p: CommandProps) {
             found={p.mission?.status === "found" ? { at: p.mission.found?.at ?? null } : null}
             tasks={p.tasks}
             onFound={p.actions.found}
+            timeline={p.timeline}
+            highlight={p.needsHighlight ?? null}
           />
         )}
       </div>

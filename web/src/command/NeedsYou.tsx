@@ -10,10 +10,11 @@
 //
 // Pointing at an item from outside (the guided search): `highlight` names a need id (a proposal's id,
 // "overdue-<team>", "clue-<clue>", "turn-<turn>", "report-<team>", "review"); that item gets
-// `data-highlighted` and a ring, the others `data-dimmed`. Every item carries `data-need` (its id) and
+// `data-highlighted` and a ring, the others `data-dimmed` (and out of reach until their step; a highlight that
+// names no item, the guide's "none" between decisions, dims them all). Every item carries `data-need` (its id) and
 // `data-need-kind`. Built by lane A.
 import { useState, type ReactNode } from "react";
-import type { Clue, Drone, MissionEvent, Proposal, RadioTurn, Team } from "../contract";
+import type { Clue, Drone, MissionEvent, Proposal, RadioTurn, Team, TimelineEvent } from "../contract";
 import { Icon, type IconName } from "../shell/icons";
 import { useClock } from "../lib/time";
 import { ApprovalInbox, type Decide } from "./ApprovalInbox";
@@ -43,12 +44,13 @@ export function NeedsHead({ kind, count, children }: { kind: NeedKind; count?: n
 }
 
 /** The data attributes and classes that let the guided search point at one item and dim the rest. */
-export function pointAt(id: string, kind: NeedKind, highlight: string | null | undefined): { attrs: Record<string, string | undefined>; className: string } {
+export function pointAt(id: string, kind: NeedKind, highlight: string | null | undefined): { attrs: Record<string, string | boolean | undefined>; className: string } {
   const on = !!highlight && highlight === id;
   const off = !!highlight && highlight !== id;
   return {
-    attrs: { "data-need": id, "data-need-kind": kind, "data-highlighted": on ? "" : undefined, "data-dimmed": off ? "" : undefined },
-    className: `transition-opacity ${on ? "outline-2 outline-offset-1 outline-[var(--c)]" : ""} ${off ? "opacity-50" : ""}`,
+    attrs: { "data-need": id, "data-need-kind": kind, "data-highlighted": on ? "" : undefined, "data-dimmed": off ? "" : undefined, inert: off || undefined },
+    // dimmed: out of reach too, so the one to act on is the one that can be acted on ("after this step")
+    className: `transition-opacity ${on ? "outline-2 outline-offset-1 outline-[var(--c)]" : ""} ${off ? "pointer-events-none opacity-50" : ""}`,
   };
 }
 
@@ -133,7 +135,10 @@ export function NeedsYou({
   tasks = [],
   onFound,
   highlight = null,
+  timeline = [],
 }: {
+  /** The server's timeline: a team's report of the subject there offers Record find too. */
+  timeline?: readonly TimelineEvent[];
   /** The sectors' tasks: a team's sector for Record find. */
   tasks?: readonly { sector_id: string; state: string; team_id: string | null }[];
   /** Record the find (a team reported the subject on the radio). */
@@ -164,7 +169,7 @@ export function NeedsYou({
 }) {
   const items = needs(proposals, teams, events, clues, now, checkInMin, reviewCount);
   // a team reported the subject on the radio: record the find from here (no need to find the sector's popover)
-  const reports = !found && onFound ? sightingReports(events, teams, tasks) : [];
+  const reports = !found && onFound ? sightingReports(events, teams, tasks, timeline) : [];
   const { time } = useClock();
   const callsign = (id: string | null) => teams.find((t) => t.id === id)?.callsign ?? id ?? "";
   const closedProposals = found ? proposals.filter((p) => p.status === "pending") : [];

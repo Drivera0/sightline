@@ -150,16 +150,26 @@ function afterPaint(cb: () => void): () => void {
  */
 function storyFromRoute(route: MissionRoute): void {
   const st = useStory.getState();
-  // the guided search (`?guide=1`): its own clock from the call, no pitch bar
+  // the guided search (`?guide=1`): its own clock from the call, no pitch bar. Arriving at the address is
+  // always a new run (the home page's Start, Try another scenario): a run that ended, or one left at the
+  // home page, never carries over, nor do its actions and answers
   if (route.open.guide) {
-    useStory.setState({ t: 0, progress: 1, playing: false, through: null, pitch: false, started: true });
-    if (!useGuide.getState().guide) useGuide.getState().start();
+    useStory.setState({ t: 0, progress: 1, playing: false, through: null, pitch: false, started: true, user: [], answers: {}, tried: null });
+    useGuide.getState().start();
     return;
   }
   if (useGuide.getState().guide) useGuide.getState().stop();
   if (route.t !== null) st.seek(route.t);
   else if (route.view === null) landing();
   else if (!st.started || st.pitch) st.skipToNow();
+}
+
+/** What a run leaves on the console (its flights, the panels' state, toasts, dropped photos): gone for a new run. */
+function freshConsole(): void {
+  stopAllDemoFlights();
+  useConsole.getState().reset();
+  useNotify.getState().reset();
+  useDropped.setState({ cards: [], at: {}, status: null });
 }
 
 /** The demo mission's clock, the view and the scenario, as an address. */
@@ -236,6 +246,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       return;
     }
     storyFromRoute(route);
+    if (route.open.guide) freshConsole();
     if (route.open.guide || (route.view === null && route.t === null)) setView("map");
     else if (route.view === null && route.t !== null) setView(checkpoint(route.t).view);
     else if (route.view !== null) setView(route.view);
@@ -472,10 +483,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // the guided search's decisions, mark and end screen (GuideRun.tsx); the review's answers reach it by a ref
   const answerRef = useRef<(id: string, a: LiveAnswer) => void>(() => undefined);
   const restartGuide = useCallback((watch: boolean) => {
-    stopAllDemoFlights();
-    useConsole.getState().reset();
+    freshConsole();
     useStory.setState({ user: [], answers: {}, tried: null });
-    useDropped.setState({ cards: [], at: {}, status: null });
     useGuide.getState().start({ watch });
     setView("map");
   }, []);
@@ -485,7 +494,6 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     seed: effSeed,
     scenarioName: presetFor(seed).name,
     cache,
-    imageUrl,
     answer: (id, a) => answerRef.current(id, a),
     onPickOnMap: () => {
       useConsole.getState().setTab("map");
@@ -822,6 +830,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               autoReview={!(demo && run.on)}
               briefings={briefings}
               storyProposal={run.on ? run.proposal : null}
+              needsHighlight={run.needsHighlight}
               voice={voice}
               conditionsData={conditionsData}
               conditionsOpen={condOpen && view === "map"}

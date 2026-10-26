@@ -2,7 +2,7 @@
 // flyability in one word, who is out, when each team was last heard and whether it is overdue, when a
 // returning team is back, the resources in the order a search manager reads them, and what needs a person.
 // Built by lane A.
-import type { Clue, Conditions, Drone, FleetState, Mission, MissionEvent, Proposal, RadioTurn, SectorTask, Team } from "../contract";
+import type { Clue, Conditions, Drone, FleetState, Mission, MissionEvent, Proposal, RadioTurn, SectorTask, Team, TimelineEvent } from "../contract";
 import { clock, type Tz } from "../lib/time";
 import type { FleetLinks } from "../lib/mission";
 import { teamOf } from "./timeline";
@@ -167,9 +167,17 @@ export const REPORTS_SUBJECT = /\bsubject (?:located|found)\b|\bfound (?:him|her
 /**
  * The teams that reported the subject on the radio while the mission is not yet marked found: who, in which
  * sector (its task's, else none), and the words. Needs you offers Record find for each (judges 2026-10-23).
+ * The server's timeline counts too: the guided search's teams report there (missionTime.ts simulate).
  */
-export function sightingReports(events: readonly MissionEvent[], teams: readonly Team[], tasks: readonly { sector_id: string; state: string; team_id: string | null }[]): { team: Team; sector: string | null; words: string; at: string }[] {
+export function sightingReports(events: readonly MissionEvent[], teams: readonly Team[], tasks: readonly { sector_id: string; state: string; team_id: string | null }[], timeline: readonly TimelineEvent[] = []): { team: Team; sector: string | null; words: string; at: string }[] {
   const out = new Map<string, { team: Team; sector: string | null; words: string; at: string }>();
+  for (const e of timeline) {
+    if (e.kind !== "radio" || e.direction !== "in" || !REPORTS_SUBJECT.test(e.text)) continue;
+    const team = teams.find((x) => x.id === e.team);
+    if (!team) continue;
+    const task = tasks.find((x) => x.team_id === team.id && (x.state === "in_progress" || x.state === "assigned"));
+    out.set(team.id, { team, sector: task?.sector_id ?? e.sector ?? null, words: e.text, at: e.at });
+  }
   for (const e of events) {
     if (e.type !== "radio.turn") continue;
     const t = e.data as unknown as RadioTurn | null;

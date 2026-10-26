@@ -37,6 +37,11 @@ export interface Option {
   /** What it does, shown before the commit. */
   effect: string;
   agent?: boolean;
+  /**
+   * The console's own control that does it (the card's Approve, Confirm on the read-back, a sector on the
+   * map): the coach bar names it and rings it, and shows no button of its own for it. The key still works.
+   */
+  on?: string;
 }
 
 /** One triage card. */
@@ -48,12 +53,14 @@ export interface TriageCard {
   line: TriageAnswer;
 }
 
-export type TriageAnswer = "person" | "not_person" | "not_subject" | "unsure";
+export type TriageAnswer = "person" | "not_person" | "not_subject" | "object" | "unsure";
+/** The review card's own answers and keys (review/answers.tsx): triage is answered on the card. */
 export const TRIAGE_OPTIONS: readonly { key: string; id: TriageAnswer; label: string }[] = [
-  { key: "1", id: "person", label: "Person" },
-  { key: "2", id: "not_person", label: "Not a person" },
-  { key: "3", id: "not_subject", label: "Not the subject" },
-  { key: "4", id: "unsure", label: "Unsure" },
+  { key: "P", id: "person", label: "Person" },
+  { key: "N", id: "not_person", label: "Not a person" },
+  { key: "S", id: "not_subject", label: "Not the subject" },
+  { key: "O", id: "object", label: "Object" },
+  { key: "U", id: "unsure", label: "Unsure" },
 ];
 
 export interface Inject {
@@ -150,6 +157,7 @@ export function triageEffect(card: TriageCard, a: TriageAnswer): { effect: strin
   if (a === "person") return bag ? { effect: "a team walks to the pin to check it", costMin: 10 } : { effect: relook ? "a sighting pin goes on the map where the photo puts it" : "a sighting pin goes on the map", costMin: 0 };
   if (a === "not_subject") return { effect: bag ? "it leaves the queue" : "another person on the ground: a witness lead to ask about", costMin: 0 };
   if (a === "not_person") return { effect: relook ? "it leaves the queue and nothing goes on the map" : "it leaves the queue", costMin: 0 };
+  if (a === "object") return { effect: "a clue candidate for a team to confirm on the ground", costMin: 0 };
   return { effect: "it stays flagged for a second reviewer", costMin: 0 };
 }
 
@@ -176,7 +184,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "survey",
       at: ms(CHECKPOINTS[0]!.at),
       lead: "The call comes in; the agent drafts the survey.",
-      prompt: `Launch the survey: approve the planner's legs A, or fly a serpentine over the whole grid 2.`,
+      prompt: `Launch the survey: fly the planner's legs A, or a serpentine over the whole grid 2.`,
       agentSays: top.length ? `${top.map(([s]) => s).join(", ")} first: ${Math.round(share * 100)} % of the probability in ${top.length} of ${poa.length} sectors.` : undefined,
       options: [
         { key: "1", id: "planner", label: "The planner's legs", costMin: 0, effect: `${droneWord(drones[0]!.id, full)} photographs the likeliest sectors first`, agent: true },
@@ -194,7 +202,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "triage",
       at: ms(CHECKPOINTS[2]!.at),
       lead: drones.length ? "The drones fly the survey; photos land and the detector ranks each one." : "The survey's photos land and the detector ranks each one.",
-      prompt: "Answer each candidate: Person 1, Not a person 2, Not the subject 3, Unsure 4.",
+      prompt: "Is it a person? Answer on the photo's card in Needs you: Person P, Not a person N, Not the subject S, Object O, Unsure U.",
       options: [],
       cards,
       target: [`${REGION.review} li[data-candidate]`, REGION.review, REGION.needs],
@@ -209,14 +217,14 @@ export function injects(input: GuideInput): Inject[] {
       key: "clue",
       at: ms(clue.at),
       lead: "The teams stand by at base camp while the review lands.",
-      prompt: `Read back ${who}'s call: confirm it at ${clue.reliability ?? "low"} reliability A, ask for a bearing 2, or log it without mapping 3.`,
+      prompt: `Read back ${who}'s call: press Confirm clue on its card in Needs you A, or ask for a bearing 2, or log it without mapping 3.`,
       agentSays: `${who}: ${clue.text}.`,
       options: [
-        { key: "1", id: "confirm", label: `Confirm at ${clue.reliability ?? "low"} reliability`, costMin: 0, effect: "the map shifts toward it", agent: true },
+        { key: "1", id: "confirm", label: `Confirm at ${clue.reliability ?? "low"} reliability`, costMin: 0, effect: "the map shifts toward it", agent: true, on: "Confirm clue on the card in Needs you" },
         { key: "2", id: "bearing", label: "Ask for a bearing", costMin: 2, effect: "the map shifts toward it at medium reliability" },
         { key: "3", id: "log", label: "Log without mapping", costMin: 0, effect: "it goes in the log; the map stays as it is" },
       ],
-      target: ['[aria-label="Awaiting read-back"]', `group:${REGION.timeline} li[data-kind="clue"], ${REGION.timeline} li[data-kind="radio"]`, REGION.needs],
+      target: [`[data-need="clue-${clue.id}"]`, '[aria-label="Awaiting read-back"]', `group:${REGION.timeline} li[data-kind="clue"], ${REGION.timeline} li[data-kind="radio"]`, REGION.needs],
     });
   }
 
@@ -230,13 +238,13 @@ export function injects(input: GuideInput): Inject[] {
       key: "assign",
       at: ms(p.created_at),
       lead: "The agent ranks the sectors with what is on the map now.",
-      prompt: `Assign a team: approve ${callsign(p.target.team)} for ${p.target.sector} A, send ${callsign(other?.id)} instead 2, or pick another sector on the map M.`,
+      prompt: `Assign a team: press Send ${callsign(p.target.team)} to ${p.target.sector} on the card in Needs you A, Edit it to send another team, or click another sector on the map M.`,
       // the reason's first clause (the card has the whole of it)
       agentSays: p.reason.split(/:\s/)[0],
       options: [
-        { key: "1", id: "approve", label: `${callsign(p.target.team)} to ${p.target.sector}`, costMin: 0, effect: `${callsign(p.target.team)} walks out and sweeps ${p.target.sector}`, agent: true },
-        ...(other ? [{ key: "2", id: `team:${other.id}`, label: `${callsign(other.id)} to ${p.target.sector}`, costMin: 0, effect: `${callsign(other.id)} walks out and sweeps ${p.target.sector}` }] : []),
-        { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it" },
+        { key: "1", id: "approve", label: `${callsign(p.target.team)} to ${p.target.sector}`, costMin: 0, effect: `${callsign(p.target.team)} walks out and sweeps ${p.target.sector}`, agent: true, on: "the card's button in Needs you" },
+        ...(other ? [{ key: "2", id: `team:${other.id}`, label: `${callsign(other.id)} to ${p.target.sector}`, costMin: 0, effect: `${callsign(other.id)} walks out and sweeps ${p.target.sector}`, on: "Edit on the card, then its button" }] : []),
+        { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it", on: "a sector on the map" },
       ],
       target: ["[data-story-proposal]", `[data-proposal="${p.id}"]`, REGION.needs],
       proposal: p.id,
@@ -270,10 +278,10 @@ export function injects(input: GuideInput): Inject[] {
       key: "wind",
       at: ms(r.created_at),
       lead: "Gusts build against the drones' limit.",
-      prompt: "Bring the drones in: recall now A, or finish the current line first 2.",
+      prompt: "Bring the drones in: press the recall card's button in Needs you A, or finish the current line first 2.",
       agentSays: r.reason,
       options: [
-        { key: "1", id: "recall", label: "Recall now", costMin: 0, effect: "the drones turn for base; the ground teams carry the search", agent: true },
+        { key: "1", id: "recall", label: "Recall now", costMin: 0, effect: "the drones turn for base; the ground teams carry the search", agent: true, on: "the card's button in Needs you" },
         { key: "2", id: "finish", label: "Finish the line first", costMin: 2, effect: "two more minutes of photos, inside the margin" },
       ],
       target: [`[data-proposal="${r.id}"]`, REGION.needs],
@@ -301,11 +309,11 @@ export function injects(input: GuideInput): Inject[] {
         key: `assign-${k}`,
         at: x.end,
         lead: "The teams sweep their sectors.",
-        prompt: k === 2 ? "Assign again: approve the agent's picks for every free team until the find A, or pick a sector on the map M." : "Assign again: approve the agent's next sector A, or pick a sector on the map M.",
+        prompt: k === 2 ? "Assign again: press Send on the card in Needs you, and every free team takes the agent's picks until the find A; or click a sector on the map M." : "Assign again: press Send on the card in Needs you for the agent's next sector A, or click a sector on the map M.",
         agentSays: `${x.sector} searched at POD ${x.pod.toFixed(2)}, no sign. The agent proposes the likeliest open sector next.`,
         options: [
-          { key: "1", id: "approve", label: k === 2 ? "The agent's picks, every free team" : "The agent's next sector", costMin: 0, effect: k === 2 ? "each team that comes free takes the likeliest open sector, until the find" : `${callsign(x.team)} walks to it and sweeps it`, agent: true },
-          { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it" },
+          { key: "1", id: "approve", label: k === 2 ? "The agent's picks, every free team" : "The agent's next sector", costMin: 0, effect: k === 2 ? "each team that comes free takes the likeliest open sector, until the find" : `${callsign(x.team)} walks to it and sweeps it`, agent: true, on: "the card's button in Needs you" },
+          { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it", on: "a sector on the map" },
         ],
         target: ["[data-story-proposal]", REGION.needs],
         proposal: `g${String(passes.indexOf(x) + 1).padStart(3, "0")}`,
@@ -319,13 +327,13 @@ export function injects(input: GuideInput): Inject[] {
       key: "find",
       at: detected?.end ?? 0,
       lead: "The teams sweep their sectors.",
-      prompt: `Answer ${callsign(team)}'s call: mark Found and send the nearest team to carry out A, or ask for a confirmation first 2.`,
+      prompt: `Answer ${callsign(team)}'s call: press Record find on its card in Needs you A (the nearest team goes to carry out), or ask for a confirmation first 2.`,
       agentSays: detected ? `${callsign(team)}: subject located in ${detected.sector}, conscious and talking.` : undefined,
       options: [
-        { key: "1", id: "found", label: "Mark Found, send a carry-out", costMin: 0, effect: "the status line flips to Found", agent: true },
+        { key: "1", id: "found", label: "Mark Found, send a carry-out", costMin: 0, effect: "the status line flips to Found", agent: true, on: "Record find on the card in Needs you" },
         { key: "2", id: "confirm", label: "Ask for a confirmation first", costMin: 1, effect: "one more radio exchange, then Found" },
       ],
-      target: ['[aria-label="Mission status"]', `group:${REGION.timeline} li[data-kind="radio"]`, REGION.timeline],
+      target: [`[data-need="report-${team}"]`, `[aria-label="${callsign(team)} reports the subject"]`, '[aria-label="Mission status"]', REGION.needs],
       find: detected ? { team, sector: detected.sector } : undefined,
     });
   }

@@ -69,4 +69,58 @@ describe("Needs you", () => {
     expect(onRecall).toHaveBeenCalledWith("T3");
     expect(screen.getByRole("group", { name: "Closed: subject found" })).toHaveTextContent("16 items closed, subject found");
   });
+
+  it("the guided search between decisions: highlight none dims every item, out of reach", () => {
+    render(
+      <NeedsYou
+        proposals={[p("p004", "Assign sector B3 to Team Two")]}
+        teams={[team("T1", "Team One")]}
+        drones={[]}
+        events={[]}
+        clues={[]}
+        now={new Date(AT)}
+        checkInMin={30}
+        onDecide={vi.fn()}
+        imageUrl={(r) => r}
+        review={<div>review cards</div>}
+        reviewCount={1}
+        onCall={vi.fn()}
+        onRecall={vi.fn()}
+        onConfirmClue={vi.fn()}
+        highlight="none"
+      />,
+    );
+    const card = screen.getByLabelText("Proposal p004");
+    expect(card).toHaveAttribute("data-dimmed");
+    expect(card.className).toMatch(/pointer-events-none/);
+    expect(screen.getByRole("group", { name: "Photos to review" })).toHaveAttribute("data-dimmed");
+  });
+
+  it("a team's report of the subject on the server's timeline offers Record find", async () => {
+    const onFound = vi.fn();
+    render(
+      <NeedsYou
+        proposals={[]}
+        teams={[team("T3", "Team Three")]}
+        drones={[]}
+        events={[]}
+        clues={[]}
+        now={new Date(AT)}
+        checkInMin={30}
+        onDecide={vi.fn()}
+        imageUrl={(r) => r}
+        review={null}
+        reviewCount={0}
+        onCall={vi.fn()}
+        onRecall={vi.fn()}
+        onConfirmClue={vi.fn()}
+        onFound={onFound}
+        tasks={[{ sector_id: "C2", state: "in_progress", team_id: "T3" }]}
+        timeline={[{ id: "g-T3", at: AT, kind: "radio", team: "T3", sector: "C2", direction: "in", text: "Sightline, Team Three. Subject located in Charlie Two, conscious and talking, over." }]}
+      />,
+    );
+    const card = screen.getByRole("article", { name: "Team Three reports the subject" });
+    await userEvent.click(within(card).getByRole("button", { name: "Record find in C2" }));
+    expect(onFound).toHaveBeenCalledWith("T3", "C2");
+  });
 });

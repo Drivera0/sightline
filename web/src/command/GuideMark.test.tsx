@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { GuideMark } from "./CoachMark";
@@ -56,11 +56,40 @@ describe("the guided search's mark", () => {
     expect(a.onTakeOver).toHaveBeenCalled();
   });
 
-  it("between decisions: watch this, a progress bar, Space pauses", async () => {
-    const a = mark({ mode: "watch", options: [], text: "Drone one flies the survey.", progress: 0.4 });
-    expect(screen.getByRole("dialog", { name: /Watch this/ })).toHaveTextContent("Drone one flies the survey.");
+  it("one place to decide: a choice the console has a control for gets no button here, only its key", async () => {
+    document.body.insertAdjacentHTML("beforeend", '<article id="card"><button type="button">Reject</button><button type="button" data-primary>Send Team One to C2</button></article>');
+    const a = mark({
+      heading: "Step 4 of 6 · Assign",
+      text: "Assign a team: press Approve on the card in Needs you A.",
+      target: "#card",
+      options: [
+        { key: "1", id: "approve", label: "Team One to C2", effect: "Team One sweeps C2", costMin: 0, agent: true, on: "Approve on the card in Needs you" },
+        { key: "M", id: "map", label: "Another sector, on the map", effect: "", costMin: 0, on: "a sector on the map" },
+      ],
+    });
+    const dialog = screen.getByRole("dialog", { name: /Your call: Step 4 of 6/ });
+    expect(within(dialog).queryByRole("group", { name: "Options" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: /Team One to C2/ })).toBeNull();
+    // focus goes to the real control's main button
+    expect(screen.getByRole("button", { name: "Send Team One to C2" })).toHaveFocus();
+    await userEvent.keyboard("a");
+    expect(a.onPick).toHaveBeenLastCalledWith("approve");
+    document.getElementById("card")?.remove();
+  });
+
+  it("between decisions: the time-lapse, the clock large, the row that landed, Pause, speed and Skip ahead", async () => {
+    const onSpeed = vi.fn();
+    const onSkip = vi.fn();
+    const a = mark({ mode: "watch", options: [], text: "Drone one flies the survey.", progress: 0.4, clock: "14:05", caption: "14:05 · Drone 1: leg L001 (sector C2)", onSpeed, onSkip });
+    const dialog = screen.getByRole("dialog", { name: /Watch this/ });
+    expect(dialog).toHaveTextContent("14:05 · Drone 1: leg L001 (sector C2)");
+    expect(within(dialog).getByLabelText("Mission clock 14:05")).toBeInTheDocument();
     await userEvent.keyboard(" ");
     expect(a.onPause).toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "4×" }));
+    expect(onSpeed).toHaveBeenCalledWith(4);
+    await userEvent.keyboard("{ArrowRight}");
+    expect(onSkip).toHaveBeenCalled();
   });
 
   it("the strip checks each decision made and reads out the current step", () => {

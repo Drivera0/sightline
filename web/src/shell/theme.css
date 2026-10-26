@@ -553,6 +553,8 @@ body {
 }
 @keyframes sl-slide-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 .sl-slide-in { animation: sl-slide-in var(--motion-in) var(--ease-out) both; }
+/* a dimmed item (the guided search points at another one): the slide-in's held opacity would undo the dim */
+[data-dimmed].sl-slide-in { animation: none; }
 @keyframes sl-row-new {
   0%, 30% { background: color-mix(in srgb, var(--c, var(--accent-soft)) 14%, transparent); }
   100% { background: transparent; }
