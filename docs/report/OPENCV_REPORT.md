@@ -1208,8 +1208,10 @@ candidate's photo footprint, a proposal's sector and team). A team past its chec
 toast too. Figures: `figures/v3/toast-d.webp`, `proposal-glow-d.webp`, `heat-tween-1..3.webp`.
 
 **What the site labels.** The Mount Seymour mission, its drones and its teams are simulated on real
-aerial photographs: in the plain console the fixture's scripted decisions are labelled "The scenario's
-search manager" and its stand-in model calls "Replayed" in the Trace view (only live calls, or a live
+aerial photographs. The approvals are the visitor's: in the guided run and in free play they approve every
+step live in the browser, and each move in the log names its approver ("by you"). The recorded mission at
+the checkpoint addresses keeps the scenario's own decisions, which read "the search manager", and its
+stand-in model calls read "Replayed" in the Trace view (only live calls, or a live
 answer kept word for word, read "This flight"), and the guided simulation's find comes from seeded draws
 at the sector's POD, every draw printed on the end screen.
 
