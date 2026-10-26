@@ -37,9 +37,9 @@ phase "start $(git rev-parse HEAD)"
 
 # --- the machine --------------------------------------------------------------------------------
 {
-  TOKEN=$(curl -fsS -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 600" || true)
+  TOKEN=$(curl -fsS --max-time 3 -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 600" || true)
   for k in instance-type ami-id placement/region placement/availability-zone; do
-    echo "$k: $(curl -fsS -H "X-aws-ec2-metadata-token: $TOKEN" "http://169.254.169.254/latest/meta-data/$k" || echo '?')"
+    echo "$k: $(curl -fsS --max-time 3 -H "X-aws-ec2-metadata-token: $TOKEN" "http://169.254.169.254/latest/meta-data/$k" || echo '?')"
   done
   echo; uname -a; echo; cat /etc/os-release; echo; lscpu; echo; free -g
   echo; echo "COOL venv: $COOL_VENV"; ls -la /opt/cool /opt/cool/venvs 2>&1 || true
@@ -50,7 +50,9 @@ for f in $(find /opt/cool -maxdepth 2 \( -iname '*version*' -o -iname 'README*' 
 done
 
 # --- tools: unzip, /usr/bin/time, vmstat, libGL for the pip wheel ----------------------------
-if command -v apt-get >/dev/null; then
+if [ "$(id -u)" != 0 ]; then
+  echo "not root: skipping package installs"
+elif command -v apt-get >/dev/null; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq && apt-get install -y -qq unzip time procps libgl1 libglib2.0-0 >/dev/null
 elif command -v dnf >/dev/null; then

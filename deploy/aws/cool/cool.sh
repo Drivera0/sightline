@@ -20,8 +20,8 @@ cd "$(dirname "$0")/../../.."
 
 PREFIX=sightline-cool
 REGION=${AWS_REGION:-us-west-2}
-AMI=${AMI:-ami-05e2b08318a818834}   # OpenCV-graviton-optimized-AMI-prod (arm64), us-west-2
-INSTANCE_TYPE=${INSTANCE_TYPE:-c8g.4xlarge}
+AMI=${AMI:-ami-03040ae9b0be1f439}   # COOL-V3-prod (arm64), us-west-2; product code 4eb70u7a6gb5bj1ijix5jlokv
+INSTANCE_TYPE=${INSTANCE_TYPE:-c6g.4xlarge}  # Graviton2: the only family the listing accepted in us-west-2 (Oct 2026)
 GIT_REF=${GIT_REF:-main}
 REPO=${REPO:-https://github.com/Drivera0/sightline.git}
 SAFETY_MIN=${SAFETY_MIN:-240}
@@ -93,7 +93,7 @@ EOF
   instance=$(aws ec2 run-instances --image-id "$AMI" --instance-type "$INSTANCE_TYPE" \
     --iam-instance-profile Name="$role" --security-group-ids "$sg" \
     --instance-initiated-shutdown-behavior terminate \
-    --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=40,VolumeType=gp3,Encrypted=true,DeleteOnTermination=true}' \
+    --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=80,VolumeType=gp3,Encrypted=true,DeleteOnTermination=true}' \
     --metadata-options HttpTokens=required \
     --tag-specifications "ResourceType=instance,Tags=[{Key=project,Value=$PREFIX},{Key=Name,Value=$PREFIX}]" \
     "ResourceType=volume,Tags=[{Key=project,Value=$PREFIX}]" \
