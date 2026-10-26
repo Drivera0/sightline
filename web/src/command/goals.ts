@@ -55,7 +55,7 @@ export function missionGoals(i: GoalInput): Goal[] {
     short: "Find before dark",
     brief: i.found !== null ? (foundInTime ? "found" : "late") : left > 0 ? "" : "dark",
     state: foundInTime ? "done" : i.found !== null || left <= 0 ? "missed" : "open",
-    progress: i.found !== null ? (foundInTime ? "found" : "found after last light") : left > 0 ? `${fmtMin(left)} of light left` : "last light has gone",
+    progress: i.found !== null ? (foundInTime ? "found" : "found after last light") : left > 0 ? `${fmtMin(Math.floor(left))} of light left` : "last light has gone",
     share: foundInTime ? 1 : 0,
   };
   const p = i.photos;
