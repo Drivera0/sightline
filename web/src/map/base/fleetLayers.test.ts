@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { FleetState, Team } from "../../contract";
 import { applyEvent, applyLinkEvent, EMPTY, fleetLinksFromEvents, NO_LINKS, useMission, type FleetLinks } from "../../lib/mission";
 import { droneFeatures, droneLinkWords, LINK_WORD } from "./droneLayer";
-import { alongPath, easeOut, FleetGlide, GLIDE_MS, metres, RELAY_DOTS, relayDots, type LonLat } from "./fleetMotion";
+import { alongPath, easeOut, FleetGlide, GLIDE_MS, glidePoints, metres, RELAY_DOTS, relayDots, type LonLat } from "./fleetMotion";
 import { CANCEL_FADE_MS, legFeatures, nearestOnLine, noteCancels, replacementLeg, retaskAnimating, retaskFeatures } from "./legLayer";
 import { relayFeatures } from "./relayLayer";
 
@@ -199,5 +199,24 @@ describe("the demo mission's fleet (scripts/make_fleet_fixture.py)", () => {
     expect(Object.values(links.drones).map((l) => l.link).sort()).toEqual(["degraded", "lost"]);
     expect(links.teams.T2?.link).toBe("no_signal");
     expect(links.teams.T2?.relay?.via.length).toBeGreaterThan(0);
+  });
+});
+
+describe("teams glide like drones", () => {
+  const pt = (kind: string, id: string, c: LonLat) => ({ type: "Feature" as const, properties: { kind, id }, geometry: { type: "Point", coordinates: c } });
+  it("moves only the teams to their glided spot, a steady stream at a constant speed", () => {
+    const g = new FleetGlide();
+    g.update({ T1: [0, 0] }, 0);
+    // the clock's reports ten a second: each glides on from where the team is drawn, never a step
+    g.update({ T1: [0, 1] }, 100);
+    const mid = g.positions(150).T1!;
+    expect(mid[1]).toBeGreaterThan(0);
+    expect(mid[1]).toBeLessThan(1);
+    const points = [pt("team", "T1", [0, 1]), pt("clue", "c1", [5, 5]), pt("team", "T9", [2, 2])];
+    const placed = glidePoints(points, g.positions(150), "team");
+    expect(placed[0]!.geometry.coordinates).toEqual(mid);
+    expect(placed[1]).toBe(points[1]);
+    // a team with no glide yet stays where it is reported
+    expect(placed[2]).toBe(points[2]);
   });
 });

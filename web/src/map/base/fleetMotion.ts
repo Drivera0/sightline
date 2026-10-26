@@ -1,4 +1,4 @@
-// Live fleet motion on the map: drones glide between telemetry ticks instead of jumping, and relay
+// Live fleet motion on the map: drones and teams glide between reports instead of jumping, and relay
 // dots travel along a drone-team link. Pure maths plus a small state object; LiveHeatMap drives it
 // from requestAnimationFrame. Like Pulse's dashboard (web/dashboard/src/mesh.ts): ease toward the
 // latest report over ~400 ms with an ease-out curve, so a drone never overshoots its reported spot.
@@ -65,6 +65,14 @@ export class FleetGlide {
     for (const g of this.glides.values()) if (now - g.t0 < g.ms && (g.from[0] !== g.to[0] || g.from[1] !== g.to[1])) return true;
     return false;
   }
+}
+
+/**
+ * Point features with the marks of one kind (the teams) moved to where their glide draws them; the rest as
+ * they are. Teams glide like drones, so a team walks between the clock's reports instead of stepping.
+ */
+export function glidePoints<F extends { properties: { kind: string; id: string }; geometry: { type: string; coordinates: unknown } }>(features: readonly F[], at: Readonly<Record<string, LonLat>>, kind: string): F[] {
+  return features.map((f) => (f.properties.kind === kind && f.geometry.type === "Point" && at[f.properties.id] ? { ...f, geometry: { ...f.geometry, coordinates: at[f.properties.id] } } : f));
 }
 
 /** Distance in metres between two nearby points (flat earth). */
