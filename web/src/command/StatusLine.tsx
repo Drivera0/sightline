@@ -7,7 +7,7 @@ import type { Clue, Conditions, Mission, Team } from "../contract";
 import { DisclosureChip, KeyHint } from "../shell/components";
 import { Icon } from "../shell/icons";
 import { clock, type Tz } from "../lib/time";
-import { daylightMin, duration, elapsedMin, flyWord, peopleOut, subjectWord } from "./console";
+import { daylightMin, duration, elapsedMin, flyWord, isLogged, peopleOut, subjectWord } from "./console";
 import { TERMS } from "./terms";
 import { isOverride } from "./conditions";
 import { NotifyBell } from "../shell/notifyBell";
@@ -65,7 +65,7 @@ export function StatusLine({
   const fly = flyWord(conditions, tz);
   const out = peopleOut(teams);
   const found = mission?.status === "found";
-  const unconfirmed = clues.filter((c) => !c.confirmed).length;
+  const unconfirmed = clues.filter((c) => !c.confirmed && !isLogged(c)).length;
   return (
     <section role="status" aria-label="Mission status" className="flex min-h-9 items-center gap-x-4 overflow-x-auto 2xl:gap-x-5 border-t border-line px-3 max-sm:h-9 sm:flex-wrap sm:gap-y-0.5 sm:overflow-visible sm:py-1 lg:px-4 [scrollbar-width:none]">
       {/* the find leads the line: the first thing anyone should read, on a phone too */}
@@ -132,14 +132,14 @@ export function StatusLine({
       <Item label="In the field" title={`${out.people} ${out.people === 1 ? "person" : "people"} in ${out.teams} ${out.teams === 1 ? "team" : "teams"} out on the ground`}>
         {out.teams} {out.teams === 1 ? "team" : "teams"} ({out.people} {out.people === 1 ? "person" : "people"})
       </Item>
-      {!found &&
-        (onSubject ? (
-          <button type="button" onClick={onSubject} title="The subject's full profile" className="sl-tap shrink-0 rounded-sm hover:underline">
-            <Item label="Subject">{subjectWord(clues, (iso) => clock(iso, tz))}</Item>
-          </button>
-        ) : (
-          <Item label="Subject">{subjectWord(clues, (iso) => clock(iso, tz))}</Item>
-        ))}
+      {/* the subject's stat never goes: after the find it says when and where ("Found 15:27 · C2") */}
+      {onSubject ? (
+        <button type="button" onClick={onSubject} title="The subject's full profile" className="sl-tap shrink-0 rounded-sm hover:underline">
+          <Item label="Subject">{subjectWord(clues, (iso) => clock(iso, tz), found ? (mission?.found ?? null) : null)}</Item>
+        </button>
+      ) : (
+        <Item label="Subject">{subjectWord(clues, (iso) => clock(iso, tz), found ? (mission?.found ?? null) : null)}</Item>
+      )}
       {outside !== null && (
         // the lowest-value stat: the sector list says it too, so it goes first on a narrower screen
         <Item label={TERMS.row} title={TERMS.rowTip} className="max-2xl:hidden">

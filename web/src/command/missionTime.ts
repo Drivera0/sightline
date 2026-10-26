@@ -190,14 +190,26 @@ function hastyTrip(team: Pick<Team, "id" | "callsign">, clues: readonly Clue[]):
     .sort((a, b) => a.at.localeCompare(b.at));
   if (!visits.length) return null;
   const stops = visits.map((c) => ({ at: ms(c.at), pos: { lat: c.lat, lon: c.lon } }));
-  // sent out on the trail five minutes after the call (or in time to reach its first clue)
-  const leave = Math.min(ms(CHECKPOINTS[0]!.at) + 5 * MIN_MS, stops[0]!.at - metres(HOME, stops[0]!.pos) / WALK_M_PER_MS);
+  // sent out on the trail at the call, before the manager takes over (or in time to reach its first clue)
+  const leave = Math.min(ms(CHECKPOINTS[0]!.at), stops[0]!.at - metres(HOME, stops[0]!.pos) / WALK_M_PER_MS);
   const last = stops.at(-1)!;
   const back = last.at + metres(last.pos, HOME) / WALK_M_PER_MS;
   const checkins: number[] = [];
   for (let t = leave + HASTY_CHECKIN_MS; t < back; t += HASTY_CHECKIN_MS) checkins.push(t);
   return { leave, stops, back, checkins };
 }
+
+/** The teams the scenario sent on a hasty search before the visitor took over, and when each left. */
+export function hastyLeaves(full: DemoFull | null): { team: Team; leave: number }[] {
+  const teams = full?.data.teams ?? [];
+  return teams.flatMap((t) => {
+    const trip = hastyTrip(t, full?.data.clues ?? []);
+    return trip ? [{ team: t, leave: trip.leave }] : [];
+  });
+}
+
+/** How a scenario's own move before the visitor took over is said in the log. */
+export const PRE_PLANNED = "pre-planned in the scenario, before you took over";
 
 /** Where a hasty team is at `t` (null: at base camp then). */
 export function hastyAt(team: Pick<Team, "id" | "callsign">, clues: readonly Clue[], t: number): Place | null {
@@ -223,8 +235,11 @@ export function hastyRows(teams: readonly Team[], clues: readonly Clue[], c: num
     // sent on to a sector before it was back: the hasty search ends there
     const until = Math.min(c, sentAt(t.id));
     const row = (at: number, text: string, i: number): TimelineEvent => ({ id: `hasty-${t.id}-${i}`, at: iso(at), kind: "checkin", team: t.id, sector: null, text, direction: null, refs: [], turn_id: null, drone: null, by: null });
-    if (trip.leave <= until) out.push(row(trip.leave, `${t.callsign} out on a hasty search along the trail`, 0));
+    if (trip.leave <= until) out.push(row(trip.leave, `${t.callsign} out on a hasty search along the trail (${PRE_PLANNED})`, 0));
     trip.checkins.forEach((x, i) => x <= until && out.push(row(x, `${t.callsign}: position report (hasty search)`, i + 1)));
+    // its walk home says why (the cold test: teams went back while a sighting waited, with nothing logged)
+    const last = trip.stops.at(-1)!;
+    if (last.at <= until && trip.back > last.at) out.push(row(last.at + 1000, `${t.callsign} heads back to base camp: the hasty search along the trail is done (${PRE_PLANNED})`, 98));
     if (trip.back <= until) out.push(row(trip.back, `${t.callsign} back at base camp`, 99));
   }
   return out;
@@ -496,6 +511,17 @@ export interface GuidedOpts {
   readback?: string | null;
   /** The read-back clue moves the map (confirmed); false: logged only, or not decided yet. */
   mapClue?: boolean;
+  /** The survey decision (the flight lines' approver in the log): the AI's lines or the lawnmower, and by whom. */
+  survey?: { option: string; watched: boolean } | null;
+}
+
+/**
+ * Who approved the scenario's flight lines, in the log's words: the guided survey only when the visitor (or
+ * Watch instead) chose the AI's flight lines; else they were pre-planned in the scenario.
+ */
+export function legApprover(survey: GuidedOpts["survey"]): string {
+  if (survey?.option === "planner") return survey.watched ? "auto-approved: guided survey, Watch instead chose the AI's flight lines" : "auto-approved: guided survey, you chose the AI's flight lines";
+  return PRE_PLANNED;
 }
 
 /** The subject's sector and position: the scenario's find (null: a scenario without one). */
@@ -551,9 +577,10 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   const mootIds = new Set((d.proposals ?? []).filter(moot).map((p) => p.id));
   const proposals = (d.proposals ?? []).filter((p) => ms(p.created_at) <= c && !mootIds.has(p.id)).map((p) => proposalAt(p, -Infinity));
   const mine = user.filter((e) => ms(e.at) <= c);
-  const fly = fleetAt(d, c, mine, "auto-approved: guided survey");
+  const legBy = legApprover(opts.survey);
+  const fly = fleetAt(d, c, mine, legBy);
   const notMoot = (e: MissionEvent) => !(e.type === "proposal.new" && e.ref && mootIds.has(e.ref));
-  const events = [...(d.events ?? []).filter((e) => eventTime(e) <= c && !managersOwn(e) && notMoot(e) && !aboutSkipped(e, fly.skipped)).map((e) => approver(e, "auto-approved: guided survey"))]
+  const events = [...(d.events ?? []).filter((e) => eventTime(e) <= c && !managersOwn(e) && notMoot(e) && !aboutSkipped(e, fly.skipped)).map((e) => approver(e, legBy))]
     // the read-back clue waits for the manager's decision in the log too
     .map((e) => (e.type === "clue.added" && e.ref === opts.readback && e.data ? { ...e, data: { ...(e.data as object), confirmed: false } as MissionEvent["data"] } : e))
     .sort((a, b) => a.at.localeCompare(b.at));
@@ -561,7 +588,7 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   const timeline = (d.timeline ?? [])
     .filter((e) => ms(e.at) <= c && e.kind !== "decision" && e.kind !== "checkin" && e.kind !== "found" && !(ms(e.at) > ms(BOARD_AT) && e.kind === "radio"))
     .filter((e) => !aboutSkipped({ summary: e.text } as MissionEvent, fly.skipped))
-    .map((e) => (e.kind === "drone" ? { ...e, text: approver({ type: "fleet.updated", summary: e.text } as MissionEvent, "auto-approved: guided survey").summary } : e));
+    .map((e) => (e.kind === "drone" ? { ...e, text: approver({ type: "fleet.updated", summary: e.text } as MissionEvent, legBy).summary } : e));
   // a hasty team sent on by the manager stops its hasty rows there
   const sentAt = (id: string) => Math.min(...sent.filter((x) => x.team === id).map((x) => x.at));
   timeline.push(...hastyRows(d.teams ?? [], d.clues ?? [], c, sentAt), ...noteRows(fly.notes));
@@ -588,8 +615,78 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   };
   const s0 = simulate(mine.reduce(applyEvent, base), full, mine, c, opts.seed);
   // the drones fly by the clock (fleetSim.ts); the manager's legs photograph the map as they go
-  const s = { ...s0, fleet: fly.fleet, mapUpdates: [...s0.mapUpdates, ...fly.photos] };
-  return rankPending(s, d.mapBase ? sectorsAt(d.mapBase, s.sectors, s.mapUpdates) : s.sectors);
+  const s = relayed({ ...s0, fleet: fly.fleet, mapUpdates: [...s0.mapUpdates, ...fly.photos] }, mine);
+  const ranked = rankPending(s, d.mapBase ? sectorsAt(d.mapBase, s.sectors, s.mapUpdates) : s.sectors);
+  const told = opts.readback && !opts.mapClue ? unmappedReason(ranked, opts.readback) : ranked;
+  return closedOnFind(told, mine);
+}
+
+/**
+ * The relay the manager chose (the link step's "Divert drone three as a relay", a mission note with action
+ * "relay"): from then the relay drone holds over the ridge ("Relay" on its row, not its old flight line), its
+ * own line stops, and the drone that lost its link is heard again.
+ */
+function relayed(s: MissionData, mine: readonly MissionEvent[]): MissionData {
+  const e = [...mine].reverse().find((x) => x.type === "mission.note" && (x.data as { action?: string } | null)?.action === "relay");
+  const r = e?.data as { drone?: string; lost?: string } | null;
+  if (!e || !r?.drone || !s.fleet) return s;
+  const lost = s.fleet.drones.find((x) => x.id === r.lost);
+  const legs = s.fleet.legs.map((l) => (l.drone_id === r.drone && l.status === "flying" ? { ...l, status: "cancelled" as const } : l));
+  const over = lost?.position ? { lat: (lost.position.lat + HOME.lat) / 2, lon: (lost.position.lon + HOME.lon) / 2 } : { ...HOME };
+  const drones = s.fleet.drones.map((x) => (x.id === r.drone ? ({ ...x, status: "flying" as const, leg_id: null, position: over, relay: true } as typeof x) : x));
+  const links = { ...s.links, drones: { ...s.links.drones } };
+  if (r.lost && links.drones[r.lost]) links.drones[r.lost] = { ...links.drones[r.lost]!, link: "connected" };
+  // from the relay on, its old flight line's ending and landing are not what happened: the log leaves them out
+  const name = s.fleet.drones.find((x) => x.id === r.drone)?.name ?? r.drone;
+  const short = `D${/(\d+)$/.exec(r.drone)?.[1] ?? ""}`;
+  const aboutIt = (text: string, at: string) => at >= e.at && (text.startsWith(`${name}:`) || text.startsWith(`${name} back at base camp`) || text.startsWith(`${name} ·`)) && !/link/.test(text);
+  const timeline = s.timeline.filter((x) => !(x.kind === "drone" && aboutIt(x.text, x.at)));
+  const events = s.events.filter((x) => !(x.type === "mission.note" && x.id !== e.id && (aboutIt(x.summary, x.at) || (x.at >= e.at && x.summary.startsWith(`${short} `) && !/link/.test(x.summary)))));
+  return { ...s, fleet: { ...s.fleet, drones, legs }, links, timeline, events };
+}
+
+/**
+ * A radio clue logged without mapping moves nothing: the agent's reasons stop citing it as what raised a
+ * sector (the cold test: "Log without mapping" and the card still said the whistle "raised" C2), and the
+ * sector's share is the one the map shows.
+ */
+export function unmappedReason(s: MissionData, clueId: string): MissionData {
+  const cite = new RegExp(`(?:,? and )?\\b${clueId} \\([^)]*\\)(?: and )?`, "g");
+  const retell = (p: Proposal): Proposal => {
+    if (!new RegExp(`\\b${clueId}\\b`).test(p.reason)) return p;
+    let reason = p.reason.replace(cite, (m) => (/^,? and /.test(m) || / and $/.test(m) ? (/^,? and /.test(m) && / and $/.test(m) ? " and " : "") : ""));
+    reason = reason.replace(/:\s+raised it;/, ": no new evidence mapped;");
+    const sector = p.target.sector;
+    const now = s.sectors.find((x) => x.sector_id === sector);
+    if (sector && now) reason = reason.replace(new RegExp(`^${sector} · [\\d.]+ % of remaining probability(?:, up from [\\d.]+ %)?`), `${sector} · ${(now.poa * 100).toFixed(1)} % of remaining probability`);
+    const said = s.clues.find((x) => x.id === clueId)?.text;
+    return { ...p, reason: `${reason} The radio clue${said ? ` “${said}”` : ""} is logged without mapping: it moved nothing on the map.` };
+  };
+  // the card and the log's "AI suggests" line alike
+  const proposals = s.proposals.map((p) => (p.status === "pending" ? retell(p) : p));
+  const events = s.events.map((e) => (e.type === "proposal.new" && e.data && "reason" in (e.data as object) ? { ...e, data: retell(e.data as unknown as Proposal) as unknown as MissionEvent["data"] } : e));
+  return { ...s, proposals, events };
+}
+
+/**
+ * The subject found (the manager's Record find): every decision still open closes with "closed: subject
+ * found", each one logged (the cold test: a clue card stayed open under "nothing left to decide").
+ */
+export function closedOnFind(s: MissionData, mine: readonly MissionEvent[]): MissionData {
+  const f = mine.find(isFoundEvent);
+  if (!f) return s;
+  const at = f.at;
+  const open = s.proposals.filter((p) => p.status === "pending");
+  const clues = s.clues.filter((x) => !x.confirmed && !(x as { logged?: boolean }).logged);
+  if (!open.length && !clues.length) return s;
+  const proposals = s.proposals.map((p) => (p.status === "pending" ? { ...p, status: "superseded" as const, decided_at: at, decided_by: null, decision_reason: "closed: subject found" } : p));
+  const row = (id: string, text: string, team: string | null, sector: string | null): TimelineEvent => ({ id, at, kind: "decision", team, sector, text, direction: null, refs: [], turn_id: null, drone: null, by: null });
+  const timeline = [
+    ...s.timeline,
+    ...open.map((p) => row(`closed-${p.id}`, `Closed: subject found: the AI's suggestion "${p.summary}"`, p.target.team ?? null, p.target.sector ?? null)),
+    ...clues.map((x) => row(`closed-${x.id}`, `Closed: subject found: the clue "${x.text}" left unconfirmed`, null, null)),
+  ].sort((a, b) => a.at.localeCompare(b.at));
+  return { ...s, proposals, clues: s.clues.map((x) => (clues.includes(x) ? ({ ...x, closed: true } as typeof x) : x)), timeline };
 }
 
 /** Where a sector's teams walk to: the middle of its outline. */
@@ -647,13 +744,19 @@ export function simulate(s: MissionData, full: DemoFull, user: readonly MissionE
     const ended = !x.cut && x.end <= c && !(found && ms(found.at) < x.end);
     // the board: in progress once the team is there, searched at its POD when it reports no sign
     const own = (t: SectorTask) => t.sector_id === x.sector && t.team_id === x.team;
-    if (!x.cut && c >= x.arrive) tasks = tasks.map((t) => (own(t) ? (ended && !x.detected ? { ...t, state: "searched" as const, pod: x.pod, updated_at: iso(x.end) } : { ...t, state: "in_progress" as const, updated_at: iso(x.arrive) }) : t));
+    const stopped = foundAt !== null && foundAt < x.end && !x.detected && c >= foundAt;
+    if (!x.cut && c >= x.arrive && !stopped) tasks = tasks.map((t) => (own(t) ? (ended && !x.detected ? { ...t, state: "searched" as const, pod: x.pod, updated_at: iso(x.end) } : { ...t, state: "in_progress" as const, updated_at: iso(x.arrive) }) : t));
+    // stopped by the find before its pass ended: the sector stays open (not searched), the team walks back
+    if (stopped && !x.cut && c >= x.arrive) tasks = tasks.map((t) => (own(t) ? { ...t, state: "proposed" as const, team_id: null, updated_at: iso(foundAt) } : t));
     if (!ended) continue;
     const said = x.detected
       ? `Sightline, ${call(x.team)}. Subject located in ${sectorSpoken(x.sector)}, conscious and talking, over.`
       : `Sightline, ${call(x.team)}. ${sectorSpoken(x.sector)} searched, no sign of the subject, over.`;
     timeline.push({ id: `g-${x.team}-${x.start}`, at: iso(x.end), kind: "radio", team: x.team, sector: x.sector, text: said, direction: "in", refs: [], turn_id: null, drone: null, by: null });
     if (x.detected) continue;
+    // the walk home says why: no new task yet (a team sent on at once has its next assignment's line instead)
+    if (!all.some((o) => o.team === x.team && o.start >= x.end && o.start <= x.end + 1000))
+      timeline.push({ id: `g-${x.team}-${x.start}-back`, at: iso(x.end + 1000), kind: "checkin", team: x.team, sector: x.sector, text: `${call(x.team)} heads back to base camp: ${x.sector} searched with no sign, and no new task yet`, direction: null, refs: [], turn_id: null, drone: null, by: null });
     if (s.mapBase) {
       const u = groundUpdate(s.mapBase, s.sectors, x, seq);
       if (u) mapUpdates.push(u);
@@ -687,14 +790,21 @@ export function placeOf(list: readonly Pass[], t: number, ctx: { centre: (sector
   // it walks from where it was: its last pass, a hasty search, or base camp
   const from = prev.length ? placeOf(prev, x.start, ctx).pos : (ctx.from?.(x.start) ?? { ...HOME });
   const centre = ctx.centre(x.sector) ?? from;
-  // once the find is marked, a pass still out stops where it is
-  const tt = ctx.foundAt !== null && ctx.foundAt < x.end && !x.cut ? Math.min(t, x.end - 1) : t;
   const walk = (u: number) => alongPath([from, centre], (u - x.start) / WALK_MS);
+  // once the find is marked, a pass still out stops where it is and the team walks back to base camp
+  if (ctx.foundAt !== null && ctx.foundAt < x.end && !x.cut && t >= ctx.foundAt && x.start <= ctx.foundAt) {
+    const p0 = placeOf(list, ctx.foundAt, { ...ctx, foundAt: null }).pos;
+    const backMs = Math.max(MIN_MS, RETURN_MS * Math.min(2, metres(p0, HOME) / Math.max(1, metres(from, centre))));
+    if (t < ctx.foundAt + backMs) return { status: "returning", pos: alongPath([p0, HOME], (t - ctx.foundAt) / backMs), heard: ctx.foundAt, eta: Math.max(1, Math.ceil((ctx.foundAt + backMs - t) / MIN_MS)), note: "subject found" };
+    return { status: "standby", pos: { ...HOME }, heard: ctx.foundAt, eta: null };
+  }
+  const tt = t;
   if (tt < x.end) {
     if (tt < x.arrive) return { status: "assigned", pos: walk(tt), heard: x.start, eta: null };
     return { status: "searching", pos: centre, heard: x.arrive, eta: null };
   }
-  if (x.detected && !x.cut) return { status: "searching", pos: ctx.subject ? { lat: ctx.subject.lat, lon: ctx.subject.lon } : centre, heard: x.end, eta: null };
+  // the team with the subject: on the carry-out once the find is recorded
+  if (x.detected && !x.cut) return { status: "searching", pos: ctx.subject ? { lat: ctx.subject.lat, lon: ctx.subject.lon } : centre, heard: x.end, eta: null, note: ctx.foundAt !== null && t >= ctx.foundAt ? "carry-out" : null };
   // searched with no sign, or recalled: it walks back to base camp from where it stood
   const p0 = x.end < x.arrive ? walk(x.end) : centre;
   const out = Math.max(1, metres(from, centre));
@@ -728,16 +838,25 @@ export const PASS_MIN = Math.round((WALK_MS + SWEEP_MS) / MIN_MS);
 function withSightings(s: MissionData, full: DemoFull, passes: readonly Pass[], c: number, found: boolean): MissionData {
   if (found) return s;
   let proposals = s.proposals;
+  const timeline = [...s.timeline];
   const call = (id: string) => s.teams.find((t) => t.id === id)?.callsign ?? id;
-  for (const clue of sightings(s.clues)) {
-    if (ms(clue.at) > c) continue;
+  // one proposal per sighting's sector (the cold test: two cards for one place, at two distances)
+  for (const [sector, group] of sightingGroups(s.clues.filter((x) => ms(x.at) <= c), s.sectors)) {
+    const clue = group[0]!;
     const id = `sight-${clue.id}`;
     if (proposals.some((p) => p.id === id)) continue;
-    const sector = sectorAt(s.sectors, clue);
-    if (!sector || passes.some((p) => p.sector === sector && p.start >= ms(clue.at) && !p.cut)) continue;
+    // a team the manager sent there another way: the sighting is superseded, and the log says so
+    const went = passes.find((p) => p.sector === sector && p.start >= ms(clue.at) && !p.cut);
+    if (went) {
+      proposals = [...proposals, { id, kind: "assign_sector", status: "superseded", created_by: "planner", created_at: clue.at, decided_at: iso(went.start), decided_by: null, decision_reason: `superseded: ${call(went.team)} sent to the sighting`, edits: null, briefing: null, evidence: [{ kind: "clue", ref: clue.id, caption: clue.text }], target: { team: went.team, sector }, summary: `Send a team to the sighting in ${sector}`, reason: "" }];
+      timeline.push({ id: `superseded-${id}`, at: iso(went.start), kind: "decision", team: went.team, sector, text: `Sighting in ${sector}: superseded: ${call(went.team)} sent to the sighting`, direction: null, refs: [clue.id], turn_id: null, drone: null, by: null });
+      continue;
+    }
     // not a team another pending assignment asks for (the first assignment's team), unless no other can go
     const asked = proposals.filter((p) => p.status === "pending" && p.kind === "assign_sector" && !p.id.startsWith("sight-") && p.target.team).map((p) => p.target.team as string);
-    const near = nearestTeam(s.teams, clue, HOME, asked) ?? nearestTeam(s.teams, clue, HOME);
+    // the nearest team to any photo of it, and that distance
+    const nearOf = (not: readonly string[]) => group.map((x) => nearestTeam(s.teams, x, HOME, not)).filter((x): x is NonNullable<typeof x> => !!x).sort((a, b) => a.m - b.m)[0] ?? null;
+    const near = nearOf(asked) ?? nearOf([]);
     if (!near) continue;
     const where = near.team.status === "standby" ? "at base camp" : near.team.status === "returning" ? "on its way back" : `out in ${s.tasks.find((t) => t.team_id === near.team.id)?.sector_id ?? "the field"}`;
     proposals = [
@@ -747,12 +866,41 @@ function withSightings(s: MissionData, full: DemoFull, passes: readonly Pass[], 
         evidence: [{ kind: "clue", ref: clue.id, caption: clue.text }],
         target: { team: near.team.id, sector },
         summary: `Send ${call(near.team.id)} to the sighting in ${sector} (+${PASS_MIN} min)`,
-        reason: `A reviewer marked a person on a survey photo: a possible sighting in ${sector}. ${call(near.team.id)} is the nearest team (${Math.round(near.m)} m, ${where}); the walk and one pass take about ${PASS_MIN} min. If it is not the subject, the plan by POA stands.`,
+        reason: `A reviewer marked a person on ${group.length > 1 ? `${group.length} survey photos` : "a survey photo"}: a possible sighting in ${sector}. ${call(near.team.id)} is the nearest team (${Math.round(near.m)} m, ${where}); the walk and one pass take about ${PASS_MIN} min. If it is not the subject, the plan by POA stands.`,
       },
     ];
   }
   void full;
-  return proposals === s.proposals ? s : { ...s, proposals };
+  timeline.sort((a, b) => a.at.localeCompare(b.at));
+  return proposals === s.proposals ? s : { ...s, proposals, timeline };
+}
+
+/** The sightings by the sector they are in, each sector's oldest first (its proposal's id is the oldest's). */
+export function sightingGroups(clues: readonly Clue[], sectors: readonly SectorNow[]): Map<string, Clue[]> {
+  const out = new Map<string, Clue[]>();
+  for (const clue of [...sightings(clues)].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id))) {
+    const sector = sectorAt(sectors, clue);
+    if (sector) out.set(sector, [...(out.get(sector) ?? []), clue]);
+  }
+  return out;
+}
+
+/**
+ * The sightings still waiting for a team at `at`, from the manager's own events (the guide's Send all sends
+ * the nearest team to each first): no team sent to its sector since, no decision on its proposal.
+ */
+export function pendingSightings(full: DemoFull | null, user: readonly MissionEvent[], passes: readonly Pass[], at: number): { sector: string; clue: Clue }[] {
+  // the scenario's own sightings (a witness) and the reviewers' (the manager's answers on photos)
+  const clues = new Map<string, Clue>((full?.data.clues ?? []).filter((x) => ms(x.at) <= at).map((x) => [x.id, x]));
+  for (const e of user) if (e.type === "clue.added" && e.data && ms(e.at) <= at) clues.set((e.data as unknown as Clue).id, e.data as unknown as Clue);
+  const decided = new Set(user.filter((e) => e.type === "proposal.decided" && ms(e.at) <= at && e.ref).map((e) => e.ref as string));
+  const out: { sector: string; clue: Clue }[] = [];
+  for (const [sector, group] of sightingGroups([...clues.values()], full?.data.sectors ?? [])) {
+    const clue = group[0]!;
+    if (decided.has(`sight-${clue.id}`) || passes.some((p) => p.sector === sector && p.start >= ms(clue.at) && !p.cut && p.start <= at)) continue;
+    out.push({ sector, clue });
+  }
+  return out;
 }
 
 /**

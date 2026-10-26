@@ -193,7 +193,8 @@ describe("every approval names the approver; one assignment is one line", () => 
     // an approval line (not "flies its approved leg"): a decision on a proposal or a leg
     const approvals = lines.filter((e) => /approved the AI|approved for|auto-approved|approved by|approved in turn|flight line approved|approved \(/i.test(e.text));
     expect(approvals.length).toBeGreaterThan(2);
-    for (const e of approvals) expect(e.text).toMatch(/^You approved|auto-approved|\(by the search manager\)|approved by |standing approval/);
+    // the scenario's own flight lines, with no survey decision in this run: pre-planned, never "auto-approved"
+    for (const e of approvals) expect(e.text).toMatch(/^You approved|auto-approved: guided survey, you chose|pre-planned in the scenario, before you took over|\(by the search manager\)|approved by |standing approval/);
     // one line for the assignment, not three
     expect(lines.filter((e) => /C2/.test(e.text) && /assigned|approved/.test(e.text) && !/auto-approved/.test(e.text))).toHaveLength(1);
   });

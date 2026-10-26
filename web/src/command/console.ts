@@ -175,7 +175,7 @@ export function needs(
     .map((p) => ({ kind: "proposal", id: p.id, proposal: p }));
   if (toReview > 0) out.push({ kind: "review", id: "review", count: toReview });
   for (const { team, heard: h } of overdueTeams(board ?? teamOrder(teams, events, now, checkInMin))) out.push({ kind: "overdue", id: `overdue-${team.id}`, team, min: h.min, at: h.at });
-  for (const c of clues) if (!c.confirmed) out.push({ kind: "readback", id: `clue-${c.id}`, clue: c, turn: null, team: teamOf(teams, c.reported_by) });
+  for (const c of clues) if (!c.confirmed && !isLogged(c) && !(c as { closed?: boolean }).closed) out.push({ kind: "readback", id: `clue-${c.id}`, clue: c, turn: null, team: teamOf(teams, c.reported_by) });
   // a radio call held for read-back: one card, and none once its clue is on the board (the clue's card, or
   // confirmed: the cold test's water bottle "confirmed" in the timeline and "holding" in Needs you)
   const latest = new Map<string, RadioTurn>();
@@ -251,11 +251,22 @@ export function nearestTeam(teams: readonly Team[], at: { lat: number; lon: numb
   return best ?? null;
 }
 
+/**
+ * A radio clue the manager logged without mapping (the guided search's "Log without mapping"): not
+ * confirmed, the map unchanged, and no longer waiting for a read-back.
+ */
+export const isLogged = (c: object): boolean => (c as { logged?: boolean }).logged === true;
+
+/** Who made a decision, in the log's words: the visitor ("You"), or the guided search's Watch instead. */
+export const WATCH_BY = "Watch instead";
+
 /** A reviewer's "Person" on a photo: a sighting clue (kind "sighting"), the newest first. */
 export const sightings = (clues: readonly Clue[]): Clue[] => clues.filter((c) => c.kind === "sighting").sort((a, b) => b.at.localeCompare(a.at));
 
 /** The subject's status before the find: "Possible sighting · 14:31" once a reviewer has marked a person, else "not found". */
-export function subjectWord(clues: readonly Clue[], time: (iso: string) => string): string {
+export function subjectWord(clues: readonly Clue[], time: (iso: string) => string, found: { at: string; sector: string | null } | null = null): string {
+  // after the find the stat stays, with when and where (the cold test: it vanished)
+  if (found) return `Found ${time(found.at)}${found.sector ? ` · ${found.sector}` : ""}`;
   const s = sightings(clues)[0];
   return s ? `Possible sighting · ${time(s.at)}` : "not found";
 }

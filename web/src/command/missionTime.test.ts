@@ -74,7 +74,8 @@ describe("mission time: the demo mission's checkpoints", () => {
     expect(s.tasks).toEqual([]);
     expect(s.proposals).toEqual([]);
     expect(s.mapUpdates).toEqual([]);
-    expect(s.teams!.every((t) => t.status === "standby" && t.position?.lat === TRAILHEAD.lat)).toBe(true);
+    // the hasty teams leave at the call (pre-planned in the scenario), from the trailhead
+    expect(s.teams!.every((t) => (t.status === "standby" || t.note === "hasty search") && t.position?.lat === TRAILHEAD.lat)).toBe(true);
     // nothing has flown yet: no drone on the map (no SIM marker, no battery label) until the survey flight
     expect(s.fleet!.drones).toEqual([]);
     expect(s.fleet!.legs).toEqual([]);

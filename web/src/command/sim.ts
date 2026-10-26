@@ -130,7 +130,7 @@ export function assignmentEvent(id: string, team: string, sector: string, at: nu
  * nothing to do go to the agent's next picks (assignment events of their own, `auto-…`), until a pass
  * detects the subject, the find is marked, or light runs out. Returns the events with them added.
  */
-export function playStanding(seed: string, subject: Subject | null, poa: ReadonlyMap<string, number>, events: readonly MissionEvent[], teams: readonly string[], from: number, lastLight: number, stop: (e: MissionEvent) => boolean = () => false, kick = false): MissionEvent[] {
+export function playStanding(seed: string, subject: Subject | null, poa: ReadonlyMap<string, number>, events: readonly MissionEvent[], teams: readonly string[], from: number, lastLight: number, stop: (e: MissionEvent) => boolean = () => false, kick = false, note = "the agent's pick, approved in turn"): MissionEvent[] {
   const out = [...events];
   // nothing is sent after the find is marked
   const until = Math.min(lastLight, ...events.filter(stop).map((e) => new Date(e.at).getTime()));
@@ -140,7 +140,7 @@ export function playStanding(seed: string, subject: Subject | null, poa: Readonl
     for (const team of teams) {
       if (passes.some((p) => p.team === team && !p.cut && p.end > from) || out.some((e) => e.id === `auto-${team}-${from}`)) continue;
       const sector = agentPick(poa, passesFrom(seed, subject, out), from);
-      if (sector) out.push(assignmentEvent(`auto-${team}-${from}`, team, sector, from, "the agent's pick, approved in turn"));
+      if (sector) out.push(assignmentEvent(`auto-${team}-${from}`, team, sector, from, note));
     }
   }
   for (let guard = 0; guard < 60; guard++) {
@@ -157,7 +157,7 @@ export function playStanding(seed: string, subject: Subject | null, poa: Readonl
       if (out.some((e) => e.id === `auto-${team}-${at}`)) continue;
       const sector = agentPick(poa, passesFrom(seed, subject, out), at);
       if (!sector) break;
-      out.push(assignmentEvent(`auto-${team}-${at}`, team, sector, at, "the agent's pick, approved in turn"));
+      out.push(assignmentEvent(`auto-${team}-${at}`, team, sector, at, note));
       added += 1;
     }
     if (!added) break;

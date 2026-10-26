@@ -9,6 +9,7 @@ import hiker from "./__fixtures__/scenarios/overdue-hiker.json";
 import { SECOND_LOOK_ID } from "./demoReview";
 import { activeInject, agentOption, choiceFor, choiceFromConsole, costsOf, currentCard, hotWash, injects, lastLight, PIPS, searchEnd, sendAllLabel, standingUser, type Choice, type GuideInput, type Inject } from "./guide";
 import { demoAt, onMissionClock, poaOf, subjectOf, type DemoFull } from "./missionTime";
+import { sectorAt } from "./console";
 import { shiftTimes } from "./scenarios";
 import { agentLine, fixtureOf, passesFrom, realOf, TEAM_POD } from "./sim";
 import { dwellFor, LAPSE, lapseRate, lapseStep } from "./story";
@@ -129,7 +130,9 @@ describe("every choice path reaches the find within the run (the cold test's end
           const subject = subjectOf(full)!;
           const at = i.at - 60_000;
           mine.push({ id: `u${++seq}`, type: "clue.added", at: iso(at), summary: "sighting", ref: "s-x", data: { id: "s-x", kind: "sighting", text: "person confirmed", lat: subject.lat, lon: subject.lon, radius_m: 10, at: iso(at), at_team_position: false, reliability: "high", reported_by: "command", source: "form", confirmed: true, confirmed_by_turn: null } as never });
-          const p = (demoAt(full, iso(i.at), mine, { seed }).proposals ?? []).find((x) => x.id === "sight-s-x")!;
+          // one proposal per sighting's sector: the scenario's own witness sighting there, if any, is the same one
+          const where = sectorAt(full.data.sectors ?? [], subject);
+          const p = (demoAt(full, iso(i.at), mine, { seed }).proposals ?? []).find((x) => x.id.startsWith("sight-") && x.target.sector === where)!;
           expect(p.status).toBe("pending");
           mine.push({ id: `u${++seq}`, type: "proposal.decided", at: iso(i.at), summary: "", ref: p.id, data: { ...p, status: "approved", decided_by: "Search manager", decided_at: iso(i.at) } as never });
           mine.push(assignEv(p.target.team!, p.target.sector!, i.at));
@@ -159,8 +162,10 @@ describe("every choice path reaches the find within the run (the cold test's end
     const a = list.find((i) => i.key === "assign")!;
     const p = storyProposal(overdue)!;
     const team = overdue.data.teams!.find((t) => t.id === p.target.team)!.callsign;
-    expect(a.options[0]).toMatchObject({ id: "all", agent: true, label: sendAllLabel(4, team, p.target.sector!) });
-    expect(a.options[0]!.label).toBe("Send all 4 free teams to the AI's picks");
+    // only the free teams are "free": Teams One and Two are walking back from the hasty search (the cold test: 4 for 2)
+    expect(a.options[0]).toMatchObject({ id: "all", agent: true, label: sendAllLabel(2, team, p.target.sector!, { returning: 2 }) });
+    expect(a.options[0]!.label).toBe("Send the 2 free teams and the 2 returning ones to the AI's picks now");
+    expect(sendAllLabel(4, team, "C2")).toBe("Send all 4 free teams to the AI's picks");
     expect(a.options[1]).toMatchObject({ id: "approve", label: `Send only ${team} to ${p.target.sector}` });
     expect(a.options.filter((o) => o.agent)).toHaveLength(1);
   });
