@@ -661,6 +661,9 @@ describe("free play (#m/demo/map): the console on its own, a fresh mission at th
     await userEvent.click(within(clock).getByRole("button", { name: "Restart" }));
     const ask = await screen.findByRole("alertdialog", { name: "Restart this search?" });
     expect(ask).toHaveTextContent("Restart this search from the call? Your decisions so far will be lost");
+    // drawn in document.body, outside the clock bar: inside it, the bar's stacking context took its clicks
+    expect(clock.contains(ask)).toBe(false);
+    expect(ask.parentElement!.parentElement).toBe(document.body);
     // Stay keeps the run
     await userEvent.click(within(ask).getByRole("button", { name: "Stay" }));
     expect(useGuide.getState().guide!.clock).toBeGreaterThan(call);
