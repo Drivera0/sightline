@@ -589,7 +589,10 @@ export function GuideMark({
           <span className={`sl-pill ${call ? "" : "opacity-80"}`} data-tone={call ? "caution" : "neutral"}>
             {call ? "Your call" : "Watch this"}
           </span>
-          <span className="min-w-0 flex-1 text-text-2">{heading}</span>
+          {/* while the clock runs the heading is short ("Next: Clue"): one line, its whole text on hover */}
+          <span className={`min-w-0 flex-1 text-text-2 ${call ? "" : "truncate"}`} title={call ? undefined : heading}>
+            {heading}
+          </span>
           {phone && (reviewOpen || !inBar) && (
             <button type="button" onClick={() => setUnfolded(false)} className="sl-tap shrink-0 text-small text-text-2 hover:text-text">
               Hide

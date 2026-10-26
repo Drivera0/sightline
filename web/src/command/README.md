@@ -229,20 +229,32 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
   Needs you keeps its grouping and uses its one pointing system, `highlight` (#219): the step's item (`review`,
   `clue-<id>`, the proposal's id, `report-<team>`) ringed, every other one `data-dimmed` and out of reach
   (pointer events off) until its step; "none" between decisions dims them all. No toasts while the run is on (`useEventToasts` `quiet`): the bar says each row.
-- **Time passing** (`story.ts` `lapseStep`, `lapseBeats`; Dan's review 2026-10-25: "way too fast"): one
-  thing at a time, and the bar says what it is. The timeline rows between two decisions (read from the
-  mission as it will stand at the next decision, `demoAt` once per run) are grouped into beats: rows alike
-  landing within 5 mission minutes of each other are one ("Drone 3: flight line approved · 3 drones",
-  "… · 2 photos"). The clock travels from beat to beat, never faster than 4 mission minutes a second
-  (0.25 s a minute; a short stretch at most 1 s a minute), and stops on each beat for 1.2 s (1 s when
-  there are many): the caption names it ("14:10 · AI re-check of a near-miss photo: probably not a person ·
-  2 photos") and the map outlines the sectors and rings the teams it is about, panning gently only when
-  it is off-screen (`map/heat/focusLayers.ts` `useBeatLayer`). At 1× a stretch takes 15–25 s (the
-  first, 13:35 to 14:31 with eight beats, about 24 s). 2× and 4× travel 2 and 4 times faster and shorten
-  each beat by the square root; Pause (Space), Skip ahead (→). Reduced motion: no travel, the clock steps
-  beat to beat. Watch instead uses the same pacing. The clock reads real elapsed time, so a slow frame
-  does not slow the mission. The heat changes as one 750 ms fade at most every 0.9 s (`LiveHeatMap`
-  `useSpaced`), and drones glide at a constant speed between the clock's readings (`FleetGlide`).
+- **Time passing** (`story.ts` `lapseStep`, `lapseBeats`; Dan's review 2026-10-25: "way too fast"; the
+  owner 2026-10-26: "the timeline moves so fast that I don't understand what's being given to us"): one
+  thing at a time, and the bar says what it is and what it means. The timeline rows between two decisions
+  (read from the mission as it will stand at the next decision, `demoAt` once per run) are grouped into
+  beats: rows alike landing within 5 mission minutes ("Drone 3: flight line approved · 3 drones"), and rows
+  about one thing close together (`topicOf`: a radio call, its read-back and the clue it brings; a team's
+  pass and the standing approval that sends it on; the photos the AI re-checks; the drones' flight lines;
+  one drone's line done and its landing). A stretch keeps at most 8 beats (`LAPSE.maxBeats`; free play 6 a
+  window, `FREE_MAX_BEATS`), the most telling ones (`weightOf`: a find, a clue, a pass, a suggestion
+  before a position report or a weather lookup); the others' rows still land on the timeline, the clock
+  just does not stop for them. The clock travels from beat to beat, never faster than 5 mission minutes a
+  second (0.2 s a minute) while the stretch allows, and stops on each beat for 3.2 s (2.6 s when there are
+  many): the caption (`caption.ts` `beatCaption`) says it in one line, what happened and what it means for
+  the search ("4 teams searched B3, B2, C3 and C2 with no sign of the subject: the map lowers those sectors
+  and the others rise. Your Send all sends the 4 teams on to the AI's next picks: D3, D2, A2 and A3."),
+  built only from the beat's own rows (their teams, sectors and counts; no number they do not carry), and
+  the map outlines the sectors and rings the teams it is about, panning gently only when it is off-screen
+  (`map/heat/focusLayers.ts` `useBeatLayer`). At 1× a stretch takes 12–35 s: the first, 13:35 to 14:31
+  (6 beats on the overdue hiker), about 30 s; a long stretch travels faster between its stops so it never
+  passes 35 s (`LAPSE.maxS`). 2× and 4× travel 2 and 4 times faster and shorten each beat by the square
+  root; Pause (Space), Skip ahead (→). Reduced motion: no travel, the clock steps beat to beat. Watch
+  instead uses the same pacing. Free play's clock runs 1 mission minute a second at 1× (`FREE_MIN_PER_S`,
+  was 2), stops on its beats as long, and its clock bar shows the same caption. The clock reads real
+  elapsed time, so a slow frame does not slow the mission. The heat changes as one 750 ms fade at most
+  every 0.9 s (`LiveHeatMap` `useSpaced`), and drones glide at a constant speed between the clock's
+  readings (`FleetGlide`).
 - **A new run each time**: arriving at `?guide=1` (a home card's Start, Try another scenario then Start)
   always starts a new run from the call, with the last run's actions, answers, toasts and flights gone
   (`storyFromRoute`, `freshConsole` in `ingest/LiveMission.tsx`); before, a finished run on the same seed
@@ -259,7 +271,8 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
 - **Watch instead** plays the agent's line through the same engine (the reason for 3 s, then "Agent's
   choice: …"); **What you did** (`GuideEnd.tsx`, `hotWash`) compares each decision with the agent's, prints
   every draw, shows the searched sectors at their POD and the subject's sector, says where the two lines
-  diverged, and links the after-action report, the trace, `PLANNER_V2.md` and `POD.md`. No score.
+  diverged, and links the after-action report, the trace, `PLANNER_V2.md` and `POD.md`. Above it, the
+  score out of 100 (below, "Mission goals and the score").
   On top of it, **You vs the agent** (`compare.ts`): your search and the agent's line side by side (time
   from the call to the find in mission minutes, sectors searched, team-hours on passes, the share of the
   agent's map searched before the find, candidates triaged, decisions unlike the agent's), the two times
@@ -439,3 +452,46 @@ A BC SAR search manager: "Clever, but I can't trust what it tells me about my te
   has no Confirm or Reply; a clue candidate from an image review offers "Send Team Two to look (+16 min)" and a
   live Confirm.
 - Held in `statusTruth.test.tsx` (every minute of a run: rows = Needs you = toasts = bell).
+
+## Clarity, goals and the score (lane A, 2026-10-26, `claude/sim-clarity`)
+
+The owner: "more clear and intuitive … the timeline moves so fast … not gamified enough … make it clear how
+to use it, and professional." With the cold test's layout findings. Screenshots before and after (1440 × 900,
+1280 × 720, 390 × 844, light and dark) were taken in Chromium for the PR.
+
+- **Pacing and captions**: "Time passing" above (`story.ts` `LAPSE`, `lapseBeats`; `caption.ts`). Held in
+  `guide.test.ts` (every beat 2.5–3.5 s at 1×, every stretch at most 35 s, a real stretch of 16 rows in at
+  most 8 beats) and `caption.test.ts` (each kind of beat, and no number the rows do not carry).
+- **Mission goals** (`goals.ts` `missionGoals`, `GoalsStrip.tsx`, above the map on a guided or free run):
+  Find the subject before last light; Review every photo flagged (the guided run: its review step's photos
+  once the step is up; free play: every photo landed for review); Confirm each radio clue (read back or
+  with a bearing; logged without mapping does not count); Keep every team within its radio check-in (a
+  team past it on two readings of a running clock, `console.ts` `overdueTeams`; a jump of Skip ahead is no
+  missed check-in). Each chip: ✓ met, ○ to play for, ✕ missed, the progress on hover.
+- **The score** (`goals.ts` `missionScore`, the end screen's first section): 40 for the find before last
+  light; 20 for the time to find, full at the faster of you and the AI's every pick, none at the manual
+  line's time (`compare.ts` `withWithout`, `sim.ts` `manualLine`; last light when it finds no one), in
+  proportion between; 15 × the share of flagged photos answered; 15 × the share of radio clues confirmed;
+  10 × the share of teams never past their check-in. "How the score is worked out" lists each part with
+  this run's numbers. The best per scenario stays in this browser (`localStorage`
+  `sightline.best-score.<seed>`, free play `<seed>:free`; Watch instead's runs are not kept), with "Beat
+  your score" and "Try another scenario". The hot wash itself still claims no score.
+- **First-run tour** (`Tour.tsx`): three steps, Resources, the map (hotter = likelier), Needs you (every
+  decision waits here); Esc or Skip ends it, `localStorage` `sightline.tour-seen` remembers it; the clock
+  waits while it is up (`consoleStore.confirming`) and no console key acts. Off in the app's own test runs.
+- **Layout**: the page never scrolls on a desktop (1440 × 900, 1280 × 720): the scrolling columns are
+  containing blocks, so their rows' screen-reader text (absolute) no longer lengthened the page by up to
+  1765 px; a run caps the timeline at 28 % of the window so the map keeps its height; toasts sit above the
+  talk bar (never over Send). Phones: the guide is one slim line over the tabs (the instruction, or the
+  time-lapse's clock, caption and Pause), opened with a tap, unless the choice is made in the bar itself
+  (the survey); arriving lands at the top (no scroll to a target when the choice is in the bar); the main
+  area keeps room under the slim bar. Free play's clock bar is one line (the ways out under More), with
+  the caption under it while a beat is up.
+- **Words and keys**: a prompt quotes the button it names, set in bold (“Confirm clue”, “Send the 2 free
+  teams … first”); each key letter shows on one card only, where it acts (the guided step's card, else the
+  card in focus: `ApprovalInbox` `keys`, `hints`); the step strip ticks a step once its decisions that have
+  come up are made, and a team back from its pass is "Follow-up to step 4 · Assign again: a team is back".
+- **One count**: Needs you's head count (`NeedsYou` `useNeedsTotal`) is the phone tab's and free play's
+  clock bar's; the review frame and the review rail both say "photo n of N" on the guided step; the review
+  toast leaves when none wait (no "14 photos to review" after Restart); the bell says "N new" and shows
+  no "0".

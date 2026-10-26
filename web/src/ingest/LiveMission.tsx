@@ -67,7 +67,7 @@ const BoxLayer = lazy(() => import("../detect/TryPhoto").then((m) => ({ default:
 const AssignmentCardView = lazy(() => import("../command/AssignmentCardView").then((m) => ({ default: m.AssignmentCardView })));
 
 /** Where the map goes while MapLibre loads: the same frame, empty, so nothing moves when it arrives. */
-const MAP_FRAME = <div aria-hidden="true" className="relative h-full min-h-[360px] rounded-lg border border-border" />;
+const MAP_FRAME = <div aria-hidden="true" className="relative h-full min-h-[360px] rounded-lg lg:min-h-[280px] border border-border" />;
 /** The still map's fade into the live map (MapStill.tsx), within 100–400 ms; none under reduced motion. */
 const STILL_FADE_MS = 300;
 const loading = (what: string) => <p className="text-small text-text-3">Loading {what}…</p>;
@@ -899,7 +899,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               map={
                 still ? (
                   // the map loads under the still image, which fades out once the map has drawn
-                  <div className="relative h-full min-h-[360px]">
+                  <div className="relative h-full min-h-[360px] lg:min-h-[280px]">
                     {mapOn && (
                       <div className="absolute inset-0">
                         <Suspense fallback={null}>

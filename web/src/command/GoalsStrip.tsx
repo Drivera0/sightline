@@ -14,8 +14,8 @@ const MARK: Record<GoalState, { glyph: string; tone: string; word: string }> = {
 export function GoalsStrip({ goals }: { goals: readonly Goal[] }) {
   const met = goals.filter((g) => g.state === "done").length;
   return (
-    <section aria-label="Mission goals" data-goals className="flex min-w-0 shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1 rounded-lg border border-line bg-surface-solid px-2.5 py-1 text-caption">
-      <span className="mr-0.5 font-medium text-text-2" title="Your goals for this search. The end screen scores them.">
+    <section aria-label="Mission goals" data-goals className="flex min-w-0 shrink-0 flex-wrap items-center gap-x-1 gap-y-1 overflow-hidden rounded-lg border border-line bg-surface-solid px-2 py-1 text-caption lg:flex-nowrap">
+      <span className="mr-0.5 shrink-0 whitespace-nowrap font-medium text-text-2" title="Your goals for this search. The end screen scores them.">
         <span className="2xl:hidden">Goals</span><span className="max-2xl:hidden">Mission goals</span> <span className="font-normal text-text-3">{met}/{goals.length}</span>
       </span>
       {goals.map((g) => {
@@ -26,7 +26,7 @@ export function GoalsStrip({ goals }: { goals: readonly Goal[] }) {
             data-goal={g.id}
             data-state={g.state}
             title={`${g.label}: ${g.progress}`}
-            className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 ${g.state === "done" ? "border-ok/40" : g.state === "missed" ? "border-caution/50" : "border-line"}`}
+            className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-1.5 py-0.5 ${g.state === "done" ? "border-ok/40" : g.state === "missed" ? "border-caution/50" : "border-line"}`}
           >
             <span aria-hidden className={m.tone}>
               {m.glyph}
