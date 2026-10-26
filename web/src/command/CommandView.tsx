@@ -250,9 +250,10 @@ export function CommandView(p: CommandProps) {
           {p.overMap && <div className="pointer-events-none absolute inset-x-2 bottom-7 z-10 flex justify-center sm:inset-x-3">{p.overMap}</div>}
         </div>
       </div>
-      <div id="console-needs" className="order-1 flex min-h-0 flex-col gap-2 lg:order-none">
-        {/* the guided search's bar: on top of the decisions column, never over the map (a bottom sheet on a phone) */}
-        {p.dock && <div id="console-guide" className="min-w-0 shrink-0 lg:max-h-[62%] lg:overflow-y-auto">{p.dock}</div>}
+      {/* the guided search: its bar and Needs you share this column's one scroll (theme.css `data-guided`): the
+          bar, the step's item, the bar's other choices; never over the map (a bottom sheet on a phone) */}
+      <div id="console-needs" data-guided={p.dock ? "" : undefined} className={`order-1 flex min-h-0 flex-col gap-2 lg:order-none ${p.dock ? "lg:overflow-y-auto lg:overscroll-contain" : ""}`}>
+        {p.dock && <div id="console-guide" className="min-w-0 shrink-0">{p.dock}</div>}
         {p.rightRail ? (
           <aside aria-label="View" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
             {p.rightRail}

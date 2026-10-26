@@ -156,7 +156,9 @@ export function useGuideRun({
   const dwellUntil = useRef(0);
 
   // the clock: ten readings a second toward the next decision, a moment on each row as it lands, and it stops there
-  const running = on && !guide!.ended && !guide!.paused && hold !== null && clockMs < hold;
+  // (and waits while a confirm is open: Leave the simulation?)
+  const confirming = useConsole((s) => s.confirming);
+  const running = on && !guide!.ended && !guide!.paused && !confirming && hold !== null && clockMs < hold;
   useEffect(() => {
     if (!running) return undefined;
     // the real time since the last reading (a busy frame must not slow the mission down), at most a quarter second
@@ -318,7 +320,7 @@ export function useGuideRun({
   // watch instead: the reason for three seconds, then the agent's choice, through the same engine
   useEffect(() => {
     setStatus(null);
-    if (!on || !guide!.watch || !active || !reached || guide!.ended) return undefined;
+    if (!on || !guide!.watch || !active || !reached || guide!.ended || confirming) return undefined;
     const ag = agentOption(active, card);
     const t1 = window.setTimeout(() => setStatus(`Agent's choice: ${ag.label}`), 3000);
     const t2 = window.setTimeout(() => {
@@ -330,14 +332,14 @@ export function useGuideRun({
       window.clearTimeout(t2);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [on, guide?.watch, guide?.ended, active?.key, card?.id, reached]);
+  }, [on, guide?.watch, guide?.ended, active?.key, card?.id, reached, confirming]);
 
   // the find marked: a moment on the console, then what you did
   useEffect(() => {
-    if (!on || !findDone || guide!.ended) return undefined;
+    if (!on || !findDone || guide!.ended || confirming) return undefined;
     const t = window.setTimeout(() => useGuide.getState().end(), 2500);
     return () => window.clearTimeout(t);
-  }, [on, findDone, guide?.ended]);
+  }, [on, findDone, guide?.ended, confirming]);
 
   // ---- what is on screen ----
   const subject = subjectOf(scenario);

@@ -59,7 +59,10 @@ describe("the shortcuts list", () => {
     expect(SHORTCUT_GROUPS.map((g) => g.title)).toEqual(["Views", "Needs you", "Map", "Timeline and radio", "Guided simulation"]);
     const guided = SHORTCUT_GROUPS.find((g) => g.title === "Guided simulation")!;
     expect(guided.shortcuts.flatMap((s) => s.keys)).toEqual(["A", "1", "2", "3", "4", "M", "T", "Space", "Esc"]);
-    expect(all).toContain("Esc: Leave the guided simulation");
+    expect(all).toContain("Esc: Close an overlay (Leave the simulation asks first)");
+    // the review answers by the names on their buttons (the usability test: help said "Person P")
+    expect(all).toEqual(expect.arrayContaining(["P: The subject", "S: Another person", "N: Not a person", "U: Unsure (under More)"]));
+    expect(all).not.toContain("P: Person");
     expect(all.join("\n")).not.toMatch(/checkpoint|the story|guided demo|tour|→|←/i);
     expect(all.join("\n")).not.toMatch(/\bclear(s|ed|ing)?\b|\brul(e|ed) out\b/i);
   });
