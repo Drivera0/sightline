@@ -33,6 +33,9 @@ const ALLOWED_URLS = [
   "http://ns.adobe.com/xap/1.0/",
   // The #judges page's links into the repo (report, architecture, what changed): opened on click only.
   "https://github.com/Drivera0/sightline/*",
+  // The end screen's source for search time and survival (Adams et al. 2007, src/command/compare.ts): a link
+  // opened only when a viewer clicks it, never fetched by the page.
+  "https://pubmed.ncbi.nlm.nih.gov/17590071/",
 ];
 const dir = process.argv[2] ?? "dist";
 const found = scanDirectory(dir, ALLOWED_HOSTS, ALLOWED_URLS);
