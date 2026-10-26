@@ -1,7 +1,7 @@
 // "What the photo changes": the home page's account of the agent's loop, on one real chain from this
 // flight (#192): f0273-d02, two people on a trail under the trees that the detector scored 0.17, below the
-// 0.29 review line. OpenCV 5 cuts a zoom from the photo's native pixels, Nemotron VL answers from it, the
-// agent proposes adding it to the review queue, and a person decides. Every number and every quoted word
+// 0.29 review line. OpenCV 5 cuts a zoom from the photo's native pixels, NVIDIA Nemotron VL answers from it on
+// Nebius Token Factory, the agent proposes adding it to the review queue, and a person decides. Every number and every quoted word
 // comes from the live run's fixture (command/__fixtures__/second_look/, written by
 // scripts/make_second_look_fixture.py, the answer word for word) or the docs it cites. Then "Try your own
 // photo": the same detector in the visitor's browser (detect/TryPhoto.tsx, at #try).
@@ -56,7 +56,7 @@ export const AGENTIC = {
     },
     {
       verb: "Reason",
-      who: "Nemotron 3.5 Super VL",
+      who: "NVIDIA Nemotron VL, on Nebius Token Factory",
       title: `Person: ${verdict.person}, ${verdict.posture}, ${verdict.group_size} of them`,
       body: `“${verdict.reason}” (${(verdict.ms / 1000).toFixed(1)} s)`,
       link: { label: "Every call, in the Trace", href: "#m/demo/trace" },

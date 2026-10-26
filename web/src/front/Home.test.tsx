@@ -4,7 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { ABOUT, AboutSection, COLOURS, ENTRIES } from "./About";
-import { BUILT_WITH, OPENCV, PARTNERS } from "./BuiltWith";
+import { BUILT_WITH, STACK, TAVILY } from "./BuiltWith";
 import { ABOUT_ID } from "../shell/flow";
 import { glowFrames, NODES, trip, TRIP } from "./Architecture";
 import { INTAKE } from "./copy";
@@ -16,7 +16,7 @@ import { RECOMMENDED, SCENARIO_CARDS } from "./scenarios";
 const words = () => document.body.textContent ?? "";
 
 describe("the home page", () => {
-  it("leads with the name, the claim, one measured proof naming OpenCV, and one primary action", () => {
+  it("leads with the name, the claim, one measured proof naming OpenCV, NVIDIA and Nebius, and one primary action", () => {
     render(<Home />);
     const top = screen.getByRole("heading", { level: 1 });
     expect(top).toHaveTextContent(/^Sightline$/);
@@ -24,6 +24,8 @@ describe("the home page", () => {
     const proof = top.parentElement!.nextElementSibling!;
     expect(proof).toHaveTextContent("86 %");
     expect(proof).toHaveTextContent("OpenCV 5");
+    expect(proof).toHaveTextContent("NVIDIA Nemotron");
+    expect(proof).toHaveTextContent("Nebius Token Factory");
     expect(screen.getByRole("button", { name: HOME.primary })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: HOME.secondary })).toHaveAttribute("href", "#m/demo/map");
     expect(document.querySelectorAll(".bg-accent")).toHaveLength(1);
@@ -63,7 +65,8 @@ describe("the home page", () => {
     }
     // no IntersectionObserver here: every number is already at its final value, never 0
     expect(facts).toHaveTextContent("86 %");
-    expect(facts).toHaveTextContent("0.30 s");
+    expect(facts).toHaveTextContent("711 photos");
+    expect(facts).toHaveTextContent("483 s on 16 vCPUs");
     expect(facts).toHaveTextContent("12 of 12");
     expect(facts).toHaveTextContent("291 of the 337 people");
   });
@@ -74,28 +77,34 @@ describe("the home page", () => {
     expect(EVIDENCE_CLAIMS).toBe(rows.length);
   });
 
-  it("shows what it is built with, OpenCV first and largest, each with a measured number and its source", () => {
+  it("shows what it is built with: OpenCV, NVIDIA and Nebius as equal cards, then Tavily, each with measured numbers and sources", () => {
     render(<Home />);
     const built = screen.getByRole("region", { name: BUILT_WITH.title });
     const cards = within(built).getAllByRole("article");
     expect(cards.map((c) => c.getAttribute("aria-labelledby"))).toEqual(["built-opencv", "built-nvidia", "built-nebius", "built-tavily"]);
-    const opencv = cards[0]!;
-    expect(opencv).toHaveTextContent(OPENCV.wordmark);
-    expect(within(opencv).getAllByRole("listitem")).toHaveLength(OPENCV.steps.length);
-    for (const s of OPENCV.steps) if (s.stat) expect(opencv).toHaveTextContent(s.stat);
-    expect(opencv).toHaveTextContent("cv2.dnn");
-    expect(opencv).toHaveTextContent("0.30 s per photo on CUDA");
-    for (const [i, p] of PARTNERS.entries()) {
-      const card = cards[i + 1]!;
-      expect(card).toHaveTextContent(p.stat);
-      for (const part of p.parts) expect(card).toHaveTextContent(part.name);
-      expect(within(card).getByRole("link", { name: new RegExp(p.link.label) }).getAttribute("href")).toMatch(/^https:\/\/github\.com\/Drivera0\/sightline\//);
+    for (const [i, c] of STACK.entries()) {
+      const card = cards[i]!;
+      // the same structure for all three: wordmark, role, three steps, at least two sources
+      expect(card).toHaveTextContent(c.wordmark);
+      expect(card.className).toBe(cards[0]!.className);
+      expect(within(card).getAllByRole("listitem")).toHaveLength(3);
+      for (const s of c.steps) if (s.stat) expect(card).toHaveTextContent(s.stat);
+      expect(c.links.length).toBeGreaterThanOrEqual(2);
+      for (const l of c.links) expect(within(card).getByRole("link", { name: new RegExp(l.label) }).getAttribute("href")).toMatch(/^https:\/\/github\.com\/Drivera0\/sightline\//);
     }
+    expect(cards[0]).toHaveTextContent("0.30 s per photo on CUDA");
+    expect(cards[1]).toHaveTextContent("WER 0.025");
+    expect(cards[2]).toHaveTextContent("711 photos in 483 s on 16 vCPUs, about $0.10");
+    expect(cards[2]).toHaveTextContent("about 82 s per mission");
+    expect(cards[3]).toHaveTextContent(TAVILY.stat);
+    expect(built).toHaveTextContent(/^.*Physical AI: drones sense/);
     // the models, by name
     for (const m of ["Nemotron-3.5-Super-VL", "Nemotron 3 Nano", "Nemotron 3 Super", "Parakeet TDT 0.6B v2", "Magpie TTS", "Token Factory", "Tavily"]) expect(built).toHaveTextContent(m);
-    // the hero names the stack, OpenCV first, and takes you here
+    // the hero names the stack, every badge alike, and takes you here
     const stack = screen.getByRole("button", { name: /^Built with: OpenCV 5 cv2\.dnn, / });
-    expect(stack).toBeInTheDocument();
+    const badges = [...stack.querySelectorAll("span.rounded-full")];
+    expect(badges).toHaveLength(HOME.stack.length);
+    expect(new Set(badges.map((b) => b.className)).size).toBe(1);
   });
 
   it("draws how it works, one plain line per step and the models named small", () => {

@@ -2,7 +2,7 @@
 // research and the eight rules it follows are in front/README.md): the name, a claim, one measured proof
 // and one action above the fold, over the real aerial photos the detector reads; four measured facts with
 // their sources; what the photo changes (one real chain of the agent's loop, and Try your own photo);
-// what it is built with (OpenCV first); how it works; who it is for; the guided simulation (the one place
+// what it is built with (OpenCV 5, NVIDIA and Nebius side by side, then Tavily); how it works; who it is for; the guided simulation (the one place
 // that explains it); the links judges need; About (`#about` lands there); the footer with
 // the credits, the licence and the one disclosure. The console is #m/demo.
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -32,7 +32,7 @@ export const HOME = {
   eyebrow: HERO.eyebrow,
   title: HERO.title,
   tagline: HERO.tagline,
-  proof: "Its OpenCV 5 detector finds 86 % of the people in aerial test photos it never trained on. Sightline turns those finds and the teams' radio reports into one map of where to look next.",
+  proof: "OpenCV 5 finds 86 % of the people in aerial test photos it never trained on. NVIDIA Nemotron models on Nebius Token Factory reason over the finds and the radio, and a person approves every move.",
   builtWith: "Built with",
   stack: ["OpenCV 5 cv2.dnn", "NVIDIA Nemotron, Parakeet, Magpie", "Nebius Token Factory", "Tavily"],
   primary: "Try the guided simulation",
@@ -75,13 +75,13 @@ export const FACTS: readonly Fact[] = [
     source: { label: "Baseline table", href: `${BLOB}/docs/report/OPENCV_REPORT.md#310-published-results-on-heridal-side-by-side` },
   },
   {
-    value: 0.3,
-    decimals: 2,
-    unit: " s",
-    headline: "per 12-megapixel drone photo, on one GPU",
-    detail: "OpenCV 5 cv2.dnn on CUDA; 1.97 s on a CPU, with the same 363 of 363 boxes.",
-    viz: { kind: "versus", a: ["GPU", 0.303], b: ["CPU", 1.97] },
-    source: { label: "Benchmark", href: `${BLOB}/docs/report/CV2_CUDA.md` },
+    value: 711,
+    decimals: 0,
+    unit: " photos",
+    headline: "in 8 minutes on Nebius, about $0.10",
+    detail: "A Nebius Serverless Job ran the OpenCV 5 detector over the simulated fleet's photos: 483 s on 16 vCPUs, 0.68 s per photo.",
+    viz: null,
+    source: { label: "Nebius Serverless Job", href: `${BLOB}/docs/feedback/nebius.md#5-serverless-jobs` },
   },
   {
     value: 12,
@@ -235,8 +235,8 @@ function Hero() {
           style={{ animationDelay: "220ms" }}
         >
           <span className="text-text-3 group-hover:text-text-2">{HOME.builtWith}</span>
-          {HOME.stack.map((t, i) => (
-            <span key={t} className={`rounded-full border bg-bg px-2.5 py-0.5 group-hover:text-text ${i === 0 ? "border-text-3 font-medium text-text" : "border-line"}`}>
+          {HOME.stack.map((t) => (
+            <span key={t} className="rounded-full border border-line bg-bg px-2.5 py-0.5 font-medium text-text">
               {t}
             </span>
           ))}
