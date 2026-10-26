@@ -238,12 +238,12 @@ interface MissionStore extends MissionData {
   updateTeam: (teamId: string, patch: Partial<Team>) => Promise<void>;
   // The command post's direct actions: the search manager acts without the agent; each is logged to the
   // timeline the way an approval is ("Search manager assigned C2 to Team One").
-  assign: (teamId: string, sector: string) => Promise<void>;
+  assign: (teamId: string, sector: string, by?: string) => Promise<void>;
   call: (teamId: string, text: string) => Promise<void>;
   recall: (teamId: string) => Promise<void>;
   searched: (sector: string, pod: number) => Promise<void>;
   recheck: (sector: string) => Promise<void>;
-  found: (teamId: string, sector: string) => Promise<void>;
+  found: (teamId: string, sector: string, by?: string) => Promise<void>;
   /** Send a drone over a sector: the demo flies one; a live mission approves the agent's leg for it. */
   droneLeg: (sector: string, droneId?: string) => Promise<void>;
   /** Bring a drone home: the demo lands it at base camp; a live mission approves the agent's recall for it. */
@@ -395,10 +395,10 @@ export const useMission = create<MissionStore>((set, get) => {
       }
     },
 
-    assign: async (teamId, sector) => {
+    assign: async (teamId, sector, who) => {
       const a = get().api;
       const team = get().teams.find((t) => t.id === teamId);
-      const by = operatorName();
+      const by = who ?? operatorName();
       if (a) {
         try {
           await api.assignTeam(a, mid(), teamId, sector);
@@ -498,7 +498,7 @@ export const useMission = create<MissionStore>((set, get) => {
       if (!a) demoEvent("mission.note", `${by} opened ${sector} for a recheck`, sector, { action: "recheck", by, sector });
     },
 
-    found: async (teamId, sector) => {
+    found: async (teamId, sector, who) => {
       const a = get().api;
       const m = get().mission;
       if (a) {
@@ -515,7 +515,7 @@ export const useMission = create<MissionStore>((set, get) => {
       const s = get().sectors.find((x) => x.sector_id === sector);
       const at = team?.position ?? sectorCentre(s ?? {}) ?? m.area.lkp;
       const mission: Mission = { ...m, status: "found", found: { team: teamId, sector, lat: at.lat, lon: at.lon, at: now() } };
-      demoEvent("mission.note", `Found: ${team?.callsign ?? teamId} has the subject in ${sector}`, sector, { action: "found", by: operatorName(), mission });
+      demoEvent("mission.note", `Found: ${team?.callsign ?? teamId} has the subject in ${sector}`, sector, { action: "found", by: who ?? operatorName(), mission });
     },
 
     recallDrone: async (droneId) => {

@@ -200,7 +200,9 @@ function TeamCard({ team, heard, task, base, picking, glow = false, actions, pic
   const selected = useSelection((s) => s.selectedTeamId === team.id);
   const dragging = useConsole((s) => s.dragging?.id === team.id);
   const overdue = heard.overdue && team.status !== "standby";
-  const [word, tone] = STATUS[overdue ? "overdue" : team.status];
+  // the team with the subject is on the carry-out once the find is recorded (missionTime.ts placeOf)
+  const carry = team.note === "carry-out";
+  const [word, tone] = carry ? (["Carry-out", "team"] as [string, Tone]) : STATUS[overdue ? "overdue" : team.status];
   const home = atBase(team, base);
   const [heardText, heardClass] = heardWords(heard, team.status, home);
   const eta = etaMin(team, base);
@@ -286,7 +288,11 @@ function TeamCard({ team, heard, task, base, picking, glow = false, actions, pic
 }
 
 function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, onLeg }: { d: Drone; fleet: FleetState | null; link: string; picking: boolean; glow?: boolean; onRecall: () => void; picker?: PickerData; onLeg?: (sector: string, drone: string) => void }) {
-  const [word, tone] = DRONE_STATUS[d.status];
+  // a drone diverted as a relay holds over the ridge for another's link: "Relay", not its old flight line
+  const relay = (d as { relay?: boolean }).relay === true;
+  const [word, tone] = relay ? (["Relay", "drone"] as [string, Tone]) : DRONE_STATUS[d.status];
+  // a drone on the ground has no radio link to speak of: "link —", never "link lost" at base camp
+  const grounded = d.status === "idle" || d.status === "charging";
   const dragging = useConsole((s) => s.dragging?.id === d.id);
   const leg = legOf(d, fleet);
   const sector = fleet?.legs.find((l) => l.id === d.leg_id)?.sector_id;
@@ -296,14 +302,14 @@ function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, on
   const out = d.status === "flying" || d.status === "returning";
   const facts = (
     <span className="flex gap-2 text-caption whitespace-nowrap">
-      <span className={linkTone}>link {link === "connected" ? "ok" : link}</span>
+      <span className={grounded ? "text-text-3" : linkTone} title={grounded ? "On the ground at base camp: no flight link to report" : undefined}>link {grounded ? "—" : link === "connected" ? "ok" : link}</span>
       {leg.m > 0 && <span className="text-text-3" title={`${TERMS.flightLine} ${leg.n} of ${leg.m}`}>line {leg.n} of {leg.m}</span>}
     </span>
   );
   const pill = (
     <StatusPill tone={tone} dot={d.status === "flying"} className="shrink-0">
       {word}
-      {sector && d.status !== "idle" ? ` · ${sector}` : ""}
+      {sector && d.status !== "idle" && !relay ? ` · ${sector}` : ""}
     </StatusPill>
   );
   return (

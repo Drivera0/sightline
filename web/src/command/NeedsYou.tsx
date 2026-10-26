@@ -195,13 +195,17 @@ export function NeedsYou({
   const reports = !found && onFound ? sightingReports(events, teams, tasks, timeline) : [];
   const { time } = useClock();
   const callsign = (id: string | null) => teams.find((t) => t.id === id)?.callsign ?? id ?? "";
-  const closedProposals = found ? proposals.filter((p) => p.status === "pending") : [];
+  // the find closes every open decision about the search: proposals (pending, or closed by the find in the
+  // record), photos to review and clues waiting for a read-back; overdue teams stay (they are people)
+  const closedProposals = found ? proposals.filter((p) => p.status === "pending" || (p.status === "superseded" && /subject found/.test(p.decision_reason ?? ""))) : [];
   const closedReview = found ? reviewCount : 0;
-  const closedCount = closedProposals.length + closedReview;
+  const allReadbacks = items.flatMap((i) => (i.kind === "readback" ? [i] : []));
+  const closedClues = found ? [...allReadbacks.flatMap((i) => (i.clue ? [i.clue] : [])), ...clues.filter((c) => (c as { closed?: boolean }).closed)].filter((c, k, xs) => xs.findIndex((x) => x.id === c.id) === k) : [];
+  const closedCount = closedProposals.length + closedReview + closedClues.length;
   const pendingCount = found ? 0 : items.filter((i) => i.kind === "proposal" && !isSightingProposal(i.proposal)).length;
   const overdue = items.flatMap((i) => (i.kind === "overdue" ? [i] : []));
-  const readbacks = items.flatMap((i) => (i.kind === "readback" ? [i] : []));
-  const total = reports.length + items.reduce((n, i) => n + (found && (i.kind === "proposal" || i.kind === "review") ? 0 : i.kind === "review" ? i.count : 1), 0);
+  const readbacks = found ? allReadbacks.filter((i) => !i.clue) : allReadbacks;
+  const total = reports.length + items.reduce((n, i) => n + (found && (i.kind === "proposal" || i.kind === "review" || (i.kind === "readback" && i.clue)) ? 0 : i.kind === "review" ? i.count : 1), 0);
   // the guided search points at one item: a group's head goes when none of its items is the one
   const off = (has: (id: string) => boolean) => !!highlight && !has(highlight);
   const pointed = !!highlight && (highlight === "review" ? !!review : reports.some((r) => `report-${r.team.id}` === highlight) || items.some((i) => i.kind !== "review" && i.id === highlight) || proposals.some((p) => p.id === highlight && p.status === "pending"));
@@ -230,6 +234,8 @@ export function NeedsYou({
           <ClosedOnFind
             proposals={closedProposals}
             reviewCount={closedReview}
+            clues={closedClues}
+            left={total}
             count={closedCount}
             at={found.at ? time(found.at) : null}
           />
@@ -319,14 +325,18 @@ export function NeedsYou({
 export const CLOSED_SHOWN = 2;
 
 /** What the find closed: one row, the first of what it closed under it, and "Show N more" for the rest. */
-export function ClosedOnFind({ proposals, reviewCount, count, at }: { proposals: readonly Proposal[]; reviewCount: number; count: number; at: string | null }) {
+export function ClosedOnFind({ proposals, reviewCount, count, at, clues = [], left = 0 }: { proposals: readonly Proposal[]; reviewCount: number; count: number; at: string | null; clues?: readonly Clue[]; left?: number }) {
   const [all, setAll] = useState(false);
+  // "nothing left to decide" only when nothing is left (an overdue team still is)
   const head = count
     ? `${count} ${count === 1 ? "item" : "items"} closed${at ? ` at ${at}` : ""}, subject found`
-    : `Subject found${at ? ` at ${at}` : ""}: nothing left to decide about the search`;
-  const lines = proposals.length + (reviewCount > 0 ? 1 : 0);
+    : left > 0
+      ? `Subject found${at ? ` at ${at}` : ""}`
+      : `Subject found${at ? ` at ${at}` : ""}: nothing left to decide about the search`;
+  const lines = proposals.length + (reviewCount > 0 ? 1 : 0) + clues.length;
   const shownProposals = all ? proposals : proposals.slice(0, CLOSED_SHOWN);
   const showReview = reviewCount > 0 && (all || proposals.length < CLOSED_SHOWN);
+  const shownClues = all ? clues : clues.slice(0, Math.max(0, CLOSED_SHOWN - shownProposals.length - (showReview ? 1 : 0)));
   return (
     <section role="group" aria-label="Closed: subject found" className="rounded-md border border-ok/40 border-l-2 border-l-ok bg-bg/40 text-small">
       <p className="flex min-h-9 items-center gap-2 px-2.5 py-2 text-text">
@@ -339,6 +349,14 @@ export function ClosedOnFind({ proposals, reviewCount, count, at }: { proposals:
             <li key={p.id} className="flex items-baseline gap-2">
               <span className="min-w-0 flex-1 truncate" title={`${p.id}: ${p.summary}`}>
                 {plainWords(p.summary)}
+              </span>
+              <span className="shrink-0 text-text-3">closed: subject found</span>
+            </li>
+          ))}
+          {shownClues.map((c) => (
+            <li key={c.id} className="flex items-baseline gap-2">
+              <span className="min-w-0 flex-1 truncate" title={c.text}>
+                Clue to confirm: {plainWords(c.text)}
               </span>
               <span className="shrink-0 text-text-3">closed: subject found</span>
             </li>
