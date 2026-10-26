@@ -40,7 +40,8 @@ GuideRun.tsx): the same injects, sim.ts passes, sightings, read-backs, proposals
 vs the AI), but no coach bar, no step strip, no ring and nothing hidden or dimmed; every decision is made with the
 console's own controls and counts whenever it is made (`due`: the injects that have come up, in any order). The
 clock (`FreeClock.tsx`, over the map: Play/Pause on Space, 1×/2×/4×, Restart, "Start the guided simulation instead",
-Change scenario) runs at `FREE_MIN_PER_S` mission minutes a second and never waits on a decision: proposals wait in
+Change scenario) starts paused at the call ("Nothing runs until you press Play: assign teams, add a clue or try a
+photo first"), so the console is the visitor's to look around and set up; once played it runs at `FREE_MIN_PER_S` mission minutes a second and never waits on a decision: proposals wait in
 Needs you while it runs. It stops on each beat as it lands, as long as the guided run does (story.ts `dwellAt`,
 the beats read `FREE_WINDOW_MS` ahead), and the map shows the beat. The run ends at the find (or the night's end).
 The end screen's decision time counts from when an item reached Needs you. **Restart** (on the guided run's bar,
