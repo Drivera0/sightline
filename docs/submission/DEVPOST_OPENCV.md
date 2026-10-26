@@ -44,7 +44,7 @@ For search managers, Sightline turns drone photos and radio reports into one map
 
 1. The detector misses 46 of the 337 people in the HERIDAL test set (recall 0.864, strict VOC), and 28 of those 46 are at two sites, MED and CAB: groups, clothing that matches pale or dark rock, people sitting or lying down.
 2. The second look is a small gain: on test it finds 4 more of the 337 people for 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023]), it is advice a person approves, and on people under 60 px it mostly answers "unclear".
-3. The fleet is simulated: the drones, their flights and their positions are simulated, over real HERIDAL aerial photos. In the guided and hands-on runs the visitor makes every approval, and each is logged with who decided; the demo mission's recorded trace was generated offline with stand-in models and a scripted search manager. All of it is labelled so on screen and in the trace.
+3. The fleet is a simulation, the approvals are not: the drones, their flights and where each photo was taken are generated over real aerial photographs (HERIDAL), and the site's one "Simulation on real aerial photographs" chip says so. In the guided run and in free play the visitor makes every approval live in the browser (Watch instead, if they pick it, is logged as such), and every move in the log names its approver. The mission trace in the Trace view was generated offline with stand-in models and a pre-written search manager, and its header says so.
 
 Measured, with the caveat beside each number:
 
