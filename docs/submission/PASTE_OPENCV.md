@@ -105,7 +105,7 @@ Files in `docs/submission/figures/` (and in the Desktop `devpost/` folder).
 **How does the project use AWS? (deployment description)**
 The live pipeline runs in us-west-2, set up and torn down by scripts in [`deploy/aws/`](https://github.com/Drivera0/sightline/tree/main/deploy/aws). One EC2 c7i.2xlarge (Amazon Linux 2023) runs one Docker image as three containers: the API, the photo worker running OpenCV 5 `cv2.dnn` (no PyTorch in the image) and Caddy for HTTPS. Photos go to a private S3 bucket (deleted after 30 days), jobs to an SQS FIFO queue (one group per mission, dead-letter queue after 3 failures), metrics and logs to CloudWatch (`PhotoLatencyMs` per step, `DetectionsPerPhoto`, `AgentModelCalls`, a dashboard), and the Nebius and Tavily keys live in Secrets Manager. The instance role reaches only its own bucket prefix, queue, log group and secret; no SSH port is open (SSM). Measured: 7.1 s from upload to processed per 4000×3000 photo. The Arm path runs on COOL on Graviton (above). Report §4.
 
-**AWS endpoint:** https://44-227-39-234.sslip.io (the instance is stopped between demos to save cost; `<OWNER: start it before judging, run scripts/remote_check.py, or say "available on request">`)
+**AWS endpoint:** https://44-227-39-234.sslip.io (running through the judging period, Oct 27 – Nov 9; `GET /health` answers with the contract version and the cv2 backend)
 
 **Technical report:** https://github.com/Drivera0/sightline/blob/main/docs/report/OPENCV_REPORT.md (every claim, its file and how to regenerate it: [EVIDENCE_INDEX.md](https://github.com/Drivera0/sightline/blob/main/docs/report/EVIDENCE_INDEX.md))
 
