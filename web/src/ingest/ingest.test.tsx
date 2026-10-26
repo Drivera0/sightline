@@ -569,7 +569,7 @@ describe("free play (#m/demo/map): the console on its own, a fresh mission at th
     expect(window.location.hash).toBe("#m/demo/map");
   }, 30_000);
 
-  it("a card's Open the console only starts that scenario fresh, and the clock runs and pauses", async () => {
+  it("a card's Open the console only starts that scenario fresh and paused; Play runs the clock, and it pauses", async () => {
     vi.stubGlobal("fetch", demoFetch());
     useMission.setState({ ...EMPTY, status: "idle" });
     useStory.getState().reset();
@@ -577,7 +577,13 @@ describe("free play (#m/demo/map): the console on its own, a fresh mission at th
     render(<App base={null} />);
     const clock = await screen.findByRole("group", { name: "Mission clock" }, { timeout: 5000 });
     noCoach();
+    // it starts paused at the call: the console is the visitor's until they press Play
     const start = useGuide.getState().guide!.clock;
+    expect(useGuide.getState().guide!.paused).toBe(true);
+    expect(clock).toHaveTextContent("Nothing runs until you press Play");
+    await new Promise((r) => setTimeout(r, 400));
+    expect(useGuide.getState().guide!.clock).toBe(start);
+    await userEvent.click(within(clock).getByRole("button", { name: "Play the mission clock" }));
     await waitFor(() => expect(useGuide.getState().guide!.clock).toBeGreaterThan(start + 60_000), { timeout: 3000 });
     await userEvent.click(within(clock).getByRole("button", { name: "Pause the mission clock" }));
     const held = useGuide.getState().guide!.clock;

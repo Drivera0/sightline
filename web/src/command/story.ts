@@ -117,7 +117,7 @@ export interface GuideState {
   closed?: boolean;
   /**
    * Free play (`#m/demo/map`, the console only): the same engine and clock, but no coach bar, no step strip
-   * and no hidden items; the clock runs steadily (FREE_MIN_PER_S a second at 1×) and never waits on a
+   * and no hidden items; it starts paused at the call (nothing moves until Play); the clock then runs steadily (FREE_MIN_PER_S a second at 1×) and never waits on a
    * decision: proposals wait in Needs you while it runs, and the run still ends at the find.
    */
   free?: boolean;
@@ -149,8 +149,9 @@ export const useGuide = create<{
 }>((set, get) => ({
   guide: null,
   // a new run from the call: nothing of the last one but the speed the visitor picked
-  // (free play: Watch instead is the guided run's, never free play's)
-  start: (opts = {}) => set({ guide: { clock: new Date(CHECKPOINTS[0]!.at).getTime(), paused: false, watch: !opts.free && !!opts.watch, choices: [], ended: false, speed: get().guide?.speed ?? 1, ...(opts.free ? { free: true } : {}) } }),
+  // (free play: Watch instead is the guided run's, never free play's; it starts paused at the call, so the
+  // console is the visitor's to look around and set up before anything moves)
+  start: (opts = {}) => set({ guide: { clock: new Date(CHECKPOINTS[0]!.at).getTime(), paused: !!opts.free, watch: !opts.free && !!opts.watch, choices: [], ended: false, speed: get().guide?.speed ?? 1, ...(opts.free ? { free: true } : {}) } }),
   stop: () => set({ guide: null }),
   setClock: (ms) => {
     const g = get().guide;
