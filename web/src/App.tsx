@@ -8,6 +8,8 @@ import { redirectFromHash, routeFromHash, type Route } from "./shell/flow";
 
 // Open play's setup page (#play) loads on its own: most visits never open it
 const OpenPlay = lazy(() => import("./front/OpenPlay").then((m) => ({ default: m.OpenPlay })));
+// so does Try your own photo (#try)
+const TryPage = lazy(() => import("./front/TryPage").then((m) => ({ default: m.TryPage })));
 
 /** The current hash, with old addresses (#survey, #judges, #m/<id>/command…) replaced by their one home. */
 function canonicalHash(): string {
@@ -29,7 +31,7 @@ function useRoute(): Route {
 
 /**
  * The home page at `#` (and `#about`, the same page scrolled to its About section), open play's setup at
- * `#play`, then one console: a mission (the demo's at `#m/demo`), the empty console at `#new` and a sector's card.
+ * `#play`, Try your own photo at `#try`, then one console: a mission (the demo's at `#m/demo`), the empty console at `#new` and a sector's card.
  */
 export function App({ base = apiBase() }: { base?: string | null }) {
   const route = useRoute();
@@ -45,6 +47,12 @@ function Console({ route, base }: { route: Route; base: string | null }) {
     return (
       <Suspense fallback={<div className="min-h-dvh bg-bg" />}>
         <OpenPlay />
+      </Suspense>
+    );
+  if (route.kind === "try")
+    return (
+      <Suspense fallback={<div className="min-h-dvh bg-bg" />}>
+        <TryPage />
       </Suspense>
     );
   if (route.kind === "new") return <NewSearch api={api} onCreated={(id) => (window.location.hash = `#m/${id}/photos`)} />;
