@@ -83,7 +83,7 @@ export function AboutSection() {
                 {i < BCS_TEAM.length - 2 ? ", " : i === BCS_TEAM.length - 2 ? " and " : ""}
               </span>
             ))}
-            . Daniel Rivera extended it solo from Oct 20 to 25 (
+            . Daniel Rivera extended it from Oct 20 to 25 (
             <a className={link} href={JUDGES.changedUrl} target="_blank" rel="noreferrer">
               what changed since
             </a>
