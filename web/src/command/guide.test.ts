@@ -7,8 +7,10 @@ import despondent from "./__fixtures__/scenarios/despondent.json";
 import dementia from "./__fixtures__/scenarios/dementia.json";
 import hiker from "./__fixtures__/scenarios/overdue-hiker.json";
 import { SECOND_LOOK_ID } from "./demoReview";
-import { activeInject, agentOption, choiceFor, choiceFromConsole, costsOf, currentCard, hotWash, injects, lastLight, PIPS, searchEnd, sendAllLabel, standingUser, type Choice, type GuideInput, type Inject } from "./guide";
+import { activeInject, agentOption, choiceFor, choiceFromConsole, costsOf, currentCard, hotWash, injects, lastLight, PIPS, searchEnd, sendAllLabel, STANDING_NOTE, standingUser, type Choice, type GuideInput, type Inject } from "./guide";
 import { demoAt, onMissionClock, poaOf, subjectOf, type DemoFull } from "./missionTime";
+import { guidedOptsFor } from "./GuideRun";
+import { buildTimeline } from "./timeline";
 import { sectorAt } from "./console";
 import { shiftTimes } from "./scenarios";
 import { agentLine, fixtureOf, passesFrom, realOf, TEAM_POD } from "./sim";
@@ -163,8 +165,9 @@ describe("every choice path reaches the find within the run (the cold test's end
     const p = storyProposal(overdue)!;
     const team = overdue.data.teams!.find((t) => t.id === p.target.team)!.callsign;
     // only the free teams are "free": Teams One and Two are walking back from the hasty search (the cold test: 4 for 2)
-    expect(a.options[0]).toMatchObject({ id: "all", agent: true, label: sendAllLabel(2, team, p.target.sector!, { returning: 2 }) });
-    expect(a.options[0]!.label).toBe("Send the 2 free teams and the 2 returning ones to the AI's picks now");
+    // Send all says up front that it is a standing approval for the picks after it (the cold test)
+    expect(a.options[0]).toMatchObject({ id: "all", agent: true, label: `${sendAllLabel(2, team, p.target.sector!, { returning: 2 })}${STANDING_NOTE}` });
+    expect(a.options[0]!.label).toBe("Send the 2 free teams and the 2 returning ones to the AI's picks now, and keep sending free teams to the AI's picks until you change it");
     expect(sendAllLabel(4, team, "C2")).toBe("Send all 4 free teams to the AI's picks");
     expect(a.options[1]).toMatchObject({ id: "approve", label: `Send only ${team} to ${p.target.sector}` });
     expect(a.options.filter((o) => o.agent)).toHaveLength(1);
@@ -369,5 +372,72 @@ describe("watch instead: the agent's line through the same engine", () => {
     const wash = hotWash({ full: overdue, seed, user, choices, queue }, list);
     expect(wash.lines[0]).toContain(`you sent Team Two to ${other}; the subject was in ${subject.sector}`);
     expect(agentLine(seed, subject, { team: p.target.team!, sector: p.target.sector!, at: a.at }, poaOf(overdue), Infinity).found).not.toBeNull();
+  });
+});
+
+describe("no drone or team moves before a person approves it (the cold test, 2026-10-26)", () => {
+  const call = Date.parse("2026-10-24T20:35:00Z");
+  const survey = (option: string, f = call): Choice => ({ key: "survey", inject: "survey", option, label: option, agentLabel: "", agent: option === "planner", f, costMs: option === "serpentine" ? 12 * 60_000 : 0 });
+  const at = (choices: Choice[], t: string, free = false) => {
+    const costs = costsOf(choices);
+    return onMissionClock(demoAt(overdue, iso(fixtureOf(Date.parse(t), costs)), [], guidedOptsFor(overdue, "overdue-hiker", choices, [], free)), costs) as MissionData;
+  };
+  const lineRows = (s: MissionData) => [...s.events.filter((e) => e.type === "fleet.updated").map((e) => e.summary), ...s.timeline.filter((e) => e.kind === "drone").map((e) => e.text)].filter((x) => /^L\d+ approved|flight line approved/.test(x));
+
+  it("the lawnmower pattern flies its own lines only: no later flight line credited to it (15:04 'you chose the lawnmower pattern')", () => {
+    const s = at([survey("serpentine")], "2026-10-24T22:20:00Z");
+    expect(lineRows(s)).toEqual([]);
+    expect(s.fleet?.legs ?? []).toEqual([]);
+    expect(s.timeline.some((e) => /auto-approved: guided survey/.test(e.text))).toBe(false);
+    // and no lost link on a line it never flew
+    expect(injects({ full: overdue, seed: "overdue-hiker", user: [], choices: [survey("serpentine")], queue }).some((i) => i.id === "link")).toBe(false);
+    // the AI's flight lines say they include the lines after the survey, and those fly, credited to that choice
+    const planner = injects({ full: overdue, seed: "overdue-hiker", user: [], choices: [], queue }).find((i) => i.id === "survey")!.options.find((o) => o.id === "planner")!;
+    expect(planner.effect).toMatch(/once the photos are in, flight lines over B2, B3, B1 and C3|once the photos are in, flight lines over/);
+    const p = at([survey("planner")], "2026-10-24T22:00:00Z");
+    expect(lineRows(p).length).toBeGreaterThan(0);
+    for (const x of p.events.filter((e) => e.type === "fleet.updated" && /^L\d+ approved/.test(e.summary))) expect(x.summary).toMatch(/approved with the survey you chose: the AI's flight lines/);
+  });
+
+  it("free play: before the survey is approved the drones wait at base camp and the AI's survey waits in Needs you; approved late, it flies from then", () => {
+    const s = at([], "2026-10-24T21:30:00Z", true);
+    expect(s.fleet!.drones.length).toBeGreaterThan(0);
+    expect(s.fleet!.drones.every((d) => d.status !== "flying")).toBe(true);
+    expect(s.mapUpdates.filter((u) => u.source === "frame")).toEqual([]);
+    expect(s.proposals.find((p) => p.id === "fly-survey")).toMatchObject({ status: "pending", summary: "Fly the survey: the AI's flight lines, or the lawnmower pattern?" });
+    // approved at 14:00 (25 min after the call): nothing in the air at the scenario's own 13:50, flying at 14:15
+    const late = [survey("planner", call + 25 * 60_000)];
+    expect(at(late, "2026-10-24T21:00:00Z", true).fleet!.drones.every((d) => d.status !== "flying")).toBe(true);
+    expect(at(late, "2026-10-24T21:15:00Z", true).fleet!.drones.some((d) => d.status === "flying")).toBe(true);
+    expect(at(late, "2026-10-24T21:15:00Z", true).proposals.some((p) => p.id === "fly-survey")).toBe(false);
+  });
+
+  it("the guided run: every clue the scenario brings waits for the visitor's confirmation, and the map with it", () => {
+    const s = at([survey("planner")], "2026-10-24T21:41:00Z");
+    expect(s.clues.map((c) => [c.id, c.confirmed])).toEqual([["c001", false], ["c002", false], ["c003", false], ["c004", false]]);
+    expect(s.mapUpdates.filter((u) => u.source === "clue")).toEqual([]);
+    const lines = buildTimeline(s.events, s.teams, s.timeline).filter((e) => e.kind === "clue");
+    expect(lines.length).toBe(4);
+    for (const e of lines) expect(e.detail).toMatch(/awaiting read-back/);
+    // the AI's reason no longer says the unconfirmed clues raised C2
+    const p = s.proposals.find((x) => x.id === "p002");
+    expect(p?.reason ?? "").not.toMatch(/raised it/);
+  });
+
+  it("Send all is a standing approval said up front; after Stop sending the AI asks again for the next team", () => {
+    const user: MissionEvent[] = [];
+    const p = storyProposal(overdue)!;
+    const all = choiceFor(injects({ full: overdue, seed: "overdue-hiker", user, choices: [], queue }).find((i) => i.key === "assign")!, "all", Date.parse(p.created_at));
+    expect(all.label).toMatch(/, and keep sending free teams to the AI's picks until you change it$/);
+    const sent = standingUser(overdue, "overdue-hiker", user, [all]);
+    const asked = (u: MissionEvent[]) => injects({ full: overdue, seed: "overdue-hiker", user: standingUser(overdue, "overdue-hiker", u, [all]), choices: [all], queue }).filter((i) => i.key.startsWith("assign-"));
+    // while it stands nothing is asked; stopped, the next team's pass that ends asks again
+    expect(asked(user)).toEqual([]);
+    const stop: MissionEvent = { id: "stop", type: "mission.note", at: iso(Date.parse(p.created_at) + 60_000), summary: "Standing approval stopped", ref: null, data: { action: "standing_stop" } as never };
+    expect(asked([stop]).length).toBeGreaterThan(0);
+    // no team goes on the AI's pick by itself between the stop and last light (the night search is the guided search's own rule)
+    const autos = (u: MissionEvent[]) => u.filter((e) => e.id.startsWith("auto-") && Date.parse(e.at) > Date.parse(stop.at) && Date.parse(e.at) < lastLight(overdue));
+    expect(autos(sent).length).toBeGreaterThan(0);
+    expect(autos(standingUser(overdue, "overdue-hiker", [stop], [all]))).toEqual([]);
   });
 });

@@ -91,3 +91,35 @@ describe("the review frame", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("No AI re-check on this one");
   });
 });
+
+describe("the review frame marks only the AI's own pick (the cold test: The subject drawn as the suggestion beside a grey bag)", () => {
+  beforeEach(() => {
+    useConsole.getState().reset();
+    useSecondLook.getState().reset();
+  });
+
+  const answerButton = (name: RegExp) => within(screen.getByRole("group", { name: "Answer" })).getByRole("button", { name });
+
+  it("an AI pick of not a person marks Not a person, never The subject", () => {
+    const bag = card("f0452-d01", { pick: "AI: not a person — a grey bag", pickAnswer: "not_person" });
+    render(<ReviewFrame cards={[bag]} answers={{}} onAnswer={() => {}} />);
+    act(() => useConsole.getState().openReview("f0452-d01"));
+    expect(answerButton(/^The subject/)).not.toHaveAttribute("data-ai-pick");
+    expect(answerButton(/^The subject/).className).not.toMatch(/border-found/);
+    expect(answerButton(/^Not a person/)).toHaveAttribute("data-ai-pick");
+    expect(answerButton(/^Not a person/)).toHaveTextContent("AI's pick");
+  });
+
+  it("the subject is marked when it is the AI's pick, and nothing is marked without a pick", () => {
+    const red = card("f0336-d01", { pick: "AI: likely the subject — red jacket matches", pickAnswer: "person" });
+    const { unmount } = render(<ReviewFrame cards={[red]} answers={{}} onAnswer={() => {}} />);
+    act(() => useConsole.getState().openReview("f0336-d01"));
+    expect(answerButton(/^The subject/)).toHaveAttribute("data-ai-pick");
+    unmount();
+    useConsole.getState().reset();
+    render(<ReviewFrame cards={[card("f0127-d01")]} answers={{}} onAnswer={() => {}} />);
+    act(() => useConsole.getState().openReview("f0127-d01"));
+    expect(document.querySelector("[data-ai-pick]")).toBeNull();
+    expect(answerButton(/^The subject/).className).not.toMatch(/border-found/);
+  });
+});

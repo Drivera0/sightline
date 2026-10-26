@@ -175,7 +175,9 @@ export const useGuide = create<{
     // the wall-clock time the decision took: from when it was shown to now
     const now = Date.now();
     const timed = { ...c, shownAt: c.shownAt ?? (g.shown?.key === c.key ? g.shown.at : undefined), decidedAt: c.decidedAt ?? now };
-    set({ guide: { ...g, choices: [...g.choices, timed], paused: false } });
+    // a decision never starts the clock: only Play (Space) resumes a paused run (the cold test: assigning a
+    // team while paused ran the clock on, 17:37 to 17:43 in 4 s); the decision lands at the minute it was made
+    set({ guide: { ...g, choices: [...g.choices, timed] } });
   },
   show: (key) => {
     const g = get().guide;

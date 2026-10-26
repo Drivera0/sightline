@@ -65,7 +65,7 @@ export function FreeClock({
             </button>
           ))}
         </span>
-        <span className="text-caption text-text-3">{waiting ? `${waiting} ${waiting === 1 ? "proposal waits" : "proposals wait"} in Needs you` : paused && atCall ? "Nothing runs until you press Play: assign teams, add a clue or try a photo first" : paused ? "Paused" : "Time passes; decisions wait in Needs you"}</span>
+        <span className="text-caption text-text-3">{paused && atCall ? "Nothing runs until you press Play: approve the survey, assign teams, add a clue or try a photo first" : waiting ? `${waiting} ${waiting === 1 ? "proposal waits" : "proposals wait"} in Needs you` : paused ? "Paused" : "Time passes; decisions wait in Needs you"}</span>
         <button type="button" onClick={() => setAsking(true)} aria-haspopup="dialog" aria-expanded={asking} className="sl-tap text-caption text-text-2 hover:text-text">
           Restart
         </button>
