@@ -9,7 +9,11 @@ import demo from "./__fixtures__/demo_mission.json";
 import { bringToTop } from "./ApprovalInbox";
 import { scrollWithin, showControl } from "./CoachMark";
 import { committed, nearestFree } from "./console";
-import { sendAllLabel } from "./guide";
+import { activeInject, agentOption, choiceFor, currentCard, injects, sendAllLabel, standingUser, type Choice } from "./guide";
+import { guidedOptsFor } from "./GuideRun";
+import { storyProposal } from "./storyCopy";
+import { SECOND_LOOK_ID } from "./demoReview";
+import { STORY_NOT_A_PERSON } from "./storyCopy";
 import { closedOnFind, demoAt, findRecalls, legApprover, type DemoFull } from "./missionTime";
 import { resourceSummary } from "./Resources";
 import { photoLabel } from "../review/LiveReview";
@@ -117,10 +121,49 @@ describe("every decision line says who", () => {
   });
 });
 
+describe("the Decisions filter never goes down over a run", () => {
+  it("counts the survey, the photo answers, the clue and the assignments as they are made", () => {
+    const SEED = "overdue-hiker";
+    const queue = [{ id: "f0336-d01", conf: 0.82 }, { id: SECOND_LOOK_ID, conf: 0.17 }, { id: STORY_NOT_A_PERSON, conf: 0.47 }];
+    const frames: MapUpdate[] = Array.from({ length: 10 }, (_, k) => ({ seq: k + 1, kind: "step", source: "frame", ref: `f${String(k + 1).padStart(4, "0")}`, cells: [], canopy: null, at: "2026-10-24T20:30:00Z" }));
+    const f2: DemoFull = { now: fx.now, data: { ...fx, mapUpdates: [...frames, ...fx.map_updates], verdicts: [] } };
+    const by = "Search manager";
+    const choices: Choice[] = [];
+    const mine: MissionEvent[] = [];
+    let n = 0;
+    let last = 0;
+    const note = (at: number, action: string, summary: string) => mine.push({ id: `u${++n}`, type: "mission.note", at: iso(at), summary, ref: null, data: { action, by } as never });
+    for (let guard = 0; guard < 80; guard++) {
+      const user = standingUser(f2, SEED, mine, choices);
+      const i = activeInject(injects({ full: f2, seed: SEED, user, choices, queue }), choices);
+      if (!i) break;
+      const card = currentCard(i, choices);
+      const opt = agentOption(i, card).id;
+      choices.push(choiceFor(i, opt, i.at, card));
+      if (i.id === "survey") note(i.at, "survey", "Survey: the AI's flight lines (you chose it)");
+      if (i.id === "triage") note(i.at, "photo_answer", `Photo: ${opt} (answered by you)`);
+      if (i.id === "assign") {
+        const p = i.key === "assign" ? storyProposal(f2)! : (demoAt(f2, iso(i.at + 1000), user, { seed: SEED }).proposals ?? []).find((x) => x.id === i.proposal);
+        if (p?.target.team && p.target.sector) {
+          mine.push({ id: `u${++n}`, type: "proposal.decided", at: iso(i.at), summary: "", ref: p.id, data: { ...p, status: "approved", decided_by: by, decided_at: iso(i.at) } as never });
+          mine.push(assignmentEvent(`u${++n}`, p.target.team, p.target.sector, i.at));
+        }
+      }
+      if (i.id === "find" && i.find) mine.push({ id: `u${++n}`, type: "mission.note", at: iso(i.at), summary: "Found", ref: i.find.sector, data: { action: "found", by } as never });
+      const u2 = standingUser(f2, SEED, mine, choices);
+      const s = demoAt(f2, iso(i.at + 1000), u2, guidedOptsFor(f2, SEED, choices, u2)) as MissionData;
+      const count = buildTimeline(s.events, s.teams, s.timeline).filter((e) => inFilter(e, "Decisions")).length;
+      expect(count, `${i.key} at ${iso(i.at)}`).toBeGreaterThanOrEqual(last);
+      last = count;
+    }
+    expect(choices.at(-1)!.inject).toBe("find");
+  });
+});
+
 describe("the find: drones come home, a safety recall stands, the carry-out is said apart", () => {
   it("a pending recall is approved at the find, never closed", () => {
     const s = demoAt(full, fx.now, [], { seed: "overdue-hiker" }) as MissionData;
-    const recall: Proposal = { id: "r9", kind: "retask_drone", summary: "Recall Drone 2: fly home now", reason: "Gusts over the limit", briefing: null, target: { drone: "D2", home: { lat: 0, lon: 0 } } as Proposal["target"], evidence: [], status: "pending", created_by: "agent", created_at: fx.now, decided_at: null, decided_by: null, decision_reason: null, edits: null };
+    const recall: Proposal = { id: "r9", kind: "retask_drone", summary: "Recall Drone 2: fly home now", reason: "Gusts over the limit", briefing: null, target: { drone: "D2", home: "base camp" }, evidence: [], status: "pending", created_by: "agent", created_at: fx.now, decided_at: null, decided_by: null, decision_reason: null, edits: null };
     const found = { id: "u9", type: "mission.note" as const, at: fx.now, summary: "Found", ref: "C2", data: { action: "found", by: "Search manager" } as never };
     const c = closedOnFind({ ...s, proposals: [...s.proposals, recall] }, [found]);
     expect(c.proposals.find((p) => p.id === "r9")).toMatchObject({ status: "approved", decision_reason: "the safety recall stands at the find" });
@@ -129,7 +172,7 @@ describe("the find: drones come home, a safety recall stands, the carry-out is s
   it("every drone still in the air at the find is recalled to base camp", () => {
     const fl = full.data.fleet;
     if (!fl?.drones.length) return;
-    const legs = (fl.legs ?? []).filter((l) => l.status !== "planned");
+    const legs = fl.legs ?? [];
     const mid = legs.length ? new Date(Date.parse(full.data.events?.find((e) => e.type === "fleet.updated")?.at ?? fx.now) + 10 * 60_000).toISOString().replace(/\.\d+Z$/, "Z") : fx.now;
     const found = { id: "u9", type: "mission.note" as const, at: mid, summary: "Found", ref: "C2", data: { action: "found", by: "Search manager" } as never };
     const back = findRecalls(full.data, [found], "the search manager");

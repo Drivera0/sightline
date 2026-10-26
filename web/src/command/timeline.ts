@@ -233,7 +233,9 @@ export function buildTimeline(events: readonly MissionEvent[], teams: readonly T
   // demo's are "u…"), or anything newer than its last line
   const last = server.reduce((m, e) => (e.at > m ? e.at : m), "");
   // (the guided search's standing approval's assignments are "auto-…": the visitor's too, never left out)
-  const fresh = (e: Entry) => !server.length || (!known.has(e.id) && (e.id.startsWith("u") || e.id.startsWith("auto-") || e.at > last));
+  // (and a decision the server's lines do not carry: an "AI suggests" row never drops out once newer lines
+  // land, so the Decisions count never goes down; round 3 of the usability test)
+  const fresh = (e: Entry) => !server.length || (!known.has(e.id) && (e.id.startsWith("u") || e.id.startsWith("auto-") || e.at > last || e.kind === "decision"));
   const all = [...fromServer, ...derived.filter(fresh)];
   // every line in the console's words (the Trace keeps the engine's)
   for (const e of all) {
