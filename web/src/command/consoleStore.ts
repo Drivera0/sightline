@@ -39,6 +39,11 @@ export interface ConsoleState {
   focus: Focus | null;
   /** The large review frame: open, and on which candidate (null: the first waiting). */
   review: { open: boolean; id: string | null };
+  /** A confirm dialog is open (Leave the simulation?): the guided clock waits, and no review frame opens over it. */
+  confirming: boolean;
+  /** A review frame asked for while a confirm was open: it opens when the confirm closes (its candidate, or null: the first). */
+  deferredReview: { id: string | null } | null;
+  setConfirming: (open: boolean) => void;
   /** The Add clue form, opened from the header, the map's right-click or a hint (bumped each time). */
   clue: { open: boolean; at: { lat: number; lon: number } | null; n: number };
   /** The subject's full profile (the subject strip, "Subject not found" on the status line). */
@@ -70,6 +75,8 @@ export interface ConsoleState {
 const INITIAL = { sector: null, picking: null, dragging: null as ConsoleState["dragging"], filter: savedFilter(), talkTo: null, talkFocus: 0, talkDraft: "", tab: "map" as PhoneTab,
   focus: null as Focus | null,
   review: { open: false, id: null as string | null },
+  confirming: false,
+  deferredReview: null as { id: string | null } | null,
   clue: { open: false, at: null as { lat: number; lon: number } | null, n: 0 },
   row: null as { ref: string; n: number } | null,
   profile: false,
@@ -94,8 +101,11 @@ export const useConsole = create<ConsoleState>((set) => ({
   setTalkTo: (talkTo) => set({ talkTo }),
   setTab: (tab) => set({ tab }),
   setFocus: (focus) => set({ focus }),
-  openReview: (id = null) => set({ review: { open: true, id } }),
-  closeReview: () => set((s) => ({ review: { ...s.review, open: false } })),
+  // never over a confirm: held until it closes
+  openReview: (id = null) => set((s) => (s.confirming ? { deferredReview: { id } } : { review: { open: true, id } })),
+  closeReview: () => set((s) => ({ review: { ...s.review, open: false }, deferredReview: null })),
+  setConfirming: (confirming) =>
+    set((s) => (confirming ? { confirming } : { confirming, deferredReview: null, ...(s.deferredReview ? { review: { open: true, id: s.deferredReview.id } } : {}) })),
   openClue: (at = null) => set((s) => ({ clue: { open: true, at, n: s.clue.n + 1 } })),
   closeClue: () => set((s) => ({ clue: { ...s.clue, open: false, at: null } })),
   setProfile: (profile) => set({ profile }),
