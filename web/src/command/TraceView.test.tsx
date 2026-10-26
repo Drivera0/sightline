@@ -121,17 +121,17 @@ describe("TraceView", () => {
     expect(within(step).getAllByRole("img")).toHaveLength(2); // the crop and the zoom it looked at
     expect(step).toHaveTextContent('"prompt": "verify-v2"');
     // the runs say which flight, not how they were made: this one, and two earlier runs
-    expect(screen.getAllByText("This flight")).toHaveLength(2); // the run's chip and the one model called live on it
-    expect(within(strip).getAllByText("Replayed")).toHaveLength(2); // the fixture's stand-ins: never "This flight"
-    expect(strip).toHaveTextContent("no timing (replayed)");
+    expect(screen.getAllByText("This flight")).toHaveLength(3); // the run's chip and its two models, each called on Token Factory
+    expect(within(strip).queryAllByText("Replayed")).toHaveLength(0); // the fixture has no stand-in left (make_command_fixtures.py --live)
+    expect(strip).not.toHaveTextContent("no timing (replayed)");
+    expect(within(strip).getByLabelText("Model calls in this mission")).toHaveTextContent(/^\d+ Nemotron calls on Nebius Token Factory in this mission · \d+\.\d s in all$/);
     expect(screen.getAllByText("Earlier run")).toHaveLength(4); // two runs' chips and their two models
     expect(screen.queryByText("Recorded")).toBeNull();
-    // a model is named by the model: the demo fixture's stand-in id stays in the data
+    // a model is named by the model: the trace's `recorded/` id stays in the data
     const models = within(strip).getAllByRole("listitem");
     expect(models.map((li) => [li.getAttribute("data-run"), li.querySelector("span span")!.textContent])).toEqual([
-      ["Replayed", "nvidia/Nemotron-3.5-Super-VL"],
-      ["Replayed", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"],
       ["This flight", "nvidia/Nemotron-3.5-Super-VL"],
+      ["This flight", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"],
       ["Earlier run", "nvidia/Nemotron-3.5-Super-VL"],
       ["Earlier run", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"],
     ]);

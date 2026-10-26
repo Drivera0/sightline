@@ -50,6 +50,29 @@ export interface DistractorFrame {
   credit: string;
 }
 
+/**
+ * One Nemotron call on Nebius Token Factory that the mission's answers come from (`fixture.model_calls`,
+ * scripts/make_command_fixtures.py --live): the model, its measured time and tokens, and the answer word for word.
+ */
+export interface ModelCall {
+  /** "vl": a second look on a detection; "briefing": a radio briefing for an assignment. */
+  kind: "vl" | "briefing" | string;
+  model: string;
+  ms: number;
+  tokens_in: number;
+  tokens_out: number;
+  /** On the mission's clock. */
+  at: string | null;
+  /** When the call was made (UTC). */
+  called_at: string | null;
+  /** The script that made it. */
+  source: string;
+  detection: string | null;
+  verdict: string | null;
+  proposal: string | null;
+  text: string;
+}
+
 /** A path under web/public as a URL under the site's base. */
 export function publicUrl(rel: string, base: string = import.meta.env.BASE_URL ?? "/"): string {
   if (/^(https?:)?\/\//.test(rel) || rel.startsWith("/")) return rel;

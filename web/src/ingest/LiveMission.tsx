@@ -23,6 +23,7 @@ import { onMissionClock } from "../command/missionTime";
 import { isTyping } from "../lib/keys";
 import { cacheUrl, loadCache } from "../lib/cache";
 import { photoProgress, useMission } from "../lib/mission";
+import type { ModelCall } from "../lib/fixtureExtras";
 import { clockWithZone, ClockZone, DEMO_TZ, utcLabel } from "../lib/time";
 import { CommandView, storeActions } from "../command/CommandView";
 import { useConsole } from "../command/consoleStore";
@@ -744,7 +745,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
             </button>
           ))}
         </div>
-        {logOpen ? <EventFeed events={s.events} /> : <TraceTab api={api} missionId={missionId} demo={demo} example={demo && effSeed !== DEFAULT_SEED} />}
+        {logOpen ? <EventFeed events={s.events} /> : <TraceTab api={api} missionId={missionId} demo={demo} example={demo && effSeed !== DEFAULT_SEED} calls={demo ? s.model_calls : undefined} />}
       </div>
     ) : undefined;
   const callsign = (id: string | null) => s.teams.find((t) => t.id === id)?.callsign ?? id ?? "";
@@ -1027,7 +1028,7 @@ function useConditionsData(
 const TRACE_POLL_MS = 4000;
 
 /** The Trace view: the live mission's trace (polled with `after`), or the demo's recorded runs. */
-function TraceTab({ api, missionId, demo, example = false }: { api: Api; missionId: string; demo: boolean; example?: boolean }) {
+function TraceTab({ api, missionId, demo, example = false, calls }: { api: Api; missionId: string; demo: boolean; example?: boolean; calls?: readonly ModelCall[] }) {
   const [runs, setRuns] = useState<TraceRun[] | null>(null);
   const [imageUrl, setImageUrl] = useState<(rel: string) => string | null>(() => (rel: string) => fileUrl(api, missionId, rel));
   const [error, setError] = useState<string | null>(null);
@@ -1071,14 +1072,14 @@ function TraceTab({ api, missionId, demo, example = false }: { api: Api; mission
     <div className="flex flex-col gap-3">
       <p className="text-small text-text-2">
         Every step the agent took, grouped from what it saw to what a person decided: perception → decision → action → approval. Open a step for its full input and output.
-        {demo && (example ? " Here: an example trace from the Overdue hiker mission (generated offline with fake models and scripted people, as labelled; this scenario has none of its own), then two runs recorded live, copied from the repository." : " On the demo: this mission's own trace (generated offline with fake models and scripted people, as labelled), then two runs recorded live, copied from the repository.")}
+        {demo && (example ? " Here: an example trace from the Overdue hiker mission (generated offline through the agent's own code, its Nemotron calls made on Nebius Token Factory and its people scripted, as labelled; this scenario has none of its own), then two runs recorded live, copied from the repository." : " On the demo: this mission's own trace (generated offline through the agent's own code, its Nemotron calls made on Nebius Token Factory and its people scripted, as labelled), then two runs recorded live, copied from the repository.")}
       </p>
       {error && (
         <p role="alert" className="text-small text-caution">
           Could not read the trace: {error}
         </p>
       )}
-      {runs === null ? <p className="text-small text-text-3">Loading the trace…</p> : <Suspense fallback={loading("the trace")}><TraceView runs={runs} imageUrl={imageUrl} /></Suspense>}
+      {runs === null ? <p className="text-small text-text-3">Loading the trace…</p> : <Suspense fallback={loading("the trace")}><TraceView runs={runs} imageUrl={imageUrl} missionCalls={calls} /></Suspense>}
     </div>
   );
 }

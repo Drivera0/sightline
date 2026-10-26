@@ -47,7 +47,7 @@ export const WHAT_BREAKS_FIRST: readonly { lead: string; rest: string }[] = [
   },
   {
     lead: "The fleet is a simulation, the approvals are not:",
-    rest: "the drones, their flights and where each photo was taken are generated over real aerial photographs (HERIDAL), and the site's one “Simulation on real aerial photographs” chip says so. In the guided run and in free play the visitor makes every approval live in the browser (Watch instead, if they pick it, is logged as such), and every move in the log names its approver. The mission trace in the Trace view was generated offline with stand-in models and a pre-written search manager, and its header says so.",
+    rest: "the drones, their flights and where each photo was taken are generated over real aerial photographs (HERIDAL), and the site's one “Simulation on real aerial photographs” chip says so. In the guided run and in free play the visitor makes every approval live in the browser (Watch instead, if they pick it, is logged as such), and every move in the log names its approver. The mission trace in the Trace view was generated offline with Nemotron's answers from real calls on Nebius Token Factory and a pre-written search manager, and its header says so.",
   },
 ];
 
@@ -60,6 +60,7 @@ export const HONESTY = {
   real: [
     "The aerial photos (HERIDAL) and every detection the detector makes on them",
     "The AI re-check: OpenCV 5 re-look tools and Nemotron VL, recorded in the Trace",
+    "The demo mission's AI re-checks and radio briefings: real Nemotron calls on Nebius Token Factory, kept word for word with their times",
     "Conditions from Tavily with verbatim quotes, and the radio desk's Nemotron turns",
   ],
 } as const;
