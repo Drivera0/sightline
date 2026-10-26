@@ -5,6 +5,7 @@
 import type { Clue, MissionEvent, Proposal, RadioTurn, SectorTask, Team, TimelineEvent } from "../contract";
 import { formatPod, plainWords, TERMS, type PlainCtx } from "./terms";
 import { operatorName } from "../lib/mission";
+import { isLogged, WATCH_BY } from "./console";
 
 export type EntryKind = TimelineEvent["kind"] | "note";
 
@@ -85,7 +86,7 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
       return entry({
         id: e.id, at: e.at, kind: "clue", team: by, refs: [c.id], clue: c.confirmed ? null : c,
         text: `${c.kind[0]!.toUpperCase()}${c.kind.slice(1)}: ${c.text}`,
-        detail: [who, how, `${c.reliability ?? "medium"} reliability`, c.confirmed ? "confirmed" : "awaiting read-back"].filter(Boolean).join(" · "),
+        detail: [who, how, `${c.reliability ?? "medium"} reliability`, clueState(c, (d as { decided_by?: string } | null)?.decided_by)].filter(Boolean).join(" · "),
       });
     }
     case "detection.new":
@@ -111,7 +112,7 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
       const team = edited ?? p.target.team ?? null;
       return entry({
         id: e.id, at: e.at, kind: "decision", sector: p.target.sector ?? null, team, refs: [p.id],
-        text: `${by} ${p.status === "approved" ? "approved" : p.status === "rejected" ? "rejected" : p.status} the AI's suggestion: ${summary}${edited ? ` (edited from ${callsign(p.target.team)})` : ""}`,
+        text: `${by} ${p.status === "approved" ? (by === WATCH_BY ? "chose" : "approved") : p.status === "rejected" ? "rejected" : p.status} the AI's suggestion: ${summary}${edited ? ` (edited from ${callsign(p.target.team)})` : ""}`,
         detail: p.decision_reason,
         assign: p.status === "approved" && p.kind === "assign_sector" && p.target.sector && team ? { key: `${p.target.sector}|${team}`, rank: 0 } : null,
       });
@@ -123,9 +124,11 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
       if (t.state === "assigned") {
         // the guided search's standing approval sends the agent's next picks: it says whose approval it was
         const standing = /approved in turn/.test(t.note ?? "");
+        // whose standing approval: the visitor's Send all, Watch instead's, or the night search from last light
+        const whose = /Watch instead/.test(t.note ?? "") ? "Watch instead chose Send all" : /last light/.test(t.note ?? "") ? "the night search from last light, a rule of the guided search" : "your standing approval: you chose Send all";
         return entry({
           id: e.id, at: e.at, kind: "decision", sector: t.sector_id, team: t.team_id, refs: [t.sector_id],
-          text: standing ? `${t.sector_id} assigned to ${who}: the agent's pick, auto-approved (your standing approval)` : `${t.sector_id} assigned to ${who}`,
+          text: standing ? `${t.sector_id} assigned to ${who}: the agent's pick, auto-approved (${whose})` : `${t.sector_id} assigned to ${who}`,
           assign: standing ? null : { key: `${t.sector_id}|${t.team_id ?? ""}`, rank: 2 },
         });
       }
@@ -140,7 +143,7 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
       return entry({ id: e.id, at: e.at, kind: "note", text: `Conditions looked up for ${(d as { area?: string } | null)?.area ?? "the area"}` });
     case "mission.note": {
       const action = d?.action as string | undefined;
-      if (action === "found") return entry({ id: e.id, at: e.at, kind: "found", sector: e.ref, team: (d?.mission as { found?: { team?: string } })?.found?.team ?? null, text: e.summary });
+      if (action === "found") return entry({ id: e.id, at: e.at, kind: "found", sector: e.ref, team: (d?.mission as { found?: { team?: string } })?.found?.team ?? null, text: `${e.summary}${byWords(d?.by as string | undefined)}` });
       if (action) {
         const sector = (d?.sector as string) ?? null;
         const team = (d?.team as string) ?? null;
@@ -165,8 +168,19 @@ export function fromEvent(e: MissionEvent, teams: readonly Team[]): Entry | null
  */
 export function approverWord(by: string | null | undefined): string {
   if (!by) return "An unrecorded approver";
+  if (by === WATCH_BY) return WATCH_BY;
   if (by === operatorName()) return "You";
   return scenarioManager(by);
+}
+
+/** " (recorded by you)", " (Watch instead chose it)", "": who made a recorded decision, said after it. */
+export const byWords = (by: string | null | undefined): string => (!by ? "" : by === WATCH_BY ? " (Watch instead chose it)" : by === operatorName() ? " (recorded by you)" : ` (recorded by ${scenarioManager(by)})`);
+
+/** A clue's state in the log: confirmed (and by whom), logged without mapping, or waiting for its read-back. */
+function clueState(c: Clue, by: string | undefined): string {
+  const who = !by ? "" : by === WATCH_BY ? " (Watch instead chose it)" : by === operatorName() ? " by you" : "";
+  if (isLogged(c)) return `logged without mapping${who}: not confirmed, the map unchanged`;
+  return c.confirmed ? `confirmed${who}` : "awaiting read-back";
 }
 
 /** A drone leg or recall this console's manager sent: "(sent by you)", "recalled to base camp by you". */
@@ -215,7 +229,8 @@ export function buildTimeline(events: readonly MissionEvent[], teams: readonly T
   // with a server timeline, the events add only what it cannot have yet: the console's own actions (the
   // demo's are "u…"), or anything newer than its last line
   const last = server.reduce((m, e) => (e.at > m ? e.at : m), "");
-  const fresh = (e: Entry) => !server.length || (!known.has(e.id) && (e.id.startsWith("u") || e.at > last));
+  // (the guided search's standing approval's assignments are "auto-…": the visitor's too, never left out)
+  const fresh = (e: Entry) => !server.length || (!known.has(e.id) && (e.id.startsWith("u") || e.id.startsWith("auto-") || e.at > last));
   const all = [...fromServer, ...derived.filter(fresh)];
   // every line in the console's words (the Trace keeps the engine's)
   for (const e of all) {

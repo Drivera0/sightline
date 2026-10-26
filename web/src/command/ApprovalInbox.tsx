@@ -295,12 +295,19 @@ function PendingCard({
   const [editing, setEditing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [why, setWhy] = useState("");
-  const [team, setTeam] = useState(p.target.team ?? "");
-  const [briefing, setBriefing] = useState(p.briefing ?? "");
+  // the team picked in Edit (null: not changed, so the proposal's own team, even when the agent re-plans it)
+  const [picked, setTeam] = useState<string | null>(null);
+  const team = picked ?? p.target.team ?? "";
+  const edited = p.kind === "assign_sector" && !!picked && picked !== p.target.team;
+  // the briefing as typed in Edit (null: not typed, so the proposal's, addressed to the team that goes)
+  const [typed, setBriefing] = useState<string | null>(null);
+  const callOf = (id: string | undefined) => teams.find((t) => t.id === id)?.callsign ?? id ?? "";
+  const readied = p.briefing && edited && p.target.team ? p.briefing.split(callOf(p.target.team)).join(callOf(team)) : (p.briefing ?? "");
+  const briefing = typed ?? readied;
 
   const edits = (): Record<string, string> | undefined => {
     const e: Record<string, string> = {};
-    if (p.kind === "assign_sector" && team && team !== p.target.team) e.team = team;
+    if (edited) e.team = team;
     if (p.briefing !== null && briefing.trim() && briefing.trim() !== p.briefing) e.briefing = briefing.trim();
     return Object.keys(e).length ? e : undefined;
   };
@@ -311,7 +318,7 @@ function PendingCard({
   };
   const keys = (e: KeyboardEvent) => {
     if (e.target !== e.currentTarget) return; // typing in a field inside the card
-    if (e.key === "a" || e.key === "A") (lead ? lead.onClick() : approve());
+    if (e.key === "a" || e.key === "A") (lead && !edited ? lead.onClick() : approve());
     if (e.key === "x" || e.key === "X") setRejecting(true);
     if ((e.key === "e" || e.key === "E") && canEdit) setEditing((v) => !v);
   };
@@ -325,6 +332,10 @@ function PendingCard({
   }, []);
 
   const ask = proposalAsk(p, teams, drones.length ? drones : drone ? [drone] : [], team);
+  // an edited team: the main button is rebuilt from it ("Send only Team Four to C2"); Send all no longer fits
+  const callsignOf = (id: string) => teams.find((t) => t.id === id)?.callsign ?? id;
+  const shownLead = lead && edited ? null : lead;
+  const editedAction = edited && p.target.sector ? (lead ? `Send only ${callsignOf(team)} to ${p.target.sector}` : ask.action) : ask.action;
   return (
     <div
       ref={cardRef}
@@ -384,7 +395,7 @@ function PendingCard({
         </div>
       )}
       {!editing && p.briefing && (
-        <RadioBubble to={teams.find((t) => t.id === (team || p.target.team))?.callsign ?? (p.target.team === "all" ? "all teams" : (p.target.team ?? "the team"))} text={p.briefing} callsigns={teams.map((t) => t.callsign)} />
+        <RadioBubble to={teams.find((t) => t.id === (team || p.target.team))?.callsign ?? (p.target.team === "all" ? "all teams" : (p.target.team ?? "the team"))} text={briefing || p.briefing} callsigns={teams.map((t) => t.callsign)} />
       )}
       {editing && (
         <div role="group" className="flex flex-col gap-2" aria-label="Edit before approving">
@@ -431,22 +442,22 @@ function PendingCard({
       )}
       <div className="flex flex-wrap items-center gap-1.5">
         {/* the guided assign step: one main button, every free team to the agent's picks; this card's own Approve second */}
-        {lead && (
+        {shownLead && (
           <button
             type="button"
-            onClick={lead.onClick}
+            onClick={shownLead.onClick}
             data-primary=""
             className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
           >
-            <span className="truncate">{lead.label}</span> <KeyHint>A</KeyHint>
+            <span className="truncate">{shownLead.label}</span> <KeyHint>A</KeyHint>
           </button>
         )}
         {/* the primary action says its outcome; "Approve" is in its name for screen readers and the A key */}
-        {lead ? (
-          lead.second && (
+        {shownLead ? (
+          shownLead.second && (
             <button type="button" onClick={approve} className="sl-tap inline-flex h-8 max-w-full items-center rounded-full border border-border px-3 text-small text-text hover:bg-surface-strong">
               <span className="sr-only">Approve: </span>
-              <span className="truncate">{lead.second}</span>
+              <span className="truncate">{shownLead.second}</span>
             </button>
           )
         ) : (
@@ -457,7 +468,7 @@ function PendingCard({
             className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
           >
             <span className="sr-only">Approve: </span>
-            <span className="truncate">{ask.action}</span> <KeyHint>A</KeyHint>
+            <span className="truncate">{editedAction}</span> <KeyHint>A</KeyHint>
           </button>
         )}
         {!rejecting && (

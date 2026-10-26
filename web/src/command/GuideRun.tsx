@@ -39,7 +39,7 @@ import { fixtureOf, passesFrom, realOf, type Cost } from "./sim";
 import { dwellFor, lapseStep, SPEEDS, useGuide, useStory, type Lapse, type Speed } from "./story";
 import { buildTimeline } from "./timeline";
 import { storyClue } from "./storyCopy";
-import { isSightingProposal } from "./console";
+import { isSightingProposal, WATCH_BY } from "./console";
 import { clock as clockText, DEMO_TZ } from "../lib/time";
 import { podLabel } from "./terms";
 
@@ -77,8 +77,9 @@ export function guidedOptsFor(scenario: DemoFull | null, seed: string, choices: 
   const clue = storyClue(scenario);
   const readback = clue?.source === "radio" ? clue.id : null;
   const chosen = choices.find((c) => c.inject === "clue");
-  const confirmed = user.some((e) => e.type === "clue.added" && e.ref === readback && !/logged/.test(e.summary));
-  return { seed, readback, mapClue: chosen ? chosen.option !== "log" : confirmed };
+  const confirmed = user.some((e) => e.type === "clue.added" && e.ref === readback && !!(e.data as { confirmed?: boolean } | null)?.confirmed && !/logged/.test(e.summary));
+  const survey = choices.find((c) => c.inject === "survey") as { option: string; watched?: boolean } | undefined;
+  return { seed, readback, mapClue: chosen ? chosen.option !== "log" : confirmed, survey: survey ? { option: survey.option, watched: !!survey.watched } : null };
 }
 
 export function useGuideRun({
@@ -231,12 +232,15 @@ export function useGuideRun({
   // the step a card's button answers, read when it is pressed (the card's own Approve is "send only")
   const stepRef = useRef<{ active: Inject | null; reached: boolean; f: number }>({ active: null, reached: false, f: 0 });
   stepRef.current = { active, reached: !!reached, f };
-  const decide: Decide = useCallback(async (pid, decision, by, reason, edits) => {
+  const decide: Decide = useCallback(async (pid, decision, by, reason, edits0) => {
     const m = useMission.getState();
     const p = m.proposals.find((x) => x.id === pid);
+    // an edit to the proposal's own team is no edit (the log said "edited from Team One" with nothing changed)
+    const edits = edits0 && edits0.team === p?.target.team ? (({ team: _t, ...rest }) => (Object.keys(rest).length ? rest : undefined))(edits0) : edits0;
     // recorded before the team's move lands, so the step is this decision (not a move made on the side)
     const st = stepRef.current;
-    if (decision === "approve" && st.reached && st.active?.proposal === pid && (st.active.id === "assign" || st.active.id === "wind")) {
+    const watched = by === WATCH_BY;
+    if (decision === "approve" && st.reached && st.active?.proposal === pid && (st.active.id === "assign" || st.active.id === "wind") && !watched) {
       const team = edits?.team && edits.team !== p?.target.team ? edits.team : null;
       const c = choiceFor(st.active, st.active.id === "wind" ? "recall" : team ? `team:${team}` : "approve", st.f);
       useGuide.getState().choose(team ? { ...c, label: `${m.teams.find((t) => t.id === team)?.callsign ?? team} to ${p?.target.sector ?? ""}` } : c);
@@ -244,7 +248,7 @@ export function useGuideRun({
     await m.decide(pid, decision, by, reason, edits);
     if (decision === "approve" && p?.kind === "assign_sector" && p.target.sector) {
       const team = edits?.team ?? p.target.team;
-      if (team) await useMission.getState().assign(team, p.target.sector);
+      if (team) await useMission.getState().assign(team, p.target.sector, by);
     }
   }, []);
 
@@ -266,6 +270,7 @@ export function useGuideRun({
   }
   /** The find recorded: the nearest other team goes to carry out. */
   function carryOut(team: string, sector: string) {
+    // (a radio call only: who goes is the radio's; the board shows the finding team on the carry-out)
     const carry = free(team);
     if (carry) void useMission.getState().call(carry.id, `carry-out to ${sector}, over.`);
   }
@@ -281,7 +286,8 @@ export function useGuideRun({
         return;
       }
       useGuide.getState().choose(choiceFor(i, optionId, f, c, watched));
-      const by = operatorName();
+      // who decided, in the log: the visitor, or Watch instead (never "You approved" for Watch instead's)
+      const by = watched ? WATCH_BY : operatorName();
       const teams = m.teams;
       if (i.id === "triage" && c) {
         const a = optionId as TriageAnswer;
@@ -293,22 +299,30 @@ export function useGuideRun({
         const team = teams.find((t) => t.id === clue.reported_by);
         if (optionId === "bearing") {
           if (team) void m.call(team.id, "say again your bearing to it, over.");
-          m.emit("clue.added", `${clue.id} confirmed with a bearing`, clue.id, { ...clue, confirmed: true, reliability: "medium" });
+          m.emit("clue.added", `${clue.id} confirmed with a bearing`, clue.id, { ...clue, confirmed: true, reliability: "medium", decided_by: by });
         } else if (optionId === "log") {
-          m.emit("clue.added", `${clue.id} logged without mapping`, clue.id, { ...clue, confirmed: true });
+          // logged as said: not confirmed, the map unchanged, and no longer waiting for a read-back
+          m.emit("clue.added", `${clue.id} logged without mapping`, clue.id, { ...clue, confirmed: false, logged: true, decided_by: by });
         } else {
           if (team) void m.call(team.id, `read back: ${clue.text}. Confirm, over.`);
-          m.emit("clue.added", `${clue.id} confirmed`, clue.id, { ...clue, confirmed: true });
+          m.emit("clue.added", `${clue.id} confirmed`, clue.id, { ...clue, confirmed: true, decided_by: by });
         }
       } else if ((i.id === "assign" || i.id === "wind") && i.proposal) {
         const team = optionId.startsWith("team:") ? optionId.slice(5) : undefined;
-        void decide(i.proposal, "approve", by, undefined, team ? { team } : undefined);
-      } else if (i.id === "link" && optionId === "relay") {
-        m.emit("mission.note", `Relay: a second drone holds over the ridge for the one that lost its link; its own flight line stops (by ${by})`, null, { action: "relay", by });
+        const pid = i.proposal;
+        void (async () => {
+          // Send all takes in a sighting still waiting for a team: the nearest team goes there first, approved by name
+          if (optionId === "all") for (const sp of useMission.getState().proposals.filter((x) => x.status === "pending" && isSightingProposal(x))) await decide(sp.id, "approve", by);
+          await decide(pid, "approve", by, undefined, team ? { team } : undefined);
+        })();
+      } else if (i.id === "link") {
+        const who = watched ? "Watch instead chose it" : "you chose it";
+        if (optionId === "relay") m.emit("mission.note", `Relay: ${i.link?.relayName ?? "a second drone"} holds over the ridge for ${i.link?.lostName ?? "the drone"} that lost its link; its own flight line stops (${who})`, null, { action: "relay", by, drone: i.link?.relay ?? null, lost: i.link?.drone ?? null });
+        else m.emit("mission.note", `${i.link?.lostName ?? "The drone"} finishes its flight line on its own; its photos arrive when the link comes back (${who})`, null, { action: "let-finish", by });
       } else if (i.id === "find" && i.find) {
         const { team, sector } = i.find;
         if (optionId === "confirm") void m.call(team, "confirm the subject's description, over.");
-        void m.found(team, sector);
+        void m.found(team, sector, by);
         carryOut(team, sector);
       }
       setHint(null);
