@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { ABOUT, AboutSection, COLOURS, ENTRIES } from "./About";
+import { ABOUT, AboutSection, BCS_TEAM, COLOURS, ENTRIES } from "./About";
 import { BUILT_WITH, STACK, TAVILY } from "./BuiltWith";
 import { ABOUT_ID } from "../shell/flow";
 import { glowFrames, NODES, trip, TRIP } from "./Architecture";
@@ -207,6 +207,9 @@ describe("the home page", () => {
     expect(within(about).getByRole("heading", { level: 2, name: ABOUT.title })).toHaveAttribute("id", ABOUT_ID);
     expect(within(about).getByRole("heading", { name: ABOUT.who })).toBeInTheDocument();
     expect(about).toHaveTextContent("Daniel Rivera");
+    // the BCS Hackathon team that built the first version, each linked to their GitHub profile
+    expect(about).toHaveTextContent("a team of four: Daniel Rivera, Grace Chu (@bamobam), Harvir Nijjar (@har-vir) and Jason Kim (@jkiim).");
+    for (const m of BCS_TEAM) expect(within(about).getByRole("link", { name: `@${m.handle}` })).toHaveAttribute("href", `https://github.com/${m.handle}`);
     for (const e of ENTRIES) expect(within(about).getByRole("link", { name: e.name })).toBeInTheDocument();
     for (const c of COLOURS) expect(about).toHaveTextContent(c.label);
     expect(about).toHaveTextContent("It struggles with groups");
