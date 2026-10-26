@@ -177,6 +177,12 @@ export function useEventToasts(events: readonly MissionEvent[], teams: readonly 
     const was = before.current;
     before.current = waiting;
     if (was !== null && waiting > was && !quietRef.current) useNotify.getState().push(reviewToast(waiting));
+    // none wait any more (all answered, or a restart from the call): the toast goes, so it never says a count
+    // Needs you does not (the cold test: "14 photos to review" left over after Restart)
+    else if (waiting === 0) {
+      const open = useNotify.getState().toasts.find((t) => t.key === "review");
+      if (open) useNotify.getState().dismiss(open.id);
+    }
   }, [waiting]);
 }
 

@@ -1104,7 +1104,7 @@ export function LiveHeatMap({ mapBase, fill = false, ...rest }: LiveHeatMapProps
   if (!mapBase) return <p className="text-small text-text-3">The map appears once the mission has its search area.</p>;
   if (fill) {
     return (
-      <figure aria-label="Live map" aria-describedby={describedBy} className={`relative h-full min-h-[360px] overflow-hidden rounded-lg border border-border ${ATTRIBUTION_CLASS}`}>
+      <figure aria-label="Live map" aria-describedby={describedBy} className={`relative h-full min-h-[360px] overflow-hidden lg:min-h-[280px] rounded-lg border border-border ${ATTRIBUTION_CLASS}`}>
         {description}
         <MapProvider className="h-full w-full" initialCenter={center} initialZoom={15} mapStyle={style}>
           <LiveLayers base={mapBase} {...rest} onBasemap={setBasemap} onEvidence={setEvidence} />

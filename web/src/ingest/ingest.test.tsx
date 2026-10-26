@@ -491,7 +491,13 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
       details.dispatchEvent(new Event("toggle"));
     });
     expect(end).toHaveTextContent("How each pass went");
-    expect(end.textContent).not.toMatch(/score|saved a life/i);
+    // the score is its own section, worked out in the open (goals.ts); the rest of the end screen claims none
+    const score = end.querySelector("[data-score]");
+    expect(score).toHaveTextContent(/\d+ \/ 100/);
+    expect(score).toHaveTextContent("How the score is worked out");
+    const rest = end.cloneNode(true) as HTMLElement;
+    rest.querySelector("[data-score]")?.remove();
+    expect(rest.textContent).not.toMatch(/\bscore\b|saved a life/i);
   }, 60_000);
 
   it("Space during each step never makes a decision, even with a decision button focused (round 3)", async () => {
