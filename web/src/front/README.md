@@ -7,18 +7,19 @@ The home page (`#`) sells Sightline and opens the console on a search; the conso
 
 | File | What |
 |---|---|
-| `Home.tsx` | The home page, top to bottom: the hero (claim, one measured proof, "Try the guided simulation" and "Open the console" over the slow wall of real HERIDAL photos), four measured facts with their sources (count up once), how it works (the diagram and how photos get in), who it is for (three roles, three photographs of a real search), the guided simulation (the one place that explains it, and the cards), for judges (the links they need) and the footer (the one disclosure, the credits, the licence). |
+| `Home.tsx` | The home page, top to bottom: the hero (the name "Sightline" as the title, the tagline "The brain of a drone search.", one measured proof naming OpenCV 5, "Try the guided simulation" and "Open the console", and a "Built with" row of the stack, over the slow wall of real HERIDAL photos), four measured facts (a big number, a headline of at most eight words, one line with the exact figures, a small bar or row of squares, the source; they fade up 140 ms apart and count up once in view, final values at once under reduced motion; `EVIDENCE_CLAIMS` is checked against the evidence index's rows), Built with (`BuiltWith.tsx`), how it works (the diagram and how photos get in), who it is for (three roles, three photographs of a real search), the guided simulation (the one place that explains it, and the cards), for judges (the links they need), About (`About.tsx`; `#about` scrolls there and focuses its heading) and the footer (the one disclosure, the credits, the licence, the code). |
+| `BuiltWith.tsx` | Built with, right after the facts: OpenCV 5 first and largest (the detector on `cv2.dnn`, CPU and CUDA; the second look's native-pixel zoom, CLAHE and re-detection; each photo's footprint and canopy on the map; each with its calls and measured number), then NVIDIA (Nemotron VL, Nano, Super, Parakeet, Magpie, and the radio clip), Nebius (Token Factory, the Serverless Job) and Tavily (conditions and the subject's profile). Text wordmarks, no logos; every number is in `docs/report/EVIDENCE_INDEX.md`. |
 | `home.css` | The page's motion and the hero's scrim: the wall at 5–7 px/s, sections fading up once in 280 ms, cards lifting 2 px. All of it off under `prefers-reduced-motion`; the wall is a still on phones and pauses off screen. |
 | `motion.ts` | `useSeenOnce` (reveal and count once), `useOnScreen` (pause off screen), `canAnimate`. Without an IntersectionObserver (tests) everything renders finished. |
 | `Architecture.tsx` | How it works, drawn in the colour tokens: one plain line per step and the model named small. On wide screens a photo travels the loop (photos → detector → second look → person → map → agent → manager, 9 s, each node lighting as it passes; SMIL, paused off screen, absent under reduced motion); on a phone the same steps as a list. |
 | `scenarios.ts` | The five searches' words: who is missing, the setting, the clues each fixture throws, the length; `RECOMMENDED` is the one marked "Start here". `scenarios.test.ts` checks them against the fixtures. |
 | `ScenarioCards.tsx` | The cards. "Start the simulation": `#m/demo?s=<seed>&guide=1`; "Open the console only": `#m/demo/map?s=<seed>`; Shuffle makes a new seed on each click. Clues past the second open on hover or focus (all shown on touch screens). |
 | `ScenarioBanner.tsx` | The demo console's line under the app bar ("Overdue hiker · Mount Seymour · 13:35 PDT") and Change scenario, which opens the cards in a sheet. |
-| `About.tsx` | The About sheet (`#about`, from the wordmark and the `?` menu): only what the home page does not say. Who built it and the two competition entries, how photos get in (short), what the colours mean, the models and the radio clip, what is simulated and the limits, the licences, where to ask. |
+| `About.tsx` | The home page's About section, its last before the footer (`#about` lands there: old links from the Debrief, the `?` menu and the docs still work; it was a sheet over the console until v4). Only what the rest of the page does not say: who built it and the two competition entries, what the colours mean, what it will not do and where it struggles, where to ask. The models are in Built with, the licences and credits in the footer. |
 | `photos.ts` | The four photographs of a real search (public domain, NPS; `public/front/CREDITS.md`), three of them under "Who it is for". |
 | `copy.ts` | The words: the tagline, how photos get in (`INTAKE`), who it's for, the principles, the credits, the radio clip. |
 | `judges.ts` | "Where to look, in order" (a fold of the Debrief; `#judges` opens it), what is simulated and what is real, and the three "what breaks first" lines, word for word from `docs/submission/WHAT_BREAKS_FIRST.md`. |
-| `RadioClip.tsx` | "Hear Sightline on the radio": one briefing in Sightline's voice (NVIDIA Magpie TTS), served from `public/front/briefing.mp3`. In About and the Debrief. |
+| `RadioClip.tsx` | "Hear Sightline on the radio": one briefing in Sightline's voice (NVIDIA Magpie TTS), served from `public/front/briefing.mp3`. In Built with's NVIDIA card and the Debrief. |
 
 ## How professional sites in this space sell, and the eight rules the home page follows
 
@@ -49,7 +50,7 @@ Read on 2026-10-23. What each page puts above the fold and in the first scroll:
 The rules, and where the page applies them:
 
 1. **Claim, proof, one action.** A short claim, one sentence with a measured number, one primary action and
-   one quieter secondary (Skydio, Linear, Vercel). Hero: "The brain of a drone search.", the 86 % sentence,
+   one quieter secondary (Skydio, Linear, Vercel). Hero: the name "Sightline", the tagline "The brain of a drone search.", the 86 % sentence naming OpenCV 5,
    "Try the guided simulation" and "Open the console". The app bar carries no second copy of either.
 2. **Show the real material, not a stock picture.** Real imagery of the work (Zipline, Skydio, DJI). The hero
    wall is the HERIDAL photos the detector reads, one with its 0.17 box; "Who it is for" uses photographs of a

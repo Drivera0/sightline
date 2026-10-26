@@ -1,4 +1,4 @@
-// The four photographs on the home page and in About: a real search (Eagle Peak, Yellowstone National Park),
+// The four photographs on the home page: a real search (Eagle Peak, Yellowstone National Park),
 // public domain, by NPS / Jacob W. Frank. Served from public/front/ (no request leaves the site); sources
 // and licences in public/front/CREDITS.md. They show the work Sightline supports, not Sightline itself.
 

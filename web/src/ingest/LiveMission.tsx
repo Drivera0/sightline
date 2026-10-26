@@ -173,7 +173,7 @@ function demoHash(view: View, t: Checkpoint, pitch: boolean, seed: string | null
 let userSeq = 0;
 const asUserEvent = (e: MissionEvent): MissionEvent => ({ ...e, id: `u${String(++userSeq).padStart(4, "0")}` });
 
-/** `covered`: a sheet (About) is over the console; its map waits until the sheet goes. */
+/** `covered`: a sheet is over the console; its map waits until the sheet goes. */
 export function LiveMission({ api, missionId, route, covered = false }: { api: Api; missionId: string; route: MissionRoute; covered?: boolean }) {
   const s = useMission();
   const demo = missionId === DEMO_MISSION_ID;
@@ -348,7 +348,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
 
   // The address keeps on the moment the console shows.
   useEffect(() => {
-    // only while the address is this mission's (the About sheet keeps #about over it)
+    // only while the address is this mission's (not once the visitor has gone home or to #about)
     if (!demo || !story.started || !/^#m\/demo(\/|\?|$)/.test(window.location.hash)) return;
     const want = demoHash(view, story.t, story.pitch, seed, guided);
     if (window.location.hash !== want) window.history.replaceState(null, "", want);
