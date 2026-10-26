@@ -14,7 +14,7 @@ mission API on AWS: https://44-227-39-234.sslip.io (started for demos and judgin
 | 1 | Problem and users | Real-world impact |
 | 2 | Architecture | Technical execution (architecture) |
 | 3 | OpenCV 5 implementation | Technical execution (OpenCV 5 depth); Agentic Vision: OpenCV 5 integration |
-| 4 | AWS deployment | Cloud delivery, observability, security |
+| 4, 15 | AWS deployment; the Arm path (COOL on Graviton) | Cloud delivery, observability, security; Best Use of COOL |
 | 5 | Agent (Agentic Vision) | Agentic Vision: integration, orchestration and autonomy, task effectiveness, failure handling and human control |
 | 6 | Search map and planner | Innovation; Real-world impact |
 | 7 | Conditions (Tavily) | Innovation |
@@ -380,7 +380,7 @@ instance is stopped between demos. c7i.xlarge missed the plan's 10 s per photo, 
 OpenCV 5's FP16 target and its ORT engine made no difference (all ~0.146 s per slice, identical output), so the
 default became c7i.2xlarge. Cost while running: about $0.36 an hour on c7i.2xlarge (~$0.71 on c7i.4xlarge,
 used only for the demo recording); a $20 monthly budget alarm covers the account.
-`teardown.sh` deletes everything.
+`teardown.sh` deletes everything. The same code also runs on the Arm path, COOL on AWS Graviton, measured against the pip wheel on the same instance: §15 and [`COOL_GRAVITON.md`](COOL_GRAVITON.md).
 
 **End to end**, per photo through the live pipeline (upload → detections on screen): **2.1 s** on the GPU desktop
 (16 cores, `cv2.dnn` 1.8 s), **7.1 s** on AWS c7i.2xlarge (the default; 11.5 s on c7i.xlarge) and **4.9 s** on
@@ -1101,6 +1101,7 @@ cd web && VITE_API_URL=http://127.0.0.1:8000 pnpm dev        # then open #new: s
 bash scripts/smoke.sh                                       # the whole loop in ~11 s, no network or model files
 bash deploy/aws/setup.sh                                     # AWS (deploy/aws/README.md); teardown.sh removes it
 uv run python scripts/remote_check.py --api https://<address>   # is the deployment working right now?
+bash deploy/aws/cool/cool.sh launch                          # §15, COOL on Graviton (COOL_GRAVITON.md); then fetch, terminate
 ```
 
 ## 13. What changed since BCS
@@ -1211,3 +1212,30 @@ aerial photographs: in the plain console the fixture's scripted decisions are la
 search manager" and its stand-in model calls "Replayed" in the Trace view (only live calls, or a live
 answer kept word for word, read "This flight"), and the guided simulation's find comes from seeded draws
 at the sector's POD, every draw printed on the end screen.
+
+## 15. The Arm path: COOL on AWS Graviton
+
+I ran the detector, its scoring and the API on **COOL** (Cloud Optimized OpenCV for AWS Graviton, the
+COOL-V3 AMI) on a c6g.4xlarge (Graviton2, 16 vCPU), against the pip wheel of the same OpenCV version on
+the same instance, with the same interpreter, numpy and inputs. Full write-up, method and every file:
+[`COOL_GRAVITON.md`](COOL_GRAVITON.md), evidence in `docs/evidence/cool/`, reproduced by
+`deploy/aws/cool/cool.sh` and `scripts/cool_bench.sh`.
+
+| On c6g.4xlarge | COOL-V3 (OpenCV 4.12.0) | pip `opencv-python` 4.12.0.88 | pip 5.0.0.93 (the project's pin) |
+|---|---|---|---|
+| HERIDAL test, VOC P / R / AP50 | **0.802 / 0.864 / 0.868** (MATCH) | 0.802 / 0.864 / 0.868 | 0.802 / 0.864 / 0.868 |
+| Boxes identical to pip 4.12 | **101 / 101 photos, 538 / 538 boxes** | — | 538 / 538 boxes at IoU ≥ 0.95 |
+| s per photo, 4 processes × 4 threads | 3.80 | 3.77 | 5.38 |
+| s per photo, 1 process (2 runs) | 5.85 ± 0.92 | 5.35 ± 0.77 | 4.85 ± 0.03 |
+| `GaussianBlur`, full photo | **8.2 ms (1.32× faster)** | 10.9 ms | 8.5 ms |
+| Second look's CLAHE step, 384 px crop | **1.71 ms (1.23×)** | 2.10 ms | 1.74 ms |
+| `resize` / `cvtColor`, full photo | **1.16× / 1.19×** | — | — |
+| API + worker, `remote_check.py` | **6 / 6 passed, ×3**; 6.2–7.2 s upload → processed | | |
+| $ per 500 photos (4 processes) | $0.31 (incl. $0.04/h COOL) | $0.29 | $0.41 |
+
+COOL speeds up the image-processing calls Sightline makes by 14 to 35 % and gives bit-identical
+detections; `cv2.dnn` is not faster (equal in throughput; in one process about 9 % slower, in each of three
+alternating rounds), as the listing's focus on image processing suggests. Two limits: the listing accepted
+only Graviton2 types in us-west-2 (dry-run `UnsupportedOperation` for c8g, c7g, m8g, m7g), and COOL-V3
+is OpenCV 4.12, while the project pins 5.0, whose wheel already has most of COOL's image-processing
+gain on this CPU. Per photo, Graviton2 costs about 40 % more than the x86 c7i.4xlarge for this model.

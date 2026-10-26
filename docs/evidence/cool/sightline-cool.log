@@ -1,0 +1,199 @@
++ shutdown -h +240 'sightline-cool safety stop'
+Shutdown scheduled for Mon 2026-10-26 05:33:25 UTC, use 'shutdown -c' to cancel.
++ export HOME=/root DEBIAN_FRONTEND=noninteractive
++ HOME=/root
++ DEBIAN_FRONTEND=noninteractive
++ systemctl list-unit-files
++ grep -q amazon-ssm-agent
++ apt-get update -qq
++ apt-get install -y -qq git curl
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart packagekit.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+++ /opt/cool/venvs/python_3.12/bin/python -c 'import sys; print(sys._base_executable)'
++ PY=/usr/bin/python3.12
++ /usr/bin/python3.12 -m venv /opt/sl/awscli
++ /opt/sl/awscli/bin/pip install -q awscli
++ AWS=/opt/sl/awscli/bin/aws
++ DEST=s3://sightline-062715884538-us-west-2/cool/20261026T013214Z
++ mkdir -p /opt/sl/out
++ git clone --depth 1 --branch a/cool-graviton https://github.com/Drivera0/sightline.git /opt/sl/repo
++ sleep 120
+Cloning into '/opt/sl/repo'...
++ cd /opt/sl/repo
++ git rev-parse HEAD
++ env bash scripts/cool_bench.sh
+2026-10-26T01:35:15Z start 11d31de787ddd94639f01a3fc752f79c8d526865
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart irqbalance.service packagekit.service polkit.service udisks2.service
+
+Service restarts being deferred:
+ systemctl restart ModemManager.service
+ systemctl restart cloud-final.service
+ systemctl restart networkd-dispatcher.service
+ systemctl restart unattended-upgrades.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+data/weights/release_v2/sightline-detector-v2.onnx: OK
+2026-10-26T01:35:50Z inputs ready: 101 test photos
+ERROR: Cannot install numpy==1.26.4 and opencv-python==5.0.0.93 because these package versions have conflicting dependencies.
+ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/topics/dependency-resolution/#dealing-with-dependency-conflicts
++ echo 'cool_bench.sh exit 1'
++ cp /var/log/sightline-cool.log /opt/sl/out/boot.log
++ tar czf /opt/sl/results.tgz -C /opt/sl out
++ /opt/sl/awscli/bin/aws s3 cp /opt/sl/results.tgz s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/results.tgz
+Completed 3.7 KiB/3.7 KiB (28.0 KiB/s) with 1 file(s) remainingupload: ../results.tgz to s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/results.tgz
++ /opt/sl/awscli/bin/aws s3 cp /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
+Completed 140 Bytes/140 Bytes (1.1 KiB/s) with 1 file(s) remainingupload: ../out/phases.log to s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ echo uploaded
+uploaded
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120
++ /opt/sl/awscli/bin/aws s3 cp --quiet /opt/sl/out/phases.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/phases.log
++ /opt/sl/awscli/bin/aws s3 cp --quiet /var/log/sightline-cool.log s3://sightline-062715884538-us-west-2/cool/20261026T013214Z/boot.log
++ sleep 120

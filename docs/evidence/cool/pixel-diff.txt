@@ -1,0 +1,23 @@
+photo: data/heridal/yolo_full/test/images/test_BLI_0001.jpg
+== pip 4.12 vs COOL
+imread                     max |diff| 0, values that differ 0.000 %
+resize_linear_letterbox    max |diff| 0, values that differ 0.000 %
+blob_1024                  max |diff| 0, values that differ 0.000 %
+resize_cubic_2x            max |diff| 1, values that differ 0.001 %
+zoom_native                max |diff| 1, values that differ 0.000 %
+enhance_contrast           max |diff| 4, values that differ 0.002 %
+canopy_blur                max |diff| 0, values that differ 0.000 %
+fillpoly_cell              max |diff| 0, values that differ 0.000 %
+gaussian_full              max |diff| 0, values that differ 0.000 %
+cvtcolor_gray_full         max |diff| 0, values that differ 0.000 %
+== pip 5.0 vs COOL
+imread                     max |diff| 0, values that differ 0.000 %
+resize_linear_letterbox    max |diff| 0, values that differ 0.000 %
+blob_1024                  max |diff| 0, values that differ 0.000 %
+resize_cubic_2x            max |diff| 1, values that differ 0.001 %
+zoom_native                max |diff| 1, values that differ 0.000 %
+enhance_contrast           max |diff| 4, values that differ 0.002 %
+canopy_blur                max |diff| 0, values that differ 0.000 %
+fillpoly_cell              max |diff| 0, values that differ 0.000 %
+gaussian_full              max |diff| 0, values that differ 0.000 %
+cvtcolor_gray_full         max |diff| 0, values that differ 0.000 %

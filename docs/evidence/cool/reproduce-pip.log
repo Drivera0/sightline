@@ -1,0 +1,33 @@
+machine: aarch64, 16 logical CPUs, 30.8 GB RAM, Linux-6.14.0-1018-aws-aarch64-with-glibc2.39, Python 3.12.3, OpenCV 4.12.0, CUDA_VISIBLE_DEVICES=None
+cv2.dnn on the CPU: sightline-detector-v2.onnx, 101 test photos, 4 workers x 4 threads, threshold 0.29, merge NMS 0.5
+[ERROR:0@0.103] global net_impl.cpp:1166 getLayerShapesRecursively OPENCV/DNN: [Reshape]:(onnx_node!/model.10/m/m.0/attn/Reshape): getMemoryShapes() throws exception. inputs=1 outputs=1/1 blobs=0
+[ERROR:0@0.103] global net_impl.cpp:1172 getLayerShapesRecursively     input[0] = [ 1 512 24 32 ]
+[ERROR:0@0.103] global net_impl.cpp:1176 getLayerShapesRecursively     output[0] = [ ]
+[ERROR:0@0.103] global net_impl.cpp:1182 getLayerShapesRecursively Exception message: OpenCV(4.12.0) /io/opencv/modules/dnn/src/layers/reshape_layer.cpp:109: error: (-215:Assertion failed) total(srcShape, srcRange.start, srcRange.end) == maskTotal in function 'computeShapeByReshapeMask'
+
+[ERROR:0@0.103] global net_impl.cpp:1166 getLayerShapesRecursively OPENCV/DNN: [Reshape]:(onnx_node!/model.10/m/m.0/attn/Reshape): getMemoryShapes() throws exception. inputs=1 outputs=1/1 blobs=0
+[ERROR:0@0.103] global net_impl.cpp:1172 getLayerShapesRecursively     input[0] = [ 1 512 24 32 ]
+[ERROR:0@0.103] global net_impl.cpp:1176 getLayerShapesRecursively     output[0] = [ ]
+[ERROR:0@0.103] global net_impl.cpp:1182 getLayerShapesRecursively Exception message: OpenCV(4.12.0) /io/opencv/modules/dnn/src/layers/reshape_layer.cpp:109: error: (-215:Assertion failed) total(srcShape, srcRange.start, srcRange.end) == maskTotal in function 'computeShapeByReshapeMask'
+
+[ERROR:0@0.102] global net_impl.cpp:1166 getLayerShapesRecursively OPENCV/DNN: [Reshape]:(onnx_node!/model.10/m/m.0/attn/Reshape): getMemoryShapes() throws exception. inputs=1 outputs=1/1 blobs=0
+[ERROR:0@0.102] global net_impl.cpp:1172 getLayerShapesRecursively     input[0] = [ 1 512 24 32 ]
+[ERROR:0@0.102] global net_impl.cpp:1176 getLayerShapesRecursively     output[0] = [ ]
+[ERROR:0@0.102] global net_impl.cpp:1182 getLayerShapesRecursively Exception message: OpenCV(4.12.0) /io/opencv/modules/dnn/src/layers/reshape_layer.cpp:109: error: (-215:Assertion failed) total(srcShape, srcRange.start, srcRange.end) == maskTotal in function 'computeShapeByReshapeMask'
+
+[ERROR:0@0.108] global net_impl.cpp:1166 getLayerShapesRecursively OPENCV/DNN: [Reshape]:(onnx_node!/model.10/m/m.0/attn/Reshape): getMemoryShapes() throws exception. inputs=1 outputs=1/1 blobs=0
+[ERROR:0@0.108] global net_impl.cpp:1172 getLayerShapesRecursively     input[0] = [ 1 512 24 32 ]
+[ERROR:0@0.108] global net_impl.cpp:1176 getLayerShapesRecursively     output[0] = [ ]
+[ERROR:0@0.108] global net_impl.cpp:1182 getLayerShapesRecursively Exception message: OpenCV(4.12.0) /io/opencv/modules/dnn/src/layers/reshape_layer.cpp:109: error: (-215:Assertion failed) total(srcShape, srcRange.start, srcRange.end) == maskTotal in function 'computeShapeByReshapeMask'
+
+
+101 photos, 337 people
+VOC  P=0.802 R=0.864 AP50=0.868
+SAR  P=0.898 R=0.896 AP=0.921 (for reference)
+wall time 380.7 s (6 min 21 s); detection 3.77 s per photo of wall time
+
+vs detector_metrics.json (tolerance 0.005):
+  precision 0.802 vs 0.802 (ok)
+  recall    0.864 vs 0.864 (ok)
+  ap50      0.868 vs 0.868 (ok)
+MATCH: cv2.dnn reproduces the published detector numbers
