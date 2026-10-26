@@ -174,8 +174,8 @@ export function ApprovalInbox({
 }: {
   /** Newest first (the inbox on its own), or oldest first (Needs you: what has waited longest on top). */
   order?: "newest" | "oldest";
-  /** The guided assign step: its card's main button ("Send all N free teams…"); the card's Approve is second. */
-  lead?: Lead | null;
+  /** The guided assign step: its card's main button ("Send all N free teams…"); the card's Approve is second (one per card). */
+  lead?: Lead | readonly Lead[] | null;
   /** A proposal to point at (the guided search): it is ringed, the others hidden. Null: none. */
   highlight?: string | null;
   proposals: readonly Proposal[];
@@ -242,7 +242,7 @@ export function ApprovalInbox({
           clues={p.kind === "assign_sector" ? clueNoteFor(p.reason, clueNote?.(p) ?? null) : null}
           story={p.id === story}
           highlighted={highlight === p.id}
-          lead={lead?.id === p.id ? lead : null}
+          lead={(Array.isArray(lead) ? (lead as readonly Lead[]) : lead ? [lead as Lead] : []).find((l) => l.id === p.id) ?? null}
           dimmed={highlight !== null && highlight !== p.id}
           drones={drones}
           fresh={!known.current?.has(p.id)}
@@ -448,9 +448,10 @@ function PendingCard({
             type="button"
             onClick={shownLead.onClick}
             data-primary=""
-            className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
+            // (wraps: Send all says its standing approval in full, never cut off)
+            className="sl-tap inline-flex min-h-9 max-w-full items-center gap-2 rounded-2xl border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 py-1.5 text-left text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
           >
-            <span className="truncate">{shownLead.label}</span> <KeyHint>A</KeyHint>
+            <span>{shownLead.label}</span> <KeyHint>A</KeyHint>
           </button>
         )}
         {/* the primary action says its outcome; "Approve" is in its name for screen readers and the A key */}
