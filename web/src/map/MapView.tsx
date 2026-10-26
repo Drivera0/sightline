@@ -115,18 +115,26 @@ export function MapProvider({
 }: MapProviderProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<Map | null>(null);
+  // a browser without WebGL2 (or a test environment) can't draw the map: say so instead of throwing
+  const [noGl, setNoGl] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
 
     ensurePmtilesProtocol();
-    const instance = new MapLibreMap({
-      container: containerRef.current,
-      center: initialCenter,
-      zoom: initialZoom,
-      style: mapStyle,
-      attributionControl: { compact: false },
-    });
+    let instance: Map;
+    try {
+      instance = new MapLibreMap({
+        container: containerRef.current,
+        center: initialCenter,
+        zoom: initialZoom,
+        style: mapStyle,
+        attributionControl: { compact: false },
+      });
+    } catch {
+      setNoGl(true);
+      return undefined;
+    }
     setMap(instance);
 
     return () => {
@@ -149,7 +157,9 @@ export function MapProvider({
 
   return (
     <MapContext.Provider value={value}>
-      <div ref={containerRef} className={className} data-testid="map-canvas" />
+      <div ref={containerRef} className={className} data-testid="map-canvas">
+        {noGl && <p className="p-4 text-small text-text-2">This browser can't draw the map (it needs WebGL2). The rest of the console still works.</p>}
+      </div>
       {children}
     </MapContext.Provider>
   );
