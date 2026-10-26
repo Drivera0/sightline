@@ -36,11 +36,14 @@ A search-and-rescue drone brings back hundreds of photos per flight, and a missi
 
 On the [live site](https://sightline-iota-sandy.vercel.app) you are the search manager in a three-minute guided simulation: the AI proposes, you decide, and the end screen compares a manual search with yours (**Without Sightline vs with Sightline**, every assumption with its source). **Open the console** runs the same mission hands-on from the call.
 
+**Run a real search:** [`#new`](https://sightline-iota-sandy.vercel.app/#new) starts a live mission on the AWS API: drop aerial photos and each is detected with OpenCV 5 `cv2.dnn` on the server and placed on the map.
+
 ## How I built it
 
 - **OpenCV 5 sees.** YOLO11s fine-tuned on 1024 px HERIDAL tiles, exported to ONNX and run on `cv2.dnn` with no PyTorch at run time: identical scores to PyTorch on the test set, 363 of 363 boxes matched one to one. Re-look tools, one per failure mode: `zoom_native` for small people, CLAHE for clothing that matches rock, `redetect_region` for groups and people lying down; `cv2.fillPoly` and `cv2.blur` for coverage and canopy on the map.
 - **NVIDIA models read, reason, listen and speak:** Nemotron 3.5 Super VL (second look), Nemotron 3 Super (radio turns with tools), Nemotron 3 Nano (briefings, conditions), Parakeet and Magpie (speech).
 - **Nebius runs every model call** (Token Factory) and the batch detection (a Serverless Job: 711 photos in 483 s, about $0.10). **Tavily** brings the forecast, warnings and park alerts that gate the drones.
+- **Every AI step in the demo is a real Nemotron answer from Nebius Token Factory:** the demo mission and all four scenarios were re-recorded on Oct 26 with live calls (34 new calls, 50.1 s in all): three Nemotron 3.5 Super VL second looks per mission and one Nemotron 3 Nano briefing per assignment, replayed word for word, each labelled on screen with its model, "Nebius Token Factory" and its time; the Trace view counts them per mission.
 - **AWS:** S3, an SQS FIFO queue with a dead-letter queue, an EC2 worker running `cv2.dnn`, CloudWatch metrics and Secrets Manager; 7.1 s per photo from upload to processed. **COOL on Graviton:** the detector and API also run on Cloud Optimized OpenCV with bit-identical boxes (538 of 538).
 - **The agent proposes and never acts:** every tool call, model call, verdict, proposal and decision is one line of the mission's trace.
 - **The web console** (React, TypeScript, MapLibre) is laid out like a command post: resources, the map, Needs you, and the timeline with the radio.
@@ -75,7 +78,8 @@ opencv, python, onnx, yolo, ultralytics, pytorch, sahi, fastapi, pydantic, docke
 
 ## Try it out
 
-- https://sightline-iota-sandy.vercel.app
+- https://sightline-iota-sandy.vercel.app (guided simulation and hands-on console)
+- https://sightline-iota-sandy.vercel.app/#new (a live search on the AWS API)
 - https://github.com/Drivera0/sightline
 - https://github.com/Drivera0/sightline/blob/main/docs/report/OPENCV_REPORT.md
 

@@ -36,6 +36,8 @@ A search-and-rescue drone brings back hundreds of photos per flight; a missing p
 
 On the [live site](https://sightline-iota-sandy.vercel.app) you are the search manager in a three-minute guided simulation: the AI proposes, you decide, and the end screen compares a manual search with yours (**Without Sightline vs with Sightline**, every assumption with its source). **Open the console** runs the same mission hands-on.
 
+**Run a real search:** [`#new`](https://sightline-iota-sandy.vercel.app/#new) starts a live mission on the AWS API: drop aerial photos and each is detected with OpenCV 5 `cv2.dnn` on the server and placed on the map.
+
 **Physical AI:** drones sense, the agent decides, drones and people act, and each action changes what is sensed next. A team's clue re-tasks the nearest drone; that drone's photo shows the person. The fleet is simulated, flying over real HERIDAL aerial photos through the same photo API a real drone would use.
 
 ## How I built it
@@ -49,6 +51,7 @@ Every language and vision model call goes through **Nebius Token Factory**, thro
 | Radio turns with tool calls | Nemotron 3 Super 120B-A12B | Token Factory |
 | Speech to text / text to speech | Parakeet TDT 0.6B v2 / Magpie TTS 357M | RTX 4080 SUPER (NeMo) |
 
+- **Every AI step in the demo is a real Nemotron answer from Nebius Token Factory:** the demo mission and all four scenarios were re-recorded on Oct 26 with live calls (34 new calls, 50.1 s in all): three Nemotron 3.5 Super VL second looks per mission and one Nemotron 3 Nano briefing per assignment, replayed word for word, each labelled on screen with its model, "Nebius Token Factory" and its time; the Trace view counts them per mission.
 - The VL verdict takes 1.35 s p50, about $0.00033 per detection, and 461 of 461 replies were valid JSON. A radio turn's first sound comes back in 2.5 s p50.
 - A **Nebius Serverless Job** detected the simulated fleet's 711 photos with OpenCV 5 `cv2.dnn` in 483 s on 16 vCPUs, about $0.10; a **Serverless Endpoint** serves the same detector one photo at a time (5.68 s p50, $0.38 per 1,000 photos).
 - **Tavily** searches and extracts the forecast, warnings and park alerts; Nemotron Nano keeps each value only with a verbatim quote. Nemotron Nano can also call Tavily itself to read a public missing-person bulletin.
@@ -84,7 +87,8 @@ nvidia, nemotron, nvidia-nemo, parakeet, magpie, nebius, nebius-token-factory, n
 
 ## Try it out
 
-- https://sightline-iota-sandy.vercel.app
+- https://sightline-iota-sandy.vercel.app (guided simulation and hands-on console)
+- https://sightline-iota-sandy.vercel.app/#new (a live search on the AWS API)
 - https://github.com/Drivera0/sightline
 - https://github.com/Drivera0/sightline/blob/main/docs/report/OPENCV_REPORT.md
 
