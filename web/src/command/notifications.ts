@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import type { Clue, MissionEvent, Proposal, RadioTurn, Team } from "../contract";
 import { useNotify, type NoteDraft } from "../shell/notify";
 import { plain, teamOf } from "./timeline";
+import { TERMS, toReview } from "./terms";
 
 /** More new events than this at once is a jump (the story seeking), not news. */
 export const BURST = 150;
@@ -21,7 +22,7 @@ export function toastFor(e: MissionEvent, teams: readonly Pick<Team, "id" | "cal
     case "proposal.new": {
       const p = d as unknown as Proposal | null;
       const id = p?.id ?? e.ref ?? "";
-      return { key: `proposal:${id}`, tone: "proposal", title: "The agent proposes", body: short(plain(p?.summary ?? e.summary)), target: { kind: "proposal", id } };
+      return { key: `proposal:${id}`, tone: "proposal", title: TERMS.aiSuggests, body: short(plain(p?.summary ?? e.summary)), target: { kind: "proposal", id } };
     }
     case "clue.added": {
       const c = d as unknown as Clue | null;
@@ -45,7 +46,7 @@ export function toastFor(e: MissionEvent, teams: readonly Pick<Team, "id" | "cal
       const v = d as { detection_id?: string; person?: string } | null;
       const id = v?.detection_id ?? e.ref ?? null;
       const word = v?.person === "yes" ? "likely a person" : v?.person === "no" ? "probably not a person" : "unclear";
-      return { key: `verdict:${id}`, tone: "review", title: "AI second look done", body: `${id}: ${word}`, target: { kind: "candidate", id } };
+      return { key: `verdict:${id}`, tone: "review", title: `${TERMS.recheck} done`, body: `A near-miss photo: ${word}`, target: { kind: "candidate", id } };
     }
     case "team.updated": {
       const t = d as unknown as Team | null;
@@ -93,13 +94,13 @@ export function useOverdueToasts(overdue: readonly { team: Pick<Team, "id" | "ca
   }, [key]);
 }
 
-/** The "N candidates to review" toast: its count is how many wait now. */
+/** The "N photos to review" toast: its count is how many wait now. */
 export function reviewToast(waiting: number): NoteDraft {
   return {
     key: "review",
     tone: "review",
-    title: `${waiting} ${waiting === 1 ? "candidate" : "candidates"} to review`,
-    body: "Photos landed. Person, Not a person or Unsure (P, N, U).",
+    title: toReview(waiting),
+    body: "Photos landed: answer Person, Not a person or Unsure on each.",
     target: { kind: "candidate", id: null },
     action: "Review now",
   };

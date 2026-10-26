@@ -48,7 +48,7 @@ describe("live map features", () => {
     expect(mapTextAlternative({ sectors, teams, clues: [clue], fleet })).toEqual([
       "Sectors by probability (POA): B3 Bravo Three 12%; A1 Alpha One 2.0%.",
       "Teams: Team One searching; Team Two off duty, no position.",
-      "Clues: c001 track: boot prints (Team One, unconfirmed).",
+      "Clues: track: boot prints (Team One, unconfirmed).",
       "Drones (simulated): Drone 1 flying, battery 72%.",
     ]);
     expect(mapTextAlternative({ sectors: [], teams: [], clues: [] })).toEqual(["No sectors yet.", "No teams.", "No clues yet.", "No drones on the map."]);
@@ -75,7 +75,7 @@ describe("live map features", () => {
     expect(list.querySelectorAll("li").length).toBeLessThanOrEqual(8);
     expect(screen.queryByText(/SIM/)).toBeNull(); // one disclosure chip in the header instead
     expect(list).toHaveTextContent("Base camp");
-    expect(list).toHaveTextContent("Active drone leg");
+    expect(list).toHaveTextContent("Drone flight line");
     // The heat's own line above it: the three classes, both edges and the unshaded rest.
     const heat = screen.getByRole("list", { name: "Probability classes" });
     expect(heat).toHaveTextContent("Likelier than even: 90 · 80 · 50 % of the extra");

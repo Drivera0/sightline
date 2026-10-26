@@ -17,9 +17,10 @@ export function focusCandidate(id: string | null): void {
   }
 }
 import type { Detection, Detections, Survey, Verdict } from "../contract";
-import { Badge, EmptyState, Label } from "../shell/components";
+import { Badge, EmptyState } from "../shell/components";
 import { SecondLook } from "./SecondLook";
 import { answerForKey, ObjectPicker, REVIEW_ANSWERS, usePickerKeys, type LiveAnswer, type ObjectKind } from "./answers";
+import { TERMS, thresholdNote } from "../command/terms";
 
 /** While the large review frame is open it owns P/N/U and J/K; the rail's own keys stand down. */
 export const reviewKeys = { frameOpen: false };
@@ -29,20 +30,24 @@ export type { LiveAnswer, ObjectKind } from "./answers";
 /** How a candidate is answered: the answer, and with "object" its type. */
 export type OnAnswer = (id: string, answer: LiveAnswer, object?: ObjectKind) => void;
 
-/** "relook/f0003-d01-zoom_native.jpg" → "zoom native": which OpenCV 5 tool made the image. */
+/** Each OpenCV 5 re-check tool's short name ("zoom_native" → "zoom"). */
+const TOOL_NAMES: Record<string, string> = { zoom_native: "zoom", enhance_contrast: "contrast", redetect_region: "re-detect" };
+export const toolName = (t: string) => TOOL_NAMES[t] ?? t.replace(/_/g, " ");
+
+/** "relook/f0003-d01-zoom_native.jpg" → "zoom": which OpenCV 5 tool made the image. */
 export function relookName(rel: string): string {
   const base = rel.split("/").at(-1)?.replace(/\.[a-z]+$/i, "") ?? rel;
   const tool = /^f\d{4}-d\d{2}-(.+)$/.exec(base)?.[1] ?? base;
-  return tool.replace(/_/g, " ");
+  return toolName(tool);
 }
 
-/** "Second look: likely a person · lying down · red jacket", or "Second look: unclear". Always words. */
+/** "AI re-check: likely a person · lying down · red jacket", or "AI re-check: unclear". Always words. */
 export function verdictWords(v: Verdict | undefined): string | null {
   if (!v) return null;
   const thing = v.object && v.object !== "other" ? ` · looks like a ${v.object}` : "";
-  if (v.person === "unclear") return `Second look: unclear${thing}`;
-  if (v.person === "no") return `Second look: probably not a person${thing}`;
-  const parts = ["Second look: likely a person"];
+  if (v.person === "unclear") return `${TERMS.recheck}: unclear${thing}`;
+  if (v.person === "no") return `${TERMS.recheck}: probably not a person${thing}`;
+  const parts = [`${TERMS.recheck}: likely a person`];
   if (v.posture !== "unknown") parts.push(v.posture === "lying" ? "lying down" : v.posture);
   if (v.group_size && v.group_size > 1) parts.push(`${v.group_size} people`);
   if (v.clothing) parts.push(v.clothing);
@@ -53,8 +58,11 @@ export function verdictWords(v: Verdict | undefined): string | null {
 export function verdictChips(v: Verdict | undefined): string[] {
   if (!v) return [];
   const model = v.model.split("/").at(-1) ?? v.model;
-  return [...v.tools.map((t) => `OpenCV 5 ${t.replace(/_/g, " ")}`), model];
+  return [...v.tools.map((t) => `OpenCV 5 ${toolName(t)}`), model];
 }
+
+/** "Survey photo f0336" → "Survey photo 336": the photo's number, not its id (the id is on hover and in the Trace). */
+export const photoName = (frame: string) => frame.replace(/\bf0*(\d+)\b/, "$1").replace(/, below the [\d.]+ review threshold/, "");
 
 export function liveReviewItems(detections: Detections | null, promoted: readonly string[]): Detection[] {
   if (!detections) return [];
@@ -103,16 +111,18 @@ export const DETECTOR_CV2 = "OpenCV 5 · cv2.dnn";
 export const DETECTOR_BROWSER = "ONNX Runtime Web";
 
 /** The detector score with what made it: "OpenCV 5 · cv2.dnn 0.17" as one chip. */
-export function DetectorScore({ c, className = "" }: { c: Pick<ReviewCard, "conf" | "detector" | "threshold">; className?: string }) {
+/** `brand`: say what made the score (the large frame, the home page); a small card shows the number only. */
+export function DetectorScore({ c, className = "", brand = true }: { c: Pick<ReviewCard, "conf" | "detector" | "threshold">; className?: string; brand?: boolean }) {
   const cv = c.detector === DETECTOR_CV2;
   const title = cv
-    ? `Detector score from YOLO11s (trained on HERIDAL) run by OpenCV 5 cv2.dnn${c.threshold !== undefined ? `; the review queue starts at ${c.threshold.toFixed(2)}` : ""}`
+    ? `Detector score from YOLO11s (trained on HERIDAL) run by OpenCV 5 cv2.dnn${c.threshold !== undefined ? `; ${thresholdNote(c.threshold)}` : ""}`
     : c.detector
       ? `Detector score from the same weights in ${c.detector}`
       : "Detector score";
   return (
     <span title={title} aria-label={`${c.detector ? `${c.detector} ` : ""}detector score ${c.conf.toFixed(2)}`} className={`inline-flex items-center overflow-hidden rounded-full border text-caption ${cv ? "border-border" : "border-line"} ${className}`}>
-      {c.detector && <span className={`px-2 py-px ${cv ? "bg-surface-strong font-medium text-text" : "text-text-2"}`}>{c.detector}</span>}
+      {c.detector && brand && <span className={`px-2 py-px ${cv ? "bg-surface-strong font-medium text-text" : "text-text-2"}`}>{c.detector}</span>}
+      {!brand && <span className="pl-2 text-text-3">score</span>}
       <span className="sl-num px-2 py-px font-medium text-text">{c.conf.toFixed(2)}</span>
     </span>
   );
@@ -140,18 +150,17 @@ function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }
     was.current = current;
   }, [current]);
   return (
-    <li ref={el} aria-label={`Candidate ${c.id}`} aria-current={current || undefined} data-candidate={c.id} onClick={onPick} className={`sl-slide-in flex flex-col gap-2 rounded-lg border bg-surface-solid p-2.5 ${current ? "border-border" : "border-line"}`}>
+    <li ref={el} aria-label={`Photo to review ${c.id}`} aria-current={current || undefined} data-candidate={c.id} onClick={onPick} className={`sl-slide-in flex flex-col gap-2 rounded-lg border bg-surface-solid p-2.5 ${current ? "border-border" : "border-line"}`}>
       <div className="flex gap-3">
         <img loading="lazy" decoding="async" width={80} height={80} src={c.crop} alt={`Crop of ${c.id}`} className="size-20 shrink-0 rounded-sm object-cover" />
         <div className="flex min-w-0 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-small text-text-3">#{rank}</span>
-            <DetectorScore c={c} />
-            <span className="truncate font-mono text-caption text-text-3">{c.id}</span>
-            {c.promoted && <Badge kind="info">Promoted</Badge>}
+            <DetectorScore c={c} brand={false} />
+            {c.promoted && <Badge kind="info">{TERMS.recheckFlagged}</Badge>}
             {c.distractor && <ObjectPhotoBadge />}
           </span>
-          <Label className="truncate normal-case tracking-normal">{c.frame}</Label>
+          <span className="truncate text-caption text-text-2" title={c.id}>{photoName(c.frame)}</span>
         </div>
       </div>
       <SecondLook c={c} />
@@ -180,7 +189,7 @@ export function ReviewRail({
   answers,
   onAnswer,
   top,
-  empty = "Candidates appear here as photos are processed.",
+  empty = "Photos to review appear here as the drones' photos are processed.",
 }: {
   cards: readonly ReviewCard[];
   answers: Readonly<Record<string, LiveAnswer>>;
@@ -228,7 +237,7 @@ export function ReviewRail({
       {/* the same head as Needs you's other groups: a dot, the name, the count */}
       <div className="flex items-baseline gap-1.5 px-1 pt-1">
         <span aria-hidden className="size-2 shrink-0 self-center rounded-full bg-text-2" />
-        <span className="text-caption font-medium text-text-2">Candidates to review</span>
+        <span className="text-caption font-medium text-text-2">{TERMS.review}</span>
         {cards.length > 0 && <span className="sl-num text-caption text-text-3">{cards.length - done}</span>}
         {cards.length > 0 && (
           <span className="ml-auto text-caption text-text-3">
@@ -238,7 +247,7 @@ export function ReviewRail({
       </div>
       {top}
       {cards.length === 0 ? (
-        <EmptyState title="No candidates yet">{empty}</EmptyState>
+        <EmptyState title="No photos to review yet">{empty}</EmptyState>
       ) : (
         <ol className="flex flex-col gap-2">
           {cards.map((c, i) => (

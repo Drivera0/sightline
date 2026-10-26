@@ -247,7 +247,7 @@ export function ensureHeatLayers(
         layout: {
           "text-field": ["get", "text"],
           "text-font": ["Noto Sans Regular"],
-          "text-size": 11,
+          "text-size": 13,
           "text-anchor": ["get", "anchor"],
           "text-justify": ["get", "justify"],
           "text-offset": ["array", "number", 2, ["get", "offset"]],

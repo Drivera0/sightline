@@ -22,7 +22,8 @@ describe("the timeline", () => {
 
   it("says decisions in words, the agent's and the search manager's alike, without the fixture's script notes", () => {
     const p = { id: "p003", status: "approved", decided_by: "Search manager (scripted for the demo fixture)", summary: "Assign sector C2 to Team One", target: { sector: "C2", team: "T1" }, decision_reason: null } as unknown as Proposal;
-    expect(fromEvent(ev("e1", "proposal.decided", p), TEAMS)!.text).toBe("The scenario's search manager approved agent p003: Assign sector C2 to Team One"); // never the visitor (judges 2026-10-23)
+    expect(buildTimeline([ev("e1", "proposal.decided", p)], TEAMS)[0]!.text).toBe("The search manager approved the AI's suggestion: Assign sector C2 to Team One"); // never the visitor (judges 2026-10-23), who is "You"
+    expect(buildTimeline([ev("e1", "proposal.decided", { ...p, decided_by: "Search manager" })], TEAMS)[0]!.text).toBe("You approved the AI's suggestion: Assign sector C2 to Team One");
     const direct = fromEvent(ev("e2", "mission.note", { action: "assign", by: "Dana", team: "T2", sector: "B3" }, "Dana assigned B3 to Team Two", AT, "B3"), TEAMS)!;
     expect(direct).toMatchObject({ kind: "decision", text: "Dana assigned B3 to Team Two", team: "T2", sector: "B3" });
     const searched = fromEvent(ev("e3", "task.updated", { sector_id: "B4", state: "searched", team_id: "T1", pod: 0.6 } as SectorTask), TEAMS)!;
@@ -41,7 +42,7 @@ describe("the timeline", () => {
     const relay = (id: string, at: string) => ev(id, "mission.note", { relay: { team_id: "T2" } }, "Team Two heard via D3, just now (simulated relay)", at);
     const t = buildTimeline([relay("e1", "2026-10-24T21:55:00Z"), relay("e2", "2026-10-24T21:57:00Z"), relay("e3", "2026-10-24T21:59:00Z")], TEAMS);
     expect(t).toHaveLength(1);
-    expect(t[0]).toMatchObject({ id: "e3", repeats: 3, text: "Team Two heard via D3, just now", kind: "checkin" });
+    expect(t[0]).toMatchObject({ id: "e3", repeats: 3, text: "Team Two heard via Drone 3, just now", kind: "checkin" });
     expect(inFilter(t[0]!, "Radio")).toBe(true);
     expect(inFilter(t[0]!, "Decisions")).toBe(false);
   });
@@ -56,8 +57,8 @@ describe("the timeline", () => {
 
 describe("the demo's per-line notes", () => {
   it("are left to the one disclosure chip", () => {
-    expect(plain("Subject found by Team One in sector C2 (by Search manager (scripted for the demo fixture))")).toBe("Subject found by Team One in sector C2 (by the scenario's search manager)");
+    expect(plain("Subject found by Team One in sector C2 (by Search manager (scripted for the demo fixture))")).toBe("Subject found by Team One in sector C2 (by the search manager)");
     expect(plain("Sightline, Team One. Subject located, over. (typed for the demo fixture)")).toBe("Sightline, Team One. Subject located, over.");
-    expect(plain("Team Two heard via D3, just now (simulated relay)")).toBe("Team Two heard via D3, just now");
+    expect(plain("Team Two heard via D3, just now (simulated relay)")).toBe("Team Two heard via Drone 3, just now");
   });
 });

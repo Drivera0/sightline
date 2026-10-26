@@ -20,6 +20,8 @@ export interface ConditionsData {
   /** The fleet's lowest drone wind limit and that drone's name; null without a fleet. */
   limitKmh: number | null;
   drone: string | null;
+  /** When the subject was last seen (the exposure note counts from it, on the mission's clock). */
+  lastSeen?: string | null;
 }
 
 const minutes = (from: string, now: Date) => Math.max(0, Math.round((now.getTime() - new Date(from).getTime()) / 60000));
@@ -84,7 +86,7 @@ export function ConditionsPanel({
   const lookup = override ? null : data.lookup; // an override is never shown with a lookup's quotes
   const gate = flyGate(c, data.limitKmh, data.drone, time);
   const age = minutes(c.fetched_at, now);
-  const facts = conditionsFacts(c, lookup, now);
+  const facts = conditionsFacts(c, lookup, now, time, data.lastSeen ?? null);
   const alertDomains = [...new Set((lookup?.searches ?? []).filter((x) => x.label === "alerts" || x.label === "warnings").flatMap((x) => x.results.map((r) => domain(r.url))))];
   return (
     <section id={id} aria-label={label} className={`flex flex-col gap-3 rounded-lg border border-line p-4 ${subordinate ? "bg-surface-strong/40" : "bg-surface-solid"}`}>

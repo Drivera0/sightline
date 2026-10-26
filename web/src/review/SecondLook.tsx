@@ -1,4 +1,4 @@
-// The AI second look (V3 §3), made to be read at a glance: before it runs, one line says what it does
+// The AI re-check (V3 §3; the engine's "second look"), made to be read at a glance: before it runs, one line says what it does
 // (OpenCV 5 re-cuts the spot from the full-resolution photo, then Nemotron VL reads it) and one button
 // runs it; while it runs, its two steps; done, the verdict first in large words ("Likely a person"), its
 // details, the detector's crop beside the OpenCV 5 image the model saw, then each step with what it said
@@ -9,7 +9,8 @@
 // Built by lane A.
 import { create } from "zustand";
 import type { Verdict } from "../contract";
-import { relookName, type ReviewCard } from "./LiveReview";
+import { relookName, toolName, type ReviewCard } from "./LiveReview";
+import { TERMS, thresholdNote } from "../command/terms";
 
 type Run = { stage: "running"; started: number; ms: number } | { stage: "done" };
 
@@ -46,8 +47,8 @@ export const useSecondLook = create<SecondLookState>((set, get) => ({
 }));
 
 /** The button's label: what it does. */
-export const SECOND_LOOK_LABEL = "Run AI second look";
-const DEFAULT_CHIPS = ["OpenCV 5 zoom native", "Nemotron VL"];
+export const SECOND_LOOK_LABEL = TERMS.recheckRun;
+const DEFAULT_CHIPS = ["OpenCV 5 zoom", "Nemotron VL"];
 
 /** What each OpenCV 5 re-look tool did (sightline/agent/relook.py). */
 export const TOOL_WORDS: Record<string, string> = {
@@ -72,10 +73,10 @@ export function verdictHead(v: Verdict): { head: string; tone: "found" | "cautio
 export function secondLookSteps(c: Pick<ReviewCard, "conf" | "threshold" | "detector" | "verdict">): { who: string; said: string }[] {
   const v = c.verdict;
   const steps: { who: string; said: string }[] = [];
-  const line = c.threshold !== undefined ? (c.conf < c.threshold ? `, under the ${c.threshold.toFixed(2)} review line` : `, over the ${c.threshold.toFixed(2)} review line`) : "";
+  const line = c.threshold !== undefined ? (c.conf < c.threshold ? `, under ${c.threshold.toFixed(2)} (${thresholdNote(c.threshold)})` : `, over ${c.threshold.toFixed(2)}, so it was in ${TERMS.review}`) : "";
   steps.push({ who: c.detector ? `${c.detector} detector` : "Detector", said: `score ${c.conf.toFixed(2)}${line}` });
   if (!v) return steps;
-  for (const t of v.tools) steps.push({ who: `OpenCV 5 ${t.replace(/_/g, " ")}`, said: TOOL_WORDS[t] ?? "a re-look image" });
+  for (const t of v.tools) steps.push({ who: `OpenCV 5 ${toolName(t)}`, said: TOOL_WORDS[t] ?? "a re-check image" });
   const answer = v.person === "yes" ? "yes, a person" : v.person === "no" ? "no person" : "unclear";
   steps.push({ who: v.model.split("/").at(-1) ?? v.model, said: `${answer}: “${v.reason}”` });
   return steps;
@@ -90,24 +91,20 @@ export function SecondLook({ c, large = false }: { c: ReviewCard; large?: boolea
   const images = c.relook ?? [];
   const v = c.verdict;
   const head = v ? verdictHead(v) : null;
-  // a card in the rail with no second look: one quiet line (the large frame keeps the button, off)
-  if (!available && !large)
-    return (
-      <p role="group" aria-label="AI second look" className="text-caption text-text-3">
-        No AI second look: it runs on near misses under the review line.
-      </p>
-    );
+  // a card in the rail with no re-check: nothing (the large frame keeps the button, off, and says why)
+  if (!available && !large) return null;
   return (
-    <div role="group" aria-label="AI second look" className="flex flex-col gap-1.5 rounded-md border border-proposal/40 bg-proposal/5 p-2">
+    <div role="group" aria-label={TERMS.recheck} className="flex flex-col gap-1.5 rounded-md border border-proposal/40 bg-proposal/5 p-2">
       <p className="flex flex-wrap items-center gap-1.5 text-caption">
-        <span className="font-medium text-proposal">AI second look</span>
-        <span className="flex flex-wrap gap-1" aria-label="Models">
+        <span className="font-medium text-proposal">{TERMS.recheck}</span>
+        {/* the OpenCV 5 chips: on the large frame and the result, not on a small card before it runs */}
+        {(large || run?.stage === "done") && <span className="flex flex-wrap gap-1" aria-label="Models">
           {chips.map((m) => (
             <span key={m} className={`rounded-full border px-2 py-px text-caption ${m.startsWith("OpenCV") ? "border-border bg-surface-strong font-medium text-text" : "border-line bg-surface-strong text-text-2"}`}>
               {m}
             </span>
           ))}
-        </span>
+        </span>}
       </p>
       {run?.stage !== "done" && (
         <>
@@ -120,16 +117,16 @@ export function SecondLook({ c, large = false }: { c: ReviewCard; large?: boolea
               e.stopPropagation();
               useSecondLook.getState().run(c.id, c.ms ?? 0);
             }}
-            title={available ? undefined : "The agent gives a second look to near misses, the candidates under the review threshold; this one has none."}
+            title={available ? undefined : `The AI re-check runs on near misses, photos just under the review threshold${c.threshold !== undefined ? ` (${thresholdNote(c.threshold)})` : ""}; this one has none.`}
             className="sl-tap inline-flex h-8 items-center gap-1.5 self-start rounded-full border border-proposal bg-proposal/15 px-3 text-small font-medium text-text hover:bg-proposal/25 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {run?.stage === "running" ? "Looking again…" : SECOND_LOOK_LABEL}
           </button>
         </>
       )}
-      {!available && <p className="text-caption text-text-3">No second look on this one: the agent runs it on near misses under the review threshold.</p>}
+      {!available && <p className="text-caption text-text-3">No AI re-check on this one: it runs only on near misses, photos just under the review threshold{c.threshold !== undefined ? ` (${thresholdNote(c.threshold)})` : ""}.</p>}
       {run?.stage === "running" && (
-        <div aria-label="Second look running" className="flex flex-col gap-1">
+        <div aria-label="AI re-check running" className="flex flex-col gap-1">
           <span className="relative h-1 overflow-hidden rounded-full bg-surface-strong">
             <span className="sl-progress absolute inset-y-0 left-0 rounded-full bg-proposal" style={{ animationDuration: `${run.ms}ms` }} />
           </span>
@@ -137,10 +134,10 @@ export function SecondLook({ c, large = false }: { c: ReviewCard; large?: boolea
         </div>
       )}
       {run?.stage === "done" && (
-        <div aria-label="Second look result" className="sl-slide-in flex flex-col gap-2">
+        <div aria-label="AI re-check result" className="sl-slide-in flex flex-col gap-2">
           <p className="flex flex-wrap items-baseline gap-x-2">
             <span className={`${large ? "text-title" : "text-body"} font-semibold ${head ? TONE_TEXT[head.tone] : "text-text"}`}>{head ? head.head : (c.words ?? "")}</span>
-            <span className="ml-auto text-caption text-text-3">AI second look done{c.ms ? ` in ${(c.ms / 1000).toFixed(1)} s` : ""}</span>
+            <span className="ml-auto text-caption text-text-3">{TERMS.recheck} done{c.ms ? ` in ${(c.ms / 1000).toFixed(1)} s` : ""}</span>
           </p>
           {head && head.details.length > 0 && <p className="text-small text-text">{head.details.join(" · ")}</p>}
           {(images.length > 0 || c.crop) && (

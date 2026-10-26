@@ -28,7 +28,7 @@ describe("the object photo badge", () => {
   it("shows on a distractor's photo in the review frame, and not on a survey photo", () => {
     render(<ReviewFrame cards={[cards[0]!, plain]} answers={{}} onAnswer={() => {}} />);
     act(() => useConsole.getState().openReview(cards[0]!.id));
-    const frame = screen.getByRole("dialog", { name: "Review candidates" });
+    const frame = screen.getByRole("dialog", { name: "Review photos" });
     expect(within(frame).getByText("object photo")).toHaveAttribute("title", OBJECT_PHOTO_TITLE);
     act(() => useConsole.getState().openReview(plain.id));
     expect(within(frame).queryByText("object photo")).toBeNull();
@@ -36,8 +36,8 @@ describe("the object photo badge", () => {
 
   it("shows on the candidate card too, and never says simulated", () => {
     render(<ReviewRail cards={[cards[0]!, plain]} answers={{}} onAnswer={() => {}} />);
-    expect(within(screen.getByLabelText(`Candidate ${cards[0]!.id}`)).getByText("object photo")).toBeInTheDocument();
-    expect(within(screen.getByLabelText(`Candidate ${plain.id}`)).queryByText("object photo")).toBeNull();
+    expect(within(screen.getByLabelText(`Photo to review ${cards[0]!.id}`)).getByText("object photo")).toBeInTheDocument();
+    expect(within(screen.getByLabelText(`Photo to review ${plain.id}`)).queryByText("object photo")).toBeNull();
     expect(`object photo ${OBJECT_PHOTO_TITLE}`).not.toMatch(/simulat/i);
   });
 });

@@ -12,9 +12,9 @@ describe("the command post's arithmetic", () => {
     expect(elapsedMin({ created_at: "2026-10-24T20:30:00Z" }, NOW)).toBe(90);
     const c = { civil_twilight_end: "2026-10-25T01:36:00Z", flyable: true, flyable_until: "2026-10-25T01:36:00Z", flyability_reason: "gusts 15" } as Conditions;
     expect(daylightMin(c, NOW)).toBe(216);
-    expect(flyWord(c, "America/Vancouver")).toMatchObject({ word: "Flyable to 18:36", tone: "ok" });
-    expect(flyWord({ ...c, flyable: false, flyability_reason: "gusts 50" }, true)).toMatchObject({ word: "Not flyable", tone: "alert", reason: "gusts 50" });
-    expect(flyWord(null, true).word).toBe("Flyability unknown");
+    expect(flyWord(c, "America/Vancouver")).toMatchObject({ word: "Drones can fly until 18:36", tone: "ok" });
+    expect(flyWord({ ...c, flyable: false, flyability_reason: "gusts 50" }, true)).toMatchObject({ word: "Drones grounded", tone: "alert", reason: "gusts 50" });
+    expect(flyWord(null, true).word).toBe("Drone flying: not known");
   });
 
   it("counts the people in the field", () => {

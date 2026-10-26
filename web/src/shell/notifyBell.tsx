@@ -76,7 +76,7 @@ export function NotifyBell({ onShow }: { onShow: (target: ShowTarget | null | un
         >
           <p className="sl-panel-head">Notifications</p>
           {log.length === 0 ? (
-            <p className="p-3 text-small text-text-3">Nothing yet. New proposals, candidates, clues and radio calls show here.</p>
+            <p className="p-3 text-small text-text-3">Nothing yet. New AI suggestions, photos to review, clues and radio calls show here.</p>
           ) : (
             <ol className="flex min-h-0 flex-col overflow-y-auto">
               {log.map((n) => (

@@ -135,19 +135,19 @@ describe("review in live mode (test 8)", () => {
   });
 
   it("shows the second look's re-look images on demand (D-Q1)", async () => {
-    expect(relookName("relook/f0003-d01-zoom_native.jpg")).toBe("zoom native");
-    expect(relookName("relook/f0003-d01-enhance_contrast.jpg")).toBe("enhance contrast");
+    expect(relookName("relook/f0003-d01-zoom_native.jpg")).toBe("zoom");
+    expect(relookName("relook/f0003-d01-enhance_contrast.jpg")).toBe("contrast");
     const v = verdict({ relook_crops: ["relook/f0001-d02-zoom_native.jpg"] });
     useSecondLook.getState().reset();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<LiveReview detections={dets} survey={null} verdicts={[v]} promoted={["f0001-d02"]} imageUrl={(r) => `/f/${r}`} onAnswer={vi.fn()} />);
     expect(screen.queryByAltText(/Re-look image/)).toBeNull(); // not loaded until asked for
     // a real button with its two model chips; pressed, it shows its progress, then the result inline
-    const card = screen.getByLabelText("Candidate f0001-d02");
+    const card = screen.getByLabelText("Photo to review f0001-d02");
     await userEvent.click(within(card).getByRole("button", { name: SECOND_LOOK_LABEL }));
-    expect(within(card).getByLabelText("Second look running")).toBeInTheDocument();
+    expect(within(card).getByLabelText("AI re-check running")).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(RUN_MAX_MS));
-    expect(within(card).getByLabelText("Second look result")).toHaveTextContent("Likely a person");
+    expect(within(card).getByLabelText("AI re-check result")).toHaveTextContent("Likely a person");
     expect(screen.getByAltText("Re-look image relook/f0001-d02-zoom_native.jpg")).toHaveAttribute("src", "/f/relook/f0001-d02-zoom_native.jpg");
     // the OpenCV 5 image beside the detector's crop, and what each model said
     expect(within(card).getByText("detector crop")).toBeInTheDocument();
@@ -156,9 +156,9 @@ describe("review in live mode (test 8)", () => {
   });
 
   it("always says the second look in words", () => {
-    expect(verdictWords(verdict({}))).toBe("Second look: likely a person · lying down · red jacket");
-    expect(verdictWords(verdict({ person: "unclear" }))).toBe("Second look: unclear");
-    expect(verdictWords(verdict({ person: "no" }))).toBe("Second look: probably not a person");
+    expect(verdictWords(verdict({}))).toBe("AI re-check: likely a person · lying down · red jacket");
+    expect(verdictWords(verdict({ person: "unclear" }))).toBe("AI re-check: unclear");
+    expect(verdictWords(verdict({ person: "no" }))).toBe("AI re-check: probably not a person");
     expect(verdictWords(undefined)).toBeNull();
   });
 
@@ -168,9 +168,9 @@ describe("review in live mode (test 8)", () => {
     render(
       <LiveReview detections={dets} survey={null} verdicts={[verdict({})]} promoted={["f0001-d02"]} imageUrl={(r) => `/f/${r}`} onAnswer={onAnswer} />,
     );
-    expect(within(screen.getByLabelText("Candidate f0001-d02")).getByRole("button", { name: SECOND_LOOK_LABEL })).toBeEnabled();
+    expect(within(screen.getByLabelText("Photo to review f0001-d02")).getByRole("button", { name: SECOND_LOOK_LABEL })).toBeEnabled();
     expect(screen.getByAltText("Crop of f0001-d02")).toHaveAttribute("src", "/f/crops/nearmiss/f0001-d02.jpg");
-    const card = screen.getByLabelText("Candidate f0001-d02");
+    const card = screen.getByLabelText("Photo to review f0001-d02");
     await userEvent.click(within(card).getByRole("button", { name: "Person" }));
     expect(onAnswer).toHaveBeenCalledWith("f0001-d02", "person");
   });
@@ -330,11 +330,11 @@ describe("the demo mission: the story on the one console", () => {
     await userEvent.keyboard("w"); // W opens the Conditions panel
     const panel = await screen.findByRole("region", { name: "Conditions" });
     const verdict = await waitFor(() => panel.querySelector("[data-tone]")!);
-    expect(row).toHaveTextContent(/^Flyable/); // 22:00 UTC is 15:00 in Vancouver: daylight, light wind
+    expect(row).toHaveTextContent(/^Drones can fly/); // 22:00 UTC is 15:00 in Vancouver: daylight, light wind
     expect(verdict.getAttribute("data-tone")).toBe(row.getAttribute("data-tone"));
-    expect(verdict).toHaveTextContent(/^Flyable/);
+    expect(verdict).toHaveTextContent(/^Drones can fly/);
     // the real recorded lookup is still there, folded, on its own evening with its own verdict
-    expect(within(panel).getByRole("region", { name: "Recorded conditions lookup" })).toHaveTextContent(/Not flyable/);
+    expect(within(panel).getByRole("region", { name: "Recorded conditions lookup" })).toHaveTextContent(/Drones grounded/);
   });
 
   it("keeps the visitor's approval when the clock moves back and forth", async () => {
@@ -346,7 +346,7 @@ describe("the demo mission: the story on the one console", () => {
     // at 15:00 the subject is found and the proposal is closed; at 14:42 it still waits for a person
     useStory.getState().seek(3);
     await settle();
-    const card = (await screen.findByText("Put f0273-d02 in the review queue?")).closest("[aria-label^='Proposal']") as HTMLElement;
+    const card = (await screen.findByText("Put this photo in Review photos?")).closest("[aria-label^='Proposal']") as HTMLElement;
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
     const status = () => useMission.getState().proposals.find((p) => p.id === "p001")?.status;
     expect(status()).toBe("approved");
@@ -449,7 +449,7 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     await userEvent.keyboard("a");
     // triage: three candidates, one at a time, answered on the photo's own card (its keys), never on the bar
     for (const n of [1, 2, 3]) {
-      const d = await nextCall(new RegExp(`Your call: Step 2 of \\d · Triage, photo ${n} of 3`));
+      const d = await nextCall(new RegExp(`Your call: Step 2 of \\d · Review photos, photo ${n} of 3`));
       expect(within(d).queryByRole("button", { name: /^Person|Not a person/ })).toBeNull();
       await userEvent.keyboard(n === 1 ? "s" : n === 2 ? "n" : "p");
     }

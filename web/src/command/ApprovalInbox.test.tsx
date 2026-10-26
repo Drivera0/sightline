@@ -33,8 +33,10 @@ describe("ApprovalInbox", () => {
     ]);
     const cards = screen.getAllByLabelText(/^Proposal p00/);
     expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Proposal p002", "Proposal p001"]);
-    expect(within(cards[0]!).getByAltText("photo f0005")).toHaveAttribute("src", "/f/crops/f0005-d01.jpg");
-    expect(within(cards[0]!).getByText("leg L002")).toBeInTheDocument();
+    expect(within(cards[0]!).getByAltText("photo 5")).toHaveAttribute("src", "/f/crops/f0005-d01.jpg");
+    // the ids wait under "details" (the Trace has them too)
+    expect(within(cards[0]!).getByText(/leg L002/).closest("details")).not.toBeNull();
+    expect(within(cards[0]!).getByText("Send Drone 1 elsewhere, to sector B3")).toBeInTheDocument();
     expect(within(cards[1]!).getByText("or do it yourself: click B3 on the map")).toBeInTheDocument();
   });
 
@@ -193,7 +195,7 @@ describe("a recall", () => {
 
   it("an ordinary re-task is still a re-task", () => {
     setup([p({ id: "p008", kind: "retask_drone", target: { drone: "D1", leg: "L002" }, briefing: null })]);
-    expect(screen.getByText("Re-task drone")).toBeInTheDocument();
+    expect(screen.getByText("Drone sent elsewhere")).toBeInTheDocument();
     expect(screen.queryByLabelText("Why recall")).toBeNull();
   });
 
@@ -209,7 +211,7 @@ describe("a recall", () => {
       />,
     );
     expect(within(screen.getByLabelText("Proposal p001")).getByLabelText("Clues behind it")).toHaveTextContent(
-      "Clues behind it, from the map log: c003 (blue water bottle) raised B3 from 3.1 % to 3.9 %.",
+      "Clues behind it, from the map log: “blue water bottle” raised B3 from 3.1 % to 3.9 %.",
     );
     expect(within(screen.getByLabelText("Proposal p002")).queryByLabelText("Clues behind it")).toBeNull();
   });
@@ -220,6 +222,6 @@ describe("a recall", () => {
     render(<ApprovalInbox proposals={[p({ id: "p001", reason })]} teams={TEAMS} onDecide={vi.fn()} imageUrl={(r) => r} clueNote={note} />);
     const card = screen.getByLabelText("Proposal p001");
     expect(within(card).queryByLabelText("Clues behind it")).toBeNull();
-    expect(card).toHaveTextContent("c003 (blue water bottle by the…) raised it");
+    expect(card).toHaveTextContent("“blue water bottle by the…” raised it");
   });
 });

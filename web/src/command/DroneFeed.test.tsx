@@ -40,9 +40,11 @@ describe("the drone feed tile", () => {
     expect(activeFeed([], flying("L002"))).toBeNull();
   });
 
-  it("plays it muted and looping on a desktop, with its poster and the label", () => {
+  it("starts folded on a desktop too (never opens over the map by itself); opened, it plays muted and looping, with its poster and the label", () => {
     setMedia(() => false);
     const { container } = render(<DroneFeed feeds={feeds} fleet={flying("L002")} />);
+    expect(container.querySelector("video, img")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show the drone feed" }));
     const v = container.querySelector("video")!;
     expect(v.muted).toBe(true);
     expect(v.loop).toBe(true);

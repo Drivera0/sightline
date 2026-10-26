@@ -159,7 +159,7 @@ describe("you vs the agent on the overdue hiker", () => {
     expect(c.followedAll).toBe(false);
     expect(c.you.differed).toBe(1);
     expect(c.deltaMin).toBe(12);
-    expect(c.verdict).toBe(`The agent's line found the subject 12 min sooner; 1 of your ${c.rows.length} decisions went another way.`);
+    expect(c.verdict).toBe(`The AI's choices found the subject 12 min sooner; 1 of your ${c.rows.length} decisions went another way.`);
     expect(c.rows.find((r) => r.key === "survey")).toMatchObject({
       same: false,
       costMin: 12,

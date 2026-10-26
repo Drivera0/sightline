@@ -51,12 +51,12 @@ describe("Resources: the board at a glance", () => {
     return actions;
   }
 
-  it("one primary action per row in words: Assign to sector… for a free team, Reassign… for one out, Fly a leg… for a drone", async () => {
+  it("one primary action per row in words: Assign to sector… for a free team, Reassign… for one out, Fly over a sector… for a drone", async () => {
     const actions = board();
     const one = screen.getByRole("article", { name: "Team Team One" });
     expect(screen.getByLabelText("Resources summary")).toHaveTextContent("2 teams: 1 free · 1 searching");
     expect(within(screen.getByRole("article", { name: "Team Team Two" })).getByRole("button", { name: "Reassign…" })).toBeInTheDocument();
-    expect(within(screen.getByRole("article", { name: "Drone Drone 1" })).getByRole("button", { name: "Fly a leg…" })).toBeInTheDocument();
+    expect(within(screen.getByRole("article", { name: "Drone Drone 1" })).getByRole("button", { name: "Fly over a sector…" })).toBeInTheDocument();
     await userEvent.click(within(one).getByRole("button", { name: "Assign to sector…" }));
     expect(useConsole.getState().picking).toEqual({ kind: "team", id: "T1" });
     // the picker opens under the row, POA shown; a tap assigns
@@ -88,7 +88,7 @@ describe("Needs you: one question, the outcome on the button", () => {
     expect(proposalAsk(proposal({}), teams)).toEqual({ ask: "Send Team One to C2?", action: "Send Team One to C2" });
     expect(proposalAsk(proposal({}), teams, [], "T2").action).toBe("Send Team Two to C2"); // the team picked in Edit
     expect(proposalAsk(proposal({ kind: "drone_leg", target: { drone: "D1", sector: "B2" } }), teams, [drone("D1", "idle")]).action).toBe("Fly Drone 1 over B2");
-    expect(proposalAsk(proposal({ kind: "promote_detection", target: { detection: "f0273-d02" } }), teams)).toEqual({ ask: "Put f0273-d02 in the review queue?", action: "Add f0273-d02 to review" });
+    expect(proposalAsk(proposal({ kind: "promote_detection", target: { detection: "f0273-d02" } }), teams)).toEqual({ ask: "Put this photo in Review photos?", action: "Add it to Review photos" });
     expect(proposalAsk(proposal({ kind: "retask_drone", target: { drone: "D1", home: "base" } }), teams, [drone("D1", "flying")]).action).toBe("Bring Drone 1 home");
   });
 
@@ -121,7 +121,7 @@ describe("Needs you: one question, the outcome on the button", () => {
     const rail = screen.getByLabelText("Approvals rail");
     const heads = within(rail).getAllByRole("heading").map((h) => h.textContent);
     expect(heads[0]).toMatch(/^Teams not heard1/);
-    expect(heads[1]).toMatch(/^Agent proposals2/);
+    expect(heads[1]).toMatch(/^AI suggestions2/);
     expect(within(rail).getByRole("article", { name: "Overdue Team Three" })).toHaveTextContent("Call Team Three");
     const cards = within(rail).getAllByLabelText(/^Proposal p00/);
     expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Proposal p001", "Proposal p002"]);
@@ -149,8 +149,8 @@ describe("the AI second look, legible", () => {
   it("the verdict first, then each step with what it said, from the record only", () => {
     expect(verdictHead(v)).toEqual({ head: "Likely a person", tone: "found", details: ["2 people", "standing", "red jacket"] });
     expect(secondLookSteps(card)).toEqual([
-      { who: "OpenCV 5 · cv2.dnn detector", said: "score 0.17, under the 0.29 review line" },
-      { who: "OpenCV 5 zoom native", said: "cut the spot again from the full-resolution photo" },
+      { who: "OpenCV 5 · cv2.dnn detector", said: "score 0.17, under 0.29 (photos scoring under 0.29 normally skip review)" },
+      { who: "OpenCV 5 zoom", said: "cut the spot again from the full-resolution photo" },
       { who: "Nemotron-3.5-Super-VL", said: "yes, a person: “Two human figures are visible.”" },
     ]);
   });
@@ -161,11 +161,11 @@ describe("the AI second look, legible", () => {
     render(<SecondLook c={card} large />);
     await userEvent.click(screen.getByRole("button", { name: SECOND_LOOK_LABEL }));
     act(() => vi.advanceTimersByTime(RUN_MAX_MS));
-    const result = screen.getByLabelText("Second look result");
+    const result = screen.getByLabelText("AI re-check result");
     expect(result).toHaveTextContent(/^Likely a person/);
     expect(result).toHaveTextContent("done in 1.7 s");
     expect(within(result).getByAltText("Detector crop of f0273-d02")).toBeInTheDocument();
-    expect(within(result).getByText("OpenCV 5 zoom native", { selector: "figcaption" })).toBeInTheDocument();
+    expect(within(result).getByText("OpenCV 5 zoom", { selector: "figcaption" })).toBeInTheDocument();
     vi.useRealTimers();
   });
 

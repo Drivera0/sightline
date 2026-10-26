@@ -34,20 +34,20 @@ describe("conditions from the trace", () => {
     const d = await loadDemoConditions();
     const c = { ...d.conditions, civil_twilight_end: "2026-10-23T01:40:00Z", sunset: "2026-10-23T01:07:00Z" };
     const twilight = (now: string) => conditionsFacts(c, null, new Date(now)).find((f) => f.id === "twilight")?.value;
-    expect(twilight("2026-10-22T08:40:00Z")).toBe("01:40 UTC, 23 Oct (sunset 01:07 UTC)");
+    expect(twilight("2026-10-22T08:40:00Z")).toBe("01:40 UTC, 23 Oct (sunset 01:07 UTC, 23 Oct)");
     expect(twilight("2026-10-23T00:10:00Z")).toBe("01:40 UTC (sunset 01:07 UTC)");
     expect(dayNote("2026-10-23T01:40:00Z", new Date("2026-10-22T08:40:00Z"))).toBe(", 23 Oct");
   });
 
   it("states the flyability gate with the limit it was checked against", () => {
     const c = { gust_kmh: 15, wind_kmh: 8, flyable: true, flyable_until: "2026-10-25T01:36:46Z", flyability_reason: "gusts 15 km/h below the drones' limit of 38 km/h" } as Conditions;
-    expect(flyGate(c, 43.2, "Mavic 3E", utc)).toEqual({ tone: "ok", text: "Flyable until ~01:36 UTC (gust limit 43 km/h = 12.0 m/s, Mavic 3E)" });
-    expect(flyGate(c, null, null, utc).text).toBe("Flyable until ~01:36 UTC (gust limit 38 km/h = 10.6 m/s, default: no fleet attached)");
+    expect(flyGate(c, 43.2, "Mavic 3E", utc)).toEqual({ tone: "ok", text: "Drones can fly until ~01:36 UTC (wind under Mavic 3E's gust limit of 43 km/h (12.0 m/s); light until civil twilight)" });
+    expect(flyGate(c, null, null, utc).text).toBe("Drones can fly until ~01:36 UTC (wind under the usual gust limit of 38 km/h (10.6 m/s); light until civil twilight)");
     const windy = { ...c, gust_kmh: 50, flyable: false, flyable_until: null, flyability_reason: "gusts 50 km/h at or above the drones' limit of 43 km/h" };
-    expect(flyGate(windy, 43.2, "Mavic 3E", utc)).toEqual({ tone: "alert", text: "Not flyable: gusts 50 km/h (13.9 m/s) ≥ gust limit 43 km/h = 12.0 m/s, Mavic 3E" });
+    expect(flyGate(windy, 43.2, "Mavic 3E", utc)).toEqual({ tone: "alert", text: "Drones grounded: gusts 50 km/h (13.9 m/s), at or over Mavic 3E's gust limit of 43 km/h (12.0 m/s)" });
     const dark = { ...c, gust_kmh: 40, flyable: false, flyable_until: null, flyability_reason: "after civil twilight: no light for photos" };
     expect(flyGate(dark, null, null, utc).text).toBe(
-      "Not flyable: after civil twilight: no light for photos; also gusts 40 km/h (11.1 m/s) ≥ gust limit 38 km/h = 10.6 m/s, default: no fleet attached",
+      "Drones grounded: after civil twilight: no light for photos; also gusts 40 km/h (11.1 m/s), at or over the usual gust limit of 38 km/h (10.6 m/s)",
     );
   });
 });
@@ -57,8 +57,8 @@ describe("ConditionsPanel", () => {
     const d = await loadDemoConditions();
     render(<ConditionsPanel id="c" data={d} now={new Date(d.conditions.fetched_at)} time={utc} />);
     const panel = screen.getByRole("region", { name: "Conditions" });
-    expect(panel).toHaveTextContent("Not flyable: after civil twilight");
-    expect(panel).toHaveTextContent("Recorded live lookup for Mount Seymour, 2026-10-22 05:31 UTC");
+    expect(panel).toHaveTextContent("Drones grounded: after civil twilight");
+    expect(panel).toHaveTextContent("Recorded live lookup for Mount Seymour, 2026-10-21 22:31 PDT");
     expect(panel).toHaveTextContent("read by nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B in 5.9 s (11,652 tokens in)");
     const gusts = screen.getByLabelText("Gusts");
     expect(gusts).toHaveTextContent("gusts 40");
@@ -91,8 +91,8 @@ describe("ConditionsPanel", () => {
     const data = demoConditionsData(own, recorded, { kmh: 43.2, drone: "Drone 1" });
     render(<ConditionsPanel id="c" data={data} now={new Date("2026-10-24T22:00:00Z")} time={utc} />);
     const panel = screen.getByRole("region", { name: "Conditions" });
-    const verdictChips = () => [...panel.querySelectorAll(".sl-pill")].filter((e) => /flyable/i.test(e.textContent ?? ""));
-    expect(verdictChips().map((e) => e.textContent)).toEqual([expect.stringMatching(/^Flyable until/)]);
+    const verdictChips = () => [...panel.querySelectorAll(".sl-pill")].filter((e) => /drones/i.test(e.textContent ?? ""));
+    expect(verdictChips().map((e) => e.textContent)).toEqual([expect.stringMatching(/^Drones can fly until/)]);
     const fold = within(panel).getByText("Another evening's live lookup, for the sources");
     expect(fold).toHaveClass("text-text-3");
     await userEvent.click(fold);
@@ -100,7 +100,7 @@ describe("ConditionsPanel", () => {
     const example = screen.getByRole("region", { name: "Recorded conditions lookup" });
     expect(example.querySelector(".sl-pill[data-tone='alert']")).toBeNull();
     const then = example.querySelector("[data-verdict='example']");
-    expect(then).toHaveTextContent("Its verdict then, at 05:31 UTC, not now: Not flyable: after civil twilight");
+    expect(then).toHaveTextContent("Its verdict then, at 05:31 UTC, not now: Drones grounded: after civil twilight");
     expect(then).toHaveClass("text-text-3");
   });
 
@@ -122,7 +122,7 @@ describe("ConditionsPanel", () => {
     }
     render(<Console />);
     expect(screen.queryByRole("region", { name: "Conditions" })).toBeNull();
-    const word = screen.getByRole("button", { name: /flyab/i });
+    const word = screen.getByRole("button", { name: /drones/i });
     expect(word).toHaveAttribute("aria-controls", "c");
     await userEvent.click(word);
     expect(screen.getByRole("region", { name: "Conditions" })).toBeInTheDocument();

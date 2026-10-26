@@ -8,7 +8,7 @@ import type { Box } from "../base/camera";
 export type TextAnchor = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 /** The sector labels' text size (layers.ts) and the line height MapLibre uses (1.2 em). */
-export const LABEL_SIZE_PX = 11;
+export const LABEL_SIZE_PX = 13;
 const LINE_HEIGHT_EM = 1.2;
 /**
  * Upper estimate of one uppercase character's advance in Noto Sans at 11 px with 0.03 em letter

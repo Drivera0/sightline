@@ -15,6 +15,7 @@ import { clueNoteFor } from "./clueShift";
 import { domain, OVERRIDE_SOURCE } from "./conditions";
 import { useConsole } from "./consoleStore";
 import { AgentNote, RadioBubble } from "./RadioBubble";
+import { plainWords, TERMS } from "./terms";
 
 export type Decide = (
   pid: string,
@@ -26,10 +27,10 @@ export type Decide = (
 
 const KIND_WORDS: Record<Proposal["kind"], string> = {
   drone_leg: "Drone",
-  retask_drone: "Re-task drone",
+  retask_drone: "Drone sent elsewhere",
   assign_sector: "Team",
-  promote_detection: "Review queue",
-  dismiss_detection: "Review queue",
+  promote_detection: TERMS.review,
+  dismiss_detection: TERMS.review,
   alert: "Alert",
 };
 const IMAGE_EVIDENCE: readonly EvidenceRef["kind"][] = ["crop", "frame", "relook"];
@@ -61,7 +62,7 @@ export function proposalAsk(p: Proposal, teams: readonly Team[], drones: readonl
   const sector = p.target.sector ?? p.leg?.sector_id;
   const drone = droneName(p.target.drone ?? p.leg?.drone_id);
   const det = p.target.detection;
-  const fallback = { ask: p.summary, action: "Approve" };
+  const fallback = { ask: plainWords(p.summary), action: "Approve" };
   switch (p.kind) {
     case "assign_sector": {
       const t = callsign(team || p.edits?.team || p.target.team);
@@ -71,15 +72,18 @@ export function proposalAsk(p: Proposal, teams: readonly Team[], drones: readonl
       return drone && sector ? { ask: `Fly ${drone} over ${sector}?`, action: `Fly ${drone} over ${sector}` } : fallback;
     case "retask_drone":
       if (isRecall(p)) return drone ? { ask: `Bring ${drone} back to base now?`, action: `Bring ${drone} home` } : fallback;
-      return drone && sector ? { ask: `Re-task ${drone} to ${sector}?`, action: `Re-task ${drone} to ${sector}` } : fallback;
+      return drone && sector ? { ask: `Send ${drone} elsewhere, to ${sector}?`, action: `Send ${drone} to ${sector}` } : fallback;
     case "promote_detection":
-      return det ? { ask: `Put ${det} in the review queue?`, action: `Add ${det} to review` } : fallback;
+      return det ? { ask: `Put this photo in ${TERMS.review}?`, action: `Add it to ${TERMS.review}` } : fallback;
     case "dismiss_detection":
-      return det ? { ask: `Drop ${det} from the review queue?`, action: `Drop ${det}` } : fallback;
+      return det ? { ask: `Drop this photo from ${TERMS.review}?`, action: "Drop it" } : fallback;
     default:
-      return { ask: p.summary, action: "Acknowledge" };
+      return { ask: plainWords(p.summary), action: "Acknowledge" };
   }
 }
+
+/** An evidence image's caption in the console's words ("zoom_native" is the AI re-check's zoom). */
+export const evidenceCaption = (caption: string) => plainWords(caption.replace(/^zoom_native$/, `${TERMS.recheck} zoom`).replace(/^detector confidence /, "detector score "));
 
 /** The fact that grounded the drones, where it came from, and the drone's battery and position. */
 function RecallFacts({ p, drone }: { p: Proposal; drone: Drone | undefined }) {
@@ -323,14 +327,18 @@ function PendingCard({
     >
       <div className="flex items-center gap-2">
         <StatusPill tone="proposal">{kindWords(p)}</StatusPill>
-        <span className="ml-auto font-mono text-caption text-text-3" title={`proposed by the ${p.created_by}`}>
-          {p.id}
-        </span>
+        {/* the ids are for the Trace; here they wait under a small "details" */}
+        <details className="ml-auto text-caption text-text-3">
+          <summary className="cursor-pointer select-none">details</summary>
+          <span className="font-mono">
+            {[p.id, p.target.detection, ...p.evidence.filter((ev) => !IMAGE_EVIDENCE.includes(ev.kind)).map((ev) => `${ev.kind} ${ev.ref}`)].filter(Boolean).join(" · ")} · proposed by the {p.created_by}
+          </span>
+        </details>
       </div>
       <span className="text-body font-medium text-text">{ask.ask}</span>
       {isRecall(p) && <span className="text-caption text-text-2">{recallSummary(p.summary, drone?.battery_pct)}</span>}
       <AgentNote>
-        <p className={open || p.reason.length <= REASON_SHORT ? "" : "line-clamp-2"}>{p.reason}</p>
+        <p className={open || p.reason.length <= REASON_SHORT ? "" : "line-clamp-2"}>{plainWords(p.reason)}</p>
         {p.reason.length > REASON_SHORT && (
           <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="sl-tap self-start text-caption text-text-2 underline underline-offset-2 hover:text-text">
             {open ? "Show less" : "Show the whole reason"}
@@ -340,24 +348,20 @@ function PendingCard({
       {clues && (
         <p aria-label="Clues behind it" className="text-small text-text-2">
           <span className="text-text-3">Clues behind it, from the map log: </span>
-          {clues}.
+          {plainWords(clues)}.
         </p>
       )}
       {isRecall(p) && <RecallFacts p={p} drone={drone} />}
-      {p.evidence.length > 0 && !isRecall(p) && (
+      {p.evidence.some((ev) => IMAGE_EVIDENCE.includes(ev.kind)) && !isRecall(p) && (
         <div role="group" className="flex flex-wrap gap-2" aria-label="Evidence">
-          {p.evidence.map((ev) =>
-            IMAGE_EVIDENCE.includes(ev.kind) ? (
+          {p.evidence
+            .filter((ev) => IMAGE_EVIDENCE.includes(ev.kind))
+            .map((ev) => (
               <figure key={ev.ref} className="flex w-24 flex-col gap-1">
-                <img loading="lazy" decoding="async" src={imageUrl(ev.ref)} alt={ev.caption} className="aspect-square w-24 rounded-sm object-cover" />
-                <figcaption className="text-caption text-text-3">{ev.caption}</figcaption>
+                <img loading="lazy" decoding="async" src={imageUrl(ev.ref)} alt={evidenceCaption(ev.caption)} className="aspect-square w-24 rounded-sm object-cover" />
+                <figcaption className="text-caption text-text-3">{evidenceCaption(ev.caption)}</figcaption>
               </figure>
-            ) : (
-              <span key={ev.ref} className="rounded-sm bg-surface-strong px-2 py-1 text-caption text-text-2">
-                {ev.kind} {ev.ref}
-              </span>
-            ),
-          )}
+            ))}
         </div>
       )}
       {!editing && p.briefing && (

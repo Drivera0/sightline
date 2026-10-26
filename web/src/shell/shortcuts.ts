@@ -25,13 +25,13 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Needs you",
     shortcuts: [
-      { keys: ["3"], description: "Open Needs you: proposals, candidates to review, overdue teams" },
+      { keys: ["3"], description: "Open Needs you: AI suggestions, photos to review, overdue teams" },
       { keys: ["Tab"], description: "Move to the next card" },
       { keys: ["A"], description: "Approve the focused proposal" },
       { keys: ["X"], description: "Reject the focused proposal (asks for a one-line reason)" },
       { keys: ["E"], description: "Edit the focused proposal before approving (team, briefing)" },
-      { keys: ["J", "↓"], description: "Next candidate" },
-      { keys: ["K", "↑"], description: "Previous candidate" },
+      { keys: ["J", "↓"], description: "Next photo to review" },
+      { keys: ["K", "↑"], description: "Previous photo to review" },
       { keys: ["P"], description: "Person" },
       { keys: ["N"], description: "Not a person" },
       { keys: ["U"], description: "Unsure" },

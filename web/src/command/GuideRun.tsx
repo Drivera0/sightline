@@ -39,6 +39,7 @@ import { dwellFor, lapseStep, SPEEDS, useGuide, useStory, type Lapse, type Speed
 import { buildTimeline } from "./timeline";
 import { STORY_NOT_A_PERSON, storyClue } from "./storyCopy";
 import { clock as clockText, DEMO_TZ } from "../lib/time";
+import { podLabel } from "./terms";
 
 const iso = (t: number) => new Date(t).toISOString().replace(/\.\d+Z$/, "Z");
 type Decide = (pid: string, decision: "approve" | "reject", by: string, reason?: string, edits?: Record<string, string>) => Promise<void>;
@@ -227,7 +228,7 @@ export function useGuideRun({
     }
     if (a === "person" && c.id === STORY_NOT_A_PERSON) {
       const t = free();
-      if (t) void m.call(t.id, `check the pin from photo ${c.id.slice(0, 5)}, over.`);
+      if (t) void m.call(t.id, `check the pin from survey photo ${Number(c.id.slice(1, 5))}, over.`);
     }
   }
   /** The find recorded: the nearest other team goes to carry out. */
@@ -270,7 +271,7 @@ export function useGuideRun({
         const team = optionId.startsWith("team:") ? optionId.slice(5) : undefined;
         void decide(i.proposal, "approve", by, undefined, team ? { team } : undefined);
       } else if (i.id === "link" && optionId === "relay") {
-        m.emit("mission.note", `Relay: a second drone holds over the ridge for the one that lost its link; its own leg stops (by ${by})`, null, { action: "relay", by });
+        m.emit("mission.note", `Relay: a second drone holds over the ridge for the one that lost its link; its own flight line stops (by ${by})`, null, { action: "relay", by });
       } else if (i.id === "find" && i.find) {
         const { team, sector } = i.find;
         if (optionId === "confirm") void m.call(team, "confirm the subject's description, over.");
@@ -338,7 +339,7 @@ export function useGuideRun({
   const progress = hold !== null && hold > runFrom ? (clockMs - runFrom) / (hold - runFrom) : 0;
   // the pass under way, in words (never where the subject is)
   const out = passesFrom(seed, subject, user).find((p) => !p.cut && p.start <= f && p.end > f);
-  const walking = out ? `${callsign(out.team)} ${f < out.arrive ? `walks to ${out.sector}` : `sweeps ${out.sector} at POD ${out.pod.toFixed(2)} a pass`}.` : null;
+  const walking = out ? `${callsign(out.team)} ${f < out.arrive ? `walks to ${out.sector}` : `sweeps ${out.sector} at ${podLabel(out.pod)} a pass`}.` : null;
   const lead = inCost && lastCost ? `${lastCost.label}: ${lastCost.costMs / 60_000} min on the clock.` : (walking ?? active?.lead ?? "The teams search; the clock runs until the radio has news.");
   // the time-lapse's caption: the row that landed last on this run, with its time (cause, then effect)
   // (a row more than ten mission minutes old gives way to what is under way now)

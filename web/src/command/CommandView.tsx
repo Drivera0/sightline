@@ -184,7 +184,7 @@ export function CommandView(p: CommandProps) {
       {p.conditionsOpen && p.conditionsData && (
         // over the console, under the status line (the map keeps its place); W or Esc closes it
         <div className="absolute inset-x-0 top-0 z-30 max-h-[75vh] overflow-y-auto rounded-lg shadow-[var(--shadow-pop)]">
-          <ConditionsPanel id={p.conditionsId ?? "conditions-panel"} data={p.conditionsData} now={panelNow} time={(iso) => `${clock(iso, tz)} ${zone(new Date(iso), tz)}${dayNote(iso, panelNow, tz)}`} />
+          <ConditionsPanel id={p.conditionsId ?? "conditions-panel"} data={{ ...p.conditionsData, lastSeen: p.mission?.last_seen_at ?? null }} now={panelNow} time={(iso) => `${clock(iso, tz)} ${zone(new Date(iso), tz)}${dayNote(iso, panelNow, tz)}`} />
         </div>
       )}
       <div id="console-resources" className={`order-4 flex min-h-0 flex-col lg:order-none ${wide ? "lg:hidden" : "lg:row-span-2"}`}>
@@ -214,7 +214,7 @@ export function CommandView(p: CommandProps) {
           )}
           {dragging && (
             <p role="status" className="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-accent bg-bg/90 px-3 py-1 text-small text-text">
-              {dragging.kind === "team" ? `Drop ${dragName} on a sector to assign it` : `Drop ${dragName} on a sector to fly a leg there`}
+              {dragging.kind === "team" ? `Drop ${dragName} on a sector to assign it` : `Drop ${dragName} on a sector to fly over it`}
             </p>
           )}
           {sel && popSector && Number.isFinite(sel.x) && mapBox && (
@@ -274,6 +274,7 @@ export function CommandView(p: CommandProps) {
           events={p.events}
           server={p.timeline}
           teams={p.teams}
+          fleet={p.fleet}
           onConfirmClue={p.actions.confirmClue}
           voicesKey={`${p.mission?.mission_id ?? ""}|${p.mission?.scenario_seed ?? p.mission?.name ?? ""}`}
           talk={<TalkBar teams={p.teams} onSend={(team, text) => p.actions.call(team, text)} voice={p.voice} />}

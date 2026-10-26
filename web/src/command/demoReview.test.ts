@@ -39,12 +39,12 @@ describe("the second look from this flight", () => {
     expect((call.output as { text: string }).text).toBe(secondLook.answer);
   });
 
-  it("reads 'Second look · this flight' with its OpenCV and VL chips and the native zoom", () => {
+  it("reads as a survey photo flagged by the AI re-check, with its OpenCV and VL chips and the zoom", () => {
     const c = secondLookCard();
-    expect(c.frame).toBe("Second look · this flight");
+    expect(c.frame).toBe("Survey photo f0273 · flagged by the AI re-check");
     expect(c.id).toBe(SECOND_LOOK_ID);
-    expect(c.words).toMatch(/^Second look: likely a person/);
-    expect(c.chips).toEqual(["OpenCV 5 zoom native", "Nemotron-3.5-Super-VL"]);
+    expect(c.words).toMatch(/^AI re-check: likely a person/);
+    expect(c.chips).toEqual(["OpenCV 5 zoom", "Nemotron-3.5-Super-VL"]);
     expect(c.relook?.map((r) => r.name)).toEqual(["relook/f0273-d02-zoom_native.jpg"]);
     expect(c.note).toContain(SECOND_LOOK_VERDICT.reason);
     expect(c.note).not.toMatch(/another photo|not this flight/i);

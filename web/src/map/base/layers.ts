@@ -240,7 +240,7 @@ export function syncBaseLayers(
       layout: {
         "text-field": ["get", "chipText"],
         "text-font": ["Noto Sans Regular"],
-        "text-size": 11.5,
+        "text-size": 13,
         "text-letter-spacing": 0.02,
         "text-max-width": 24,
         "text-variable-anchor": ["bottom", "top", "left", "right"],
