@@ -1,0 +1,101 @@
+== /opt/cool/samples/README.md
+## COOL SDK: Performance Benchmarking Manual
+
+This guide explains how to run the performance tests of the ***Optimized COOL Build***.
+
+
+
+### Test Suite Description
+The suite contains 3 standardized tests designed to stress CPU/SIMD pipelines:
+1.  ***Augmentation:*** (Rotate, Resize 2x, MedianBlur, Float Conv, GaussianBlur)
+2.  ***Analysis:*** (CLAHE, Hist, HoughCircles, FindContours)
+3.  ***Video:*** (MJPG Transcoding Read/Write)
+
+
+### Performance Results
+
+Below are the benchmark results comparing the optimized `COOL` binaries against standard installations.
+
+
+#### Python Performance (Python 3.12)
+| Test Case | Standard (Pip) Time | Optimized (COOL) Time | 
+| :--- | :--- | :--- | 
+| **Augmentation** | 27.3 ms | **19.1 ms** | 
+| **Analysis** | 5121.9 ms | **4854.4 ms** | 
+| **Video Transcode** | 305.9 ms | **262.6 ms** |
+
+
+#### C++ Performance
+
+| Test Case | Standard (Default) Time | Optimized (COOL) Time |
+| :--- | :--- | :--- | 
+| **Augmentation** | 28.1 ms | **27.0 ms** | 
+| **Analysis** | 4795.5 ms | **3732.2 ms** | 
+| **Video Transcode** | 266.6 ms | **260.9 ms** |
+
+
+
+---
+
+### Part 1: Python Benchmarking
+
+#### Testing the Optimized Build (COOL)
+1.  ***Activate the Environment:***
+
+    `
+    source /opt/cool/venvs/python_3.12/bin/activate
+    `
+2.  ***Verify Optimization:***
+
+    `
+    python3 -c "import cv2; print(f'Active OpenCV: {cv2.__version__} from {cv2.__file__}')"
+    `
+3.  ***Run Test (Example):***
+
+    `
+    python3 /opt/cool/samples/python/test_augmentation.py 
+        --input /opt/cool/samples/data/lena.jpg 
+    `
+
+---
+
+### Part 2: C++ Benchmarking
+
+#### A. Testing the Optimized Build (COOL)
+1.  ***Build the Binaries:***
+
+    `
+    cd /opt/cool/samples/cpp
+    `
+
+    `sudo ./build.sh
+    `
+2.  ***Run Test:***
+
+    `
+    /opt/cool/samples/cpp/build/test_aug /opt/cool/samples/data/lena.jpg 
+    `
+
+#### B. Building Your Own Custom Tests (Development Guide)
+
+If you wish to compile your **own personal C++ files** against the optimized **COOL** binaries, follow these steps. 
+Create `<path_to_your_work_dir>/build` folder.
+
+1.  ***Create a CMakeLists.txt:***
+    Create a file named `CMakeLists.txt` inside the build directory with this content:
+
+    ```
+    cmake 
+    cmake_minimum_required(VERSION 3.10)
+    project(DefaultSamples)
+    set(CMAKE_CXX_STANDARD 11)
+
+    # Point to the COOL lib
+    set(OpenCV_DIR "/opt/cool/cpp_sdk/lib/cmake/opencv4")
+
+    find_package(OpenCV REQUIRED)
+     
+    # Replace 'my_app' and 'main.cpp' with your file names
+    add_executable(my_app main.cpp)
+    target_link_libraries(my_app \${OpenCV_LIBS})
+

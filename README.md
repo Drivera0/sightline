@@ -76,7 +76,7 @@ A live mission runs the same detector and map while the search happens, through 
 - **A simulated drone fleet** (labelled so everywhere) flies approved legs and sends its photos through the same API (`python -m sightline.search.fleet run`); `scripts/creek_run.py` runs the whole story: a team's clue → the agent re-tasks a drone → its photo shows the person → review → alert.
 - **A debrief** from the log: every proposal and who decided it, each sector's coverage and POD (`GET /missions/{id}/debrief.md`).
 
-Try the console without a server: **`#m/demo`** on the live site opens it on the demo mission at t0 and **`#m/demo/map`** at the end of its timeline (the old `#m/demo/command` redirects there). The API runs on AWS between demos (`deploy/aws/`). The OpenCV report, with the measured numbers: [docs/report/OPENCV_REPORT.md](docs/report/OPENCV_REPORT.md).
+Try the console without a server: **`#m/demo`** on the live site opens it on the demo mission at t0 and **`#m/demo/map`** at the end of its timeline (the old `#m/demo/command` redirects there). The API runs on AWS between demos (`deploy/aws/`). On the Arm path, the detector and the API also run on COOL (Cloud Optimized OpenCV) on AWS Graviton: the same test scores and bit-identical boxes to the pip wheel of the same OpenCV version, its image-processing calls 14 to 35 % faster, `cv2.dnn` not faster ([docs/report/COOL_GRAVITON.md](docs/report/COOL_GRAVITON.md)). The OpenCV report, with the measured numbers: [docs/report/OPENCV_REPORT.md](docs/report/OPENCV_REPORT.md).
 
 ![The guided search at Assign, decision 4 of 6: the agent proposes Team One for C2 with its reason, the options say what each one does, and the mission clock waits for the manager](docs/report/figures/v3/guided-step-4-assign.webp)
 

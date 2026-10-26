@@ -1,0 +1,30 @@
+# 2026-10-26T01:26:22Z aws ec2 run-instances --dry-run, region us-west-2
+ami-03040ae9b0be1f439	COOL-V3-prod-2jrbxn57qotcw	arm64	2026-01-27T08:43:35.000Z	/dev/sda1
+  c8g.4xlarge: UnsupportedOperation
+  c7g.4xlarge: UnsupportedOperation
+  m8g.4xlarge: UnsupportedOperation
+  m7g.4xlarge: UnsupportedOperation
+  c6g.2xlarge: DryRunOperation
+  c6g.4xlarge: DryRunOperation
+  m6g.4xlarge: DryRunOperation
+ami-05e2b08318a818834	OpenCV-graviton-optimized-AMI-prod-2jrbxn57qotcw	arm64	2025-12-17T17:14:02.000Z	/dev/sda1
+  c8g.4xlarge: UnsupportedOperation
+  c7g.4xlarge: UnsupportedOperation
+  m8g.4xlarge: UnsupportedOperation
+  m7g.4xlarge: UnsupportedOperation
+  c6g.2xlarge: DryRunOperation
+  c6g.4xlarge: DryRunOperation
+  m6g.4xlarge: DryRunOperation
+ami-09c9c915d7d7ccdd5	COOL-V2-prod-2jrbxn57qotcw	arm64	2026-01-21T10:15:11.000Z	/dev/sda1
+  c8g.4xlarge: UnsupportedOperation
+  c7g.4xlarge: UnsupportedOperation
+  m8g.4xlarge: UnsupportedOperation
+  m7g.4xlarge: UnsupportedOperation
+  c6g.2xlarge: DryRunOperation
+  c6g.4xlarge: DryRunOperation
+  m6g.4xlarge: DryRunOperation
+
+# 2026-10-26 on-demand Linux prices, us-west-2 (aws pricing get-products)
+  c6g.4xlarge: $0.544/h
+  c8g.4xlarge: $0.63808/h (not accepted by the listing in us-west-2, above)
+  c7i.4xlarge: $0.714/h (the x86 reference in docs/report/OPENCV_REPORT.md §4)

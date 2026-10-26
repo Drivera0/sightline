@@ -1,0 +1,176 @@
+{
+ "opencv": "5.0.0",
+ "cv2_file": "/opt/sl/venv-pip5/lib/python3.12/site-packages/cv2/__init__.py",
+ "numpy": "1.26.4",
+ "python": "3.12.3",
+ "machine": "aarch64",
+ "logical_cpus": 16,
+ "default_threads": 16,
+ "photos": [
+  "test_BLI_0001.jpg",
+  "test_BLI_0002.jpg",
+  "test_BLI_0003.jpg",
+  "test_BLI_0004.jpg",
+  "test_BLI_0005.jpg",
+  "test_BLI_0006.jpg",
+  "test_BLI_0007.jpg",
+  "test_BLI_0008.jpg",
+  "test_BLI_0009.jpg",
+  "test_BRA_0001.jpg"
+ ],
+ "repeats": 20,
+ "ops": {
+  "resize_linear_letterbox": {
+   "default_threads": {
+    "median_ms": 0.6471114998021221,
+    "p10_ms": 0.6340449999697739,
+    "p90_ms": 0.6608430003325338,
+    "n": 200
+   },
+   "one_thread": {
+    "median_ms": 6.994037999902503,
+    "p10_ms": 6.964635999793245,
+    "p90_ms": 7.112605000656913,
+    "n": 200
+   }
+  },
+  "blob_1024": {
+   "default_threads": {
+    "median_ms": 2.242536499579728,
+    "p10_ms": 2.2312829996735672,
+    "p90_ms": 2.254890000585874,
+    "n": 200
+   },
+   "one_thread": {
+    "median_ms": 2.250052000363212,
+    "p10_ms": 2.235468000435503,
+    "p90_ms": 2.2672289996990003,
+    "n": 200
+   }
+  },
+  "resize_cubic_2x": {
+   "default_threads": {
+    "median_ms": 0.6265289998736989,
+    "p10_ms": 0.6196040003487724,
+    "p90_ms": 0.6338150005831267,
+    "n": 200
+   },
+   "one_thread": {
+    "median_ms": 8.03650049965654,
+    "p10_ms": 8.009816000594583,
+    "p90_ms": 8.053440000367118,
+    "n": 200
+   }
+  },
+  "zoom_native": {
+   "default_threads": {
+    "median_ms": 0.5456774997583125,
+    "p10_ms": 0.5382769995776471,
+    "p90_ms": 0.5521920002138359,
+    "n": 200
+   },
+   "one_thread": {
+    "median_ms": 1.0278419999849575,
+    "p10_ms": 1.0258990005240776,
+    "p90_ms": 1.0338060001231497,
+    "n": 200
+   }
+  },
+  "enhance_contrast": {
+   "default_threads": {
+    "median_ms": 1.745994500197412,
+    "p10_ms": 1.730569000756077,
+    "p90_ms": 1.759335999850009,
+    "n": 200
+   },
+   "one_thread": {
+    "median_ms": 5.2725809996445605,
+    "p10_ms": 5.260562999865215,
+    "p90_ms": 5.289122999784013,
+    "n": 200
+   }
+  },
+  "canopy_blur": {
+   "default_threads": {
+    "median_ms": 7.0476679998137115,
+    "p10_ms": 6.997294000029797,
+    "p90_ms": 7.21255000007659,
+    "n": 200
+   },
+   "one_thread": {
+    "median_ms": 7.0700125002076675,
+    "p10_ms": 7.0184859996516025,
+    "p90_ms": 7.229509000353573,
+    "n": 200
+   }
+  },
+  "fillpoly_cell": {
+   "default_threads": {
+    "median_ms": 0.012741999853460584,
+    "p10_ms": 0.01268399955733912,
+    "p90_ms": 0.013349000255402643,
+    "n": 200
+   },
+   "one_thread": {
+    "median_ms": 0.01275000067835208,
+    "p10_ms": 0.012692999916907866,
+    "p90_ms": 0.013463999493978918,
+    "n": 200
+   }
+  },
+  "gaussian_full": {
+   "default_threads": {
+    "median_ms": 8.4943500000918,
+    "p10_ms": 8.435856999312819,
+    "p90_ms": 8.774638999966555,
+    "n": 200
+   },
+   "one_thread": {
+    "median_ms": 114.91197599980296,
+    "p10_ms": 114.70252599974629,
+    "p90_ms": 115.16644500079565,
+    "n": 200
+   }
+  },
+  "cvtcolor_gray_full": {
+   "default_threads": {
+    "median_ms": 0.46884649964340497,
+    "p10_ms": 0.46457200005534105,
+    "p90_ms": 0.4761239997606026,
+    "n": 200
+   },
+   "one_thread": {
+    "median_ms": 6.96592900021642,
+    "p10_ms": 6.960362999961944,
+    "p90_ms": 6.980720000683505,
+    "n": 200
+   }
+  },
+  "imread": {
+   "default_threads": {
+    "median_ms": 126.08269500015012,
+    "p10_ms": 119.34900100004597,
+    "p90_ms": 298.61004299982596,
+    "n": 50
+   },
+   "one_thread": {
+    "median_ms": 126.96367749958881,
+    "p10_ms": 119.56938200000877,
+    "p90_ms": 295.7805960004407,
+    "n": 50
+   }
+  }
+ },
+ "sha256_first_photo": {
+  "resize_linear_letterbox": "8303c72b99a20b2cd0c087855313b8e4db9dcf9bde2929524937065600f86f40",
+  "blob_1024": "4375d6825c0160cff04208c3b93aedad1d5ea41dc274eb6751fdcce123bcd44f",
+  "resize_cubic_2x": "240250204c8de888bae6e065b5536bfff08c4e925f4468a45ce0941306e6e7d8",
+  "zoom_native": "5b5d547d5e7d00e83feb8842747e96f30defbf4d495f451d8c1cb69758ad05ee",
+  "enhance_contrast": "3743f5068ada4b3017a894bfade2a97abafd7f035b3b46e820a31df72f338213",
+  "canopy_blur": "f2ec82350f6837b3298eb2ad27ae0474304bb9dc9148e45a76fd4b346c69f3ec",
+  "fillpoly_cell": "f7b6a359895130d4f0ff53d8d1aadc7b51cfe586a7972b9a2e1b6441a0354fc0",
+  "gaussian_full": "9f96dc07bc0673e680f17eed53ed569f27884c8506ac5d87572bcbc846f8fd64",
+  "cvtcolor_gray_full": "da7ee9f13a048c011aef0495dc007f32e57f4a4c88f8ceada8fd2662f6ca4d62",
+  "imread": "8b9b6f5817daa9843402f9d1cbc9d7d3d316176d00bfa4e765639eb3a35cbe46"
+ }
+}

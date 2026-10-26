@@ -1,0 +1,13 @@
+  ok   HTTPS + health (0.0 s): {"status": "ok", "contract_version": "1.3", "backend": "cv2", "detector": "cv2", "radio": false}
+  ok   CORS for the Vercel site (0.0 s)
+  ok   create a mission (0.2 s): 0e3cbb03
+  ok   val photo → processed (7.2 s): 2 candidates, 6.1 s in the worker (cv2.dnn 5.5 s), 7.2 s upload to processed
+  ok   event stream (SSE) (0.0 s): 26 events replayed, photo.processed included
+  ok   unknown mission → 404 (0.0 s)
+remote check PASSED 6/6 against http://127.0.0.1:8000
+  ok   HTTPS + health (0.0 s): {"status": "ok", "contract_version": "1.3", "backend": "cv2", "detector": "cv2", "radio": false}
+  ok   CORS for the Vercel site (0.0 s)
+  ok   create a mission (0.2 s): 0e3cbb03
+  ok   val photo → processed (7.2 s): 2 candidates, 6.1 s in the worker (cv2.dnn 5.5 s), 7.2 s upload to processed
+  ok   event stream (SSE) (0.0 s): 26 events replayed, photo.processed included
+  ok   unknown mission → 404 (0.0 s)

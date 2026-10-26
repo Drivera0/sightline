@@ -1,0 +1,20 @@
+2026-10-26T01:43:32Z start 81d7a8fda01fc2bf77f9861c5ec76e3bf5cc52dd
+2026-10-26T01:43:35Z inputs ready: 101 test photos
+2026-10-26T01:43:55Z COOL cv2 4.12.0, numpy 1.26.4; baseline opencv-python==4.12.0.88, reference opencv-python==5.0.0.93
+2026-10-26T01:44:14Z cool: cv2 4.12.0 /opt/cool/python_3.12/site-packages/cv2/python-3.12/cv2.cpython-312-aarch64-linux-gnu.so, numpy 1.26.4
+2026-10-26T01:44:15Z pip: cv2 4.12.0 /opt/sl/venv-pip/lib/python3.12/site-packages/cv2/__init__.py, numpy 1.26.4
+2026-10-26T01:44:15Z pip5: cv2 5.0.0 /opt/sl/venv-pip5/lib/python3.12/site-packages/cv2/__init__.py, numpy 1.26.4
+2026-10-26T01:44:15Z cool imgproc start
+2026-10-26T01:45:19Z cool reproduce start
+2026-10-26T01:51:43Z cool bench start
+2026-10-26T02:11:29Z cool done
+2026-10-26T02:11:29Z pip imgproc start
+2026-10-26T02:12:43Z pip reproduce start
+2026-10-26T02:19:04Z pip bench start
+2026-10-26T02:37:10Z pip done
+2026-10-26T02:37:10Z pip5 imgproc start
+2026-10-26T02:38:12Z pip5 reproduce start
+2026-10-26T02:47:16Z pip5 bench start
+2026-10-26T03:03:40Z pip5 done
+2026-10-26T03:06:59Z imgproc second pass done
+2026-10-26T03:07:00Z all done

@@ -24,6 +24,7 @@ datasets/
 # Live missions (MissionStore, contract §12)
 missions/
 deploy/aws/.state.env
+deploy/aws/cool/.state.env
 deploy/aws/.env
 
 # Secrets and environment

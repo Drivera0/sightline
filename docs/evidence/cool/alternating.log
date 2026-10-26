@@ -1,0 +1,10 @@
+03:11:35 round 1 cool cpu: 5.146 ± 0.000 s/photo, 248.9 ± 0.0 ms/slice
+03:13:58 round 1 pip cpu: 4.583 ± 0.000 s/photo, 220.8 ± 0.0 ms/slice
+03:16:30 round 1 pip5 cpu: 4.854 ± 0.000 s/photo, 235.4 ± 0.0 ms/slice
+03:19:09 round 2 cool cpu: 5.118 ± 0.000 s/photo, 247.5 ± 0.0 ms/slice
+03:21:32 round 2 pip cpu: 4.600 ± 0.000 s/photo, 221.7 ± 0.0 ms/slice
+03:24:03 round 2 pip5 cpu: 4.830 ± 0.000 s/photo, 234.2 ± 0.0 ms/slice
+03:26:44 round 3 cool cpu: 5.160 ± 0.000 s/photo, 249.6 ± 0.0 ms/slice
+03:29:18 round 3 pip cpu: 4.950 ± 0.000 s/photo, 239.1 ± 0.0 ms/slice
+03:31:48 round 3 pip5 cpu: 4.833 ± 0.000 s/photo, 234.4 ± 0.0 ms/slice
+done
