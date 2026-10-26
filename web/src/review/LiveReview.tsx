@@ -104,6 +104,8 @@ export interface ReviewCard {
   threshold?: number;
   /** What made the score: DETECTOR_CV2 for the pipeline's detector, another name for another path; unset: not said. */
   detector?: string;
+  /** The AI's pick against the subject's description, one line ("AI: another person — …"; command/subjectMatch.ts). */
+  pick?: string;
 }
 
 /** The pipeline's detector: YOLO11s trained on HERIDAL, run by OpenCV 5's DNN module (sightline/ml/backend.py, cv2 by default). */
@@ -141,6 +143,16 @@ export function ObjectPhotoBadge({ className = "" }: { className?: string }) {
   );
 }
 
+/** The AI's pick on a photo, one line: "AI: likely the subject — red jacket matches". */
+export function AiPick({ line, className = "" }: { line: string; className?: string }) {
+  return (
+    <span data-ai-pick="" className={`text-caption text-text-2 ${className}`}>
+      <span className="text-accent-soft">AI: </span>
+      {line.replace(/^AI: /, "")}
+    </span>
+  );
+}
+
 /** One candidate: crop, score, verdict in words with its model chips, the answers (Object opens its type picker). */
 function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }: { c: ReviewCard; rank: number; answer: LiveAnswer | undefined; current: boolean; picking: boolean; onPicking: (on: boolean) => void; onAnswer: (a: LiveAnswer, object?: ObjectKind) => void; onPick?: () => void }) {
   const el = useRef<HTMLLIElement>(null);
@@ -167,6 +179,7 @@ function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }
             {c.distractor && <ObjectPhotoBadge />}
           </span>
           <span className="truncate text-caption text-text-2" title={c.id}>{photoName(c.frame)}</span>
+          {c.pick && <AiPick line={c.pick} />}
         </div>
       </div>
       <SecondLook c={c} />

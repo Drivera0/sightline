@@ -582,9 +582,19 @@ export function GuideMark({
               {text}
             </p>
             {why && (
-              <p data-guide-why className="text-small text-text-2" title={`AI suggests: ${why}`}>
-                <span className="text-accent-soft">AI suggests: </span>
-                {why}
+              <p data-guide-why className="text-small text-text-2" title={/^AI: /.test(why) ? why : `AI suggests: ${why}`} data-ai-pick={/^AI: /.test(why) ? "" : undefined}>
+                {/* a photo's pick says its own head ("AI: likely the subject — …") */}
+                {/^AI: /.test(why) ? (
+                  <>
+                    <span className="text-accent-soft">AI: </span>
+                    {why.slice(4)}
+                  </>
+                ) : (
+                  <>
+                    <span className="text-accent-soft">AI suggests: </span>
+                    {why}
+                  </>
+                )}
               </p>
             )}
             {split ? (

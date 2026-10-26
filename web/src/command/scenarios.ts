@@ -5,7 +5,7 @@
 // last known point and its prior move, base camp moves with it, the clues are the scenario's own (each
 // reweights the map around where it was found, as the server does), and the agent's three assignments go
 // to the three likeliest open sectors on that map. Pure apart from the fixture lookup. Built by lane A.
-import type { Clue, MapBase, MapUpdate, Mission, MissionEvent, Proposal, SectorTask } from "../contract";
+import type { Clue, Conditions, MapBase, MapUpdate, Mission, MissionEvent, Proposal, SectorTask } from "../contract";
 import { cellsWithinRadius } from "../search/update";
 import type { DemoFull } from "./missionTime";
 import { BOARD_AT, sectorsAt } from "./missionTime";
@@ -215,16 +215,39 @@ function withSeed(full: DemoFull, preset: Preset): DemoFull {
 }
 
 const ISO = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/;
-/** Every timestamp in a fixture moved by `ms`. */
+/**
+ * The sun's times are the ground's, not the mission's: a scenario moved onto the demo's afternoon keeps the
+ * day's sunset and civil twilight (every fixture is dated 24 Oct at Mount Seymour), so they never move.
+ */
+const SUN_KEYS = new Set(["sunset", "civil_twilight_end", "flyable_until"]);
+/** Every timestamp in a fixture moved by `ms` (but the sun's). */
 export function shiftTimes<T>(value: T, ms: number): T {
   if (!ms) return value;
   const walk = (v: unknown): unknown => {
     if (typeof v === "string") return ISO.test(v) ? new Date(new Date(v).getTime() + ms).toISOString().replace(/\.\d+Z$/, "Z") : v;
     if (Array.isArray(v)) return v.map(walk);
-    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, SUN_KEYS.has(k) ? x : walk(x)]));
     return v;
   };
   return walk(value) as T;
+}
+
+/**
+ * A reading with no sun times (the scenarios' last one, the gusts) keeps the day's from the reading before
+ * it: the sun sets at the same time whatever the wind does (usability test round 2: Missing child showed
+ * daylight "–" and light "unknown").
+ */
+export function withSunTimes(full: DemoFull): DemoFull {
+  const d = full.data;
+  const c = d.conditions;
+  if (!c || (c.sunset && c.civil_twilight_end)) return full;
+  const known = (d.events ?? [])
+    .filter((e) => e.type === "conditions.updated" && e.data)
+    .map((e) => e.data as unknown as Conditions)
+    .filter((x) => x.sunset || x.civil_twilight_end)
+    .at(-1);
+  if (!known) return full;
+  return { ...full, data: { ...d, conditions: { ...c, sunset: c.sunset ?? known.sunset, civil_twilight_end: c.civil_twilight_end ?? known.civil_twilight_end } } };
 }
 
 /** Scenario fixtures from the generator, when there are any (lazy: each its own chunk). */
@@ -245,7 +268,7 @@ export async function scenarioMission(full: DemoFull, seed: string | null | unde
       const from = fx.t0 ?? fx.mission?.created_at;
       const to = full.data.mission?.created_at;
       const shifted = from && to ? shiftTimes(fx, new Date(to).getTime() - new Date(from).getTime()) : fx;
-      return withSeed(await load(shifted), preset);
+      return withSeed(withSunTimes(await load(shifted)), preset);
     } catch {
       /* a broken fixture: derive it instead */
     }

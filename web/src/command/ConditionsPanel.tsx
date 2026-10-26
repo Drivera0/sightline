@@ -37,7 +37,8 @@ function Ext({ url, children }: { url: string; children?: ReactNode }) {
 function Source({ f, lookup }: { f: Fact; lookup: Lookup | null }) {
   const s = f.source;
   if (s.kind === "computed" || s.kind === "heuristic") return <span className="text-text-3">{s.how}</span>;
-  if (s.kind === "missing") return <span className="text-text-3">{f.value === "not on the pages read" ? "left empty, not guessed" : "no quote in the trace"}</span>;
+  // a value with no quote says nothing more (round 2: "no quote in the trace" five times over read as noise)
+  if (s.kind === "missing") return f.value === "not on the pages read" ? <span className="text-text-3">left empty, not guessed</span> : null;
   const page = s.url ?? lookup?.extracted[0] ?? null;
   return (
     <span className="flex flex-col gap-0.5">

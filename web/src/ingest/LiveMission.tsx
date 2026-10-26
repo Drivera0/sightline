@@ -9,6 +9,7 @@ import type { Api } from "../lib/api";
 import { cardFileUrl, fileUrl, getCard, getHealth, getTrace } from "../lib/api";
 import type { AssignmentCard, CacheBundle, Conditions, FleetState, MissionEvent, Proposal, TraceEntry } from "../contract";
 import { clueLine, clueShifts } from "../command/clueShift";
+import { aiPick } from "../command/subjectMatch";
 import { candidatePosition, demoCards, distractorCards, landedFrames, objectClue } from "../command/demoReview";
 import { checkpoint, demoAt, LAST, type Checkpoint, type DemoFull } from "../command/missionTime";
 import { PhotoStrip, PhotosRail } from "../command/PhotosRail";
@@ -36,7 +37,7 @@ import { PhotoDrop, useDropped } from "../command/PhotoDrop";
 import { DEFAULT_SEED, presetFor, scenarioMission } from "../command/scenarios";
 import { setClockedFlights, stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
-import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace } from "../command/demoMission";
+import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace, EXAMPLE_TRACE_LABEL } from "../command/demoMission";
 import { latestLookup } from "../command/conditions";
 import { outsideGrid, withTaskStatus } from "../command/console";
 import type { ConditionsData } from "../command/ConditionsPanel";
@@ -52,7 +53,7 @@ import { DEMO_CONSOLE_HASH, guideHash, SCENARIOS_HASH, viewHash, type Route, typ
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS } from "../shell/shortcuts";
 import { liveCards, liveReviewItems, ReviewRail, type LiveAnswer, type ObjectKind } from "../review/LiveReview";
-import { serverAnswer } from "../review/answers";
+import { serverAnswer, serverObject } from "../review/answers";
 import { UploadPanel, WatchPanel } from "./UploadPanel";
 
 // Split from the first bundle (the landing paints without them): the map with MapLibre, the views a
@@ -567,7 +568,14 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // the scenario's distractor frames (licensed ground-level photos of objects placed in the flight) join the
   // queue once their second look is on the timeline, and stay until the visitor answers them
   const distractors = demo ? distractorCards(s.distractors, s.timeline, s.events) : [];
-  const cards = demo ? [...dropped.cards, ...distractors, ...demoCards(cache, landed ?? [], imageUrl, new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime())] : [];
+  // (no survey photo has landed while the drones wait on the ground: no AI re-check catch either)
+  // each known survey photo carries the AI's pick against this scenario's subject (command/subjectMatch.ts)
+  const cards = demo
+    ? [...dropped.cards, ...distractors, ...demoCards(cache, landed ?? [], imageUrl, frameCount > 0 && new Date(clockIso).getTime() >= new Date(checkpoint(2).at).getTime())].map((c) => {
+        const pick = aiPick(c.id, s.mission?.subject);
+        return pick ? { ...c, pick: pick.line } : c;
+      })
+    : [];
   const answerDemo = (id: string, a: LiveAnswer, object?: ObjectKind) => {
     answerRef.current = answerDemo;
     useStory.getState().answer(id, a);
@@ -664,7 +672,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const live = demo ? [] : liveCards(s.detections, s.survey, s.verdicts, s.promoted, (rel) => fileUrl(api, missionId, rel));
   const answerLive = (id: string, a: LiveAnswer, object?: ObjectKind) => {
     setLiveAnswers((x) => ({ ...x, [id]: a }));
-    void useMission.getState().review(id, serverAnswer(a), object);
+    void useMission.getState().review(id, serverAnswer(a), serverObject(object));
   };
   const review =
     reviewCount > 0 || tried ? (
@@ -705,7 +713,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
             </button>
           ))}
         </div>
-        {logOpen ? <EventFeed events={s.events} /> : <TraceTab api={api} missionId={missionId} demo={demo} />}
+        {logOpen ? <EventFeed events={s.events} /> : <TraceTab api={api} missionId={missionId} demo={demo} example={demo && effSeed !== DEFAULT_SEED} />}
       </div>
     ) : undefined;
   const callsign = (id: string | null) => s.teams.find((t) => t.id === id)?.callsign ?? id ?? "";
@@ -988,7 +996,7 @@ function useConditionsData(
 const TRACE_POLL_MS = 4000;
 
 /** The Trace view: the live mission's trace (polled with `after`), or the demo's recorded runs. */
-function TraceTab({ api, missionId, demo }: { api: Api; missionId: string; demo: boolean }) {
+function TraceTab({ api, missionId, demo, example = false }: { api: Api; missionId: string; demo: boolean; example?: boolean }) {
   const [runs, setRuns] = useState<TraceRun[] | null>(null);
   const [imageUrl, setImageUrl] = useState<(rel: string) => string | null>(() => (rel: string) => fileUrl(api, missionId, rel));
   const [error, setError] = useState<string | null>(null);
@@ -998,7 +1006,8 @@ function TraceTab({ api, missionId, demo }: { api: Api; missionId: string; demo:
       loadDemoTrace().then(
         (t) => {
           if (!live) return;
-          setRuns(t.runs);
+          // another scenario on screen: the demo's own trace is the overdue hiker's, so it says so (never "this mission")
+          setRuns(example ? t.runs.map((r) => (r.mode === "demo" ? { ...r, label: EXAMPLE_TRACE_LABEL, mode: "replay" as const } : r)) : t.runs);
           setImageUrl(() => t.imageUrl);
         },
         (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)),
@@ -1026,12 +1035,12 @@ function TraceTab({ api, missionId, demo }: { api: Api; missionId: string; demo:
       live = false;
       clearInterval(id);
     };
-  }, [api, missionId, demo]);
+  }, [api, missionId, demo, example]);
   return (
     <div className="flex flex-col gap-3">
       <p className="text-small text-text-2">
         Every step the agent took, grouped from what it saw to what a person decided: perception → decision → action → approval. Open a step for its full input and output.
-        {demo && " On the demo: this mission's own trace (generated offline with fake models and scripted people, as labelled), then two runs recorded live, copied from the repository."}
+        {demo && (example ? " Here: an example trace from the Overdue hiker mission (generated offline with fake models and scripted people, as labelled; this scenario has none of its own), then two runs recorded live, copied from the repository." : " On the demo: this mission's own trace (generated offline with fake models and scripted people, as labelled), then two runs recorded live, copied from the repository.")}
       </p>
       {error && (
         <p role="alert" className="text-small text-caution">

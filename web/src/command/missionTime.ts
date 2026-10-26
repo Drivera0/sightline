@@ -5,7 +5,7 @@
 // loaded with it whenever the scrubber moves. What the coach marks say at each checkpoint is in
 // storyCopy.ts, read off the loaded scenario.
 
-import type { Clue, FleetState, MapBase, MapUpdate, MissionEvent, Proposal, SectorTask, Team, TimelineEvent } from "../contract";
+import type { Clue, Conditions, FleetState, MapBase, MapUpdate, MissionEvent, Proposal, SectorTask, Team, TimelineEvent } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { applyEvent, EMPTY, fleetLinksFromEvents, type MissionData } from "../lib/mission";
 import { teamOf } from "./timeline";
@@ -414,6 +414,7 @@ export function demoAt(full: DemoFull, clock: string, user: readonly MissionEven
     ...EMPTY,
     ...d,
     mission: mission ?? null,
+    conditions: now ? (conditionsAt(d, Infinity) ?? d.conditions ?? null) : conditionsAt(d, c),
     tasks,
     teams: (now ? (d.teams ?? []).map((t) => (t.position ? t : atTrailhead(t))) : teamsAt(d.teams ?? [], allTasks, c, d.clues ?? [])).map(heardBy),
     clues,
@@ -513,6 +514,12 @@ export interface GuidedOpts {
   mapClue?: boolean;
   /** The survey decision (the flight lines' approver in the log): the AI's lines or the lawnmower, and by whom. */
   survey?: { option: string; watched: boolean } | null;
+  /**
+   * The drones stay on the ground: the conditions at the call grounded them and nobody chose "Fly anyway".
+   * No survey flies, no photo lands, no flight line or relay is proposed; the ground teams carry the search.
+   * `recheck` is when the wind is looked at again (fixtures' clock, ms).
+   */
+  dronesWait?: { recheck: number } | null;
 }
 
 /**
@@ -521,7 +528,57 @@ export interface GuidedOpts {
  */
 export function legApprover(survey: GuidedOpts["survey"]): string {
   if (survey?.option === "planner") return survey.watched ? "auto-approved: guided survey, Watch instead chose the AI's flight lines" : "auto-approved: guided survey, you chose the AI's flight lines";
+  // "Fly anyway": the AI's flight lines flown on the manager's override of the grounding
+  if (survey?.option === "override") return survey.watched ? "approved on an override of the grounding, Watch instead chose it" : "approved on your override of the grounding";
   return PRE_PLANNED;
+}
+
+/** A drone's own line in the fixtures (its flight lines, its link, a relay through it, the survey's photos and their review). */
+function aboutDrones(e: MissionEvent): boolean {
+  if (e.type === "fleet.updated" || e.type === "photo.processed" || e.type === "detection.new" || e.type === "verdict") return true;
+  if (e.type === "proposal.new" || e.type === "proposal.decided") return DRONE_KINDS.has((e.data as unknown as Proposal | null)?.kind ?? "");
+  return e.type === "mission.note" && /^(Drone|D\d|L\d)|\bvia D\d|\blink (lost|degraded)|\bno signal\b|^review f\d/.test(e.summary);
+}
+const DRONE_KINDS = new Set(["drone_leg", "retask_drone", "promote_detection", "dismiss_detection"]);
+
+/** The fixtures with the drones on the ground the whole time (GuidedOpts.dronesWait). */
+function onTheGround(d: Partial<MissionData>): Partial<MissionData> {
+  return {
+    ...d,
+    events: (d.events ?? []).filter((e) => !aboutDrones(e)),
+    timeline: (d.timeline ?? []).filter((e) => e.kind !== "drone" && e.kind !== "detection" && !/\bvia D\d|\blink (lost|degraded)/.test(e.text)),
+    proposals: (d.proposals ?? []).filter((p) => !DRONE_KINDS.has(p.kind)),
+    mapUpdates: (d.mapUpdates ?? []).filter((u) => u.source !== "frame" && u.source !== "review"),
+    fleet: d.fleet ? { ...d.fleet, legs: [] } : d.fleet,
+  };
+}
+
+/**
+ * The conditions as they stood at `c`: the latest reading by then (each `conditions.updated` event, the
+ * fixture's own `conditions` for the one that carries none), never a later one (usability test round 2:
+ * Missing child said "Drones grounded" from the call, its gusts came 87 minutes in). A reading without
+ * sun times keeps the day's. Null before the first reading.
+ */
+export function conditionsAt(d: Partial<MissionData>, c: number): Conditions | null {
+  const final = d.conditions ?? null;
+  const readings = (d.events ?? [])
+    .filter((e) => e.type === "conditions.updated")
+    .map((e) => (e.data ? (e.data as unknown as Conditions) : final && ms(final.fetched_at) <= ms(e.at) + 60_000 ? final : null))
+    .filter((x): x is Conditions => !!x);
+  if (final && !readings.includes(final)) readings.push(final);
+  const by = readings.filter((x) => ms(x.fetched_at) <= c).sort((a, b) => ms(a.fetched_at) - ms(b.fetched_at));
+  const now = by.at(-1) ?? null;
+  if (!now || (now.sunset && now.civil_twilight_end)) return now;
+  const sun = [...readings].reverse().find((x) => x.sunset || x.civil_twilight_end);
+  return sun ? { ...now, sunset: now.sunset ?? sun.sunset, civil_twilight_end: now.civil_twilight_end ?? sun.civil_twilight_end } : now;
+}
+
+/** A grounding the manager overrode ("Fly anyway"): the reading says who approved the flight. */
+function withOverride(cond: Conditions | null, user: readonly MissionEvent[], c: number): Conditions | null {
+  if (!cond || cond.flyable !== false) return cond;
+  const o = user.filter((e) => e.type === "mission.note" && (e.data as { action?: string } | null)?.action === "fly_override" && ms(e.at) <= c).at(-1);
+  const by = (o?.data as { by?: string } | null)?.by;
+  return o ? { ...cond, flyability_reason: `${cond.flyability_reason}; flying on an override approved by ${by ?? "the search manager"}` } : cond;
 }
 
 /** The subject's sector and position: the scenario's find (null: a scenario without one). */
@@ -558,7 +615,7 @@ function managersOwn(e: MissionEvent): boolean {
 }
 
 function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], opts: GuidedOpts): Partial<MissionData> {
-  const d = full.data;
+  const d = opts.dronesWait ? onTheGround(full.data) : full.data;
   const c = ms(clock);
   HOME = d.mission?.base_camp ? { lat: d.mission.base_camp.lat, lon: d.mission.base_camp.lon } : { ...TRAILHEAD };
   const mission = d.mission ? { ...d.mission, found: null, status: d.mission.status === "found" ? ("searching" as const) : d.mission.status } : null;
@@ -578,7 +635,8 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   const proposals = (d.proposals ?? []).filter((p) => ms(p.created_at) <= c && !mootIds.has(p.id)).map((p) => proposalAt(p, -Infinity));
   const mine = user.filter((e) => ms(e.at) <= c);
   const legBy = legApprover(opts.survey);
-  const fly = fleetAt(d, c, mine, legBy);
+  // grounded: every drone at base camp, nothing in the air (no survey, no flight line of the manager's either)
+  const fly = opts.dronesWait ? { fleet: d.fleet ? fleetNow(d.fleet, [], c, HOME, []) : null, notes: [] as MissionEvent[], photos: [] as MapUpdate[], skipped: new Set<string>() } : fleetAt(d, c, mine, legBy);
   const notMoot = (e: MissionEvent) => !(e.type === "proposal.new" && e.ref && mootIds.has(e.ref));
   const events = [...(d.events ?? []).filter((e) => eventTime(e) <= c && !managersOwn(e) && notMoot(e) && !aboutSkipped(e, fly.skipped)).map((e) => approver(e, legBy))]
     // the read-back clue waits for the manager's decision in the log too
@@ -592,11 +650,20 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   // a hasty team sent on by the manager stops its hasty rows there
   const sentAt = (id: string) => Math.min(...sent.filter((x) => x.team === id).map((x) => x.at));
   timeline.push(...hastyRows(d.teams ?? [], d.clues ?? [], c, sentAt), ...noteRows(fly.notes));
+  // the wind looked at again when the manager was told it would be: the reading as it stands then
+  const w = opts.dronesWait && c >= opts.dronesWait.recheck ? conditionsAt(d, opts.dronesWait.recheck) : null;
+  if (opts.dronesWait && w) {
+    timeline.push({
+      id: "wind-recheck", at: iso(opts.dronesWait.recheck), kind: "drone", team: null, sector: null, direction: null, refs: [], turn_id: null, drone: null, by: null,
+      text: w.flyable === false ? `Wind re-checked: ${w.gust_kmh !== null ? `gusts ${Math.round(w.gust_kmh)} km/h, ` : ""}still over the drones' limit; the drones stay on the ground` : "Wind re-checked: under the drones' limit now; the drones stay on the ground until you choose to fly them",
+    });
+  }
   timeline.sort((a, b) => a.at.localeCompare(b.at));
   const base: MissionData = {
     ...EMPTY,
     ...d,
     mission,
+    conditions: withOverride(conditionsAt(d, c), user, c),
     tasks,
     teams: (d.teams ?? []).map((t) => {
       const base = { ...atTrailhead(t), last_heard_at: t.last_heard_at && ms(t.last_heard_at) <= Math.min(c, ms(BOARD_AT)) ? t.last_heard_at : null };

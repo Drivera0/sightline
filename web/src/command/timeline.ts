@@ -238,7 +238,17 @@ export function buildTimeline(events: readonly MissionEvent[], teams: readonly T
     e.text = plainWords(e.text, ctx);
     if (e.detail) e.detail = plainWords(e.detail, ctx);
   }
-  return merge(all.sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id)));
+  const sorted = all.sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id));
+  // a clue is one row that updates ("awaiting read-back", then "confirmed"): its newest state, never both
+  const clueSeen = new Set<string>();
+  const once = sorted.filter((e) => {
+    const id = e.kind === "clue" ? e.refs[0] : undefined;
+    if (!id) return true;
+    if (clueSeen.has(id)) return false;
+    clueSeen.add(id);
+    return true;
+  });
+  return merge(once);
 }
 
 /** An approval, its "assigned" note and the board's line within this of each other are one assignment. */

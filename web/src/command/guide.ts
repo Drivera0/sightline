@@ -10,11 +10,12 @@
 import type { Clue, MissionEvent, Proposal, Team } from "../contract";
 import { clock, DEMO_TZ } from "../lib/time";
 import { SECOND_LOOK_ID } from "./demoReview";
-import { BOARD_AT, CHECKPOINTS, hastyAt, hastyLeaves, isFoundEvent, pendingSightings, poaOf, subjectOf, type DemoFull } from "./missionTime";
+import { BOARD_AT, CHECKPOINTS, conditionsAt, hastyAt, hastyLeaves, isFoundEvent, pendingSightings, poaOf, subjectOf, type DemoFull } from "./missionTime";
 import { agentLine, passesFrom, playStanding, RETURN_MS, type Cost, type Line, type Pass } from "./sim";
 import { WATCH_BY } from "./console";
 import { REGION, STORY_NOT_A_PERSON, storyClue, storyProposal } from "./storyCopy";
-import { podLabel, TERMS, thresholdNote } from "./terms";
+import { aiPick } from "./subjectMatch";
+import { podLabel, TERMS } from "./terms";
 
 export type InjectId = "survey" | "triage" | "clue" | "assign" | "link" | "wind" | "find";
 
@@ -143,15 +144,47 @@ const droneWord = (id: string, full: DemoFull) => {
   return n ? `drone ${["zero", "one", "two", "three", "four", "five"][Number(n)] ?? n}` : name;
 };
 
-/** The three cards to triage: a plain person (another hiker), the grey bag, and the second look's catch. */
-export function triageCards(queue: GuideInput["queue"]): TriageCard[] {
+/** How long the drones wait before the wind is looked at again. */
+export const RECHECK_MS = 30 * 60_000;
+
+/**
+ * The drones grounded at the call (the conditions as they stood then say so): why, and when the wind is
+ * looked at again (fixtures' clock). Null: they can fly.
+ */
+export function groundedAtCall(full: DemoFull | null): { reason: string; recheck: number } | null {
+  if (!full?.data.fleet?.drones.length) return null;
+  const at = ms(CHECKPOINTS[0]!.at);
+  const c = conditionsAt(full.data, at);
+  return c && c.flyable === false ? { reason: c.flyability_reason || "over the drones' limits", recheck: at + RECHECK_MS } : null;
+}
+
+/** "Fly anyway" was chosen at the survey step (logged with who approved it). */
+export const flewAnyway = (choices: readonly { inject: string; option: string }[]): boolean => choices.some((c) => c.inject === "survey" && c.option === "override");
+
+/** The drones stay on the ground for this run: grounded at the call and no "Fly anyway". */
+export function dronesWait(full: DemoFull | null, choices: readonly { inject: string; option: string }[]): { recheck: number } | null {
+  const g = groundedAtCall(full);
+  return g && !flewAnyway(choices) ? { recheck: g.recheck } : null;
+}
+
+/**
+ * The three cards to triage: a plain person, the grey bag, and the second look's catch. The AI's pick on
+ * each (its reference answer, what Watch instead answers and what the end screen scores against) compares
+ * the photo with this scenario's subject (subjectMatch.ts): the same red-jacket adult is the overdue
+ * hiker's subject and another person in the missing child's search.
+ */
+export function triageCards(queue: GuideInput["queue"], subject: string | null = null): TriageCard[] {
   const plain = queue.find((c) => c.id !== STORY_NOT_A_PERSON && c.id !== SECOND_LOOK_ID);
   const bag = queue.find((c) => c.id === STORY_NOT_A_PERSON) ?? queue.find((c) => c !== plain && c.id !== SECOND_LOOK_ID);
   const relook = queue.find((c) => c.id === SECOND_LOOK_ID);
   const out: TriageCard[] = [];
-  if (plain) out.push({ id: plain.id, says: `Detector score ${plain.conf.toFixed(2)}.`, line: "person" });
-  if (bag) out.push({ id: bag.id, says: `Detector score ${bag.conf.toFixed(2)}.`, line: "not_person" });
-  if (relook) out.push({ id: relook.id, says: `Detector score ${relook.conf.toFixed(2)}, under 0.29 (${thresholdNote(0.29)}); ${TERMS.recheckFlagged}: likely a person.`, line: "person" });
+  const card = (id: string, fallback: TriageAnswer, says: string): TriageCard => {
+    const p = aiPick(id, subject);
+    return p ? { id, says: p.line, line: p.answer } : { id, says, line: fallback };
+  };
+  if (plain) out.push(card(plain.id, "person", `AI: a person — detector score ${plain.conf.toFixed(2)}`));
+  if (bag) out.push(card(bag.id, "not_person", `AI: not a person — detector score ${bag.conf.toFixed(2)}`));
+  if (relook) out.push(card(relook.id, "person", `AI: likely a person — ${TERMS.recheckFlagged}`));
   return out;
 }
 
@@ -186,8 +219,26 @@ export function injects(input: GuideInput): Inject[] {
   const drones = d.fleet?.drones ?? [];
   const out: Inject[] = [];
 
-  // 1. survey: the planner's legs or a serpentine; nothing flies until then
-  if (drones.length) {
+  // 1. survey: the planner's legs or a serpentine; nothing flies until then. Grounded at the call: the
+  // ground teams first and the drones wait for the wind, or fly anyway (an override, logged with its approver)
+  const grounded = groundedAtCall(full);
+  const wait = dronesWait(full, input.choices);
+  if (drones.length && grounded) {
+    const recheck = local(grounded.recheck);
+    out.push({
+      id: "survey",
+      key: "survey",
+      at: ms(CHECKPOINTS[0]!.at),
+      lead: "The call comes in; the wind is over the drones' limit.",
+      prompt: `${hastyFact(full)}Drones are grounded (${grounded.reason}): send ground teams first and let the drones wait for the wind, or fly anyway.`,
+      agentSays: `Send ground teams first; drones wait for the wind (re-check at ${recheck}).`,
+      options: [
+        { key: "1", id: "wait", label: `Ground teams first; drones wait for the wind (re-check at ${recheck})`, costMin: 0, effect: "no drone flies while the status says grounded; the teams carry the search", agent: true },
+        { key: "2", id: "override", label: "Fly anyway (override, logged)", costMin: 0, effect: "the survey flies in gusts over the limit; the override goes in the log with your name" },
+      ],
+      target: [REGION.status, REGION.map],
+    });
+  } else if (drones.length) {
     const poa = [...poaOf(full).entries()].sort((a, b) => b[1] - a[1]);
     const top = poa.slice(0, 3);
     const share = top.reduce((n, [, p]) => n + p, 0) / Math.max(1e-9, poa.reduce((n, [, p]) => n + p, 0));
@@ -207,7 +258,8 @@ export function injects(input: GuideInput): Inject[] {
   }
 
   // 2. triage: three candidates, one at a time
-  const cards = triageCards(input.queue);
+  // (no photos while the drones wait on the ground)
+  const cards = wait ? [] : triageCards(input.queue, d.mission?.subject ?? null);
   if (cards.length)
     out.push({
       id: "triage",
@@ -276,7 +328,7 @@ export function injects(input: GuideInput): Inject[] {
   }
 
   // 5. the lost link: let it finish, or divert drone three as a relay
-  const link = drones.length ? lostLink(full) : null;
+  const link = drones.length && !wait ? lostLink(full) : null;
   if (link) {
     const relay = drones.find((x) => x.id !== link.drone && x.id !== drones[0]!.id) ?? drones.find((x) => x.id !== link.drone);
     out.push({
@@ -296,7 +348,7 @@ export function injects(input: GuideInput): Inject[] {
   }
 
   // 6. gusts: recall now, or finish the line inside the margin
-  const r = drones.length && full ? recall(full) : null;
+  const r = drones.length && full && !wait ? recall(full) : null;
   if (r)
     out.push({
       id: "wind",
@@ -307,7 +359,7 @@ export function injects(input: GuideInput): Inject[] {
       agentSays: r.reason,
       options: [
         { key: "1", id: "recall", label: "Recall now", costMin: 0, effect: "the drones turn for base; the ground teams carry the search", agent: true, on: "the card's button in Needs you" },
-        { key: "2", id: "finish", label: "Finish the flight line first", costMin: 2, effect: "two more minutes of photos, inside the margin" },
+        { key: "2", id: "finish", label: "Finish the flight line first (override, logged)", costMin: 2, effect: "two more minutes of photos in gusts over the limit; the override goes in the log with your name" },
       ],
       target: [`[data-proposal="${r.id}"]`, REGION.needs],
       proposal: r.id,
@@ -481,12 +533,21 @@ export function agentOption(i: Inject, card: TriageCard | null = null): { id: st
   return { id: o?.id ?? "", label: o?.label ?? "" };
 }
 
+/** "Photo 1 (survey photo 336)": a triage card as the end screen names it (never the detection's id). */
+export function photoTitle(i: Pick<Inject, "cards"> | null | undefined, id: string): string {
+  const n = (i?.cards ?? []).findIndex((c) => c.id === id);
+  const num = /^f0*(\d+)/.exec(id)?.[1];
+  const photo = num ? `survey photo ${num}` : "a photo";
+  return n >= 0 ? `Photo ${n + 1} (${photo})` : `${photo[0]!.toUpperCase()}${photo.slice(1)}`;
+}
+
 /** A choice record for an option of an inject made at fixture time `f`. */
 export function choiceFor(i: Inject, optionId: string, f: number, card: TriageCard | null = null, watched = false): Choice {
   if (i.id === "triage" && card) {
     const a = optionId as TriageAnswer;
     const label = TRIAGE_OPTIONS.find((o) => o.id === a)?.label ?? a;
-    return { key: `triage:${card.id}`, inject: "triage", option: a, label: `${card.id}: ${label}`, agentLabel: `${card.id}: ${agentOption(i, card).label}`, agent: a === card.line, f, costMs: triageEffect(card, a).costMin * 60_000, card: card.id, watched };
+    const title = photoTitle(i, card.id);
+    return { key: `triage:${card.id}`, inject: "triage", option: a, label: `${title}: ${label}`, agentLabel: `${title}: ${agentOption(i, card).label}`, agent: a === card.line, f, costMs: triageEffect(card, a).costMin * 60_000, card: card.id, watched };
   }
   const o = i.options.find((x) => x.id === optionId);
   const ag = agentOption(i);
@@ -640,18 +701,23 @@ export function hotWash(input: GuideInput, list: readonly Inject[]): HotWash {
   const sameLine = agent.passes.length === passes.length && agent.passes.every((x, i) => x.sector === passes[i]?.sector && x.team === passes[i]?.team);
   const draws = [...passes, ...(sameLine ? [] : agent.passes.map((x) => ({ ...x, agentLine: true })))].map((x) => {
     const tag = "agentLine" in x ? "the AI's choices, " : "";
-    return `${tag}${x.sector} pass ${x.n}: ${podLabel(x.pod)}, draw ${x.draw.toFixed(2)} → ${x.detected ? "detected" : x.inside ? "missed (the subject was there)" : "no sign (the subject was elsewhere)"}`;
+    return `${tag}${x.sector} pass ${x.n}: ${podLabel(x.pod)}, roll ${x.draw.toFixed(2)} → ${x.detected ? "detected" : x.inside ? "missed (the subject was there)" : "no sign (the subject was elsewhere)"}`;
   });
   const searched = new Map<string, number>();
   for (const x of passes) if (!x.detected && (mine === null || x.end <= (foundEv ? ms(foundEv.at) : Infinity))) searched.set(x.sector, 1 - (1 - (searched.get(x.sector) ?? 0)) * (1 - x.pod));
   const strengths: string[] = [];
   const tryNext: string[] = [];
   const tri = choices.filter((c) => c.inject === "triage");
-  if (tri.length && tri.every((c) => c.agent)) strengths.push("Review photos matched the reference answers: the bag stayed off the map and the photo flagged by the AI re-check went on it.");
+  if (tri.length && tri.every((c) => c.agent)) strengths.push("Review photos matched the AI's picks against the subject's description: only a photo that fits the subject went on the map as a sighting.");
   if (clueChoice && clueChoice.option !== "log") strengths.push("The radio clue was read back and mapped before the first assignment.");
   if (firstAssign && subject && firstSector === subject.sector) strengths.push(`The first team went to ${subject.sector}, the sector that held the subject.`);
   if (clueChoice?.option === "log") tryNext.push("Confirm the radio clue next time and watch which sectors rise.");
-  if (choices.some((c) => c.inject === "triage" && c.option === "person" && c.card && !c.agent)) tryNext.push("Look again at the grey bag before pinning it: a pin on it pulls the search toward an empty spot.");
+  const wrongPin = choices.find((c) => c.inject === "triage" && c.option === "person" && c.card && !c.agent);
+  if (wrongPin) {
+    const triage = list.find((x) => x.id === "triage");
+    const says = triage?.cards?.find((x) => x.id === wrongPin.card)?.says.replace(/^AI: /, "");
+    tryNext.push(wrongPin.card === STORY_NOT_A_PERSON ? "Look again at the grey bag before pinning it: a pin on it pulls the search toward an empty spot." : `Compare ${photoTitle(triage, wrongPin.card!).replace(/^P/, "p")} with the subject's description before pinning it${says ? ` (${says})` : ""}: a sighting pin sends a team there first.`);
+  }
   if (firstAssign && subject && firstSector !== subject.sector) tryNext.push("Compare the sector you picked with the AI's reason on the card.");
   return { outcome, agent, subject: subject ? { sector: subject.sector } : null, rows, lines, draws, searched, strengths, tryNext };
 }

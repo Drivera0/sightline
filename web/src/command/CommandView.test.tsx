@@ -113,7 +113,7 @@ describe("the command post", () => {
     const card = screen.getByRole("article", { name: "Drone Drone 1" });
     expect(card).toHaveTextContent("battery 22 %");
     expect(card).toHaveTextContent("link degraded");
-    expect(card).toHaveTextContent("line 2 of 2");
+    expect(card).toHaveTextContent("flight line 2");
     expect(card).toHaveTextContent("C3");
     await userEvent.click(within(card).getByRole("button", { name: "Recall" }));
     expect(p.actions.recallDrone).toHaveBeenCalledWith("D1");

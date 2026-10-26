@@ -111,6 +111,8 @@ export function demoImageUrl(rel: string): string {
  * visitor.
  */
 export const DEMO_TRACE_LABEL = "This mission's trace: from the first photo to the search manager's last approval";
+/** The same trace on another scenario: it is the overdue hiker's, so it is labelled as an example. */
+export const EXAMPLE_TRACE_LABEL = "Example trace from the Overdue hiker mission: from the first photo to the search manager's last approval";
 
 /**
  * The demo's Trace tab: the demo mission's own trace first (`__fixtures__/demo_trace.jsonl`, written by

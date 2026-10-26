@@ -8,7 +8,13 @@ import type { Verdict } from "../contract";
 import { KeyHint } from "../shell/components";
 
 export type LiveAnswer = "person" | "not_person" | "not_subject" | "group" | "object" | "unsure";
-export type ObjectKind = NonNullable<Verdict["object"]>;
+/**
+ * What a reviewer can call an object: the contract's types plus clothing and gear (round 2: a SAR manager
+ * looks for the subject's clothing and kit first). The server takes the contract's, so those two go as "other".
+ */
+export type ObjectKind = NonNullable<Verdict["object"]> | "clothing" | "water bottle / gear";
+/** The contract's object type for a reviewer's (clothing and gear are "other" on the server). */
+export const serverObject = (o: ObjectKind | null | undefined): NonNullable<Verdict["object"]> | undefined => (o === "clothing" || o === "water bottle / gear" ? "other" : (o ?? undefined));
 
 /**
  * One fixed meaning per answer, on every photo (the cold test: Person meant a pin on one photo and a
@@ -31,10 +37,10 @@ export function answerForKey(key: string): LiveAnswer | null {
   return REVIEW_ANSWERS.find((a) => a.key.toLowerCase() === key.toLowerCase())?.id ?? null;
 }
 
-export const OBJECT_KINDS: readonly ObjectKind[] = ["backpack", "fire ring", "shelter", "other"];
+export const OBJECT_KINDS: readonly ObjectKind[] = ["backpack", "clothing", "water bottle / gear", "fire ring", "shelter", "other"];
 
 /**
- * While the object picker is open, 1–4 pick a type and Esc closes it. The keys are taken in the capture phase
+ * While the object picker is open, 1–6 pick a type and Esc closes it. The keys are taken in the capture phase
  * so the console's own 1–6 (the views) do not act on them.
  */
 export function usePickerKeys(open: boolean, pick: (o: ObjectKind) => void, close: () => void): void {
@@ -42,7 +48,7 @@ export function usePickerKeys(open: boolean, pick: (o: ObjectKind) => void, clos
     if (!open) return undefined;
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const n = /^[1-4]$/.test(e.key) ? Number(e.key) : 0;
+      const n = /^[1-6]$/.test(e.key) ? Number(e.key) : 0;
       if (n) pick(OBJECT_KINDS[n - 1]!);
       else if (e.key === "Escape") close();
       else return;
