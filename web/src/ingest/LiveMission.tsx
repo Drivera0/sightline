@@ -49,7 +49,7 @@ import { MapStill, wantsStillMap } from "../map/MapStill";
 import { useSelection } from "../lib/selection";
 import { AppBar, rememberMission, type BarAction } from "../shell/AppBar";
 import { Button, modeOf, Page, Panel, Stat } from "../shell/components";
-import { DEMO_CONSOLE_HASH, guideHash, SCENARIOS_HASH, viewHash, type Route, type View } from "../shell/flow";
+import { DEMO_CONSOLE_HASH, guideHash, scenarioHash, SCENARIOS_HASH, viewHash, type Route, type View } from "../shell/flow";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS } from "../shell/shortcuts";
 import { liveCards, liveReviewItems, ReviewRail, type LiveAnswer, type ObjectKind } from "../review/LiveReview";
@@ -157,12 +157,18 @@ function storyFromRoute(route: MissionRoute): void {
   // the guided search (`?guide=1`): its own clock from the call, no pitch bar. Arriving at the address is
   // always a new run (the home page's Start, Try another scenario): a run that ended, or one left at the
   // home page, never carries over, nor do its actions and answers
-  if (route.open.guide) {
+  // Free play (`#m/demo/map`, a card's "Open the console only") is a new run from the call every time too,
+  // on the same engine with no coach bar: nothing of an earlier run, guided or free, carries over
+  if (route.open.guide || route.open.free) {
     useStory.setState({ t: 0, progress: 1, playing: false, through: null, pitch: false, started: true, user: [], answers: {}, tried: null });
-    useGuide.getState().start();
+    useGuide.getState().start({ free: !!route.open.free });
     return;
   }
-  if (useGuide.getState().guide) useGuide.getState().stop();
+  // a checkpoint of the recorded mission after a run: the run's actions and answers go with it
+  if (useGuide.getState().guide) {
+    useGuide.getState().stop();
+    useStory.setState({ user: [], answers: {}, tried: null });
+  }
   if (route.t !== null) st.seek(route.t);
   else if (route.view === null) landing();
   else if (!st.started || st.pitch) st.skipToNow();
@@ -177,9 +183,11 @@ function freshConsole(): void {
 }
 
 /** The demo mission's clock, the view and the scenario, as an address. */
-function demoHash(view: View, t: Checkpoint, pitch: boolean, seed: string | null = null, guide = false): string {
+function demoHash(view: View, t: Checkpoint, pitch: boolean, seed: string | null = null, guide = false, free = false): string {
+  if (free) return seed ? scenarioHash(seed, false) : DEMO_CONSOLE_HASH;
   if (guide) return guideHash(seed);
-  const h = pitch ? "#m/demo" : viewHash(DEMO_MISSION_ID, view, t >= LAST ? null : t);
+  // the map at the end of the recorded timeline keeps its ?t=6: the plain #m/demo/map is free play
+  const h = pitch ? "#m/demo" : viewHash(DEMO_MISSION_ID, view, t >= LAST && view !== "map" ? null : t);
   return seed ? `${h}${h.includes("?") ? "&" : "?"}s=${encodeURIComponent(seed)}` : h;
 }
 
@@ -249,9 +257,11 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       setView(route.view ?? "map");
       return;
     }
+    const wasRun = !!useGuide.getState().guide;
     storyFromRoute(route);
-    if (route.open.guide) freshConsole();
-    if (route.open.guide || (route.view === null && route.t === null)) setView("map");
+    // a new run (guided or free), or the recorded mission after one: the console starts clean
+    if (route.open.guide || route.open.free || wasRun) freshConsole();
+    if (route.open.guide || route.open.free || (route.view === null && route.t === null)) setView("map");
     else if (route.view === null && route.t !== null) setView(checkpoint(route.t).view);
     else if (route.view !== null) setView(route.view);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -302,6 +312,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   // prints the mission clock.
   const guide = useGuide((x) => x.guide);
   const guided = demo && !!guide;
+  // free play: the guided search's engine and clock, the console's own controls, no coach bar
+  const freePlay = guided && !!guide!.free;
   const effSeed = seed ?? DEFAULT_SEED;
   const costs = useMemo(() => costsOf(guide?.choices ?? []), [guide?.choices]);
   const clockIso = guided ? new Date(fixtureOf(guide!.clock, costs)).toISOString().replace(/\.\d+Z$/, "Z") : storyClock(story);
@@ -367,9 +379,9 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   useEffect(() => {
     // only while the address is this mission's (not once the visitor has gone home or to #about)
     if (!demo || !story.started || !/^#m\/demo(\/|\?|$)/.test(window.location.hash)) return;
-    const want = demoHash(view, story.t, story.pitch, seed, guided);
+    const want = demoHash(view, story.t, story.pitch, seed, guided, freePlay);
     if (window.location.hash !== want) window.history.replaceState(null, "", want);
-  }, [demo, view, story.t, story.pitch, story.started, seed, guided]);
+  }, [demo, view, story.t, story.pitch, story.started, seed, guided, freePlay]);
 
   /** Load another scenario: the visitor's actions and answers go with the old one. */
   const useSeedRef = useRef<string | null>(seed);
@@ -383,12 +395,14 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     useStory.setState({ user: [], answers: {}, tried: null });
     useDropped.setState({ cards: [], at: {}, status: null });
     // a new scenario in the guided search starts it again from the call
-    if (useGuide.getState().guide) useGuide.getState().start();
+    const g = useGuide.getState().guide;
+    if (g) useGuide.getState().start({ free: !!g.free });
     setScenario(null);
     setSeed(s);
     if (write) {
       const st = useStory.getState();
-      window.history.replaceState(null, "", demoHash(view, st.t, st.pitch, s, !!useGuide.getState().guide));
+      const g = useGuide.getState().guide;
+      window.history.replaceState(null, "", demoHash(view, st.t, st.pitch, s, !!g, !!g?.free));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
@@ -415,7 +429,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       } else if (keysOpen) return;
       else if (e.key === "c" || e.key === "C") go("map");
       else if ((e.key === "w" || e.key === "W") && view === "map") setCondOpen((o) => !o);
-      else if (/^[1-6]$/.test(e.key) && !useGuide.getState().guide) {
+      else if (/^[1-6]$/.test(e.key) && (!useGuide.getState().guide || useGuide.getState().guide!.free)) {
         // 1 Map, 2 Photos, 3 Needs you (the old Review), 4 Trace, 5 Debrief, 6 the radio (the old Radio view)
         const n = Number(e.key);
         if (n === 3) {
@@ -425,14 +439,27 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           go("map");
           toRadio();
         } else go((["map", "photos", "", "trace", "debrief"] as const)[n - 1] as View);
+      } else if (e.key === " " && demo && useGuide.getState().guide?.free && !useGuide.getState().guide!.ended && !useConsole.getState().confirming) {
+        // free play: Space plays or pauses the mission clock (never the click of a focused decision button)
+        e.preventDefault();
+        if (!e.repeat) useGuide.getState().pause();
       } else if (e.key === " " && demo && !useGuide.getState().guide && !(e.target instanceof HTMLButtonElement)) {
         // outside the story Space plays the clock on to the end, or pauses it
         e.preventDefault();
         useStory.getState().play();
       }
     };
+    // free play: a button clicks on Space's keyup, so that one is swallowed too
+    const onUp = (e: KeyboardEvent) => {
+      if (e.key !== " " || isTyping(e.target) || !useGuide.getState().guide?.free || useConsole.getState().confirming) return;
+      e.preventDefault();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+    };
   }, [go, keysOpen, demo, view, toNeeds, toRadio]);
 
   // whether this server runs the radio desk (serve --radio): hold-to-talk and briefings only when it does
@@ -488,10 +515,12 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const imageUrl = (rel: string) => (demo ? demoImageUrl(rel) : fileUrl(api, missionId, rel));
   // the guided search's decisions, mark and end screen (GuideRun.tsx); the review's answers reach it by a ref
   const answerRef = useRef<(id: string, a: LiveAnswer) => void>(() => undefined);
-  const restartGuide = useCallback((watch: boolean) => {
+  // the end screen's Try again and the Restart controls (the coach bar, free play's clock bar): the same
+  // scenario from the call, nothing of this run kept
+  const restartGuide = useCallback((watch: boolean, free = false) => {
     freshConsole();
     useStory.setState({ user: [], answers: {}, tried: null });
-    useGuide.getState().start({ watch });
+    useGuide.getState().start({ watch, free });
     setView("map");
   }, []);
   const run = useGuideRun({
@@ -516,6 +545,8 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
       window.location.hash = SCENARIOS_HASH;
     },
     onRestart: restartGuide,
+    guideHref: guideHash(seed),
+    scenariosHref: SCENARIOS_HASH,
   });
   // each team's status as its tasks say it (a team assigned a sector is not on standby)
   const teams = useMemo(() => withTaskStatus(s.teams, s.tasks), [s.teams, s.tasks]);
@@ -727,7 +758,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   const t = story.t;
   const action: BarAction | null = demo
     ? story.pitch || guided
-      ? null
+      ? null // (free play's way to the guided search is on its clock bar)
       : {
           // the walk-through is the guided search: each decision waits for you ("Watch instead" inside it plays the agent's)
           label: "Follow the search",
@@ -812,7 +843,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
           />
         )}
         {/* a phone's coach mark sits along the bottom: room under the last panel so any target can scroll to the top */}
-        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-2 pb-20 lg:p-3 lg:pb-3 ${guided ? "max-sm:pb-[55vh]" : ""}`}>
+        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-2 pb-20 lg:p-3 lg:pb-3 ${guided && !freePlay ? "max-sm:pb-[55vh]" : ""}`}>
           {s.error && (
             <p role="alert" className="text-small text-warn">
               {s.error}
@@ -851,7 +882,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
               review={review}
               reviewCount={reviewCount}
               reviewFrame={reviewFrame}
-              autoReview={!(demo && run.on)}
+              autoReview={!(demo && run.on && !run.free)}
               briefings={briefings}
               storyProposal={run.on ? run.proposal : null}
               needsHighlight={run.needsHighlight}
@@ -910,7 +941,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
                       setView("map");
                     }}
                   />
-                ) : undefined
+                ) : (run.clockBar ?? undefined)
               }
               onPickOnMap={() => {
                 document.querySelector("figure[aria-label='Live map'], [data-testid='map-still']")?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });

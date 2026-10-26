@@ -287,7 +287,8 @@ describe("the demo mission: the story on the one console", () => {
     expect(screen.queryByRole("region", { name: "Sightline" })).toBeNull();
     expect((await screen.findAllByText(/blue water bottle by the creek crossing/)).length).toBeGreaterThan(0);
     expect(within(screen.getAllByRole("banner")[0]!).getByText("15:00 PDT")).toBeInTheDocument();
-    expect(window.location.hash).toBe("#m/demo/map");
+    // the end of the recorded timeline keeps its checkpoint: the plain #m/demo/map is free play
+    expect(window.location.hash).toBe("#m/demo/map?t=6");
   });
 
   it("Follow the search opens the guided search on this scenario: the first decision, no coach marks", async () => {
@@ -342,7 +343,7 @@ describe("the demo mission: the story on the one console", () => {
     vi.stubGlobal("fetch", demoFetch());
     useMission.setState({ ...EMPTY, status: "idle" });
     useStory.getState().reset();
-    window.history.replaceState(null, "", "#m/demo/map");
+    window.history.replaceState(null, "", "#m/demo/map?t=6"); // the recorded mission (the plain address is free play)
     render(<App base={null} />);
     // at 15:00 the subject is found and the proposal is closed; at 14:42 it still waits for a person
     useStory.getState().seek(3);
@@ -520,4 +521,157 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     expect(found).toBe(true);
     await waitFor(() => expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("Found"), { timeout: 3000 });
   }, 90_000);
+});
+
+describe("free play (#m/demo/map): the console on its own, a fresh mission at the call", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useGuide.getState().stop();
+  });
+
+  const bar = () => within(screen.getAllByRole("banner")[0]!);
+  /** No coach bar, no step strip, no ring, nothing dimmed. */
+  function noCoach() {
+    expect(screen.queryByRole("dialog", { name: /^(Your call|Watch this)/ })).toBeNull();
+    expect(document.querySelector("[data-guide-ring], [data-guide-tag], [data-guide-strip], [data-guide-mark]")).toBeNull();
+    expect(screen.queryByText("Do this first")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Decisions" })).toBeNull();
+  }
+
+  it("opens at the call after a guided run, with nothing of that run left (the owner's report)", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo?guide=1");
+    render(<App base={null} />);
+    await screen.findByRole("dialog", { name: /Your call: Step 1 of \d · Survey/ }, { timeout: 5000 });
+    // a few decisions and some time in the guided run
+    await userEvent.keyboard("a");
+    act(() => useGuide.getState().setClock(useGuide.getState().guide!.clock + 40 * 60_000));
+    expect(useGuide.getState().guide!.choices.length).toBeGreaterThan(0);
+    // home, then "Open the console"
+    act(() => {
+      window.location.hash = "#";
+    });
+    act(() => {
+      window.location.hash = "#m/demo/map";
+    });
+    await waitFor(() => expect(bar().getByText("13:35 PDT")).toBeInTheDocument(), { timeout: 5000 });
+    expect(useGuide.getState().guide).toMatchObject({ free: true, ended: false, choices: [] });
+    expect(useStory.getState().user).toEqual([]);
+    expect(useStory.getState().answers).toEqual({});
+    expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("not found");
+    expect(screen.queryByText(/you chose it/)).toBeNull();
+    noCoach();
+    expect(screen.getByRole("group", { name: "Mission clock" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start the guided simulation instead" })).toHaveAttribute("href", "#m/demo?guide=1");
+    expect(screen.getByRole("link", { name: "Change scenario" })).toHaveAttribute("href", "#scenarios");
+    expect(window.location.hash).toBe("#m/demo/map");
+  }, 30_000);
+
+  it("a card's Open the console only starts that scenario fresh, and the clock runs and pauses", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo/map?s=overdue-hiker");
+    render(<App base={null} />);
+    const clock = await screen.findByRole("group", { name: "Mission clock" }, { timeout: 5000 });
+    noCoach();
+    const start = useGuide.getState().guide!.clock;
+    await waitFor(() => expect(useGuide.getState().guide!.clock).toBeGreaterThan(start + 60_000), { timeout: 3000 });
+    await userEvent.click(within(clock).getByRole("button", { name: "Pause the mission clock" }));
+    const held = useGuide.getState().guide!.clock;
+    await new Promise((r) => setTimeout(r, 400));
+    expect(useGuide.getState().guide!.clock).toBe(held);
+    // Space plays it again
+    await userEvent.keyboard(" ");
+    await waitFor(() => expect(useGuide.getState().guide!.clock).toBeGreaterThan(held), { timeout: 3000 });
+    // 4× runs faster
+    await userEvent.click(within(clock).getByRole("button", { name: "4×" }));
+    expect(useGuide.getState().guide!.speed).toBe(4);
+  }, 30_000);
+
+  it("reaches the find, and the end screen, when the visitor approves the AI each time", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo/map");
+    render(<App base={null} />);
+    await screen.findByRole("group", { name: "Mission clock" }, { timeout: 5000 });
+    act(() => useGuide.getState().pause(true));
+    const needs = () => document.getElementById("console-needs")!;
+    let recorded = false;
+    for (let k = 0; k < 120 && !recorded; k++) {
+      act(() => useGuide.getState().setClock(useGuide.getState().guide!.clock + 3 * 60_000));
+      await settle();
+      noCoach();
+      // the read-back, each proposal's main button (the AI's pick), the find
+      const confirm = within(needs()).queryAllByRole("button", { name: "Confirm clue" })[0];
+      if (confirm) await userEvent.click(confirm);
+      for (const card of needs().querySelectorAll<HTMLElement>("[aria-label^='Proposal']")) {
+        const main = card.querySelector<HTMLButtonElement>("button[data-primary]");
+        if (main && card.isConnected) await userEvent.click(main);
+      }
+      const find = within(needs()).queryAllByRole("button", { name: /^Record find in/ })[0];
+      if (find) {
+        await userEvent.click(find);
+        recorded = true;
+      }
+    }
+    expect(recorded).toBe(true);
+    await waitFor(() => expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("Found"), { timeout: 3000 });
+    const end = await screen.findByRole("dialog", { name: "What you did" }, { timeout: 5000 });
+    expect(end).toHaveTextContent(/Found at \d\d:\d\d by Team/);
+    // the approvals are the visitor's, logged as theirs
+    const g = useGuide.getState().guide!;
+    expect(g.choices.some((c) => c.inject === "assign")).toBe(true);
+    expect(g.choices.some((c) => c.inject === "find")).toBe(true);
+  }, 90_000);
+
+  it("Restart asks first, then starts the same scenario fresh from the call (free play and the guided run)", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo/map?s=overdue-hiker");
+    render(<App base={null} />);
+    const clock = await screen.findByRole("group", { name: "Mission clock" }, { timeout: 5000 });
+    const call = useGuide.getState().guide!.clock;
+    act(() => useGuide.getState().setClock(call + 30 * 60_000));
+    useStory.setState({ answers: { x: "person" } });
+    await userEvent.click(within(clock).getByRole("button", { name: "Restart" }));
+    const ask = await screen.findByRole("alertdialog", { name: "Restart this search?" });
+    expect(ask).toHaveTextContent("Restart this search from the call? Your decisions so far will be lost");
+    // Stay keeps the run
+    await userEvent.click(within(ask).getByRole("button", { name: "Stay" }));
+    expect(useGuide.getState().guide!.clock).toBeGreaterThan(call);
+    await userEvent.click(within(clock).getByRole("button", { name: "Restart" }));
+    await userEvent.click(within(await screen.findByRole("alertdialog", { name: "Restart this search?" })).getByRole("button", { name: "Restart" }));
+    expect(useGuide.getState().guide).toMatchObject({ clock: call, free: true, choices: [] });
+    expect(useStory.getState().answers).toEqual({});
+    expect(window.location.hash).toBe("#m/demo/map?s=overdue-hiker");
+
+    // the guided run's bar has it too, beside Leave
+    act(() => {
+      window.location.hash = "#m/demo?s=overdue-hiker&guide=1";
+    });
+    const d = await screen.findByRole("dialog", { name: /Your call: Step 1 of \d · Survey/ }, { timeout: 5000 });
+    await userEvent.keyboard("a");
+    expect(useGuide.getState().guide!.choices.length).toBe(1);
+    await userEvent.click(within(screen.getByRole("dialog", { name: /^(Your call|Watch this)/ })).getByRole("button", { name: "Restart" }));
+    await userEvent.click(within(await screen.findByRole("alertdialog", { name: "Restart this search?" })).getByRole("button", { name: "Restart" }));
+    expect(useGuide.getState().guide).toMatchObject({ clock: call, choices: [], ended: false });
+    expect(useGuide.getState().guide!.free).toBeFalsy();
+    expect(d).toBeDefined();
+  }, 30_000);
+
+  it("the checkpoint addresses still show the recorded mission", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo/map?t=6");
+    render(<App base={null} />);
+    await waitFor(() => expect(bar().getByText("15:00 PDT")).toBeInTheDocument(), { timeout: 5000 });
+    expect(useGuide.getState().guide).toBeNull();
+    expect(screen.queryByRole("group", { name: "Mission clock" })).toBeNull();
+  }, 30_000);
 });

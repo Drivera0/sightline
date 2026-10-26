@@ -32,6 +32,23 @@ Skip to now, and the guided search's strip; `CoachMark.tsx` the guided search's 
 dependency: a ring on the real panel or on a "group:" of cards); `PitchBar.tsx` the landing's two lines.
 The old story's stills stay in `docs/report/figures/command-post/` as a record.
 
+**Free play** (`#m/demo/map`, `#m/demo/map?s=<seed>`: the hero's "Open the console", a card's "Open the console
+only"). The console on its own, a fresh mission at the call every time: nothing of an earlier run (guided or free)
+carries over (`storyFromRoute` resets the story and `freshConsole` the panels, flights and toasts; so does leaving
+a run for a checkpoint). It is the guided search's engine in a `free` mode (`useGuide().start({ free: true })`,
+GuideRun.tsx): the same injects, sim.ts passes, sightings, read-backs, proposals, Send all and the end screen (You
+vs the AI), but no coach bar, no step strip, no ring and nothing hidden or dimmed; every decision is made with the
+console's own controls and counts whenever it is made (`due`: the injects that have come up, in any order). The
+clock (`FreeClock.tsx`, over the map: Play/Pause on Space, 1×/2×/4×, Restart, "Start the guided simulation instead",
+Change scenario) runs at `FREE_MIN_PER_S` mission minutes a second and never waits on a decision: proposals wait in
+Needs you while it runs. It stops on each beat as it lands, as long as the guided run does (story.ts `dwellAt`,
+the beats read `FREE_WINDOW_MS` ahead), and the map shows the beat. The run ends at the find (or the night's end).
+The end screen's decision time counts from when an item reached Needs you. **Restart** (on the guided run's bar,
+on free play's clock bar and on the ended run's strip) asks first ("Restart this search from the call?",
+`RestartConfirm` in CoachMark.tsx) and starts the same scenario fresh, the end screen's Try again path. The
+checkpoint addresses (`?t=N`, `#judges`) still show the recorded demo mission; the map at its end is
+`#m/demo/map?t=6`.
+
 | File | What |
 |---|---|
 | `ApprovalInbox.tsx` | LANE_E §7.2: pending proposals newest first, decided ones collapsed below with "Approved by Dana at 18:58"; kind, summary, reason (expands), evidence thumbnails, briefing; **Approve** (`A`), **Reject** (`X`, needs a one-line reason), **Edit** (the team of an assignment, the briefing text: sent as `edits`, part of what is approved); keys act on the focused card only; "You are ___" kept in `sessionStorage` |

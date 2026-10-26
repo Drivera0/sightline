@@ -54,10 +54,10 @@ Never write a hex value in a component: when a colour is missing, add a token he
 |---|---|
 | `#`, `` | the home page: the hero over a wall of the survey's photos (Try the guided simulation, Open the console), four measured facts, how it works, how photos get in, who it is for, the "Guided simulation" cards (Start the simulation, Open the console only), the For judges strip, the footer (anything unknown lands here too) |
 | `#m/demo` | the console on the demo mission at t0, the pitch bar |
-| `#m/demo?s=<seed>&guide=1` | a scenario with the guided simulation started (a home card's Start the simulation) |
-| `#m/demo/map?s=<seed>` | a scenario, just the console (a home card's Open the console only) |
-| `#m/demo?t=0..6` | the console at a checkpoint's clock (the call, photos land, confirm, where next, the run, the find, the debrief), no coach marks; it settles on `#m/demo/map?t=N` |
-| `#m/<id>/map` · `photos` · `trace` · `debrief` | a view of a mission; on the demo `?t=0..6` sets the mission clock (none: the end of the timeline) |
+| `#m/demo/map`, `#m/demo/map?s=<seed>` | free play: the console on its own (the hero's Open the console, a card's Open the console only), always a fresh mission at the call with nothing of an earlier run; the same engine as the guided simulation, no coach bar; a clock control over the map (Play/Pause, 1×/2×/4×, Restart, Start the guided simulation instead, Change scenario) |
+| `#m/demo?s=<seed>&guide=1` | a scenario with the guided simulation started (a home card's Start the simulation); Restart on its bar starts it again from the call |
+| `#m/demo?t=0..6` | the recorded demo mission at a checkpoint's clock (the call, photos land, confirm, where next, the run, the find, the debrief), no coach marks; it settles on `#m/demo/map?t=N` (the end: `#m/demo/map?t=6`) |
+| `#m/<id>/map` · `photos` · `trace` · `debrief` | a view of a mission; on the demo `?t=0..6` sets the mission clock (none: the end of the timeline, but the plain `#m/demo/map` is free play) |
 | `#m/<id>/map?needs` | the console with Needs you in front (`#m/<id>/review` lands here: the review folds into Needs you) |
 | `#m/<id>/map?radio` | the console with the timeline on Radio and the talk bar ready (`#m/<id>/radio` lands here: the radio desk is the talk bar) |
 | `#m/demo?s=<seed>` | the demo mission as a scenario (`overdue-hiker`, `missing-child`, `despondent`, `dementia`, or any seed) |

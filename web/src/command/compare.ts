@@ -324,7 +324,10 @@ export function compare(input: GuideInput, wash: HotWash, lastLight: number, man
   const deltaMin = you.findMin !== null && agent.findMin !== null ? Math.round(you.findMin - agent.findMin) : null;
 
   let verdict: string;
-  if (followedAll) verdict = "Every decision went the AI's way, so your search and the AI's choices are the same search.";
+  // (free play: the clock runs while an item waits, so the AI's picks approved later can find later)
+  if (followedAll && deltaMin !== null && deltaMin > 0) verdict = `Every decision went the AI's way, but the clock ran on while they waited in Needs you: the AI's choices, approved the moment each landed, found the subject ${fmtMin(deltaMin)} sooner.`;
+  else if (followedAll && deltaMin !== null && deltaMin < 0) verdict = `Every decision went the AI's way, and your search found the subject ${fmtMin(-deltaMin)} sooner than the AI's choices.`;
+  else if (followedAll) verdict = "Every decision went the AI's way, so your search and the AI's choices are the same search.";
   else if (deltaMin !== null)
     verdict =
       deltaMin === 0
