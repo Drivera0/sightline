@@ -100,7 +100,7 @@ describe("every decision line says who", () => {
   const ev = (id: string, type: MissionEvent["type"], data: unknown, summary = ""): MissionEvent => ({ id, type, at: "2026-10-24T21:00:00Z", summary, ref: null, data: data as never });
 
   it("the lawnmower pattern's flight lines are the visitor's choice, never pre-planned", () => {
-    expect(legApprover({ option: "serpentine", watched: false })).toMatch(/you chose the lawnmower pattern/);
+    expect(legApprover({ option: "serpentine", watched: false })).toMatch(/you chose: the lawnmower pattern/);
     expect(legApprover({ option: "serpentine", watched: false })).not.toMatch(/pre-planned/);
   });
 

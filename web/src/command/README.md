@@ -44,11 +44,14 @@ Change scenario) starts paused at the call ("Nothing runs until you press Play: 
 photo first"), so the console is the visitor's to look around and set up; once played it runs at `FREE_MIN_PER_S` mission minutes a second and never waits on a decision: proposals wait in
 Needs you while it runs. It stops on each beat as it lands, as long as the guided run does (story.ts `dwellAt`,
 the beats read `FREE_WINDOW_MS` ahead), and the map shows the beat. The run ends at the find (or the night's end).
-The end screen's decision time counts from when an item reached Needs you. **Restart** (on the guided run's bar,
+The end screen's decision time counts from when an item reached Needs you. Nothing moves before the visitor
+approves it: the AI's survey waits in Needs you from the call and the drones stay at base camp until it is
+approved, the scenario's clues wait as clues to confirm, Send all says it is a standing approval, and only Play
+resumes a paused clock ("Nothing moves without a person" below). **Restart** (on the guided run's bar,
 on free play's clock bar and on the ended run's strip) asks first ("Restart this search from the call?",
 `RestartConfirm` in CoachMark.tsx) and starts the same scenario fresh, the end screen's Try again path. The
 checkpoint addresses (`?t=N`, `#judges`) still show the recorded demo mission; the map at its end is
-`#m/demo/map?t=6`.
+`#m/demo/map?t=6`. **Open play** (`#play`, `front/OpenPlay.tsx`) is free play on the visitor's own setup (`?s=play`): `openPlay.ts` holds the checklist (who, where, base camp, teams, drones, review; `steps`, `ready`), the surveyed area (the demo cache's 1 km grid) and the generator's four staging points, and keeps the setup in `localStorage`; `openPlayMission.ts` `applySetup` puts it on the profile's scenario: the description, last-seen time and check-in interval on the mission; the profile's prior carried to the last known point (`scenarios.ts` `movePrior`, the same shape moved by whole cells) and the agent's assignments re-ranked on it (`replan`, shared with `deriveScenario`); base camp for the teams and the drones' home; the roster filling the scenario's teams in order (the teams that radio clues first, then the first assignment's), renamed everywhere the log says them, teams 5 and 6 added at base camp, a place left empty dropped with its proposals and lines; the first N drones, the others dropped with their flight lines, feeds and lines. Where the person really is stays the scenario's, and the review says so with the other fixed parts. `openPlay.test.ts` plays every profile with two, four and six teams and one to three drones to the find.
 
 | File | What |
 |---|---|
@@ -209,10 +212,10 @@ The demo mission as a decision simulation: the home page's Start opens it on a s
 until the manager makes it; there is no scrubber, no Skip to now and no Back during play.
 
 - **The decisions** (`guide.ts`, injects in the mission's order, the ones the scenario has): Survey (the
-  planner's legs, or a serpentine at +12 min), Triage (three candidates, one at a time: Person, Not a person,
+  planner's legs and the flight lines after it, or a serpentine at +12 min with none after it), Triage (three candidates, one at a time: Person, Not a person,
   Not the subject, which logs a witness lead, Unsure; Person on the grey bag sends a team to check it, +10
   min), Clue (confirm the radio call, ask for a bearing at +2 min, or log it without mapping: the clue's map
-  update is held until it is confirmed), Assign (approve the agent's team and sector, send another team, or
+  update is held until it is confirmed; the scenario's other clues wait in Needs you too), Assign (approve the agent's team and sector, send another team, or
   pick a sector on the map), Link (let the drone finish its leg, or divert another as a relay), Wind (only
   when the scenario's agent proposes a recall: none of the fixtures do yet), Find. A scenario without drones
   has no Survey or Link. Each option shows what it does and what it costs before the commit; A picks the
@@ -346,6 +349,37 @@ Lead with the subject and the map; show only what needs a decision; one control 
   review asked for then opens on Stay).
 - Checked in Chromium at 1280 × 720, 1366 × 768, 1440 × 900, 1920 × 1080 and 390 × 844: every step's control
   on screen and hit by elementFromPoint; `fitScreen.test.tsx` holds the rules in jsdom.
+
+### Nothing moves without a person (cold test, 2026-10-26, `claude/t7-usability-fixes`)
+
+The home page says "No drone or team moved before a person approved it"; in free play and the guided run it is so.
+
+- **The survey** (`GuideRun.tsx` `guidedOptsFor`, missionTime.ts `awaitSurvey`, `dronesLater`): until a survey is
+  chosen the drones wait at base camp (no photo, no "Flying"). Free play asks for it in Needs you from the call, an
+  AI suggestion ("Fly the survey: the AI's flight lines, or the lawnmower pattern?", `SURVEY_PROPOSAL`; main
+  button Fly the AI's flight lines, Fly the lawnmower pattern second, Reject). Approved later than the call, the
+  flight takes off from then: the scenario's drones (flights, photos, second looks, notes) move that much later
+  (`surveyLate`; the photos to review and the review step too). The scenario's flight lines after the survey come
+  with the AI's flight lines only, and that option says so ("once the photos are in, flight lines over …"); the
+  lawnmower pattern approves its own lines and none after it, so no lost link either. The log names the choice:
+  "approved with the survey you chose: the AI's flight lines" (`legApprover`; before, a lawnmower run logged three
+  new lines at 15:04 as "auto-approved: guided survey, you chose the lawnmower pattern").
+- **Clues** (`guidedAt`): every clue the scenario brings (the radio's, the boot prints, the witness lead) is
+  unconfirmed until the visitor confirms it, or logs it without mapping, and moves the map only then. Its card in
+  Needs you (Clues to confirm, "Awaiting read-back") lands with the radio call that brings it, so its main
+  button is Confirm clue from the first moment (before, the call came 12 s ahead of its clue and offered only
+  Reply); Log without mapping sits beside it (`useMission.logClue`). A clue card is never hidden by a guided step
+  (it waits for the manager whatever the step; only the step's own clue is ringed). The AI's reasons say a clue
+  waiting for its read-back moved nothing (`unmappedReason`, "waits for your read-back").
+- **Send all** says up front that it is a standing approval ("…, and keep sending free teams to the AI's picks
+  until you change it", `STANDING_NOTE`, the card's button wraps); while it stands Needs you says so first
+  ("Your standing approval: …") with **Stop sending** (a `standing_stop` note): from then each team that comes
+  back is asked about again (`standingWindows`). The night search from last light stays a rule of the run.
+- **The clock**: only Play (Space) resumes a paused run. A decision or any action while paused (an approval, an
+  assignment, a confirmed clue, the survey) happens at that minute and the clock stays paused (`useGuide.choose`
+  no longer unpauses); the speed buttons never resume it.
+- **Review photos**: the review frame marks only the AI's own pick ("AI's pick", `ReviewCard.pickAnswer`); The
+  subject is no longer drawn as the suggestion beside "AI: not a person — a grey bag".
 
 ## Feedback, review and the visitor's decisions (v3 interaction, lane A)
 

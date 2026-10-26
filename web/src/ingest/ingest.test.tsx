@@ -20,6 +20,7 @@ import { BANNED } from "../command/terms";
 // MapLibre needs WebGL, which jsdom lacks; the real pick was checked in Chromium.
 vi.mock("./LkpPicker", () => ({ LkpPicker: () => <div aria-label="Pick the last known position on the map" /> }));
 vi.mock("../map/heat/LiveHeatMap", () => ({ LiveHeatMap: () => <figure aria-label="Live map" /> }));
+vi.mock("../front/PlayMap", () => ({ PlayMap: () => <div aria-label="Search area map" /> }));
 
 const API = { base: "http://api.test" };
 const jpeg = (name: string) => new File(["x"], name, { type: "image/jpeg" });
@@ -529,6 +530,96 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
   }, 90_000);
 });
 
+describe("open play (#play): the visitor's own setup, then free play on it", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useGuide.getState().stop();
+  });
+
+  it("ticks the checklist step by step, and Start lands in free play, paused at the call, with the roster, base camp and drones applied", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    localStorage.clear();
+    window.history.replaceState(null, "", "#");
+    render(<App base={null} />);
+    // the home page's own way in: the hero's button goes to the Open play section, whose card links the setup
+    expect(screen.getByRole("button", { name: "Open play: set up your own search" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Set up your own search" })).toHaveAttribute("href", "#play");
+    act(() => {
+      window.location.hash = "#play";
+    });
+    await screen.findByRole("heading", { name: "Set up your own search" }, { timeout: 5000 });
+    const list = screen.getByRole("list", { name: "Setup checklist" });
+    const step = (id: string) => list.querySelector(`[data-step="${id}"]`)!;
+    expect(screen.getByText("0 of 5 done")).toBeInTheDocument();
+    // 1. who is missing
+    await userEvent.click(screen.getByRole("radio", { name: /^Missing child/ }));
+    const desc = screen.getByLabelText(/Description: age, clothing/);
+    await userEvent.clear(desc);
+    await userEvent.type(desc, "child, 8, yellow raincoat, red boots");
+    expect(step("who")).toHaveAttribute("data-done", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Next step" }));
+    // 2. where: typed (the map takes a click; the fields are the keyboard's way), and the other areas say why not
+    expect(screen.getByRole("radio", { name: /^Another North Shore area/ })).toBeDisabled();
+    expect(screen.getByText(/More areas need a survey flown there first/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Latitude"), "49.3705");
+    await userEvent.type(screen.getByLabelText("Longitude"), "-122.9445");
+    await userEvent.tab();
+    await waitFor(() => expect(step("where")).toHaveAttribute("data-done", "true"));
+    expect(step("where")).toHaveTextContent("Sector C2");
+    await userEvent.click(screen.getByRole("button", { name: "Next step" }));
+    // 3. base camp
+    await userEvent.click(screen.getByRole("radio", { name: /^Viewpoint lot/ }));
+    expect(step("camp")).toHaveAttribute("data-done", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Next step" }));
+    // 4. teams: rename one, remove one
+    const first = screen.getByLabelText("Team 1 callsign");
+    await userEvent.clear(first);
+    await userEvent.type(first, "Rescue 1");
+    await userEvent.click(screen.getByRole("button", { name: "Remove Team Four" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm the teams" }));
+    expect(step("teams")).toHaveAttribute("data-done", "true");
+    // 5. drones: one, and the field kit's ways in are shown, never selectable
+    await userEvent.click(screen.getByRole("button", { name: "1" }));
+    expect(screen.getByRole("radio", { name: /^Watch the SD card folder/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /^Live video feed/ })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Confirm the drones" }));
+    expect(screen.getByText("5 of 5 done")).toBeInTheDocument();
+    // 6. review, with what stays fixed, then Start
+    const review = within(step("review") as HTMLElement);
+    expect(review.getByText("What stays fixed in this build")).toBeInTheDocument();
+    expect(review.getByText(/does not move with your last known point/)).toBeInTheDocument();
+    // plain words, and none of the engine's (the console's own rule, terms.ts)
+    const words = document.body.textContent ?? "";
+    expect(BANNED.filter((re) => re.test(words))).toEqual([]);
+    expect(words).not.toMatch(/\b(demo|scripted|recorded|simulated)\b/i);
+    expect(words).not.toMatch(/\bclear(ed|s)?\b/i);
+    await userEvent.click(review.getByRole("button", { name: "Start the search" }));
+    expect(window.location.hash).toBe("#m/demo/map?s=play");
+    const clock = await screen.findByRole("group", { name: "Mission clock" }, { timeout: 8000 });
+    expect(useGuide.getState().guide).toMatchObject({ free: true, paused: true, choices: [] });
+    expect(clock).toHaveTextContent("Nothing runs until you press Play");
+    expect(within(clock).getByRole("link", { name: "Edit setup" })).toHaveAttribute("href", "#play");
+    await waitFor(() => expect(useMission.getState().teams.map((t) => t.callsign)).toEqual(["Rescue 1", "Team Two", "Team Three"]));
+    const m = useMission.getState();
+    expect(m.mission?.base_camp?.name).toBe("Viewpoint lot");
+    expect(m.mission?.subject).toBe("child, 8, yellow raincoat, red boots");
+    expect(m.mission?.area.lkp).toEqual({ lat: 49.3705, lon: -122.9445 });
+    expect(m.fleet?.drones.length ?? 0).toBeLessThanOrEqual(1);
+    const resources = screen.getByRole("region", { name: "Resources" });
+    expect(resources).toHaveTextContent("Rescue 1");
+    expect(resources).not.toHaveTextContent("Team Four");
+    expect(screen.getByRole("region", { name: "Subject" })).toHaveTextContent("Child, 8, yellow raincoat, red boots");
+    // the setup is remembered: Edit setup returns to it, every step still ticked
+    act(() => {
+      window.location.hash = "#play";
+    });
+    await screen.findByRole("heading", { name: "Set up your own search" }, { timeout: 5000 });
+    expect(screen.getByText("5 of 5 done")).toBeInTheDocument();
+  }, 60_000);
+});
+
 describe("free play (#m/demo/map): the console on its own, a fresh mission at the call", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -648,6 +739,8 @@ describe("free play (#m/demo/map): the console on its own, a fresh mission at th
     render(<App base={null} />);
     await screen.findByRole("group", { name: "Mission clock" }, { timeout: 5000 });
     act(() => useGuide.getState().pause(true));
+    // nothing flies before the survey is approved
+    await userEvent.click(await within(document.getElementById("console-needs")!).findByRole("button", { name: /^Fly the AI's flight lines/ }, { timeout: 5000 }));
     let review: HTMLElement | undefined;
     for (let k = 0; k < 40 && !review; k++) {
       act(() => useGuide.getState().setClock(useGuide.getState().guide!.clock + 2 * 60_000));
@@ -697,6 +790,115 @@ describe("free play (#m/demo/map): the console on its own, a fresh mission at th
     expect(useGuide.getState().guide).toMatchObject({ clock: call, choices: [], ended: false });
     expect(useGuide.getState().guide!.free).toBeFalsy();
     expect(d).toBeDefined();
+  }, 30_000);
+
+  // the cold usability test, 2026-10-26: what moved without the visitor, and the clock that ran on its own
+  const call = Date.parse("2026-10-24T20:35:00Z");
+  const openFree = async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo/map");
+    render(<App base={null} />);
+    await screen.findByRole("group", { name: "Mission clock" }, { timeout: 5000 });
+    await waitFor(() => expect(useMission.getState().teams.length).toBeGreaterThan(0), { timeout: 5000 });
+    return () => document.getElementById("console-needs")!;
+  };
+  const at = async (ms: number) => {
+    act(() => useGuide.getState().setClock(ms));
+    await settle();
+    await settle();
+  };
+  const flying = () => (useMission.getState().fleet?.drones ?? []).filter((d) => d.status === "flying").length;
+  const frames = () => useMission.getState().mapUpdates.filter((u) => u.source === "frame").length;
+
+  it("no drone moves before the visitor approves the survey: the AI's survey waits in Needs you, the drones at base camp", async () => {
+    const needs = await openFree();
+    // the AI's survey is a suggestion in Needs you from the call
+    const card = await within(needs()).findByRole("button", { name: /^Fly the AI's flight lines/ }, { timeout: 5000 });
+    expect(within(needs()).getByText(/Fly the survey: the AI's flight lines, or the lawnmower pattern/)).toBeInTheDocument();
+    expect(within(needs()).getByRole("button", { name: /Fly the lawnmower pattern/ })).toBeInTheDocument();
+    // played on without it, 40 minutes in: every drone at base camp, no photo taken, nothing "Flying"
+    await at(call + 40 * 60_000);
+    expect(useMission.getState().fleet?.drones.length).toBeGreaterThan(0);
+    expect(flying()).toBe(0);
+    expect(frames()).toBe(0);
+    expect(screen.queryByText(/3 drones: 3 flying/)).toBeNull();
+    // approved now: the flight takes off from here, not from the scenario's 13:42
+    await userEvent.click(within(needs()).getByRole("button", { name: /^Fly the AI's flight lines/ }));
+    expect(useGuide.getState().guide!.choices.find((c) => c.inject === "survey")).toMatchObject({ option: "planner" });
+    expect(card.isConnected).toBe(false);
+    await at(call + 45 * 60_000);
+    expect(flying()).toBe(0);
+    await at(call + 60 * 60_000);
+    expect(flying()).toBeGreaterThan(0);
+    expect(frames()).toBeGreaterThan(0);
+  }, 30_000);
+
+  it("a team's radio clue waits as a clue to confirm, Confirm from the call on; the map moves only once the visitor confirms it", async () => {
+    const needs = await openFree();
+    await userEvent.click(await within(needs()).findByRole("button", { name: /^Fly the AI's flight lines/ }, { timeout: 5000 }));
+    // 14:38: Team Two's water bottle ("Holding it for the search manager to confirm, over")
+    await at(Date.parse("2026-10-24T21:38:30Z"));
+    const bottle = () => useMission.getState().clues.find((c) => c.id === "c003");
+    expect(bottle()).toMatchObject({ confirmed: false });
+    expect(useMission.getState().mapUpdates.some((u) => u.source === "clue" && u.ref === "c003")).toBe(false);
+    const item = within(needs()).getByText(/Clue to confirm: .*blue water bottle/).closest("article")!;
+    expect(item).toHaveAttribute("aria-label", "Awaiting read-back");
+    // the earlier ones wait too: the boot prints and the witness lead
+    expect(useMission.getState().clues.filter((c) => c.confirmed)).toEqual([]);
+    expect(within(needs()).getByText(/Clue to confirm: .*boot prints/)).toBeInTheDocument();
+    expect(screen.queryByText(/high reliability · confirmed/)).toBeNull();
+    // the visitor confirms it: then, and only then, the map moves
+    await userEvent.click(within(item).getByRole("button", { name: "Confirm clue" }));
+    await settle();
+    expect(bottle()).toMatchObject({ confirmed: true });
+    await at(Date.parse("2026-10-24T21:38:40Z"));
+    expect(useMission.getState().mapUpdates.some((u) => u.source === "clue" && u.ref === "c003")).toBe(true);
+    // 14:39:50: Team One's whistle is on the radio, its clue not logged yet: the card offers Confirm, not only Reply
+    await at(Date.parse("2026-10-24T21:39:50Z"));
+    const whistle = within(needs()).getByText(/Clue to confirm: .*whistle/).closest("article")!;
+    expect(within(whistle).getByRole("button", { name: "Confirm clue" })).toHaveAttribute("data-primary");
+    expect(within(needs()).queryByRole("button", { name: /^Reply to Team One/ })).toBeNull();
+    // or logged without mapping: it leaves Needs you, the map unchanged
+    await userEvent.click(within(within(needs()).getByText(/Clue to confirm: .*boot prints/).closest("article")!).getByRole("button", { name: "Log without mapping" }));
+    await settle();
+    expect(within(needs()).queryByText(/Clue to confirm: .*boot prints/)).toBeNull();
+    expect(useMission.getState().mapUpdates.some((u) => u.source === "clue" && u.ref === "c002")).toBe(false);
+  }, 30_000);
+
+  it("acting while paused keeps the clock paused at that minute; only Play resumes it", async () => {
+    const needs = await openFree();
+    await at(call + 70 * 60_000);
+    expect(useGuide.getState().guide!.paused).toBe(true);
+    const held = useGuide.getState().guide!.clock;
+    // the AI's assignment, approved from its card while paused
+    const send = await within(needs()).findByRole("button", { name: /^Send (all|the)/ }, { timeout: 5000 });
+    await userEvent.click(send);
+    await waitFor(() => expect(useGuide.getState().guide!.choices.some((c) => c.inject === "assign")).toBe(true));
+    // a speed change does not resume it either
+    await userEvent.click(within(screen.getByRole("group", { name: "Mission clock" })).getByRole("button", { name: "2×" }));
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useGuide.getState().guide!.paused).toBe(true);
+    expect(useGuide.getState().guide!.clock).toBe(held);
+    // the teams went at the minute it was made
+    expect(useStory.getState().user.some((e) => e.type === "task.updated" && Date.parse(e.at) === held)).toBe(true);
+    await userEvent.click(within(screen.getByRole("group", { name: "Mission clock" })).getByRole("button", { name: "Play the mission clock" }));
+    await waitFor(() => expect(useGuide.getState().guide!.clock).toBeGreaterThan(held), { timeout: 3000 });
+  }, 30_000);
+
+  it("Send all says up front that it is a standing approval, and Stop sending ends it", async () => {
+    const needs = await openFree();
+    await userEvent.click(await within(needs()).findByRole("button", { name: /^Fly the AI's flight lines/ }, { timeout: 5000 }));
+    await at(call + 70 * 60_000);
+    const send = await within(needs()).findByRole("button", { name: /^Send (all|the)/ }, { timeout: 5000 });
+    expect(send).toHaveTextContent(/and keep sending free teams to the AI's picks until you change it/);
+    await userEvent.click(send);
+    const note = await within(needs()).findByRole("note", { name: "Standing approval" });
+    await userEvent.click(within(note).getByRole("button", { name: "Stop sending" }));
+    await settle();
+    expect(within(needs()).queryByRole("note", { name: "Standing approval" })).toBeNull();
+    expect(useStory.getState().user.some((e) => (e.data as { action?: string } | null)?.action === "standing_stop")).toBe(true);
   }, 30_000);
 
   it("the checkpoint addresses still show the recorded mission", async () => {

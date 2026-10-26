@@ -181,8 +181,8 @@ export function ApprovalInbox({
   keys?: boolean;
   /** Newest first (the inbox on its own), or oldest first (Needs you: what has waited longest on top). */
   order?: "newest" | "oldest";
-  /** The guided assign step: its card's main button ("Send all N free teams…"); the card's Approve is second. */
-  lead?: Lead | null;
+  /** The guided assign step: its card's main button ("Send all N free teams…"); the card's Approve is second (one per card). */
+  lead?: Lead | readonly Lead[] | null;
   /** A proposal to point at (the guided search): it is ringed, the others hidden. Null: none. */
   highlight?: string | null;
   proposals: readonly Proposal[];
@@ -225,6 +225,9 @@ export function ApprovalInbox({
     return onDecide(pid, ...rest);
   };
 
+  // the cards with a main button of the guided step or free play's (Send all, the survey): one A key, on the one
+  // card it acts on (two leads: on the card in focus)
+  const leads: readonly Lead[] = Array.isArray(lead) ? (lead as readonly Lead[]) : lead ? [lead as Lead] : [];
   return (
     <section aria-label="Approval inbox" className="flex flex-col gap-2">
       {pending.length === 0 && feedHref !== undefined && (
@@ -249,8 +252,8 @@ export function ApprovalInbox({
           clues={p.kind === "assign_sector" ? clueNoteFor(p.reason, clueNote?.(p) ?? null) : null}
           story={p.id === story}
           highlighted={highlight === p.id}
-          lead={lead?.id === p.id ? lead : null}
-          hints={!keys ? "none" : lead ? (lead.id === p.id ? "always" : "none") : "focus"}
+          lead={leads.find((l) => l.id === p.id) ?? null}
+          hints={!keys ? "none" : leads.length === 1 ? (leads[0]!.id === p.id ? "always" : "none") : "focus"}
           dimmed={highlight !== null && highlight !== p.id}
           drones={drones}
           fresh={!known.current?.has(p.id)}
@@ -469,9 +472,10 @@ function PendingCard({
             type="button"
             onClick={shownLead.onClick}
             data-primary=""
-            className="sl-tap inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
+            // (wraps: Send all says its standing approval in full, never cut off)
+            className="sl-tap inline-flex min-h-9 max-w-full items-center gap-2 rounded-2xl border border-[var(--proposal)] bg-[color-mix(in_srgb,var(--proposal)_18%,transparent)] px-4 py-1.5 text-left text-small font-medium text-text hover:bg-[color-mix(in_srgb,var(--proposal)_28%,transparent)]"
           >
-            <span className="truncate">{shownLead.label}</span> {key("A")}
+            <span>{shownLead.label}</span> {key("A")}
           </button>
         )}
         {/* the primary action says its outcome; "Approve" is in its name for screen readers and the A key */}
