@@ -39,11 +39,16 @@ import {
 import { CHECKPOINTS, demoAt, onMissionClock, subjectOf, type DemoFull, type GuidedOpts } from "./missionTime";
 import { GuideStrip } from "./Scrubber";
 import { fixtureOf, passesFrom, realOf, type Cost } from "./sim";
-import { dwellAt, FREE_MIN_PER_S, FREE_WINDOW_MS, lapseBeats, lapseStep, SPEEDS, useGuide, useLapseBeat, useStory, type Lapse, type Speed } from "./story";
+import { dwellAt, FREE_MAX_BEATS, FREE_MIN_PER_S, FREE_WINDOW_MS, LAPSE, lapseBeats, lapseStep, SPEEDS, useGuide, useLapseBeat, useStory, type Lapse, type Speed } from "./story";
+import { beatCaption } from "./caption";
 import { FreeClock } from "./FreeClock";
+import { useNeedsTotal } from "./NeedsYou";
 import { buildTimeline } from "./timeline";
 import { storyClue } from "./storyCopy";
-import { isSightingProposal, WATCH_BY } from "./console";
+import { isLogged, isSightingProposal, overdueTeams, teamOrder, WATCH_BY } from "./console";
+import { keepBest, missionGoals, missionScore, type Goal, type Score } from "./goals";
+import { GoalsStrip } from "./GoalsStrip";
+import { Tour } from "./Tour";
 import { clock as clockText, DEMO_TZ } from "../lib/time";
 import { podLabel } from "./terms";
 
@@ -77,6 +82,11 @@ export interface GuideRun {
   /** Free play (the console on its own): the same engine, no coach bar; its clock control goes over the map. */
   free: boolean;
   clockBar: ReactNode;
+  /**
+   * The Mission goals strip (goals.ts), with the first-run tour: `reviewIds` are the photos flagged for
+   * review on the console now (free play counts them all; the guided run its review step's). Null: no run.
+   */
+  goals: (reviewIds: readonly string[]) => ReactNode;
 }
 
 /** What the guided search changes in the fixtures (missionTime.ts): the seed, the read-back clue and whether it is mapped. */
@@ -175,12 +185,12 @@ export function useGuideRun({
     if (!on || !scenario || lapseTo === null || lapseTo <= lapseFrom) return [];
     const at = onMissionClock(demoAt(scenario, iso(fixtureOf(lapseTo, costs)), user, guidedOptsFor(scenario, seed, choices, rawUser), { seed }), costs);
     return buildTimeline(at.events ?? [], at.teams ?? [], at.timeline ?? [])
-      .map((e) => ({ at: new Date(e.at).getTime(), text: e.text, kind: e.kind, team: e.team, sector: e.sector }))
+      .map((e) => ({ at: new Date(e.at).getTime(), text: e.text, kind: e.kind, team: e.team, sector: e.sector, detail: e.detail }))
       .filter((e) => e.at > lapseFrom && e.at <= lapseTo)
       .sort((a, b) => a.at - b.at);
   }, [on, scenario, lapseTo, lapseFrom, costs, user, seed, choices, rawUser]);
-  // one beat at a time: rows alike landing together are one (story.ts lapseBeats)
-  const beats = useMemo(() => lapseBeats(rows), [rows]);
+  // one beat at a time: rows about one thing are one, a few a stretch (story.ts lapseBeats)
+  const beats = useMemo(() => lapseBeats(rows, free ? FREE_MAX_BEATS : LAPSE.maxBeats), [rows, free]);
   const lapse: Lapse | null = useMemo(() => (lapseTo === null ? null : { from: lapseFrom, hold: lapseTo, beats: beats.map((b) => b.at) }), [lapseTo, lapseFrom, beats]);
   const lapseRef = useRef(lapse);
   lapseRef.current = lapse;
@@ -496,18 +506,58 @@ export function useGuideRun({
     useGuide.getState().end();
   }, [on, findDone, guide?.ended, confirming]);
 
+  // ---- the mission goals (goals.ts), read live from the engine's state ----
+  // teams that went past their check-in at any time this run (a restart, the clock going back, forgets them)
+  const everOverdue = useRef<Set<string>>(new Set());
+  const goalClock = useRef(0);
+  const lastOver = useRef<Set<string>>(new Set());
+  // the photos flagged on the console, as the strip last read them (free play: every one landed)
+  const reviewRef = useRef<{ flagged: number; answered: number }>({ flagged: 0, answered: 0 });
+  const realLight = realOf(lastLight(scenario), costs);
+  function goalsNow(reviewIds: readonly string[] | null, foundAt: number | null = null): Goal[] {
+    const m = useMission.getState();
+    if (clockMs < goalClock.current) everOverdue.current = new Set();
+    const step = clockMs - goalClock.current;
+    goalClock.current = clockMs;
+    const board = teamOrder(m.teams, m.events, new Date(clockMs), m.mission?.check_in_min ?? 30, m.timeline ?? []);
+    const over = overdueTeams(board);
+    // a team counts as past its check-in when two readings of a running clock say so: right after a jump of the
+    // clock (Skip ahead) the mission's events catch up a frame later, and that frame is no check-in missed
+    const now = new Set(over.map((x) => x.team.id));
+    if (step > 0 && step < 5 * 60_000) for (const id of now) if (lastOver.current.has(id)) everOverdue.current.add(id);
+    lastOver.current = now;
+    const out = board.filter((x) => x.team.status !== "off_duty");
+    // the photos: the guided run's review step (once it has come up), free play's every photo flagged
+    const tri = list.find((i) => i.id === "triage");
+    if (reviewIds && free) reviewRef.current = { flagged: reviewIds.length, answered: reviewIds.filter((id) => !!answers[id]).length };
+    const photos = free ? reviewRef.current : { flagged: tri && realOf(tri.at, costs) <= clockMs ? (tri.cards?.length ?? 0) : 0, answered: choices.filter((c) => c.inject === "triage").length };
+    const radio = m.clues.filter((c) => c.source === "radio");
+    const found = foundAt ?? (findDone || m.mission?.status === "found" ? clockMs : null);
+    return missionGoals({
+      found,
+      lastLight: realLight,
+      now: clockMs,
+      photos,
+      clues: { total: radio.length, confirmed: radio.filter((c) => c.confirmed && !isLogged(c)).length },
+      teams: { total: out.length, overdueNow: over.length, everOverdue: [...everOverdue.current].filter((id) => out.some((x) => x.team.id === id)).length },
+    });
+  }
+
   // ---- what is on screen ----
   const subject = subjectOf(scenario);
   const callsign = (id: string | null) => scenario?.data.teams?.find((t) => t.id === id)?.callsign ?? id ?? "";
   const ids: string[] = [];
+  // a later assignment (a team back from its pass) or the find shows on the strip only once it is up
+  const future = (i: Inject) => (i.id === "find" || i.key.startsWith("assign-")) && !injectDone(i, choices) && !(reached && active?.key === i.key);
   for (const i of list) {
-    const future = (i.id === "find" || i.key.startsWith("assign-")) && !injectDone(i, choices) && !(reached && active?.key === i.key);
-    if (!future && !ids.includes(i.id)) ids.push(i.id);
+    if (!future(i) && !ids.includes(i.id)) ids.push(i.id);
   }
   if (subject && !ids.includes("find")) ids.push("find");
   const pips = ids.map((id) => {
-    const all = list.filter((i) => i.id === id);
-    const done = all.length > 0 && all.every((i) => injectDone(i, choices)) && !(active?.id === id);
+    // a step is ticked once the decisions of it that have come up are made (the cold test: a later
+    // assignment, not yet up, kept step 4 unticked after it was made)
+    const all = list.filter((i) => i.id === id && !future(i));
+    const done = all.length > 0 && all.every((i) => injectDone(i, choices)) && !(reached && active?.id === id);
     const current = reached && active?.id === id;
     const count = id === "assign" ? all.filter((i) => injectDone(i, choices) || (reached && active?.key === i.key)).length : undefined;
     return { id, label: PIPS.find((p) => p.id === id)?.label ?? id, state: (done ? "done" : current ? "current" : "next") as "done" | "current" | "next", count };
@@ -517,8 +567,11 @@ export function useGuideRun({
   const n = Math.max(1, ids.indexOf(next?.id ?? "") + 1);
   const pip = PIPS.find((p) => p.id === next?.id)?.label ?? "";
   const triage = active?.id === "triage" && card ? active.cards!.indexOf(card) + 1 : 0;
-  const step = `Step ${n} of ${ids.length} · ${pip}${triage ? `, photo ${triage} of ${active!.cards!.length}` : ""}`;
-  const heading = reached ? step : next && pip ? `Next: ${step}` : "The teams search";
+  // a team back from its pass brings the assign step up again: said as a follow-up, not a jump back to step 4
+  const again = next?.id === "assign" && next.key !== "assign";
+  const step = again ? `Follow-up to step ${n} · ${pip} again: a team is back` : `Step ${n} of ${ids.length} · ${pip}${triage ? `, photo ${triage} of ${active!.cards!.length}` : ""}`;
+  // while the clock runs: the decision it runs to, briefly (the strip above numbers the steps)
+  const heading = reached ? step : next && pip ? `Next: ${again ? `${pip} again` : pip}` : "The teams search";
 
   // between decisions: the last cost being spent, or what leads to the next decision
   const lastCost = [...choices].reverse().find((c) => c.costMs > 0);
@@ -532,7 +585,10 @@ export function useGuideRun({
   // the time-lapse's caption: the row that landed last on this run, with its time (cause, then effect)
   // (a row more than ten mission minutes old gives way to what is under way now)
   const landed = [...beats].reverse().find((b) => b.at <= clockMs && clockMs - b.at <= 10 * 60_000);
-  const caption = landed ? `${clockText(iso(landed.shown), DEMO_TZ)} · ${landed.text}` : lead;
+  // what happened and what it means for the search, in one plain line (caption.ts); the clock beside it reads the time
+  const caption = landed ? beatCaption(landed) : lead;
+  // free play: the beat the clock stops on, said on its clock bar
+  const beatNow = useLapseBeat((x) => x.beat);
 
   // triage: the card's own answers (no buttons on the bar), so A gives the agent's reference answer; Object
   // (O) is left to the card, which asks for the object's type
@@ -549,6 +605,26 @@ export function useGuideRun({
   const announce = reached && active ? `Your call, ${pip}: ${active.prompt}` : `Watch this: ${caption}`;
   const wash = useMemo(() => (on && guide!.ended ? hotWash(input, list) : null), [on, guide?.ended, input, list]);
   const versus = useMemo(() => (wash ? compare(input, wash, lastLight(scenario)) : null), [wash, input, scenario]);
+  // the score out of 100 (goals.ts): the goals at the end and the time to find against the manual line and the AI's
+  const score: Score | null =
+    on && guide!.ended && wash
+      ? (() => {
+          const cols = versus?.sightline.columns ?? [];
+          const col = (k: "manual" | "you" | "agent") => cols.find((c) => c.key === k);
+          const call = new Date(CHECKPOINTS[0]!.at).getTime();
+          const you = col("you")?.findMin ?? (wash.outcome.foundAt !== null ? (wash.outcome.foundAt - call) / 60_000 : null);
+          return missionScore(goalsNow(null, wash.outcome.foundAt), { you, manual: col("manual")?.findMin ?? null, agent: col("agent")?.findMin ?? (choices.every((c) => c.agent) ? you : null), lastLight: (realLight - call) / 60_000 });
+        })()
+      : null;
+  // the best score on this scenario, kept once per run that was the visitor's own (Watch instead's is the AI's)
+  const mine = choices.some((c) => !c.watched);
+  const [best, setBest] = useState<{ best: number | null; beat: boolean; kept: boolean } | null>(null);
+  const scoreTotal = score?.total ?? null;
+  useEffect(() => {
+    if (scoreTotal === null) return setBest(null);
+    setBest(mine ? { ...keepBest(free ? `${seed}:free` : seed, scoreTotal), kept: true } : { best: null, beat: false, kept: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scoreTotal]);
   // Needs you (its `highlight`): the item this step is about ringed, the rest dimmed and out of reach; "none" between decisions
   const readback = storyClue(scenario);
   const needsHighlight = !reached || !active ? "none" : active.id === "triage" ? "review" : active.id === "clue" && readback ? `clue-${readback.id}` : (active.id === "assign" || active.id === "wind") && active.proposal ? active.proposal : active.id === "find" && active.find ? `report-${active.find.team}` : "none";
@@ -578,6 +654,7 @@ export function useGuideRun({
           onTrace();
         }}
         onClose={() => useGuide.getState().close()}
+        score={score ? { score, best: best?.best ?? null, beat: !!best?.beat, kept: !!best?.kept } : null}
       />
     ) : null;
 
@@ -591,7 +668,8 @@ export function useGuideRun({
     : allOpt && active?.proposal
       ? { id: active.proposal, label: allOpt.label, onClick: () => perform(active, "all"), second: only?.label ?? null }
       : null;
-  const pendingCount = useMission((m) => m.proposals.filter((p) => p.status === "pending").length);
+  // the count Needs you shows in its head (one source: NeedsYou useNeedsTotal)
+  const pendingCount = useNeedsTotal((x) => x.total);
   const clockBar =
     free && !guide!.ended ? (
       <FreeClock
@@ -606,6 +684,7 @@ export function useGuideRun({
         scenariosHref={scenariosHref}
         waiting={pendingCount}
         atCall={clockMs <= new Date(CHECKPOINTS[0]!.at).getTime()}
+        caption={beatNow ? beatCaption(beatNow) : null}
       />
     ) : null;
 
@@ -671,5 +750,12 @@ export function useGuideRun({
     overlay,
     free,
     clockBar,
+    goals: (reviewIds) =>
+      on && scenario ? (
+        <>
+          <GoalsStrip goals={goalsNow(reviewIds)} />
+          {!guide!.ended && <Tour />}
+        </>
+      ) : null,
   };
 }
