@@ -279,7 +279,7 @@ Imagery from the HERIDAL dataset (Božić-Štulić, Marušić & Gotovac, IJCV 20
 
 ## Credits
 
-The BCS Hackathon 2026 version (tag `bcs-final-submission`) was built by a team of four: Daniel Rivera, [@bamobam](https://github.com/bamobam), [@har-vir](https://github.com/har-vir) and [@jkiim](https://github.com/jkiim). Since then, for the OpenCV and Nebius hackathons, Daniel Rivera has extended it solo. Development used Claude Code (Anthropic) as an AI coding assistant. It is not part of the running product: the agent is the runtime loop above (Nemotron on Nebius Token Factory proposing actions that a person approves), and every model call the product makes is listed in [Built with NVIDIA + Nebius](#built-with-nvidia--nebius). Third-party media: [`CREDITS.md`](CREDITS.md).
+Sightline was built by Daniel Rivera ([@Drivera0](https://github.com/Drivera0)), Grace Chu ([@bamobam](https://github.com/bamobam)), Harvir Nijjar ([@har-vir](https://github.com/har-vir)) and Jason Kim ([@jkiim](https://github.com/jkiim)). The four of us built the first version together at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`), and it has been extended since for the OpenCV and Nebius hackathons. Development used Claude Code (Anthropic) as an AI coding assistant. It is not part of the running product: the agent is the runtime loop above (Nemotron on Nebius Token Factory proposing actions that a person approves), and every model call the product makes is listed in [Built with NVIDIA + Nebius](#built-with-nvidia--nebius). Third-party media: [`CREDITS.md`](CREDITS.md).
 
 ## License
 
