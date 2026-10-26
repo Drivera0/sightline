@@ -36,6 +36,11 @@ const ALLOWED_URLS = [
   // The end screen's source for search time and survival (Adams et al. 2007, src/command/compare.ts): a link
   // opened only when a viewer clicks it, never fetched by the page.
   "https://pubmed.ncbi.nlm.nih.gov/17590071/",
+  // About's "Who built it": the BCS Hackathon teammates' GitHub profiles (src/front/About.tsx BCS_TEAM),
+  // opened on click only.
+  "https://github.com/bamobam",
+  "https://github.com/har-vir",
+  "https://github.com/jkiim",
 ];
 const dir = process.argv[2] ?? "dist";
 const found = scanDirectory(dir, ALLOWED_HOSTS, ALLOWED_URLS);
