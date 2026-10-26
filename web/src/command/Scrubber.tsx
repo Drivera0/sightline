@@ -153,12 +153,12 @@ export function GuideStrip({
         role="group"
         aria-label="Decisions"
         data-tour="scrubber"
-        className="pointer-events-auto flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface-solid px-3 py-1.5 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.8)]"
+        className="pointer-events-auto flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line pb-2"
       >
-        <span className="w-12 shrink-0 text-small text-text" title={`Mission clock, ${utcLabel(at)}`}>
+        <span className="shrink-0 text-small text-text" title={`Mission clock, ${utcLabel(at)}`}>
           {local(at)}
         </span>
-        <ol className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+        <ol className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
           {pips.map((p, i) => (
             <li
               key={p.id}
@@ -174,7 +174,7 @@ export function GuideStrip({
             </li>
           ))}
         </ol>
-        <span className={`shrink-0 text-caption ${call ? "text-caution" : "text-text-3"}`}>{call ? "Mission clock paused" : paused ? "Paused" : "Clock running"}</span>
+        <span className={`sr-only shrink-0 text-caption ${call ? "text-caution" : "text-text-3"}`}>{call ? "Mission clock paused" : paused ? "Paused" : "Clock running"}</span>
       </div>
       <p className="sr-only" aria-live="polite" role="status">
         {announce}

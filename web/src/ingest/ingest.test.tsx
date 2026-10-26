@@ -15,6 +15,7 @@ import { LiveMission } from "./LiveMission";
 import { NewSearch } from "./NewSearch";
 import { batches, hostLabel, photoFiles, uploadCommand } from "./upload";
 import { UploadPanel, WatchPanel } from "./UploadPanel";
+import { BANNED } from "../command/terms";
 
 // MapLibre needs WebGL, which jsdom lacks; the real pick was checked in Chromium.
 vi.mock("./LkpPicker", () => ({ LkpPicker: () => <div aria-label="Pick the last known position on the map" /> }));
@@ -171,7 +172,7 @@ describe("review in live mode (test 8)", () => {
     expect(within(screen.getByLabelText("Photo to review f0001-d02")).getByRole("button", { name: SECOND_LOOK_LABEL })).toBeEnabled();
     expect(screen.getByAltText("Crop of f0001-d02")).toHaveAttribute("src", "/f/crops/nearmiss/f0001-d02.jpg");
     const card = screen.getByLabelText("Photo to review f0001-d02");
-    await userEvent.click(within(card).getByRole("button", { name: "Person" }));
+    await userEvent.click(within(card).getByRole("button", { name: "The subject" }));
     expect(onAnswer).toHaveBeenCalledWith("f0001-d02", "person");
   });
 });
@@ -451,6 +452,11 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     for (const n of [1, 2, 3]) {
       const d = await nextCall(new RegExp(`Your call: Step 2 of \\d · Review photos, photo ${n} of 3`));
       expect(within(d).queryByRole("button", { name: /^Person|Not a person/ })).toBeNull();
+      // the photo opens large, the subject beside it, "photo n of 3", in plain words (no ids, no engine words)
+      const frame = await screen.findByRole("dialog", { name: "Review photos" });
+      expect(frame).toHaveTextContent(`photo ${n} of 3`);
+      expect(within(frame).getByLabelText("Looking for")).toBeInTheDocument();
+      for (const re of BANNED) expect(frame.textContent!).not.toMatch(new RegExp(re.source, re.flags.replace("g", "")));
       await userEvent.keyboard(n === 1 ? "s" : n === 2 ? "n" : "p");
     }
     // the radio clue, the assignment, the lost link: the agent's option each time (A: the real card's action)
@@ -470,6 +476,10 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("not found"); // only the manager marks it
     await userEvent.keyboard("a");
     await waitFor(() => expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("Found"), { timeout: 3000 });
+    // Record find stops the mission clock: no running on toward last light behind the end screen
+    const atFind = useGuide.getState().guide!.clock;
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(useGuide.getState().guide!.clock).toBe(atFind);
     const end = await screen.findByRole("dialog", { name: "What you did" }, { timeout: 5000 });
     expect(end).toHaveTextContent(/Found at \d\d:\d\d by Team/);
     expect(end).toHaveTextContent("Every draw");

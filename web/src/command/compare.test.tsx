@@ -200,6 +200,15 @@ describe("the guide store's decision timing", () => {
 });
 
 describe("the end screen", () => {
+  it("offers no 'Replay, following the agent' when every decision already was the agent's", () => {
+    const r = play(() => null, 20_000);
+    const wash = hotWash(r.input, r.list);
+    const noop = () => {};
+    render(<GuideEnd wash={wash} versus={compare(r.input, wash, lastLight(full))} sectors={[]} subject={null} scenario="Overdue hiker" seed={seed} callsign={(id) => id ?? ""} onReplay={noop} onWatchAgent={noop} followed onReport={noop} onTrace={noop} onClose={noop} />);
+    expect(screen.queryByText("Replay, following the agent")).toBeNull();
+    expect(screen.getAllByText("Try again").length).toBeGreaterThan(0);
+  });
+
   it("puts you vs the agent on top, the details collapsed below, in plain words", () => {
     const r = play((i) => (i.id === "survey" ? "serpentine" : null), 20_000);
     const wash = hotWash(r.input, r.list);
@@ -226,7 +235,7 @@ describe("the end screen", () => {
     expect(container.querySelector("[data-decision-time]")!.textContent).toMatch(/^You took \d+ min \d\d s to make \d+ decisions \(median 20 s\); the agent proposed each as the data landed\.$/);
     expect((container.querySelector("[data-details]") as HTMLDetailsElement).open).toBe(false);
     expect(container.querySelector('[data-row="survey"]')!.textContent).toContain("+12 min");
-    for (const name of ["Try again", "Follow the agent this time", "Another scenario"]) expect(screen.getByText(name)).toBeTruthy();
+    for (const name of ["Try again", "Replay, following the agent", "Another scenario"]) expect(screen.getByText(name)).toBeTruthy();
     expect(container.textContent).not.toMatch(/\b(demo|scripted|recorded|simulated)\b/i);
   });
 });

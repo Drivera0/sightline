@@ -106,7 +106,7 @@ function SideCard({ title, s, mine }: { title: string; s: SideStats; mine: boole
 }
 
 /** "You vs the agent": the two lines' numbers, your decision time, each decision, a verdict. */
-function Versus({ v, onReplay, onWatchAgent }: { v: Comparison; onReplay: () => void; onWatchAgent: () => void }) {
+function Versus({ v, onReplay, onWatchAgent, followed }: { v: Comparison; onReplay: () => void; onWatchAgent: () => void; followed: boolean }) {
   const maxThink = Math.max(1, ...v.times.map((t) => t.ms));
   const mine = v.times.length;
   const timeLine =
@@ -178,8 +178,8 @@ function Versus({ v, onReplay, onWatchAgent }: { v: Comparison; onReplay: () => 
         <Button variant="primary" onClick={onReplay}>
           Try again
         </Button>
-        <Button onClick={onWatchAgent}>Follow the agent this time</Button>
-        <Button href="#">Another scenario</Button>
+        {!followed && <Button onClick={onWatchAgent}>Replay, following the agent</Button>}
+        <Button href="#scenarios">Another scenario</Button>
       </div>
     </section>
   );
@@ -195,6 +195,7 @@ export function GuideEnd({
   callsign,
   onReplay,
   onWatchAgent,
+  followed = false,
   onReport,
   onTrace,
   onClose,
@@ -209,6 +210,8 @@ export function GuideEnd({
   callsign: (id: string | null) => string;
   onReplay: () => void;
   onWatchAgent: () => void;
+  /** Every decision was the agent's already: no "Replay, following the agent". */
+  followed?: boolean;
   onReport: () => void;
   onTrace: () => void;
   onClose: () => void;
@@ -232,7 +235,7 @@ export function GuideEnd({
           </p>
         </header>
 
-        {versus && <Versus v={versus} onReplay={onReplay} onWatchAgent={onWatchAgent} />}
+        {versus && <Versus v={versus} onReplay={onReplay} onWatchAgent={onWatchAgent} followed={followed} />}
 
         <details className="group rounded-lg border border-line" open={!versus} data-details>
           <summary className="cursor-pointer list-none rounded-lg p-3 text-small font-medium text-text-2 hover:bg-surface-strong [&::-webkit-details-marker]:hidden">
@@ -317,8 +320,8 @@ export function GuideEnd({
                 <Button variant="primary" onClick={onReplay}>
                   Try again
                 </Button>
-                <Button onClick={onWatchAgent}>Follow the agent this time</Button>
-                <Button href="#">Another scenario</Button>
+                {!followed && <Button onClick={onWatchAgent}>Replay, following the agent</Button>}
+                <Button href="#scenarios">Another scenario</Button>
               </>
             )}
             <Button variant="ghost" onClick={onClose}>

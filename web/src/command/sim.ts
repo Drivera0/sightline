@@ -148,13 +148,13 @@ export function playStanding(seed: string, subject: Subject | null, poa: Readonl
 }
 
 /**
- * The agent's own line through the same engine: its first assignment approved when proposed, then, after
- * a pass with no find, its picks for every free team in turn, until a pass detects the subject or light
- * runs out.
+ * The agent's own line through the same engine: its first assignment approved when proposed with every
+ * other free team sent to its next picks at once (the guide's "send all"), then, after a pass with no
+ * find, that team's next pick, until a pass detects the subject or light runs out.
  */
 export function agentLine(seed: string, subject: Subject | null, first: { team: string; sector: string; at: number } | null, poa: ReadonlyMap<string, number>, lastLight: number, teams: readonly string[] = []): Line {
   if (!first) return { passes: [], found: null };
-  const events = playStanding(seed, subject, poa, [assignmentEvent("agent-1", first.team, first.sector, first.at)], teams.length ? teams : [first.team], first.at, lastLight);
+  const events = playStanding(seed, subject, poa, [assignmentEvent("agent-1", first.team, first.sector, first.at)], teams.length ? teams : [first.team], first.at, lastLight, () => false, true);
   const passes = passesFrom(seed, subject, events);
   const hit = passes.find((p) => p.detected && !p.cut);
   return { passes, found: hit && hit.end < lastLight ? hit.end : null };

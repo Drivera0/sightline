@@ -14,7 +14,7 @@ export function ShortcutOverlay({ onClose, groups = SHORTCUT_GROUPS }: { onClose
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/70 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-bg/70 p-6 backdrop-blur-sm"
       onClick={onClose}
     >
       <Panel

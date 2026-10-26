@@ -1,17 +1,17 @@
 // The demo console's scenario line, under the app bar: which search is on screen ("Overdue hiker · Mount
 // Seymour · 13:35 PDT") and "Change scenario", which opens the home page's cards in a sheet.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Sheet } from "../shell/Sheet";
 import { cardFor } from "./scenarios";
 import { ScenarioCards } from "./ScenarioCards";
 
-export function ScenarioBanner({ seed, name, area, clock, disabled = false }: { seed: string | null; name?: string; area: string; clock: string | null; disabled?: boolean }) {
+export function ScenarioBanner({ seed, name, area, clock, disabled = false, brief = null }: { seed: string | null; name?: string; area: string; clock: string | null; disabled?: boolean; /** The subject brief (command/SubjectStrip.tsx), in place of the scenario's name. */ brief?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const title = name ?? cardFor(seed).name;
   return (
     <>
       <div role="region" aria-label="Scenario" className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface px-3 py-1.5 text-small lg:px-4">
-        <span className="min-w-0 truncate">
+        {brief ?? (<span className="min-w-0 truncate">
           <span className="font-medium text-text">{title}</span>
           <span className="text-text-3"> · </span>
           <span className="text-text-2">{area}</span>
@@ -21,7 +21,7 @@ export function ScenarioBanner({ seed, name, area, clock, disabled = false }: { 
               <span className="text-text-2">{clock}</span>
             </>
           )}
-        </span>
+        </span>)}
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -31,7 +31,7 @@ export function ScenarioBanner({ seed, name, area, clock, disabled = false }: { 
         >
           Change scenario
         </button>
-        <a href="#" className="sl-tap ml-auto hidden text-small text-text-3 hover:text-text sm:inline">
+        <a href="#" className={`sl-tap hidden text-small text-text-3 hover:text-text sm:inline ${brief ? "" : "ml-auto"}`}>
           Home
         </a>
       </div>

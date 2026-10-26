@@ -199,7 +199,7 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
   when the scenario's agent proposes a recall: none of the fixtures do yet), Find. A scenario without drones
   has no Survey or Link. Each option shows what it does and what it costs before the commit; A picks the
   agent's, 1–4 an option, M the map, T takes over from Watch instead, Space pauses between decisions, →
-  skips ahead to the next one, Esc leaves. The console's own actions count too (P/N/U in the queue, Approve or Edit on the card, a sector's
+  skips ahead to the next one; Leave (with a confirm) leaves. The console's own actions count too (P/N/U in the queue, Approve or Edit on the card, a sector's
   popover, Confirm on a read-back, Record the find). Needs you shows the current decision only.
 - **One place to decide** (Dan's review, 2026-10-25): a decision lives where it lives on the real console:
   the photo's card (P/N/S/O/U), the proposal's main button ("Send Team One to C2") or Edit, Confirm clue on
@@ -253,6 +253,33 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
   `demoMission.ts` (a team walks a sector, searched at POD, found if the subject is inside; the survey
   proposal at t0) were not on main, so the minimal rule lives here. Screenshots:
   `docs/report/figures/v3/guided-step-*.webp`.
+
+### After the cold usability test (2026-10-25, `a/subject-guide`)
+
+Lead with the subject and the map; show only what needs a decision; one control per action.
+
+- **Subject strip** (`SubjectStrip.tsx`): under the status line on every console, guided or not: the profile
+  (`Mission.subject`), "last seen 10:30 at the trailhead lot · 3 h 05 min ago" in the mission's local time
+  (`last_seen_at`, the scenario card's `lastSeen` place), LKP (centres the map: `consoleStore.centreOn`) and
+  Profile; "Subject not found" on the status line opens the same profile. The home page's scenario cards no
+  longer list the clues the run will bring.
+- **One Send action**: the assign step's one primary, on the card and on the coach bar alike, is "Send all N
+  free teams to the agent's picks" (`sendAllLabel`, option `all`: from then on every team that comes back
+  takes the agent's next pick, `standingFrom`); the card's own Approve becomes "Send only Team X to C2". After
+  every pass with no find the agent proposes again for that team, and from last light every free team goes on
+  the agent's picks through the night (`searchEnd`), so every choice path ends in the find (`guide.test.ts`,
+  "every choice path reaches the find"). Nothing is asked after the find (a later lost link or gust).
+- **The bar never covers the map**: the coach bar and the step strip sit at the top of the Needs you column
+  (a bottom sheet on a phone); the ring no longer greys the screen; out-of-step Needs you items are hidden,
+  not dimmed, with "N more after this step".
+- **Esc** closes overlays only. Leave asks "Leave the simulation? Your decisions so far will be lost" and goes
+  to the home page's scenario cards (`#scenarios`). The shortcuts overlay sits above everything.
+- **Triage** opens each photo in the review frame, the subject's description beside it, the photo enlargeable;
+  the answers have one meaning on every photo: The subject (a pin), Another person (a witness lead), Not a
+  person; under More: A group (2+ people) (a pin and a witness lead; sent to the server as `person`), Object…,
+  Unsure. Keys stay (P S N G O U) as badges on desktop only; no key letters inside sentences.
+- **Record find stops the clock**; "Stay on the console" keeps the run on screen, stopped, with "What you did"
+  and "Back to the scenarios". "Replay, following the agent" shows only when the visitor did not already.
 
 ## Feedback, review and the visitor's decisions (v3 interaction, lane A)
 

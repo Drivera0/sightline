@@ -27,12 +27,17 @@ beforeEach(() => {
 });
 
 describe("review answers", () => {
-  it("the frame offers all five, with keys; S answers Not the subject, O then 1 picks a backpack", () => {
+  it("the frame offers three main answers with one meaning each, the rest under More; S answers Another person, O then 1 picks a backpack", () => {
     const onAnswer = vi.fn();
-    render(<ReviewFrame cards={[card("f0501-d01", { object: "fire ring" }), card("f0502-d01"), card("f0503-d01")]} answers={{}} onAnswer={onAnswer} />);
+    render(<ReviewFrame cards={[card("f0501-d01", { object: "fire ring" }), card("f0502-d01"), card("f0503-d01")]} answers={{}} onAnswer={onAnswer} subject="adult, red jacket, day hiker" />);
     act(() => useConsole.getState().openReview(null));
+    // the subject's description beside the photo
+    expect(screen.getByLabelText("Looking for")).toHaveTextContent("Adult, red jacket, day hiker");
     const group = screen.getByRole("group", { name: "Answer" });
-    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Person P", "Not a person N", "Not the subject S", "Object O", "Unsure U"]);
+    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["The subject Pa sighting pin on the map", "Another person Sa witness lead to ask", "Not a person Nleaves the review", "More…"]);
+    fireEvent.click(within(group).getByRole("button", { name: "More…" }));
+    expect(within(group).getAllByRole("button").map((b) => b.textContent?.replace(/[A-Z]?(a |leaves|flagged).*$/, ""))).toHaveLength(6);
+    expect(within(group).getByRole("button", { name: /A group \(2\+ people\)/ })).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "s" });
     expect(onAnswer).toHaveBeenLastCalledWith("f0501-d01", "not_subject");
     fireEvent.keyDown(window, { key: "o" });
@@ -46,8 +51,10 @@ describe("review answers", () => {
     const onAnswer = vi.fn();
     render(<ReviewRail cards={[card("f0501-d01", { object: "fire ring" })]} answers={{}} onAnswer={onAnswer} />);
     const c = screen.getByLabelText("Photo to review f0501-d01");
-    expect(within(c).getAllByRole("button").map((b) => b.textContent).slice(-5)).toEqual(["Person", "Not a person", "Not the subject", "Object", "Unsure"]);
-    await userEvent.click(within(c).getByRole("button", { name: "Object" }));
+    expect(within(c).getAllByRole("button").map((b) => b.textContent).slice(-4)).toEqual(["The subject", "Another person", "Not a person", "More…"]);
+    await userEvent.click(within(c).getByRole("button", { name: "More…" }));
+    expect(within(c).getAllByRole("button").map((b) => b.textContent).slice(-6)).toEqual(["The subject", "Another person", "Not a person", "A group (2+ people)", "Object…", "Unsure"]);
+    await userEvent.click(within(c).getByRole("button", { name: "Object…" }));
     const picker = within(c).getByRole("group", { name: "Object type" });
     expect(within(picker).getByRole("button", { name: "fire ring" })).toHaveAttribute("title", "The second look's guess");
     await userEvent.click(within(picker).getByRole("button", { name: "fire ring" }));
