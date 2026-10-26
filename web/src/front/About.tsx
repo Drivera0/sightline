@@ -28,11 +28,11 @@ export const ENTRIES: readonly { name: string; href: string }[] = [
   { name: "Nebius × NVIDIA Global AI Hackathon, Physical AI track", href: `${BLOB}/docs/submission/DEVPOST_NEBIUS.md` },
 ];
 
-/** The BCS Hackathon 2026 team that built the first version (README "Credits"), by GitHub handle. */
-export const BCS_TEAM: readonly { handle: string; href: string }[] = [
-  { handle: "bamobam", href: "https://github.com/bamobam" },
-  { handle: "har-vir", href: "https://github.com/har-vir" },
-  { handle: "jkiim", href: "https://github.com/jkiim" },
+/** The BCS Hackathon 2026 team that built the first version (README "Credits"), with their GitHub handles. */
+export const BCS_TEAM: readonly { name: string; handle: string; href: string }[] = [
+  { name: "Grace Chu", handle: "bamobam", href: "https://github.com/bamobam" },
+  { name: "Harvir Nijjar", handle: "har-vir", href: "https://github.com/har-vir" },
+  { name: "Jason Kim", handle: "jkiim", href: "https://github.com/jkiim" },
 ];
 
 export const ABOUT = {
@@ -75,9 +75,11 @@ export function AboutSection() {
             Daniel Rivera. The first version was built at BCS Hackathon 2026 by a team of four: Daniel Rivera,{" "}
             {BCS_TEAM.map((m, i) => (
               <span key={m.handle}>
+                {m.name} (
                 <a className={link} href={m.href} target="_blank" rel="noreferrer">
                   @{m.handle}
                 </a>
+                )
                 {i < BCS_TEAM.length - 2 ? ", " : i === BCS_TEAM.length - 2 ? " and " : ""}
               </span>
             ))}
