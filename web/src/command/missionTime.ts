@@ -675,6 +675,26 @@ export function poaOf(full: DemoFull | null): Map<string, number> {
   return new Map((full?.data.sectors ?? []).map((s) => [s.sector_id, s.poa]));
 }
 
+/**
+ * Each sector's probability on the map at the call, as the sector table shows it then: the prior, before
+ * any photo, clue or search has moved it (the guided run holds every clue until it is confirmed, and the
+ * survey's photos land after the call). `poaOf` is the fixtures' sectors at the end of the mission, with
+ * every clue and photo in: quoting it at the call said "C2, B2, C3 first: 33 %" over a table of 1.9 %
+ * each (the cold test). Without a map: the fixtures' sectors.
+ */
+export function poaAtCall(full: DemoFull | null): Map<string, number> {
+  const base = full?.data.mapBase;
+  const sectors = full?.data.sectors ?? [];
+  if (!base) return poaOf(full);
+  const cells = sectorCells(base, sectors);
+  return new Map(
+    sectors.map((s) => {
+      const own = cells.get(s.sector_id);
+      return [s.sector_id, own?.length ? own.reduce((n, i) => n + (base.prior.p[i] ?? 0), 0) : s.poa];
+    }),
+  );
+}
+
 /** The visitor's "found" (the store logs it as a mission note carrying the mission). */
 export function isFoundEvent(e: MissionEvent): boolean {
   return e.type === "mission.note" && (e.data as { action?: string } | null)?.action === "found";
@@ -839,7 +859,7 @@ export function unmappedReason(s: MissionData, clueId: string, state: "logged" |
     reason = reason.replace(/:\s+raised it;/, ": no new evidence mapped;");
     const sector = p.target.sector;
     const now = s.sectors.find((x) => x.sector_id === sector);
-    if (sector && now) reason = reason.replace(new RegExp(`^${sector} · [\\d.]+ % of remaining probability(?:, up from [\\d.]+ %)?`), `${sector} · ${(now.poa * 100).toFixed(1)} % of remaining probability`);
+    if (sector && now) reason = reason.replace(new RegExp(`^${sector} · [\\d.]+ % of remaining probability(?:, up from [\\d.]+ %)?`), `${sector} · ${pct1(now.poa)} % of remaining probability`);
     const c = s.clues.find((x) => x.id === clueId);
     const said = c?.text ? ` “${c.text}”` : "";
     const what = c?.source === "radio" ? "The radio clue" : "The clue";
@@ -1147,7 +1167,26 @@ export function rankPending(s: MissionData, sectors: readonly SectorNow[]): Miss
   const cited = first
     ? proposals.map((p) => (p.status === "pending" && p.kind === "assign_sector" && !p.id.startsWith("sight-") && !/possible sighting/i.test(p.reason) ? { ...p, reason: `${p.reason} A possible sighting in ${first.target.sector} waits for a team: the agent asks to send ${call(first.target.team)} there first.` } : p))
     : proposals;
-  return { ...s, sectors: [...sectors], proposals: cited };
+  // the figure each card opens with is the sector table's, as the map stands now (the cold test: "B2 · 3.1 %
+  // of remaining probability", the scenario's figure when the agent drafted it, over a table of 1.5 %)
+  const poa = new Map(sectors.map((x) => [x.sector_id, x.poa]));
+  const restated = cited.map((p) => (p.status === "pending" && p.kind === "assign_sector" && p.target.sector && poa.has(p.target.sector) ? { ...p, reason: restatePoa(p.reason, p.target.sector, poa.get(p.target.sector)!) } : p));
+  return { ...s, sectors: [...sectors], proposals: restated };
+}
+
+const pct1 = (p: number) => (p * 100).toFixed(1);
+
+/**
+ * A reason that opens "B2 · 3.1 % of remaining probability, up from 1.9 %" with the sector's share on the
+ * map now; "up from" stays only while the share is still above it. Any other reason is left as it is.
+ */
+export function restatePoa(reason: string, sector: string, poa: number): string {
+  const re = new RegExp(`^${sector} · ([\\d.]+) % of remaining probability(?:, up from ([\\d.]+) %)?`);
+  const m = re.exec(reason);
+  if (!m) return reason;
+  const now = pct1(poa);
+  const up = m[2] !== undefined && Number(now) > Number(m[2]) ? `, up from ${m[2]} %` : "";
+  return reason.replace(re, `${sector} · ${now} % of remaining probability${up}`);
 }
 
 /** The fixtures' times on the mission clock (sim.ts realOf): every time a panel prints, after the decisions' costs. */

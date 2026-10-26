@@ -20,10 +20,14 @@ export function duration(min: number): string {
 /** Minutes since the mission was opened. */
 export const elapsedMin = (mission: Pick<Mission, "created_at"> | null, now: Date) => (mission ? Math.max(0, (now.getTime() - ms(mission.created_at)) / MIN) : null);
 
-/** Minutes of daylight left (to the end of civil twilight); null when unknown, 0 after dark. */
+/**
+ * Whole minutes of daylight left (to the end of civil twilight), rounded down as the agent gives them to
+ * its briefings (sightline/agent/loop.py: 3 h 54 min 46 s is "3 h 54 min"; the header said 3 h 55 min
+ * beside a briefing's 3 h 54 min); null when unknown, 0 after dark.
+ */
 export function daylightMin(c: Conditions | null, now: Date): number | null {
   if (!c?.civil_twilight_end) return null;
-  return Math.max(0, (ms(c.civil_twilight_end) - now.getTime()) / MIN);
+  return Math.max(0, Math.floor((ms(c.civil_twilight_end) - now.getTime()) / MIN));
 }
 
 /** Flyability in plain words with the gate time ("Drones can fly until 18:36"), its tone, and the reason (the tooltip). */
