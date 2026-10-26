@@ -316,6 +316,7 @@ function PendingCard({
       data-need-kind="proposal"
       data-highlighted={highlighted || undefined}
       data-dimmed={dimmed || undefined}
+      inert={dimmed || undefined}
       {...(story ? { "data-story-proposal": "" } : {})}
       style={{ ["--c" as string]: "var(--proposal)" }}
       className={`flex flex-col gap-2 rounded-md border border-line border-l-[3px] border-l-[var(--proposal)] bg-bg/40 p-2.5 transition-opacity focus:outline focus:outline-[var(--proposal)] ${fresh ? "sl-slide-in sl-new" : ""} ${focused || highlighted ? "sl-glow-proposal" : ""} ${dimmed ? "pointer-events-none opacity-50" : ""}`}

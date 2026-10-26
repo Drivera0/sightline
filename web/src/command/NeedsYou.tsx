@@ -44,11 +44,11 @@ export function NeedsHead({ kind, count, children }: { kind: NeedKind; count?: n
 }
 
 /** The data attributes and classes that let the guided search point at one item and dim the rest. */
-export function pointAt(id: string, kind: NeedKind, highlight: string | null | undefined): { attrs: Record<string, string | undefined>; className: string } {
+export function pointAt(id: string, kind: NeedKind, highlight: string | null | undefined): { attrs: Record<string, string | boolean | undefined>; className: string } {
   const on = !!highlight && highlight === id;
   const off = !!highlight && highlight !== id;
   return {
-    attrs: { "data-need": id, "data-need-kind": kind, "data-highlighted": on ? "" : undefined, "data-dimmed": off ? "" : undefined },
+    attrs: { "data-need": id, "data-need-kind": kind, "data-highlighted": on ? "" : undefined, "data-dimmed": off ? "" : undefined, inert: off || undefined },
     // dimmed: out of reach too, so the one to act on is the one that can be acted on ("after this step")
     className: `transition-opacity ${on ? "outline-2 outline-offset-1 outline-[var(--c)]" : ""} ${off ? "pointer-events-none opacity-50" : ""}`,
   };
