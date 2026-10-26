@@ -19,7 +19,8 @@
 //   #m/<id>/photos?try         the photos view with Try a photo open
 //   #m/<id>/card/<sector>      a sector's printable assignment card (live missions)
 //   #new                       the empty console: start a search, or load the demo mission
-//   #about                     the About sheet, over the console last on screen
+//   #about                     the home page, scrolled to its About section (who built it, the entries,
+//                              the colours, the limits, the licences); it was a sheet over the console
 //
 // Every address the site had before (the guided demo's steps, the front door, For judges, Try a photo,
 // the console's old tab names) redirects to its place here, so links in the docs, the Devposts and the
@@ -53,9 +54,14 @@ export type Route =
       seed?: string | null;
     }
   | { kind: "card"; id: string; sector: string }
-  | { kind: "home" }
-  | { kind: "new" }
-  | { kind: "about" };
+  /** `section`: a section of the home page to scroll to on arrival (#about). */
+  | { kind: "home"; section?: HomeSection }
+  | { kind: "new" };
+
+/** The home page's sections an address can land on. */
+export type HomeSection = "about";
+/** The id of the home page's About section (front/About.tsx), where #about lands. */
+export const ABOUT_ID = "home-about";
 
 /** The home page. */
 export const HOME = "#";
@@ -111,7 +117,8 @@ const MISSION = /^#m\/([0-9a-f]{8}|demo)(?:\/([a-z]+))?(?:\/([^?]*))?(?:\?(.*))?
 export function routeFromHash(hash: string): Route {
   const h = redirectFromHash(hash) ?? hash;
   if (h === "#new") return { kind: "new" };
-  if (h === "#about") return { kind: "about" };
+  // About was a sheet over the console; it is now a section of the home page, and old links land there
+  if (h === "#about") return { kind: "home", section: "about" };
   const m = MISSION.exec(h);
   if (!m) return { kind: "home" };
   const [, id, rawView, rest, query] = m as unknown as [string, string, string | undefined, string | undefined, string | undefined];

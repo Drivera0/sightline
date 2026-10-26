@@ -33,8 +33,8 @@ describe("New search: the console's empty state", () => {
     expect(sheet).not.toHaveTextContent("VITE_API_URL");
     expect(within(sheet).getByRole("link", { name: "Load the demo mission" })).toHaveAttribute("href", "#m/demo/map");
     expect(within(sheet).getByLabelText("Latitude")).toBeDisabled();
-    // the same app bar: the wordmark opens About
-    expect(within(screen.getAllByRole("banner")[0]!).getByRole("link", { name: "Sightline" })).toHaveAttribute("href", "#about");
+    // the same app bar: the wordmark goes home
+    expect(within(screen.getAllByRole("banner")[0]!).getByRole("link", { name: "Sightline" })).toHaveAttribute("href", "#");
     expect(await screen.findByLabelText("Pick the last known position on the map")).toBeInTheDocument(); // the empty map
   });
 });
@@ -372,18 +372,17 @@ describe("the demo mission: the story on the one console", () => {
     expect(await screen.findByRole("button", { name: "Hide Try a photo" })).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("opens About over the console from the wordmark, and Esc goes back", async () => {
+  it("sends the console's #about links to the home page's About section", async () => {
     vi.stubGlobal("fetch", demoFetch());
     useStory.getState().reset();
     window.history.replaceState(null, "", "#m/demo/map");
     render(<App base={null} />);
+    expect(await screen.findByLabelText("Command view")).toBeInTheDocument();
     window.location.hash = "#about";
-    const sheet = await screen.findByRole("dialog", { name: "About Sightline" });
-    expect(sheet).toHaveTextContent("How photos get in");
-    expect(sheet).toHaveTextContent("HERIDAL");
-    expect(screen.getByLabelText("Command view")).toBeInTheDocument(); // the console stays behind it
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(window.location.hash).toBe("#m/demo/map"));
+    const about = await screen.findByRole("region", { name: "About" });
+    expect(about).toHaveTextContent("Who built it");
+    expect(window.location.hash).toBe("#about"); // the console does not rewrite the address
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 

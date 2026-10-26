@@ -9,10 +9,10 @@ export function Logo() {
   );
 }
 
-/** The brand: the logo and the name, one size everywhere; it opens the About sheet (what Sightline is, how it works). */
+/** The brand: the logo and the name, one size everywhere; it goes to the home page (what Sightline is, how it works, About). */
 export function Brand() {
   return (
-    <a href="#about" className="sl-tap flex shrink-0 items-center gap-2 text-title font-medium text-text" title="About Sightline">
+    <a href="#" className="sl-tap flex shrink-0 items-center gap-2 text-title font-medium text-text" title="Sightline home page">
       <Logo />
       Sightline
     </a>

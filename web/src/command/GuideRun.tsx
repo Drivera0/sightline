@@ -10,6 +10,7 @@ import { prefersReducedMotion } from "../metrics/motion";
 import type { LiveAnswer, ReviewCard } from "../review/LiveReview";
 import { GuideMark, type GuideOption } from "./CoachMark";
 import { useConsole } from "./consoleStore";
+import { compare } from "./compare";
 import { GuideEnd } from "./GuideEnd";
 import { candidatePosition, demoCards, landedFrames } from "./demoReview";
 import {
@@ -143,6 +144,12 @@ export function useGuideRun({
       setHint(null);
     }
   }, [on, active, reached, input, answers, f]);
+
+  // the decision on screen, stamped once, for the end screen's decision time (compare.ts)
+  const shownKey = reached && active ? (active.id === "triage" && card ? `triage:${card.id}` : active.key) : null;
+  useEffect(() => {
+    if (shownKey) useGuide.getState().show(shownKey);
+  }, [shownKey]);
 
   // phones: the decision's panel in front
   useEffect(() => {
@@ -286,10 +293,12 @@ export function useGuideRun({
   const text = reached && active ? active.prompt : lead;
   const announce = reached && active ? `Your call, ${pip}: ${active.prompt}` : `Watch this: ${lead}`;
   const wash = useMemo(() => (on && guide!.ended ? hotWash(input, list) : null), [on, guide?.ended, input, list]);
+  const versus = useMemo(() => (wash ? compare(input, wash, lastLight(scenario)) : null), [wash, input, scenario]);
 
   const overlay = !on ? null : guide!.ended && wash ? (
     <GuideEnd
       wash={wash}
+      versus={versus}
       sectors={scenario?.data.sectors ?? []}
       subject={subject}
       scenario={scenarioName}
