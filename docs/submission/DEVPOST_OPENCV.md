@@ -10,8 +10,8 @@
 **Video:** <to add>
 
 <!--
-Video outline for Dan (≤ 5:00; from .documents/WIN_RESEARCH.md §8, OpenCV video):
-0:00–0:12 Dan on camera, lower-third, one line: "A missing hiker, 400 hectares, two hours of light. Sightline turns 500 drone photos into a ranked search plan." Logo card 1 s.
+Video outline (≤ 5:00):
+0:00–0:12 Presenter on camera, lower-third, one line: "A missing hiker, 400 hectares, two hours of light. Sightline turns 500 drone photos into a ranked search plan." Logo card 1 s.
 0:12–0:30 The home page → Start on the overdue hiker: the guided search, map with search area and drone track, the first decision waiting. Burned-in decision labels throughout.
 0:30–1:05 Upload → detection: photos tick in, detections with confidence, heat map filling. Split screen: photo + boxes | map.
 1:05–1:35 Re-look: the 0.17 candidate from this flight (f0273-d02, two people on a forest trail), OpenCV zoom_native, Nemotron VL verdict; Trace view visible (tool → model → result → proposal).
@@ -21,7 +21,7 @@ Video outline for Dan (≤ 5:00; from .documents/WIN_RESEARCH.md §8, OpenCV vid
 3:20–3:55 Architecture: one left-to-right diagram (photos → cv2.dnn → map → agent/tools → approval → drone/team/radio), AWS and OpenCV 5 boxes highlighted as narration passes.
 3:55–4:30 Numbers slide, big digits: parity table, test recall vs human, 7.1 s/photo on AWS, verifier +4 at +15 FA.
 4:30–4:50 Limits: three honest bullets (lying-down/groups/rock-coloured clothing; val-only tuning and the test disclosure; simulated fleet).
-4:50–5:00 Dan on camera: repo, live URL, thanks.
+4:50–5:00 Presenter on camera: repo, live URL, thanks.
 Production: burn in captions; 1080p master; YouTube "Not for Kids"; no copyrighted music.
 -->
 
@@ -46,22 +46,22 @@ For search managers, Sightline turns drone photos and radio reports into one map
 
 Measured, with the caveat beside each number:
 
-- **The detector finds 89.6 % of people on the HERIDAL test set against 68 % for people reviewing by eye, scored the study's loose SAR-APD way; under strict VOC scoring it is 86.4 %** [8]. Two early model choices saw test scores, so test is slightly optimistic, and we say so [9].
+- **The detector finds 89.6 % of people on the HERIDAL test set against 68 % for people reviewing by eye, scored the study's loose SAR-APD way; under strict VOC scoring it is 86.4 %** [8]. Two early model choices saw test scores, so test is slightly optimistic, and I say so [9].
 - **The second look finds 4 more of 337 people on test at the cost of 15 more false alarms (95 % CI of the recall gain [+0.003, +0.023], p < 0.05), and is advisory:** a person approves each promotion [10].
-- **In simulation, with a clue at the start, three drones planning on one shared map find the person within 30 minutes in 22.7 % of trials against 20.0 % for a hand split; with realistic wind, battery swaps, GPS error and link loss the lead holds (15.9 % vs 11.5 %, seed ranges apart). With no clue they are level, and we say so** [11].
+- **In simulation, with a clue at the start, three drones planning on one shared map find the person within 30 minutes in 22.7 % of trials against 20.0 % for a hand split; with realistic wind, battery swaps, GPS error and link loss the lead holds (15.9 % vs 11.5 %, seed ranges apart). With no clue they are level, and I say so** [11].
 - **On the whole live system, the agent sent the drone, the alert, the team and the promotion to the person's sector or detection in every run of its evaluation (fake models, scripted detector), the approval-gate checks passed in 12 of 12 runs, and with Token Factory fully down a mission pays about 82 s in all, not minutes per call** [17].
 - **The planner's honest result:** on a flat prior it is no better than a fixed serpentine. With a clue it flies there first, and finds the person within 30 minutes in 10.7 % of trials against 6.3 % [12].
 - **A 500-photo mission's compute costs under a dollar:** about $0.67 with detection on AWS, the Nemotron VL second look and Tavily, or $0.49 with detection as a Nebius Serverless Job; the detector uses about 17 Wh (an estimate from CPU-seconds) [19].
 - **On a dataset it never saw, the detector finds about half the people:** frozen, scored once on LADD (1,365 photos, 4,733 people, Russian forest, fields and snow), VOC precision / recall / AP50 0.509 / 0.516 / 0.458, and 0.436 recall on snow [20].
 - **Recall falls with the pixels a person gets, and the map now knows it:** 0.64 at about 18 px, 0.87–0.89 from 37 px (val); each photo's POD reads this curve at its own GSD for a 0.8 m person, times a terrain factor measured on LADD (snow 0.508) [21].
-- **Beside published HERIDAL results** (AIR 90.1 / 86.1 / 84.6 P / R / AP, self-reported; Faster R-CNN 67.3 / 88.3 / 86.1), ours is 80.2 / 86.4 / 86.8 under strict VOC, the one row anyone can re-check in about 5 minutes on a CPU; the rows are not strictly comparable [22].
-- **A negative we kept:** sending a drone to 25 m when the second look says `unclear` resolved 0 of 25 val near-misses in simulation (12 of the 24 false alarms stopped being detected), and the ledger shows the second look's value predicted on val (0.62 decisive) overstates test (0.49) [23].
+- **Beside published HERIDAL results** (AIR 90.1 / 86.1 / 84.6 P / R / AP, self-reported; Faster R-CNN 67.3 / 88.3 / 86.1), Sightline's is 80.2 / 86.4 / 86.8 under strict VOC, the one row anyone can re-check in about 5 minutes on a CPU; the rows are not strictly comparable [22].
+- **A negative I kept:** sending a drone to 25 m when the second look says `unclear` resolved 0 of 25 val near-misses in simulation (12 of the 24 false alarms stopped being detected), and the ledger shows the second look's value predicted on val (0.62 decisive) overstates test (0.49) [23].
 
 ## Inspiration
 
 A search-and-rescue drone brings back hundreds of photos per flight. A missing person is about 70 px wide in a 4000×3000 photo [1]. Volunteers reviewing by eye take about 33 s a photo and, in the published study, found 68 % of the people [2]. Meanwhile the search manager decides where drones and ground teams go next, from radio reports and a paper map.
 
-Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes and Loc8 flag pixels; SARUAV adds a mobility model; CalTopo tracks assignments and clues. None we found turns every photo, negative sweep and radio report into one updated probability map, and none puts a logged approval gate between a suggestion and a drone or team.
+Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes and Loc8 flag pixels; SARUAV adds a mobility model; CalTopo tracks assignments and clues. None I found turns every photo, negative sweep and radio report into one updated probability map, and none puts a logged approval gate between a suggestion and a drone or team.
 
 ## What it does
 
@@ -72,13 +72,14 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes an
 - **Talks to ground teams** on a secondary radio channel. A clue is logged only after Sightline reads it back and the team confirms.
 - **Writes the files a command post already files:** an ICS 204 Assignment List per team, an ICS 214 Activity Log from the trace and a CalTopo / SARTopo GeoJSON, every searched area "searched at POD 0.6", linked from a live mission's Debrief [24].
 
-## How we built it
+## How I built it
 
 - **Detector:** YOLO11s fine-tuned on 1024 px HERIDAL tiles, exported to ONNX and run on **OpenCV 5 `cv2.dnn`** with no PyTorch at run time. It gives identical scores to the PyTorch path on the test set, and 363 of 363 boxes match one to one [3]. On the CPU, OpenCV 5's new engine took 96 ms per slice against 99 ms for the ONNX Runtime engine inside OpenCV [4].
-- **OpenCV 5 re-look tools,** one per failure mode from our error analysis: `zoom_native` for small people, CLAHE for clothing that matches rock, `redetect_region` for groups and people lying down. Also `cv2.fillPoly` and `cv2.blur` for coverage and canopy on the map [5].
+- **OpenCV 5 re-look tools,** one per failure mode from the error analysis: `zoom_native` for small people, CLAHE for clothing that matches rock, `redetect_region` for groups and people lying down. Also `cv2.fillPoly` and `cv2.blur` for coverage and canopy on the map [5].
 - **Agent:** proposes; never acts. Every tool call, model call, verdict, proposal and decision is one line of the mission's `trace.jsonl` [6].
 - **AWS:** S3, an SQS FIFO queue, an EC2 worker running `cv2.dnn`, CloudWatch metrics and Secrets Manager. 7.1 s per photo from upload to "processed" on the default c7i.2xlarge [7].
 - **One console, laid out like a command post:** resources on the left, the map in the middle, Needs you (decisions only) on the right and the timeline with the talk bar below; four views (Map · Photos · Trace · Debrief) change the rail, never the map. The guided simulation (about 3 min) stops the clock at each decision for the visitor to make, as the search manager, and ends on What you did beside the agent's line; the Trace view shows each chain step by step, with chips for which model and tool ran and what each observation was worth [25].
+- **Built by** Daniel Rivera. Development used Claude Code (Anthropic) as an AI coding assistant. The agentic workflow in this entry is Sightline's runtime agent (Nemotron on Nebius Token Factory proposing actions that a person approves), not the coding assistant; every model call in the running product is listed in the README's models table [26].
 
 ## Challenges
 
@@ -93,9 +94,9 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio, Eagle Eyes an
 - The whole loop live on AWS, with a dead-letter queue, per-step latency metrics and keys only in Secrets Manager [7].
 - A radio desk where the first sound comes back in 2.5 s (p50) with the replies spoken by Magpie (team lines typed), and 6 of 6 clue reports were read back and confirmed before they were logged [16].
 
-## What we learned
+## What I learned
 
-The detector is no longer the hard part; what happens after a pixel is flagged is. Measuring that honestly showed small gains where we hoped for big ones (the second look, the planner without a clue), and we report them as measured.
+The detector is no longer the hard part; what happens after a pixel is flagged is. Measuring that honestly showed small gains where I hoped for big ones (the second look, the planner without a clue), and I report them as measured.
 
 ## What's next
 
@@ -135,3 +136,4 @@ The detector is no longer the hard part; what happens after a pixel is flagged i
 23. `docs/report/AGENT_EVAL.md:203-229`, `:238-247`
 24. `docs/EXPORTS.md`; `tests/geo/test_exports.py`
 25. `web/src/command/README.md:127-171`, `:173-212`, `:103-116`; `README.md:58-68`
+26. `README.md:91-101` (Built with NVIDIA + Nebius: every model, what it does, where it runs); `README.md:265-267` (Credits)

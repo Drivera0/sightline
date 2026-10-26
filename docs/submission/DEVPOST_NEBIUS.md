@@ -9,8 +9,8 @@
 **Video:** <to add>
 
 <!--
-Video outline for Dan (≤ 3:00, public YouTube; from .documents/WIN_RESEARCH.md §8, Nebius video, a trim of the OpenCV master):
-0:00–0:10 Dan on camera, one line + "runs on Nebius Token Factory" said aloud.
+Video outline (≤ 3:00, public YouTube; a trim of the OpenCV master):
+0:00–0:10 Presenter on camera, one line + "runs on Nebius Token Factory" said aloud.
 0:10–0:25 The home page → Start on the overdue hiker: the guided search, photos landing, 2× speed.
 0:25–0:55 Detection → re-look with the Trace view showing which NVIDIA model did what (Nemotron VL, Nemotron Super, Parakeet, Magpie).
 0:55–1:25 Fleet re-task moment: clue by radio → map shifts → agent proposes diverting the nearest drone → approve → drone turns (≥ 1 min of key modules in action starts here).
@@ -53,7 +53,7 @@ Measured, with the caveat beside each number:
 
 A drone brings back hundreds of photos per flight; a missing person is about 70 px wide in each, and people reviewing by eye found 68 % of them in the published study [1]. The search manager meanwhile decides where drones and teams go next, from radio calls and a paper map.
 
-Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio and Eagle Eyes stop at a flagged pixel; CalTopo tracks clues, but none we found keeps a probability map that photos and sweeps update. Sightline joins the two: every photo, negative sweep and radio report updates one map, and the map directs both drones and people.
+Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio and Eagle Eyes stop at a flagged pixel; CalTopo tracks clues, but none I found keeps a probability map that photos and sweeps update. Sightline joins the two: every photo, negative sweep and radio report updates one map, and the map directs both drones and people.
 
 ## What it does
 
@@ -63,7 +63,7 @@ Everyone detects; nobody closes the loop. DJI FlightHub 2, Skydio and Eagle Eyes
 - Talks to ground teams on a secondary radio channel, and logs a clue only after a readback.
 - Takes real footage too: `scripts/real_flight.py` checks each file's GPS, altitude, gimbal and GSD, geotags video frames from a DJI SRT or flight log (a frame with no track point within 1 s is skipped, never guessed), and sends the folder through the live API, labelled "real flight, real detector, fleet simulated"; so far tested on synthetic files only, no real footage yet [17].
 
-## How we built it
+## How I built it
 
 Every language and vision model call goes through **Nebius Token Factory** at run time, through one OpenAI-compatible client (`sightline/agent/llm.py:224`). Every model is an NVIDIA open model:
 
@@ -82,14 +82,16 @@ Every language and vision model call goes through **Nebius Token Factory** at ru
 - **Tavily as the model's own tool:** for a mission with no subject, Nemotron Nano decides whether to call `search_public_bulletin`, writes the query, and Tavily searches trusted domains then extracts; a profile field is kept only with a verbatim quote, names are redacted, and approval sets the lost-person prior. Three live runs: two abstained (no quote named a category), one proposed "hiker, 20" [16].
 - **AWS** runs the live API and the photo worker.
 
+**Built by** Daniel Rivera. Development used Claude Code (Anthropic) as an AI coding assistant; it is not part of the running product, and every model call the product makes is in the table above [19].
+
 **What is simulated.** The drones, their flight and battery, and their photos (crops of HERIDAL validation photos at simulated poses) are simulated, as are the ground teams' positions and the search-map evaluations. In the recorded traces the human steps are scripted, and the trace says so; on the site, the fixture's scripted decisions read "The scenario's search manager" and its stand-in model calls "Replayed", and the guided simulation's find comes from seeded draws at the sector's POD (0.60), printed on its end screen. Real: detection, the map math, every Nemotron call on Token Factory, Tavily, the radio's speech models, the AWS deployment and the Serverless Job [8].
 
-**Physical AI fit.** Sightline is the decision layer of an embodied team: drones sense, the agent decides, drones and people act, and each action changes what is sensed next. A clue from a team re-tasks the nearest drone; that drone's photo shows the person [9]. The FAQ allows simulation, and our fleet flies through the same photo API a real drone would use. The edge is roadmap only: Ultralytics measures YOLO26n with TensorRT FP16 at 4.57 ms per image on a Jetson Orin Nano Super [10], so a field kit without internet is plausible, but we have not run Sightline on a Jetson.
+**Physical AI fit.** Sightline is the decision layer of an embodied team: drones sense, the agent decides, drones and people act, and each action changes what is sensed next. A clue from a team re-tasks the nearest drone; that drone's photo shows the person [9]. The FAQ allows simulation, and Sightline's fleet flies through the same photo API a real drone would use. The edge is roadmap only: Ultralytics measures YOLO26n with TensorRT FP16 at 4.57 ms per image on a Jetson Orin Nano Super [10], so a field kit without internet is plausible, but I have not run Sightline on a Jetson.
 
 ## Challenges
 
-- **Small people:** below 60 px Nemotron VL mostly answers "unclear". We kept that abstention rather than prompt it away [3].
-- **Keeping a voice model honest:** with thinking off, Nemotron 3 Super sometimes put its reasoning in the reply, and our radio spoke it; it once invented weather without calling the tool. Both are now enforced in code [11].
+- **Small people:** below 60 px Nemotron VL mostly answers "unclear". I kept that abstention rather than prompt it away [3].
+- **Keeping a voice model honest:** with thinking off, Nemotron 3 Super sometimes put its reasoning in the reply, and the radio desk spoke it; it once invented weather without calling the tool. Both are now enforced in code [11].
 - **Never letting software rule an area out.** Tests check every proposal, briefing and screen string.
 
 ## Accomplishments
@@ -98,9 +100,9 @@ Every language and vision model call goes through **Nebius Token Factory** at ru
 - 6 of 6 radio clue reports read back and confirmed before they were logged [6].
 - A clue-to-re-task chain on a live mission with the real planner [9].
 
-## What we learned
+## What I learned
 
-Tool calling with thinking off needs code-side guards for anything safety-relevant. Thinking tokens count against `max_tokens`, silently. A Serverless Endpoint needs no TLS or auth code of ours, but its CLI prints the token in plain text and it has no scale to zero, so a stopped endpoint takes 272.9 s to answer again [18]. NVIDIA's hosted catalogue lists Cosmos Reason, but every call to it returns 404 and nothing marks it retired; the stand-in second verifier (Nemotron 3 Nano Omni) was slower and less precise than Nemotron-3.5-Super-VL, which stays (`docs/report/COSMOS_VERIFIER.md`). Details, per tool: `docs/feedback/nebius.md`, `docs/feedback/radio.md`.
+Tool calling with thinking off needs code-side guards for anything safety-relevant. Thinking tokens count against `max_tokens`, silently. A Serverless Endpoint needs no TLS or auth code on the caller's side, but its CLI prints the token in plain text and it has no scale to zero, so a stopped endpoint takes 272.9 s to answer again [18]. NVIDIA's hosted catalogue lists Cosmos Reason, but every call to it returns 404 and nothing marks it retired; the stand-in second verifier (Nemotron 3 Nano Omni) was slower and less precise than Nemotron-3.5-Super-VL, which stays (`docs/report/COSMOS_VERIFIER.md`). Details, per tool: `docs/feedback/nebius.md`, `docs/feedback/radio.md`.
 
 ## What's next
 
@@ -130,3 +132,4 @@ A Jetson field kit without internet; thermal for night searches; real drone phot
 16. `docs/report/TAVILY.md:134-147`, `:230-232`; `docs/evidence/subject/`
 17. `docs/REAL_FLIGHT.md:1-11`, `:73`; `scripts/real_flight.py:52`
 18. `docs/feedback/nebius.md:232-248`
+19. `README.md:91-101`; `README.md:265-267` (Credits)

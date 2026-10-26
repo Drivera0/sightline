@@ -1,8 +1,8 @@
-# Lane D · Sprint 2: contract, live missions, API, ingest, AWS, integration
+# Workstream D · Pipeline & Platform: contract, live missions, API, ingest, AWS, integration
 
 > Superseded by [`docs/LANE_D_PIPELINE.md`](../LANE_D_PIPELINE.md),
 > [`sightline/mission/README.md`](../../sightline/mission/README.md) and
-> [`deploy/aws/README.md`](../../deploy/aws/README.md). This file keeps the sprint plan, the table of
+> [`deploy/aws/README.md`](../../deploy/aws/README.md). This file keeps the plan, the table of
 > what each human decision does, and each task's outcome.
 
 **Folders:** `sightline/contract.py`, `sightline/mission/`, `sightline/pipeline/`, `sightline/api/`,
@@ -12,10 +12,10 @@
 
 ## 1. Mission
 
-Turn five lanes' work into one product that visibly takes photos in and directs a search: the contract
+Turn the five workstreams into one product that visibly takes photos in and directs a search: the contract
 and the mission store (the only writer of mission files), the mission API with server-sent events and
 every side effect of a human decision, the per-photo pipeline, the web platform (`useMission`, live
-mode, the review queue in live mode, the New search screen, mounting the other lanes' screens), AWS, and
+mode, the review queue in live mode, the New search screen, mounting the other workstreams' screens), AWS, and
 integration.
 
 ## 2. The per-photo pipeline as planned
@@ -52,7 +52,7 @@ Nothing below happens without the decision or field report that triggers it.
 
 | ID | Task | Outcome |
 |---|---|---|
-| D-G1 | Repo hygiene, cross-lane files, labels | Done in part #116; the shared assistant configuration stayed local |
+| D-G1 | Repo hygiene, cross-workstream files, labels | Done #116 |
 | D-C1 | Contract v1.2 merged, models, generated TS, extras | Done #52 |
 | D-M0 | `MissionStore`, `validate_mission` | Done #53 (`sightline/mission/store.py`, `validate.py`) |
 | D-A1 | Mission API + SSE with resume | Done #55 (`sightline/api/`, `sse.py`) |

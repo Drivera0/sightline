@@ -58,7 +58,7 @@ simulator buffers them.
   harsh rows. A shared map sends the next free drone to where the clue put the probability; a fixed
   split can only reach that sector when its turn comes.
 - **With no clue (flat placeholder prior), coordinated and hand-split are level** in every preset:
-  with nothing to steer by, a well-made split is as good as a plan. We do not claim a gain there.
+  with nothing to steer by, a well-made split is as good as a plan. I do not claim a gain there.
 - **Planning without sharing is the worst option every time** (independent): three drones on their own
   maps fly the same high-value sectors.
 - **Realism costs about a third of the early finds** (ideal → realistic: 20 % → 14.5 % within 30 min,

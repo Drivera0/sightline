@@ -1,10 +1,11 @@
-# Master plan for Sprint 2 (Oct 20–30, 2026)
+# Master plan (Oct 20–30, 2026)
 
-> The reasons behind the sprint plan, written on Oct 20 for two events: the OpenCV AI Competition 2026
+> The reasons behind the build plan, written on Oct 20 for two events: the OpenCV AI Competition 2026
 > (submission Oct 26) and the Nebius × NVIDIA Global AI Hackathon (submission Oct 30). Superseded by
 > [`docs/00_OVERVIEW.md`](../00_OVERVIEW.md) for what Sightline is, and by
-> [`docs/report/OPENCV_REPORT.md`](../report/OPENCV_REPORT.md) for what was measured. The lane files in
-> this folder carry the task-level outcomes. The plan's lanes E–H were folded into lanes A–E on Oct 20.
+> [`docs/report/OPENCV_REPORT.md`](../report/OPENCV_REPORT.md) for what was measured. The workstream files
+> in this folder carry the task-level outcomes. The nine product goals below (W1–W9) were grouped into
+> the five workstreams A–E on Oct 20.
 
 ## 1. Positioning
 

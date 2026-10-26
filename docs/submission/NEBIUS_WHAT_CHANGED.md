@@ -1,6 +1,6 @@
 # What changed during the submission period (Nebius × NVIDIA Global AI Hackathon)
 
-Sightline existed before this hackathon's build: we built it in 36 hours at BCS Hackathon 2026
+Sightline existed before this hackathon's build: it was built in 36 hours at BCS Hackathon 2026
 (Oct 16–17, tag `bcs-final-submission`). That version was a batch tool. It took one drone survey,
 ranked the photos with a tiled detector, put each detection on a map and ran a Bayesian probability
 map over the survey area, all from a precomputed cache.
@@ -22,7 +22,7 @@ fleet and the Serverless Job are new in this period:
   legs become proposals with reasons and evidence. Nothing happens until the search manager approves
   it in the console.
 - **A radio desk:** ground teams talk to Sightline on a secondary channel, with Parakeet speech to text,
-  Nemotron with tools and Magpie speech (Parakeet and Magpie run on our RTX 4080 SUPER). A clue is logged only after Sightline reads it back and the team
+  Nemotron with tools and Magpie speech (Parakeet and Magpie run on a local RTX 4080 SUPER). A clue is logged only after Sightline reads it back and the team
   confirms. It transmits only approved briefings.
 - **A simulated drone fleet:** 2–3 drones fly approved legs and send their photos through the same API.
   A team's clue re-tasks the nearest drone (the creek scenario). There is a simulated fleet evaluation.
@@ -48,10 +48,10 @@ fleet and the Serverless Job are new in this period:
   (`docs/report/POD.md`, `docs/report/LADD.md`).
 - **A re-look leg and a ledger:** an `unclear` second look on a small box proposes a 25 m pass, and every
   look and leg records its expected and realised value; in simulation the pass resolved 0 of 25 val
-  near-misses, and we report that (`docs/report/AGENT_EVAL.md`).
+  near-misses, and the report says so (`docs/report/AGENT_EVAL.md`).
 - **One console:** task board, teams, approval inbox, clue log and printable assignment cards with
   GPX/KML, the views Map · Photos · Review · Trace · Debrief (with the exports and the trace's model,
-  tool and ledger chips), the demo as a 3-minute story, and an About sheet that explains the product.
+  tool and ledger chips), the demo as a 3-minute story, and an About section on the home page (`#about`) that explains the product.
 - **AWS deployment:** S3, SQS, a worker running OpenCV 5 `cv2.dnn`, CloudWatch and Secrets Manager.
 - **Continuous integration:** the tests, a smoke test of the whole live loop with fakes, and the web
   build, on every change.

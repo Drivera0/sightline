@@ -1,9 +1,9 @@
 # Sightline: the brain of a drone search
 
-**OpenCV AI Competition 2026 · technical report · code freeze Sat Oct 25, 12:00 PT**
+**OpenCV AI Competition 2026 · technical report · code freeze Sun Oct 25, 12:00 PT**
 
 > Every number comes from a file in the repo or a cited source; anything simulated is labelled
-> simulated, and what we could not verify is marked. Lead: Dan (lane A). Every claim, its file and line, and how to regenerate it: [`EVIDENCE_INDEX.md`](EVIDENCE_INDEX.md).
+> simulated, and what I could not verify is marked. Author: Daniel Rivera; development used Claude Code (Anthropic) as an AI coding assistant (§11.4). Every claim, its file and line, and how to regenerate it: [`EVIDENCE_INDEX.md`](EVIDENCE_INDEX.md).
 
 Repository: https://github.com/Drivera0/sightline (tag `opencv-submit`) · Live demo:
 https://sightline-iota-sandy.vercel.app (the home page: **Try the guided simulation**, then **Start the simulation** on a scenario card, `#m/demo?s=<seed>&guide=1`; the Debrief's list for judges is `#m/demo?t=6&judges`, where the old `#judges` redirects) · Live
@@ -80,7 +80,7 @@ sectors show their probability now, with the last-known point, a clue and a team
 ### 1.1 Where Sightline sits
 
 **Everyone detects; nobody closes the loop.** The tools a search team can buy or download today stop at a
-flagged pixel or a map of assignments; none we found turns photos, negative sweeps and field reports into
+flagged pixel or a map of assignments; none I found turns photos, negative sweeps and field reports into
 one updated probability map that proposes the next move. Checked on 22 Oct from each product's own page
 unless marked:
 
@@ -126,7 +126,7 @@ from its ONNX export, with no PyTorch at run time (`sightline/ml/detect_cv.py`):
   `web/src/detect/tiling.ts` line for line, with its tests ported (`tests/ml/test_detect_cv.py`).
 - **Frames smaller than the input:** Ultralytics pads a 1000×750 frame only to a multiple of 32
   (1024×768). A fixed-size ONNX needs the full 1024×1024 square, and the grey bands changed boxes
-  near the frame's top and bottom edges. We export a variable-size ONNX (`scripts/export_onnx.py`);
+  near the frame's top and bottom edges. Sightline exports a variable-size ONNX (`scripts/export_onnx.py`);
   `CvDetector` detects that it accepts non-square input and pads the same way.
 - **Backend switch:** `SIGHTLINE_BACKEND=cv2` (default) or `torch` through
   `sightline.ml.backend.make_detector()`, which the demo-cache build (`run_survey`) uses; the
@@ -171,22 +171,22 @@ Checked on 22 Oct against the
   default: "Try to use the new engine and then fall back to the classic version") or `ENGINE_ORT` (4,
   ONNX Runtime inside OpenCV). The environment variable **`OPENCV_FORCE_DNN_ENGINE`** (same numbers)
   overrides it for a process. Sightline calls `cv2.dnn.readNetFromONNX` with the default, and the new
-  engine loads our YOLO11s graph without falling back.
+  engine loads Sightline's YOLO11s graph without falling back.
 - **The new engine runs on the CPU only in 5.0.** The wiki: "GPU support will be added in subsequent
   releases. In the meantime, users who need GPU acceleration can either force the classic engine or
-  build OpenCV with ORT and NVIDIA execution providers." With the pip wheels (no CUDA) that is why our
+  build OpenCV with ORT and NVIDIA execution providers." With the pip wheels (no CUDA) that is why the
   `cv2.dnn` numbers are CPU numbers.
 - **ONNX coverage:** the wiki says the new engine covers "over 64% of the ONNX specification", against
-  under 13 % for 4.x. OpenCV's announcement is reported to say "over 80%" (we could not open opencv.org
+  under 13 % for 4.x. OpenCV's announcement is reported to say "over 80%" (I could not open opencv.org
   to quote it; the engine doc on today's `5.x` branch says about 75–80 % of the operator specification).
 - **QDQ** (quantize/dequantize) graphs: the new engine fuses them (`fuseQDQ` in the `5.x` source), and
-  OpenCV's benchmark has a ResNet50 QDQ row. We quantized Sightline's detector and measured it (§3.3).
+  OpenCV's benchmark has a ResNet50 QDQ row. I quantized Sightline's detector and measured it (§3.3).
 - The `5.x` branch has since renamed the engines (`ENGINE_AUTO` 0, `ENGINE_OPENCV` 1, `ENGINE_ORT` 2);
   Sightline pins `opencv-python==5.0.0.93`, where the names above apply.
 
 **Against OpenCV's own benchmark.** The [OpenCV 5 DNN benchmarks](https://github.com/opencv/opencv/wiki/OpenCV-5-DNN-Benchmarks)
 list YOLOv8 on an Intel i9 at **12.42 ms with the new engine against 12.98 ms with ONNX Runtime 1.25.1**
-(4 % faster). Our measurement, YOLO11s on one 1024 px slice on a Ryzen 9 9950X, is **96 ms with the new
+(4 % faster). My measurement, YOLO11s on one 1024 px slice on a Ryzen 9 9950X, is **96 ms with the new
 engine against 99 ms with `ENGINE_ORT`** (3 % faster): the same direction and about the same margin, on a
 different model, input size and CPU.
 
@@ -209,7 +209,7 @@ ONNX Runtime runs the same INT8 file 1.5× faster than FP32 while OpenCV 5 runs 
 
 ### 3.4 `cv2.dnn` on CUDA
 
-Full write-up: [`CV2_CUDA.md`](CV2_CUDA.md). The pinned pip wheel has no CUDA, so we built OpenCV 5.0.0
+Full write-up: [`CV2_CUDA.md`](CV2_CUDA.md). The pinned pip wheel has no CUDA, so I built OpenCV 5.0.0
 with CUDA 12.9 and cuDNN 9.10 (toolkit from conda-forge) and ran the detector through the **classic** engine
 with `DNN_BACKEND_CUDA` (the new engine is CPU-only in 5.0, §3.2), on the RTX 4080 SUPER:
 
@@ -228,7 +228,7 @@ custom build, not the shipped path: `uv sync` installs the CPU wheel, and the ju
 ### 3.5 OpenCV 5 re-look tools
 
 When the detector is unsure, OpenCV gives the next model a better look (`sightline/agent/relook.py`).
-One tool per failure mode from our error analysis (`docs/DETECTOR_LIMITS.md`):
+One tool per failure mode from the error analysis (`docs/DETECTOR_LIMITS.md`):
 
 | Failure mode | Tool | OpenCV |
 |---|---|---|
@@ -335,22 +335,22 @@ Precision, recall and AP in per cent, on the HERIDAL test set as each source sta
 
 [a] The "Results on HERIDAL test set" table in the AIR README, https://github.com/Accenture/AIR (read
 2026-10-22), which adds: "We did not test any of the other methods ourselves." [b] The paper's abstract gives
-precision 68.89 % and recall 94.65 % (https://www.mdpi.com/2079-9292/9/9/1459); mdpi.com refused our
+precision 68.89 % and recall 94.65 % (https://www.mdpi.com/2079-9292/9/9/1459); mdpi.com refused my
 fetch of the full text (HTTP 403), so its split, matching rule and the SSD row are taken from AIR's table
 unchecked.
 
 **Why the rows are not strictly comparable.** None of the published rows states its matching rule on
-the page we read, so an IoU of 0.5, a looser overlap or SAR-APD's one-box-per-group rule could each be
-behind a row; our own two rows differ by up to 9.6 points between strict VOC and SAR-APD on the same
+the page I read, so an IoU of 0.5, a looser overlap or SAR-APD's one-box-per-group rule could each be
+behind a row; Sightline's own two rows differ by up to 9.6 points between strict VOC and SAR-APD on the same
 boxes (§3.9). Each row is also one operating point: precision and recall trade off with the threshold
-(ours is 0.29, chosen on validation), and only three rows report a threshold-free AP. Every row says
-"HERIDAL test set", but we have not checked that the earlier papers scored the same 101 photos with the
-same labels; our own converter squashed 42 test labels in four photos until we fixed it
-(`docs/DETECTOR_LIMITS.md` §1). Read the table as context, not a ranking: our strict row has AIR's
-recall at lower precision and the highest AP printed here. It is also the only row we can check from a
+(Sightline's is 0.29, chosen on validation), and only three rows report a threshold-free AP. Every row says
+"HERIDAL test set", but I have not checked that the earlier papers scored the same 101 photos with the
+same labels; Sightline's own converter squashed 42 test labels in four photos until I fixed it
+(`docs/DETECTOR_LIMITS.md` §1). Read the table as context, not a ranking: Sightline's strict row has AIR's
+recall at lower precision and the highest AP printed here. It is also the only row anyone can check from a
 clean checkout in about 5 minutes on a CPU: `scripts/reproduce_cv2.py` re-scores the test set on
 `cv2.dnn` and exits 1 if any number differs (§12.1). AIR ships an evaluation script (`evaluate.sh`) for
-its SAR-APD setting; for the paper rows we quote the published numbers only.
+its SAR-APD setting; for the paper rows I quote the published numbers only.
 
 ## 4. AWS deployment
 
@@ -422,7 +422,7 @@ credit price and the per-vCPU wattage, which are cited. Prices in US dollars, li
 |---|---|---|
 | Detector, `cv2.dnn` on AWS c7i.2xlarge | 5.1 s per photo in the worker (`docs/report/OPENCV_REPORT.md:374`) × 500 = 2,550 s = 0.71 h, at about $0.36 an hour (`:381`) | $0.26 |
 | Second look, Nemotron VL on Token Factory | 170 calls on 95 HERIDAL val photos (`docs/LANE_A_ML.md:273`, `:183`), so about 895 calls for 500 photos, × about $0.00033 per call (`docs/feedback/nebius.md:75`) | $0.30 |
-| Conditions, Tavily | one lookup per area per clock hour, at most 4 calls (`docs/report/TAVILY.md:15`): 3 advanced searches at 2 credits and 1 basic extract at 1 credit (`:17`, `:20`; `sightline/geo/conditions.py:540`, `:575`), so 7 credits an hour at $0.008 per credit ([Tavily API credits](https://docs.tavily.com/documentation/api-credits)); for a 2-hour mission (our assumption) | $0.11 |
+| Conditions, Tavily | one lookup per area per clock hour, at most 4 calls (`docs/report/TAVILY.md:15`): 3 advanced searches at 2 credits and 1 basic extract at 1 credit (`:17`, `:20`; `sightline/geo/conditions.py:540`, `:575`), so 7 credits an hour at $0.008 per credit ([Tavily API credits](https://docs.tavily.com/documentation/api-credits)); for a 2-hour mission (my assumption) | $0.11 |
 | **Total, AWS path** | | **$0.67** |
 | Instead of the AWS detector row: a Nebius Serverless Job | 0.68 s per photo inside the job plus about 3 min of VM start (677 s − 483 s), at $0.53 an hour (`docs/feedback/nebius.md:175-178`): (500 × 0.68 s + 194 s) = 534 s | $0.08 |
 | Instead of the CPU detector: `cv2.dnn` on a GPU | 0.303 s per photo on an RTX 4080 SUPER (`docs/report/CV2_CUDA.md:143`) × 500 = 152 s, about 2.5 min | time only; no GPU price is recorded in the repo |
@@ -459,7 +459,7 @@ agent never acts and never dismisses a detection. The gate is a design choice wi
 a simulated disaster search with an LLM-driven drone swarm, Ji et al. (arXiv
 [2511.04042](https://arxiv.org/abs/2511.04042), 2025) report that human feedback on the plan raised mission
 success from 62.0 % to 94.0 % (their system re-planned in 97 % of the cases a person flagged). Their humans
-corrected plans rather than approving each action, so this supports keeping a person in the loop, not our
+corrected plans rather than approving each action, so this supports keeping a person in the loop, not this
 exact gate.
 
 | Event | Proposal |
@@ -604,8 +604,8 @@ theory as US and international SAR planning defines them:
 - **Probability of success: POS = POC × POD** (the chance the person is in a cell, times the chance the
   search would have found them there; USCG/Soza, *The Theory of Search: A Simplified Explanation*, 1996,
   eq. 2-3, [PDF](https://navcen.uscg.gov/sites/default/files/pdf/Theory_of_Search.pdf); the IAMSAR Manual
-  Vol. II covers the same in its search-planning chapter, which we have not read in IAMSAR's own text).
-  The map holds POC per cell (we call it the cell's probability); each photo's POD per cell is
+  Vol. II covers the same in its search-planning chapter, which I have not read in IAMSAR's own text).
+  The map holds POC per cell (called the cell's probability here); each photo's POD per cell is
   `recall × (1 − canopy) × overlap`, times the conditions' visibility factor on a live mission, capped at
   0.95 (`sightline/search/pod.py`, `live.py`), and the map is updated by Bayes' rule
   (p ← p·(1 − POD), renormalised; the after-photo probability never reaches zero).
@@ -631,10 +631,10 @@ theory as US and international SAR planning defines them:
 - **Planning as Bayesian search** follows Bourgault, Furukawa & Durrant-Whyte ("Optimal Search for a Lost
   Target in a Bayesian World", Field and Service Robotics 2003; and "Coordinated Decentralized Search for a
   Lost Target in a Bayesian World", IROS 2003, for several vehicles), and Lin & Goodrich ("UAV Intelligent
-  Path Planning for Wilderness Search and Rescue", IROS 2009). The closest recent work to our fleet
+  Path Planning for Wilderness Search and Rescue", IROS 2009). The closest recent work to Sightline's fleet
   planner is Ge, Jiang & Coombes, "Multi-UAV Search and Rescue in Wilderness Using Smart Agent-Based
   Probability Models" (arXiv [2411.10148](https://arxiv.org/abs/2411.10148), 2024): an agent-based
-  lost-person prior driving a distributed multi-UAV search. Ours is greedier (one leg at a time on a shared
+  lost-person prior driving a distributed multi-UAV search. Sightline's is greedier (one leg at a time on a shared
   expected map) and adds what those papers leave out: the detector's measured recall in the POD, ground
   teams and clues as sensors, and a person approving each move.
 - **Why drones miss people** in real searches is documented by the Norwegian Police drone unit's white
@@ -720,7 +720,7 @@ Endurance and the wind limit are DJI's published numbers; wind, GPS, loss and ou
 
 **With a clue, coordination keeps its lead as conditions get worse**, and the seed ranges do not overlap in
 the realistic and harsh rows: a shared map sends the next free drone to where the clue put the probability.
-**With no clue, coordinated and hand-split are level** in every preset; we do not claim a gain there.
+**With no clue, coordinated and hand-split are level** in every preset; I do not claim a gain there.
 Planning without sharing is the worst option every time. Realism costs about a third of the early finds
 (ideal → realistic, no clue: 20 % → 14.5 %). The plans are made for calm air and flown in the preset's
 conditions, so a planner that re-plans around wind and swaps would do better than shown. The v1 fleet
@@ -854,7 +854,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
   matches pale or dark rock, people sitting or lying down; two sites (MED, CAB) hold 28 of the 46
   misses. Figures: `docs/figures/limits/`.
 - **Data for the roadmap, not used:** SARD (actors sitting and lying down, with fog and snow variants:
-  our lying-down failure mode), WiSARD (RGB-thermal pairs: the night and shade roadmap), HIT-UAV (thermal
+  the lying-down failure mode), WiSARD (RGB-thermal pairs: the night and shade roadmap), HIT-UAV (thermal
   at altitude) and SeaDronesSee (open water; CC0) would each target a gap above; nothing has been
   retrained on them. Details and terms: `docs/DETECTOR_LIMITS.md` §6; survey: arXiv 2511.17674.
 - **Validation and test sites differ:** validation shares sites with training; four test sites
@@ -865,7 +865,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
 - **What the second look gets wrong**, from the early prompt benchmark (val crops, "strict" prompt,
   `docs/evidence/verifier-bench-20261020.csv`, before the final prompt and the re-look images): of 150
   crops it called 7 real people "not a person": people in deep shade, small figures on dark grass (top
-  row below; the first looks like bare rock even to us). It called 5 crops labelled "no person" a
+  row below; the first looks like bare rock even to me). It called 5 crops labelled "no person" a
   person, and **all 5 do show people** (bottom row): those crops were mined as hard negatives from
   regions without a label, and HERIDAL's labels miss some people. So the measured false-alarm rate of
   the second look is pessimistic, and the hard-negative set itself contains people (the hard-negative
@@ -877,7 +877,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
   INT8 does not help on this CPU (§3.3). On the GPU it needs a custom OpenCV build (0.30 s per photo, §3.4).
 - **The agent evaluation uses fake models and a scripted detector:** it tests routing, the gate and
   failure handling, not perception; `--live` has been run once on the four creek scenarios (9/9 targets, 44/44 gate checks, 8 of 19 briefings fell back to the template; with the v2 briefing prompt, replayed on the same 19, none did) and once on the re-look scenario (`AGENT_EVAL.md`).
-- **The radio desk** understands English only; Magpie speaks at about 0.66× real time on our GPU,
+- **The radio desk** understands English only; Magpie speaks at about 0.66× real time on the GPU desktop,
   so long replies are spoken sentence by sentence and the first sound depends on the model's time;
   if the model fails or times out, the team hears "say again" and nothing changes. Its numbers use
   typed team lines and team lines spoken by Magpie (§8); WER is measured on one human voice so far (0.025, §8), two more to come.
@@ -907,7 +907,7 @@ Every headline number in one place, with the file it comes from. Simulated resul
 ## 11. Responsible use
 
 - **Never "clear":** no text the system writes says an area is clear or cleared; searched sectors
-  say how well they were searched ("searched at POD 60 %"). Lane A's tests check every verdict,
+  say how well they were searched ("searched at POD 60 %"). The agent's tests check every verdict,
   proposal and briefing for it (`test_the_word_clear_never_reaches_the_mission`,
   `test_never_dismisses_and_never_says_clear`); the radio replaces a spoken "clear" with "standby"
   (`tests/radio/test_turn_api.py::test_postcheck`) and its screen copy is checked for the word
@@ -952,7 +952,7 @@ Sightline handles photos of real people in distress, so what happens to them is 
   OpenCV re-look images (JPEG) go to **Nebius Token Factory**, model `nvidia/Nemotron-3.5-Super-VL`, with
   the verifier prompt; no full photo, no GPS and no EXIF. Briefings and radio answers send mission text
   (sectors, clues, conditions) to the Nemotron text models on Token Factory. Radio speech is transcribed
-  and spoken on our own GPU (Parakeet, Magpie); only text goes to Token Factory. We have not reviewed Token
+  and spoken on the GPU desktop (Parakeet, Magpie); only text goes to Token Factory. I have not reviewed Token
   Factory's data-retention terms for real search data; a team should before using it on a live search.
   Tavily receives only the search area's name in its queries.
 - **No faces, no identity.** Sightline runs no face detection or recognition and stores no identity data.
@@ -966,11 +966,11 @@ Sightline handles photos of real people in distress, so what happens to them is 
 - **Code: AGPL-3.0-or-later** (`LICENSE`), because the detector is trained with Ultralytics YOLO, which is
   AGPL-3.0. Ultralytics states that "All Ultralytics YOLO trained models fall under the AGPL-3.0 License by
   default" and that the licence "covers the training code and the models produced by that training code"
-  ([ultralytics.com/license](https://www.ultralytics.com/license)). We therefore treat our weights
+  ([ultralytics.com/license](https://www.ultralytics.com/license)). I therefore treat Sightline's weights
   (`weights-v2`) and their **ONNX export** (`model-onnx-v2`), which `cv2.dnn` runs with no Ultralytics code,
   as a derivative under the same licence; Ultralytics' pages do not mention exported formats, so that is
-  our reading, not a statement from them.
-- **What a search organisation must do to deploy it**, as we read the licences (not legal advice): it may
+  my reading, not a statement from them.
+- **What a search organisation must do to deploy it**, as I read the licences (not legal advice): it may
   run and change Sightline freely; if it lets people use a modified version over a network (the mission
   API for its members), or ships it on a device such as a Jetson field kit, it must offer those users the
   complete corresponding source of that version, and per Ultralytics the model weights where applicable;
@@ -978,13 +978,13 @@ Sightline handles photos of real people in distress, so what happens to them is 
   Ultralytics Enterprise licence, which lets code and models be embedded "in commercial products" without
   the AGPL terms, or retraining the detector with a permissively licensed framework (not done).
 - **HERIDAL imagery.** The photos are from HERIDAL (Božić-Štulić, Marušić & Gotovac, "Deep Learning
-  Approach in Aerial Imagery for Supporting Land Search and Rescue Missions", IJCV 127(9), 2019). We use
+  Approach in Aerial Imagery for Supporting Land Search and Rescue Missions", IJCV 127(9), 2019). I use
   Pyrrö's copy on Zenodo ([record 5662351](https://zenodo.org/records/5662351), "HERIDAL dataset in
   keras-retinanet PASCAL VOC format"), whose licence field is **CC BY 3.0** and which describes itself as a
   "Modified version of the HERIDAL dataset". **The original dataset's own terms are not verified:** the IJCV
-  paper's metadata states none that we could find, and the original site (`ipsar.fesb.unist.hr`) did not
+  paper's metadata states none that I could find, and the original site (`ipsar.fesb.unist.hr`) did not
   answer on 22 Oct. The public demo shows HERIDAL photos under the Zenodo copy's CC BY 3.0 with attribution
-  to both; before any commercial use we would ask the original authors.
+  to both; before any commercial use I would ask the original authors.
 
 ### 11.3 Security
 
@@ -1005,13 +1005,13 @@ branch) was searched for API keys, tokens, private keys and committed `.env` fil
    choice was fixed on val. The INT8, Cosmos, planner v2 and fleet v2 experiments used val data or
    simulation only.
 5. **The human steps in both AV chains are scripted** for the recording (the review, logging the sighting as
-   a clue, the approvals), and the trace says so; the fleet in the re-task chain is simulated (lane C's fleet
+   a clue, the approvals), and the trace says so; the fleet in the re-task chain is simulated (the fleet
    simulator, `sightline/search/fleet.py`, came later and was not used for this recording), and labelled.
    The agent evaluation's search manager and reviewer are scripted too, and each decision says so.
 6. **Radio measurements** use typed team lines (and, for full voice turns, team lines spoken by
    Magpie); they were taken on a fixture mission. The desk now also runs on live missions (the Radio view).
-7. **AI assistance:** parts of the code and docs were written with an AI coding assistant; the
-   agent described in §5 is Sightline's own runtime agent.
+7. **AI coding assistant:** development used Claude Code (Anthropic) as an AI coding assistant. It is not part of the running product: the
+   agent described in §5 is Sightline's own runtime agent (Nemotron on Nebius Token Factory proposing actions a person approves), and every model call the product makes is listed in the README's Built with NVIDIA + Nebius table.
 
 ## 12. Reproducibility
 
@@ -1107,7 +1107,7 @@ uv run python scripts/remote_check.py --api https://<address>   # is the deploym
 
 Sightline was first built in 36 hours at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`):
 the tiled detector, the review queue and the Bayesian search map, run as a batch over a demo survey.
-The OpenCV organizers confirmed the existing project is eligible. Built for this competition between Oct 20 and the code freeze on Sat Oct 25, 12:00 PT:
+The OpenCV organizers confirmed the existing project is eligible. Built for this competition between Oct 20 and the code freeze on Sun Oct 25, 12:00 PT:
 
 - the detector running on **OpenCV 5 `cv2.dnn`**, with a parity table against the Torch path (§3.1), and
   the INT8 QDQ experiment (§3.3);
@@ -1126,7 +1126,7 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
 - conditions from live web search (Tavily): forecast, warnings and park alerts, each value kept only
   with a verbatim quote; they decide whether drones may fly, how much a photo can see, how exposed the
   person is, and what briefings say (§7);
-- one console (the home page and its guided simulation at `#m/demo?s=<seed>&guide=1`, the About sheet, New search at `#new`, and the live mission's views; §14): task board, teams, approval inbox,
+- one console (the home page and its guided simulation at `#m/demo?s=<seed>&guide=1`, the About section of the home page at `#about`, New search at `#new`, and the live mission's views; §14): task board, teams, approval inbox,
   clue log, live map with the drones, teams and clues, and printable assignment cards with GPX/KML for
   the teams' handheld GPS (§1);
 - a **simulated drone fleet**, one process per drone, that flies approved legs and sends its photos through
@@ -1138,7 +1138,7 @@ The OpenCV organizers confirmed the existing project is eligible. Built for this
 - the measured **POD curve** (recall by person size, read at each photo's GSD for a 0.8 m person) and a
   terrain factor, and the frozen detector scored once on **LADD**, a dataset it never saw (recall 0.516)
   (`docs/report/POD.md`, `docs/report/LADD.md`, §10);
-- published HERIDAL results beside ours (§3.10), the cost and energy of a 500-photo mission (§4.1), and
+- published HERIDAL results beside Sightline's (§3.10), the cost and energy of a 500-photo mission (§4.1), and
   what breaks first (`docs/submission/WHAT_BREAKS_FIRST.md`);
 - the **re-look leg** (an `unclear` second look on a small box proposes a 25 m pass) and the **ledger** of
   expected against realised value, with the negative result: 0 of 25 val near-misses resolved in
@@ -1153,7 +1153,7 @@ Diff: `git diff bcs-final-submission..opencv-submit`.
 **The home page** (`#`, `web/src/front/Home.tsx`) leads with one measured claim over the survey's
 aerial photos, then four measured facts, each linked to its source, how it works, how photos get in,
 who it is for, the **Guided simulation** cards (five scenarios on the same mountain and photos: who is
-missing, the clues the field will report, the length) and a **For judges** strip of links. **Start the
+missing, the clues the field will report, the length) a **For judges** strip of links, and an About section (`#about`) on who built it and why. **Start the
 simulation** opens the console on that scenario with the guided simulation on
 (`#m/demo?s=<seed>&guide=1`); **Open the console only** opens it without.
 

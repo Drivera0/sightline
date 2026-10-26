@@ -1,9 +1,9 @@
-# Lane C · Sprint 2: live map, information-gain planner, fleet, debrief
+# Workstream C · Search & Fleet: live map, information-gain planner, fleet, debrief
 
 > Superseded by [`docs/LANE_C_SEARCH.md`](../LANE_C_SEARCH.md) and
 > [`sightline/search/README_LIVE.md`](../../sightline/search/README_LIVE.md) (the live map, planner and
 > fleet as built), with results in `docs/report/PLANNER_V2.md` and `docs/report/FLEET_V2.md`. This file
-> keeps the sprint plan, the math as planned and each task's outcome.
+> keeps the plan, the math as planned and each task's outcome.
 
 **Folders:** `sightline/search/`, `web/src/search/`, `web/src/map/heat/`, `tests/search/`.
 
@@ -19,7 +19,7 @@
 4. **Evaluation and debrief.** Simulated evaluations against the static approach, and a mission debrief
    built from the log.
 
-The Python stays pure: lane D's pipeline calls it and persists the results; the fleet sim talks only to
+The Python stays pure: the pipeline (workstream D) calls it and persists the results; the fleet sim talks only to
 the HTTP API.
 
 ## 2. The math as planned
@@ -70,7 +70,7 @@ links and a relay for cut-off teams (#139).
 `tests/search/` and Vitest, no network: sector and update vectors identical in both languages; sums stay
 1; ground POD never above 0.9 and searched sectors keep probability; a map rebuilt from the update log
 equals the live one; the planner respects flyability, battery and twilight and gives two drones
-different sectors; the fleet sim's photos carry poses lane B's `read_pose` reads back, and no request
+different sectors; the fleet sim's photos carry poses that `read_pose` (workstream B) reads back, and no request
 carries truth; the debrief's narrative uses only numbers from its tables.
 
 ## 5. Cut order

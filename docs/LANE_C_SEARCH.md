@@ -1,6 +1,6 @@
 # Lane C · Search: the probability map
 
-> **Owner:** Teammate C · **Folders:** `sightline/search/`, `tests/search/`, `web/src/search/`, `web/src/map/heat/`
+> The BCS Hackathon plan for the search map ("lane C" is the plan's name for this module) · **Folders:** `sightline/search/`, `tests/search/`, `web/src/search/`, `web/src/map/heat/`
 > **Read first:** `00_OVERVIEW.md`, `01_CONTRACT.md` (§8 `map.json`, §9 `metrics.search_sim`)
 
 ---
@@ -111,7 +111,7 @@ The forest becomes the most likely cell even though the drone flew over it.
 - [ ] Look up the **hiker distance rings** in *Lost Person Behavior* (or an authoritative summary of it) and write them down with the page or source.
 - [ ] Agree the **LKP** with B.
 - [ ] Work the three-cell example by hand.
-- [ ] Get the test split from Dan. Pick **20 frames** (1000×750 crops) with a mix of meadow, forest, rock and shadow, and score each by eye: canopy 0, 0.25, 0.5, 0.75 or 1. Save as `tests/search/fixtures/canopy_labels.json`. This is how you'll tune §3.3.
+- [ ] Copy the HERIDAL test split. Pick **20 frames** (1000×750 crops) with a mix of meadow, forest, rock and shadow, and score each by eye: canopy 0, 0.25, 0.5, 0.75 or 1. Save as `tests/search/fixtures/canopy_labels.json`. This is how you'll tune §3.3.
 
 ---
 
@@ -199,7 +199,7 @@ def write_test_vectors(out: Path = Path("web/src/search/__fixtures__/update_vect
 
 ## Robustness: does the gain survive the canopy error?
 
-`simulate` draws the person's true visibility from our own canopy estimate plus noise `vis_noise` (default 0.15). The measured canopy error is MAE 0.34, which for Gaussian noise is σ ≈ 0.34 / 0.80 ≈ 0.43. So we re-ran `simulate` (30,000 trials, seeds 7, 8, 9, in_survey with overlap ≥ 0.5) at higher noise. Maps: the 500-frame scratch runs without detections (blocks and shuffle layouts), not the demo cache.
+`simulate` draws the person's true visibility from Sightline's own canopy estimate plus noise `vis_noise` (default 0.15). The measured canopy error is MAE 0.34, which for Gaussian noise is σ ≈ 0.34 / 0.80 ≈ 0.43. So `simulate` was re-run (30,000 trials, seeds 7, 8, 9, in_survey with overlap ≥ 0.5) at higher noise. Maps: the 500-frame scratch runs without detections (blocks and shuffle layouts), not the demo cache.
 
 | Layout | `vis_noise` | Naive median (seeds 7 / 8 / 9) | Sightline median (seeds 7 / 8 / 9) | Mean gain |
 |---|---|---|---|---|
@@ -229,7 +229,7 @@ Re-run on the 5 m demo cache (2026-10-18; same detections, blocks, seed 7; `simu
 | 0.43 | 1810 / 1775 / 1879 | 1395 / 1407 / 1516 | 19–23% |
 | 0.55 | 1825 / 1790 / 1926 | 1448 / 1476 / 1606 | 17–21% |
 
-Sightline beat Naive on the in-survey median and p90 in all 15 runs. The demo's 1,213 vs 1,743 is seed 7 at the default noise, again the best of the three seeds. The gain is larger than on 20 m cells because each cell's canopy now comes from the pixels inside it instead of a 20 m average; the same limit applies (the simulation draws visibility from our own canopy estimate plus noise).
+Sightline beat Naive on the in-survey median and p90 in all 15 runs. The demo's 1,213 vs 1,743 is seed 7 at the default noise, again the best of the three seeds. The gain is larger than on 20 m cells because each cell's canopy now comes from the pixels inside it instead of a 20 m average; the same limit applies (the simulation draws visibility from Sightline's own canopy estimate plus noise).
 
 Sightline beat Naive on the in-survey median and p90 in all 30 runs (2 layouts × 5 noise levels from 0.15 to 0.55 × 3 seeds), but the gain shrinks as the noise grows and varies with the seed (blocks at 0.43: 4 to 18 cells). Limit of this test: the noise is random, while the classifier's real errors are systematic (it always misses pale and autumn trees), so even the 0.43 result is somewhat optimistic.
 
@@ -260,7 +260,7 @@ Write tests first (§7), then `grid.py`, `prior.py` (placeholder first), `update
 `simulate` takes the `MapFile` plus the per-frame `(canopy, overlap)` lists returned by `build_map`, because the drone's find probability and the naive method both need each cell's overlap, which `map.json` doesn't store. For each of 1,000 trials (seed 7):
 
 1. Draw the true cell from `prior.p` renormalised over the grid (the person is assumed inside the grid).
-2. Draw the person's **true visibility** in each covered cell: `clip((1 − canopy) + N(0, vis_noise), 0, 1)`. The noise stops the test from flattering our own canopy estimate.
+2. Draw the person's **true visibility** in each covered cell: `clip((1 − canopy) + N(0, vis_noise), 0, 1)`. The noise stops the test from flattering Sightline's own canopy estimate.
 3. Fly the survey in order. Whenever a step covers the true cell, the drone **finds** the person with probability `recall × true_visibility × overlap`. If found, the trial counts toward `found_by_drone_rate` and stops.
 4. If never found, rank all cells by each method's final probability and record the true cell's 1-based rank ("cells checked before reaching the person"):
    | Method | POD used |
@@ -325,7 +325,7 @@ See §9.
 
 ---
 
-## 9. Your screen: heatmap and "search next" (hours 18–26)
+## 9. Screen: heatmap and "search next" (hours 18–26)
 
 You own `web/src/map/heat/` and `web/src/search/`. B owns the map itself; you add layers through `useMap()`. D's review queue calls your store. Shell and look: `05_FRONTEND_SHARED.md`.
 
@@ -353,23 +353,19 @@ You own `web/src/map/heat/` and `web/src/search/`. B owns the map itself; you ad
 
 ---
 
-## 10. Your part of the pitch
+## 10. Part of the pitch
 
-About 20 seconds, the reveal: "Finding nobody still tells you something." Scrub the slider so open ground turns pale and forest stays dark red. Then the simulated result: cells to search with our map vs. the naive map, clearly labelled simulated.
+About 20 seconds, the reveal: "Finding nobody still tells you something." Scrub the slider so open ground turns pale and forest stays dark red. Then the simulated result: cells to search with Sightline's map vs. the naive map, clearly labelled simulated.
 
 ---
 
-## 11. For Claude (instructions when this file is given to Claude Code)
+## 11. Working rules
 
-- You are working on **lane C** only. Edit `sightline/search/`, `tests/search/`, `web/src/search/`, `web/src/map/heat/`. Don't touch other lanes' folders, `sightline/contract.py` or `web/src/contract.ts`.
+- This module's code is in `sightline/search/`, `tests/search/`, `web/src/search/` and `web/src/map/heat/`. It does not change other modules' folders, `sightline/contract.py` or `web/src/contract.ts`.
 - **Tests first** for every formula in §3; the three-cell example is mandatory.
 - Compute in float64. Serialise per §6.3: pods, canopy and top-cell p rounded to 4 decimals; prior and final unrounded. Never let a probability reach exactly 0 (use `pod_cap`).
 - The search map's review state comes from D's `useReview` history; don't keep a second copy of review answers.
 - Grid conventions (row 0 = north, col 0 = west, `[lon, lat]` polygons) are in contract §8. Don't change them.
-- Python and TypeScript updates must stay identical: if you change one, regenerate the vectors and run both test suites.
+- Python and TypeScript updates must stay identical: if one changes, regenerate the vectors and run both test suites.
 - Don't invent prior ring numbers. Use the placeholder until real, cited numbers are provided.
-- Before finishing: `uv run pytest tests/search`, `uv run ruff check sightline/search`; for web work, `pnpm test` and `pnpm build`.
-- Good first prompts:
-  1. "Read docs/LANE_C_SEARCH.md §3 and §7. Write tests 1–6, then implement `grid.py`, `prior.py` (placeholder) and `update.py`."
-  2. "Implement `canopy.py` per §3.3 and a tuning script per §6.2 using `tests/search/fixtures/canopy_labels.json`."
-  3. "Implement `update.ts` per §6.5 and the vector generator; make vitest pass."
+- Before merging: `uv run pytest tests/search`, `uv run ruff check sightline/search`; for web work, `pnpm test` and `pnpm build`.

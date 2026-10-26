@@ -18,8 +18,8 @@ once and the relook scenario once with one full leg.
 
 ## Setup
 
-The real mission API (`create_app`, `MissionStore`, the photo worker, lane B's pose reading, lane
-C's live map and planner, the agent's `Runner` and hooks) runs under uvicorn on a local port, in the
+The real mission API (`create_app`, `MissionStore`, the photo worker, the geo module's pose reading, the
+search module's live map and planner, the agent's `Runner` and hooks) runs under uvicorn on a local port, in the
 same process, so the model and Tavily clients can be swapped without editing the agent. The eval
 drives it over HTTP. A **scripted** search manager and reviewer make the decisions, and each
 decision is a `human` trace entry that says it was scripted.

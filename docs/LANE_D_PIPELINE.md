@@ -1,17 +1,17 @@
 # Lane D · Pipeline: the glue, the survey and the app shell
 
-> **Owner:** Teammate D · **Folders:** `sightline/contract.py`, `sightline/pipeline/`, `sightline/api/`, `tests/pipeline/`, repo config, `web/` shell (`web/src/shell/`, `web/src/lib/`), `web/src/review/`
+> The BCS Hackathon plan for the pipeline ("lane D" is the plan's name for this module) · **Folders:** `sightline/contract.py`, `sightline/pipeline/`, `sightline/api/`, `tests/pipeline/`, repo config, `web/` shell (`web/src/shell/`, `web/src/lib/`), `web/src/review/`
 > **Read first:** `00_OVERVIEW.md`, **all of** `01_CONTRACT.md` (you implement it)
 
 ---
 
 ## 1. Mission
 
-You make four people's work into one product. You own:
+This module turns the other modules' work into one product. It owns:
 
 - the **repo** and tooling,
 - the **contract as code** (Pydantic models + generated TypeScript types),
-- the **sample cache** everyone builds against from hour 1,
+- the **sample cache** every module builds against from hour 1,
 - the **demo survey builder** (500 frames, about 6 with people),
 - the **pipeline** that runs every lane's functions in order and is the **only writer of the cache**,
 - **ranking** and the ranking metrics,
@@ -33,7 +33,7 @@ You make four people's work into one product. You own:
 
 | Direction | What | From / to |
 |---|---|---|
-| In | HERIDAL test split (101 images + labels) | Dan, before the event |
+| In | HERIDAL test split (101 images + labels) | lane A, before the event |
 | In | Lane functions | A `sightline.ml`, B `sightline.geo`, C `sightline.search` |
 | In | `data/work/detect/` from the GPU desktop | A |
 | Out | Every cache file | `cache/<name>/`, copied to `web/public/cache/<name>/` |
@@ -44,15 +44,15 @@ You make four people's work into one product. You own:
 
 ## 3. Background you need
 
-- **Why you're the only writer:** if four people write JSON by hand, the shapes drift and the website breaks at 3 a.m. With one writer validating against Pydantic models, a bad shape fails loudly in the pipeline instead of silently on stage.
-- **Why stages write intermediate files:** detection needs the GPU desktop; everything else runs on laptops. Each stage reads and writes `data/work/<stage>/`, so Dan can run `detect` at home, share the folder, and the rest of the pipeline runs anywhere.
+- **Why one writer:** if several modules write JSON by hand, the shapes drift and the website breaks at 3 a.m. With one writer validating against Pydantic models, a bad shape fails loudly in the pipeline instead of silently on stage.
+- **Why stages write intermediate files:** detection needs the GPU desktop; everything else runs on a laptop. Each stage reads and writes `data/work/<stage>/`, so `detect` can run on the desktop, the folder can be copied over, and the rest of the pipeline runs anywhere.
 - **Why frames, not full photos:** every HERIDAL photo contains at least one person, so ranking full photos is meaningless. 1000×750 frames from test images give a realistic survey: mostly empty, a handful with people.
 
 ---
 
 ## 4. Before the event (setup only, no app code)
 
-- [ ] Create the GitHub repo (Dan's account or a team org); add all four as collaborators; protect `main` (no force-push).
+- [ ] Create the GitHub repo; protect `main` (no force-push).
 - [ ] `pyproject.toml` with `uv`, Python 3.11. Dependencies:
   - core: `numpy`, `pillow`, `opencv-python-headless`, `shapely`, `pydantic>=2`, `typer`, `fastapi`, `uvicorn`
   - extra `ml`: `torch`, `torchvision`, `ultralytics`, `sahi` (A installs the CUDA build of torch per PyTorch's install guide)
@@ -61,9 +61,9 @@ You make four people's work into one product. You own:
 - [ ] Folder skeleton from `00_OVERVIEW.md` §5 with empty `__init__.py` files, plus `CLAUDE.md` at the root and these docs in `docs/`. **No application code yet, including `contract.py`:** that's hour 0.
 - [ ] `README.md`: one paragraph on the project, the three commands from `CLAUDE.md`, and this attribution line: "Imagery from the HERIDAL dataset (Božić-Štulić, Marušić & Gotovac, 2019), VOC-format copy by Pyrrö (2021), CC BY 3.0."
 - [ ] Scaffold `web/` with `pnpm create vite` (React + TypeScript), add `maplibre-gl`, `pmtiles`, `zustand`, `tailwindcss`, `vitest`, `json-schema-to-typescript`. Confirm `pnpm dev` shows the default page. Nothing else yet.
-- [ ] Read the event rules on prep and on prize tracks; note the tracks we qualify for.
-- [ ] Get the test split from Dan into `data/heridal/yolo_full/test/`.
-- [ ] Ask the team for a **personal origin story** for the pitch opener.
+- [ ] Read the event rules on prep and on prize tracks; note the tracks Sightline qualifies for.
+- [ ] Copy the test split into `data/heridal/yolo_full/test/`.
+- [ ] Write a **personal origin story** for the pitch opener.
 
 ---
 
@@ -147,7 +147,7 @@ def write_sample(out: Path = Path("cache/sample")) -> None   # also copies to we
 |---|---|---|
 | `frames` | `build_survey` | `data/survey/` |
 | `place` | B `simulate_flight`, `footprint` | `work/place/poses.json` |
-| `detect` | A `sightline.ml.run_survey` (GPU; Dan runs it on the desktop) | `work/detect/detections_raw.json`, `crops/`, `config.json` |
+| `detect` | A `sightline.ml.run_survey` (GPU; runs on the desktop) | `work/detect/detections_raw.json`, `crops/`, `config.json` |
 | `georef` | B `georef_detection` | `work/georef/detections_geo.json` |
 | `rank` | `rank_frames` (threshold from `work/detect/config.json`) | `work/rank/rank.json` |
 | `map` | C `build_map` (recall from `work/detect/detector_metrics.json`, else 0.80) | `work/map/map.json`, `work/map/frame_cells.json` |
@@ -172,7 +172,7 @@ See §9.
 
 - **Hour 26:** feature freeze. Full demo click path works on the presenting laptop with **Wi-Fi off** (offline basemap).
 - **By hour 28:** record the backup video (screen + voice, the 60-second demo).
-- Devpost write-up: problem, what it does, how we built it, honest limitations (simulated path, simulated search evaluation, placeholder items), HERIDAL attribution, team.
+- Devpost write-up: problem, what it does, how it was built, honest limitations (simulated path, simulated search evaluation, placeholder items), HERIDAL attribution, credits.
 - Lead three timed rehearsals.
 
 ### 6.6 Stretch: upload API (cut #2 on the list)
@@ -199,13 +199,13 @@ FastAPI in `sightline/api/`: `GET /health`; static mount of `cache/`; `POST /sur
 | Problem | Fallback |
 |---|---|
 | A lane's function isn't ready | Generate a placeholder output shaped to the **current** survey (e.g. `[]` detections for every frame id, one empty step per frame, a uniform prior) so downstream stages and validation still run. Don't reuse the sample cache: its 20 frame ids won't match the 500. Log it in `manifest.json` notes. |
-| Desktop unreachable for `detect` | Dan runs it on Colab; copy `work/detect/` from there. |
+| Desktop unreachable for `detect` | Run it on Colab; copy `work/detect/` from there. |
 | A validation check fails at hour 25 | Fix the data, never the validator. If it truly can't be fixed, hide that UI element and say so in the pitch. |
 | Upload API | Cut it. The demo runs from the cache. |
 
 ---
 
-## 9. Your screens: shell + review queue
+## 9. Screens: shell + review queue
 
 You own the shell, the shared stores and the review queue. Look and shared components: `05_FRONTEND_SHARED.md`.
 
@@ -229,22 +229,17 @@ You own the shell, the shared stores and the review queue. Look and shared compo
 
 ---
 
-## 10. Your part of the pitch
+## 10. Part of the pitch
 
-You coordinate the pitch and own the opener: the origin story and the numbers (100+ North Shore rescues a year; 33 s per photo and a third of people missed). Hand off to A (detector), C (map reveal), then close on the ask.
+The pitch opens here: the origin story and the numbers (100+ North Shore rescues a year; 33 s per photo and a third of people missed). Then the detector (A), the map reveal (C), and the close on the ask.
 
 ---
 
-## 11. For Claude (instructions when this file is given to Claude Code)
+## 11. Working rules
 
-- You are working on **lane D**. Edit `sightline/contract.py`, `sightline/pipeline/`, `sightline/api/`, `tests/pipeline/`, repo config files, `web/src/shell/`, `web/src/lib/`, `web/src/review/`, `web/` config. Don't edit `sightline/ml/`, `sightline/geo/` or `sightline/search/`; call their public functions.
-- `contract.py` must match `docs/01_CONTRACT.md` **exactly**: names, types, nesting, nullability. Use `extra="forbid"`. If the doc is ambiguous, stop and ask; don't guess.
+- This module's code is in `sightline/contract.py`, `sightline/pipeline/`, `sightline/api/`, `tests/pipeline/`, the repo config files, `web/src/shell/`, `web/src/lib/`, `web/src/review/` and the `web/` config. It does not edit `sightline/ml/`, `sightline/geo/` or `sightline/search/`; it calls their public functions.
+- `contract.py` must match `docs/01_CONTRACT.md` **exactly**: names, types, nesting, nullability. Use `extra="forbid"`. If the doc is ambiguous, settle it in the doc first; don't guess.
 - **The pipeline is the only cache writer.** Validate before writing; never write a cache that fails `validate_cache`.
 - **Never let truth into the cache.** Truth lives in `data/survey/truth.json` and is only read by `ranking_metrics`.
 - No hand-placed positives: the flight order is a seeded shuffle.
-- Before finishing: `uv run pytest tests/pipeline`, `uv run ruff check .`, `uv run python -m sightline.pipeline validate cache/sample`, and for web work `pnpm test && pnpm build`.
-- Good first prompts:
-  1. "Read docs/01_CONTRACT.md fully and implement `sightline/contract.py` plus test 1 from LANE_D §7. Ask about anything ambiguous."
-  2. "Implement `write_sample` and `validate_cache` per LANE_D §5–6.1 and test 5."
-  3. "Implement `cut_frames` and `build_survey` per §6.2 with tests 2–3."
-  4. "Build the web shell per §9.1 with the theme tokens in docs/05_FRONTEND_SHARED.md."
+- Before merging: `uv run pytest tests/pipeline`, `uv run ruff check .`, `uv run python -m sightline.pipeline validate cache/sample`, and for web work `pnpm test && pnpm build`.

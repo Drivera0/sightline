@@ -239,7 +239,7 @@ states the value. A category needs the quote itself to say "hiker", "hiking", "b
 Golden Ears' an age, time, place and clothing (the age and clothing, a minor's, are stored as `[redacted:
 minor]`), but the model returned no quote that names a category, so the prior stayed uniform
 and nothing was proposed. (One Mount Seymour title says "Missing hiker"; the model did not return it as a
-category quote, and code does not invent one.) That is the behaviour we want. The category picks Koester's
+category quote, and code does not invent one.) That is the intended behaviour. The category picks Koester's
 distance rings, the rings reshape the probability map, and the map decides where the drones fly. A guessed
 "hiker" for a snowshoer, or for a teenager who "left for the hike with the group", would send drones to rings
 chosen on a guess, with nothing on screen to say so. An empty category costs a uniform prior, which a person

@@ -132,9 +132,9 @@ crop that pulled it in (scores 0.926–0.941). By eye:
 - Row 4 is a blue object in brush, a real lookalike. It shares saturated colour with the
   confirmed crop's yellow jacket.
 
-We looked for lookalike rocks among the proposals at 0.92 and found none. The near-misses that
+I looked for lookalike rocks among the proposals at 0.92 and found none. The near-misses that
 are not people and reach 0.92 are coloured objects. Below 0.90 the share of non-people grows (the
-table above). We did not examine those crops one by one.
+table above). I did not examine those crops one by one.
 
 ## Cost and latency
 

@@ -1,8 +1,8 @@
-# Lane B · Sprint 2: conditions, clues on the map, assignment cards, photo clients
+# Workstream B · Geo & Conditions: conditions, clues on the map, assignment cards, photo clients
 
 > Superseded by [`docs/LANE_B_GEO.md`](../LANE_B_GEO.md) (geo, map, integration status) and
 > [`docs/report/TAVILY.md`](../report/TAVILY.md) (conditions, with a live run's trace). This file keeps
-> the sprint plan, the rules the conditions tool was built to, and each task's outcome.
+> the plan, the rules the conditions tool was built to, and each task's outcome.
 
 **Folders:** `sightline/geo/`, `sightline/client/`, `web/src/map/MapView.tsx`, `web/src/map/base/`,
 `tests/geo/`, `tests/client/`.
@@ -38,12 +38,12 @@
 
 The four places conditions act:
 
-| Hook | Owner | Effect |
+| Hook | Where | Effect |
 |---|---|---|
-| Flyability gate | C planner | no legs when not flyable; legs end before `flyable_until` |
-| Honest coverage | C live map | photo POD × visibility factor |
-| Shelter shift | C live map | as the exposure band worsens, mass moves toward high-canopy cells |
-| Briefing context | A briefings, E header and cards | launch window, daylight left, closures |
+| Flyability gate | planner (C) | no legs when not flyable; legs end before `flyable_until` |
+| Honest coverage | live map (C) | photo POD × visibility factor |
+| Shelter shift | live map (C) | as the exposure band worsens, mass moves toward high-canopy cells |
+| Briefing context | briefings (A), console header and cards (E) | launch window, daylight left, closures |
 
 ## 3. Work items
 

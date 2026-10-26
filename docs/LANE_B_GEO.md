@@ -1,6 +1,6 @@
 # Lane B · Geo: photo pose, pixel-to-GPS, and map base
 
-> **Owner:** Lane B · **Folders:** `sightline/geo/`, `tests/geo/`,
+> The plan for the geo module ("lane B" is the plan's name for it) · **Folders:** `sightline/geo/`, `tests/geo/`,
 > `web/src/map/MapView.tsx`, `web/src/map/base/`
 >
 > Read `00_OVERVIEW.md`, `01_CONTRACT.md`, and `05_FRONTEND_SHARED.md` first.
@@ -20,7 +20,7 @@ The Mount Seymour demo uses real HERIDAL photos on a clearly labelled simulated
 flight. The second survey uses real DJI camera positions from the HERIDAL test
 photos so the demo can distinguish real coordinates from the simulation.
 
-The real-position survey is additive. We retained the original simulated Mount
+The real-position survey is additive. It keeps the original simulated Mount
 Seymour flight, its search map, and its existing demo flow. The app's survey
 selector switches between that simulation and the new `real-gps` survey; it
 does not replace or rewrite the Seymour cache.
@@ -144,7 +144,7 @@ on squashed labels, matched 61 people with a p90 of 0.079 m).
 
 The real-position cache does **not** use this offset as its detection radius. It is only the
 detector-box part of the position error after projection: it leaves out the absolute EXIF GPS,
-altitude and terrain error, so as a radius it would claim centimetre accuracy we have not shown
+altitude and terrain error, so as a radius it would claim centimetre accuracy that has not been shown
 (the found banner would read "±0.13 m"). Pins use the same standard 10 m position radius as the
 demo (`SIMULATED_RADIUS_M`), and the measured offset is reported in the cache notes.
 
@@ -155,7 +155,7 @@ Therefore this experiment measures the detector-box-centre component after
 projection. It proves that real camera coordinates and real camera pose drive
 the pins, and it measures how box localization propagates into metres. It does
 **not** measure absolute ground error from EXIF GPS, relative altitude, terrain,
-or the flat-ground assumption. We must not claim “8 cm absolute GPS accuracy.”
+or the flat-ground assumption. Sightline must not claim “8 cm absolute GPS accuracy.”
 
 ## Python implementation
 
@@ -184,7 +184,7 @@ Every function has a short description directly above it and a docstring.
 
 ## Integration status
 
-This branch starts from Lane D and now includes the necessary integration:
+This work builds on the pipeline (lane D) and includes the necessary integration:
 
 - The app shell offers `sample`, `demo`, and `real-gps` surveys through the
   existing cache store.
