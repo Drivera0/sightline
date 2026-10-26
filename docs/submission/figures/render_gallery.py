@@ -22,6 +22,7 @@ SITE = sys.argv[2] if len(sys.argv) > 2 else "http://localhost:5191/"
 out.mkdir(parents=True, exist_ok=True)
 LIMIT = 1_500_000
 SETTLE = 400
+W, H = 1920, 1280  # 3:2, the ratio Devpost shows gallery images at
 HIDE_CURSOR = "*, *::before, *::after { cursor: none !important; caret-color: transparent !important; }"
 
 
@@ -46,10 +47,11 @@ def t1_mid_leg(page: Page) -> None:
 
 def t2_card(page: Page) -> None:
     esc(page)
-    show = page.get_by_role("button", name="Show the second look's images").element_handle()
-    show.click()
-    # the queue scrolled to #3 (this flight's second look, its images open), under its pending promotion
-    show.evaluate("(e) => e.closest('li').scrollIntoView({ block: 'start' })")
+    # Needs you leads with the AI suggestion: this flight's 0.17 candidate (f0273-d02), the detector's crop
+    # and the AI re-check zoom side by side; open its whole reason (Nemotron VL's verdict)
+    more = page.get_by_role("button", name="Show the whole reason")
+    if more.count():
+        more.first.click()
 
 
 def trace_chain(page: Page) -> None:
@@ -76,13 +78,14 @@ def t4_conditions(page: Page) -> None:
 def t6_report(page: Page) -> None:
     esc(page)
     # The after-action report (the find, the areas searched at their POD) and "What breaks first" don't fit
-    # the 720 px panel with what is between them, so this frame leaves out the key events, the export
+    # the panel with what is between them, so this frame leaves out the key events, the per-sector POD
+    # table, the flight lines, the export
     # buttons, the resources line, the measured results above "What breaks first" and its one-line intro
     # (all in the app, between the two).
     page.evaluate(
         """() => {
           const d = document.querySelector('section[aria-label=Debrief]');
-          for (const name of ['Key events', 'Resources and traffic']) {
+          for (const name of ['Key events', "Every sector's final POD", 'Drone flight lines', 'Resources and traffic']) {
             const s = d.querySelector(`section[aria-label="${name}"]`);
             if (s) s.style.display = 'none';
           }
@@ -94,7 +97,10 @@ def t6_report(page: Page) -> None:
           if (breaks.nextElementSibling?.tagName === 'P') breaks.nextElementSibling.style.display = 'none';
           const print = [...d.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Print');
           if (print) print.parentElement.style.display = 'none';  // Report, the team, ICS 204/214/309, CalTopo, Print
-          d.scrollIntoView({ block: 'start' });
+          // scroll only the Debrief's own column to its top; the page itself stays put
+          let col = d; while (col && col.scrollHeight <= col.clientHeight + 1) col = col.parentElement;
+          if (col && col !== document.scrollingElement && col !== document.body) col.scrollTop = 0;
+          window.scrollTo(0, 0);
         }"""
     )
 
@@ -125,16 +131,16 @@ with sync_playwright() as p:
     for name, address, step in JOBS:
         if ONLY and not any(name.startswith(o) for o in ONLY):
             continue
-        ctx = browser.new_context(viewport={"width": 1920, "height": 1080}, device_scale_factor=1)
+        ctx = browser.new_context(viewport={"width": W, "height": H}, device_scale_factor=1)
         page = ctx.new_page()
         page.goto(SITE + address)
         page.add_style_tag(content=HIDE_CURSOR)
         page.wait_for_selector(".maplibregl-canvas", state="attached", timeout=15000)
         page.wait_for_timeout(4000)  # tiles, the photos and the fixtures
-        page.mouse.move(1919, 1079)  # no hover state anywhere
+        page.mouse.move(W - 1, H - 1)  # no hover state anywhere
         if step:
             step(page)
-            page.mouse.move(1919, 1079)
+            page.mouse.move(W - 1, H - 1)
         page.wait_for_timeout(SETTLE)
         page.screenshot(path=str(out / name))
         ctx.close()
