@@ -163,12 +163,13 @@ export function GuideStrip({
             <li
               key={p.id}
               aria-current={p.state === "current" ? "step" : undefined}
+              title={p.label}
               className={`flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-caption ${p.state === "current" ? (call ? "border-caution text-text" : "border-border text-text") : p.state === "done" ? "border-line text-text-2" : "border-line text-text-3"}`}
             >
               <span aria-hidden className={p.state === "done" ? "text-ok" : "text-text-3"}>
                 {p.state === "done" ? "✓" : i + 1}
               </span>
-              <span>{p.label}</span>
+              <span data-pip-label>{p.label}</span>
               {p.count && p.count > 1 ? <span className="text-text-3">×{p.count}</span> : null}
               <span className="sr-only">{p.state === "done" ? ", decided" : p.state === "current" ? ", now" : ""}</span>
             </li>

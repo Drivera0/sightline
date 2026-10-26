@@ -5,9 +5,71 @@
 // "group:" rings its first few matches together (two cards, a call and its clue). The old step-through
 // story's marks are gone: the walk-through is the guided search (GuideMark, below).
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isTyping } from "../lib/keys";
 import { Button, KeyHint } from "../shell/components";
+import { useConsole } from "./consoleStore";
+
+/** A media query, live (false where the browser has no matchMedia: jsdom). */
+export function useMedia(query: string): boolean {
+  return useSyncExternalStore(
+    (on) => {
+      const mq = typeof window.matchMedia === "function" ? window.matchMedia(query) : null;
+      mq?.addEventListener?.("change", on);
+      return () => mq?.removeEventListener?.("change", on);
+    },
+    () => (typeof window.matchMedia === "function" ? window.matchMedia(query).matches : false),
+    () => false,
+  );
+}
+
+/** The control a mark's element is about: the element itself when it is a button, else the item's main one (Needs you's `data-primary`). */
+export function primaryIn(el: HTMLElement | null): HTMLButtonElement | null {
+  if (!el) return null;
+  if (el instanceof HTMLButtonElement) return el;
+  return el.querySelector<HTMLButtonElement>("button[data-primary]") ?? [...el.querySelectorAll<HTMLButtonElement>("button")].find((b) => /^(The subject|Person|Record find|Confirm)\b/.test(b.textContent?.trim() ?? "")) ?? null;
+}
+
+/**
+ * The control to press first, brought on screen in its scrolling column: the column at its top when the
+ * control fits there (so the guide's instruction above it stays in view), else just enough to show it.
+ */
+export function showControl(btn: HTMLElement) {
+  let sc: HTMLElement | null = btn.parentElement;
+  while (sc && sc !== document.body && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+  if (sc && sc !== document.body && sc.clientHeight > 0) {
+    const atTop = btn.getBoundingClientRect().bottom - sc.getBoundingClientRect().top + sc.scrollTop;
+    if (atTop <= sc.clientHeight) {
+      sc.scrollTop = 0;
+      return;
+    }
+  }
+  if (typeof btn.scrollIntoView === "function") btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
+/**
+ * Whether something else is drawn over the elements (the Conditions panel, the Trace page, a sheet): none of a
+ * few points of their visible box hits them. The ring is never drawn over an overlay.
+ */
+export function covered(els: readonly HTMLElement[]): boolean {
+  if (typeof document.elementFromPoint !== "function") return false;
+  const inset = (n: number) => Math.min(10, n / 2);
+  // each element's visible part: its middle and two inner corners must be its own (part of it under a panel
+  // is enough to hide the ring: half a ring over the Conditions panel is what the usability test saw)
+  return els.some((el) => {
+    const b = visibleRect(el);
+    if (b.width <= 0 || b.height <= 0) return false;
+    const pts: [number, number][] = [
+      [b.left + b.width / 2, b.top + b.height / 2],
+      [b.left + inset(b.width), b.top + inset(b.height)],
+      [b.left + b.width - inset(b.width), b.top + b.height - inset(b.height)],
+    ];
+    return pts.some(([x, y]) => {
+      const hit = document.elementFromPoint(x, y);
+      return !hit || !els.some((e) => e === hit || e.contains(hit));
+    });
+  });
+}
 
 interface Box {
   top: number;
@@ -151,6 +213,8 @@ function useTargetBox(target: Target): { box: Box | null; avoid: Box[]; view: { 
       if (!phone && els.length > 1) els.at(-1)!.scrollIntoView({ block: "nearest", inline: "nearest" });
       // on a phone the card sits along the bottom: bring the target to the top
       el.scrollIntoView({ block: phone ? "start" : "nearest", inline: "nearest" });
+      // and the control itself ("Do this first"), when the item is taller than its panel
+      if (!phone) showControl(primaryIn(el) ?? el);
       want = el.getBoundingClientRect().top;
     };
     const measure = () => {
@@ -168,8 +232,10 @@ function useTargetBox(target: Target): { box: Box | null; avoid: Box[]; view: { 
         scrollTo(els, phone);
       }
       const r = union(els.map(visibleRect));
+      // never drawn over an overlay (the Conditions panel, the Trace page, Photos, the Debrief, a sheet)
+      const hidden = !r || covered(els);
       setBox((b) => {
-        if (!r || r.width <= 0 || r.height <= 0) return null;
+        if (!r || r.width <= 0 || r.height <= 0 || hidden) return null;
         const next = { top: r.top, left: r.left, width: r.width, height: r.height };
         return b && b.top === next.top && b.left === next.left && b.width === next.width && b.height === next.height ? b : next;
       });
@@ -302,20 +368,91 @@ export function GuideMark({
 
   // the agent's choice is on the console (the card's Approve, Confirm): that is the one to do first
   const onConsole = own.length === 0 || !!agent?.on;
-  // focus moves to the decision: the real control's, else the bar's first button
+  // A desktop: the bar shares one scroll column with Needs you (CommandView), the step's item under the
+  // instruction; on a short screen (under 800 px) the other choices go after Needs you, so the control to
+  // press first is on screen at 1280 × 720 too, and a link in the bar scrolls to them. A phone: the bar is
+  // a bottom sheet over the tabs; while the review frame is open it folds to one line (tap to open it), so
+  // the answers stay in reach.
+  const desk = useMedia("(min-width: 1024px)");
+  const short = useMedia("(max-height: 800px)");
+  const phone = useMedia("(max-width: 639.98px)");
+  const split = desk && short && call && onConsole && own.length > 0;
+  const more = useRef<HTMLDivElement>(null);
+  // the column scrolled past the instruction (to the step's item): the instruction stays on one line at the
+  // column's top, over the panel (no room taken, so nothing moves when it shows)
+  const said = useRef<HTMLParagraphElement>(null);
+  const [past, setPast] = useState(false);
   useEffect(() => {
-    if (!call) return;
-    if (first.current && !onConsole) return first.current.focus({ preventScroll: true });
-    const el = findTarget(target);
-    // the item's main button (Needs you's `data-primary`: "Send Team One to C2", "Confirm clue"), else Person
-    const btn = el ? (el instanceof HTMLButtonElement ? el : el.querySelector<HTMLButtonElement>("button[data-primary]") ?? [...el.querySelectorAll<HTMLButtonElement>("button")].find((b) => /^(Person|Record find|Confirm)\b/.test(b.textContent?.trim() ?? ""))) : null;
-    (btn ?? card.current)?.focus({ preventScroll: true });
+    const col = desk && call ? card.current?.closest<HTMLElement>("[data-guided]") : null;
+    if (!col) {
+      setPast(false);
+      return undefined;
+    }
+    const on = () => {
+      const t = said.current;
+      setPast(!!t && t.getClientRects().length > 0 && t.getBoundingClientRect().top < col.getBoundingClientRect().top - 2);
+    };
+    on();
+    col.addEventListener("scroll", on, { passive: true });
+    const id = window.setInterval(on, 400);
+    return () => {
+      col.removeEventListener("scroll", on);
+      window.clearInterval(id);
+    };
+  }, [desk, call, text]);
+  const reviewOpen = useConsole((s) => s.review.open);
+  const [unfolded, setUnfolded] = useState(false);
+  useEffect(() => setUnfolded(false), [reviewOpen, heading]);
+  const folded = phone && reviewOpen && !unfolded;
+
+  // Leave asks first: a stray click must not throw the run away. The confirm sits above every sheet, the
+  // mission clock waits while it is open, and no review frame opens over it (consoleStore `confirming`).
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    if (!leaving) return undefined;
+    useConsole.getState().setConfirming(true);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setLeaving(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      useConsole.getState().setConfirming(false);
+    };
+  }, [leaving]);
+
+  // focus moves to the decision: the real control's, else the bar's first button; the control may render a
+  // moment later (Needs you filling in), so it is looked for again for a while, until the visitor moves focus
+  useEffect(() => {
+    if (!call) return undefined;
+    if (first.current && !onConsole) {
+      first.current.focus({ preventScroll: true });
+      return undefined;
+    }
+    let tries = 0;
+    const attempt = () => {
+      const a = document.activeElement;
+      const ours = !a || a === document.body || a === card.current;
+      if (!ours) return true;
+      // the item's main button (Needs you's `data-primary`: "Send Team One to C2", "Confirm clue"), else The subject
+      const btn = primaryIn(findTarget(target));
+      (btn ?? card.current)?.focus({ preventScroll: true });
+      return !!btn;
+    };
+    if (attempt()) return undefined;
+    const id = window.setInterval(() => {
+      if (attempt() || ++tries > 12) window.clearInterval(id);
+    }, 250);
+    return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [call, text]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (leaving || isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
       // Esc closes overlays only (theirs to handle); leaving the run is the Leave button, with a confirm
       if (k === "T" && watching) onTakeOver();
@@ -331,22 +468,41 @@ export function GuideMark({
     // capture: the view keys (1–6) wait while a decision is open; the review card's own keys (P/N/S/O/U) pass
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [call, watching, options, agent, onPick, onMap, onTakeOver, onPause, onSkip]);
+  }, [leaving, call, watching, options, agent, onPick, onMap, onTakeOver, onPause, onSkip]);
 
-  // Leave asks first: a stray click must not throw the run away
-  const [leaving, setLeaving] = useState(false);
-  useEffect(() => {
-    if (!leaving) return undefined;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      setLeaving(false);
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [leaving]);
-
+  const optionButtons = own.map((o, i) => (
+    <button
+      key={o.id}
+      ref={i === 0 ? first : undefined}
+      type="button"
+      disabled={watching}
+      title={o.effect}
+      onClick={() => (o.key === "M" ? onMap?.() : onPick?.(o.id))}
+      className={`sl-tap flex min-w-0 flex-1 basis-48 items-start gap-2 rounded-md border px-2.5 py-1.5 text-left disabled:opacity-60 ${o.agent ? "border-accent/60 hover:border-accent" : "border-border hover:border-text-3"}`}
+    >
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-small text-text">
+          {o.label}
+          {o.costMin ? <span className="text-caution"> · +{o.costMin} min</span> : null}
+          {o.agent ? <span className="text-accent-soft"> · AI's pick</span> : null}
+        </span>
+        <span data-guide-effect className="text-caption text-text-3">
+          {o.effect}
+        </span>
+      </span>
+      <span className="flex shrink-0 gap-1 max-sm:hidden">
+        {o.agent && <KeyHint>A</KeyHint>}
+        <KeyHint>{o.key}</KeyHint>
+      </span>
+    </button>
+  ));
+  const choices =
+    own.length > 0 ? (
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={split ? "Other choices" : "Options"}>
+        {onConsole && <span className="w-full text-caption text-text-3">{split ? "Or, instead of the item in Needs you:" : "Or, instead:"}</span>}
+        {optionButtons}
+      </div>
+    ) : null;
 
   // the ring's "do this first", unless the decision is in the bar itself (the survey on the map)
   const tag = call && box && onConsole;
@@ -365,21 +521,48 @@ export function GuideMark({
           Do this first
         </span>
       )}
+      {folded && (
+        <button
+          type="button"
+          data-guide-chip
+          aria-expanded={false}
+          onClick={() => setUnfolded(true)}
+          className="sl-tap fixed inset-x-3 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-[45] flex items-center gap-2 rounded-full border border-caution/70 bg-surface-solid px-3 py-1.5 text-left text-small shadow-[0_12px_30px_-8px_rgba(0,0,0,0.8)]"
+        >
+          <span className="sl-pill shrink-0" data-tone={call ? "caution" : "neutral"}>
+            {call ? "Your call" : "Watch this"}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-text-2" title={heading}>
+            {heading}
+          </span>
+          <span className="shrink-0 text-caption text-text-3">Show the guide</span>
+        </button>
+      )}
       <div
         ref={card}
         role="dialog"
         aria-modal="false"
         aria-label={call ? `Your call: ${heading}` : `Watch this: ${heading}`}
         data-guide-mark={mode}
+        hidden={folded}
         tabIndex={-1}
-        className={`sl-mark flex flex-col gap-2 rounded-lg border bg-surface-solid px-3.5 py-2.5 max-sm:fixed max-sm:inset-x-3 max-sm:bottom-3 max-sm:z-[45] max-sm:max-h-[55vh] max-sm:overflow-y-auto max-sm:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] ${call ? "border-caution/70" : "border-border"}`}
+        className={`sl-mark flex flex-col gap-2 rounded-lg border bg-surface-solid px-3.5 py-2.5 lg:order-0 max-sm:fixed max-sm:inset-x-3 max-sm:bottom-[calc(3.75rem+env(safe-area-inset-bottom))] max-sm:z-[45] max-sm:max-h-[50vh] max-sm:overflow-y-auto max-sm:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] ${call ? "border-caution/70" : "border-border"}`}
       >
-        {strip && <div className="flex justify-center">{strip}</div>}
+        {strip && (
+          <div data-guide-strip className="flex justify-center">
+            {strip}
+          </div>
+        )}
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption">
           <span className={`sl-pill ${call ? "" : "opacity-80"}`} data-tone={call ? "caution" : "neutral"}>
             {call ? "Your call" : "Watch this"}
           </span>
           <span className="min-w-0 flex-1 text-text-2">{heading}</span>
+          {phone && reviewOpen && (
+            <button type="button" onClick={() => setUnfolded(false)} className="sl-tap shrink-0 text-small text-text-2 hover:text-text">
+              Hide
+            </button>
+          )}
           {watching ? (
             <button type="button" onClick={onTakeOver} className="sl-tap shrink-0 text-small text-text hover:underline">
               Take over <KeyHint>T</KeyHint>
@@ -389,58 +572,27 @@ export function GuideMark({
               Watch instead
             </button>
           )}
-          <button type="button" onClick={() => setLeaving(true)} aria-expanded={leaving} className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
+          <button type="button" onClick={() => setLeaving(true)} aria-expanded={leaving} aria-haspopup="dialog" className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
             Leave
           </button>
         </span>
-        {leaving && (
-          <div role="alertdialog" aria-label="Leave the simulation?" className="flex flex-wrap items-center gap-2 rounded-md border border-alert/60 bg-[color-mix(in_srgb,var(--alert)_8%,transparent)] px-3 py-2">
-            <span className="min-w-0 flex-1 text-small text-text">Leave the simulation? Your decisions so far will be lost, and you go back to the scenarios.</span>
-            <Button variant="secondary" className="h-8! px-3!" onClick={() => setLeaving(false)} autoFocus>
-              Stay
-            </Button>
-            <Button variant="ghost" className="h-8! px-3!" onClick={onExit}>
-              Leave
-            </Button>
-          </div>
-        )}
         {call ? (
           <>
-            <p className="text-body font-medium text-text">{text}</p>
+            <p ref={said} className="text-body font-medium text-text">
+              {text}
+            </p>
             {why && (
-              <p className="text-small text-text-2">
+              <p data-guide-why className="text-small text-text-2" title={`AI suggests: ${why}`}>
                 <span className="text-accent-soft">AI suggests: </span>
                 {why}
               </p>
             )}
-            {own.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Options">
-                {onConsole && <span className="w-full text-caption text-text-3">Or, instead:</span>}
-                {own.map((o, i) => (
-                  <button
-                    key={o.id}
-                    ref={i === 0 ? first : undefined}
-                    type="button"
-                    disabled={watching}
-                    title={o.effect}
-                    onClick={() => (o.key === "M" ? onMap?.() : onPick?.(o.id))}
-                    className={`sl-tap flex min-w-0 flex-1 basis-48 items-start gap-2 rounded-md border px-2.5 py-1.5 text-left disabled:opacity-60 ${o.agent ? "border-accent/60 hover:border-accent" : "border-border hover:border-text-3"}`}
-                  >
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="text-small text-text">
-                        {o.label}
-                        {o.costMin ? <span className="text-caution"> · +{o.costMin} min</span> : null}
-                        {o.agent ? <span className="text-accent-soft"> · AI's pick</span> : null}
-                      </span>
-                      <span className="text-caption text-text-3">{o.effect}</span>
-                    </span>
-                    <span className="flex shrink-0 gap-1 max-sm:hidden">
-                      {o.agent && <KeyHint>A</KeyHint>}
-                      <KeyHint>{o.key}</KeyHint>
-                    </span>
-                  </button>
-                ))}
-              </div>
+            {split ? (
+              <button type="button" onClick={() => more.current?.scrollIntoView?.({ block: "nearest" })} className="sl-tap self-start text-caption text-text-2 underline underline-offset-2 hover:text-text">
+                Or, instead: {own.length === 1 ? "1 other choice" : `${own.length} other choices`}, under Needs you
+              </button>
+            ) : (
+              choices
             )}
             {answers && answers.length > 0 && (
               <details className="text-caption text-text-3">
@@ -492,6 +644,57 @@ export function GuideMark({
         )}
         {status && <p className="text-small text-accent-soft">{status}</p>}
       </div>
+      {desk && call && (
+        <div className="pointer-events-none sticky top-0 z-20 h-0 lg:order-1">
+          {past && (
+            <button
+              type="button"
+              data-guide-pinned
+              title={text}
+              onClick={() => card.current?.scrollIntoView({ block: "start" })}
+              className="sl-tap pointer-events-auto absolute inset-x-0 top-0 flex items-center gap-2 rounded-md border border-caution/70 bg-surface-solid px-2.5 py-1 text-left text-small shadow-[var(--shadow-pop)]"
+            >
+              <span className="sl-pill shrink-0" data-tone="caution">
+                Your call
+              </span>
+              <span className="min-w-0 flex-1 truncate text-text">{text}</span>
+            </button>
+          )}
+        </div>
+      )}
+      {split && choices && (
+        // after the step's item in the column (CommandView: the bar, Needs you, then this)
+        <div ref={more} data-guide-more className="sl-mark rounded-lg border border-caution/40 bg-surface-solid px-3.5 py-2 lg:order-2">
+          {choices}
+        </div>
+      )}
+      {leaving && <LeaveConfirm onStay={() => setLeaving(false)} onLeave={onExit} />}
     </>
+  );
+}
+
+/** Leave the simulation? Above every sheet and modal (the review frame, the shortcuts list). */
+function LeaveConfirm({ onStay, onLeave }: { onStay: () => void; onLeave: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-bg/70 p-4 backdrop-blur-[2px]" onClick={onStay}>
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-label="Leave the simulation?"
+        onClick={(e) => e.stopPropagation()}
+        className="flex w-full max-w-md flex-col gap-3 rounded-lg border border-alert/60 bg-surface-solid px-4 py-3 shadow-[var(--shadow-pop)]"
+      >
+        <p className="text-body text-text">Leave the simulation? Your decisions so far will be lost, and you go back to the scenarios.</p>
+        <p className="text-caption text-text-3">The mission clock waits while you decide.</p>
+        <span className="flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" className="h-9! px-4!" onClick={onStay} autoFocus>
+            Stay
+          </Button>
+          <Button variant="ghost" className="h-9! px-4!" onClick={onLeave}>
+            Leave
+          </Button>
+        </span>
+      </div>
+    </div>
   );
 }

@@ -281,6 +281,33 @@ Lead with the subject and the map; show only what needs a decision; one control 
 - **Record find stops the clock**; "Stay on the console" keeps the run on screen, stopped, with "What you did"
   and "Back to the scenarios". "Replay, following the agent" shows only when the visitor did not already.
 
+### Fit the screen (round 2 of the cold test, `a/fit-the-screen`)
+
+"I can't see the button": at 1280 × 720 the bar took the Needs you column and the step's control was cut off.
+
+- **One scroll column** (`CommandView` `data-guided`, `shell/theme.css`): on a desktop the bar and Needs you
+  share the right column's one scroll, the bar first, Needs you at its natural height. When a step starts the
+  mark scrolls its control into view (`showControl`: the column at its top when the control fits there, else
+  just enough) and focuses it, looking again while Needs you fills in. Scrolled past the instruction, it stays
+  pinned on one line at the column's top (`data-guide-pinned`, the whole text on hover; a click scrolls back).
+- **Short screens** (height under 800 px): the step strip folds away, the AI's reason keeps one line, each
+  option's effect moves to its tooltip, and the choices the console has no control for (ask for a bearing,
+  log without mapping, ask for a confirmation) go after Needs you (`data-guide-more`), one link away. Under
+  960 px the step strip shows the other steps by number only.
+- **Status line** (`StatusLine.tsx`): wraps to a second line instead of cutting off; under 1536 px the lowest
+  value stats go first (Rest of world, which the sector list also gives; daylight's "light until", in the
+  tooltip; the daylight bar). Clock, elapsed, daylight, subject and the bell stay.
+- **Phones**: the bar sits above the bottom tabs (the tabs are above the review frame and the bar); while the
+  review frame is open the bar folds to a one-line chip ("Show the guide"), so the answers are in reach; the
+  crop sits under the photo, never over it.
+- **The ring** is drawn only where its target shows: under the Conditions panel, the Trace page, Photos, the
+  Debrief or any sheet it is hidden (`covered`, elementFromPoint on each target).
+- **Leave the simulation?** is a modal above every sheet (z 80); while it is open the mission clock waits,
+  Watch instead waits, no guided key acts, and no review frame opens over it (`consoleStore.confirming`: a
+  review asked for then opens on Stay).
+- Checked in Chromium at 1280 × 720, 1366 × 768, 1440 × 900, 1920 × 1080 and 390 × 844: every step's control
+  on screen and hit by elementFromPoint; `fitScreen.test.tsx` holds the rules in jsdom.
+
 ## Feedback, review and the visitor's decisions (v3 interaction, lane A)
 
 What changed after Dan's v3 review (`docs/report/figures/v3/`: review-frame, toast, proposal-glow, timeline-tall,

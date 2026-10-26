@@ -594,3 +594,26 @@ body {
   .sl-progress { animation: none; width: 100%; opacity: 0.6; }
 }
 /* ---- end of v3 feedback and motion ---- */
+
+/* The guided search on a desktop (CommandView `data-guided`): the bar and Needs you share one scroll column,
+   in this order: the bar (the step and its instruction), Needs you (the step's item), the bar's other choices.
+   Needs you takes its natural height there, so nothing is cut off inside a box too short for it. */
+@media (min-width: 1024px) {
+  [data-guided] > #console-guide { display: contents; }
+  [data-guided] > [data-tour="needs"] { flex: none; overflow: visible; order: 1; }
+  [data-guided] > [data-tour="needs"] [aria-label="Approvals rail"] { flex: none; overflow: visible; max-height: none; }
+  [data-guided] > aside { order: 1; }
+  /* the instruction pinned at the column's top (GuideMark) never covers the control scrolled to */
+  [data-guided] [data-tour="needs"] :is(button, [data-need]) { scroll-margin-top: 2.75rem; }
+}
+/* A short screen (under 800 px): the bar keeps its step, instruction and buttons; the step strip, the AI's
+   reason past one line and each option's long effect fold away (each is still on hover: the title). */
+/* Under 960 px: the step strip on one line, the steps not under way by their number (the name on hover). */
+@media (min-width: 1024px) and (max-height: 959.98px) {
+  [data-guide-mark] li:not([aria-current]) > [data-pip-label] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (min-width: 1024px) and (max-height: 800px) {
+  [data-guide-mark] [data-guide-strip] [data-tour="scrubber"] { display: none; }
+  [data-guide-mark] [data-guide-why] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+  [data-guide-effect] { display: none; }
+}

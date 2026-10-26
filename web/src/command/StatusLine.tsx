@@ -16,10 +16,10 @@ import { showMe } from "./showMe";
 /** The day's light at the start of a search, for the bar's full width (8 h). */
 const FULL_DAY_MIN = 8 * 60;
 
-function Item({ label, children, title, tone }: { label: string; children: ReactNode; title?: string; tone?: "ok" | "alert" | "caution" | "accent" }) {
+function Item({ label, children, title, tone, className = "" }: { label: string; children: ReactNode; title?: string; tone?: "ok" | "alert" | "caution" | "accent"; className?: string }) {
   const color = tone === "ok" ? "text-ok" : tone === "alert" ? "text-alert" : tone === "caution" ? "text-caution" : tone === "accent" ? "text-accent" : "text-text";
   return (
-    <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap" title={title}>
+    <span className={`flex shrink-0 items-baseline gap-1.5 whitespace-nowrap ${className}`} title={title}>
       <span className="text-caption text-text-3">{label}</span>
       <span className={`text-small font-medium ${color}`}>{children}</span>
     </span>
@@ -67,7 +67,7 @@ export function StatusLine({
   const found = mission?.status === "found";
   const unconfirmed = clues.filter((c) => !c.confirmed).length;
   return (
-    <section role="status" aria-label="Mission status" className="flex h-9 items-center gap-x-5 overflow-x-auto border-t border-line px-3 lg:px-4 [scrollbar-width:none]">
+    <section role="status" aria-label="Mission status" className="flex min-h-9 items-center gap-x-4 overflow-x-auto 2xl:gap-x-5 border-t border-line px-3 max-sm:h-9 sm:flex-wrap sm:gap-y-0.5 sm:overflow-visible sm:py-1 lg:px-4 [scrollbar-width:none]">
       {/* the find leads the line: the first thing anyone should read, on a phone too */}
       {found && (
         <span data-tone="ok" className="sl-pill shrink-0" title={mission?.found ? `Found in ${mission.found.sector} by ${teams.find((t) => t.id === mission.found!.team)?.callsign ?? mission.found.team}` : undefined}>
@@ -85,10 +85,16 @@ export function StatusLine({
       </Item>
       <span className="flex shrink-0 items-center gap-2" title={conditions?.civil_twilight_end ? `Daylight left: light until ${clock(conditions.civil_twilight_end, tz)}, civil twilight` : "Daylight left: to the end of civil twilight"}>
         <Item label="Daylight" tone={day !== null && day < 60 ? "caution" : undefined}>
-          {day === null ? "–" : day === 0 ? "after dark" : `${duration(day)} left${conditions?.civil_twilight_end ? `, light until ${clock(conditions.civil_twilight_end, tz)}` : ""}`}
+          {day === null ? "–" : day === 0 ? "after dark" : (
+                <>
+                  {duration(day)} left
+                  {/* the gate time on a wide screen; on a narrower one it is in the tooltip */}
+                  {conditions?.civil_twilight_end ? <span className="max-2xl:hidden">, light until {clock(conditions.civil_twilight_end, tz)}</span> : null}
+                </>
+              )}
         </Item>
         {day !== null && (
-          <span aria-hidden className="relative h-1 w-14 overflow-hidden rounded-full bg-surface-strong">
+          <span aria-hidden className="relative h-1 w-14 overflow-hidden rounded-full bg-surface-strong max-2xl:hidden">
             <span className={`absolute inset-y-0 left-0 rounded-full ${day < 60 ? "bg-caution" : "bg-text-2"}`} style={{ width: `${Math.min(100, (day / FULL_DAY_MIN) * 100)}%` }} />
           </span>
         )}
@@ -135,7 +141,8 @@ export function StatusLine({
           <Item label="Subject">{subjectWord(clues, (iso) => clock(iso, tz))}</Item>
         ))}
       {outside !== null && (
-        <Item label={TERMS.row} title={TERMS.rowTip}>
+        // the lowest-value stat: the sector list says it too, so it goes first on a narrower screen
+        <Item label={TERMS.row} title={TERMS.rowTip} className="max-2xl:hidden">
           {Math.round(outside * 100)} %
         </Item>
       )}
