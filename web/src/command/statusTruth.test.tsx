@@ -50,6 +50,11 @@ describe("one truth for team status", () => {
       };
     };
     const { rerender } = render(<CommandView {...props(0)} />);
+    // the two regions, found by role once (they stay mounted through every rerender: checked each minute by
+    // identity); inside them plain selectors, since 81 accessible-name lookups over the whole console made
+    // this test take ~5 s under load and time out (the cold test's CI, 2026-10-26)
+    const resources = screen.getByRole("region", { name: "Resources" });
+    const needsYou = screen.getByRole("region", { name: "Needs you" });
     let sawOverdue = false;
     for (let min = 0; min <= 80; min += 1) {
       act(() => rerender(<CommandView {...props(min)} />));
@@ -59,17 +64,19 @@ describe("one truth for team status", () => {
       const truth = new Set(overdueTeams(board).map((x) => x.team.id));
       sawOverdue ||= truth.size > 0;
       // the rows
-      const rows = within(screen.getByRole("region", { name: "Resources" })).getAllByRole("article").filter((a) => a.hasAttribute("data-team"));
+      expect(resources.isConnected && needsYou.isConnected).toBe(true);
+      // the team rows: every article with a team, as getAllByRole("article") gave them (none hidden)
+      const rows = [...resources.querySelectorAll<HTMLElement>("article[data-team]")].filter((a) => !a.closest("[hidden], [aria-hidden='true']"));
       expect(new Set(rows.filter((r) => r.getAttribute("data-overdue") === "true").map((r) => r.getAttribute("data-team")))).toEqual(truth);
       // Needs you
-      const items = [...screen.getByRole("region", { name: "Needs you" }).querySelectorAll("[data-need-kind='overdue']")].map((e) => e.getAttribute("data-need")!.replace("overdue-", ""));
+      const items = [...needsYou.querySelectorAll("[data-need-kind='overdue']")].map((e) => e.getAttribute("data-need")!.replace("overdue-", ""));
       expect(new Set(items)).toEqual(truth);
       expect(new Set(needs([], p.teams, p.events, [], now, 30, 0, board).flatMap((n) => (n.kind === "overdue" ? [n.team.id] : [])))).toEqual(truth);
       // the minutes on the row's badge are Needs you's minutes
       for (const id of truth) {
         const m = Math.round(board.find((x) => x.team.id === id)!.heard.min!);
         expect(rows.find((r) => r.getAttribute("data-team") === id)).toHaveTextContent(`Overdue · not heard ${m} min`);
-        expect(screen.getByRole("region", { name: "Needs you" })).toHaveTextContent(`not heard for ${m} min`);
+        expect(needsYou).toHaveTextContent(`not heard for ${m} min`);
       }
       // the toasts and the bell: an alert stands only for a team overdue now, and every team overdue now has one
       const { toasts, log } = useNotify.getState();
@@ -82,7 +89,9 @@ describe("one truth for team status", () => {
     expect(heard(teams[1]!, allEvents, new Date(at(T0, 66)), 30, allTimeline).overdue).toBe(false);
     // the bell kept the story: overdue, then heard again
     expect(useNotify.getState().log.some((n) => n.title === "Team Three heard again")).toBe(true);
-  });
+    // 81 renders of the whole console: under 1 s alone now, but a loaded parallel run can stretch it past
+    // the 5 s default; 20 s is room, not a different test
+  }, 20_000);
 
   it("a team heard on the radio inside its check-in window is not overdue, whatever its stale last_heard_at says", () => {
     const t = team("T2", "Team Two", "searching", T0);
