@@ -35,6 +35,8 @@ import { cardFor } from "../front/scenarios";
 import { SubjectStrip } from "../command/SubjectStrip";
 import { PhotoDrop, useDropped } from "../command/PhotoDrop";
 import { DEFAULT_SEED, presetFor, scenarioMission } from "../command/scenarios";
+import { activeSetup, PLAY_SEED, playName } from "../command/openPlay";
+import { applySetup } from "../command/openPlayMission";
 import { setClockedFlights, stopAllDemoFlights } from "../lib/demoFlight";
 import { EventFeed } from "../command/EventFeed";
 import { DEMO_MISSION_ID, demoConditionsData, demoImageUrl, loadDemoConditions, loadDemoMission, loadDemoTrace, EXAMPLE_TRACE_LABEL } from "../command/demoMission";
@@ -49,7 +51,7 @@ import { MapStill, wantsStillMap } from "../map/MapStill";
 import { useSelection } from "../lib/selection";
 import { AppBar, rememberMission, type BarAction } from "../shell/AppBar";
 import { Button, modeOf, Page, Panel, Stat } from "../shell/components";
-import { DEMO_CONSOLE_HASH, guideHash, scenarioHash, SCENARIOS_HASH, viewHash, type Route, type View } from "../shell/flow";
+import { DEMO_CONSOLE_HASH, guideHash, PLAY_HASH, scenarioHash, SCENARIOS_HASH, viewHash, type Route, type View } from "../shell/flow";
 import { ShortcutOverlay } from "../shell/ShortcutOverlay";
 import { SHORTCUT_GROUPS } from "../shell/shortcuts";
 import { liveCards, liveReviewItems, ReviewRail, type LiveAnswer, type ObjectKind } from "../review/LiveReview";
@@ -296,16 +298,19 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
   }, [api, missionId, demo]);
   const cache = demo ? (demoData?.bundle ?? null) : bundle;
 
+  // Open play (`?s=play`, the #play page's Start): the visitor's own setup on its profile's scenario
+  const playSetup = useMemo(() => (seed === PLAY_SEED ? activeSetup() : null), [seed]);
+  const scenarioName = playSetup ? playName(playSetup) : presetFor(seed).name;
   // The scenario: the generator's fixture for its seed, or derived from the demo mission (scenarios.ts).
   useEffect(() => {
     if (!demo || !demoData) return undefined;
     let live = true;
     const load = (fixture: unknown) => loadDemoMission(fetch, async () => fixture as never, Promise.resolve(demoData.bundle.map)).then(({ data, now }) => ({ data, now }));
-    void scenarioMission(demoData.full, seed, load).then((f) => live && setScenario(f));
+    void scenarioMission(demoData.full, playSetup ? playSetup.profile : seed, load).then((f) => live && setScenario(playSetup ? applySetup(f, playSetup) : f));
     return () => {
       live = false;
     };
-  }, [demo, demoData, seed]);
+  }, [demo, demoData, seed, playSetup]);
 
   // The demo mission at the story's clock, the visitor's own actions on top. The guided search runs its own
   // clock: the fixtures' clock stands still while a decision's minutes are spent (sim.ts), and the console
@@ -527,7 +532,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     demo,
     scenario,
     seed: effSeed,
-    scenarioName: presetFor(seed).name,
+    scenarioName,
     cache,
     answer: (id, a) => answerRef.current(id, a),
     onPickOnMap: () => {
@@ -547,6 +552,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
     onRestart: restartGuide,
     guideHref: guideHash(seed),
     scenariosHref: SCENARIOS_HASH,
+    setupHref: playSetup ? PLAY_HASH : null,
   });
   // each team's status as its tasks say it (a team assigned a sector is not on standby)
   const teams = useMemo(() => withTaskStatus(s.teams, s.tasks), [s.teams, s.tasks]);
@@ -823,7 +829,7 @@ export function LiveMission({ api, missionId, route, covered = false }: { api: A
         {/* which search is on screen, and the home page's cards to change it (front/ScenarioBanner.tsx) */}
         {/* the subject brief, always on the console (command/SubjectStrip.tsx): who, last seen when and where, LKP */}
         {demo ? (
-          <ScenarioBanner seed={seed} name={presetFor(seed).name} area={s.mission?.area?.name ?? "Mount Seymour"} clock={barClock} brief={ready ? <SubjectStrip mission={s.mission} now={demoNow ?? new Date()} tz={clockZone.tz} place={cardFor(seed).lastSeen} /> : null} />
+          <ScenarioBanner seed={seed} name={scenarioName} setupHref={playSetup ? PLAY_HASH : null} area={s.mission?.area?.name ?? "Mount Seymour"} clock={barClock} brief={ready ? <SubjectStrip mission={s.mission} now={demoNow ?? new Date()} tz={clockZone.tz} place={cardFor(seed).lastSeen} /> : null} />
         ) : (
           ready &&
           s.mission && (

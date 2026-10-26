@@ -48,7 +48,7 @@ The end screen's decision time counts from when an item reached Needs you. **Res
 on free play's clock bar and on the ended run's strip) asks first ("Restart this search from the call?",
 `RestartConfirm` in CoachMark.tsx) and starts the same scenario fresh, the end screen's Try again path. The
 checkpoint addresses (`?t=N`, `#judges`) still show the recorded demo mission; the map at its end is
-`#m/demo/map?t=6`.
+`#m/demo/map?t=6`. **Open play** (`#play`, `front/OpenPlay.tsx`) is free play on the visitor's own setup (`?s=play`): `openPlay.ts` holds the checklist (who, where, base camp, teams, drones, review; `steps`, `ready`), the surveyed area (the demo cache's 1 km grid) and the generator's four staging points, and keeps the setup in `localStorage`; `openPlayMission.ts` `applySetup` puts it on the profile's scenario: the description, last-seen time and check-in interval on the mission; the profile's prior carried to the last known point (`scenarios.ts` `movePrior`, the same shape moved by whole cells) and the agent's assignments re-ranked on it (`replan`, shared with `deriveScenario`); base camp for the teams and the drones' home; the roster filling the scenario's teams in order (the teams that radio clues first, then the first assignment's), renamed everywhere the log says them, teams 5 and 6 added at base camp, a place left empty dropped with its proposals and lines; the first N drones, the others dropped with their flight lines, feeds and lines. Where the person really is stays the scenario's, and the review says so with the other fixed parts. `openPlay.test.ts` plays every profile with two, four and six teams and one to three drones to the find.
 
 | File | What |
 |---|---|
