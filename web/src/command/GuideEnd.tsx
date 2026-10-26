@@ -130,6 +130,14 @@ function WithoutWith({ w }: { w: WithWithout }) {
             {w.followedNote}
           </p>
         )}
+        {w.timeMatters && (
+          <p className="text-small text-text-2" data-time-matters>
+            {w.timeMatters.text}{" "}
+            <a href={w.timeMatters.href} target="_blank" rel="noreferrer" className="sl-tap underline underline-offset-2 hover:text-text">
+              {w.timeMatters.source}
+            </a>
+          </p>
+        )}
       </div>
       <div role="table" aria-label="Without Sightline vs with Sightline" className="flex flex-col text-small">
         <div role="row" className={`grid ${grid} gap-x-2 pb-1 sm:gap-x-3`}>

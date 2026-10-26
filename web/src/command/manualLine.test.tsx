@@ -141,6 +141,17 @@ describe("without Sightline vs with Sightline, in all five scenarios", () => {
     expect(play(overdue, "overdue-hiker", lawnmower).sightline.headline).toBe("With Sightline the subject was found 48 min sooner, and a person had 3 photos to look at instead of 500.");
   });
 
+  it("says why the minutes matter, from the published study, and this run's hours since last seen", () => {
+    const t = play(overdue, "overdue-hiker").sightline.timeMatters!;
+    expect(t.text).toMatch(/^Every hour counts\. In 2,302 Oregon searches for 3,287 people, search time was the only thing that predicted whether a person was found alive, and about 99 % of those found alive were found within 51 hours of searching\. Here the subject was found \d+ h \d\d min after they were last seen with Sightline, against \d+ h \d\d min without it\.$/);
+    expect(t.href).toBe("https://pubmed.ncbi.nlm.nih.gov/17590071/");
+    // no invented per-minute survival rate, no banned words
+    expect(t.text).not.toMatch(/% (more|higher|better) (chance|survival)/i);
+    expect(t.text).not.toMatch(/\b(demo|scripted|recorded|simulated)\b/i);
+    // the search without Sightline found first: the study, but no "against" line
+    expect(play(load(dementia), "dementia").sightline.timeMatters!.text).not.toMatch(/against/);
+  });
+
   it("says so when the search without Sightline found the subject first", () => {
     const h = play(load(dementia), "dementia").sightline.headline;
     expect(h).toMatch(/^Without Sightline the subject was found 1 h 08 min sooner this time: the hand split reached A1 early, a sector the map ranked \d+ of 16\./);
