@@ -200,6 +200,14 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
   choice: …"); **What you did** (`GuideEnd.tsx`, `hotWash`) compares each decision with the agent's, prints
   every draw, shows the searched sectors at their POD and the subject's sector, says where the two lines
   diverged, and links the after-action report, the trace, `PLANNER_V2.md` and `POD.md`. No score.
+  On top of it, **You vs the agent** (`compare.ts`): your search and the agent's line side by side (time
+  from the call to the find in mission minutes, sectors searched, team-hours on passes, the share of the
+  agent's map searched before the find, candidates triaged, decisions unlike the agent's), the two times
+  to find as bars, your decision time (wall clock from when each decision was shown to when it was made:
+  `useGuide.show` stamps `Choice.shownAt`, `choose` stamps `decidedAt`; Watch instead's are left out; the
+  trace has no latency for the agent's proposals, so it says they came as the data landed), each decision
+  with its clock cost, and a one-line verdict; Try again, Follow the agent this time, Another scenario.
+  The detail above sits under "Show the details". No no-agent baseline yet (sim.ts has none).
 - **On screen** (`GuideRun.tsx`, mounted by `ingest/LiveMission.tsx`): `GuideMark` in `CoachMark.tsx`
   ("Your call": amber ring, options, clock paused; "Watch this": progress bar, clock running) and
   `GuideStrip` in `Scrubber.tsx` (the decisions with a check on each one made, a live region for screen

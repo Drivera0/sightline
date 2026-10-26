@@ -95,6 +95,9 @@ export interface Choice {
   card?: string;
   /** Made by "Watch instead". */
   watched?: boolean;
+  /** Wall clock (ms): when the decision was shown, and when it was made (the end screen's decision time). */
+  shownAt?: number;
+  decidedAt?: number;
 }
 
 export interface GuideInput {
