@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEMO, DEMO_CONSOLE_HASH, DEMO_END_HASH, guideHash, HOME, PLAY_HASH, REDIRECTS, redirectFromHash, routeFromHash, scenarioHash, viewHash, VIEWS } from "./flow";
+import { DEMO, DEMO_CONSOLE_HASH, DEMO_END_HASH, guideHash, HOME, PLAY_HASH, REDIRECTS, redirectFromHash, routeFromHash, scenarioHash, TRY_HASH, viewHash, VIEWS } from "./flow";
 
 describe("routes: one console", () => {
   it("opens the home page at the root and on an unknown address; the console is at #m/demo", () => {
@@ -14,6 +14,8 @@ describe("routes: one console", () => {
   it("opens open play's setup at #play, and its Start lands in free play on the visitor's setup", () => {
     expect(PLAY_HASH).toBe("#play");
     expect(routeFromHash(PLAY_HASH)).toEqual({ kind: "play" });
+    expect(routeFromHash(TRY_HASH)).toEqual({ kind: "try" });
+    expect(redirectFromHash(TRY_HASH)).toBeNull(); // a page of its own, not the console's Photos rail
     expect(redirectFromHash(PLAY_HASH)).toBeNull();
     expect(scenarioHash("play", false)).toBe("#m/demo/map?s=play");
     expect(routeFromHash(scenarioHash("play", false))).toEqual({ kind: "mission", id: "demo", view: "map", t: null, open: { free: true }, seed: "play" });
@@ -75,7 +77,6 @@ describe("routes: one console", () => {
       "#command": DEMO_CONSOLE_HASH,
       "#judges": "#m/demo?t=6&judges",
       "#m/demo?t=5&judges": "#m/demo?t=6&judges",
-      "#try": "#m/demo/photos?try",
     });
     expect(redirectFromHash("#m/demo/command")).toBe("#m/demo/map");
     expect(redirectFromHash("#m/demo/command/conditions")).toBe("#m/demo/map/conditions");

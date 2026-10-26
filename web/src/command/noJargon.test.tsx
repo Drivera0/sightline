@@ -1,7 +1,7 @@
 // The console in plain words (usability test 2026-10-25): what a search manager reads never says triage,
 // leg, second look, serpentine, re-task or Promoted, and never shows a detection's id (f0336-d01). The
 // Trace keeps the engine's words and ids; it is not on these views. Built by lane A.
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MapFile } from "../contract";
 import { App } from "../App";
@@ -40,7 +40,11 @@ describe("the console in plain words", () => {
     useStory.getState().reset();
     window.history.replaceState(null, "", "#m/demo/map");
     render(<App base={null} />);
-    await screen.findByRole("region", { name: "Timeline" });
+    // the console comes once its fixtures and lazy chunks are in: under a loaded test run that took longer than
+    // findByRole's 1 s default (the cold test's CI, 2026-10-26). Wait on a plain selector, cheap to poll, with
+    // room to spare, then find the region by its role as before
+    await waitFor(() => expect(document.querySelector('section[aria-label="Timeline"]')).not.toBeNull(), { timeout: 15_000 });
+    screen.getByRole("region", { name: "Timeline" });
     for (const t of CHECKPOINTS_ALL) {
       useStory.getState().seek(t);
       await settle();
@@ -49,7 +53,9 @@ describe("the console in plain words", () => {
       for (const el of shown.querySelectorAll("details > :not(summary)")) el.remove();
       expect(jargon(shown.textContent ?? ""), `checkpoint ${t}`).toEqual([]);
     }
-  });
+    // the whole app, mounted and run through every checkpoint: about 2 s alone, more than the 5 s default
+    // under a loaded parallel run; 30 s is room, not a different test
+  }, 30_000);
 
   it("rewrites the fixtures' lines: flight lines, the AI re-check, POD in %, no ids", () => {
     const legs = flightLineNames([{ id: "L001", drone_id: "D1" }, { id: "L002", drone_id: "D2" }, { id: "L004", drone_id: "D1" }], (id) => `Drone ${id.slice(1)}`);

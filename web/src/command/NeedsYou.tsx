@@ -233,7 +233,7 @@ export function NeedsYou({
   const sighting = sightingProps.length > 0 && (
     <div role="group" aria-label="Possible sighting" className="flex flex-col gap-2">
       <NeedsHead kind="sighting" count={sightingProps.length} />
-      <ApprovalInbox proposals={sightingProps} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={null} feedHref={undefined} order="oldest" highlight={null} keys={!(Array.isArray(lead) ? lead.length : lead)} />
+      <ApprovalInbox proposals={sightingProps} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={null} feedHref={undefined} order="oldest" highlight={null} keys={!(Array.isArray(lead) ? lead.length : lead)} now={now} />
     </div>
   );
 
@@ -292,7 +292,7 @@ export function NeedsYou({
             <NeedsHead kind="proposal" count={pendingCount} hidden={off((x) => proposals.some((p) => p.id === x))}>
               <span className="font-normal text-text-3">· oldest first</span>
             </NeedsHead>
-            <ApprovalInbox proposals={others} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={storyProposal} feedHref={undefined} order="oldest" highlight={highlight} lead={lead} />
+            <ApprovalInbox proposals={others} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={storyProposal} feedHref={undefined} order="oldest" highlight={highlight} lead={lead} now={now} />
           </>
         )}
         {readbacks.length > 0 && <NeedsHead kind="readback" count={readbacks.length} hidden={off((x) => readbacks.some((i) => i.id === x)) && !readbacks.some((i) => !!i.clue)} />}

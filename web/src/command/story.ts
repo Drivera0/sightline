@@ -269,9 +269,13 @@ export interface LapseRow {
 
 /** One beat of the time-lapse: a row, or rows about one thing, with what the map shows for it. */
 export interface Beat {
-  /** When it lands (mission clock, ms): its last row's time, a millisecond on from a beat at the same time. */
+  /**
+   * When it lands (mission clock, ms): its first row's time (a millisecond on from a beat at the same time),
+   * so its caption is up as its first row shows and explains the rows that follow (the cold test: a beat
+   * landed at its last row, and rows minutes earlier showed with no caption to say what they were).
+   */
   at: number;
-  /** Its time for the caption: its last row's. */
+  /** Its time for the caption: its first row's. */
   shown: number;
   /** Its main row, as the timeline says it ("… · 3 drones" for rows alike). */
   text: string;
@@ -362,8 +366,8 @@ export function lapseBeats(rows: readonly LapseRow[], max: number = LAPSE.maxBea
     if (same) same.rows.push(r);
     else groups.push({ rows: [r], topic: topic?.key ?? null });
   }
-  // each group lands at its last row
-  const ordered = groups.map((g) => g.rows).sort((a, b) => a.at(-1)!.at - b.at(-1)!.at);
+  // each group lands at its first row: the caption comes with the first row it explains
+  const ordered = groups.map((g) => g.rows).sort((a, b) => a[0]!.at - b[0]!.at || a.at(-1)!.at - b.at(-1)!.at);
   const score = (g: readonly LapseRow[]) => Math.max(...g.map(weightOf)) + Math.min(0.9, g.length / 20);
   const keep = new Set(
     ordered
@@ -379,11 +383,11 @@ export function lapseBeats(rows: readonly LapseRow[], max: number = LAPSE.maxBea
     // the main row: the most telling one (the earliest of those); its count is of the rows alike it
     const lead = [...g].sort((a, b) => weightOf(b) - weightOf(a) || a.at - b.at)[0]!;
     const alike = g.filter((r) => rowShape(r.text) === rowShape(lead.text));
-    const at = Math.max(g.at(-1)!.at, (out.at(-1)?.at ?? -Infinity) + 1);
+    const at = Math.max(g[0]!.at, (out.at(-1)?.at ?? -Infinity) + 1);
     out.push({
       at,
       // the time it lands (the clock reads it as the caption shows)
-      shown: g.at(-1)!.at,
+      shown: g[0]!.at,
       text: alike.length > 1 ? `${lead.text} · ${countOf(alike)}` : lead.text,
       count: g.length,
       kind: lead.kind ?? null,

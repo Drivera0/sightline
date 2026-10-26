@@ -29,6 +29,9 @@ describe("TryPhoto", () => {
     expect(screen.getByText(/its boxes/).textContent).toContain(`a box counts from a score of ${cache.metrics.detector.threshold}`);
     expect(screen.getByText(/its boxes/).textContent).not.toContain("metrics.detector");
     expect(await screen.findByText(/Drop a JPEG here/)).toBeInTheDocument();
+    // the survey's photos by plain names, never their file ids
+    expect(screen.getByRole("button", { name: "Survey photo 1" })).toBeInTheDocument();
+    expect(screen.queryByText(/\bf\d{4}\b/)).toBeNull();
   });
 
   it("explains when this build has no model file (a host answering with index.html counts as missing)", async () => {
@@ -37,12 +40,12 @@ describe("TryPhoto", () => {
     expect(await screen.findByText(/model is not included in this build/)).toBeInTheDocument();
   });
 
-  it("is an action in the Photos rail: #try opens it there, and nothing traps the keyboard", async () => {
+  it("is an action in the Photos rail: ?try opens it there, and nothing traps the keyboard", async () => {
     stubModel(false);
     const pageKeys = vi.fn();
     window.addEventListener("keydown", pageKeys);
     render(<TryPhoto cache={cache} dir="sample" />);
-    expect(routeFromHash("#try")).toEqual({ kind: "mission", id: "demo", view: "photos", t: null, open: { try: true } });
+    expect(routeFromHash("#m/demo/photos?try")).toEqual({ kind: "mission", id: "demo", view: "photos", t: null, open: { try: true } });
     expect(screen.queryByRole("dialog")).toBeNull();
     await userEvent.keyboard("3");
     expect(pageKeys).toHaveBeenCalled(); // nothing swallows the keys
