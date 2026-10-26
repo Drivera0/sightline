@@ -13,6 +13,7 @@ import { KeyHint, StatusPill } from "../shell/components";
 import { operatorName, useMission } from "../lib/mission";
 import { ModelSource, onTokenFactory, proposalCall } from "./nebius";
 import { clueNoteFor } from "./clueShift";
+import { daylightMin, duration } from "./console";
 import { domain, OVERRIDE_SOURCE } from "./conditions";
 import { useConsole } from "./consoleStore";
 import { AgentNote, RadioBubble } from "./RadioBubble";
@@ -173,7 +174,10 @@ export function ApprovalInbox({
   highlight = null,
   lead = null,
   keys = true,
+  now = null,
 }: {
+  /** The mission clock: a model's briefing, written earlier, says beside it the sector's share and the daylight now. */
+  now?: Date | null;
   /**
    * Whether this list's cards show their keys (A, X, E). Each key letter shows on one card only, the one it
    * acts on (the cold test: two cards both said A): the guided step's card with the main button, else the
@@ -258,6 +262,7 @@ export function ApprovalInbox({
           dimmed={highlight !== null && highlight !== p.id}
           drones={drones}
           fresh={!known.current?.has(p.id)}
+          now={now}
           cardRef={(el) => {
             if (el) cards.current.set(p.id, el);
             else cards.current.delete(p.id);
@@ -265,6 +270,25 @@ export function ApprovalInbox({
         />
       ))}
     </section>
+  );
+}
+
+/**
+ * A model's briefing is its words as written when the agent proposed it, never rewritten: its figures (the
+ * sector's share, the daylight) are of that moment. Beside it, the same figures now, from the sector table
+ * and the header's own sums (the cold test: a briefing's "3 h 54 min" under a header's "3 h 41 min left",
+ * once the decisions' minutes had moved the clock on).
+ */
+export function BriefingNow({ p, now }: { p: Proposal; now: Date }) {
+  const conditions = useMission((s) => s.conditions);
+  const poa = useMission((s) => (p.target.sector ? s.sectors.find((x) => x.sector_id === p.target.sector)?.poa : undefined));
+  const day = daylightMin(conditions, now);
+  const facts = [poa !== undefined && p.target.sector ? `${p.target.sector} holds ${(poa * 100).toFixed(1)} % on the map` : null, day !== null ? (day > 0 ? `${duration(day)} of daylight left` : "after dark") : null].filter(Boolean);
+  if (!facts.length) return null;
+  return (
+    <p aria-label="The briefing's figures now" className="text-caption text-text-3">
+      The briefing&apos;s figures are the agent&apos;s when it drafted it. Now: {facts.join(", ")}.
+    </p>
   );
 }
 
@@ -284,9 +308,11 @@ function PendingCard({
   drones = [],
   cardRef,
   hints = "focus",
+  now = null,
 }: {
   /** Its key badges: always (the guided step's card), while it has focus (where its keys act), or none. */
   hints?: "always" | "focus" | "none";
+  now?: Date | null;
   p: Proposal;
   teams: readonly Team[];
   drone?: Drone;
@@ -428,6 +454,7 @@ function PendingCard({
           <RadioBubble to={teams.find((t) => t.id === (team || p.target.team))?.callsign ?? (p.target.team === "all" ? "all teams" : (p.target.team ?? "the team"))} text={briefing || p.briefing} callsigns={teams.map((t) => t.callsign)} />
           {/* written by the model only while it is the model's own words (an edit is the person's) */}
           {call?.kind === "briefing" && onTokenFactory(call.model) && (briefing || p.briefing) === call.text && <ModelSource lead="Briefing by" model={call.model} ms={call.ms} />}
+          {call?.kind === "briefing" && (briefing || p.briefing) === call.text && now && <BriefingNow p={p} now={now} />}
         </>
       )}
       {editing && (

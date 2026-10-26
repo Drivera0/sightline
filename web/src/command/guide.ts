@@ -10,7 +10,7 @@
 import type { Clue, MissionEvent, Proposal, Team } from "../contract";
 import { clock, DEMO_TZ } from "../lib/time";
 import { SECOND_LOOK_ID } from "./demoReview";
-import { BOARD_AT, CHECKPOINTS, conditionsAt, hastyAt, hastyLeaves, isFoundEvent, pendingSightings, poaOf, subjectOf, type DemoFull } from "./missionTime";
+import { BOARD_AT, CHECKPOINTS, conditionsAt, hastyAt, hastyLeaves, isFoundEvent, pendingSightings, poaAtCall, poaOf, subjectOf, type DemoFull } from "./missionTime";
 import { agentLine, passesFrom, playStanding, RETURN_MS, type Cost, type Line, type Pass } from "./sim";
 import { WATCH_BY } from "./console";
 import { REGION, STORY_NOT_A_PERSON, storyClue, storyProposal } from "./storyCopy";
@@ -258,9 +258,9 @@ export function injects(input: GuideInput): Inject[] {
       target: [REGION.status, REGION.map],
     });
   } else if (drones.length) {
-    const poa = [...poaOf(full).entries()].sort((a, b) => b[1] - a[1]);
+    // the map at the call, the figures the sector table shows then (never the fixtures' end-of-mission map)
+    const poa = [...poaAtCall(full).entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     const top = poa.slice(0, 3);
-    const share = top.reduce((n, [, p]) => n + p, 0) / Math.max(1e-9, poa.reduce((n, [, p]) => n + p, 0));
     // the scenario's flight lines after the survey come with the AI's flight lines, and the option says so
     const lines = [...new Set((d.fleet?.legs ?? []).filter((l) => l.status !== "proposed" && l.sector_id).map((l) => l.sector_id as string))];
     const then = lines.length ? `; once the photos are in, flight lines over ${lines.length > 1 ? `${lines.slice(0, -1).join(", ")} and ${lines.at(-1)}` : lines[0]}` : "";
@@ -270,7 +270,7 @@ export function injects(input: GuideInput): Inject[] {
       at: ms(CHECKPOINTS[0]!.at),
       lead: "The call comes in; the agent drafts the survey.",
       prompt: `${hastyFact(full)}Launch the survey: fly ${TERMS.aiChoices.replace("choices", "flight lines")}, or a ${TERMS.lawnmower}.`,
-      agentSays: top.length ? `${top.map(([s]) => s).join(", ")} first: ${Math.round(share * 100)} % of the probability in ${top.length} of ${poa.length} sectors.` : undefined,
+      agentSays: top.length ? surveySays(top, poa.length) : undefined,
       options: [
         { key: "1", id: "planner", label: "The AI's flight lines", costMin: 0, effect: `${droneWord(drones[0]!.id, full)} photographs the likeliest sectors first${then}`, agent: true },
         { key: "2", id: "serpentine", label: "Lawnmower pattern, whole grid", costMin: 12, effect: `every sector once, row by row; the likeliest ones are photographed 12 min later${then ? "; no flight lines after it" : ""}` },
@@ -450,6 +450,22 @@ export function injects(input: GuideInput): Inject[] {
   // nothing comes after the find (a lost link or the gusts that would have come later never ask)
   const find = sorted.find((i) => i.id === "find");
   return find && detected ? sorted.filter((i) => i.at <= find.at || i.id === "find" || injectDone(i, input.choices)) : sorted;
+}
+
+/**
+ * The survey's line from the AI: the likeliest sectors on the map now, each with the share the sector table
+ * shows (one decimal), and their sum, a share of the whole probability, the rest of world included (the
+ * cold test: "33 % of the probability" over three sectors of 1.9 % each, a share of another map).
+ */
+export function surveySays(top: readonly (readonly [string, number])[], of: number): string {
+  const pct = (p: number) => (p * 100).toFixed(1);
+  const shown = top.map(([, p]) => pct(p));
+  const each = shown.every((x) => x === shown[0]) ? `${shown[0]} % each` : `${shown.slice(0, -1).join(" %, ")} % and ${shown.at(-1)} %`;
+  const sum = shown.reduce((n, x) => n + Number(x), 0).toFixed(1);
+  const names = top.map(([s]) => s).join(", ");
+  return top.length === 1
+    ? `${names} first: the likeliest of the ${of} sectors on the map now, ${shown[0]} % of the probability.`
+    : `${names} first: the likeliest ${top.length} of the ${of} sectors on the map now (${each}), ${sum} % of the probability between them.`;
 }
 
 /**
@@ -710,7 +726,10 @@ export interface HotWash {
   tryNext: string[];
 }
 
-const fmtMin = (n: number) => (n < 60 ? `${Math.round(n)} min` : `${Math.floor(n / 60)} h ${String(Math.round(n % 60)).padStart(2, "0")} min`);
+const fmtMin = (n: number) => {
+  const m = Math.round(n);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min`;
+};
 
 /** The hot wash: the decisions against the agent's, the draws, one line per divergence. No score. */
 export function hotWash(input: GuideInput, list: readonly Inject[]): HotWash {
