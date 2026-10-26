@@ -11,6 +11,8 @@ import { create } from "zustand";
 import type { Verdict } from "../contract";
 import { relookName, toolName, type ReviewCard } from "./LiveReview";
 import { TERMS, thresholdNote } from "../command/terms";
+import { ModelSource, onTokenFactory, verdictCall } from "../command/nebius";
+import { useMission } from "../lib/mission";
 
 type Run = { stage: "running"; started: number; ms: number } | { stage: "done" };
 
@@ -91,6 +93,9 @@ export function SecondLook({ c, large = false }: { c: ReviewCard; large?: boolea
   const images = c.relook ?? [];
   const v = c.verdict;
   const head = v ? verdictHead(v) : null;
+  // which model answered, where it ran and how long the call took (the mission's record of its calls)
+  const call = useMission((s) => verdictCall(s.model_calls, c.id));
+  const source = call ?? (v && !v.reason.startsWith("No second look") ? { model: v.model, ms: null } : null);
   // a card in the rail with no re-check: nothing (the large frame keeps the button, off, and says why)
   if (!available && !large) return null;
   return (
@@ -170,6 +175,7 @@ export function SecondLook({ c, large = false }: { c: ReviewCard; large?: boolea
           ) : (
             c.words && <p className="text-small text-text">{c.words}</p>
           )}
+          {source && onTokenFactory(source.model) && <ModelSource model={source.model} ms={source.ms} />}
         </div>
       )}
     </div>

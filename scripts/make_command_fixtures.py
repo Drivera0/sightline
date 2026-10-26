@@ -14,14 +14,28 @@ near-miss detection in the cache (the second look: OpenCV re-look tools, then th
 planner's tick (``propose_assignments`` on the map as it stands, a briefing per assignment). Decisions go
 through ``POST /proposals/{pid}/decide``, as a scripted search manager and image reviewer (named so).
 
-**The models are fakes, and say so, but for one recorded answer.** No model is called: the VL model's
-answers are scripted per detection from a person looking at the crop (``VL_ANSWERS``), and a briefing is
-its facts, one sentence each (``loop.template_briefing``, as ``scripts/agent_eval.py`` does). Both are
-traced under the model name ``fake/<model>`` with a reason that says so. The one exception is the second
-look the story shows at Confirm (#192): ``scripts/make_second_look_fixture.py`` ran it on this flight's
-f0273-d02 with the live VL model, and its answer (``__fixtures__/second_look/verdict.json``) is replayed
-here word for word, traced as ``recorded/<model>`` with the recorded time and tokens. The clock is the demo's afternoon (UTC in the files,
-13:35 to 15:00 PDT on screen): every ``now`` the product reads is patched to it.
+**The models are real: Nemotron on Nebius Token Factory, recorded (``--live``).** With ``--live`` the
+agent's model calls go to Token Factory through the agent's own client (``runner._default_client``:
+``token_factory_client``, thinking off, the agent's 20 s timeout): the VL second look on every near-miss
+detection (``MODEL_VISION``) and every radio briefing (``MODEL_FAST``, with the agent's check and one
+retry). Each answer is kept word for word with its model, measured ms and tokens: in the trace, as
+``recorded/<model>``, and in the fixture's ``model_calls`` (when it was made, ``called_at`` in UTC; what
+it led to: the verdict, the proposal). A run without ``--live`` replays the answer a live run kept for
+the same question (same detection, same prompt: ``prompt_sha``), so regenerating does not lose them; a
+question no live run answered (the agent asked something new) gets the scripted stand-in instead
+(``VL_ANSWERS``, from a person looking at the crop; a briefing of its facts), traced as ``fake/<model>``
+with a reason that says so, and never in ``model_calls``. A live call that fails stops the run: nothing
+is written. Some answers come from earlier live runs and are replayed as they were, with the day they
+were made: f0273-d02's second look, the one the story shows at Confirm (#192, made by
+``scripts/make_second_look_fixture.py`` on 22 Oct 2026 PDT, ``__fixtures__/second_look/verdict.json``),
+and each distractor's (``scripts/make_distractor_fixture.py``). The fixtures in the repository were made
+with ``--live --scenarios`` on 26 Oct 2026; the fleet on top is the earlier ``make_fleet_fixture.py``
+run's, kept as it was (a re-run's photo count moves with the machine's load). The debrief
+(``sightline/search/debrief.py``) is not written here: the console builds the after-action report from
+the mission's log, with no model.
+
+The search manager and the image reviewer are people, scripted (named so). The clock is the demo's
+afternoon (UTC in the files, 13:35 to 15:00 PDT on screen): every ``now`` the product reads is patched to it.
 
 Writes ``web/src/command/__fixtures__/demo_mission.json`` (mission, teams, tasks, clues, proposals,
 events, conditions, the 16 sectors' POA and drone coverage, and ``map_updates``: the log after the
@@ -119,7 +133,9 @@ def recorded_answers() -> dict[str, dict]:
     if not SECOND_LOOK.is_file():
         return {}
     doc = json.loads(SECOND_LOOK.read_text())
-    return {doc["detection"]["id"]: {"text": doc["answer"], **doc["model_call"]}}
+    return {doc["detection"]["id"]: {"text": doc["answer"], **doc["model_call"],
+                                     "called_at": doc["verdict"]["at"][:19] + "Z",
+                                     "source": "make_second_look_fixture.py"}}  # fmt: skip
 
 
 RECORDED = recorded_answers()
@@ -206,26 +222,104 @@ def briefing(facts: dict) -> str:
     return " ".join([*parts, "Over."]) if parts else ""  # the radio's ending, as the prompt asks
 
 
-class FakeModels:
-    """The scripted VL answers and the briefings above, traced as ``fake/<model>``."""
+def prompt_sha(model: str, messages: list[dict], images: list | None) -> str:
+    """The question a model call asked, as a key: the model, every message's text and the number of
+    images (the images are the OpenCV re-look's, cut again on each run; the detection the call is
+    about is part of the key beside this)."""
+    import hashlib
 
-    def __init__(self) -> None:
+    from sightline.agent.llm import last_user_text
+
+    texts = [
+        [m.get("role"), m["content"] if isinstance(m.get("content"), str) else last_user_text([m])]
+        for m in messages
+    ]
+    body = json.dumps({"model": model, "messages": texts, "images": len(images or [])})
+    return hashlib.sha256(body.encode()).hexdigest()[:16]
+
+
+class Models:
+    """The fixture's model client (the agent's ``ChatClient``), three ways per question:
+
+    - ``live`` (``--live``): the VL second look and the radio briefings go to Nemotron on Nebius Token
+      Factory through the agent's own client (``runner._default_client``: ``token_factory_client``
+      with thinking off and the agent's timeout), and each answer is kept word for word in ``calls``
+      with its model, measured ms and tokens, traced as ``recorded/<model>``;
+    - otherwise, an answer a ``--live`` run kept for the same question (the fixture's
+      ``model_calls``: the same detection, the same prompt) is replayed word for word, the same way;
+    - a question no live run answered gets the scripted stand-in (``VL_ANSWERS``, ``briefing``),
+      traced as ``fake/<model>``.
+
+    ``recorded`` (set per detection): an answer an earlier script kept (f0273-d02's second look, a
+    distractor's), replayed as it was and kept in ``calls`` with the day it was made."""
+
+    def __init__(self, live: bool = False, replay: list[dict] | None = None) -> None:
         self.next_vl: dict | None = None
-        self.recorded: dict | None = None  # a live answer, replayed word for word
+        self.recorded: dict | None = None  # a live answer from an earlier script, word for word
+        self.ref: str | None = None  # the detection the next VL call is about
+        self.now: Any = lambda: None  # the mission clock, for each call's ``at``
+        self.calls: list[dict] = []  # every Nemotron call the mission's answers come from
+        self.client: Any = None
+        if live:
+            from sightline.agent.llm import TokenFactoryClient
+            from sightline.agent.runner import _default_client
+
+            self.client = _default_client()
+            if not isinstance(self.client, TokenFactoryClient):
+                raise SystemExit("--live needs NEBIUS_API_KEY (and no SIGHTLINE_FAKE_LLM)")
+        self.replay: dict[tuple, list[dict]] = {}
+        for c in replay or []:
+            if c.get("prompt_sha"):
+                self.replay.setdefault((c.get("detection"), c["prompt_sha"]), []).append(c)
+
+    def keep(self, rec: dict) -> Any:
+        """``rec`` into ``calls`` (at the mission's time) and back as the agent's ``ChatResult``."""
+        from sightline.agent.llm import ChatResult
+
+        rec = {**rec, "at": self.now()}
+        self.calls.append(rec)
+        return ChatResult(rec["text"], [], f"recorded/{rec['model']}", rec["ms"], rec["tokens_in"],
+                          rec["tokens_out"], tuple(rec.get("retries") or ()))  # fmt: skip
 
     def chat(self, messages: list[dict], *, model: str, **kw: Any) -> Any:
+        from datetime import UTC
+
         from sightline.agent.llm import ChatResult, last_user_text
         from sightline.agent.loop import template_briefing
 
         prompt = last_user_text(messages)
-        if "Facts:" in prompt:
+        kind = "briefing" if "Facts:" in prompt else "vl" if kw.get("images") else None
+        ref = self.ref if kind == "vl" else None
+        if kind == "vl" and self.recorded is not None:
+            r = self.recorded
+            return self.keep({"kind": kind, "detection": ref, "model": r["model"], "ms": r["ms"],
+                              "tokens_in": r["tokens_in"], "tokens_out": r["tokens_out"], "text": r["text"],
+                              "called_at": r.get("called_at"), "prompt_sha": None, "source": r["source"]})  # fmt: skip
+        sha = prompt_sha(model, messages, kw.get("images"))
+        if kind is not None and self.client is not None:
+            called_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+            try:
+                r = self.client.chat(messages, model=model, **kw)
+            except Exception as e:  # a fixture is recorded whole or not at all
+                raise SystemExit(
+                    f"live {kind} call failed ({type(e).__name__}): nothing written"
+                ) from e
+            print(
+                f"    live {kind} {ref or ''}: {r.model} {r.ms} ms, {r.tokens_in} -> {r.tokens_out} tokens"
+            )
+            return self.keep({"kind": kind, "detection": ref, "model": r.model, "ms": r.ms,
+                              "tokens_in": r.tokens_in, "tokens_out": r.tokens_out, "text": r.text,
+                              "called_at": called_at, "prompt_sha": sha, "source": "make_command_fixtures.py --live",
+                              **({"retries": list(r.retries)} if r.retries else {})})  # fmt: skip
+        kept = self.replay.get((ref, sha)) if kind is not None else None
+        if kept:
+            c = kept.pop(0)
+            return self.keep({k: v for k, v in c.items() if k not in ("at", "verdict", "proposal")})
+        if kind == "briefing":
             text = briefing(
                 json.JSONDecoder().raw_decode(prompt.rsplit("Facts:\n", 1)[1])[0]
             ) or template_briefing({})
-        elif self.recorded is not None:
-            r = self.recorded
-            return ChatResult(r["text"], [], f"recorded/{r['model']}", r["ms"], r["tokens_in"], r["tokens_out"])  # fmt: skip
-        elif self.next_vl is not None:
+        elif kind == "vl" and self.next_vl is not None:
             a = dict(self.next_vl)
             a["reason"] = f"{a['reason']} ({FAKE})."
             text = json.dumps(a)
@@ -262,6 +356,11 @@ def main(argv: list[str] | None = None) -> int:
         "--scenario", action="append", default=[], help="a preset key or a seed (repeatable)"
     )
     ap.add_argument("--only-scenarios", action="store_true", help="skip the story")
+    ap.add_argument(
+        "--live",
+        action="store_true",
+        help="call Nemotron on Nebius Token Factory for every second look and briefing (NEBIUS_API_KEY)",
+    )
     args = ap.parse_args(argv)
     from sightline.search.demo_scenario import PRESETS, preset_seed
 
@@ -269,15 +368,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no {CACHE}/map.json: run `bash web/scripts/fetch-caches.sh` first")
         return 1
     if not args.only_scenarios:
-        run(None)
+        run(None, live=args.live)
     seeds = [preset_seed(k) for k in PRESETS] if args.scenarios else []
     seeds += [preset_seed(x) for x in args.scenario]
     for seed in dict.fromkeys(seeds):
-        run(seed)
+        run(seed, live=args.live)
     return 0
 
 
-def run(seed: int | None) -> None:
+def kept_calls(path: Path) -> list[dict]:
+    """The Nemotron calls a fixture already keeps (``model_calls``), to replay word for word."""
+    try:
+        return list(json.loads(path.read_text()).get("model_calls") or [])
+    except (OSError, ValueError):
+        return []
+
+
+def run(seed: int | None, live: bool = False) -> None:
     """The story (``seed`` None) or the scenario ``seed`` draws, through the mission API."""
     global T0, FLIGHT, NOW
     from fastapi.testclient import TestClient
@@ -344,7 +451,9 @@ def run(seed: int | None) -> None:
 
     # no conditions lookup (Tavily): the demo's conditions are the fair-weather fixture, put in below
     sightline.api.missions._fetch_conditions = lambda: None  # type: ignore[attr-defined]
-    models = FakeModels()
+    target = OUT if scn is None else SCENARIOS / f"{PRESET_SLUG.get(seed, f'seed-{seed}')}.json"
+    models = Models(live, replay=kept_calls(target))
+    models.now = clock.iso_ms
 
     tmp = Path(tempfile.mkdtemp(prefix="demo-mission-"))
     store = MissionStore(tmp / "missions")
@@ -515,7 +624,7 @@ def run(seed: int | None) -> None:
             return task.team_id, sid
         return "T4", sid
 
-    reviewed: list[tuple[datetime, str]] = []
+    reviewed: list[tuple[datetime, str, str]] = []  # (proposed at, proposal, detection)
     distractors: list[dict] = []
     radio_clues: list[
         dict
@@ -575,14 +684,14 @@ def run(seed: int | None) -> None:
         elif kind == "event":
             store.emit(mid, what[1], what[2], ref=what[3])
         elif kind == "detection":
-            models.next_vl = VL_ANSWERS.get(what[1])
+            models.next_vl, models.ref = VL_ANSWERS.get(what[1]), what[1]
             models.recorded = RECORDED.get(what[1])
             out = loop.handle(
                 "detection", store, mid, what[1], client=models, detector=NoDetector()
             )
             for p in out:
                 if p.kind == "promote_detection":
-                    reviewed.append((clock.t, p.id))
+                    reviewed.append((clock.t, p.id, what[1]))
         elif kind == "distractor":
             d, num = what[1], what[2]
             rec = records[d.kind]
@@ -606,7 +715,10 @@ def run(seed: int | None) -> None:
             store.emit(
                 mid, "photo.processed", f"{fid} processed (distractor: {d.kind}, demo)", ref=fid
             )
-            models.next_vl, models.recorded = None, {"text": rec["answer"], **rec["model_call"]}
+            models.next_vl, models.ref = None, did
+            models.recorded = {"text": rec["answer"], **rec["model_call"],
+                               "called_at": rec["verdict"]["at"][:19] + "Z",
+                               "source": "make_distractor_fixture.py"}  # fmt: skip
             out = loop.handle("detection", store, mid, did, client=models, detector=NoDetector())
             models.recorded = None
             verdict = next(v for v in store.state(mid)["verdicts"] if v.detection_id == did)
@@ -632,7 +744,7 @@ def run(seed: int | None) -> None:
                 ):
                     call("POST", f"/missions/{mid}/proposals/{p.id}/decide",
                          json={"decision": "approve", "by": REVIEWER, "reason": None})  # fmt: skip
-                    reviewed[:] = [(w, q) for w, q in reviewed if q != p.id]
+                    reviewed[:] = [r for r in reviewed if r[1] != p.id]
                     clock.tick()
             body = {"detection_id": did, "answer": d.review, "object": d.object, "by": REVIEWER}
             call("POST", f"/missions/{mid}/reviews", json=body)
@@ -785,16 +897,21 @@ def run(seed: int | None) -> None:
                 f"/missions/{mid}/teams/{what[1]}",
                 json={"position": sector_point(sid, f), "position_at": clock.iso_ms()},
             )
-        # the image reviewer decides each promotion three minutes after it is made; the last stays pending
-        for when, pid in list(reviewed):
-            if clock.t >= when + timedelta(minutes=3) and pid != reviewed[-1][1]:
+        # the image reviewer decides each promotion three minutes after it is made; the one the story
+        # confirms (f0273-d02's, RECORDED) stays pending for the visitor, else the last. A promotion of
+        # a detection a person has looked at and found no one in (VL_ANSWERS "no": a live answer can
+        # differ) is rejected with what they saw; any other is approved into the review queue.
+        keep = next((r for r in reviewed if r[2] in RECORDED), reviewed[-1] if reviewed else None)
+        for r in list(reviewed):
+            when, pid, det = r
+            if clock.t >= when + timedelta(minutes=3) and r != keep:
                 clock.tick()
-                call(
-                    "POST",
-                    f"/missions/{mid}/proposals/{pid}/decide",
-                    json={"decision": "approve", "by": REVIEWER, "reason": None},
-                )
-                reviewed.remove((when, pid))
+                seen = VL_ANSWERS.get(det, {})
+                no = seen.get("person") == "no"
+                call("POST", f"/missions/{mid}/proposals/{pid}/decide",
+                     json={"decision": "reject" if no else "approve", "by": REVIEWER,
+                           "reason": f"{seen['reason']} (looked at the photo)" if no else None})  # fmt: skip
+                reviewed.remove(r)
         clock.tick()
 
     clock.t = max(clock.t, NOW)
@@ -840,7 +957,7 @@ def run(seed: int | None) -> None:
         return [x.model_dump(mode="json") for x in xs]
 
     doc = {
-        "note": "Generated by scripts/make_command_fixtures.py: the demo mission run through the mission API and the agent's own code, on the demo cache's map, with fake models (scripted VL answers, template briefings) and a scripted search manager and image reviewer; do not edit by hand. A demo.",
+        "note": "Generated by scripts/make_command_fixtures.py: the demo mission run through the mission API and the agent's own code, on the demo cache's map; its second looks and briefings are Nemotron's answers on Nebius Token Factory, recorded word for word (model_calls), and its search manager and image reviewer are scripted; do not edit by hand. A demo.",
         "now": iso(NOW),
         "mission": mission_out.model_dump(mode="json"),
         "teams": dump(state["teams"]),
@@ -890,6 +1007,11 @@ def run(seed: int | None) -> None:
     from sightline.mission.report import build as build_report
 
     doc["report"] = json.loads(json.dumps(build_report(store, mid, iso(NOW))).replace(mid, slug))
+    doc["model_calls"] = model_calls(models.calls, state)
+    now_live = [c for c in models.calls if models.client is not None and c["prompt_sha"]]
+    print(f"  Nemotron on Nebius Token Factory: {len(models.calls)} calls, "
+          f"{sum(c['ms'] for c in models.calls) / 1000:.1f} s; {len(now_live)} made live in this run, "
+          f"{sum(c['ms'] for c in now_live) / 1000:.1f} s")  # fmt: skip
     text = json.dumps(doc, indent=1, ensure_ascii=False)
     trace_text = "".join(
         TraceEntry.model_validate(x.model_dump()).model_dump_json() + "\n" for x in trace
@@ -923,6 +1045,31 @@ def run(seed: int | None) -> None:
             for x in sorted(sectors, key=lambda x: -x["poa"])
         ],
     )
+
+
+def model_calls(calls: list[dict], state: dict) -> list[dict]:
+    """The fixture's ``model_calls``: every Nemotron call on Nebius Token Factory the mission's answers
+    come from, in order, word for word, each with what it led to (a second look's verdict and the
+    proposal it made; a briefing's proposal, when the briefing passed the agent's check and is the
+    one the proposal carries). A scripted stand-in is not one of them."""
+    out = []
+    for c in calls:
+        link: dict[str, Any] = {"verdict": None, "proposal": None}
+        if c["kind"] == "vl":
+            v = next((v for v in state["verdicts"] if v.detection_id == c["detection"]), None)
+            p = next((p for p in state["proposals"] if p.kind == "promote_detection"
+                      and p.target.get("detection") == c["detection"]), None)  # fmt: skip
+            link = {"verdict": v.id if v else None, "proposal": p.id if p else None}
+        elif c["kind"] == "briefing":
+            p = next(
+                (p for p in state["proposals"] if p.briefing and p.briefing == c["text"]), None
+            )
+            link["proposal"] = p.id if p else None
+        out.append({"kind": c["kind"], "model": c["model"], "ms": c["ms"], "tokens_in": c["tokens_in"],
+                    "tokens_out": c["tokens_out"], "at": c["at"], "called_at": c["called_at"],
+                    "source": c["source"], "detection": c["detection"], **link, "text": c["text"],
+                    "prompt_sha": c["prompt_sha"], **({"retries": c["retries"]} if c.get("retries") else {})})  # fmt: skip
+    return out
 
 
 def prior_doc(base: Any, category: str | None) -> dict:

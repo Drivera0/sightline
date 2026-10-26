@@ -4,7 +4,7 @@
 // (optimistic) and the server's events confirm them. Demo mode (`useDemo`) runs the same actions on an
 // in-memory mission, so the click path works on Vercel with no backend. Built by lane A for lane D.
 
-import type { DistractorFrame, DroneFeedClip, ServerReport } from "./fixtureExtras";
+import type { DistractorFrame, DroneFeedClip, ModelCall, ServerReport } from "./fixtureExtras";
 import { create } from "zustand";
 import type {
   Clue,
@@ -120,6 +120,8 @@ export interface MissionData {
   feeds?: DroneFeedClip[];
   report?: ServerReport | null;
   distractors?: DistractorFrame[];
+  /** The Nemotron calls on Nebius Token Factory the demo mission's answers come from (`fixture.model_calls`). */
+  model_calls?: ModelCall[];
 }
 
 /** Deep equality for plain data (the demo's mission state): arrays, typed arrays, plain objects, primitives. */
@@ -152,7 +154,7 @@ export function sameValue(a: unknown, b: unknown): boolean {
 export const EMPTY: MissionData = {
   mission: null, tasks: [], teams: [], clues: [], proposals: [], verdicts: [], fleet: null,
   conditions: null, events: [], survey: null, detections: null, promoted: [], mapBase: null, mapUpdates: [], sectors: [],
-  links: NO_LINKS, timeline: [], feeds: [], report: null, distractors: [],
+  links: NO_LINKS, timeline: [], feeds: [], report: null, distractors: [], model_calls: [],
 };
 
 function upsert<T>(list: readonly T[], item: T, key: (x: T) => string): T[] {

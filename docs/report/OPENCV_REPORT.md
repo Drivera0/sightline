@@ -501,7 +501,7 @@ printed by `scripts/trace_excerpt.py`, is in `docs/architecture/agent.md`):
 the ids they share (perception → decision → action → approval), one line per step (span type, tool or
 model, input, output, ms), each opening to its full input, output and images, with the proposal each
 chain led to and who decided it, and a strip counting model calls per model. The demo mission
-(`#m/demo/trace`, no server) shows this flight's trace, then the chain above and a live conditions lookup as Earlier run (§14).
+(`#m/demo/trace`, no server) shows this flight's trace, then the chain above and a live conditions lookup as Earlier run (§14); its strip also counts the mission's Nemotron calls on Nebius Token Factory, from the mission's own record of them (§14).
 
 ### 5.3 Re-tasking a drone
 
@@ -1210,9 +1210,9 @@ toast too. Figures: `figures/v3/toast-d.webp`, `proposal-glow-d.webp`, `heat-twe
 **What the site labels.** The Mount Seymour mission, its drones and its teams are simulated on real
 aerial photographs. The approvals are the visitor's: in the guided run and in free play they approve every
 step live in the browser, and each move in the log names its approver ("by you"). The recorded mission at
-the checkpoint addresses keeps the scenario's own decisions, which read "the search manager", and its
-stand-in model calls read "Replayed" in the Trace view (only live calls, or a live
-answer kept word for word, read "This flight"), and the guided simulation's find comes from seeded draws
+the checkpoint addresses keeps the scenario's own decisions, which read "the search manager". Its model calls are real: I generated the demo mission and the four scenarios with `scripts/make_command_fixtures.py --live`, so every AI re-check on a near-miss detection (Nemotron 3.5 Super VL) and every radio briefing (Nemotron 3 Nano) is a Nebius Token Factory call,
+kept word for word with its measured time and tokens (the fixture's `model_calls`, the trace as `recorded/<model>`): 7 calls, 11.2 s in all, in the story and 10 or 11 in each scenario, counting the answers kept from earlier live runs (the second look the story confirms, made on 22 Oct, and each distractor's).
+Each AI item on screen names its model, Token Factory and the call's time, and the Trace view counts the mission's calls; a stand-in model call, if a fixture ever has one again, reads "Replayed" and is not counted. The guided simulation's find comes from seeded draws
 at the sector's POD, every draw printed on the end screen.
 
 ## 15. The Arm path: COOL on AWS Graviton
