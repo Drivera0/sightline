@@ -161,6 +161,25 @@ export function groundedAtCall(full: DemoFull | null): { reason: string; recheck
 /** "Fly anyway" was chosen at the survey step (logged with who approved it). */
 export const flewAnyway = (choices: readonly { inject: string; option: string }[]): boolean => choices.some((c) => c.inject === "survey" && c.option === "override");
 
+/**
+ * How long after the call the survey was approved (ms, on the fixtures' clock): the scenario's drones fly
+ * that much later (missionTime.ts dronesLater). The guided run decides it at the call (0); free play asks
+ * for it in Needs you and the flight takes off when the visitor approves it.
+ */
+export function surveyLate(choices: readonly { inject: string; f?: number }[]): number {
+  const c = choices.find((x) => x.inject === "survey");
+  return c && typeof c.f === "number" ? Math.max(0, c.f - ms(CHECKPOINTS[0]!.at)) : 0;
+}
+
+/** The scenario's flight lines after the survey fly: the AI's flight lines were chosen (they include them), not the lawnmower pattern. */
+export const legsFly = (choices: readonly { inject: string; option: string }[]): boolean => choices.some((c) => c.inject === "survey" && c.option !== "serpentine");
+
+/**
+ * The standing approval's words on Send all, said before the click (the cold test: later assignments said
+ * "auto-approved (your standing approval)" with nothing on the button saying so).
+ */
+export const STANDING_NOTE = ", and keep sending free teams to the AI's picks until you change it";
+
 /** The drones stay on the ground for this run: grounded at the call and no "Fly anyway". */
 export function dronesWait(full: DemoFull | null, choices: readonly { inject: string; option: string }[]): { recheck: number } | null {
   const g = groundedAtCall(full);
@@ -242,6 +261,9 @@ export function injects(input: GuideInput): Inject[] {
     const poa = [...poaOf(full).entries()].sort((a, b) => b[1] - a[1]);
     const top = poa.slice(0, 3);
     const share = top.reduce((n, [, p]) => n + p, 0) / Math.max(1e-9, poa.reduce((n, [, p]) => n + p, 0));
+    // the scenario's flight lines after the survey come with the AI's flight lines, and the option says so
+    const lines = [...new Set((d.fleet?.legs ?? []).filter((l) => l.status !== "proposed" && l.sector_id).map((l) => l.sector_id as string))];
+    const then = lines.length ? `; once the photos are in, flight lines over ${lines.length > 1 ? `${lines.slice(0, -1).join(", ")} and ${lines.at(-1)}` : lines[0]}` : "";
     out.push({
       id: "survey",
       key: "survey",
@@ -250,8 +272,8 @@ export function injects(input: GuideInput): Inject[] {
       prompt: `${hastyFact(full)}Launch the survey: fly ${TERMS.aiChoices.replace("choices", "flight lines")}, or a ${TERMS.lawnmower}.`,
       agentSays: top.length ? `${top.map(([s]) => s).join(", ")} first: ${Math.round(share * 100)} % of the probability in ${top.length} of ${poa.length} sectors.` : undefined,
       options: [
-        { key: "1", id: "planner", label: "The AI's flight lines", costMin: 0, effect: `${droneWord(drones[0]!.id, full)} photographs the likeliest sectors first`, agent: true },
-        { key: "2", id: "serpentine", label: "Lawnmower pattern, whole grid", costMin: 12, effect: "every sector once, row by row; the likeliest ones are photographed 12 min later" },
+        { key: "1", id: "planner", label: "The AI's flight lines", costMin: 0, effect: `${droneWord(drones[0]!.id, full)} photographs the likeliest sectors first${then}`, agent: true },
+        { key: "2", id: "serpentine", label: "Lawnmower pattern, whole grid", costMin: 12, effect: `every sector once, row by row; the likeliest ones are photographed 12 min later${then ? "; no flight lines after it" : ""}` },
       ],
       target: [REGION.map],
     });
@@ -260,11 +282,13 @@ export function injects(input: GuideInput): Inject[] {
   // 2. triage: three candidates, one at a time
   // (no photos while the drones wait on the ground)
   const cards = wait ? [] : triageCards(input.queue, d.mission?.subject ?? null);
+  // free play: the survey flies when it is approved, and everything of the drones after it that much later
+  const late = surveyLate(input.choices);
   if (cards.length)
     out.push({
       id: "triage",
       key: "triage",
-      at: ms(CHECKPOINTS[2]!.at),
+      at: ms(CHECKPOINTS[2]!.at) + late,
       lead: drones.length ? "The drones fly the survey; photos land and the detector ranks each one." : "The survey's photos land and the detector ranks each one.",
       prompt: "Look at the photo beside the subject's description: is it the subject, another person, or not a person?",
       options: [],
@@ -282,7 +306,7 @@ export function injects(input: GuideInput): Inject[] {
       at: ms(clue.at),
       // the team that radios it is out on a hasty search along the trail (missionTime.ts hastyAt), the others at base camp
       lead: `${who}, out on a hasty search along the trail, radios a clue.`,
-      prompt: `Read back ${who}'s call: press Confirm clue on its card in Needs you, ask for a bearing, or log it without mapping.`,
+      prompt: `Read back ${who}'s call. In Needs you, press “Confirm clue” on its card; or ask for a bearing, or log it without mapping.`,
       agentSays: `${who}: ${clue.text}.`,
       options: [
         { key: "1", id: "confirm", label: `Confirm at ${clue.reliability ?? "low"} reliability`, costMin: 0, effect: "the map shifts toward it", agent: true, on: "Confirm clue on the card in Needs you" },
@@ -313,11 +337,11 @@ export function injects(input: GuideInput): Inject[] {
       key: "assign",
       at: ms(p.created_at),
       lead: "The AI ranks the sectors with what is on the map now.",
-      prompt: many ? `Send the teams: press ${sendAllLabel(n, team, p.target.sector, ext)} on its card in Needs you, or send only ${team}.` : `Send the team: press ${sendAllLabel(n, team, p.target.sector, ext)} on its card in Needs you.`,
+      prompt: many ? `Send the teams. On the AI's card in Needs you, press “${sendAllLabel(n, team, p.target.sector, ext)}”; or send only ${team}.` : `Send the team. On the AI's card in Needs you, press “${sendAllLabel(n, team, p.target.sector, ext)}”.`,
       // the reason's first clause (the card has the whole of it)
       agentSays: p.reason.split(/:\s/)[0],
       options: [
-        { key: "1", id: "all", label: sendAllLabel(n, team, p.target.sector, ext), costMin: 0, effect: `${seen ? `the nearest team to the sighting in ${seen} first, then ` : ""}${team} to ${p.target.sector}${many ? ", every other team to the next likeliest sector" : ""}; each team that comes back takes the AI's next pick, until the find`, agent: true, on: "the card's main button in Needs you" },
+        { key: "1", id: "all", label: `${sendAllLabel(n, team, p.target.sector, ext)}${STANDING_NOTE}`, costMin: 0, effect: `${seen ? `the nearest team to the sighting in ${seen} first, then ` : ""}${team} to ${p.target.sector}${many ? ", every other team to the next likeliest sector" : ""}; each team that comes back takes the AI's next pick, until the find or until you stop it`, agent: true, on: "the card's main button in Needs you" },
         ...(many ? [{ key: "2", id: "approve", label: sendOnlyLabel(team, p.target.sector), costMin: 0, effect: `${team} walks out and sweeps ${p.target.sector}; the other teams wait at base camp`, on: "the card's second button" }] : []),
         ...(other ? [{ key: "3", id: `team:${other.id}`, label: `${callsign(other.id)} to ${p.target.sector}`, costMin: 0, effect: `${callsign(other.id)} walks out and sweeps ${p.target.sector}`, on: "Edit on the card, then its button" }] : []),
         { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it", on: "a sector on the map" },
@@ -328,13 +352,15 @@ export function injects(input: GuideInput): Inject[] {
   }
 
   // 5. the lost link: let it finish, or divert drone three as a relay
-  const link = drones.length && !wait ? lostLink(full) : null;
+  // (the scenario's flight lines fly with the AI's flight lines only: no lost link on a line the lawnmower pattern never flew)
+  const lines = !input.choices.some((c) => c.inject === "survey") || legsFly(input.choices);
+  const link = drones.length && !wait && lines ? lostLink(full) : null;
   if (link) {
     const relay = drones.find((x) => x.id !== link.drone && x.id !== drones[0]!.id) ?? drones.find((x) => x.id !== link.drone);
     out.push({
       id: "link",
       key: "link",
-      at: link.at,
+      at: link.at + late,
       lead: "Teams walk to their sectors; the drones fly their flight lines.",
       prompt: `Handle the lost link: let ${droneWord(link.drone, full)} finish its flight line, or divert ${relay ? droneWord(relay.id, full) : "another drone"} as a relay.`,
       agentSays: `${droneWord(link.drone, full)[0]!.toUpperCase()}${droneWord(link.drone, full).slice(1)} has lost its link and flies its approved flight line on its own.`,
@@ -369,14 +395,14 @@ export function injects(input: GuideInput): Inject[] {
   // for that team (it keeps proposing until the find, so no team waits at base camp with nobody asked)
   const detected = passes.find((x) => x.detected && !x.cut);
   const foundMarked = input.user.some(isFoundEvent);
-  const since = standingFrom(input.choices, full);
+  const windows = standingWindows(input.choices, input.user, full);
   let k = 1;
   // (the clock waits at each pass's end, so whatever the visitor does there is that step's decision)
   for (const x of [...live].sort((a, b) => a.end - b.end || a.start - b.start)) {
     if (x.detected || (detected && x.end > detected.end)) continue;
     k += 1;
-    // "send all" (or last light): the agent's picks go to each team as it comes back, until the find
-    if (since !== null && x.end >= since) continue;
+    // "send all" (until stopped) or last light: the agent's picks go to each team as it comes back, until the find
+    if (windows.some((w) => w.from <= x.end && x.end < w.until)) continue;
     const team = callsign(x.team);
     const fr = freeAt(x.end);
     // the team whose pass just ended is the one asked about: counted where the board has it (walking back),
@@ -392,10 +418,10 @@ export function injects(input: GuideInput): Inject[] {
       key: `assign-${k}`,
       at: x.end,
       lead: "The teams sweep their sectors.",
-      prompt: many ? `Send the teams again: press ${sendAllLabel(n, team, "the AI's pick", ext)} on its card in Needs you, or send only ${team}.` : `Send ${team} again: press its card's button in Needs you for the AI's next sector.`,
+      prompt: many ? `Send the teams again (a team is back). On the AI's card in Needs you, press “${sendAllLabel(n, team, "the AI's pick", ext)}”; or send only ${team}.` : `Send ${team} again (it is back). On the AI's card in Needs you, press its main button for the AI's next sector.`,
       agentSays: `${x.sector} searched at ${podLabel(x.pod)}, no sign. The AI suggests the likeliest open sector next.`,
       options: [
-        { key: "1", id: "all", label: sendAllLabel(n, team, "the AI's pick", ext), costMin: 0, effect: `${seen ? `the nearest team to the sighting in ${seen} first; ` : ""}each free team takes the likeliest open sector, and each team that comes back the next one, until the find`, agent: true, on: "the card's main button in Needs you" },
+        { key: "1", id: "all", label: `${sendAllLabel(n, team, "the AI's pick", ext)}${STANDING_NOTE}`, costMin: 0, effect: `${seen ? `the nearest team to the sighting in ${seen} first; ` : ""}each free team takes the likeliest open sector, and each team that comes back the next one, until the find or until you stop it`, agent: true, on: "the card's main button in Needs you" },
         ...(many ? [{ key: "2", id: "approve", label: `Send only ${team} to the AI's pick`, costMin: 0, effect: `${team} walks to it and sweeps it; the other free teams wait at base camp`, on: "the card's second button" }] : []),
         { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it", on: "a sector on the map" },
       ],
@@ -410,7 +436,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "find",
       at: detected?.end ?? 0,
       lead: "The teams sweep their sectors.",
-      prompt: `Answer ${callsign(team)}'s call: press Record find on its card in Needs you (the nearest team goes to carry out), or ask for a confirmation first.`,
+      prompt: `Answer ${callsign(team)}'s call. In Needs you, press “Record find” on its card (the nearest team goes to carry out); or ask for a confirmation first.`,
       agentSays: detected ? `${callsign(team)}: subject located in ${detected.sector}, conscious and talking.` : undefined,
       options: [
         { key: "1", id: "found", label: "Mark Found, send a carry-out", costMin: 0, effect: "the status line flips to Found", agent: true, on: "Record find on the card in Needs you" },
@@ -506,12 +532,48 @@ const teamIds = (full: DemoFull) => (full.data.teams ?? []).filter((t) => t.stat
  * team goes to the agent's picks at once, and after each pass with no find that team takes the next one.
  */
 export function standingUser(full: DemoFull | null, seed: string, user: readonly MissionEvent[], choices: readonly Choice[]): MissionEvent[] {
-  const from = standingFrom(choices, full);
-  if (from === null || !full) return [...user];
-  // whose standing approval it is, in the log: the visitor's Send all, Watch instead's, or the night search
-  const c = choices.find((x) => x.inject === "assign" && x.option === "all");
-  const note = c && c.f <= from ? `the agent's pick, approved in turn${c.watched ? ` (${WATCH_BY} chose Send all)` : ""}` : "the agent's pick, approved in turn from last light";
-  return playStanding(seed, subjectOf(full), poaOf(full), user, teamIds(full), from, searchEnd(full), isFoundEvent, true, note);
+  if (!full) return [...user];
+  let out = [...user];
+  for (const w of standingWindows(choices, user, full)) out = playStanding(seed, subjectOf(full), poaOf(full), out, teamIds(full), w.from, w.until, isFoundEvent, true, w.note);
+  return out;
+}
+
+/** The visitor's "Stop sending" on a standing approval (a mission note with this action). */
+export const STANDING_STOP = "standing_stop";
+const isStop = (e: MissionEvent) => e.type === "mission.note" && (e.data as { action?: string } | null)?.action === STANDING_STOP;
+
+/**
+ * When the agent's picks go to the free teams without asking again (fixtures' clock): from each Send all
+ * until the visitor stops it (Needs you's "Stop sending"), and from last light through the night (the guided
+ * search's own rule, so every run reaches the find), each with whose approval it is, in the log's words.
+ */
+export function standingWindows(choices: readonly Choice[], user: readonly MissionEvent[], full: DemoFull | null): { from: number; until: number; note: string; mine: boolean }[] {
+  if (!full) return [];
+  const end = searchEnd(full);
+  const light = lastLight(full);
+  const marks = [
+    ...choices.filter((x) => x.inject === "assign" && x.option === "all").map((c) => ({ at: c.f, start: c })),
+    ...user.filter(isStop).map((e) => ({ at: ms(e.at), start: null })),
+  // (at one minute, a Send all comes before its Stop: a paused clock makes both at the same minute)
+  ].sort((a, b) => a.at - b.at || Number(!!b.start) - Number(!!a.start));
+  const out: { from: number; until: number; note: string; mine: boolean }[] = [];
+  let open: Choice | null = null;
+  for (const m of marks) {
+    if (m.start && !open) open = m.start;
+    else if (!m.start && open) {
+      out.push({ from: open.f, until: Math.min(m.at, end), note: `the agent's pick, approved in turn${open.watched ? ` (${WATCH_BY} chose Send all)` : ""}`, mine: true });
+      open = null;
+    }
+  }
+  if (open) out.push({ from: open.f, until: end, note: `the agent's pick, approved in turn${open.watched ? ` (${WATCH_BY} chose Send all)` : ""}`, mine: true });
+  if (!out.some((w) => w.from <= light && light < w.until)) out.push({ from: light, until: end, note: "the agent's pick, approved in turn from last light", mine: false });
+  return out.sort((a, b) => a.from - b.from);
+}
+
+/** The visitor's own standing approval in force at `f` (fixtures' clock), or null. */
+export function standingAt(choices: readonly Choice[], user: readonly MissionEvent[], full: DemoFull | null, f: number): { from: number; mine: boolean } | null {
+  const w = standingWindows(choices, user, full).find((x) => x.from <= f && f < x.until);
+  return w ? { from: w.from, mine: w.mine } : null;
 }
 
 /** The inject waiting for a decision: the first not yet decided (triage: until all three cards are). */
@@ -586,8 +648,9 @@ export function choiceFromConsole(i: Inject, input: GuideInput, answers: Readonl
   }
   if (i.id === "clue") {
     const clue = storyClue(input.full);
-    const ok = input.user.some((e) => after(e) && e.type === "clue.added" && e.ref === clue?.id && (e.data as Clue | null)?.confirmed);
-    return ok ? choiceFor(i, "confirm", f) : null;
+    const e = input.user.find((x) => after(x) && x.type === "clue.added" && x.ref === clue?.id && ((x.data as Clue | null)?.confirmed || (x.data as { logged?: boolean } | null)?.logged));
+    // Confirm clue on its card, or Log without mapping there
+    return e ? choiceFor(i, (e.data as { logged?: boolean } | null)?.logged ? "log" : "confirm", f) : null;
   }
   if (i.id === "assign") {
     // the visitor's own move, made by now (not the agent's standing picks, which come later and alone)

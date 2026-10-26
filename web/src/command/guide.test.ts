@@ -7,12 +7,14 @@ import despondent from "./__fixtures__/scenarios/despondent.json";
 import dementia from "./__fixtures__/scenarios/dementia.json";
 import hiker from "./__fixtures__/scenarios/overdue-hiker.json";
 import { SECOND_LOOK_ID } from "./demoReview";
-import { activeInject, agentOption, choiceFor, choiceFromConsole, costsOf, currentCard, hotWash, injects, lastLight, PIPS, searchEnd, sendAllLabel, standingUser, type Choice, type GuideInput, type Inject } from "./guide";
+import { activeInject, agentOption, choiceFor, choiceFromConsole, costsOf, currentCard, hotWash, injects, lastLight, PIPS, searchEnd, sendAllLabel, STANDING_NOTE, standingUser, type Choice, type GuideInput, type Inject } from "./guide";
 import { demoAt, onMissionClock, poaOf, subjectOf, type DemoFull } from "./missionTime";
+import { guidedOptsFor } from "./GuideRun";
+import { buildTimeline } from "./timeline";
 import { sectorAt } from "./console";
 import { shiftTimes } from "./scenarios";
 import { agentLine, fixtureOf, passesFrom, realOf, TEAM_POD } from "./sim";
-import { dwellAt, dwellFor, LAPSE, lapseBeats, lapseRate, lapseSeconds, lapseStep, rowShape } from "./story";
+import { dwellAt, dwellFor, FREE_MAX_BEATS, FREE_MIN_PER_S, LAPSE, lapseBeats, lapseRate, lapseSeconds, lapseStep, rowShape } from "./story";
 import { STORY_BANNED, STORY_NOT_A_PERSON, storyProposal } from "./storyCopy";
 
 type Fixture = Partial<MissionData> & { now: string; map_updates: MapUpdate[]; t0?: string };
@@ -163,8 +165,9 @@ describe("every choice path reaches the find within the run (the cold test's end
     const p = storyProposal(overdue)!;
     const team = overdue.data.teams!.find((t) => t.id === p.target.team)!.callsign;
     // only the free teams are "free": Teams One and Two are walking back from the hasty search (the cold test: 4 for 2)
-    expect(a.options[0]).toMatchObject({ id: "all", agent: true, label: sendAllLabel(2, team, p.target.sector!, { returning: 2 }) });
-    expect(a.options[0]!.label).toBe("Send the 2 free teams and the 2 returning ones to the AI's picks now");
+    // Send all says up front that it is a standing approval for the picks after it (the cold test)
+    expect(a.options[0]).toMatchObject({ id: "all", agent: true, label: `${sendAllLabel(2, team, p.target.sector!, { returning: 2 })}${STANDING_NOTE}` });
+    expect(a.options[0]!.label).toBe("Send the 2 free teams and the 2 returning ones to the AI's picks now, and keep sending free teams to the AI's picks until you change it");
     expect(sendAllLabel(4, team, "C2")).toBe("Send all 4 free teams to the AI's picks");
     expect(a.options[1]).toMatchObject({ id: "approve", label: `Send only ${team} to ${p.target.sector}` });
     expect(a.options.filter((o) => o.agent)).toHaveLength(1);
@@ -201,19 +204,33 @@ describe("the step gate: the clock does not pass a decision until it is made", (
     expect(fixtureOf(clock, costsOf(choices))).toBe(triage.at);
   });
 
-  it("plays the time between two decisions slowly, one beat at a time (15 to 25 s at 1x, a mission minute never under 0.25 s)", () => {
+  it("plays the time between two decisions slowly enough to read, one beat at a time (about 3 s a beat at 1x, a stretch at most 35 s)", () => {
     const min = 60_000;
     const run = (l: { from: number; hold: number; beats: number[] }) => lapseSeconds(l);
-    // 13:35 to 14:31 with eight beats: 14 s of travel (0.25 s a minute) and 9.6 s of beats
-    const first = { from: 0, hold: 56 * min, beats: Array.from({ length: 8 }, (_, i) => (i + 1) * 6 * min) };
-    expect(run(first)).toBeCloseTo(56 * LAPSE.secPerMin + 8 * LAPSE.beatMs / 1000);
-    expect(run(first)).toBeGreaterThanOrEqual(LAPSE.minS);
-    expect(run(first)).toBeLessThanOrEqual(LAPSE.maxS);
-    // a 14-minute stretch with three beats still takes 15 s; a 2-minute one travels at 1 s a minute
-    expect(run({ from: 0, hold: 14 * min, beats: [2 * min, 5 * min, 9 * min] })).toBeCloseTo(LAPSE.minS);
+    // the owner (2026-10-26): "the timeline moves so fast that I don't understand what's being given to us".
+    // Each beat is held long enough to read its caption: 2.5 to 3.5 s at 1x
+    expect(LAPSE.beatMs).toBeGreaterThanOrEqual(2500);
+    expect(LAPSE.beatMs).toBeLessThanOrEqual(3500);
+    expect(LAPSE.beatMinMs).toBeGreaterThanOrEqual(2500);
+    for (const n of [1, 3, LAPSE.maxBeats]) {
+      const d = dwellFor({ beats: Array.from({ length: n }, (_, i) => i) });
+      expect(d).toBeGreaterThanOrEqual(2500);
+      expect(d).toBeLessThanOrEqual(3500);
+    }
+    // 13:35 to 14:31 with the most beats a stretch keeps: 8 beats of 3 s and 11 s of travel, 35 s in all
+    const first = { from: 0, hold: 56 * min, beats: Array.from({ length: LAPSE.maxBeats }, (_, i) => (i + 1) * 6 * min) };
+    expect(run(first)).toBeCloseTo(LAPSE.maxS);
+    // every stretch, short or hours long, stays under 35 s; a mission minute never under 0.2 s while it can
+    for (const span of [9, 31, 56, 3 * 60, 6 * 60]) {
+      for (const n of [0, 3, LAPSE.maxBeats]) {
+        const l = { from: 0, hold: span * min, beats: Array.from({ length: n }, (_, i) => ((i + 1) * span * min) / (n + 1)) };
+        expect(run(l)).toBeLessThanOrEqual(LAPSE.maxS + 1e-6);
+        if (span * LAPSE.secPerMin + n * dwellFor(l) / 1000 <= LAPSE.maxS) expect(lapseRate(l) * 1000).toBeLessThanOrEqual(min / LAPSE.secPerMin + 1e-6);
+      }
+    }
+    // a 14-minute stretch with three beats still takes the floor; a 2-minute one travels at 1 s a minute
+    expect(run({ from: 0, hold: 14 * min, beats: [2 * min, 5 * min, 9 * min] })).toBeCloseTo(Math.max(LAPSE.minS, 14 * LAPSE.secPerMin + 3 * LAPSE.beatMs / 1000));
     expect(run({ from: 0, hold: 2 * min, beats: [] })).toBeCloseTo(2 * LAPSE.maxSecPerMin);
-    // never faster than 4 mission minutes a second, however long the stretch
-    for (const span of [9, 31, 56, 3 * 60]) expect(lapseRate({ from: 0, hold: span * min, beats: [] }) * 1000).toBeLessThanOrEqual(min / LAPSE.secPerMin + 1e-6);
     const l = { from: 0, hold: 20 * min, beats: [5 * min, 12 * min] };
     let c = 0;
     const stops: number[] = [];
@@ -231,9 +248,51 @@ describe("the step gate: the clock does not pass a decision until it is made", (
     expect(lapseStep(0, l, 100, 1, true)).toEqual({ clock: 5 * min, beat: true });
     expect(lapseStep(5 * min, l, 100, 1, true)).toEqual({ clock: 12 * min, beat: true });
     expect(lapseStep(12 * min, l, 100, 1, true)).toEqual({ clock: l.hold, beat: false });
-    // each beat 1 to 1.5 s: 1.2 s, down to 1 s when there are many
+    // each beat 2.6 to 3.2 s: 3.2 s, down to 2.6 s when there are many
     expect(dwellFor({ beats: [1, 2] })).toBe(LAPSE.beatMs);
     expect(dwellFor({ beats: Array.from({ length: 30 }, (_, i) => i) })).toBe(LAPSE.beatMinMs);
+    // free play's clock is slower than before (2 mission minutes a second): 1 a second at 1x
+    expect(FREE_MIN_PER_S).toBe(1);
+  });
+
+  it("plays each real stretch of a run in a few beats, each under 35 s at 1x", () => {
+    // the first stretch of the missing child, as the guided run reads it: 23 rows, which were 21 beats (32 s)
+    const at = (m: number) => Date.UTC(2026, 9, 24, 20, 35) + m * 60_000;
+    const rows = [
+      { at: at(10), text: "AI re-check of a near-miss photo: unclear", kind: "detection" },
+      { at: at(25), text: "Team Three, Sightline. Copy object, a small yellow hood caught on a bush. Holding it for the search manager to confirm, over.", kind: "radio", team: "T3" },
+      { at: at(25), text: "Sightline, Team Three. A small yellow hood caught on a bush, over.", kind: "radio", team: "T3" },
+      { at: at(25), text: "object: a small yellow hood caught on a bush", kind: "clue", team: "T3", sector: "C2", detail: "Team Three · by radio · medium reliability · confirmed" },
+      { at: at(26), text: "AI suggests: Add this photo to Review photos: the AI re-check says likely a person", kind: "decision" },
+      { at: at(26), text: "AI re-check of a near-miss photo: likely a person", kind: "detection" },
+      { at: at(28), text: "AI re-check of a near-miss photo: probably not a person", kind: "detection" },
+      { at: at(35), text: "AI re-check of a near-miss photo: probably not a person", kind: "detection" },
+      { at: at(40), text: "Team Four: position report (hasty search)", kind: "checkin", team: "T4" },
+      { at: at(40), text: "Team Three: position report (hasty search)", kind: "checkin", team: "T3" },
+      { at: at(41), text: "Sightline, Team Four. Small shoe prints in the mud, over.", kind: "radio", team: "T4" },
+      { at: at(41), text: "track: small shoe prints in the mud", kind: "clue", team: "T4", sector: "B2", detail: "Team Four · by radio · medium reliability · confirmed" },
+      { at: at(41), text: "Team Four heads back to base camp: the hasty search along the trail is done", kind: "checkin", team: "T4" },
+      { at: at(50), text: "Sightline, Team Three. A juice box, half full, over.", kind: "radio", team: "T3" },
+      { at: at(50), text: "object: a juice box, half full", kind: "clue", team: "T3", sector: "B2", detail: "Team Three · by radio · low reliability · awaiting read-back" },
+      { at: at(52), text: "Conditions looked up for Mount Seymour", kind: "note" },
+    ];
+    const beats = lapseBeats(rows);
+    expect(beats.length).toBeLessThanOrEqual(LAPSE.maxBeats);
+    expect(beats.length).toBeLessThan(rows.length / 2);
+    // a radio call, its read-back and the clue it brings are one beat; the photos the AI re-checks are one
+    const hood = beats.find((b) => /yellow hood/.test(b.text))!;
+    expect(hood.rows.map((r) => r.kind)).toEqual(["radio", "radio", "clue"]);
+    expect(hood.kind).toBe("clue");
+    expect(beats.filter((b) => b.rows.some((r) => r.kind === "detection")).length).toBeLessThanOrEqual(2);
+    // strictly increasing, and the whole stretch under 35 s at 1x
+    for (let i = 1; i < beats.length; i++) expect(beats[i]!.at).toBeGreaterThan(beats[i - 1]!.at);
+    expect(lapseSeconds({ from: at(0), hold: at(51), beats: beats.map((b) => b.at) })).toBeLessThanOrEqual(LAPSE.maxS);
+    // a crowded stretch keeps its most telling beats: the clues before the weather lookup
+    const few = lapseBeats(rows, 3);
+    expect(few).toHaveLength(3);
+    expect(few.every((b) => b.kind === "clue")).toBe(true);
+    // free play reads fewer a window
+    expect(lapseBeats(rows, FREE_MAX_BEATS).length).toBeLessThanOrEqual(FREE_MAX_BEATS);
   });
 
   it("groups rows alike landing together into one beat, and gives rows at the same time a beat each", () => {
@@ -369,5 +428,72 @@ describe("watch instead: the agent's line through the same engine", () => {
     const wash = hotWash({ full: overdue, seed, user, choices, queue }, list);
     expect(wash.lines[0]).toContain(`you sent Team Two to ${other}; the subject was in ${subject.sector}`);
     expect(agentLine(seed, subject, { team: p.target.team!, sector: p.target.sector!, at: a.at }, poaOf(overdue), Infinity).found).not.toBeNull();
+  });
+});
+
+describe("no drone or team moves before a person approves it (the cold test, 2026-10-26)", () => {
+  const call = Date.parse("2026-10-24T20:35:00Z");
+  const survey = (option: string, f = call): Choice => ({ key: "survey", inject: "survey", option, label: option, agentLabel: "", agent: option === "planner", f, costMs: option === "serpentine" ? 12 * 60_000 : 0 });
+  const at = (choices: Choice[], t: string, free = false) => {
+    const costs = costsOf(choices);
+    return onMissionClock(demoAt(overdue, iso(fixtureOf(Date.parse(t), costs)), [], guidedOptsFor(overdue, "overdue-hiker", choices, [], free)), costs) as MissionData;
+  };
+  const lineRows = (s: MissionData) => [...s.events.filter((e) => e.type === "fleet.updated").map((e) => e.summary), ...s.timeline.filter((e) => e.kind === "drone").map((e) => e.text)].filter((x) => /^L\d+ approved|flight line approved/.test(x));
+
+  it("the lawnmower pattern flies its own lines only: no later flight line credited to it (15:04 'you chose the lawnmower pattern')", () => {
+    const s = at([survey("serpentine")], "2026-10-24T22:20:00Z");
+    expect(lineRows(s)).toEqual([]);
+    expect(s.fleet?.legs ?? []).toEqual([]);
+    expect(s.timeline.some((e) => /auto-approved: guided survey/.test(e.text))).toBe(false);
+    // and no lost link on a line it never flew
+    expect(injects({ full: overdue, seed: "overdue-hiker", user: [], choices: [survey("serpentine")], queue }).some((i) => i.id === "link")).toBe(false);
+    // the AI's flight lines say they include the lines after the survey, and those fly, credited to that choice
+    const planner = injects({ full: overdue, seed: "overdue-hiker", user: [], choices: [], queue }).find((i) => i.id === "survey")!.options.find((o) => o.id === "planner")!;
+    expect(planner.effect).toMatch(/once the photos are in, flight lines over B2, B3, B1 and C3|once the photos are in, flight lines over/);
+    const p = at([survey("planner")], "2026-10-24T22:00:00Z");
+    expect(lineRows(p).length).toBeGreaterThan(0);
+    for (const x of p.events.filter((e) => e.type === "fleet.updated" && /^L\d+ approved/.test(e.summary))) expect(x.summary).toMatch(/approved with the survey you chose: the AI's flight lines/);
+  });
+
+  it("free play: before the survey is approved the drones wait at base camp and the AI's survey waits in Needs you; approved late, it flies from then", () => {
+    const s = at([], "2026-10-24T21:30:00Z", true);
+    expect(s.fleet!.drones.length).toBeGreaterThan(0);
+    expect(s.fleet!.drones.every((d) => d.status !== "flying")).toBe(true);
+    expect(s.mapUpdates.filter((u) => u.source === "frame")).toEqual([]);
+    expect(s.proposals.find((p) => p.id === "fly-survey")).toMatchObject({ status: "pending", summary: "Fly the survey: the AI's flight lines, or the lawnmower pattern?" });
+    // approved at 14:00 (25 min after the call): nothing in the air at the scenario's own 13:50, flying at 14:15
+    const late = [survey("planner", call + 25 * 60_000)];
+    expect(at(late, "2026-10-24T21:00:00Z", true).fleet!.drones.every((d) => d.status !== "flying")).toBe(true);
+    expect(at(late, "2026-10-24T21:15:00Z", true).fleet!.drones.some((d) => d.status === "flying")).toBe(true);
+    expect(at(late, "2026-10-24T21:15:00Z", true).proposals.some((p) => p.id === "fly-survey")).toBe(false);
+  });
+
+  it("the guided run: every clue the scenario brings waits for the visitor's confirmation, and the map with it", () => {
+    const s = at([survey("planner")], "2026-10-24T21:41:00Z");
+    expect(s.clues.map((c) => [c.id, c.confirmed])).toEqual([["c001", false], ["c002", false], ["c003", false], ["c004", false]]);
+    expect(s.mapUpdates.filter((u) => u.source === "clue")).toEqual([]);
+    const lines = buildTimeline(s.events, s.teams, s.timeline).filter((e) => e.kind === "clue");
+    expect(lines.length).toBe(4);
+    for (const e of lines) expect(e.detail).toMatch(/awaiting read-back/);
+    // the AI's reason no longer says the unconfirmed clues raised C2
+    const p = s.proposals.find((x) => x.id === "p002");
+    expect(p?.reason ?? "").not.toMatch(/raised it/);
+  });
+
+  it("Send all is a standing approval said up front; after Stop sending the AI asks again for the next team", () => {
+    const user: MissionEvent[] = [];
+    const p = storyProposal(overdue)!;
+    const all = choiceFor(injects({ full: overdue, seed: "overdue-hiker", user, choices: [], queue }).find((i) => i.key === "assign")!, "all", Date.parse(p.created_at));
+    expect(all.label).toMatch(/, and keep sending free teams to the AI's picks until you change it$/);
+    const sent = standingUser(overdue, "overdue-hiker", user, [all]);
+    const asked = (u: MissionEvent[]) => injects({ full: overdue, seed: "overdue-hiker", user: standingUser(overdue, "overdue-hiker", u, [all]), choices: [all], queue }).filter((i) => i.key.startsWith("assign-"));
+    // while it stands nothing is asked; stopped, the next team's pass that ends asks again
+    expect(asked(user)).toEqual([]);
+    const stop: MissionEvent = { id: "stop", type: "mission.note", at: iso(Date.parse(p.created_at) + 60_000), summary: "Standing approval stopped", ref: null, data: { action: "standing_stop" } as never };
+    expect(asked([stop]).length).toBeGreaterThan(0);
+    // no team goes on the AI's pick by itself between the stop and last light (the night search is the guided search's own rule)
+    const autos = (u: MissionEvent[]) => u.filter((e) => e.id.startsWith("auto-") && Date.parse(e.at) > Date.parse(stop.at) && Date.parse(e.at) < lastLight(overdue));
+    expect(autos(sent).length).toBeGreaterThan(0);
+    expect(autos(standingUser(overdue, "overdue-hiker", [stop], [all]))).toEqual([]);
   });
 });

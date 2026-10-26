@@ -168,7 +168,16 @@ export function deriveScenario(full: DemoFull, preset: Preset): DemoFull {
     const cs = String(t.callsign ?? "");
     return { ...e, summary: `${cs}, Sightline. Copy ${c.text}. Confirm, over.`, data: { ...t, transcript: `Sightline, ${cs}. ${c.text[0]!.toUpperCase()}${c.text.slice(1)}, over.`, reply: `${cs}, Sightline. Copy ${c.text}, logging it as a clue. Confirm, over.` } };
   });
-  // the agent's assignments go to the likeliest open sectors on this scenario's map at the planner's tick
+  const mission: Mission = { ...d.mission, subject: preset.subject, area: { ...d.mission.area, lkp: base.lkp }, base_camp: { lat: camp.lat, lon: camp.lon, name: "Base camp" } };
+  return withSeed({ now: full.now, data: { ...d, mission, mapBase: base, mapUpdates: updates, clues, ...replan({ ...d, events: radioEvents }, base, updates, "derived for this scenario") } }, preset);
+}
+
+/**
+ * The agent's assignments re-planned on a new map (`base`, with its updates): each goes to the likeliest
+ * open sectors at the planner's tick, the sector ids swapped everywhere they are named, and each sector's
+ * POA read from that map. `why` closes the proposal's reason ("derived for this scenario").
+ */
+export function replan(d: DemoFull["data"], base: MapBase, updates: MapUpdate[], why: string): Pick<DemoFull["data"], "sectors" | "events" | "proposals" | "tasks" | "fleet"> {
   const assigns = (d.proposals ?? []).filter((p) => p.kind === "assign_sector" && p.target.sector);
   const fixed = new Set((d.tasks ?? []).filter((t) => t.state === "searched").map((t) => t.sector_id));
   const board = sectorsAt(base, d.sectors ?? [], updates.filter((u) => u.source !== "ground" && new Date(u.at).getTime() <= new Date(BOARD_AT).getTime()));
@@ -184,29 +193,49 @@ export function deriveScenario(full: DemoFull, preset: Preset): DemoFull {
   const poaOf = new Map(board.map((s) => [s.sector_id, s.poa]));
   const proposals: Proposal[] = remap(d.proposals ?? [], ids).map((p) =>
     p.kind === "assign_sector" && p.target.sector
-      ? { ...p, reason: `${p.target.sector} holds ${((poaOf.get(p.target.sector) ?? 0) * 100).toFixed(1)} % of the probability on the map now, the most of any open sector with a team free; a ground team adds the most there (derived for this scenario).` }
+      ? { ...p, reason: `${p.target.sector} holds ${((poaOf.get(p.target.sector) ?? 0) * 100).toFixed(1)} % of the probability on the map now, the most of any open sector with a team free; a ground team adds the most there (${why}).` }
       : p,
   );
-  const mission: Mission = { ...d.mission, subject: preset.subject, area: { ...d.mission.area, lkp: base.lkp }, base_camp: { lat: camp.lat, lon: camp.lon, name: "Base camp" } };
-  return withSeed(
-    {
-      now: full.now,
-      data: {
-        ...d,
-        mission,
-        mapBase: base,
-        mapUpdates: updates,
-        // each sector's POA on this scenario's map (the fixture's are the demo's)
-        sectors: sectorsAt(base, d.sectors ?? [], updates),
-        clues,
-        events: remap(radioEvents, ids),
-        proposals,
-        tasks: remap(d.tasks ?? [], ids) as SectorTask[],
-        fleet: d.fleet ? remap(d.fleet, ids) : d.fleet,
-      },
-    },
-    preset,
-  );
+  return {
+    // each sector's POA on this map (the fixture's are its own)
+    sectors: sectorsAt(base, d.sectors ?? [], updates),
+    events: remap(d.events ?? [], ids),
+    proposals,
+    tasks: remap(d.tasks ?? [], ids) as SectorTask[],
+    fleet: d.fleet ? remap(d.fleet, ids) : d.fleet,
+  };
+}
+
+/** The grid cell a point falls in, as fractional (row, column) of its centre-based index. */
+function cellOf(base: MapBase, p: { lat: number; lon: number }): [number, number] {
+  const { cell_m, origin_nw } = base.grid;
+  return [(origin_nw.lat - p.lat) * (M_PER_DEG / cell_m) - 0.5, (p.lon - origin_nw.lon) * ((M_PER_DEG * Math.cos((origin_nw.lat * Math.PI) / 180)) / cell_m) - 0.5];
+}
+
+/**
+ * The prior carried to a new last known point (open play): the same shape (the profile's own prior, its
+ * rings or its spread), moved by whole cells so it sits around `lkp`; the cells it leaves take the prior's
+ * floor, and the share of the probability inside the grid stays as it was.
+ */
+export function movePrior(base: MapBase, lkp: { lat: number; lon: number }): MapBase {
+  const { rows, cols } = base.grid;
+  const [r0, c0] = cellOf(base, base.lkp);
+  const [r1, c1] = cellOf(base, lkp);
+  const dr = Math.round(r1 - r0);
+  const dc = Math.round(c1 - c0);
+  const p = base.prior.p;
+  if (!dr && !dc) return { ...base, lkp: { lat: lkp.lat, lon: lkp.lon } };
+  const floor = p.reduce((a, b) => Math.min(a, b), Infinity);
+  const out = new Array<number>(rows * cols);
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) {
+      const rr = r - dr;
+      const cc = c - dc;
+      out[r * cols + c] = rr >= 0 && rr < rows && cc >= 0 && cc < cols ? p[rr * cols + cc]! : floor;
+    }
+  const inside = p.reduce((a, b) => a + b, 0);
+  const now = out.reduce((a, b) => a + b, 0);
+  return { ...base, lkp: { lat: lkp.lat, lon: lkp.lon }, prior: { ...base.prior, p: now > 0 ? out.map((v) => (v * inside) / now) : out } };
 }
 
 function withSeed(full: DemoFull, preset: Preset): DemoFull {

@@ -123,8 +123,10 @@ export interface GuideState {
   free?: boolean;
 }
 
-/** Free play's clock at 1×: mission minutes per real second (2×, 4× multiply it). */
-export const FREE_MIN_PER_S = 2;
+/** Free play's clock at 1×: mission minutes per real second (2×, 4× multiply it; the owner: "it moves so fast"). */
+export const FREE_MIN_PER_S = 1;
+/** Free play stops on at most this many beats in each window it reads ahead (FREE_WINDOW_MS). */
+export const FREE_MAX_BEATS = 6;
 /** Free play reads its beats this far ahead of the clock (mission ms), then the next stretch. */
 export const FREE_WINDOW_MS = 30 * 60_000;
 
@@ -175,7 +177,9 @@ export const useGuide = create<{
     // the wall-clock time the decision took: from when it was shown to now
     const now = Date.now();
     const timed = { ...c, shownAt: c.shownAt ?? (g.shown?.key === c.key ? g.shown.at : undefined), decidedAt: c.decidedAt ?? now };
-    set({ guide: { ...g, choices: [...g.choices, timed], paused: false } });
+    // a decision never starts the clock: only Play (Space) resumes a paused run (the cold test: assigning a
+    // team while paused ran the clock on, 17:37 to 17:43 in 4 s); the decision lands at the minute it was made
+    set({ guide: { ...g, choices: [...g.choices, timed] } });
   },
   show: (key) => {
     const g = get().guide;
@@ -193,16 +197,19 @@ export const useGuide = create<{
 
 /**
  * The time-lapse between two decisions, one thing at a time (Dan, 2026-10-25: "way too fast … I'm not
- * understanding what's happening"). The timeline rows on the way are grouped into beats (`lapseBeats`:
- * rows alike landing together, "Drone 3: flight line approved · 3 drones", are one beat); the clock
- * travels from beat to beat, never faster than `secPerMin` real seconds a mission minute (4 mission
- * minutes a second), and stops on each beat for `beatMs` (1–1.5 s: the caption names it, the map shows
- * it). At 1× a stretch takes `minS`–`maxS` (15–25 s) in all where the floor allows; a short one travels
- * at most `maxSecPerMin` a minute. 2× and 4× travel 2 and 4 times faster and shorten each beat by the
- * square root (still one at a time). Under reduced motion there is no travel: the clock steps from
- * beat to beat.
+ * understanding what's happening"; the owner, 2026-10-26: "the timeline moves so fast that I don't
+ * understand what's being given to us"). The timeline rows on the way are grouped into beats
+ * (`lapseBeats`: rows about one thing, a radio call and the clue it brings, a team's pass and the
+ * standing approval that sends it on, the AI re-checking photos, are one beat), at most `maxBeats` a
+ * stretch (the least telling stop being folded away: their rows still land). The clock travels from beat
+ * to beat, never faster than `secPerMin` real seconds a mission minute (5 mission minutes a second), and
+ * stops on each beat for `beatMs` (2.6–3.2 s: long enough to read the caption's line, `caption.ts`, while
+ * the map shows it). At 1× a stretch takes at least `minS` and at most `maxS` (35 s): a long stretch
+ * travels faster between its stops (never faster than `fastSecPerMin`); a short one travels at most
+ * `maxSecPerMin` a minute. 2× and 4× travel 2 and 4 times faster and shorten each beat by the square root
+ * (still one at a time). Under reduced motion there is no travel: the clock steps from beat to beat.
  */
-export const LAPSE = { secPerMin: 0.25, maxSecPerMin: 1, minS: 15, maxS: 25, beatMs: 1200, beatMinMs: 1000, beatsTotalMs: 12_000 } as const;
+export const LAPSE = { secPerMin: 0.2, maxSecPerMin: 1, fastSecPerMin: 0.02, minS: 12, maxS: 35, beatMs: 3200, beatMinMs: 2600, beatsTotalMs: 24_000, maxBeats: 8 } as const;
 
 export interface Lapse {
   /** Where the run started and the decision it stops at (mission clock, ms). */
@@ -212,7 +219,7 @@ export interface Lapse {
   beats: readonly number[];
 }
 
-/** How long the clock stays on each beat of a run (real ms at 1×): 1.2 s, down to 1 s when there are many. */
+/** How long the clock stays on each beat of a run (real ms at 1×): 3.2 s, down to 2.6 s when there are many. */
 export const dwellFor = (l: Pick<Lapse, "beats">): number => Math.max(LAPSE.beatMinMs, Math.min(LAPSE.beatMs, LAPSE.beatsTotalMs / Math.max(1, l.beats.length)));
 
 /** The beat's stop at a speed: 2× and 4× shorten it by the square root, so it still reads. */
@@ -224,7 +231,9 @@ export function lapseRate(l: Pick<Lapse, "from" | "hold"> & Partial<Pick<Lapse, 
   const min = span / 60_000;
   const beats = l.beats?.filter((b) => b > l.from && b < l.hold) ?? [];
   const stops = (beats.length * dwellFor({ beats })) / 1000;
-  const travel = Math.min(min * LAPSE.maxSecPerMin, Math.max(min * LAPSE.secPerMin, LAPSE.minS - stops));
+  let travel = Math.min(min * LAPSE.maxSecPerMin, Math.max(min * LAPSE.secPerMin, LAPSE.minS - stops));
+  // a long stretch: faster between its stops, so the whole stretch stays under maxS
+  if (stops + travel > LAPSE.maxS) travel = Math.max(min * LAPSE.fastSecPerMin, LAPSE.maxS - stops);
   return travel > 0 ? span / (travel * 1000) : Infinity;
 }
 
@@ -254,20 +263,25 @@ export interface LapseRow {
   kind?: string;
   team?: string | null;
   sector?: string | null;
+  /** The row's second line (a clue's who, how and state: "awaiting read-back"), for the caption. */
+  detail?: string | null;
 }
 
-/** One beat of the time-lapse: a row, or rows alike landing together, with what the map shows for it. */
+/** One beat of the time-lapse: a row, or rows about one thing, with what the map shows for it. */
 export interface Beat {
   /** When it lands (mission clock, ms): its last row's time, a millisecond on from a beat at the same time. */
   at: number;
-  /** The row's time, for the caption. */
+  /** Its time for the caption: its last row's. */
   shown: number;
+  /** Its main row, as the timeline says it ("… · 3 drones" for rows alike). */
   text: string;
   /** Rows in it. */
   count: number;
   kind: string | null;
   teams: string[];
   sectors: string[];
+  /** Its rows, in time order. */
+  rows: LapseRow[];
 }
 
 /** Rows within this long of a group's first row, alike, are one beat (mission ms). */
@@ -294,30 +308,90 @@ function countOf(g: readonly LapseRow[]): string {
   return `${g.length} in all`;
 }
 
-/** The rows on the way as beats: alike rows landing within GROUP_WITHIN_MS of each other, one after another, are one. */
-export function lapseBeats(rows: readonly LapseRow[]): Beat[] {
+/**
+ * What a row is about, for grouping (rows about one thing within `ms` of each other are one beat): a team's
+ * pass and the standing approval that sends it on; the photos the AI re-checks; the drones' flight lines;
+ * one drone; one team's radio call, its read-back and the clue it brings. Null: a beat of its own (unless
+ * alike, rowShape).
+ */
+export function topicOf(r: LapseRow): { key: string; ms: number } | null {
+  const t = r.text;
+  if (/searched, no sign|searched at POD|auto-approved/.test(t) && (r.kind === "radio" || r.kind === "checkin" || r.kind === "decision")) return { key: "passes", ms: 3 * 60_000 };
+  if (r.kind === "detection" || (r.kind === "decision" && /\bphoto/i.test(t)) || (r.kind === "clue" && /photo review/.test(t))) return { key: "photos", ms: 10 * 60_000 };
+  if (r.kind === "drone" && /flight line (approved|over \w+ started)|new flight line approved/.test(t)) return { key: "lines", ms: 5 * 60_000 };
+  const drone = r.kind === "drone" ? /^Drone (\d+)\b/.exec(t)?.[1] : undefined;
+  if (drone) return { key: `drone:${drone}`, ms: 3 * 60_000 };
+  if (r.team && (r.kind === "radio" || r.kind === "clue" || r.kind === "checkin") && !/position report|out on a hasty search/.test(t)) return { key: `team:${r.team}`, ms: 3 * 60_000 };
+  return null;
+}
+
+/** How telling a row is: a beat's main row, and the beats a crowded stretch keeps (higher first). */
+export function weightOf(r: LapseRow): number {
+  const t = r.text;
+  if (r.kind === "found" || /Subject located/i.test(t)) return 10;
+  if (r.kind === "clue") return 8;
+  if (/searched, no sign|searched at POD/.test(t)) return 7;
+  if (/^AI suggests/.test(t) || /link lost/.test(t)) return 6;
+  if (r.kind === "detection" || r.kind === "decision") return 5;
+  if (r.kind === "radio" || /flight line|link degraded|Survey photos/.test(t)) return 4;
+  if (/heads back|out on a hasty search|started [A-Z]\d/.test(t)) return 3;
+  if (/back at base camp/.test(t)) return 2;
+  if (/position report/.test(t)) return 1;
+  return 0;
+}
+
+/**
+ * The rows on the way as beats: rows alike landing within GROUP_WITHIN_MS of each other, one after another,
+ * are one, and so are rows about one thing close together (topicOf). A crowded stretch keeps its `max`
+ * most telling beats (weightOf, in their order): the others' rows still land on the timeline, the clock
+ * just does not stop for them.
+ */
+export function lapseBeats(rows: readonly LapseRow[], max: number = LAPSE.maxBeats): Beat[] {
   const sorted = [...rows].sort((a, b) => a.at - b.at);
-  const groups: LapseRow[][] = [];
+  const groups: { rows: LapseRow[]; topic: string | null }[] = [];
   for (const r of sorted) {
-    const g = groups.at(-1);
-    if (g && rowShape(g[0]!.text) === rowShape(r.text) && r.at - g[0]!.at <= GROUP_WITHIN_MS) g.push(r);
-    else groups.push([r]);
+    const last = groups.at(-1);
+    const topic = topicOf(r);
+    if (last && rowShape(last.rows[0]!.text) === rowShape(r.text) && r.at - last.rows[0]!.at <= GROUP_WITHIN_MS) {
+      last.rows.push(r);
+      if (last.topic !== topic?.key) last.topic = null;
+      continue;
+    }
+    // the newest group on the same topic still in reach (its last row within the topic's minutes)
+    const same = topic ? [...groups].reverse().find((g) => g.topic === topic.key && r.at - g.rows.at(-1)!.at <= topic.ms) : undefined;
+    if (same) same.rows.push(r);
+    else groups.push({ rows: [r], topic: topic?.key ?? null });
   }
+  // each group lands at its last row
+  const ordered = groups.map((g) => g.rows).sort((a, b) => a.at(-1)!.at - b.at(-1)!.at);
+  const score = (g: readonly LapseRow[]) => Math.max(...g.map(weightOf)) + Math.min(0.9, g.length / 20);
+  const keep = new Set(
+    ordered
+      .map((g, i) => ({ i, s: score(g) }))
+      .sort((a, b) => b.s - a.s || a.i - b.i)
+      .slice(0, Math.max(1, max))
+      .map((x) => x.i),
+  );
+  const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))];
   const out: Beat[] = [];
-  for (const g of groups) {
-    const last = g.at(-1)!;
-    const at = Math.max(last.at, (out.at(-1)?.at ?? -Infinity) + 1);
-    const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))];
+  ordered.forEach((g, i) => {
+    if (!keep.has(i)) return;
+    // the main row: the most telling one (the earliest of those); its count is of the rows alike it
+    const lead = [...g].sort((a, b) => weightOf(b) - weightOf(a) || a.at - b.at)[0]!;
+    const alike = g.filter((r) => rowShape(r.text) === rowShape(lead.text));
+    const at = Math.max(g.at(-1)!.at, (out.at(-1)?.at ?? -Infinity) + 1);
     out.push({
       at,
-      shown: g[0]!.at,
-      text: g.length > 1 ? `${g[0]!.text} · ${countOf(g)}` : g[0]!.text,
+      // the time it lands (the clock reads it as the caption shows)
+      shown: g.at(-1)!.at,
+      text: alike.length > 1 ? `${lead.text} · ${countOf(alike)}` : lead.text,
       count: g.length,
-      kind: g[0]!.kind ?? null,
+      kind: lead.kind ?? null,
       teams: uniq(g.map((r) => r.team)),
       sectors: uniq(g.map((r) => r.sector)),
+      rows: g,
     });
-  }
+  });
   return out;
 }
 
