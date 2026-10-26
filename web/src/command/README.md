@@ -350,8 +350,9 @@ heat-tween-1..3; 1440 and 390):
   card violet; the map pans when the focus is near the edge; an assignment draws the team's route growing from
   where it is, its last sector or base camp (`map/base/teamRoute.ts`). One pin popup at a time
   (`map/base/onePopup.ts`).
-- **Review frame** (`ReviewFrame.tsx`): when candidates arrive where there were none, a toast says how many and
-  the first opens large (outside the guided story): the photo with the box, the crop, the AI second look, P/N/U,
+- **Review frame** (`ReviewFrame.tsx`): when candidates arrive where there were none, a toast says how many
+  ("6 photos to review · Review now"); on a live mission the first opens large by itself, on the demo
+  mission (free play included) only when the visitor asks (the toast, Needs you): the photo with the box, the crop, the AI second look, P/N/U,
   moving on by itself. The second look (`review/SecondLook.tsx`) says what it does, runs from one button
   (Run AI second look) with its model chips and its two steps, then shows the verdict first ("Likely a
   person", `verdictHead`), its details (2 people · standing · red jacket…), the detector's crop beside the

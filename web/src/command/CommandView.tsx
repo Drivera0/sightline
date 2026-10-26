@@ -107,7 +107,7 @@ export interface CommandProps {
   reviewCount: number;
   /** The candidates for the large review frame, their answers, and how to answer (V3 §3). */
   reviewFrame?: { cards: readonly ReviewCard[]; answers: Readonly<Record<string, LiveAnswer>>; onAnswer: OnAnswer; step?: { n: number; of: number } | null };
-  /** Open the review frame by itself when the first candidates arrive (off inside the guided story). */
+  /** Open the review frame by itself when the first candidates arrive (live missions; the demo mission toasts). */
   autoReview?: boolean;
   briefings?: ReactNode;
   storyProposal?: string | null;
@@ -147,7 +147,9 @@ export function CommandView(p: CommandProps) {
     (iso) => clock(iso, tz),
     (id) => board.find((x) => x.team.id === id)?.heard.at ?? null,
   );
-  // photos landed and candidates arrived where there were none: the first one opens in the review frame
+  // photos landed and candidates arrived where there were none: on a live mission the first one opens in the
+  // review frame; on the demo mission (free play included) the "N photos to review" toast's Review now opens
+  // it, so the frame never covers the console unasked
   const wasWaiting = useRef<number | null>(null);
   useEffect(() => {
     const was = wasWaiting.current;
