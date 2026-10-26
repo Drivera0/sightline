@@ -36,7 +36,7 @@ import {
   type Inject,
   type TriageAnswer,
 } from "./guide";
-import { demoAt, onMissionClock, subjectOf, type DemoFull, type GuidedOpts } from "./missionTime";
+import { CHECKPOINTS, demoAt, onMissionClock, subjectOf, type DemoFull, type GuidedOpts } from "./missionTime";
 import { GuideStrip } from "./Scrubber";
 import { fixtureOf, passesFrom, realOf, type Cost } from "./sim";
 import { dwellAt, FREE_MIN_PER_S, FREE_WINDOW_MS, lapseBeats, lapseStep, SPEEDS, useGuide, useLapseBeat, useStory, type Lapse, type Speed } from "./story";
@@ -605,6 +605,7 @@ export function useGuideRun({
         guideHref={guideHref}
         scenariosHref={scenariosHref}
         waiting={pendingCount}
+        atCall={clockMs <= new Date(CHECKPOINTS[0]!.at).getTime()}
       />
     ) : null;
 

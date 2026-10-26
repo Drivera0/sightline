@@ -1,6 +1,6 @@
 // Free play's clock control (`#m/demo/map`, the console on its own): one slim bar over the map with the
 // mission time, Play/Pause (Space), the speed, Restart (asks first), and the ways out: the guided search
-// instead, or another scenario. No coach bar, no step strip, no ring: the decisions arrive in Needs you
+// instead, or another scenario. A run starts paused at the call: nothing moves until the visitor presses Play. No coach bar, no step strip, no ring: the decisions arrive in Needs you
 // and wait there while the clock runs. GuideRun.tsx mounts it. Built by lane A.
 
 import { useState } from "react";
@@ -18,6 +18,7 @@ export function FreeClock({
   guideHref,
   scenariosHref,
   waiting,
+  atCall = false,
 }: {
   /** The mission clock as it reads ("13:35"). */
   clock: string;
@@ -31,6 +32,8 @@ export function FreeClock({
   scenariosHref: string;
   /** Items in Needs you waiting for a person (said beside the clock). */
   waiting: number;
+  /** Still at the call, never played: the console is the visitor's to set up first. */
+  atCall?: boolean;
 }) {
   const [asking, setAsking] = useState(false);
   return (
@@ -59,7 +62,7 @@ export function FreeClock({
             </button>
           ))}
         </span>
-        <span className="text-caption text-text-3">{waiting ? `${waiting} ${waiting === 1 ? "proposal waits" : "proposals wait"} in Needs you` : paused ? "Paused" : "Time passes; decisions wait in Needs you"}</span>
+        <span className="text-caption text-text-3">{waiting ? `${waiting} ${waiting === 1 ? "proposal waits" : "proposals wait"} in Needs you` : paused && atCall ? "Nothing runs until you press Play: assign teams, add a clue or try a photo first" : paused ? "Paused" : "Time passes; decisions wait in Needs you"}</span>
         <button type="button" onClick={() => setAsking(true)} aria-haspopup="dialog" aria-expanded={asking} className="sl-tap text-caption text-text-2 hover:text-text">
           Restart
         </button>
