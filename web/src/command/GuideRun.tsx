@@ -38,7 +38,8 @@ import {
 import { demoAt, onMissionClock, subjectOf, type DemoFull, type GuidedOpts } from "./missionTime";
 import { GuideStrip } from "./Scrubber";
 import { fixtureOf, passesFrom, realOf, type Cost } from "./sim";
-import { dwellAt, lapseBeats, lapseStep, SPEEDS, useGuide, useLapseBeat, useStory, type Lapse, type Speed } from "./story";
+import { dwellAt, FREE_MIN_PER_S, FREE_WINDOW_MS, lapseBeats, lapseStep, SPEEDS, useGuide, useLapseBeat, useStory, type Lapse, type Speed } from "./story";
+import { FreeClock } from "./FreeClock";
 import { buildTimeline } from "./timeline";
 import { storyClue } from "./storyCopy";
 import { isSightingProposal, WATCH_BY } from "./console";
@@ -72,6 +73,9 @@ export interface GuideRun {
   photoStep: { n: number; of: number } | null;
   /** The end screen. */
   overlay: ReactNode;
+  /** Free play (the console on its own): the same engine, no coach bar; its clock control goes over the map. */
+  free: boolean;
+  clockBar: ReactNode;
 }
 
 /** What the guided search changes in the fixtures (missionTime.ts): the seed, the read-back clue and whether it is mapped. */
@@ -96,6 +100,8 @@ export function useGuideRun({
   onTrace,
   onLeave,
   onRestart,
+  guideHref = "#m/demo?guide=1",
+  scenariosHref = "#scenarios",
 }: {
   demo: boolean;
   scenario: DemoFull | null;
@@ -107,11 +113,16 @@ export function useGuideRun({
   onReport: () => void;
   onTrace: () => void;
   onLeave: () => void;
-  /** Start over on this seed (watch: the agent's line). */
-  onRestart: (watch: boolean) => void;
+  /** Start over on this seed (watch: the agent's line; free: free play again). */
+  onRestart: (watch: boolean, free?: boolean) => void;
+  /** Free play's ways out: the guided search on this scenario, the scenario cards. */
+  guideHref?: string;
+  scenariosHref?: string;
 }): GuideRun {
   const guide = useGuide((x) => x.guide);
   const on = demo && !!guide;
+  // free play: the clock runs on its own, every item shows, the console's own controls decide
+  const free = on && !!guide!.free;
   const rawUser = useStory((x) => x.user);
   const answers = useStory((x) => x.answers);
   const choices = useMemo(() => guide?.choices ?? [], [guide?.choices]);
@@ -132,8 +143,11 @@ export function useGuideRun({
   // the find recorded stops the mission clock where it is (no running on to last light behind the end screen)
   const findDone = choices.some((c) => c.inject === "find");
   // nothing runs until the scenario is in; with no decision ahead (a pass under way) the clock runs on, never jumps
-  const hold = on && scenario && !guide!.ended ? (findDone ? clockMs : Math.min(activeAt ?? light, light)) : null;
-  const reached = on && activeAt !== null && clockMs >= activeAt && activeAt <= light;
+  // (free play never waits on a decision: it runs on to the find, or to the end of the night)
+  const hold = on && scenario && !guide!.ended ? (findDone ? clockMs : free ? light : Math.min(activeAt ?? light, light)) : null;
+  const reached = on && !free && activeAt !== null && clockMs >= activeAt && activeAt <= light;
+  // free play: every decision that has come up and is not made yet (they wait together in Needs you)
+  const due = useMemo(() => (free ? list.filter((i) => !injectDone(i, choices) && realOf(i.at, costs) <= clockMs) : []), [free, list, choices, costs, clockMs]);
   const [status, setStatus] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
 
@@ -145,17 +159,26 @@ export function useGuideRun({
     if (hold !== null) setRun((x) => (x && x.hold === hold ? x : { hold, from: useGuide.getState().guide?.clock ?? hold }));
   }, [hold]);
   const runFrom = run && run.hold === hold ? run.from : clockMs;
+  // free play has no decision to run to: its beats are read a window ahead (FREE_WINDOW_MS), the next window
+  // once the clock is through this one
+  const [win, setWin] = useState<{ from: number; to: number } | null>(null);
+  useEffect(() => {
+    if (!free || hold === null) return setWin(null);
+    setWin((w) => (w && clockMs >= w.from && clockMs < w.to && w.to <= hold ? w : { from: clockMs, to: Math.min(hold, clockMs + FREE_WINDOW_MS) }));
+  }, [free, hold, clockMs]);
+  const lapseFrom = free ? (win?.from ?? clockMs) : runFrom;
+  const lapseTo = free ? (win?.to ?? null) : hold;
   const rows = useMemo(() => {
-    if (!on || !scenario || hold === null || hold <= runFrom) return [];
-    const at = onMissionClock(demoAt(scenario, iso(fixtureOf(hold, costs)), user, guidedOptsFor(scenario, seed, choices, rawUser), { seed }), costs);
+    if (!on || !scenario || lapseTo === null || lapseTo <= lapseFrom) return [];
+    const at = onMissionClock(demoAt(scenario, iso(fixtureOf(lapseTo, costs)), user, guidedOptsFor(scenario, seed, choices, rawUser), { seed }), costs);
     return buildTimeline(at.events ?? [], at.teams ?? [], at.timeline ?? [])
       .map((e) => ({ at: new Date(e.at).getTime(), text: e.text, kind: e.kind, team: e.team, sector: e.sector }))
-      .filter((e) => e.at > runFrom && e.at <= hold)
+      .filter((e) => e.at > lapseFrom && e.at <= lapseTo)
       .sort((a, b) => a.at - b.at);
-  }, [on, scenario, hold, runFrom, costs, user, seed, choices, rawUser]);
+  }, [on, scenario, lapseTo, lapseFrom, costs, user, seed, choices, rawUser]);
   // one beat at a time: rows alike landing together are one (story.ts lapseBeats)
   const beats = useMemo(() => lapseBeats(rows), [rows]);
-  const lapse: Lapse | null = useMemo(() => (hold === null ? null : { from: runFrom, hold, beats: beats.map((b) => b.at) }), [hold, runFrom, beats]);
+  const lapse: Lapse | null = useMemo(() => (lapseTo === null ? null : { from: lapseFrom, hold: lapseTo, beats: beats.map((b) => b.at) }), [lapseTo, lapseFrom, beats]);
   const lapseRef = useRef(lapse);
   lapseRef.current = lapse;
   const dwellUntil = useRef(0);
@@ -171,8 +194,37 @@ export function useGuideRun({
   useEffect(() => {
     if (!lapsing) useLapseBeat.setState({ beat: null });
   }, [lapsing]);
+  const holdRef = useRef(hold);
+  holdRef.current = hold;
+  // free play: a steady clock (FREE_MIN_PER_S mission minutes a second at 1×) that never stops at a decision,
+  // but stops on each beat as it lands, as long as the guided run's (story.ts dwellAt), and shows it on the map
   useEffect(() => {
-    if (!running) return undefined;
+    if (!running || !free) return undefined;
+    let last = performance.now();
+    const id = window.setInterval(() => {
+      const g = useGuide.getState().guide;
+      const h = holdRef.current;
+      const l = lapseRef.current;
+      const now = performance.now();
+      const dt = Math.min(250, now - last);
+      last = now;
+      if (!g || g.paused || h === null || now < dwellUntil.current) return;
+      if (dwellUntil.current) {
+        dwellUntil.current = 0;
+        useLapseBeat.setState({ beat: null });
+      }
+      const to = Math.min(h, g.clock + dt * FREE_MIN_PER_S * 60 * g.speed);
+      const next = l?.beats.find((b) => b > g.clock && b <= l.hold);
+      if (l && next !== undefined && to >= next) {
+        dwellUntil.current = now + dwellAt(l, g.speed);
+        useLapseBeat.setState({ beat: beatsRef.current.find((b) => b.at === next) ?? null });
+        useGuide.getState().setClock(next);
+      } else useGuide.getState().setClock(to);
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [running, free]);
+  useEffect(() => {
+    if (!running || free) return undefined;
     // the real time since the last reading (a busy frame must not slow the mission down), at most a quarter second
     let last = performance.now();
     const id = window.setInterval(() => {
@@ -190,7 +242,7 @@ export function useGuideRun({
       useGuide.getState().setClock(r.clock);
     }, 100);
     return () => window.clearInterval(id);
-  }, [running]);
+  }, [running, free]);
   /** Skip ahead: straight to the next decision, every row on the way landing at once. */
   const skip = useCallback(() => {
     dwellUntil.current = 0;
@@ -203,6 +255,29 @@ export function useGuideRun({
   useEffect(() => {
     if (on && scenario && !guide!.ended && clockMs >= light && !reached) useGuide.getState().end();
   }, [on, guide?.ended, clockMs, light, reached]);
+
+  // free play: each decision that has come up counts when it is made on the console (an answer on any
+  // photo, the read-back confirmed, an approval, the find recorded), in any order
+  useEffect(() => {
+    if (!free || guide!.ended) return;
+    for (const i of due) {
+      if (i.id === "triage") {
+        for (const tc of i.cards ?? []) {
+          const a = answers[tc.id] as TriageAnswer | undefined;
+          if (!a || choices.some((x) => x.key === `triage:${tc.id}`)) continue;
+          useGuide.getState().choose(choiceFor(i, a, f, tc));
+          follow(tc, a);
+          logAnswer(i, tc.id, a, operatorName());
+        }
+        continue;
+      }
+      const c = choiceFromConsole(i, input, answers, f);
+      if (!c) continue;
+      useGuide.getState().choose(c);
+      if (i.id === "find" && i.find) carryOut(i.find.team, i.find.sector);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [free, due, input, answers, f]);
 
   // a decision made on the console itself counts
   useEffect(() => {
@@ -250,6 +325,8 @@ export function useGuideRun({
   // the step a card's button answers, read when it is pressed (the card's own Approve is "send only")
   const stepRef = useRef<{ active: Inject | null; reached: boolean; f: number }>({ active: null, reached: false, f: 0 });
   stepRef.current = { active, reached: !!reached, f };
+  const freeRef = useRef<{ free: boolean; due: readonly Inject[]; f: number }>({ free: false, due: [], f: 0 });
+  freeRef.current = { free, due, f };
   // a decision being carried out (Send all's approvals, one after another): it was recorded once already, and
   // the step that comes up meanwhile must not take its approvals as its own decision
   const carrying = useRef(false);
@@ -266,6 +343,14 @@ export function useGuideRun({
       const c = choiceFor(st.active, st.active.id === "wind" ? "recall" : team ? `team:${team}` : "approve", st.f);
       useGuide.getState().choose(team ? { ...c, label: `${m.teams.find((t) => t.id === team)?.callsign ?? team} to ${p?.target.sector ?? ""}` } : c);
     }
+    // free play: the approval is the decision of whichever item it answers (they wait together)
+    const fr = freeRef.current;
+    const i = fr.free && decision === "approve" && !carrying.current && !watched ? fr.due.find((x) => x.proposal === pid && (x.id === "assign" || x.id === "wind")) : undefined;
+    if (i) {
+      const team = edits?.team && edits.team !== p?.target.team ? edits.team : null;
+      const c = choiceFor(i, i.id === "wind" ? "recall" : team && i.key === "assign" ? `team:${team}` : "approve", fr.f);
+      useGuide.getState().choose(team ? { ...c, label: `${m.teams.find((t) => t.id === team)?.callsign ?? team} to ${p?.target.sector ?? ""}` } : c);
+    }
     await m.decide(pid, decision, by, reason, edits);
     if (decision === "approve" && p?.kind === "assign_sector" && p.target.sector) {
       const team = edits?.team ?? p.target.team;
@@ -274,7 +359,7 @@ export function useGuideRun({
   }, []);
 
   /** A team free for a side job (not `not`). */
-  function free(not?: string) {
+  function freeTeam(not?: string) {
     const teams = useMission.getState().teams;
     return teams.find((t) => t.id !== not && (t.status === "standby" || t.status === "assigned")) ?? teams.find((t) => t.id !== not);
   }
@@ -298,7 +383,7 @@ export function useGuideRun({
   /** The find recorded: the nearest other team goes to carry out. */
   function carryOut(team: string, sector: string) {
     // (a radio call only: who goes is the radio's; the board shows the finding team on the carry-out)
-    const carry = free(team);
+    const carry = freeTeam(team);
     if (carry) void useMission.getState().call(carry.id, `carry-out to ${sector}, over.`);
   }
 
@@ -469,7 +554,7 @@ export function useGuideRun({
         scenario={scenarioName}
         seed={seed}
         callsign={callsign}
-        onReplay={() => onRestart(false)}
+        onReplay={() => onRestart(false, free)}
         onWatchAgent={() => onRestart(true)}
         followed={followed}
         onReport={() => {
@@ -487,15 +572,39 @@ export function useGuideRun({
   // the step's card's main button in Needs you: the same "send all" as the coach bar (one control per action)
   const allOpt = reached && active?.id === "assign" && active.proposal ? active.options.find((o) => o.id === "all") : undefined;
   const only = reached && active?.id === "assign" ? active.options.find((o) => o.id === "approve") : undefined;
-  const cardLead: GuideRun["lead"] =
-    allOpt && active?.proposal ? { id: active.proposal, label: allOpt.label, onClick: () => perform(active, "all"), second: only?.label ?? null } : null;
+  // free play: the same Send all on the card of the first assignment waiting
+  const freeAssign = free ? due.find((i) => i.id === "assign" && i.proposal && i.options.some((o) => o.id === "all")) : undefined;
+  const cardLead: GuideRun["lead"] = freeAssign
+    ? { id: freeAssign.proposal!, label: freeAssign.options.find((o) => o.id === "all")!.label, onClick: () => perform(freeAssign, "all"), second: freeAssign.options.find((o) => o.id === "approve")?.label ?? null }
+    : allOpt && active?.proposal
+      ? { id: active.proposal, label: allOpt.label, onClick: () => perform(active, "all"), second: only?.label ?? null }
+      : null;
+  const pendingCount = useMission((m) => m.proposals.filter((p) => p.status === "pending").length);
+  const clockBar =
+    free && !guide!.ended ? (
+      <FreeClock
+        clock={clockText(iso(clockMs), DEMO_TZ)}
+        paused={!!guide!.paused}
+        onPause={() => useGuide.getState().pause()}
+        speed={guide!.speed}
+        speeds={SPEEDS}
+        onSpeed={(x) => useGuide.getState().setSpeed(x as Speed)}
+        onRestart={() => onRestart(false, true)}
+        guideHref={guideHref}
+        scenariosHref={scenariosHref}
+        waiting={pendingCount}
+      />
+    ) : null;
 
-  const dock = !on ? null : guide!.ended ? (
+  const dock = !on || (free && !guide!.ended) ? null : guide!.ended ? (
     guide!.closed ? (
       <div role="region" aria-label="Simulation ended" className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-solid px-3.5 py-2 text-small">
         <span className="text-text">{wash?.outcome.foundAt != null ? `Found at ${clockText(iso(wash.outcome.foundAt), DEMO_TZ)}: the mission clock stopped there.` : "The simulation has ended."}</span>
         <button type="button" onClick={() => useGuide.getState().close(false)} className="sl-tap rounded-full border border-border px-3 py-0.5 text-text hover:bg-surface-strong">
           What you did
+        </button>
+        <button type="button" onClick={() => onRestart(false, free)} className="sl-tap rounded-full border border-border px-3 py-0.5 text-text hover:bg-surface-strong">
+          Restart
         </button>
         <button type="button" onClick={onLeave} className="sl-tap ml-auto text-text-2 underline underline-offset-2 hover:text-text">
           Back to the scenarios
@@ -521,6 +630,7 @@ export function useGuideRun({
       paused={!!guide!.paused}
       onPause={() => useGuide.getState().pause()}
       onExit={onLeave}
+      onRestart={() => onRestart(false)}
       clock={clockText(iso(clockMs), DEMO_TZ)}
       caption={caption}
       progress={reached ? undefined : progress}
@@ -537,14 +647,16 @@ export function useGuideRun({
     missionClock: on ? iso(clockMs) : null,
     opts: on ? guidedOptsFor(scenario, seed, choices, user) : null,
     costs,
-    proposals: (all) => (on ? all.filter((p) => p.status !== "pending" || (reached && p.id === active?.proposal) || isSightingProposal(p)) : [...all]),
-    cards: (all) => (on ? (reached && card ? all.filter((c) => c.id === card.id) : []) : [...all]),
+    proposals: (all) => (on && !free ? all.filter((p) => p.status !== "pending" || (reached && p.id === active?.proposal) || isSightingProposal(p)) : [...all]),
+    cards: (all) => (on && !free ? (reached && card ? all.filter((c) => c.id === card.id) : []) : [...all]),
     proposal: on && reached ? (active?.proposal ?? null) : null,
-    needsHighlight: on && !guide!.ended ? needsHighlight : null,
+    needsHighlight: on && !free && !guide!.ended ? needsHighlight : null,
     decide,
     lead: on ? cardLead : null,
     photoStep: on && reached && active?.id === "triage" && card ? { n: active.cards!.indexOf(card) + 1, of: active.cards!.length } : null,
     dock,
     overlay,
+    free,
+    clockBar,
   };
 }

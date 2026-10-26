@@ -331,6 +331,7 @@ export function GuideMark({
   paused,
   onPause,
   onExit,
+  onRestart,
   clock,
   caption,
   progress,
@@ -362,6 +363,8 @@ export function GuideMark({
   paused: boolean;
   onPause: () => void;
   onExit: () => void;
+  /** Restart this search from the call (asks first). */
+  onRestart?: () => void;
   /** Watch this: the mission clock as it reads ("14:05"), the row that just landed, 0..1 of the way. */
   clock?: string;
   caption?: string | null;
@@ -421,7 +424,7 @@ export function GuideMark({
 
   // Leave asks first: a stray click must not throw the run away. The confirm sits above every sheet, the
   // mission clock waits while it is open, and no review frame opens over it (consoleStore `confirming`).
-  const [leaving, setLeaving] = useState(false);
+  const [leaving, setLeaving] = useState<false | "leave" | "restart">(false);
   useEffect(() => {
     if (!leaving) return undefined;
     useConsole.getState().setConfirming(true);
@@ -583,7 +586,12 @@ export function GuideMark({
               Watch instead
             </button>
           )}
-          <button type="button" onClick={() => setLeaving(true)} aria-expanded={leaving} aria-haspopup="dialog" className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
+          {onRestart && (
+            <button type="button" onClick={() => setLeaving("restart")} aria-expanded={leaving === "restart"} aria-haspopup="dialog" className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
+              Restart
+            </button>
+          )}
+          <button type="button" onClick={() => setLeaving("leave")} aria-expanded={leaving === "leave"} aria-haspopup="dialog" className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
             Leave
           </button>
         </span>
@@ -689,8 +697,66 @@ export function GuideMark({
           {choices}
         </div>
       )}
-      {leaving && <LeaveConfirm onStay={() => setLeaving(false)} onLeave={onExit} />}
+      {leaving === "restart" && onRestart ? (
+        <RestartConfirm
+          onStay={() => setLeaving(false)}
+          onRestart={() => {
+            setLeaving(false);
+            onRestart();
+          }}
+        />
+      ) : (
+        leaving && <LeaveConfirm onStay={() => setLeaving(false)} onLeave={onExit} />
+      )}
     </>
+  );
+}
+
+/** The restart confirm's words (the guided run's bar and free play's clock bar alike). */
+export const RESTART_ASK = "Restart this search from the call? Your decisions so far will be lost.";
+
+/**
+ * Restart this search? Above every sheet; the mission clock waits while it is open (consoleStore
+ * `confirming`), and Esc stays.
+ */
+export function RestartConfirm({ onStay, onRestart }: { onStay: () => void; onRestart: () => void }) {
+  const stay = useRef(onStay);
+  stay.current = onStay;
+  useEffect(() => {
+    useConsole.getState().setConfirming(true);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      stay.current();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      useConsole.getState().setConfirming(false);
+    };
+  }, []);
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-bg/70 p-4 backdrop-blur-[2px]" onClick={onStay}>
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-label="Restart this search?"
+        onClick={(e) => e.stopPropagation()}
+        className="flex w-full max-w-md flex-col gap-3 rounded-lg border border-caution/60 bg-surface-solid px-4 py-3 shadow-[var(--shadow-pop)]"
+      >
+        <p className="text-body text-text">{RESTART_ASK}</p>
+        <p className="text-caption text-text-3">The mission clock waits while you decide.</p>
+        <span className="flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" className="h-9! px-4!" onClick={onStay} autoFocus>
+            Stay
+          </Button>
+          <Button variant="ghost" className="h-9! px-4!" onClick={onRestart}>
+            Restart
+          </Button>
+        </span>
+      </div>
+    </div>
   );
 }
 

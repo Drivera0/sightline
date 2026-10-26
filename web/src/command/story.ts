@@ -115,7 +115,18 @@ export interface GuideState {
   speed: Speed;
   /** The end screen was put away ("Stay on the console"): the console stays on this run, its clock stopped. */
   closed?: boolean;
+  /**
+   * Free play (`#m/demo/map`, the console only): the same engine and clock, but no coach bar, no step strip
+   * and no hidden items; the clock runs steadily (FREE_MIN_PER_S a second at 1×) and never waits on a
+   * decision: proposals wait in Needs you while it runs, and the run still ends at the find.
+   */
+  free?: boolean;
 }
+
+/** Free play's clock at 1×: mission minutes per real second (2×, 4× multiply it). */
+export const FREE_MIN_PER_S = 2;
+/** Free play reads its beats this far ahead of the clock (mission ms), then the next stretch. */
+export const FREE_WINDOW_MS = 30 * 60_000;
 
 /** The time-lapse's speeds (the coach bar's 1× 2× 4×). */
 export const SPEEDS = [1, 2, 4] as const;
@@ -123,7 +134,7 @@ export type Speed = (typeof SPEEDS)[number];
 
 export const useGuide = create<{
   guide: GuideState | null;
-  start: (opts?: { watch?: boolean }) => void;
+  start: (opts?: { watch?: boolean; free?: boolean }) => void;
   stop: () => void;
   setClock: (ms: number) => void;
   pause: (paused?: boolean) => void;
@@ -138,7 +149,8 @@ export const useGuide = create<{
 }>((set, get) => ({
   guide: null,
   // a new run from the call: nothing of the last one but the speed the visitor picked
-  start: (opts = {}) => set({ guide: { clock: new Date(CHECKPOINTS[0]!.at).getTime(), paused: false, watch: !!opts.watch, choices: [], ended: false, speed: get().guide?.speed ?? 1 } }),
+  // (free play: Watch instead is the guided run's, never free play's)
+  start: (opts = {}) => set({ guide: { clock: new Date(CHECKPOINTS[0]!.at).getTime(), paused: false, watch: !opts.free && !!opts.watch, choices: [], ended: false, speed: get().guide?.speed ?? 1, ...(opts.free ? { free: true } : {}) } }),
   stop: () => set({ guide: null }),
   setClock: (ms) => {
     const g = get().guide;

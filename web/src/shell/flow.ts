@@ -5,10 +5,14 @@
 //   #m/demo                    the console on the demo mission at t0, the pitch bar
 //   #m/demo?s=<seed>&guide=1   a scenario with its guided search started (a home card's Start): each decision
 //                              waits for the manager (command/guide.ts)
-//   #m/demo/map?s=<seed>       a scenario, just the console
-//   #m/demo?t=0..6             the console at a checkpoint's clock (no coach marks; it settles on
-//                              #m/demo/map?t=N): 0 the call, 1 photos land, 2 confirm, 3 where next,
-//                              4 the run, 5 the find, 6 the debrief
+//   #m/demo/map[?s=<seed>]     free play: the console on its own (the home page's "Open the console", a card's
+//                              "Open the console only"), always a fresh mission at the call, the same engine as
+//                              the guided search but no coach bar; a slim clock control (Play/Pause, 1×/2×/4×)
+//                              runs the time, proposals wait in Needs you, the run ends at the find
+//                              (command/GuideRun.tsx, `free`)
+//   #m/demo?t=0..6             the console at a checkpoint's clock of the recorded demo mission (no coach
+//                              marks; it settles on #m/demo/map?t=N): 0 the call, 1 photos land, 2 confirm,
+//                              3 where next, 4 the run, 5 the find, 6 the debrief (#m/demo/map?t=6: the end)
 //   #m/<id>/<view>[?t=0..6]    a view of a mission: map (the console), photos, trace, debrief; on the
 //                              demo, ?t= sets the mission clock, none is "now"
 //   #m/<id>/map?needs          the console with Needs You in front (#m/<id>/review lands here)
@@ -48,8 +52,9 @@ export type Route =
       /** The demo mission's clock, at a checkpoint. */
       t: Checkpoint | null;
       /** Something open on arrival: the Conditions panel, the event log, For judges, Try a photo, Needs You, the radio,
-       *  or (`guide`, the demo only) the guided simulation started. */
-      open: { conditions?: boolean; log?: boolean; judges?: boolean; try?: boolean; needs?: boolean; radio?: boolean; guide?: boolean };
+       *  or (`guide`, the demo only) the guided simulation started, or (`free`, the demo's plain console
+       *  address) free play: a fresh run from the call on the console's own controls. */
+      open: { conditions?: boolean; log?: boolean; judges?: boolean; try?: boolean; needs?: boolean; radio?: boolean; guide?: boolean; free?: boolean };
       /** The demo's scenario seed (`?s=`), when the address names one. */
       seed?: string | null;
     }
@@ -69,8 +74,10 @@ export const ABOUT_ID = "home-about";
 /** The home page. */
 export const HOME = "#";
 export const DEMO = "#m/demo";
-/** The demo mission's console at "now" (the end of its timeline), no story. */
+/** The console on its own: free play, a fresh mission at the call (no coach bar). */
 export const DEMO_CONSOLE_HASH = "#m/demo/map";
+/** The recorded demo mission at the end of its timeline (the find, 15:00), on the console. */
+export const DEMO_END_HASH = "#m/demo/map?t=6";
 
 /** Old addresses, each with its one home now. */
 export const REDIRECTS: Readonly<Record<string, string>> = {
@@ -132,7 +139,7 @@ export function routeFromHash(hash: string): Route {
   const tv = q.get("t");
   const t = tv !== null && /^[0-6]$/.test(tv) ? (Number(tv) as Checkpoint) : null;
   const view = rawView && VIEW_IDS.includes(rawView) ? (rawView as View) : null;
-  const open = {
+  const open: Extract<Route, { kind: "mission" }>["open"] = {
     ...(rest === "conditions" ? { conditions: true } : {}),
     ...(q.has("log") ? { log: true } : {}),
     ...(q.has("judges") ? { judges: true } : {}),
@@ -141,6 +148,8 @@ export function routeFromHash(hash: string): Route {
     ...(q.has("radio") ? { radio: true } : {}),
     ...(id === "demo" && q.get("guide") === "1" ? { guide: true } : {}),
   };
+  // free play: the plain console address (a scenario's seed at most), no checkpoint, nothing else open
+  if (id === "demo" && view === "map" && t === null && !rest && [...q.keys()].every((k) => k === "s")) open.free = true;
   const seed = id === "demo" ? q.get("s") : null;
   return { kind: "mission", id, view, t: id === "demo" ? t : null, open, ...(seed ? { seed } : {}) };
 }
