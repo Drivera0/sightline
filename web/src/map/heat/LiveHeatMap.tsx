@@ -587,25 +587,54 @@ function LiveLayers({
       }
     }
   }, [map, ready, selSector, sectors]);
-  // drop a team's T-card on a sector: assign it there
+  // drop a team's T-card on a sector: assign it there (a drone's: fly a leg over it); while dragging, the
+  // sector under the pointer is outlined, so the drop target is seen before the drop
   useEffect(() => {
     if (!map || !ready || !actions) return undefined;
     const el = map.getContainer();
-    const over = (e: DragEvent) => {
-      if (!e.dataTransfer?.types.includes("application/x-sightline-team")) return;
-      e.preventDefault();
-      el.classList.add("sl-drop-on");
-    };
-    const leave = () => el.classList.remove("sl-drop-on");
-    const drop = (e: DragEvent) => {
-      el.classList.remove("sl-drop-on");
-      const team = e.dataTransfer?.getData("application/x-sightline-team");
-      if (!team) return;
-      e.preventDefault();
+    const TEAM = "application/x-sightline-team";
+    const DRONE = "application/x-sightline-drone";
+    const ours = (e: DragEvent) => !!e.dataTransfer && (e.dataTransfer.types.includes(TEAM) || e.dataTransfer.types.includes(DRONE));
+    const sectorOf = (e: DragEvent) => {
       const r = el.getBoundingClientRect();
       const at = map.unproject([e.clientX - r.left, e.clientY - r.top]);
-      const s = sectorAt(sectors, at.lng, at.lat);
-      if (s) actions.assign(team, s.sector_id);
+      return sectorAt(sectors, at.lng, at.lat);
+    };
+    const shape = (s: { polygon?: [number, number][] | null } | null | undefined) =>
+      s?.polygon ? [{ type: "Feature" as const, properties: {}, geometry: { type: "Polygon" as const, coordinates: [s.polygon] } }] : [];
+    let hovered: string | null = null;
+    const restore = () => {
+      hovered = null;
+      const open = useConsole.getState().sector;
+      setData(map, LIVE_IDS.selected, shape(open ? sectors.find((x) => x.sector_id === open.id) : null));
+    };
+    const over = (e: DragEvent) => {
+      if (!ours(e)) return;
+      e.preventDefault();
+      el.classList.add("sl-drop-on");
+      const s = sectorOf(e);
+      if ((s?.sector_id ?? null) === hovered) return;
+      hovered = s?.sector_id ?? null;
+      setData(map, LIVE_IDS.selected, shape(s));
+    };
+    const leave = (e: DragEvent) => {
+      // moving onto a child of the map is not leaving it
+      if (e.relatedTarget instanceof Node && el.contains(e.relatedTarget)) return;
+      el.classList.remove("sl-drop-on");
+      restore();
+    };
+    const drop = (e: DragEvent) => {
+      el.classList.remove("sl-drop-on");
+      restore();
+      const team = e.dataTransfer?.getData(TEAM);
+      const drone = e.dataTransfer?.getData(DRONE);
+      if (!team && !drone) return;
+      e.preventDefault();
+      useConsole.getState().drag(null);
+      const s = sectorOf(e);
+      if (!s) return;
+      if (team) actions.assign(team, s.sector_id);
+      else if (drone) actions.droneLeg(s.sector_id, drone);
     };
     el.addEventListener("dragover", over);
     el.addEventListener("dragleave", leave);

@@ -80,7 +80,7 @@ describe("review answers", () => {
     );
     const item = screen.getByRole("article", { name: "Clue candidate to confirm" });
     expect(item).toHaveTextContent(`Clue candidate to confirm: ${candidate.text}`);
-    await userEvent.click(within(item).getByRole("button", { name: "Confirm" }));
+    await userEvent.click(within(item).getByRole("button", { name: "Confirm clue" }));
     expect(onConfirm).toHaveBeenCalledWith(candidate.id);
   });
 });

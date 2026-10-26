@@ -89,6 +89,33 @@ export interface ReviewCard {
   photo?: string;
   size?: [number, number];
   box?: [number, number, number, number];
+  /** The second look's own record, when it ran: each model's answer, shown step by step. */
+  verdict?: Verdict;
+  /** The review queue's line on the detector score (a near miss is under it). */
+  threshold?: number;
+  /** What made the score: DETECTOR_CV2 for the pipeline's detector, another name for another path; unset: not said. */
+  detector?: string;
+}
+
+/** The pipeline's detector: YOLO11s trained on HERIDAL, run by OpenCV 5's DNN module (sightline/ml/backend.py, cv2 by default). */
+export const DETECTOR_CV2 = "OpenCV 5 · cv2.dnn";
+/** Try a photo and dropped photos: the same weights in the browser. */
+export const DETECTOR_BROWSER = "ONNX Runtime Web";
+
+/** The detector score with what made it: "OpenCV 5 · cv2.dnn 0.17" as one chip. */
+export function DetectorScore({ c, className = "" }: { c: Pick<ReviewCard, "conf" | "detector" | "threshold">; className?: string }) {
+  const cv = c.detector === DETECTOR_CV2;
+  const title = cv
+    ? `Detector score from YOLO11s (trained on HERIDAL) run by OpenCV 5 cv2.dnn${c.threshold !== undefined ? `; the review queue starts at ${c.threshold.toFixed(2)}` : ""}`
+    : c.detector
+      ? `Detector score from the same weights in ${c.detector}`
+      : "Detector score";
+  return (
+    <span title={title} aria-label={`${c.detector ? `${c.detector} ` : ""}detector score ${c.conf.toFixed(2)}`} className={`inline-flex items-center overflow-hidden rounded-full border text-caption ${cv ? "border-border" : "border-line"} ${className}`}>
+      {c.detector && <span className={`px-2 py-px ${cv ? "bg-surface-strong font-medium text-text" : "text-text-2"}`}>{c.detector}</span>}
+      <span className="sl-num px-2 py-px font-medium text-text">{c.conf.toFixed(2)}</span>
+    </span>
+  );
 }
 
 /** What the "object photo" badge says on hover: why a ground-level photo is among the aerial ones. */
@@ -119,7 +146,7 @@ function Card({ c, rank, answer, current, picking, onPicking, onAnswer, onPick }
         <div className="flex min-w-0 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-small text-text-3">#{rank}</span>
-            <span className="text-small text-text">{c.conf.toFixed(2)}</span>
+            <DetectorScore c={c} />
             <span className="truncate font-mono text-caption text-text-3">{c.id}</span>
             {c.promoted && <Badge kind="info">Promoted</Badge>}
             {c.distractor && <ObjectPhotoBadge />}
@@ -198,10 +225,13 @@ export function ReviewRail({
   }, [cards, at, onAnswer]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <section aria-label="Review" data-tour="review" className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between px-1">
+      {/* the same head as Needs you's other groups: a dot, the name, the count */}
+      <div className="flex items-baseline gap-1.5 px-1 pt-1">
+        <span aria-hidden className="size-2 shrink-0 self-center rounded-full bg-text-2" />
         <span className="text-caption font-medium text-text-2">Candidates to review</span>
+        {cards.length > 0 && <span className="sl-num text-caption text-text-3">{cards.length - done}</span>}
         {cards.length > 0 && (
-          <span className="text-caption text-text-3">
+          <span className="ml-auto text-caption text-text-3">
             {done} of {cards.length} answered
           </span>
         )}
@@ -256,6 +286,9 @@ export function liveCards(
       relook: v?.relook_crops.map((rel) => ({ url: imageUrl(rel), name: rel })),
       promoted: promoted.includes(d.id),
       ms: v?.ms,
+      verdict: v,
+      threshold: detections?.candidate_threshold,
+      detector: DETECTOR_CV2,
       object: v?.object ?? null,
       ...(f ? { photo: imageUrl(f.file), size: [f.width_px, f.height_px] as [number, number], box: d.box_px } : {}),
     };

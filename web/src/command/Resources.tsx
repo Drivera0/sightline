@@ -1,8 +1,11 @@
-// Resources (COMMAND_POST.md §5, left column): one T-card per team and drone, the way a command post's
-// T-card board reads. A team: name, status, sector, "heard N min" (its last radio turn or check-in, never
-// its position; amber near the check-in interval, red past it), back in ~N min; Call, Task, Recall. A
-// drone: status, battery, link, leg n/m; Task, Recall. Most overdue first. Drag a team's card onto a
-// sector on the map to assign it. Below, the sectors by POA, folded. Built by lane A.
+// Resources (COMMAND_POST.md §5, left column): the T-card board of a command post, one compact row per team
+// and per drone (ICS 219: what it is, its status in words, where it is, its time since last heard and back
+// ETA), with a summary line on top ("4 teams: 2 free · 2 searching · 3 drones: 1 flying"). Each row has one
+// primary action in words: a team's "Assign to sector…" (the sector list, the agent's pick first, POA shown),
+// a drone's "Fly a leg…"; Call and Recall are smaller. The rows carry a drag handle: drag one onto a sector
+// on the map to assign it there (the map outlines the sector under it and says what a drop does). Most
+// overdue first. A team: "heard N min" from its last radio turn or check-in, never its position; amber near
+// the check-in interval, red past it. Below, the sectors by POA. Built by lane A.
 import { useState, type DragEvent, type ReactNode } from "react";
 import type { Drone, FleetState, Mission, MissionEvent, Proposal, SectorTask, Team } from "../contract";
 import { SectorPicker } from "./SectorPicker";
@@ -15,9 +18,10 @@ import { duration, etaMin, legOf, linkWord, teamOrder, type Heard } from "./cons
 import { useConsole } from "./consoleStore";
 
 export const TEAM_DRAG = "application/x-sightline-team";
+export const DRONE_DRAG = "application/x-sightline-drone";
 
 const STATUS: Record<Team["status"], [string, Tone]> = {
-  standby: ["Standby", "muted"],
+  standby: ["Free", "muted"],
   assigned: ["Assigned", "neutral"],
   searching: ["Searching", "team"],
   returning: ["Returning", "caution"],
@@ -32,7 +36,10 @@ const DRONE_STATUS: Record<Drone["status"], [string, Tone]> = {
   offline: ["Offline", "alert"],
 };
 const pct = (v: number) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)} %`;
-const btn = "sl-tap inline-flex h-7 items-center rounded-full border border-line px-2.5 text-caption text-text-2 hover:border-border hover:text-text disabled:opacity-40";
+/** The row's one primary action: a filled button with words. */
+const primary = "sl-tap inline-flex h-7 items-center gap-1 rounded-full border border-border bg-surface-strong px-2.5 text-caption font-medium text-text hover:border-text-3 aria-pressed:border-accent";
+/** Secondary actions: smaller, no fill. */
+const minor = "sl-tap inline-flex h-7 items-center rounded-full px-1.5 text-caption text-text-2 hover:bg-surface hover:text-text disabled:opacity-40 disabled:hover:bg-transparent";
 
 export interface ResourceActions {
   /** Task: the sector picked in the list (SectorPicker) for a team or a drone. */
@@ -43,6 +50,26 @@ export interface ResourceActions {
   onRecallDrone: (droneId: string) => void;
   /** Record the find: the team has the subject in its sector. */
   onFound?: (teamId: string, sector: string) => void;
+}
+
+/** The board at a glance: how many teams are free, out, overdue; how many drones fly. Zero counts are left out. */
+export function resourceSummary(teams: readonly { team: Team; heard: Heard }[], drones: readonly Drone[]): { teams: string; drones: string | null } {
+  const n = (k: number, word: string) => (k ? `${k} ${word}` : null);
+  const free = teams.filter(({ team, heard }) => team.status === "standby" && !heard.overdue).length;
+  const overdue = teams.filter(({ team, heard }) => team.status === "overdue" || (heard.overdue && team.status !== "standby")).length;
+  const searching = teams.filter(({ team, heard }) => team.status === "searching" && !heard.overdue).length;
+  const assigned = teams.filter(({ team, heard }) => team.status === "assigned" && !heard.overdue).length;
+  const returning = teams.filter(({ team, heard }) => team.status === "returning" && !heard.overdue).length;
+  const teamParts = [n(free, "free"), n(assigned, "assigned"), n(searching, "searching"), n(returning, "returning"), n(overdue, "overdue")].filter(Boolean);
+  const flying = drones.filter((d) => d.status === "flying").length;
+  const atBase = drones.filter((d) => d.status === "idle" || d.status === "charging").length;
+  const back = drones.filter((d) => d.status === "returning").length;
+  const off = drones.filter((d) => d.status === "offline").length;
+  const droneParts = [n(flying, "flying"), n(atBase, "at base"), n(back, "returning"), n(off, "offline")].filter(Boolean);
+  return {
+    teams: `${teams.length} ${teams.length === 1 ? "team" : "teams"}${teamParts.length ? `: ${teamParts.join(" · ")}` : ""}`,
+    drones: drones.length ? `${drones.length} ${drones.length === 1 ? "drone" : "drones"}${droneParts.length ? `: ${droneParts.join(" · ")}` : ""}` : null,
+  };
 }
 
 export function Resources({
@@ -79,21 +106,46 @@ export function Resources({
   const ordered = teamOrder(teams, events, now, checkIn);
   const drones = [...(fleet?.drones ?? [])].sort((a, b) => a.battery_pct - b.battery_pct);
   const picking = useConsole((s) => s.picking);
+  const summary = resourceSummary(ordered, drones);
+  const canDrag = !!actions.onAssign;
   return (
     <section aria-label="Resources" data-tour="tasks" className="flex min-h-0 flex-col overflow-hidden lg:flex-1 rounded-lg border border-line bg-surface-solid">
       <h2 className="sl-panel-head">
         Resources
-        <span className="ml-auto whitespace-nowrap text-caption font-normal text-text-3" title={`${teams.length} teams, ${drones.length} drones. A team turns amber near the check-in interval and red past it (${checkIn} min, a planning choice for this mission).`}>
+        <span className="ml-auto whitespace-nowrap text-caption font-normal text-text-3" title={`A team turns amber near the check-in interval and red past it (${checkIn} min, a planning choice for this mission).`}>
           check-in {checkIn} min
         </span>
       </h2>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
-        {ordered.map(({ team, heard }) => (
-          <TeamCard key={team.id} team={team} heard={heard} task={tasks.find((x) => x.team_id === team.id && (x.state === "assigned" || x.state === "in_progress"))} base={mission?.base_camp} picking={picking?.id === team.id} glow={glow === team.id} actions={actions} picker={{ sectors, tasks, proposals }} />
-        ))}
-        {drones.map((d) => (
-          <DroneCard key={d.id} d={d} fleet={fleet} link={linkWord(links, d.id)} picking={picking?.id === d.id} glow={glow === d.id} onRecall={() => actions.onRecallDrone(d.id)} picker={{ sectors, tasks, proposals }} onLeg={actions.onDroneLeg} />
-        ))}
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
+        <p aria-label="Resources summary" className="flex flex-col px-1 text-caption text-text-2">
+          <span>{summary.teams}</span>
+          {summary.drones && <span>{summary.drones}</span>}
+        </p>
+        {canDrag && (
+          <p className="flex items-center gap-1 px-1 text-caption text-text-3">
+            <Icon name="grip" size={14} className="shrink-0" />
+            <span>
+              <span className="hidden lg:inline">Drag a row onto a sector, or press Assign</span>
+              <span className="lg:hidden">Press Assign to sector… to send a team</span>
+            </span>
+          </p>
+        )}
+        <ul aria-label="Teams" className="flex flex-col gap-1">
+          {ordered.map(({ team, heard }) => (
+            <li key={team.id}>
+              <TeamCard team={team} heard={heard} task={tasks.find((x) => x.team_id === team.id && (x.state === "assigned" || x.state === "in_progress"))} base={mission?.base_camp} picking={picking?.id === team.id} glow={glow === team.id} actions={actions} picker={{ sectors, tasks, proposals }} />
+            </li>
+          ))}
+        </ul>
+        {drones.length > 0 && (
+          <ul aria-label="Drones" className="mt-0.5 flex flex-col gap-1">
+            {drones.map((d) => (
+              <li key={d.id}>
+                <DroneCard d={d} fleet={fleet} link={linkWord(links, d.id)} picking={picking?.id === d.id} glow={glow === d.id} onRecall={() => actions.onRecallDrone(d.id)} picker={{ sectors, tasks, proposals }} onLeg={actions.onDroneLeg} />
+              </li>
+            ))}
+          </ul>
+        )}
         <SectorsByPoa tasks={tasks} sectors={sectors} teams={teams} />
         {footer}
       </div>
@@ -106,7 +158,7 @@ function heardWords(h: Heard, status: Team["status"]): [string, string] {
   if (status === "standby" || status === "off_duty") return ["at base camp", "text-text-3"];
   if (h.min === null) return ["not heard yet", "text-text-3"];
   const m = Math.round(h.min);
-  if (h.overdue) return [`not heard ${m} min`, "text-alert"];
+  if (h.overdue) return [`not heard ${m} min`, "text-alert font-medium"];
   return [`heard ${m} min`, h.due ? "text-caution" : "text-text-2"];
 }
 
@@ -117,60 +169,85 @@ interface PickerData {
 }
 const stopPicking = () => useConsole.getState().pick(null);
 
+/** Start dragging a row toward the map (the map takes the drop; lib: LiveHeatMap). */
+function dragStart(e: DragEvent, kind: "team" | "drone", id: string, name: string) {
+  e.dataTransfer.setData(kind === "team" ? TEAM_DRAG : DRONE_DRAG, id);
+  e.dataTransfer.setData("text/plain", name);
+  e.dataTransfer.effectAllowed = "move";
+  useConsole.getState().drag({ kind, id });
+}
+const dragEnd = () => useConsole.getState().drag(null);
+
+/** The handle on the left of a row: it says the row can be dragged (the whole row drags). */
+function Grip({ name }: { name: string }) {
+  return (
+    <span aria-hidden title={`Drag ${name} onto a sector on the map`} className="-ml-1 hidden shrink-0 cursor-grab text-text-3 lg:inline-flex">
+      <Icon name="grip" size={14} />
+    </span>
+  );
+}
+
 function TeamCard({ team, heard, task, base, picking, glow = false, actions, picker }: { team: Team; heard: Heard; task?: SectorTask; base?: Mission["base_camp"]; picking: boolean; glow?: boolean; actions: ResourceActions; picker?: PickerData }) {
   const selected = useSelection((s) => s.selectedTeamId === team.id);
+  const dragging = useConsole((s) => s.dragging?.id === team.id);
   const [word, tone] = STATUS[heard.overdue && team.status !== "standby" ? "overdue" : team.status];
   const [heardText, heardClass] = heardWords(heard, team.status);
   const eta = etaMin(team, base);
   const inField = team.status !== "standby" && team.status !== "off_duty";
-  const onDrag = (e: DragEvent) => {
-    e.dataTransfer.setData(TEAM_DRAG, team.id);
-    e.dataTransfer.setData("text/plain", team.callsign);
-    e.dataTransfer.effectAllowed = "move";
-  };
+  const canAssign = !!actions.onAssign;
+  const pill = (
+    <StatusPill tone={tone} dot={team.status === "searching" || team.status === "returning"} className="shrink-0">
+      {word}
+      {task ? ` · ${task.sector_id}` : ""}
+    </StatusPill>
+  );
   return (
     <article
       aria-label={`Team ${team.callsign}`}
       data-team={team.id}
-      draggable
-      onDragStart={onDrag}
-      className={`flex cursor-grab flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 active:cursor-grabbing ${picking ? "border-accent" : heard.overdue ? "border-alert/50" : selected ? "border-border" : "border-line"} ${glow ? "sl-glow-proposal" : ""}`}
+      data-tone={tone}
+      draggable={canAssign}
+      onDragStart={(e) => dragStart(e, "team", team.id, team.callsign)}
+      onDragEnd={dragEnd}
+      className={`flex flex-col gap-0.5 rounded-md border border-l-[3px] border-l-[var(--c)] bg-bg/40 py-1 pr-2 pl-2.5 ${canAssign ? "lg:cursor-grab lg:active:cursor-grabbing" : ""} ${picking ? "border-accent" : heard.overdue ? "border-alert/50" : selected ? "border-border" : "border-line"} ${glow ? "sl-glow-proposal" : ""} ${dragging ? "opacity-60" : ""}`}
       data-glow={glow || undefined}
-      title="Drag onto a sector on the map to assign"
     >
-      <div className="flex items-center gap-2">
-        <Icon name="team" className={heard.overdue ? "text-alert" : "text-team"} />
+      <div className="flex items-center gap-1.5">
+        {canAssign && <Grip name={team.callsign} />}
+        <Icon name="team" className={`shrink-0 ${heard.overdue ? "text-alert" : "text-team"}`} />
         <button
           type="button"
           aria-pressed={selected}
-          title={team.position ? "Show on the map" : "No position yet"}
+          title={`${team.members} people · ${team.position ? "show on the map" : "no position yet"}`}
           onClick={() => useSelection.getState().selectTeam(selected ? null : team.id)}
           className="sl-tap min-w-0 truncate text-left text-small font-medium text-text hover:underline"
         >
           {team.callsign}
         </button>
-        {task && <span className="text-caption text-text-2">{task.sector_id}</span>}
-        <StatusPill tone={tone} dot={team.status === "searching" || team.status === "returning"} className="ml-auto">
-          {word}
-        </StatusPill>
+        {!inField && pill}
+        <span className={`ml-auto shrink-0 text-right text-caption ${heardClass}`}>{heardText}</span>
       </div>
-      <div className="flex items-center gap-3 text-caption">
-        <span className={heardClass}>{heardText}</span>
-        {eta !== null && inField && <span className="text-text-2">back ~{duration(eta)}</span>}
-        <span className="ml-auto text-text-3">{team.members} people</span>
-      </div>
-      <div className="flex gap-1.5">
-        <button type="button" className={btn} onClick={() => actions.onCall(team.id)}>
+      {/* a team out: its status and sector on a line of their own, with when it is back */}
+      {inField && (
+        <div className="flex items-center gap-2">
+          {pill}
+          {eta !== null && <span className="ml-auto text-caption text-text-2">back ~{duration(eta)}</span>}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-1">
+        {canAssign && (
+          <button type="button" className={primary} aria-pressed={picking} aria-expanded={picking} onClick={() => useConsole.getState().pick(picking ? null : { kind: "team", id: team.id })}>
+            {picking ? "Pick a sector…" : inField ? "Reassign…" : "Assign to sector…"}
+          </button>
+        )}
+        <button type="button" className={minor} onClick={() => actions.onCall(team.id)}>
           Call
         </button>
-        <button type="button" className={btn} aria-pressed={picking} onClick={() => useConsole.getState().pick(picking ? null : { kind: "team", id: team.id })}>
-          {picking ? "Pick a sector…" : "Task"}
-        </button>
-        <button type="button" className={btn} disabled={!inField || team.status === "returning"} onClick={() => actions.onRecall(team.id)}>
+        <button type="button" className={minor} disabled={!inField || team.status === "returning"} onClick={() => actions.onRecall(team.id)}>
           Recall
         </button>
         {task && actions.onFound && (
-          <button type="button" className={`${btn} ml-auto`} title={`Record that ${team.callsign} has the subject in ${task.sector_id}`} onClick={() => actions.onFound?.(team.id, task.sector_id)}>
+          <button type="button" className={minor} title={`Record that ${team.callsign} has the subject in ${task.sector_id}`} onClick={() => actions.onFound?.(team.id, task.sector_id)}>
             Record find
           </button>
         )}
@@ -194,33 +271,61 @@ function TeamCard({ team, heard, task, base, picking, glow = false, actions, pic
 
 function DroneCard({ d, fleet, link, picking, glow = false, onRecall, picker, onLeg }: { d: Drone; fleet: FleetState | null; link: string; picking: boolean; glow?: boolean; onRecall: () => void; picker?: PickerData; onLeg?: (sector: string, drone: string) => void }) {
   const [word, tone] = DRONE_STATUS[d.status];
+  const dragging = useConsole((s) => s.dragging?.id === d.id);
   const leg = legOf(d, fleet);
   const sector = fleet?.legs.find((l) => l.id === d.leg_id)?.sector_id;
   const linkTone = link === "connected" ? "text-text-2" : link === "degraded" ? "text-caution" : "text-alert";
+  const canFly = !!onLeg;
+  // a drone in the air: its status and sector on a line of their own
+  const out = d.status === "flying" || d.status === "returning";
+  const facts = (
+    <span className="flex gap-2 text-caption whitespace-nowrap">
+      <span className={linkTone}>link {link === "connected" ? "ok" : link}</span>
+      {leg.m > 0 && <span className="text-text-3">leg {leg.n}/{leg.m}</span>}
+    </span>
+  );
+  const pill = (
+    <StatusPill tone={tone} dot={d.status === "flying"} className="shrink-0">
+      {word}
+      {sector && d.status !== "idle" ? ` · ${sector}` : ""}
+    </StatusPill>
+  );
   return (
-    <article aria-label={`Drone ${d.name}`} data-drone={d.id} data-glow={glow || undefined} className={`flex flex-col gap-1.5 rounded-md border bg-bg/40 p-2.5 ${picking ? "border-accent" : "border-line"} ${glow ? "sl-glow-proposal" : ""}`}>
-      <div className="flex items-center gap-2">
-        <Icon name="drone" className="text-drone" />
+    <article
+      aria-label={`Drone ${d.name}`}
+      data-drone={d.id}
+      data-tone={tone}
+      data-glow={glow || undefined}
+      draggable={canFly}
+      onDragStart={(e) => dragStart(e, "drone", d.id, d.name)}
+      onDragEnd={dragEnd}
+      className={`flex flex-col gap-0.5 rounded-md border border-l-[3px] border-l-[var(--c)] bg-bg/40 py-1 pr-2 pl-2.5 ${canFly ? "lg:cursor-grab lg:active:cursor-grabbing" : ""} ${picking ? "border-accent" : "border-line"} ${glow ? "sl-glow-proposal" : ""} ${dragging ? "opacity-60" : ""}`}
+    >
+      <div className="flex items-center gap-1.5">
+        {canFly && <Grip name={d.name} />}
+        <Icon name="drone" className="shrink-0 text-drone" />
         <button type="button" onClick={() => useSelection.getState().selectDrone(d.id)} className="sl-tap min-w-0 truncate text-left text-small font-medium text-text hover:underline">
           {d.name}
         </button>
-        {sector && <span className="text-caption text-text-2">{sector}</span>}
-        <StatusPill tone={tone} dot={d.status === "flying"} className="ml-auto">
-          {word}
-        </StatusPill>
+        {!out && pill}
+        <span className={`ml-auto shrink-0 text-caption ${d.battery_pct < 25 ? "text-caution" : "text-text-2"}`}>battery {Math.round(d.battery_pct)} %</span>
       </div>
-      <div className="flex items-center gap-3 text-caption">
-        <span className={d.battery_pct < 25 ? "text-caution" : "text-text-2"}>battery {Math.round(d.battery_pct)} %</span>
-        <span className={linkTone}>link {link === "connected" ? "ok" : link}</span>
-        {leg.m > 0 && <span className="ml-auto text-text-3">leg {leg.n}/{leg.m}</span>}
-      </div>
-      <div className="flex gap-1.5">
-        <button type="button" className={btn} aria-pressed={picking} onClick={() => useConsole.getState().pick(picking ? null : { kind: "drone", id: d.id })}>
-          {picking ? "Pick a sector…" : "Task"}
-        </button>
-        <button type="button" className={btn} disabled={d.status !== "flying"} onClick={onRecall}>
+      {out && (
+        <div className="flex items-center gap-2">
+          {pill}
+          <span className="ml-auto">{facts}</span>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-1">
+        {canFly && (
+          <button type="button" className={primary} aria-pressed={picking} aria-expanded={picking} onClick={() => useConsole.getState().pick(picking ? null : { kind: "drone", id: d.id })}>
+            {picking ? "Pick a sector…" : "Fly a leg…"}
+          </button>
+        )}
+        <button type="button" className={minor} disabled={d.status !== "flying"} onClick={onRecall}>
           Recall
         </button>
+        {!out && <span className="ml-auto">{facts}</span>}
       </div>
       {picking && picker && onLeg && (
         <SectorPicker

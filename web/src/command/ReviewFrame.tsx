@@ -1,14 +1,15 @@
 // The large review frame (V3 §3): when photos land and candidates arrive, the first waiting one opens here
 // so the search manager knows they are being asked. The whole photo with the candidate's box, the crop
-// large, the AI second look as a real button with its two model chips, and the answers (P, N, S, O with its
+// large (until the second look shows it beside the OpenCV 5 image), the detector score credited to OpenCV 5
+// cv2.dnn, the AI second look with its verdict first, and the answers (P, N, S, O with its
 // type picker, U: review/answers.tsx).
 // An answer moves on to the next waiting candidate by itself; at the end it says so. Esc or Later closes it
 // (the candidates stay in Needs you). The map pans to and pulses the candidate in view. Built by lane A.
 import { useEffect, useRef, useState } from "react";
 import { isTyping } from "../lib/keys";
-import { focusCandidate, ObjectPhotoBadge, reviewKeys, type LiveAnswer, type OnAnswer, type ReviewCard } from "../review/LiveReview";
+import { DetectorScore, focusCandidate, ObjectPhotoBadge, reviewKeys, type LiveAnswer, type OnAnswer, type ReviewCard } from "../review/LiveReview";
 import { answerForKey, ObjectPicker, REVIEW_ANSWERS, usePickerKeys, type ObjectKind } from "../review/answers";
-import { SecondLook } from "../review/SecondLook";
+import { SecondLook, useSecondLook } from "../review/SecondLook";
 import { KeyHint } from "../shell/components";
 import { useConsole } from "./consoleStore";
 
@@ -31,6 +32,7 @@ export function ReviewFrame({
   const close = () => useConsole.getState().closeReview();
   const c = open ? frameCard(cards, answers, id) : null;
   const waiting = cards.filter((x) => !answers[x.id]).length;
+  const looked = useSecondLook((s) => (c ? s.runs[c.id]?.stage === "done" : false));
   const done = cards.length - waiting;
   const box = useRef<HTMLDivElement>(null);
   const back = useRef<Element | null>(null);
@@ -119,11 +121,12 @@ export function ReviewFrame({
               <figcaption className="flex flex-wrap items-baseline gap-x-3 text-caption text-text-3">
                 <span>{c.frame}</span>
                 <span className="font-mono">{c.id}</span>
-                <span>detector {c.conf.toFixed(2)}</span>
+                <DetectorScore c={c} className="order-first" />
               </figcaption>
             </figure>
             <div className="flex min-w-0 flex-col gap-3">
-              <img src={c.crop} alt={`Crop of ${c.id}`} className="aspect-square w-full max-w-72 rounded-md object-cover" />
+              {/* once the second look is done its result shows the crop beside the OpenCV 5 image */}
+              {!looked && <img src={c.crop} alt={`Crop of ${c.id}`} className="aspect-square w-full max-w-72 rounded-md object-cover" />}
               <SecondLook c={c} large />
               {c.note && <p className="text-caption text-text-3">{c.note}</p>}
               <div role="group" aria-label="Answer" className="mt-auto flex flex-wrap gap-2">

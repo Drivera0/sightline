@@ -87,7 +87,7 @@ describe("the command post", () => {
     expect(useConsole.getState().talkTo).toBe("T2");
     expect(screen.getByLabelText("Message")).toHaveValue("Team Two, Sightline. ");
     expect(screen.getByLabelText("Recipient")).toHaveValue("T2");
-    await userEvent.click(within(one).getByRole("button", { name: "Task" }));
+    await userEvent.click(within(one).getByRole("button", { name: "Reassign…" }));
     expect(useConsole.getState().picking).toEqual({ kind: "team", id: "T2" });
     expect(screen.getByRole("status")).toHaveTextContent("Click a sector for Team Two");
     await userEvent.click(within(one).getByRole("button", { name: "Recall" }));
@@ -128,7 +128,7 @@ describe("the command post", () => {
     expect(within(needs).getByRole("article", { name: "Overdue Team Three" })).toHaveTextContent("Team Three not heard for 40 min");
     const back = within(needs).getByRole("article", { name: "Awaiting read-back" });
     expect(back).toHaveTextContent("glove by the bridge");
-    await userEvent.click(within(back).getByRole("button", { name: "Confirm" }));
+    await userEvent.click(within(back).getByRole("button", { name: "Confirm clue" }));
     expect(p.actions.confirmClue).toHaveBeenCalledWith("c005");
     expect(needs).toHaveTextContent("3 waiting");
   });

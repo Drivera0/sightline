@@ -147,9 +147,11 @@ describe("review in live mode (test 8)", () => {
     await userEvent.click(within(card).getByRole("button", { name: SECOND_LOOK_LABEL }));
     expect(within(card).getByLabelText("Second look running")).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(RUN_MAX_MS));
-    expect(within(card).getByLabelText("Second look result")).toHaveTextContent("Second look: likely a person");
+    expect(within(card).getByLabelText("Second look result")).toHaveTextContent("Likely a person");
     expect(screen.getByAltText("Re-look image relook/f0001-d02-zoom_native.jpg")).toHaveAttribute("src", "/f/relook/f0001-d02-zoom_native.jpg");
-    expect(screen.getByText("zoom native")).toBeInTheDocument();
+    // the OpenCV 5 image beside the detector's crop, and what each model said
+    expect(within(card).getByText("detector crop")).toBeInTheDocument();
+    expect(within(card).getByLabelText("What each model said")).toHaveTextContent("OpenCV 5 · cv2.dnn detector");
     vi.useRealTimers();
   });
 
@@ -344,7 +346,7 @@ describe("the demo mission: the story on the one console", () => {
     // at 15:00 the subject is found and the proposal is closed; at 14:42 it still waits for a person
     useStory.getState().seek(3);
     await settle();
-    const card = (await screen.findByText("Add f0273-d02 to the review queue: second look says likely a person")).closest("[aria-label^='Proposal']") as HTMLElement;
+    const card = (await screen.findByText("Put f0273-d02 in the review queue?")).closest("[aria-label^='Proposal']") as HTMLElement;
     await userEvent.click(within(card).getByRole("button", { name: /Approve/ }));
     const status = () => useMission.getState().proposals.find((p) => p.id === "p001")?.status;
     expect(status()).toBe("approved");

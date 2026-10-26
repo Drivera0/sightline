@@ -153,6 +153,8 @@ export function CommandView(p: CommandProps) {
   const wide = !!p.rightWide;
   const popSector = sel ? p.sectors.find((s) => s.sector_id === sel.id) : undefined;
   const [mapBox, setMapBox] = useState<HTMLDivElement | null>(null);
+  const dragging = useConsole((s) => s.dragging);
+  const dragName = dragging ? (dragging.kind === "team" ? p.teams.find((x) => x.id === dragging.id)?.callsign : drones.find((d) => d.id === dragging.id)?.name) : null;
   const pickName = picking ? (picking.kind === "team" ? p.teams.find((x) => x.id === picking.id)?.callsign : drones.find((d) => d.id === picking.id)?.name) : null;
   useEffect(() => {
     if (!picking) return undefined;
@@ -173,7 +175,8 @@ export function CommandView(p: CommandProps) {
   const [timelineH, setTimelineH] = useTimelineHeight();
   const grid = wide
     ? "lg:grid-cols-[minmax(0,1fr)_minmax(28rem,44rem)] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]"
-    : "lg:grid-cols-[17rem_minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]";
+    : // Resources runs the full height on the left (the T-card board), the timeline under the map and Needs you
+      "lg:grid-cols-[19rem_minmax(0,1fr)_21rem] lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]";
   return (
     <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
       {p.conditionsOpen && p.conditionsData && (
@@ -182,7 +185,7 @@ export function CommandView(p: CommandProps) {
           <ConditionsPanel id={p.conditionsId ?? "conditions-panel"} data={p.conditionsData} now={panelNow} time={(iso) => `${clock(iso, tz)} ${zone(new Date(iso), tz)}${dayNote(iso, panelNow, tz)}`} />
         </div>
       )}
-      <div id="console-resources" className={`order-4 flex min-h-0 flex-col lg:order-none ${wide ? "lg:hidden" : ""}`}>
+      <div id="console-resources" className={`order-4 flex min-h-0 flex-col lg:order-none ${wide ? "lg:hidden" : "lg:row-span-2"}`}>
         <Resources
           mission={p.mission}
           teams={p.teams}
@@ -202,9 +205,14 @@ export function CommandView(p: CommandProps) {
         {p.aboveMap}
         <div ref={setMapBox} className="relative h-[52vh] min-h-0 lg:h-auto lg:flex-1">
           {p.map}
-          {picking && (
+          {picking && !dragging && (
             <p role="status" className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-accent bg-bg/90 px-3 py-1 text-small text-text">
               Click a sector for {pickName} <span className="text-text-3">· Esc cancels</span>
+            </p>
+          )}
+          {dragging && (
+            <p role="status" className="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-accent bg-bg/90 px-3 py-1 text-small text-text">
+              {dragging.kind === "team" ? `Drop ${dragName} on a sector to assign it` : `Drop ${dragName} on a sector to fly a leg there`}
             </p>
           )}
           {sel && popSector && Number.isFinite(sel.x) && mapBox && (
@@ -256,7 +264,7 @@ export function CommandView(p: CommandProps) {
           />
         )}
       </div>
-      <div id="console-timeline" className={`relative order-3 flex h-[28rem] min-h-0 flex-col lg:order-none lg:h-auto ${wide ? "lg:col-span-2" : "lg:col-span-3"}`}>
+      <div id="console-timeline" className={`relative order-3 flex h-[28rem] min-h-0 flex-col lg:order-none lg:h-auto lg:col-span-2`}>
         <TimelineHandle height={timelineH} onResize={setTimelineH} />
         <Timeline
           events={p.events}

@@ -7,7 +7,7 @@
 
 import type { CacheBundle, Clue, Frame, MissionEvent, TimelineEvent, Verdict } from "../contract";
 import { publicUrl, type DistractorFrame } from "../lib/fixtureExtras";
-import { verdictChips, verdictWords, type ObjectKind, type ReviewCard } from "../review/LiveReview";
+import { DETECTOR_CV2, verdictChips, verdictWords, type ObjectKind, type ReviewCard } from "../review/LiveReview";
 import secondLook from "./__fixtures__/second_look/verdict.json";
 import cropUrl from "./__fixtures__/second_look/f0273-d02-crop.jpg?url";
 import zoomUrl from "./__fixtures__/second_look/f0273-d02-zoom_native.jpg?url";
@@ -30,6 +30,10 @@ export function secondLookCard(): ReviewCard {
     relook: v.relook_crops.map((name) => ({ url: zoomUrl, name })),
     promoted: true,
     ms: v.ms,
+    verdict: v,
+    // the review line the live run's trace states ("below the 0.29 review threshold")
+    threshold: 0.29,
+    detector: DETECTOR_CV2,
     note: `Survey photo ${SECOND_LOOK_ID.slice(0, 5)}, below the 0.29 review threshold, so the queue would have dropped it; the agent promoted it after the second look (OpenCV 5 zoom, then Nemotron VL, a live call): "${v.reason}"`,
   };
 }
@@ -62,6 +66,8 @@ export function demoCards(bundle: CacheBundle | null, landed: readonly Frame[], 
       frame: `Survey photo ${d.id.slice(0, 5)}`,
       words: null,
       note: undefined,
+      threshold,
+      detector: DETECTOR_CV2,
       ...photoOf(d.id),
     }));
   if (withSecondLook) {
@@ -107,6 +113,7 @@ export function distractorCards(distractors: readonly DistractorFrame[] | undefi
         words: verdictWords(v),
         chips: verdictChips(v),
         ms: v?.ms,
+        verdict: v,
         object: v?.object ?? d.object,
         distractor: true,
         note: `Photo: ${d.credit}.`,
