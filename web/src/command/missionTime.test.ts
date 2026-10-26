@@ -80,10 +80,10 @@ describe("mission time: the demo mission's checkpoints", () => {
     expect(s.fleet!.legs).toEqual([]);
   });
 
-  it("t1, photos land: the drones are back on the ground at the trailhead, idle, no leg", () => {
+  it("t1, photos land: the drones are back on the ground at the trailhead (the pack swapped), no leg", () => {
     const s = at(1);
     expect(s.fleet!.drones.length).toBeGreaterThan(0);
-    expect(s.fleet!.drones.every((d) => d.status === "idle" && d.leg_id === null && d.position?.lat === TRAILHEAD.lat)).toBe(true);
+    expect(s.fleet!.drones.every((d) => (d.status === "idle" || d.status === "charging") && d.leg_id === null && d.position?.lat === TRAILHEAD.lat)).toBe(true);
     expect(demoAt(full, FLIGHT.start).fleet!.drones.length).toBeGreaterThan(0);
   });
 
@@ -130,7 +130,8 @@ describe("mission time: the demo mission's checkpoints", () => {
     expect(p.status).toBe("pending");
     expect(p.decided_by).toBeNull();
     expect(s.tasks!.every((t) => t.state === "proposed")).toBe(true);
-    expect(s.teams!.every((t) => t.status === "standby")).toBe(true);
+    // nobody is assigned yet: at base camp, or walking back from the hasty search they radioed clues from
+    expect(s.teams!.every((t) => t.status === "standby" || (t.status === "returning" && t.eta_min! > 0))).toBe(true);
   });
 
   it("t6, the fixtures' end; B4 searched at POD 60 %, teams out, drones on their legs", () => {
@@ -239,7 +240,7 @@ describe("the run: drones fly their legs and teams walk out as the clock moves",
 
   it("a team out on a task walks from the trailhead to its last reported position", () => {
     const t1 = (clock: string) => demoAt(full, clock).teams!.find((t) => t.id === "T1")!;
-    expect(near(t1("2026-10-24T21:44:00Z").position, TRAILHEAD)).toBe(true);
+    expect(near(t1("2026-10-24T20:35:00Z").position, TRAILHEAD)).toBe(true); // at the call (then out on a hasty search: it radios clues)
     const walking = t1("2026-10-24T21:52:00Z"); // out at 21:48 (C2 in progress), there by 21:55
     expect(near(walking.position, TRAILHEAD)).toBe(false);
     expect(near(walking.position, fx.teams!.find((t) => t.id === "T1")!.position!)).toBe(false);

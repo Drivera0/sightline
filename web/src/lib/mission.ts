@@ -551,7 +551,8 @@ export const useMission = create<MissionStore>((set, get) => {
       const busy = new Set(fleet.legs.filter((l) => l.status === "flying").map((l) => l.drone_id));
       const drone = droneId ? fleet.drones.find((d) => d.id === droneId) : [...fleet.drones].filter((d) => !busy.has(d.id) && d.status !== "offline").sort((x, y) => y.battery_pct - x.battery_pct)[0];
       if (!drone) return void set({ error: "Every drone is flying a leg: recall one or wait for a leg to end." });
-      const id = `L${String(fleet.legs.length + 1).padStart(3, "0")}`;
+      // the console's own legs from L101 on: the scenario's legs not flown yet (not in the fleet at this clock) keep theirs
+      const id = `L${101 + fleet.legs.filter((l) => /^L1\d\d$/.test(l.id)).length}`;
       const leg = { id, drone_id: drone.id, sector_id: sector, waypoints: sweep(s.polygon), altitude_m: 50, est_minutes: 12, expected_clearance: 0, score_per_min: 0, reason: `sent by ${operatorName()}`, status: "flying" as const };
       const next: FleetState = {
         ...fleet,

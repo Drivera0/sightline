@@ -41,12 +41,16 @@ export function peopleOut(teams: readonly Team[]): { people: number; teams: numb
 }
 
 /**
- * When a team was last heard: its `last_heard_at` when the server sends it, else the newest of its radio
- * turns, its check-ins (task and team updates, relayed positions) in the mission's events. Never its position.
+ * When a team was last heard: the newest of its `last_heard_at` (when the server sends it), its radio turns,
+ * its check-ins (task and team updates, relayed positions) in the mission's events, and its radio calls and
+ * check-ins in the server's timeline. Never its position. One clock for the row, Needs you, the toasts and
+ * the bell (the cold test: a row "heard 0 min" while a toast said "not heard 45 min").
  */
-export function lastHeard(team: Team, events: readonly MissionEvent[]): string | null {
-  if (team.last_heard_at) return team.last_heard_at;
-  let best: string | null = null;
+export function lastHeard(team: Team, events: readonly MissionEvent[], timeline: readonly TimelineEvent[] = []): string | null {
+  let best: string | null = team.last_heard_at ?? null;
+  const newer = (at: string) => {
+    if (!best || ms(at) > ms(best)) best = at;
+  };
   for (const e of events) {
     const d = e.data as Record<string, unknown> | null;
     let mine = false;
@@ -54,12 +58,19 @@ export function lastHeard(team: Team, events: readonly MissionEvent[]): string |
     else if (e.type === "radio.turn") mine = (d as unknown as RadioTurn | null)?.direction === "in" && teamOf([team], (d as unknown as RadioTurn).callsign) === team.id;
     else if (e.type === "task.updated") mine = (d as { team_id?: string } | null)?.team_id === team.id && (d as { state?: string }).state !== "assigned";
     else if (e.type === "mission.note") mine = (d?.relay as { team_id?: string } | undefined)?.team_id === team.id;
-    if (mine && (!best || e.at > best)) best = e.at;
+    if (mine) newer(e.at);
+  }
+  for (const e of timeline) {
+    if (teamOf([team], e.team) !== team.id) continue;
+    // a call from the team, or a check-in (a relayed position counts; "no signal" is not hearing them)
+    if ((e.kind === "radio" && e.direction === "in") || (e.kind === "checkin" && !/no signal/i.test(e.text))) newer(e.at);
   }
   return best;
 }
 
 export interface Heard {
+  /** When the team was last heard (ISO; null: never). */
+  at: string | null;
   /** Minutes since the team was last heard (null: never). */
   min: number | null;
   /** Past the mission's check-in interval. */
@@ -68,24 +79,34 @@ export interface Heard {
   due: boolean;
 }
 
-export function heard(team: Team, events: readonly MissionEvent[], now: Date, checkInMin = 30): Heard {
-  const at = lastHeard(team, events);
+export function heard(team: Team, events: readonly MissionEvent[], now: Date, checkInMin = 30, timeline: readonly TimelineEvent[] = []): Heard {
+  const at = lastHeard(team, events, timeline);
   const min = at ? Math.max(0, (now.getTime() - ms(at)) / MIN) : null;
   const inField = OUT.includes(team.status);
   const overdue = team.status === "overdue" || (inField && min !== null && min > checkInMin);
-  return { min, overdue, due: inField && !overdue && min !== null && min > checkInMin - 10 };
+  return { at, min, overdue, due: inField && !overdue && min !== null && min > checkInMin - 10 };
 }
 
 const WALK_M_PER_MIN = 50; // 3 km/h on a trail
 
-/** Minutes until a team is back at base camp: the server's ETA, else its distance on foot when it is returning. */
+/** Minutes until a team is back at base camp, only while it is returning: the server's (or the simulation's) ETA, else its distance on foot. */
 export function etaMin(team: Team, base: { lat: number; lon: number } | null | undefined): number | null {
+  if (team.status !== "returning") return null;
   if (team.eta_min !== undefined && team.eta_min !== null) return team.eta_min;
-  if (team.status !== "returning" || !team.position || !base) return null;
-  const k = Math.cos((base.lat * Math.PI) / 180);
-  const m = Math.hypot(team.position.lat - base.lat, (team.position.lon - base.lon) * k) * 111_320;
-  return Math.max(1, Math.round(m / WALK_M_PER_MIN));
+  if (!team.position || !base) return null;
+  return Math.max(1, Math.round(metres(team.position, base) / WALK_M_PER_MIN));
 }
+
+/** Metres between two points (flat earth: a few km). */
+export function metres(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const k = Math.cos((b.lat * Math.PI) / 180);
+  return Math.hypot(a.lat - b.lat, (a.lon - b.lon) * k) * 111_320;
+}
+
+/** Within this of base camp, a team is at base camp. */
+export const AT_BASE_M = 150;
+/** A free team is at base camp unless its position says it is out in the field (the map and the list agree). */
+export const atBase = (team: Team, base: { lat: number; lon: number } | null | undefined): boolean => !team.position || !base || metres(team.position, base) <= AT_BASE_M;
 
 /** A drone's legs so far: the current one's place among them ("leg 2/3"), the last done one when idle. */
 export function legOf(d: Drone, fleet: FleetState | null): { n: number; m: number; id: string | null } {
@@ -109,16 +130,28 @@ export function withTaskStatus<T extends Team>(teams: readonly T[], tasks: reado
   });
 }
 
-/** Teams most overdue first (never heard counts as most), then drones by lowest battery. */
-export function teamOrder(teams: readonly Team[], events: readonly MissionEvent[], now: Date, checkInMin = 30): { team: Team; heard: Heard }[] {
+/** The board's groups, in reading order: out in the field, then free, then off duty. */
+const GROUP: Record<Team["status"], number> = { overdue: 0, searching: 0, assigned: 0, returning: 0, standby: 1, off_duty: 2 };
+
+/**
+ * Every team with when it was last heard, in a stable order (the cold test: rows re-sorted on every event):
+ * by group (out, free, off duty), then the roster's order. A team moves only when it goes out or comes
+ * back. The one computation the Resources rows, Needs you, the toasts and the bell all read.
+ */
+export function teamOrder(teams: readonly Team[], events: readonly MissionEvent[], now: Date, checkInMin = 30, timeline: readonly TimelineEvent[] = []): { team: Team; heard: Heard }[] {
   return teams
-    .map((team) => ({ team, heard: heard(team, events, now, checkInMin) }))
-    .sort((a, b) => Number(b.heard.overdue) - Number(a.heard.overdue) || (b.heard.min ?? 1e9) - (a.heard.min ?? 1e9));
+    .map((team, i) => ({ team, heard: heard(team, events, now, checkInMin, timeline), i }))
+    .sort((a, b) => GROUP[a.team.status] - GROUP[b.team.status] || a.i - b.i)
+    .map(({ team, heard: h }) => ({ team, heard: h }));
 }
+
+/** The teams past their check-in, longest not heard first (never heard counts as longest). */
+export const overdueTeams = <T extends { heard: Heard }>(board: readonly T[]): T[] =>
+  board.filter((x) => x.heard.overdue).sort((a, b) => (b.heard.min ?? 1e9) - (a.heard.min ?? 1e9));
 
 export type Need =
   | { kind: "proposal"; id: string; proposal: Proposal }
-  | { kind: "overdue"; id: string; team: Team; min: number | null }
+  | { kind: "overdue"; id: string; team: Team; min: number | null; at: string | null }
   | { kind: "readback"; id: string; clue: Clue | null; turn: RadioTurn | null; team: string | null }
   | { kind: "review"; id: string; count: number };
 
@@ -134,20 +167,21 @@ export function needs(
   now: Date,
   checkInMin = 30,
   toReview = 0,
+  board: readonly { team: Team; heard: Heard }[] | null = null,
 ): Need[] {
   const out: Need[] = proposals
     .filter((p) => p.status === "pending")
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((p) => ({ kind: "proposal", id: p.id, proposal: p }));
   if (toReview > 0) out.push({ kind: "review", id: "review", count: toReview });
-  for (const { team, heard: h } of teamOrder(teams, events, now, checkInMin)) if (h.overdue) out.push({ kind: "overdue", id: `overdue-${team.id}`, team, min: h.min });
-  const seen = new Set<string>();
-  for (const c of clues) if (!c.confirmed) {
-    seen.add(c.id);
-    out.push({ kind: "readback", id: `clue-${c.id}`, clue: c, turn: null, team: teamOf(teams, c.reported_by) });
-  }
-  const turns = events.filter((e) => e.type === "radio.turn").map((e) => e.data as unknown as RadioTurn).filter((t) => t?.state === "awaiting_confirm");
-  for (const t of turns) out.push({ kind: "readback", id: `turn-${t.id}`, clue: null, turn: t, team: teamOf(teams, t.callsign) });
+  for (const { team, heard: h } of overdueTeams(board ?? teamOrder(teams, events, now, checkInMin))) out.push({ kind: "overdue", id: `overdue-${team.id}`, team, min: h.min, at: h.at });
+  for (const c of clues) if (!c.confirmed) out.push({ kind: "readback", id: `clue-${c.id}`, clue: c, turn: null, team: teamOf(teams, c.reported_by) });
+  // a radio call held for read-back: one card, and none once its clue is on the board (the clue's card, or
+  // confirmed: the cold test's water bottle "confirmed" in the timeline and "holding" in Needs you)
+  const latest = new Map<string, RadioTurn>();
+  for (const e of events) if (e.type === "radio.turn" && e.data) latest.set((e.data as unknown as RadioTurn).id, e.data as unknown as RadioTurn);
+  const linked = new Set(clues.map((c) => c.confirmed_by_turn).filter(Boolean));
+  for (const t of latest.values()) if (t.state === "awaiting_confirm" && !linked.has(t.id)) out.push({ kind: "readback", id: `turn-${t.id}`, clue: null, turn: t, team: teamOf(teams, t.callsign) });
   return out;
 }
 
@@ -190,6 +224,44 @@ export function sightingReports(events: readonly MissionEvent[], teams: readonly
   }
   return [...out.values()];
 }
+
+/** A sector holding a point (its outline, ray casting), or null. */
+export function sectorAt(sectors: readonly { sector_id: string; polygon?: readonly (readonly number[])[] | null }[], at: { lat: number; lon: number }): string | null {
+  for (const s of sectors) {
+    const ring = s.polygon ?? [];
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = [ring[i]![0]!, ring[i]![1]!];
+      const [xj, yj] = [ring[j]![0]!, ring[j]![1]!];
+      if (yi > at.lat !== yj > at.lat && at.lon < ((xj - xi) * (at.lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    if (inside) return s.sector_id;
+  }
+  return null;
+}
+
+/**
+ * The team to send to a point: the nearest one that can go (not off duty, not with the subject), free teams
+ * before teams already out at an equal distance; a team with no position counts as at base camp.
+ */
+export function nearestTeam(teams: readonly Team[], at: { lat: number; lon: number }, base: { lat: number; lon: number } | null | undefined, not: readonly string[] = []): { team: Team; m: number } | null {
+  const can = teams.filter((t) => t.status !== "off_duty" && !not.includes(t.id));
+  const dist = (t: Team) => metres(t.position ?? base ?? at, at);
+  const best = can.map((team) => ({ team, m: dist(team) })).sort((a, b) => a.m - b.m || Number(a.team.status !== "standby") - Number(b.team.status !== "standby"))[0];
+  return best ?? null;
+}
+
+/** A reviewer's "Person" on a photo: a sighting clue (kind "sighting"), the newest first. */
+export const sightings = (clues: readonly Clue[]): Clue[] => clues.filter((c) => c.kind === "sighting").sort((a, b) => b.at.localeCompare(a.at));
+
+/** The subject's status before the find: "Possible sighting · 14:31" once a reviewer has marked a person, else "not found". */
+export function subjectWord(clues: readonly Clue[], time: (iso: string) => string): string {
+  const s = sightings(clues)[0];
+  return s ? `Possible sighting · ${time(s.at)}` : "not found";
+}
+
+/** The agent's proposal to send a team to a sighting (missionTime.ts makes them): its id starts "sight-". */
+export const isSightingProposal = (p: Pick<Proposal, "id">): boolean => p.id.startsWith("sight-");
 
 /** The drone's link in one word. */
 export const linkWord = (links: FleetLinks, id: string) => links.drones[id]?.link ?? "connected";

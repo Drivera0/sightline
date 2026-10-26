@@ -39,6 +39,7 @@ import { fixtureOf, passesFrom, realOf, type Cost } from "./sim";
 import { dwellFor, lapseStep, SPEEDS, useGuide, useStory, type Lapse, type Speed } from "./story";
 import { buildTimeline } from "./timeline";
 import { storyClue } from "./storyCopy";
+import { isSightingProposal } from "./console";
 import { clock as clockText, DEMO_TZ } from "../lib/time";
 import { podLabel } from "./terms";
 
@@ -475,7 +476,7 @@ export function useGuideRun({
     missionClock: on ? iso(clockMs) : null,
     opts: on ? guidedOptsFor(scenario, seed, choices, user) : null,
     costs,
-    proposals: (all) => (on ? all.filter((p) => p.status !== "pending" || (reached && p.id === active?.proposal)) : [...all]),
+    proposals: (all) => (on ? all.filter((p) => p.status !== "pending" || (reached && p.id === active?.proposal) || isSightingProposal(p)) : [...all]),
     cards: (all) => (on ? (reached && card ? all.filter((c) => c.id === card.id) : []) : [...all]),
     proposal: on && reached ? (active?.proposal ?? null) : null,
     needsHighlight: on && !guide!.ended ? needsHighlight : null,

@@ -38,7 +38,8 @@ describe("toastFor", () => {
     expect(toastFor(ev("e7", "mission.note", "Found: Team One has the subject in C2", "C2", { action: "found", mission: { found: { team: "T1", sector: "C2" } } }), teams)).toMatchObject({
       tone: "found", title: "Subject located", body: "Team One in C2",
     });
-    expect(toastFor(ev("e8", "team.updated", "", "T2", { id: "T2", callsign: "Team Two", status: "overdue" }), teams)).toMatchObject({ tone: "alert", target: { kind: "team", id: "T2" } });
+    // an overdue status is toasted from the one last-heard clock (useOverdueToasts), not twice
+    expect(toastFor(ev("e8", "team.updated", "", "T2", { id: "T2", callsign: "Team Two", status: "overdue" }), teams)).toBeNull();
     expect(toastFor(ev("e9", "verdict", "", "f0273-d02", { detection_id: "f0273-d02", person: "yes" }), teams)).toMatchObject({ body: "A near-miss photo: likely a person", target: { kind: "candidate", id: "f0273-d02" } });
     expect(toastFor(ev("e10", "fleet.updated", "D1 back at base camp (L004 done)", "L004", {}), teams)).toMatchObject({ tone: "drone" });
   });

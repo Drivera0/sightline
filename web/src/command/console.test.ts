@@ -29,11 +29,12 @@ describe("the command post's arithmetic", () => {
       { id: "e3", type: "radio.turn", at: "2026-10-24T21:50:00Z", ref: "r5", summary: "", data: { direction: "out", callsign: "Team Two" } },
     ] as unknown as MissionEvent[];
     expect(lastHeard(t, events)).toBe("2026-10-24T21:41:00Z");
-    expect(heard(t, events, NOW, 30)).toEqual({ min: 19, overdue: false, due: false });
+    expect(heard(t, events, NOW, 30)).toEqual({ at: "2026-10-24T21:41:00Z", min: 19, overdue: false, due: false });
     expect(heard(t, events, NOW, 25)).toMatchObject({ overdue: false, due: true });
     expect(heard(t, events, NOW, 15)).toMatchObject({ overdue: true });
-    expect(heard({ ...t, last_heard_at: "2026-10-24T21:58:00Z" }, events, NOW).min).toBe(2); // the server's field wins
-    expect(heard(team("T4", "Four", "standby"), [], NOW, 1)).toEqual({ min: null, overdue: false, due: false }); // at base: never overdue
+    expect(heard({ ...t, last_heard_at: "2026-10-24T21:58:00Z" }, events, NOW).min).toBe(2); // the newest wins: the server's field
+    expect(heard({ ...t, last_heard_at: "2026-10-24T21:00:00Z" }, events, NOW).min).toBe(19); // and a newer radio call beats an old field (the cold test)
+    expect(heard(team("T4", "Four", "standby"), [], NOW, 1)).toEqual({ at: null, min: null, overdue: false, due: false }); // at base: never overdue
   });
 
   it("puts a returning team's ETA at its walk back to base camp", () => {

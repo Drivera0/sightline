@@ -48,11 +48,8 @@ export function toastFor(e: MissionEvent, teams: readonly Pick<Team, "id" | "cal
       const word = v?.person === "yes" ? "likely a person" : v?.person === "no" ? "probably not a person" : "unclear";
       return { key: `verdict:${id}`, tone: "review", title: `${TERMS.recheck} done`, body: `A near-miss photo: ${word}`, target: { kind: "candidate", id } };
     }
-    case "team.updated": {
-      const t = d as unknown as Team | null;
-      if (t?.status !== "overdue") return null;
-      return { key: `overdue:${t.id}`, tone: "alert", title: `${t.callsign} is overdue`, body: "Past the check-in. Call them, or recall them.", target: { kind: "team", id: t.id }, action: "Show team" };
-    }
+    // a team's status "overdue" is not toasted here: useOverdueToasts reads the one last-heard clock (console.ts
+    // teamOrder), which counts that status too, so the row, the toast and the bell say the same thing
     case "fleet.updated":
       if (/ back at base camp/.test(e.summary)) return { key: `drone:${e.ref ?? ""}`, tone: "drone", title: "Drone back at base camp", body: plain(e.summary) };
       if (/link lost/i.test(e.summary)) return { key: `link:${e.ref ?? ""}`, tone: "alert", title: "Drone link lost", body: plain(e.summary) };
@@ -71,25 +68,40 @@ export function toastFor(e: MissionEvent, teams: readonly Pick<Team, "id" | "cal
   }
 }
 
-/** A team past its check-in: an alert toast once each time it goes overdue (V3 §2; the judges' Team Three). */
-export function overdueToast(team: Pick<Team, "id" | "callsign">, min: number | null, checkInMin: number): NoteDraft {
+/**
+ * A team past its check-in: an alert toast once each time it goes overdue (V3 §2; the judges' Team Three).
+ * It says since when, not for how long, so the bell's copy stays true as the clock runs (`time` prints a
+ * mission time; the row counts the minutes).
+ */
+export function overdueToast(team: Pick<Team, "id" | "callsign">, at: string | null, checkInMin: number, time: (iso: string) => string = (iso) => iso.slice(11, 16)): NoteDraft {
   return {
     key: `overdue:${team.id}`, tone: "alert", title: `${team.callsign} is overdue`,
-    body: `${min === null ? "Not heard yet" : `Not heard for ${Math.round(min)} min`}, past the ${checkInMin}-minute check-in. Call them, or recall them.`,
+    body: `${at === null ? "Not heard yet" : `Not heard since ${time(at)}`}, past the ${checkInMin}-minute radio check-in. Call them, or recall them.`,
     target: { kind: "team", id: team.id }, action: "Show team",
   };
 }
 
-/** Toast each team that goes overdue (computed from when it was last heard, not only a server's status). */
-export function useOverdueToasts(overdue: readonly { team: Pick<Team, "id" | "callsign">; min: number | null }[], checkInMin: number): void {
-  const seen = useRef<Set<string> | null>(null);
+/** The bell's line once an overdue team is heard again (it replaces the alert: the bell never says overdue for a team that is not). */
+export function heardAgainNote(team: Pick<Team, "id" | "callsign">, at: string | null, time: (iso: string) => string = (iso) => iso.slice(11, 16)): NoteDraft {
+  return { key: `overdue:${team.id}`, tone: "team", title: `${team.callsign} heard again`, body: at ? `Heard at ${time(at)}: no longer overdue.` : "No longer overdue.", target: { kind: "team", id: team.id }, action: "Show team" };
+}
+
+/**
+ * Toast each team that goes overdue, from the board the Resources rows read (console.ts teamOrder: one
+ * last-heard clock). A team that is heard again (or comes back to base camp) loses its toast, and the bell's
+ * alert becomes "heard again", so the row, the toasts and the bell agree at every moment.
+ */
+export function useOverdueToasts(overdue: readonly { team: Pick<Team, "id" | "callsign">; at: string | null }[], checkInMin: number, time?: (iso: string) => string, lastHeard?: (id: string) => string | null): void {
+  const seen = useRef<Map<string, Pick<Team, "id" | "callsign">> | null>(null);
   const key = overdue.map((o) => o.team.id).join(" ");
   useEffect(() => {
-    const ids = new Set(overdue.map((o) => o.team.id));
+    const now = new Map(overdue.map((o) => [o.team.id, o.team]));
     const was = seen.current;
-    seen.current = ids;
+    seen.current = now;
     if (!was) return;
-    for (const o of overdue) if (!was.has(o.team.id)) useNotify.getState().push(overdueToast(o.team, o.min, checkInMin));
+    const n = useNotify.getState();
+    for (const o of overdue) if (!was.has(o.team.id)) n.push(overdueToast(o.team, o.at, checkInMin, time));
+    for (const [id, team] of was) if (!now.has(id)) n.resolve(`overdue:${id}`, heardAgainNote(team, lastHeard?.(id) ?? null, time));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 }

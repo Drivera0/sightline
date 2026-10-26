@@ -66,6 +66,11 @@ export function proposalAsk(p: Proposal, teams: readonly Team[], drones: readonl
   switch (p.kind) {
     case "assign_sector": {
       const t = callsign(team || p.edits?.team || p.target.team);
+      // the agent's answer to a reviewer's "Person": the sighting, and what the walk and the pass cost
+      if (t && sector && p.id.startsWith("sight-")) {
+        const cost = /\(\+(\d+) min\)/.exec(p.summary)?.[1];
+        return { ask: `Send ${t} to the sighting in ${sector}?${cost ? ` (+${cost} min)` : ""}`, action: `Send ${t} to the sighting` };
+      }
       return t && sector ? { ask: `Send ${t} to ${sector}?`, action: `Send ${t} to ${sector}` } : fallback;
     }
     case "drone_leg":
