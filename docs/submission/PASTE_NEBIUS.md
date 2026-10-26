@@ -36,6 +36,8 @@ A search-and-rescue drone brings back hundreds of photos per flight; a missing p
 
 On the [live site](https://sightline-iota-sandy.vercel.app) you are the search manager in a three-minute guided simulation: the AI proposes, you decide, and the end screen compares a manual search with yours (**Without Sightline vs with Sightline**, every assumption with its source). **Open the console** runs the same mission hands-on.
 
+**Run a real search:** [`#new`](https://sightline-iota-sandy.vercel.app/#new) starts a live mission on the AWS API: drop aerial photos and each is detected with OpenCV 5 `cv2.dnn` on the server and placed on the map.
+
 **Physical AI:** drones sense, the agent decides, drones and people act, and each action changes what is sensed next. A team's clue re-tasks the nearest drone; that drone's photo shows the person. The fleet is simulated, flying over real HERIDAL aerial photos through the same photo API a real drone would use.
 
 ## How I built it
@@ -49,6 +51,7 @@ Every language and vision model call goes through **Nebius Token Factory**, thro
 | Radio turns with tool calls | Nemotron 3 Super 120B-A12B | Token Factory |
 | Speech to text / text to speech | Parakeet TDT 0.6B v2 / Magpie TTS 357M | RTX 4080 SUPER (NeMo) |
 
+- **Every AI step in the demo is a real Nemotron answer from Nebius Token Factory:** the demo mission and all four scenarios were re-recorded on Oct 26 with live calls (34 new calls, 50.1 s in all): three Nemotron 3.5 Super VL second looks per mission and one Nemotron 3 Nano briefing per assignment, replayed word for word, each labelled on screen with its model, "Nebius Token Factory" and its time; the Trace view counts them per mission.
 - The VL verdict takes 1.35 s p50, about $0.00033 per detection, and 461 of 461 replies were valid JSON. A radio turn's first sound comes back in 2.5 s p50.
 - A **Nebius Serverless Job** detected the simulated fleet's 711 photos with OpenCV 5 `cv2.dnn` in 483 s on 16 vCPUs, about $0.10; a **Serverless Endpoint** serves the same detector one photo at a time (5.68 s p50, $0.38 per 1,000 photos).
 - **Tavily** searches and extracts the forecast, warnings and park alerts; Nemotron Nano keeps each value only with a verbatim quote. Nemotron Nano can also call Tavily itself to read a public missing-person bulletin.
@@ -84,7 +87,9 @@ nvidia, nemotron, nvidia-nemo, parakeet, magpie, nebius, nebius-token-factory, n
 
 ## Try it out
 
-- https://sightline-iota-sandy.vercel.app
+- https://sightline-iota-sandy.vercel.app (guided simulation and hands-on console)
+- https://sightline-iota-sandy.vercel.app/#new (a live search on the AWS API)
+- https://sightline-iota-sandy.vercel.app/#try (try your own aerial photo: the detector runs in your browser)
 - https://github.com/Drivera0/sightline
 - https://github.com/Drivera0/sightline/blob/main/docs/report/OPENCV_REPORT.md
 
@@ -113,7 +118,7 @@ Files in `docs/submission/figures/` (and in the Desktop `devpost/` folder).
 
 **Representative:** `<OWNER TO FILL>`
 
-**Team:** Solo, Daniel Rivera. `<OWNER: confirm age of majority and country/province of residence as the form asks>`
+**Team:** Daniel Rivera, Grace Chu, Harvir Nijjar and Jason Kim. `<OWNER: confirm age of majority and country/province of residence as the form asks>`
 
 **Licence (open source, visible at the top of the repo):** GNU AGPL-3.0-or-later ([LICENSE](https://github.com/Drivera0/sightline/blob/main/LICENSE)), matching Ultralytics YOLO; the model weights are treated the same way. HERIDAL imagery: CC BY 3.0 (the Pyrrö VOC copy).
 
@@ -122,7 +127,7 @@ Files in `docs/submission/figures/` (and in the Desktop `devpost/` folder).
 **How is Nebius Token Factory used?** Every language and vision model call at run time goes through Token Factory's OpenAI-compatible API, through one client ([`sightline/agent/llm.py`](https://github.com/Drivera0/sightline/blob/main/sightline/agent/llm.py)); the key lives on the server only (AWS Secrets Manager), never in the browser. Every call is traced (model, input, output, ms). Measured: VL verdict 1.35 s p50, 461 of 461 valid JSON, about $0.00033 per detection; a circuit breaker after 4 failed attempts keeps a mission with Token Factory fully down to about 82 s in all. Nebius also ran the batch detection (Serverless Job, 711 photos in 483 s, about $0.10) and a Serverless Endpoint for on-demand detection.
 
 **What was significantly updated during the submission period?**
-Sightline began at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`), built in 36 hours by a team of four (Daniel Rivera, @bamobam, @har-vir, @jkiim) as a batch tool: one drone survey, a tiled detector, a map and a Bayesian probability map, all from a precomputed cache. Everything below was added solo from Oct 20 to the `nebius-submit` tag (`git diff bcs-final-submission..nebius-submit`):
+Sightline began at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`), built together in 36 hours by our team of four (Daniel Rivera (@Drivera0), Grace Chu (@bamobam), Harvir Nijjar (@har-vir) and Jason Kim (@jkiim)) as a batch tool: one drone survey, a tiled detector, a map and a Bayesian probability map, all from a precomputed cache. Everything below was added from Oct 20 to the `nebius-submit` tag (`git diff bcs-final-submission..nebius-submit`):
 - live missions: photos processed as each flight lands, updates over server-sent events;
 - every NVIDIA model call on Token Factory (Nemotron VL second look, Nemotron 3 Super radio turns, Nemotron 3 Nano briefings and conditions), each traced;
 - an agent that proposes and a person who approves every move;
