@@ -80,6 +80,7 @@ opencv, python, onnx, yolo, ultralytics, pytorch, sahi, fastapi, pydantic, docke
 
 - https://sightline-iota-sandy.vercel.app (guided simulation and hands-on console)
 - https://sightline-iota-sandy.vercel.app/#new (a live search on the AWS API)
+- https://sightline-iota-sandy.vercel.app/#try (try your own aerial photo: the detector runs in your browser)
 - https://github.com/Drivera0/sightline
 - https://github.com/Drivera0/sightline/blob/main/docs/report/OPENCV_REPORT.md
 
