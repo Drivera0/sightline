@@ -1,7 +1,6 @@
 # Paste-ready: Nebius × NVIDIA Global AI Hackathon (Devpost project form)
 
-> Repo links should point at the tag (`nebius-submit`) once created; until then `main`. To switch, replace
-> `/blob/main/` with `/blob/nebius-submit/` throughout. Fields only the owner can fill are marked `<OWNER: …>`.
+> Repo links point at the `nebius-submit` tag, the exact code submitted. Fields only the owner can fill are marked `<OWNER: …>`.
 > Every number below comes from `DEVPOST_NEBIUS.md` here, whose sources list ties each one to its file.
 
 ---
@@ -72,7 +71,7 @@ Every language and vision model call goes through **Nebius Token Factory**, thro
 
 ## What I learned
 
-Tool calling with thinking off needs code-side guards for anything safety-relevant, and thinking tokens count against `max_tokens`, silently. A Serverless Endpoint needs no TLS or auth code on my side, but it has no scale to zero. Per-tool notes: [docs/feedback/nebius.md](https://github.com/Drivera0/sightline/blob/main/docs/feedback/nebius.md).
+Tool calling with thinking off needs code-side guards for anything safety-relevant, and thinking tokens count against `max_tokens`, silently. A Serverless Endpoint needs no TLS or auth code on my side, but it has no scale to zero. Per-tool notes: [docs/feedback/nebius.md](https://github.com/Drivera0/sightline/blob/nebius-submit/docs/feedback/nebius.md).
 
 ## What's next for Sightline
 
@@ -91,7 +90,7 @@ nvidia, nemotron, nvidia-nemo, parakeet, magpie, nebius, nebius-token-factory, n
 - https://sightline-iota-sandy.vercel.app/#new (a live search on the AWS API)
 - https://sightline-iota-sandy.vercel.app/#try (try your own aerial photo: the detector runs in your browser)
 - https://github.com/Drivera0/sightline
-- https://github.com/Drivera0/sightline/blob/main/docs/report/OPENCV_REPORT.md
+- https://github.com/Drivera0/sightline/blob/nebius-submit/docs/report/OPENCV_REPORT.md
 
 ## Video demo link
 
@@ -120,11 +119,11 @@ Files in `docs/submission/figures/` (and in the Desktop `devpost/` folder).
 
 **Team:** Daniel Rivera, Grace Chu, Harvir Nijjar and Jason Kim. `<OWNER: confirm age of majority and country/province of residence as the form asks>`
 
-**Licence (open source, visible at the top of the repo):** GNU AGPL-3.0-or-later ([LICENSE](https://github.com/Drivera0/sightline/blob/main/LICENSE)), matching Ultralytics YOLO; the model weights are treated the same way. HERIDAL imagery: CC BY 3.0 (the Pyrrö VOC copy).
+**Licence (open source, visible at the top of the repo):** GNU AGPL-3.0-or-later ([LICENSE](https://github.com/Drivera0/sightline/blob/nebius-submit/LICENSE)), matching Ultralytics YOLO; the model weights are treated the same way. HERIDAL imagery: CC BY 3.0 (the Pyrrö VOC copy).
 
-**Which NVIDIA models are used?** `nvidia/Nemotron-3.5-Super-VL` (the second look), `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (briefings, conditions extraction, the debrief summary, the bulletin tool call), `nvidia/nemotron-3-super-120b-a12b` (radio turns with tool calls), Parakeet TDT 0.6B v2 (speech to text) and Magpie TTS multilingual 357M (text to speech), the last two through NeMo on a local RTX 4080 SUPER. Table with code paths: [README, Built with NVIDIA + Nebius](https://github.com/Drivera0/sightline/blob/main/README.md#built-with-nvidia--nebius).
+**Which NVIDIA models are used?** `nvidia/Nemotron-3.5-Super-VL` (the second look), `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (briefings, conditions extraction, the debrief summary, the bulletin tool call), `nvidia/nemotron-3-super-120b-a12b` (radio turns with tool calls), Parakeet TDT 0.6B v2 (speech to text) and Magpie TTS multilingual 357M (text to speech), the last two through NeMo on a local RTX 4080 SUPER. Table with code paths: [README, Built with NVIDIA + Nebius](https://github.com/Drivera0/sightline/blob/nebius-submit/README.md#built-with-nvidia--nebius).
 
-**How is Nebius Token Factory used?** Every language and vision model call at run time goes through Token Factory's OpenAI-compatible API, through one client ([`sightline/agent/llm.py`](https://github.com/Drivera0/sightline/blob/main/sightline/agent/llm.py)); the key lives on the server only (AWS Secrets Manager), never in the browser. Every call is traced (model, input, output, ms). Measured: VL verdict 1.35 s p50, 461 of 461 valid JSON, about $0.00033 per detection; a circuit breaker after 4 failed attempts keeps a mission with Token Factory fully down to about 82 s in all. Nebius also ran the batch detection (Serverless Job, 711 photos in 483 s, about $0.10) and a Serverless Endpoint for on-demand detection.
+**How is Nebius Token Factory used?** Every language and vision model call at run time goes through Token Factory's OpenAI-compatible API, through one client ([`sightline/agent/llm.py`](https://github.com/Drivera0/sightline/blob/nebius-submit/sightline/agent/llm.py)); the key lives on the server only (AWS Secrets Manager), never in the browser. Every call is traced (model, input, output, ms). Measured: VL verdict 1.35 s p50, 461 of 461 valid JSON, about $0.00033 per detection; a circuit breaker after 4 failed attempts keeps a mission with Token Factory fully down to about 82 s in all. Nebius also ran the batch detection (Serverless Job, 711 photos in 483 s, about $0.10) and a Serverless Endpoint for on-demand detection.
 
 **What was significantly updated during the submission period?**
 Sightline began at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`), built together in 36 hours by our team of four (Daniel Rivera (@Drivera0), Grace Chu (@bamobam), Harvir Nijjar (@har-vir) and Jason Kim (@jkiim)) as a batch tool: one drone survey, a tiled detector, a map and a Bayesian probability map, all from a precomputed cache. Everything below was added from Oct 20 to the `nebius-submit` tag (`git diff bcs-final-submission..nebius-submit`):
@@ -135,13 +134,13 @@ Sightline began at BCS Hackathon 2026 (Oct 16–17, tag `bcs-final-submission`),
 - a simulated drone fleet whose clue-driven re-task uses the real planner, and an information-gain planner;
 - Tavily conditions at run time, and the subject from a public bulletin;
 - the Nebius Serverless Job and Endpoint; command-post exports (ICS 204, ICS 214, CalTopo); real-footage intake; the console, the guided simulation and the AWS deployment.
-What stayed from BCS: the detector weights, the tiling, the map's core update and the demo survey. Full list: [NEBIUS_WHAT_CHANGED.md](https://github.com/Drivera0/sightline/blob/main/docs/submission/NEBIUS_WHAT_CHANGED.md). The same project is also entered in the OpenCV AI Competition 2026. Development used Claude Code (Anthropic) as an AI coding assistant; it is not part of the running product.
+What stayed from BCS: the detector weights, the tiling, the map's core update and the demo survey. Full list: [NEBIUS_WHAT_CHANGED.md](https://github.com/Drivera0/sightline/blob/nebius-submit/docs/submission/NEBIUS_WHAT_CHANGED.md). The same project is also entered in the OpenCV AI Competition 2026. Development used Claude Code (Anthropic) as an AI coding assistant; it is not part of the running product.
 
-**Product feedback (per tool):** [docs/feedback/nebius.md](https://github.com/Drivera0/sightline/blob/main/docs/feedback/nebius.md) (and the radio desk's [docs/feedback/radio.md](https://github.com/Drivera0/sightline/blob/main/docs/feedback/radio.md)). Summary:
+**Product feedback (per tool):** [docs/feedback/nebius.md](https://github.com/Drivera0/sightline/blob/nebius-submit/docs/feedback/nebius.md) (and the radio desk's [docs/feedback/radio.md](https://github.com/Drivera0/sightline/blob/nebius-submit/docs/feedback/radio.md)). Summary:
 - Token Factory: key to first chat call in about 3 minutes; one OpenAI-compatible client for vision, text and tools. Snag: with thinking on, replies came back empty once thinking used the token budget, silently; fixed by turning thinking off.
 - Nemotron VL: 461 of 461 valid JSON, 1.35 s p50; on people under 60 px it mostly answers "unclear".
 - Nemotron 3 Super: good tool use, but with thinking off it sometimes leaked reasoning into the spoken reply and once invented weather; code-side guards needed.
 - Serverless Jobs and Endpoints: first detection from my endpoint in about 14 minutes; the CLI prints the token in plain text and endpoints have no scale to zero (272.9 s to answer again after a stop).
 - NVIDIA hosted catalogue lists Cosmos Reason, but every call returned 404 with nothing marking it retired.
 
-**Tavily usage (bonus):** runtime calls, not a one-off. Each active mission's conditions are checked every 30 minutes: three Tavily searches (forecast, weather warnings, park and trail alerts, limited to the sources that publish them) and one extract of the best forecast page, cached per area and clock hour (at most four calls per area per hour). Nemotron Nano reads the pages and keeps a value only with a verbatim quote; the values gate the drones (gust limit, flyable-until), set how much a photo can see, and go into team briefings. Nemotron Nano can also call Tavily itself as a tool (`search_public_bulletin`) to read a public missing-person bulletin; three live runs, two abstained, one proposed "hiker, 20". [docs/report/TAVILY.md](https://github.com/Drivera0/sightline/blob/main/docs/report/TAVILY.md).
+**Tavily usage (bonus):** runtime calls, not a one-off. Each active mission's conditions are checked every 30 minutes: three Tavily searches (forecast, weather warnings, park and trail alerts, limited to the sources that publish them) and one extract of the best forecast page, cached per area and clock hour (at most four calls per area per hour). Nemotron Nano reads the pages and keeps a value only with a verbatim quote; the values gate the drones (gust limit, flyable-until), set how much a photo can see, and go into team briefings. Nemotron Nano can also call Tavily itself as a tool (`search_public_bulletin`) to read a public missing-person bulletin; three live runs, two abstained, one proposed "hiker, 20". [docs/report/TAVILY.md](https://github.com/Drivera0/sightline/blob/nebius-submit/docs/report/TAVILY.md).
