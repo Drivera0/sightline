@@ -7,6 +7,7 @@
 import type { Clue, MapBase, MapUpdate } from "../contract";
 import type { SectorNow } from "../lib/api";
 import { applyUpdate, baseState } from "../search/live";
+import type { MapState } from "../search/update";
 import { sectorCells } from "./missionTime";
 
 export interface ClueShift {
@@ -20,29 +21,63 @@ export interface ClueShift {
 /** Changes smaller than this (a share of the whole probability) are not worth a line. */
 export const MIN_SHIFT = 0.001;
 
+/** The replay keeps the map's state every this many updates, to pick up from when the log changes. */
+const CHECKPOINT_EVERY = 25;
+
+interface Replay {
+  cells: Map<string, number[]>;
+  sigs: string[];
+  /** The state after the first k updates, for k = 0, 25, 50, … and the whole log. */
+  at: Map<number, MapState>;
+  s: MapState;
+  /** Each shift found, with the index of its update in the log. */
+  found: (Omit<ClueShift, "text"> & { k: number })[];
+}
+const replays = new WeakMap<MapBase, Replay>();
+const sigOf = (u: MapUpdate) => `${u.seq}|${u.source}|${u.kind}|${u.ref ?? ""}|${u.cells.length}|${u.cells[0]?.join(",") ?? ""}|${u.cells.at(-1)?.join(",") ?? ""}`;
+
 /**
  * For each sector, the clue updates that changed its share by at least MIN_SHIFT, in log order: one
- * replay of the log, the sector's share read before and after each clue's reweight.
+ * replay of the log, the sector's share read before and after each clue's reweight. The replay is kept
+ * per map (the guided clock asks ten times a second while photos land ahead of a clue's update): a log
+ * that changes picks up from the last checkpoint before the first update that differs.
  */
 export function clueShifts(base: MapBase, updates: readonly MapUpdate[], sectors: readonly SectorNow[], clues: readonly Clue[] = []): Map<string, ClueShift[]> {
   const cells = sectorCells(base, sectors);
   const share = (p: Float64Array, own: number[]) => own.reduce((n, i) => n + (p[i] ?? 0), 0);
-  const out = new Map<string, ClueShift[]>();
-  let s = baseState(base);
-  for (const u of updates) {
-    if (u.source !== "clue") {
-      s = applyUpdate(s, u);
-      continue;
-    }
-    const before = s;
-    s = applyUpdate(s, u);
+  const sigs = updates.map(sigOf);
+  let r = replays.get(base);
+  if (!r || r.cells !== cells) {
+    r = { cells, sigs: [], at: new Map([[0, baseState(base)]]), s: baseState(base), found: [] };
+    replays.set(base, r);
+  }
+  // the first update that differs from the last replay's log
+  let same = 0;
+  while (same < r.sigs.length && same < sigs.length && r.sigs[same] === sigs[same]) same++;
+  if (same < r.sigs.length) {
+    const from = Math.floor(same / CHECKPOINT_EVERY) * CHECKPOINT_EVERY;
+    r.s = r.at.get(from)!;
+    for (const k of r.at.keys()) if (k > from) r.at.delete(k);
+    r.found = r.found.filter((f) => f.k < from);
+    r.sigs = r.sigs.slice(0, from);
+  }
+  for (let k = r.sigs.length; k < updates.length; k++) {
+    const u = updates[k]!;
+    const before = r.s;
+    r.s = applyUpdate(r.s, u);
+    if ((k + 1) % CHECKPOINT_EVERY === 0) r.at.set(k + 1, r.s);
+    if (u.source !== "clue") continue;
     for (const [sector, own] of cells) {
       if (!own.length) continue;
-      const [a, b] = [share(before.p, own), share(s.p, own)];
-      if (Math.abs(b - a) < MIN_SHIFT) continue;
-      const text = clues.find((c) => c.id === u.ref)?.text ?? null;
-      out.set(sector, [...(out.get(sector) ?? []), { clue: u.ref ?? "?", text, sector, before: a, after: b }]);
+      const [a, b] = [share(before.p, own), share(r.s.p, own)];
+      if (Math.abs(b - a) >= MIN_SHIFT) r.found.push({ clue: u.ref ?? "?", sector, before: a, after: b, k });
     }
+  }
+  r.sigs = sigs;
+  const out = new Map<string, ClueShift[]>();
+  for (const { k: _k, ...f } of r.found) {
+    const text = clues.find((c) => c.id === f.clue)?.text ?? null;
+    out.set(f.sector, [...(out.get(f.sector) ?? []), { ...f, text }]);
   }
   return out;
 }

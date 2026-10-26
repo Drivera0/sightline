@@ -211,12 +211,20 @@ until the manager makes it; there is no scrubber, no Skip to now and no Back dur
   Needs you keeps its grouping and uses its one pointing system, `highlight` (#219): the step's item (`review`,
   `clue-<id>`, the proposal's id, `report-<team>`) ringed, every other one `data-dimmed` and out of reach
   (pointer events off) until its step; "none" between decisions dims them all. No toasts while the run is on (`useEventToasts` `quiet`): the bar says each row.
-- **Time passing** (`story.ts` `lapseStep`): the time between two decisions plays as a time-lapse of 6–10 s
-  at 1× whatever its length (0.15 s a mission minute), stopping up to 0.8 s on each timeline row (2 s shared out in all, so a run takes about 8–12 s) as it
-  lands (the rows read from the mission as it will stand at the next decision, `demoAt` once per run), the
-  clock large on the bar with the row's time and words ("14:05 · Drone 1: leg L001 (sector C2)"), Pause
-  (Space), 1× 2× 4×, Skip ahead (→). Reduced motion: no run, the clock steps row to row. Watch instead uses
-  the same pacing. The clock reads real elapsed time, so a slow frame does not slow the mission.
+- **Time passing** (`story.ts` `lapseStep`, `lapseBeats`; Dan's review 2026-10-25: "way too fast"): one
+  thing at a time, and the bar says what it is. The timeline rows between two decisions (read from the
+  mission as it will stand at the next decision, `demoAt` once per run) are grouped into beats: rows alike
+  landing within 5 mission minutes of each other are one ("Drone 3: flight line approved · 3 drones",
+  "… · 2 photos"). The clock travels from beat to beat, never faster than 4 mission minutes a second
+  (0.25 s a minute; a short stretch at most 1 s a minute), and stops on each beat for 1.2 s (1 s when
+  there are many): the caption names it ("14:10 · AI re-check of a near-miss photo: probably not a person ·
+  2 photos") and the map outlines the sectors and rings the teams it is about, panning gently only when
+  it is off-screen (`map/heat/focusLayers.ts` `useBeatLayer`). At 1× a stretch takes 15–25 s (the
+  first, 13:35 to 14:31 with eight beats, about 24 s). 2× and 4× travel 2 and 4 times faster and shorten
+  each beat by the square root; Pause (Space), Skip ahead (→). Reduced motion: no travel, the clock steps
+  beat to beat. Watch instead uses the same pacing. The clock reads real elapsed time, so a slow frame
+  does not slow the mission. The heat changes as one 750 ms fade at most every 0.9 s (`LiveHeatMap`
+  `useSpaced`), and drones glide at a constant speed between the clock's readings (`FleetGlide`).
 - **A new run each time**: arriving at `?guide=1` (a home card's Start, Try another scenario then Start)
   always starts a new run from the call, with the last run's actions, answers, toasts and flights gone
   (`storyFromRoute`, `freshConsole` in `ingest/LiveMission.tsx`); before, a finished run on the same seed

@@ -57,7 +57,7 @@ import { CLASS_ROWS, ContourGlyph, swatchColor } from "./Legend";
 import { basemapKind, basemapLabelLayer, type BasemapKind, CONSOLE_PALETTES, consolePalettes, type HeatPalette, muteImagery } from "./palette";
 import { useTheme } from "../../shell/theme";
 import { gridCorners, HeatRaster, kindColors, kindPixels, surfaceTheme } from "./raster";
-import { type CandidatePlace, useFocusLayers } from "./focusLayers";
+import { type CandidatePlace, useBeatLayer, useFocusLayers } from "./focusLayers";
 import { ensureSurfaceLayers, pushSurface, setSurfaceMode, setSurfacePalette, surfaceIds } from "./surface";
 import { plainWords } from "../../command/terms";
 
@@ -90,7 +90,34 @@ export const LIVE_SURFACE_IDS = surfaceIds("live-heat-", LIVE_IDS.heat);
  * A change of the heat (a review answer, a clue, a photo) tweens cell by cell over this long (V3 §2), and
  * the raster and the class fills crossfade in and out of it, so the surface visibly evolves, never swaps.
  */
-export const HEAT_TWEEN_MS = 400;
+export const HEAT_TWEEN_MS = 750;
+/** The heat changes at most this often (ms): its fade, then a moment to see it. */
+export const HEAT_SPACING_MS = 900;
+
+/**
+ * `value`, changing at most once every `ms`: a change within `ms` of the last waits, and the latest value
+ * comes in when the wait is over. The first value (and reduced motion's) comes in at once.
+ */
+export function useSpaced<T>(value: T, ms: number): T {
+  const [shown, setShown] = useState(value);
+  const at = useRef(-Infinity);
+  useEffect(() => {
+    if (value === shown) return undefined;
+    const now = performance.now();
+    const wait = at.current + ms - now;
+    if (wait <= 0 || prefersReducedMotion()) {
+      at.current = now;
+      setShown(value);
+      return undefined;
+    }
+    const id = window.setTimeout(() => {
+      at.current = performance.now();
+      setShown(value);
+    }, wait);
+    return () => window.clearTimeout(id);
+  }, [value, shown, ms]);
+  return shown;
+}
 /** The crossfades: into the tween (the contours fade out) and out of it (the new fills and contours fade in). */
 export const HEAT_FADE_IN_MS = 150;
 export const HEAT_FADE_OUT_MS = 220;
@@ -421,8 +448,11 @@ function LiveLayers({
   // same classes are drawn as fills and contours.
   // the classes over the whole search area (the prior is known everywhere); what no photo has seen yet
   // the ground a search lowered (photos or a ground team that found nobody): darker and cooler under the classes
-  const searched = useMemo(() => (ready ? searchedMask(base.prior.p.length, updates) : null), [ready, base, updates]);
-  const fresh = useMemo(() => (ready ? wholeGridKinds(heat.sync(updates).p, null, searched) : null), [ready, heat, updates, searched]);
+  // one slow fade at a time: the map log read at most every HEAT_SPACING_MS, the latest when the wait is over
+  // (the guided time-lapse lands photos ten times a second; the heat must not flicker with each)
+  const heatLog = useSpaced(updates, HEAT_SPACING_MS);
+  const searched = useMemo(() => (ready ? searchedMask(base.prior.p.length, heatLog) : null), [ready, base, heatLog]);
+  const fresh = useMemo(() => (ready ? wholeGridKinds(heat.sync(heatLog).p, null, searched) : null), [ready, heat, heatLog, searched]);
   // the same picture again (the demo reloads its state on every action) is not a change: no tween
   const lastKinds = useRef<typeof fresh>(null);
   if (fresh !== lastKinds.current && !sameKinds(fresh, lastKinds.current)) lastKinds.current = fresh;
@@ -432,7 +462,7 @@ function LiveLayers({
     // a notification only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kinds]);
-  const photographed = useMemo(() => (ready ? (base.photographed ? Uint8Array.from(base.photographed) : lookedAt(base, updates)) : null), [ready, base, updates]);
+  const photographed = useMemo(() => (ready ? (base.photographed ? Uint8Array.from(base.photographed) : lookedAt(base, heatLog)) : null), [ready, base, heatLog]);
   const colors = useMemo(() => kindColors(palettes[basemap], theme), [basemap, theme, palettes]);
   // a new picture's fills wait for its tween to end (the raster draws the change meanwhile)
   const heldSurface = useRef<ReturnType<typeof surfaceData> | null>(null);
@@ -700,17 +730,24 @@ function LiveLayers({
     syncTargets(map, droneTargets.current, drones, "drone");
     let raf = 0;
     let settled = false;
+    let legsDrawn = false;
+    let wasRetasking = false;
+    const legs = legFeatures(fleet, proposals);
     const frame = () => {
       const t = performance.now();
       const drawn = glide.positions(t);
-      const moving = glide.animating(t) || retaskAnimating(seen.current, t);
+      const retasking = retaskAnimating(seen.current, t);
+      const moving = glide.animating(t) || retasking;
       if (moving || !settled) {
         const placed = drones.map((f) => (drawn[f.properties.id] ? { ...f, geometry: { type: "Point" as const, coordinates: drawn[f.properties.id] } } : f));
         setData(map, LIVE_IDS.drones, placed);
         dronesNow.current = placed;
         relabel.current();
         for (const [id, t] of Object.entries(droneTargets.current)) if (drawn[id]) t.marker.setLngLat(drawn[id]);
-        setData(map, LIVE_IDS.legs, [...legFeatures(fleet, proposals), ...retaskFeatures(fleet, seen.current, t, reduced)]);
+        // the legs only change with the fleet, or while a cancelled one fades (not on every frame of a glide)
+        if (!legsDrawn || retasking || wasRetasking) setData(map, LIVE_IDS.legs, [...legs, ...retaskFeatures(fleet, seen.current, t, reduced)]);
+        legsDrawn = true;
+        wasRetasking = retasking;
         settled = !moving;
       }
       const relays = relayFeatures(links, teams, drawn, t, reduced);
@@ -811,6 +848,8 @@ function LiveLayers({
 
   // What Needs you has in focus (a candidate, a proposal) and a new assignment's route (focusLayers.ts)
   useFocusLayers(map, ready, { sectors, proposals, tasks, teams, mission, candidateAt });
+  // the guided time-lapse's beat: what the caption names, outlined for the beat (focusLayers.ts)
+  useBeatLayer(map, ready, { sectors, teams });
 
   // A pick asked for elsewhere on the page (the clue form): B's onPick answers it.
   useEffect(() => {

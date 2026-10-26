@@ -20,7 +20,13 @@ interface Glide {
   from: LonLat;
   to: LonLat;
   t0: number;
+  /** How long this glide takes (ms), and whether it is steady (linear) rather than eased. */
+  ms: number;
+  steady: boolean;
 }
+
+/** The shortest steady glide (ms): reports closer together than this still glide this long. */
+export const STEADY_MIN_MS = 80;
 
 /** Where each drone is drawn: gliding from where it was drawn to its latest reported position. */
 export class FleetGlide {
@@ -35,12 +41,17 @@ export class FleetGlide {
       const g = this.glides.get(id);
       if (g && g.to[0] === to[0] && g.to[1] === to[1]) continue;
       const from = g && !reduced ? this.at(g, now) : to;
-      this.glides.set(id, { from, to, t0: now });
+      // reports in a steady stream (the guided clock's ten a second): a constant speed from one to the
+      // next, so a drone flies its line instead of lurching forward and braking at every report
+      const gap = g ? now - g.t0 : Infinity;
+      const steady = gap < this.ms;
+      this.glides.set(id, { from, to, t0: now, ms: steady ? Math.max(STEADY_MIN_MS, Math.min(this.ms, gap * 1.15)) : this.ms, steady });
     }
   }
 
   private at(g: Glide, now: number): LonLat {
-    return lerp(g.from, g.to, easeOut((now - g.t0) / this.ms));
+    const f = Math.min(1, Math.max(0, (now - g.t0) / g.ms));
+    return lerp(g.from, g.to, g.steady ? f : easeOut(f));
   }
 
   positions(now: number): Record<string, LonLat> {
@@ -51,7 +62,7 @@ export class FleetGlide {
 
   /** True while any drone is still on its way to its report. */
   animating(now: number): boolean {
-    for (const g of this.glides.values()) if (now - g.t0 < this.ms && (g.from[0] !== g.to[0] || g.from[1] !== g.to[1])) return true;
+    for (const g of this.glides.values()) if (now - g.t0 < g.ms && (g.from[0] !== g.to[0] || g.from[1] !== g.to[1])) return true;
     return false;
   }
 }

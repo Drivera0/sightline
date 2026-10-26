@@ -11,6 +11,7 @@ import type { SectorNow } from "../../lib/api";
 import { useSelection } from "../../lib/selection";
 import { prefersReducedMotion } from "../../metrics/motion";
 import { useConsole } from "../../command/consoleStore";
+import { useLapseBeat } from "../../command/story";
 import { partialPath, routeStart, routeTo, type RouteTask } from "../base/teamRoute";
 import type { LonLat } from "../base/fleetMotion";
 
@@ -204,6 +205,79 @@ export function useFocusLayers(
     },
     [map],
   );
+}
+
+export const BEAT_ID = "live-heat-beat";
+/** The beat's outline: in, held while the caption names it, out (ms). */
+export const BEAT_IN_MS = 300;
+export const BEAT_HOLD_MS = 1100;
+export const BEAT_OUT_MS = 700;
+
+/**
+ * The guided time-lapse's beat on the map (story.ts `useLapseBeat`): the sectors it is about outlined and
+ * the teams it names ringed, in for the beat and out after, so the map shows the one thing the caption
+ * names; the camera pans gently to it only when it is off-screen. Reduced motion: no fades, no pan animation.
+ */
+export function useBeatLayer(map: Map | null, ready: boolean, d: { sectors: readonly SectorNow[]; teams: readonly Team[] }): void {
+  const beat = useLapseBeat((s) => s.beat);
+  const data = useRef(d);
+  data.current = d;
+  useEffect(() => {
+    if (!map || !ready) return;
+    if (!map.getSource(BEAT_ID)) map.addSource(BEAT_ID, { type: "geojson", data: fc([]) as never });
+    const ink = cssVar("--text", "#f2f2f0");
+    const before = map.getLayer("live-heat-halos") ? "live-heat-halos" : undefined;
+    const t = { duration: prefersReducedMotion() ? 0 : BEAT_IN_MS, delay: 0 };
+    const is = (k: string) => ["==", ["get", "kind"], k] as never;
+    if (!map.getLayer(`${BEAT_ID}-glow`)) map.addLayer({ id: `${BEAT_ID}-glow`, type: "line", source: BEAT_ID, filter: is("sector"), paint: { "line-color": ink, "line-width": 8, "line-blur": 6, "line-opacity": 0, "line-opacity-transition": t } }, before);
+    if (!map.getLayer(BEAT_ID)) map.addLayer({ id: BEAT_ID, type: "line", source: BEAT_ID, filter: is("sector"), paint: { "line-color": ink, "line-width": 2, "line-opacity": 0, "line-opacity-transition": t } }, before);
+    if (!map.getLayer(`${BEAT_ID}-ring`)) map.addLayer({ id: `${BEAT_ID}-ring`, type: "circle", source: BEAT_ID, filter: is("team"), paint: { "circle-radius": 16, "circle-color": ink, "circle-opacity": 0, "circle-opacity-transition": t, "circle-stroke-color": ink, "circle-stroke-width": 2, "circle-stroke-opacity": 0, "circle-stroke-opacity-transition": t } }, before);
+  }, [map, ready]);
+  useEffect(() => {
+    if (!map || !ready) return undefined;
+    const reduced = prefersReducedMotion();
+    const show = (on: boolean) => {
+      try {
+        const out = { duration: reduced ? 0 : on ? BEAT_IN_MS : BEAT_OUT_MS, delay: 0 };
+        map.setPaintProperty(`${BEAT_ID}-glow`, "line-opacity-transition", out);
+        map.setPaintProperty(`${BEAT_ID}-glow`, "line-opacity", on ? 0.45 : 0);
+        map.setPaintProperty(BEAT_ID, "line-opacity-transition", out);
+        map.setPaintProperty(BEAT_ID, "line-opacity", on ? 0.95 : 0);
+        map.setPaintProperty(`${BEAT_ID}-ring`, "circle-opacity-transition", out);
+        map.setPaintProperty(`${BEAT_ID}-ring`, "circle-opacity", on ? 0.12 : 0);
+        map.setPaintProperty(`${BEAT_ID}-ring`, "circle-stroke-opacity-transition", out);
+        map.setPaintProperty(`${BEAT_ID}-ring`, "circle-stroke-opacity", on ? 0.9 : 0);
+      } catch {
+        /* the map went away */
+      }
+    };
+    const { sectors, teams } = data.current;
+    const features: Feature[] = [];
+    for (const id of beat?.sectors ?? []) {
+      const poly = sectors.find((s) => s.sector_id === id)?.polygon;
+      if (poly?.length) features.push({ type: "Feature", properties: { kind: "sector" }, geometry: { type: "LineString", coordinates: poly } });
+    }
+    for (const id of beat?.teams ?? []) {
+      const p = teams.find((t) => t.id === id)?.position;
+      if (p) features.push({ type: "Feature", properties: { kind: "team" }, geometry: { type: "Point", coordinates: [p.lon, p.lat] } });
+    }
+    if (!features.length) {
+      show(false);
+      return undefined;
+    }
+    setData(map, BEAT_ID, features);
+    show(true);
+    // off-screen: one gentle pan to it (never a zoom, never for something already in view)
+    const pts = features.flatMap((f) => (f.geometry.type === "Point" ? [f.geometry.coordinates as LonLat] : [centreOf(f.geometry.coordinates as LonLat[])]));
+    const at: LonLat = [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
+    const c = map.getContainer();
+    const p = map.project(at);
+    const mx = c.clientWidth * 0.12;
+    const my = c.clientHeight * 0.12;
+    if (p.x < mx || p.y < my || p.x > c.clientWidth - mx || p.y > c.clientHeight - my) map.easeTo({ center: at, duration: reduced ? 0 : 1000 });
+    const id = window.setTimeout(() => show(false), BEAT_HOLD_MS);
+    return () => window.clearTimeout(id);
+  }, [map, ready, beat]);
 }
 
 function centreOf(poly: readonly (readonly [number, number])[]): LonLat {

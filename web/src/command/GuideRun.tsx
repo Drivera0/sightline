@@ -38,7 +38,7 @@ import {
 import { demoAt, onMissionClock, subjectOf, type DemoFull, type GuidedOpts } from "./missionTime";
 import { GuideStrip } from "./Scrubber";
 import { fixtureOf, passesFrom, realOf, type Cost } from "./sim";
-import { dwellFor, lapseStep, SPEEDS, useGuide, useStory, type Lapse, type Speed } from "./story";
+import { dwellAt, lapseBeats, lapseStep, SPEEDS, useGuide, useLapseBeat, useStory, type Lapse, type Speed } from "./story";
 import { buildTimeline } from "./timeline";
 import { storyClue } from "./storyCopy";
 import { isSightingProposal, WATCH_BY } from "./console";
@@ -149,19 +149,28 @@ export function useGuideRun({
     if (!on || !scenario || hold === null || hold <= runFrom) return [];
     const at = onMissionClock(demoAt(scenario, iso(fixtureOf(hold, costs)), user, guidedOptsFor(scenario, seed, choices, rawUser), { seed }), costs);
     return buildTimeline(at.events ?? [], at.teams ?? [], at.timeline ?? [])
-      .map((e) => ({ at: new Date(e.at).getTime(), text: e.text }))
+      .map((e) => ({ at: new Date(e.at).getTime(), text: e.text, kind: e.kind, team: e.team, sector: e.sector }))
       .filter((e) => e.at > runFrom && e.at <= hold)
       .sort((a, b) => a.at - b.at);
   }, [on, scenario, hold, runFrom, costs, user, seed, choices, rawUser]);
-  const lapse: Lapse | null = hold === null ? null : { from: runFrom, hold, beats: [...new Set(rows.map((r) => r.at))] };
+  // one beat at a time: rows alike landing together are one (story.ts lapseBeats)
+  const beats = useMemo(() => lapseBeats(rows), [rows]);
+  const lapse: Lapse | null = useMemo(() => (hold === null ? null : { from: runFrom, hold, beats: beats.map((b) => b.at) }), [hold, runFrom, beats]);
   const lapseRef = useRef(lapse);
   lapseRef.current = lapse;
   const dwellUntil = useRef(0);
+  const beatsRef = useRef(beats);
+  beatsRef.current = beats;
 
   // the clock: ten readings a second toward the next decision, a moment on each row as it lands, and it stops there
   // (and waits while a confirm is open: Leave the simulation?)
   const confirming = useConsole((s) => s.confirming);
   const running = on && !guide!.ended && !guide!.paused && !confirming && hold !== null && clockMs < hold;
+  // the beat on the map goes once the decision is up
+  const lapsing = on && !guide!.ended && hold !== null && clockMs < hold;
+  useEffect(() => {
+    if (!lapsing) useLapseBeat.setState({ beat: null });
+  }, [lapsing]);
   useEffect(() => {
     if (!running) return undefined;
     // the real time since the last reading (a busy frame must not slow the mission down), at most a quarter second
@@ -174,7 +183,10 @@ export function useGuideRun({
       last = now;
       if (!g || !l || g.paused || now < dwellUntil.current) return;
       const r = lapseStep(g.clock, l, dt, g.speed, prefersReducedMotion());
-      if (r.beat) dwellUntil.current = now + dwellFor(l) / g.speed;
+      if (r.beat) {
+        dwellUntil.current = now + dwellAt(l, g.speed);
+        useLapseBeat.setState({ beat: beatsRef.current.find((b) => b.at === r.clock) ?? null });
+      }
       useGuide.getState().setClock(r.clock);
     }, 100);
     return () => window.clearInterval(id);
@@ -182,6 +194,7 @@ export function useGuideRun({
   /** Skip ahead: straight to the next decision, every row on the way landing at once. */
   const skip = useCallback(() => {
     dwellUntil.current = 0;
+    useLapseBeat.setState({ beat: null });
     const l = lapseRef.current;
     if (l) useGuide.getState().setClock(l.hold);
   }, []);
@@ -422,8 +435,8 @@ export function useGuideRun({
   const lead = night + (inCost && lastCost ? `${lastCost.label}: ${lastCost.costMs / 60_000} min on the clock.` : (walking ?? active?.lead ?? "The teams search; the clock runs until the radio has news."));
   // the time-lapse's caption: the row that landed last on this run, with its time (cause, then effect)
   // (a row more than ten mission minutes old gives way to what is under way now)
-  const landed = [...rows].reverse().find((r) => r.at <= clockMs && clockMs - r.at <= 10 * 60_000);
-  const caption = landed ?`${clockText(iso(landed.at), DEMO_TZ)} · ${landed.text}` : lead;
+  const landed = [...beats].reverse().find((b) => b.at <= clockMs && clockMs - b.at <= 10 * 60_000);
+  const caption = landed ? `${clockText(iso(landed.shown), DEMO_TZ)} · ${landed.text}` : lead;
 
   // triage: the card's own answers (no buttons on the bar), so A gives the agent's reference answer; Object
   // (O) is left to the card, which asks for the object's type
