@@ -1083,7 +1083,7 @@ function TraceTab({ api, missionId, demo, example = false, calls }: { api: Api; 
     <div className="flex flex-col gap-3">
       <p className="text-small text-text-2">
         Every step the agent took, grouped from what it saw to what a person decided: perception → decision → action → approval. Open a step for its full input and output.
-        {demo && (example ? " Here: an example trace from the Overdue hiker mission (generated offline through the agent's own code, its Nemotron calls made on Nebius Token Factory and its people scripted, as labelled; this scenario has none of its own), then two runs recorded live, copied from the repository." : " On the demo: this mission's own trace (generated offline through the agent's own code, its Nemotron calls made on Nebius Token Factory and its people scripted, as labelled), then two runs recorded live, copied from the repository.")}
+        {demo && (example ? " Here: an example trace from the Overdue hiker mission (the agent's own code run on that mission's photos, every Nemotron answer from a real call on Nebius Token Factory, the search manager's decisions the scenario's own, each labelled; this scenario has none of its own), then two runs made live, copied from the repository." : " On the demo: this mission's own trace (the agent's own code run on this mission's photos, every Nemotron answer from a real call on Nebius Token Factory, the search manager's decisions the scenario's own, each labelled), then two runs made live, copied from the repository.")}
       </p>
       {error && (
         <p role="alert" className="text-small text-caution">
