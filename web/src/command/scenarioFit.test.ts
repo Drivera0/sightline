@@ -131,7 +131,7 @@ describe("grounded drones (problem 5)", () => {
       expect(atEnd.civil_twilight_end, seed).toBe("2026-10-25T01:36:46Z");
       expect(dronesWait(full, []), seed).toBeNull();
       const survey = injects({ full, seed, user: [], choices: [], queue }).find((i) => i.id === "survey")!;
-      expect(survey.prompt).toMatch(/^Launch the survey/);
+      expect(survey.prompt).toMatch(/Launch the survey/);
     }
     // the missing child's gusts at 52 km/h arrive late in the run, as its fixture has them
     const late = conditionsAt(scenarios["missing-child"].data, Infinity)!;

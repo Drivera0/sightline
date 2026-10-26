@@ -230,7 +230,7 @@ export function injects(input: GuideInput): Inject[] {
       key: "survey",
       at: ms(CHECKPOINTS[0]!.at),
       lead: "The call comes in; the wind is over the drones' limit.",
-      prompt: `Drones are grounded (${grounded.reason}): send ground teams first and let the drones wait for the wind, or fly anyway.`,
+      prompt: `${hastyFact(full)}Drones are grounded (${grounded.reason}): send ground teams first and let the drones wait for the wind, or fly anyway.`,
       agentSays: `Send ground teams first; drones wait for the wind (re-check at ${recheck}).`,
       options: [
         { key: "1", id: "wait", label: `Ground teams first; drones wait for the wind (re-check at ${recheck})`, costMin: 0, effect: "no drone flies while the status says grounded; the teams carry the search", agent: true },
