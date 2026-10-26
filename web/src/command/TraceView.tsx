@@ -30,6 +30,8 @@ import {
   type Ledger,
   type Outcome,
 } from "./trace";
+import type { ModelCall } from "../lib/fixtureExtras";
+import { callCountWords, callSeconds, tokenFactoryUse, traceTokenFactoryUse } from "./nebius";
 
 /** One trace file: a live mission's, or a recorded run shipped with the demo. */
 export interface TraceRun {
@@ -53,7 +55,18 @@ const SPAN_TONE: Record<TraceEntry["kind"], Tone> = {
 
 export const seconds = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
 
-export function TraceView({ runs, imageUrl, empty }: { runs: readonly TraceRun[]; imageUrl?: (rel: string) => string | null; empty?: string }) {
+export function TraceView({
+  runs,
+  imageUrl,
+  empty,
+  missionCalls,
+}: {
+  runs: readonly TraceRun[];
+  imageUrl?: (rel: string) => string | null;
+  empty?: string;
+  /** The mission's own record of its Nemotron calls (a demo fixture's `model_calls`); else counted from this flight's trace. */
+  missionCalls?: readonly ModelCall[];
+}) {
   const all = runs.flatMap((r) => r.entries);
   if (all.length === 0) {
     return (
@@ -65,7 +78,7 @@ export function TraceView({ runs, imageUrl, empty }: { runs: readonly TraceRun[]
   }
   return (
     <section aria-label="Trace" className="flex flex-col gap-4">
-      <ModelStrip runs={runs} chainCount={runs.reduce((n, r) => n + chains(r.entries).length, 0)} />
+      <ModelStrip runs={runs} chainCount={runs.reduce((n, r) => n + chains(r.entries).length, 0)} missionCalls={missionCalls} />
       {runs.map((run, i) => (
         <RunView key={run.source ?? i} run={run} runKey={`r${i}`} imageUrl={imageUrl} />
       ))}
@@ -93,8 +106,18 @@ function decidedBy(entries: readonly TraceEntry[]): string {
   return [...by.entries()].sort((a, b) => b[1] - a[1]).map(([who, n]) => `${n} by ${who}`).join(" · ");
 }
 
-function ModelStrip({ runs, chainCount }: { runs: readonly TraceRun[]; chainCount: number }) {
+/**
+ * "12 Nemotron calls on Nebius Token Factory in this mission · 19.4 s in all": from the mission's own record
+ * of its calls when it has one, else from this flight's trace (a fixture's stand-ins never count). Null: none.
+ */
+export function missionCallLine(runs: readonly TraceRun[], missionCalls?: readonly ModelCall[]): string | null {
+  const use = missionCalls?.length ? tokenFactoryUse(missionCalls) : traceTokenFactoryUse(runs.filter((r) => runWords(r) === "This flight").flatMap((r) => r.entries));
+  return use.calls > 0 ? `${callCountWords(use.calls)}${use.ms > 0 ? ` · ${callSeconds(use.ms)} in all` : ""}` : null;
+}
+
+function ModelStrip({ runs, chainCount, missionCalls }: { runs: readonly TraceRun[]; chainCount: number; missionCalls?: readonly ModelCall[] }) {
   const entries = runs.flatMap((r) => r.entries);
+  const callLine = missionCallLine(runs, missionCalls);
   const { tools } = modelUse(entries);
   // each model once per run, with the run it was called in
   // a fixture's stand-in calls are "Replayed", never "This flight": only live (or recorded live) calls are this flight's
@@ -111,6 +134,11 @@ function ModelStrip({ runs, chainCount }: { runs: readonly TraceRun[]; chainCoun
           {decisions > 0 && `: ${decidedBy(entries)}`}
         </span>
       </div>
+      {callLine && (
+        <p aria-label="Model calls in this mission" className="text-small text-text-2">
+          {callLine}
+        </p>
+      )}
       <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {models.map((m) => (
           <li key={m.key} data-run={m.run} className="flex flex-col gap-0.5 rounded-sm border border-line px-3 py-2">
