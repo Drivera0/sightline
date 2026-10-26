@@ -57,9 +57,7 @@ def _ops(cv2, np, bgr):
     grey = small.astype(np.float64) @ np.array([0.114, 0.587, 0.299])
     grey_sq = grey * grey
     # A skewed quadrilateral like a projected grid cell, in 1/16 px (shift=4).
-    cell = (np.array([[12, 30], [281, 8], [296, 270], [20, 292]], np.float64) * 16).astype(
-        np.int32
-    )
+    cell = (np.array([[12, 30], [281, 8], [296, 270], [20, 292]], np.float64) * 16).astype(np.int32)
 
     def enhance():
         lab = cv2.cvtColor(crop_384, cv2.COLOR_BGR2LAB)
