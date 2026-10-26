@@ -136,6 +136,8 @@ export function NeedsYou({
   onCall,
   onRecall,
   onConfirmClue,
+  onLogClue,
+  standing = null,
   found = null,
   tasks = [],
   onFound,
@@ -180,10 +182,14 @@ export function NeedsYou({
   onCall: (teamId: string, draft?: string) => void;
   onRecall: (teamId: string) => void;
   onConfirmClue: (clueId: string) => void;
+  /** Log a clue without mapping (the demo mission): a second button on its card. */
+  onLogClue?: (clueId: string) => void;
+  /** The visitor's standing approval in force (Send all) and its Stop, shown first. */
+  standing?: ReactNode;
   /** The subject is found (Mission.status "found"): when, if the record says. Proposals and candidates close. */
   found?: { at: string | null } | null;
   /** The guided assign step's main button on its card ("Send all N free teams…"). */
-  lead?: Lead | null;
+  lead?: Lead | readonly Lead[] | null;
   /** The item to point at (a need id, see above): ringed, the others hidden. Null: none. */
   highlight?: string | null;
 }) {
@@ -210,7 +216,8 @@ export function NeedsYou({
   const off = (has: (id: string) => boolean) => !!highlight && !has(highlight);
   const pointed = !!highlight && (highlight === "review" ? !!review : reports.some((r) => `report-${r.team.id}` === highlight) || items.some((i) => i.kind !== "review" && i.id === highlight) || proposals.some((p) => p.id === highlight && p.status === "pending"));
   // a sighting proposal and a photo review's possible clue are never hidden (the manager's own answer made them)
-  const shownAnyway = sightingProps.length + readbacks.filter((i) => isClueCandidate(i.clue)).length;
+  // (nor a clue waiting for its read-back: the scenario's clues wait for the manager whatever the step)
+  const shownAnyway = sightingProps.length + readbacks.filter((i) => !!i.clue && i.id !== highlight).length;
   const after = highlight ? Math.max(0, total - shownAnyway - (pointed ? (highlight === "review" ? reviewCount : 1) : 0)) : 0;
   // the agent's "send the nearest team to the sighting": the manager's own answer made it, never hidden or dimmed
   const sighting = sightingProps.length > 0 && (
@@ -229,6 +236,7 @@ export function NeedsYou({
       </h2>
       {/* never folded away: on a phone it scrolls inside a capped height, above the map */}
       <div aria-label="Approvals rail" className="flex max-h-[60vh] min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 lg:max-h-none">
+        {standing}
         {total === 0 && !found && <p className="px-1 py-2 text-small text-text-3">Nothing needs you. AI suggestions, photos to review, overdue teams and clues to confirm appear here.</p>}
         {found && (
           <ClosedOnFind
@@ -277,7 +285,7 @@ export function NeedsYou({
             <ApprovalInbox proposals={others} teams={teams} drones={drones} onDecide={onDecide} imageUrl={imageUrl} clueNote={clueNote} story={storyProposal} feedHref={undefined} order="oldest" highlight={highlight} lead={lead} />
           </>
         )}
-        {readbacks.length > 0 && <NeedsHead kind="readback" count={readbacks.length} hidden={off((x) => readbacks.some((i) => i.id === x)) && !readbacks.some((i) => isClueCandidate(i.clue))} />}
+        {readbacks.length > 0 && <NeedsHead kind="readback" count={readbacks.length} hidden={off((x) => readbacks.some((i) => i.id === x)) && !readbacks.some((i) => !!i.clue)} />}
         {readbacks.map((i) => {
           // a clue candidate from an image review: the nearest team goes to look (the same walk and sweep as any assignment)
           const candidate = isClueCandidate(i.clue);
@@ -294,11 +302,13 @@ export function NeedsYou({
               turn={i.turn}
               who={callsign(i.team)}
               onConfirm={i.clue ? () => onConfirmClue(i.clue!.id) : undefined}
+              onLog={i.clue && !candidate && onLogClue ? () => onLogClue(i.clue!.id) : undefined}
               onReply={i.team ? () => onCall(i.team!, `${callsign(i.team)}, Sightline. `) : undefined}
               look={look}
               lookNote={lookNote}
-              // a candidate came from the manager's own answer: never dimmed, its Confirm always works
-              highlight={candidate ? null : highlight}
+              // a candidate came from the manager's own answer, and a clue waits for the manager whatever the
+              // step: never dimmed, its Confirm always works (only the step's own clue is ringed)
+              highlight={i.clue && highlight !== i.id ? null : highlight}
             />
           );
         })}
@@ -385,9 +395,9 @@ export function ClosedOnFind({ proposals, reviewCount, count, at, clues = [], le
 /** A clue an image reviewer answered "Object" on (contract 15.7): a candidate until a team on the ground sees it. */
 export const isClueCandidate = (c: Clue | null): boolean => c?.source === "review";
 
-function ReadBack({ id, clue, turn, who, onConfirm, onReply, highlight, look = null, lookNote = null }: { id: string; clue: Clue | null; turn: RadioTurn | null; who: string; onConfirm?: () => void; onReply?: () => void; highlight?: string | null; look?: { label: string; onClick: () => void } | null; lookNote?: string | null }) {
+function ReadBack({ id, clue, turn, who, onConfirm, onLog, onReply, highlight, look = null, lookNote = null }: { id: string; clue: Clue | null; turn: RadioTurn | null; who: string; onConfirm?: () => void; onLog?: () => void; onReply?: () => void; highlight?: string | null; look?: { label: string; onClick: () => void } | null; lookNote?: string | null }) {
   const candidate = isClueCandidate(clue);
-  const minor = [...(onReply ? [{ label: "Reply", onClick: onReply }] : [])];
+  const minor = [...(onLog ? [{ label: "Log without mapping", onClick: onLog }] : []), ...(onReply ? [{ label: "Reply", onClick: onReply }] : [])];
   if (candidate && clue) {
     // a team goes to look first (the primary), Confirm once they have seen it (always live)
     return (
@@ -414,7 +424,9 @@ function ReadBack({ id, clue, turn, who, onConfirm, onReply, highlight, look = n
         clue
           ? candidate
             ? "From Review photos, low reliability on the map. Send a team to look; Confirm once they have seen it."
-            : `${who ? `From ${who}. ` : ""}Read it back to the team to confirm it.`
+            : who
+              ? `From ${who}. Read it back to the team to confirm it; the map moves only once it is confirmed.`
+              : "Logged at the command post. Confirm it to put it on the map."
           : undefined
       }
       primary={onConfirm ? { label: "Confirm clue", onClick: onConfirm } : onReply ? { label: `Reply to ${who}`, onClick: onReply } : undefined}

@@ -172,11 +172,15 @@ export function ReviewFrame({
                     type="button"
                     title={a.title}
                     aria-pressed={a.id === "object" ? picking : undefined}
+                    data-ai-pick={a.id === c.pickAnswer ? "" : undefined}
                     onClick={() => (a.id === "object" ? setPicking(!picking) : answer(a.id))}
-                    className={`sl-tap inline-flex min-h-11 flex-col items-start justify-center rounded-lg border px-3.5 py-1 text-left text-small text-text ${a.id === "person" ? "border-found bg-found/10 hover:bg-found/20" : a.id === "object" && picking ? "border-[var(--clue)]" : "border-border hover:bg-surface-strong"}`}
+                    // only the AI's own pick is marked (the cold test: The subject drawn as the suggestion beside
+                    // "AI: not a person — a grey bag"); no pick, nothing marked
+                    className={`sl-tap inline-flex min-h-11 flex-col items-start justify-center rounded-lg border px-3.5 py-1 text-left text-small text-text ${a.id === c.pickAnswer ? "border-found bg-found/10 hover:bg-found/20" : a.id === "object" && picking ? "border-[var(--clue)]" : "border-border hover:bg-surface-strong"}`}
                   >
                     <span className="flex items-center gap-2 font-medium">
                       {a.label} <KeyHint>{a.key}</KeyHint>
+                      {a.id === c.pickAnswer && <span className="text-caption font-normal text-text-2">AI's pick</span>}
                     </span>
                     <span className="text-caption text-text-3">{MEANS[a.id]}</span>
                   </button>
