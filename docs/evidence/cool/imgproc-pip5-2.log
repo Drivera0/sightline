@@ -1,0 +1,13 @@
+threads=16: done
+threads=1: done
+resize_linear_letterbox        0.647 ms (16 threads)      6.994 ms (1 thread)
+blob_1024                      2.243 ms (16 threads)      2.250 ms (1 thread)
+resize_cubic_2x                0.627 ms (16 threads)      8.037 ms (1 thread)
+zoom_native                    0.546 ms (16 threads)      1.028 ms (1 thread)
+enhance_contrast               1.746 ms (16 threads)      5.273 ms (1 thread)
+canopy_blur                    7.048 ms (16 threads)      7.070 ms (1 thread)
+fillpoly_cell                  0.013 ms (16 threads)      0.013 ms (1 thread)
+gaussian_full                  8.494 ms (16 threads)    114.912 ms (1 thread)
+cvtcolor_gray_full             0.469 ms (16 threads)      6.966 ms (1 thread)
+imread                       126.083 ms (16 threads)    126.964 ms (1 thread)
+wrote /opt/sl/out/imgproc-pip5-2.json

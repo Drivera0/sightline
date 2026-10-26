@@ -1,0 +1,5 @@
+run 1: 4.826 s/photo, 236.5 ms/slice forward (2000 slices)
+run 2: 4.863 s/photo, 237.8 ms/slice forward (2000 slices)
+VOC P=0.802 R=0.864 AP50=0.868 at 0.29
+cpu: 4.845 ± 0.026 s/photo, 237.1 ± 1.0 ms/slice
+wrote /opt/sl/out/bench-pip5.json

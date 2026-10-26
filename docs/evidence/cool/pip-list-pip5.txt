@@ -1,0 +1,5 @@
+Package       Version
+------------- --------
+numpy         1.26.4
+opencv-python 5.0.0.93
+pip           26.2.2

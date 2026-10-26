@@ -1,0 +1,24 @@
+== pip vs cool
+cpu vs cpu
+  VOC precision: 0.802 vs 0.802
+  VOC recall: 0.864 vs 0.864
+  VOC ap50: 0.868 vs 0.868
+  all (>= 0.05): 538 / 538 boxes, 538 matched at IoU >= 0.95, max conf diff 0.0000
+  >= 0.29: 363 / 363 boxes, 363 matched at IoU >= 0.95, max conf diff 0.0000
+  photos with identical boxes and confidences: 101 / 101
+== pip5 vs cool
+cpu vs cpu
+  VOC precision: 0.802 vs 0.802
+  VOC recall: 0.864 vs 0.864
+  VOC ap50: 0.868 vs 0.868
+  all (>= 0.05): 538 / 538 boxes, 538 matched at IoU >= 0.95, max conf diff 0.0000
+  >= 0.29: 363 / 363 boxes, 363 matched at IoU >= 0.95, max conf diff 0.0000
+  photos with identical boxes and confidences: 4 / 101
+== pip5 vs pip
+cpu vs cpu
+  VOC precision: 0.802 vs 0.802
+  VOC recall: 0.864 vs 0.864
+  VOC ap50: 0.868 vs 0.868
+  all (>= 0.05): 538 / 538 boxes, 538 matched at IoU >= 0.95, max conf diff 0.0000
+  >= 0.29: 363 / 363 boxes, 363 matched at IoU >= 0.95, max conf diff 0.0000
+  photos with identical boxes and confidences: 4 / 101

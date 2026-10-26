@@ -1,0 +1,134 @@
+instance-type: c6g.4xlarge
+ami-id: ami-03040ae9b0be1f439
+placement/region: us-west-2
+placement/availability-zone: us-west-2a
+
+Linux ip-172-31-37-147 6.14.0-1018-aws #18~24.04.1-Ubuntu SMP Mon Nov 24 19:32:52 UTC 2025 aarch64 aarch64 aarch64 GNU/Linux
+
+PRETTY_NAME="Ubuntu 24.04.3 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.3 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=noble
+LOGO=ubuntu-logo
+
+Architecture:                            aarch64
+CPU op-mode(s):                          32-bit, 64-bit
+Byte Order:                              Little Endian
+CPU(s):                                  16
+On-line CPU(s) list:                     0-15
+Vendor ID:                               ARM
+BIOS Vendor ID:                          AWS
+Model name:                              Neoverse-N1
+BIOS Model name:                         AWS Graviton2 AWS Graviton2 CPU @ 2.5GHz
+BIOS CPU family:                         257
+Model:                                   1
+Thread(s) per core:                      1
+Core(s) per socket:                      16
+Socket(s):                               1
+Stepping:                                r3p1
+BogoMIPS:                                243.75
+Flags:                                   fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp
+L1d cache:                               1 MiB (16 instances)
+L1i cache:                               1 MiB (16 instances)
+L2 cache:                                16 MiB (16 instances)
+L3 cache:                                32 MiB (1 instance)
+NUMA node(s):                            1
+NUMA node0 CPU(s):                       0-15
+Vulnerability Gather data sampling:      Not affected
+Vulnerability Ghostwrite:                Not affected
+Vulnerability Indirect target selection: Not affected
+Vulnerability Itlb multihit:             Not affected
+Vulnerability L1tf:                      Not affected
+Vulnerability Mds:                       Not affected
+Vulnerability Meltdown:                  Not affected
+Vulnerability Mmio stale data:           Not affected
+Vulnerability Reg file data sampling:    Not affected
+Vulnerability Retbleed:                  Not affected
+Vulnerability Spec rstack overflow:      Not affected
+Vulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:                Mitigation; __user pointer sanitization
+Vulnerability Spectre v2:                Mitigation; CSV2, BHB
+Vulnerability Srbds:                     Not affected
+Vulnerability Tsa:                       Not affected
+Vulnerability Tsx async abort:           Not affected
+Vulnerability Vmscape:                   Not affected
+
+               total        used        free      shared  buff/cache   available
+Mem:              30           0          27           0           2          30
+Swap:              0           0           0
+
+COOL venv: /opt/cool/venvs/python_3.12
+/opt/cool:
+total 32
+drwxr-xr-x 8 root root 4096 Jan 23  2026 .
+drwxr-xr-x 5 root root 4096 Oct 26 01:35 ..
+drwxr-xr-x 4 root root 4096 Jan  2  2026 cpp_sdk
+drwxr-xr-x 3 root root 4096 Jan 22  2026 python_3.10
+drwxr-xr-x 3 root root 4096 Jan 22  2026 python_3.11
+drwxr-xr-x 3 root root 4096 Jan 22  2026 python_3.12
+drwxr-xr-x 5 root root 4096 Jan 23  2026 samples
+drwxr-xr-x 5 root root 4096 Jan 22  2026 venvs
+
+/opt/cool/venvs:
+total 20
+drwxr-xr-x 5 root root 4096 Jan 22  2026 .
+drwxr-xr-x 8 root root 4096 Jan 23  2026 ..
+drwxr-xr-x 5 root root 4096 Jan 22  2026 python_3.10
+drwxr-xr-x 5 root root 4096 Jan 22  2026 python_3.11
+drwxr-xr-x 5 root root 4096 Jan 22  2026 python_3.12
+cmake
+libopencv_calib3d.so
+libopencv_calib3d.so.4.12.0
+libopencv_calib3d.so.412
+libopencv_core.so
+libopencv_core.so.4.12.0
+libopencv_core.so.412
+libopencv_dnn.so
+libopencv_dnn.so.4.12.0
+libopencv_dnn.so.412
+libopencv_features2d.so
+libopencv_features2d.so.4.12.0
+libopencv_features2d.so.412
+libopencv_flann.so
+libopencv_flann.so.4.12.0
+libopencv_flann.so.412
+libopencv_gapi.so
+libopencv_gapi.so.4.12.0
+libopencv_gapi.so.412
+libopencv_highgui.so
+libopencv_highgui.so.4.12.0
+libopencv_highgui.so.412
+libopencv_imgcodecs.so
+libopencv_imgcodecs.so.4.12.0
+libopencv_imgcodecs.so.412
+libopencv_imgproc.so
+libopencv_imgproc.so.4.12.0
+libopencv_imgproc.so.412
+libopencv_ml.so
+libopencv_ml.so.4.12.0
+libopencv_ml.so.412
+libopencv_objdetect.so
+libopencv_objdetect.so.4.12.0
+libopencv_objdetect.so.412
+libopencv_photo.so
+libopencv_photo.so.4.12.0
+libopencv_photo.so.412
+libopencv_stitching.so
+libopencv_stitching.so.4.12.0
+libopencv_stitching.so.412
+libopencv_video.so
+libopencv_video.so.4.12.0
+libopencv_video.so.412
+libopencv_videoio.so
+libopencv_videoio.so.4.12.0
+libopencv_videoio.so.412
+libtbb.so
+pkgconfig

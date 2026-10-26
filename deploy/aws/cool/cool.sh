@@ -7,7 +7,7 @@
 #   bash deploy/aws/cool/cool.sh terminate   # terminate the instance and delete its role and group
 #   bash deploy/aws/cool/cool.sh shell       # an SSM shell on it (needs session-manager-plugin)
 #
-# Before the first launch the account must subscribe to "Cloud Optimized OpenCV for AWS Graviton4"
+# Before the first launch the account must subscribe to "Cloud Optimized OpenCV for AWS Graviton" (COOL)
 # on AWS Marketplace (7-day free trial, then $0.04/h for the software). Without it run-instances
 # fails with OptInRequired. Cancel the subscription in the Marketplace console when done.
 #
