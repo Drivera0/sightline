@@ -589,32 +589,36 @@ export function GuideMark({
           <span className={`sl-pill ${call ? "" : "opacity-80"}`} data-tone={call ? "caution" : "neutral"}>
             {call ? "Your call" : "Watch this"}
           </span>
-          {/* while the clock runs the heading is short ("Next: Clue"): one line, its whole text on hover */}
-          <span className={`min-w-0 flex-1 text-text-2 ${call ? "" : "truncate"}`} title={call ? undefined : heading}>
+          {/* while the clock runs the heading is short ("Next: Clue"): it keeps its whole width and the buttons
+              after it wrap to the next line (the cold test: "Next: Revie…" in Watch instead on a desktop) */}
+          <span data-guide-heading className={`text-text-2 ${call ? "min-w-0 flex-1" : "max-w-full flex-[1_0_auto] break-words"}`} title={call ? undefined : heading}>
             {heading}
           </span>
-          {phone && (reviewOpen || !inBar) && (
-            <button type="button" onClick={() => setUnfolded(false)} className="sl-tap shrink-0 text-small text-text-2 hover:text-text">
-              Hide
+          {/* the buttons wrap as one group, so a heading kept whole never leaves one of them alone on a line */}
+          <span className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-x-2 gap-y-1">
+            {phone && (reviewOpen || !inBar) && (
+              <button type="button" onClick={() => setUnfolded(false)} className="sl-tap shrink-0 text-small text-text-2 hover:text-text">
+                Hide
+              </button>
+            )}
+            {watching ? (
+              <button type="button" onClick={onTakeOver} className="sl-tap shrink-0 text-small text-text hover:underline">
+                Take over <KeyHint>T</KeyHint>
+              </button>
+            ) : (
+              <button type="button" onClick={onWatch} className="sl-tap shrink-0 text-small text-text-2 hover:text-text">
+                Watch instead
+              </button>
+            )}
+            {onRestart && (
+              <button type="button" onClick={() => setLeaving("restart")} aria-expanded={leaving === "restart"} aria-haspopup="dialog" className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
+                Restart
+              </button>
+            )}
+            <button type="button" onClick={() => setLeaving("leave")} aria-expanded={leaving === "leave"} aria-haspopup="dialog" className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
+              Leave
             </button>
-          )}
-          {watching ? (
-            <button type="button" onClick={onTakeOver} className="sl-tap shrink-0 text-small text-text hover:underline">
-              Take over <KeyHint>T</KeyHint>
-            </button>
-          ) : (
-            <button type="button" onClick={onWatch} className="sl-tap shrink-0 text-small text-text-2 hover:text-text">
-              Watch instead
-            </button>
-          )}
-          {onRestart && (
-            <button type="button" onClick={() => setLeaving("restart")} aria-expanded={leaving === "restart"} aria-haspopup="dialog" className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
-              Restart
-            </button>
-          )}
-          <button type="button" onClick={() => setLeaving("leave")} aria-expanded={leaving === "leave"} aria-haspopup="dialog" className="sl-tap shrink-0 text-small text-text-3 hover:text-text">
-            Leave
-          </button>
+          </span>
         </span>
         {call ? (
           <>
