@@ -103,6 +103,7 @@ export function useGuideRun({
   onRestart,
   guideHref = "#m/demo?guide=1",
   scenariosHref = "#scenarios",
+  setupHref = null,
 }: {
   demo: boolean;
   scenario: DemoFull | null;
@@ -119,6 +120,8 @@ export function useGuideRun({
   /** Free play's ways out: the guided search on this scenario, the scenario cards. */
   guideHref?: string;
   scenariosHref?: string;
+  /** Open play: back to the visitor's setup (#play), in place of the guided search. */
+  setupHref?: string | null;
 }): GuideRun {
   const guide = useGuide((x) => x.guide);
   const on = demo && !!guide;
@@ -604,6 +607,7 @@ export function useGuideRun({
         onRestart={() => onRestart(false, true)}
         guideHref={guideHref}
         scenariosHref={scenariosHref}
+        setupHref={setupHref}
         waiting={pendingCount}
         atCall={clockMs <= new Date(CHECKPOINTS[0]!.at).getTime()}
       />

@@ -23,6 +23,8 @@
 //   #m/<id>/photos?try         the photos view with Try a photo open
 //   #m/<id>/card/<sector>      a sector's printable assignment card (live missions)
 //   #new                       the empty console: start a search, or load the demo mission
+//   #play                      open play: set up your own search (who, where, base camp, teams, drones),
+//                              then Start opens free play on it (#m/demo/map?s=play; front/OpenPlay.tsx)
 //   #about                     the home page, scrolled to its About section (who built it, the entries,
 //                              the colours, the limits, the licences); it was a sheet over the console
 //
@@ -61,7 +63,9 @@ export type Route =
   | { kind: "card"; id: string; sector: string }
   /** `section`: a section of the home page to scroll to on arrival (#about). */
   | { kind: "home"; section?: HomeSection }
-  | { kind: "new" };
+  | { kind: "new" }
+  /** Open play's setup page (front/OpenPlay.tsx). */
+  | { kind: "play" };
 
 /** The home page's sections an address can land on. */
 export type HomeSection = "about" | "scenarios";
@@ -73,6 +77,8 @@ export const ABOUT_ID = "home-about";
 
 /** The home page. */
 export const HOME = "#";
+/** Open play's setup page: the visitor's own search, then the console on it (command/openPlay.ts). */
+export const PLAY_HASH = "#play";
 export const DEMO = "#m/demo";
 /** The console on its own: free play, a fresh mission at the call (no coach bar). */
 export const DEMO_CONSOLE_HASH = "#m/demo/map";
@@ -127,6 +133,7 @@ const MISSION = /^#m\/([0-9a-f]{8}|demo)(?:\/([a-z]+))?(?:\/([^?]*))?(?:\?(.*))?
 export function routeFromHash(hash: string): Route {
   const h = redirectFromHash(hash) ?? hash;
   if (h === "#new") return { kind: "new" };
+  if (h === PLAY_HASH) return { kind: "play" };
   // About was a sheet over the console; it is now a section of the home page, and old links land there
   if (h === "#about") return { kind: "home", section: "about" };
   // the scenario cards (leaving the guided simulation lands here)

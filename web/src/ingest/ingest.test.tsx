@@ -20,6 +20,7 @@ import { BANNED } from "../command/terms";
 // MapLibre needs WebGL, which jsdom lacks; the real pick was checked in Chromium.
 vi.mock("./LkpPicker", () => ({ LkpPicker: () => <div aria-label="Pick the last known position on the map" /> }));
 vi.mock("../map/heat/LiveHeatMap", () => ({ LiveHeatMap: () => <figure aria-label="Live map" /> }));
+vi.mock("../front/PlayMap", () => ({ PlayMap: () => <div aria-label="Search area map" /> }));
 
 const API = { base: "http://api.test" };
 const jpeg = (name: string) => new File(["x"], name, { type: "image/jpeg" });
@@ -521,6 +522,96 @@ describe("the guided search (#m/demo?guide=1): the manager makes each decision",
     expect(found).toBe(true);
     await waitFor(() => expect(screen.getByRole("status", { name: "Mission status" })).toHaveTextContent("Found"), { timeout: 3000 });
   }, 90_000);
+});
+
+describe("open play (#play): the visitor's own setup, then free play on it", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useGuide.getState().stop();
+  });
+
+  it("ticks the checklist step by step, and Start lands in free play, paused at the call, with the roster, base camp and drones applied", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    localStorage.clear();
+    window.history.replaceState(null, "", "#");
+    render(<App base={null} />);
+    // the home page's own way in: the hero's button goes to the Open play section, whose card links the setup
+    expect(screen.getByRole("button", { name: "Open play: set up your own search" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Set up your own search" })).toHaveAttribute("href", "#play");
+    act(() => {
+      window.location.hash = "#play";
+    });
+    await screen.findByRole("heading", { name: "Set up your own search" }, { timeout: 5000 });
+    const list = screen.getByRole("list", { name: "Setup checklist" });
+    const step = (id: string) => list.querySelector(`[data-step="${id}"]`)!;
+    expect(screen.getByText("0 of 5 done")).toBeInTheDocument();
+    // 1. who is missing
+    await userEvent.click(screen.getByRole("radio", { name: /^Missing child/ }));
+    const desc = screen.getByLabelText(/Description: age, clothing/);
+    await userEvent.clear(desc);
+    await userEvent.type(desc, "child, 8, yellow raincoat, red boots");
+    expect(step("who")).toHaveAttribute("data-done", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Next step" }));
+    // 2. where: typed (the map takes a click; the fields are the keyboard's way), and the other areas say why not
+    expect(screen.getByRole("radio", { name: /^Another North Shore area/ })).toBeDisabled();
+    expect(screen.getByText(/More areas need a survey flown there first/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Latitude"), "49.3705");
+    await userEvent.type(screen.getByLabelText("Longitude"), "-122.9445");
+    await userEvent.tab();
+    await waitFor(() => expect(step("where")).toHaveAttribute("data-done", "true"));
+    expect(step("where")).toHaveTextContent("Sector C2");
+    await userEvent.click(screen.getByRole("button", { name: "Next step" }));
+    // 3. base camp
+    await userEvent.click(screen.getByRole("radio", { name: /^Viewpoint lot/ }));
+    expect(step("camp")).toHaveAttribute("data-done", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Next step" }));
+    // 4. teams: rename one, remove one
+    const first = screen.getByLabelText("Team 1 callsign");
+    await userEvent.clear(first);
+    await userEvent.type(first, "Rescue 1");
+    await userEvent.click(screen.getByRole("button", { name: "Remove Team Four" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm the teams" }));
+    expect(step("teams")).toHaveAttribute("data-done", "true");
+    // 5. drones: one, and the field kit's ways in are shown, never selectable
+    await userEvent.click(screen.getByRole("button", { name: "1" }));
+    expect(screen.getByRole("radio", { name: /^Watch the SD card folder/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /^Live video feed/ })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Confirm the drones" }));
+    expect(screen.getByText("5 of 5 done")).toBeInTheDocument();
+    // 6. review, with what stays fixed, then Start
+    const review = within(step("review") as HTMLElement);
+    expect(review.getByText("What stays fixed in this build")).toBeInTheDocument();
+    expect(review.getByText(/does not move with your last known point/)).toBeInTheDocument();
+    // plain words, and none of the engine's (the console's own rule, terms.ts)
+    const words = document.body.textContent ?? "";
+    expect(BANNED.filter((re) => re.test(words))).toEqual([]);
+    expect(words).not.toMatch(/\b(demo|scripted|recorded|simulated)\b/i);
+    expect(words).not.toMatch(/\bclear(ed|s)?\b/i);
+    await userEvent.click(review.getByRole("button", { name: "Start the search" }));
+    expect(window.location.hash).toBe("#m/demo/map?s=play");
+    const clock = await screen.findByRole("group", { name: "Mission clock" }, { timeout: 8000 });
+    expect(useGuide.getState().guide).toMatchObject({ free: true, paused: true, choices: [] });
+    expect(clock).toHaveTextContent("Nothing runs until you press Play");
+    expect(within(clock).getByRole("link", { name: "Edit setup" })).toHaveAttribute("href", "#play");
+    await waitFor(() => expect(useMission.getState().teams.map((t) => t.callsign)).toEqual(["Rescue 1", "Team Two", "Team Three"]));
+    const m = useMission.getState();
+    expect(m.mission?.base_camp?.name).toBe("Viewpoint lot");
+    expect(m.mission?.subject).toBe("child, 8, yellow raincoat, red boots");
+    expect(m.mission?.area.lkp).toEqual({ lat: 49.3705, lon: -122.9445 });
+    expect(m.fleet?.drones.length ?? 0).toBeLessThanOrEqual(1);
+    const resources = screen.getByRole("region", { name: "Resources" });
+    expect(resources).toHaveTextContent("Rescue 1");
+    expect(resources).not.toHaveTextContent("Team Four");
+    expect(screen.getByRole("region", { name: "Subject" })).toHaveTextContent("Child, 8, yellow raincoat, red boots");
+    // the setup is remembered: Edit setup returns to it, every step still ticked
+    act(() => {
+      window.location.hash = "#play";
+    });
+    await screen.findByRole("heading", { name: "Set up your own search" }, { timeout: 5000 });
+    expect(screen.getByText("5 of 5 done")).toBeInTheDocument();
+  }, 60_000);
 });
 
 describe("free play (#m/demo/map): the console on its own, a fresh mission at the call", () => {

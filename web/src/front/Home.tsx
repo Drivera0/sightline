@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppBar } from "../shell/AppBar";
 import { Button, DISCLOSURE, DISCLOSURE_TITLE, Label } from "../shell/components";
-import { ABOUT_ID, SCENARIOS_ID, type HomeSection } from "../shell/flow";
+import { ABOUT_ID, PLAY_HASH, SCENARIOS_ID, type HomeSection } from "../shell/flow";
 import { AboutSection } from "./About";
 import { AgenticVision } from "./AgenticVision";
 import { Architecture } from "./Architecture";
@@ -37,6 +37,11 @@ export const HOME = {
   stack: ["OpenCV 5 cv2.dnn", "NVIDIA Nemotron, Parakeet, Magpie", "Nebius Token Factory", "Tavily"],
   primary: "Try the guided simulation",
   secondary: "Open the console",
+  play: "Open play: set up your own search",
+  playTitle: "Open play",
+  playLead:
+    "Set the search up yourself, the way a search manager does: who is missing, where they were last seen on the map, base camp, your ground teams and your drones. Then the console opens on it, paused at the call, and every decision is yours.",
+  playSteps: ["Who is missing", "Where they were last seen", "Base camp", "Ground teams", "Drones and photo feeds", "Review and start"],
   facts: "Measured, with sources",
   built: BUILT_WITH.title,
   how: "How it works",
@@ -223,7 +228,10 @@ function Hero() {
           <Button variant="primary" size="lg" onClick={() => goTo("home-sim")}>
             {HOME.primary}
           </Button>
-          <Button href="#m/demo/map" size="lg" className="bg-bg">
+          <Button size="lg" className="bg-bg" onClick={() => goTo("home-play")}>
+            {HOME.play}
+          </Button>
+          <Button href="#m/demo/map" variant="ghost" size="lg">
             {HOME.secondary}
           </Button>
         </div>
@@ -436,6 +444,32 @@ function Intake() {
   );
 }
 
+/** Open play: the six steps of the setup, and the way in (#play). */
+function OpenPlayCard() {
+  return (
+    <div className="flex flex-col gap-5 rounded-lg border border-line bg-surface-solid p-4 lg:flex-row lg:items-center lg:gap-10 lg:p-6">
+      <div className="flex min-w-0 flex-col gap-3 lg:max-w-[46ch]">
+        <p className="text-body text-text">{HOME.playLead}</p>
+        <div>
+          <Button href={PLAY_HASH} variant="secondary" size="lg">
+            Set up your own search
+          </Button>
+        </div>
+      </div>
+      <ol className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2" aria-label="The setup's steps">
+        {HOME.playSteps.map((s, i) => (
+          <li key={s} className="flex items-center gap-3 rounded-sm border border-line px-3 py-2 text-small text-text">
+            <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border text-caption tabular-nums text-text-2">
+              {i + 1}
+            </span>
+            {s}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 function JudgeStrip() {
   return (
     <ul className="grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
@@ -499,6 +533,10 @@ export function Home({ section = null }: { section?: HomeSection | null } = {}) 
               <p className="text-small text-text-2">{HOME.simNote}</p>
             </div>
             <ScenarioCards />
+          </Reveal>
+
+          <Reveal id="home-play" title={HOME.playTitle}>
+            <OpenPlayCard />
           </Reveal>
 
           <Reveal id="home-judges" title={HOME.judges}>
