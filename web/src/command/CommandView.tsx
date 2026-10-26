@@ -185,7 +185,7 @@ export function CommandView(p: CommandProps) {
     : // Resources runs the full height on the left (the T-card board), the timeline under the map and Needs you
       `${p.dock ? "lg:grid-cols-[19rem_minmax(0,1fr)_24rem]" : "lg:grid-cols-[19rem_minmax(0,1fr)_21rem]"} lg:grid-rows-[minmax(0,1fr)_var(--tl-h)]`;
   return (
-    <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
+    <div role="group" aria-label="Command view" style={{ ["--tl-h" as string]: p.dock ? `min(${timelineH}px, 28vh)` : `${timelineH}px` }} className={`relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-3 ${grid}`}>
       {p.conditionsOpen && p.conditionsData && (
         // over the console, under the status line (the map keeps its place); W or Esc closes it
         <div className="absolute inset-x-0 top-0 z-30 max-h-[75vh] overflow-y-auto rounded-lg shadow-[var(--shadow-pop)]">

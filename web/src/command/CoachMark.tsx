@@ -308,7 +308,7 @@ export function GuideMark({
     if (first.current && !onConsole) return first.current.focus({ preventScroll: true });
     const el = findTarget(target);
     // the item's main button (Needs you's `data-primary`: "Send Team One to C2", "Confirm clue"), else Person
-    const btn = el ? (el.querySelector<HTMLButtonElement>("button[data-primary]") ?? [...el.querySelectorAll<HTMLButtonElement>("button")].find((b) => /^(Person|Record find|Confirm)\b/.test(b.textContent?.trim() ?? ""))) : null;
+    const btn = el ? (el instanceof HTMLButtonElement ? el : el.querySelector<HTMLButtonElement>("button[data-primary]") ?? [...el.querySelectorAll<HTMLButtonElement>("button")].find((b) => /^(Person|Record find|Confirm)\b/.test(b.textContent?.trim() ?? ""))) : null;
     (btn ?? card.current)?.focus({ preventScroll: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [call, text]);

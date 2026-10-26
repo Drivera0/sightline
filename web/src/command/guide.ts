@@ -262,7 +262,7 @@ export function injects(input: GuideInput): Inject[] {
         ...(other ? [{ key: "3", id: `team:${other.id}`, label: `${callsign(other.id)} to ${p.target.sector}`, costMin: 0, effect: `${callsign(other.id)} walks out and sweeps ${p.target.sector}`, on: "Edit on the card, then its button" }] : []),
         { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it", on: "a sector on the map" },
       ],
-      target: ["[data-story-proposal]", `[data-proposal="${p.id}"]`, REGION.needs],
+      target: ["[data-story-proposal] button[data-primary]", "[data-story-proposal]", `[data-proposal="${p.id}"]`, REGION.needs],
       proposal: p.id,
     });
   }
@@ -330,7 +330,7 @@ export function injects(input: GuideInput): Inject[] {
         ...(n > 1 ? [{ key: "2", id: "approve", label: `Send only ${team} to the AI's pick`, costMin: 0, effect: `${team} walks to it and sweeps it; the other free teams wait at base camp`, on: "the card's second button" }] : []),
         { key: "M", id: "map", label: "Another sector, on the map", costMin: 0, effect: "the team you assign there sweeps it", on: "a sector on the map" },
       ],
-      target: ["[data-story-proposal]", REGION.needs],
+      target: ["[data-story-proposal] button[data-primary]", "[data-story-proposal]", REGION.needs],
       proposal: `g${String(passes.indexOf(x) + 1).padStart(3, "0")}`,
     });
   }
