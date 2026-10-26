@@ -32,7 +32,7 @@ export interface Goal {
   id: GoalId;
   /** The goal, in full ("Find the subject before last light"). */
   label: string;
-  /** Its chip's name ("Find by last light"). */
+  /** Its chip's name ("Find before dark"). */
   short: string;
   /** Its chip's figure ("2/3", "found"; empty while the find is to play for: the status line has the daylight left). */
   brief: string;
@@ -52,7 +52,7 @@ export function missionGoals(i: GoalInput): Goal[] {
   const find: Goal = {
     id: "find",
     label: "Find the subject before last light",
-    short: "Find by last light",
+    short: "Find before dark",
     brief: i.found !== null ? (foundInTime ? "found" : "late") : left > 0 ? "" : "dark",
     state: foundInTime ? "done" : i.found !== null || left <= 0 ? "missed" : "open",
     progress: i.found !== null ? (foundInTime ? "found" : "found after last light") : left > 0 ? `${fmtMin(left)} of light left` : "last light has gone",
