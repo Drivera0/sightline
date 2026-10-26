@@ -52,14 +52,14 @@ describe("the review frame", () => {
     act(() => useConsole.getState().openReview(null));
     const frame = screen.getByRole("dialog", { name: "Review photos" });
     expect(frame).toHaveTextContent("1 of 3");
-    expect(within(frame).getByAltText("Survey photo f0336, the whole photo")).toHaveAttribute("src", "/f/f0336.jpg");
+    expect(within(frame).getByAltText("Survey photo 336, the whole photo")).toHaveAttribute("src", "/f/f0336.jpg");
     expect(useSelection.getState().selectedDetectionId).toBe("f0336-d01"); // the map pans to it
     expect(reviewKeys.frameOpen).toBe(true);
     await userEvent.keyboard("p");
     expect(onAnswer).toHaveBeenLastCalledWith("f0336-d01", "person");
     expect(frame).toHaveTextContent("2 of 3");
     // the photo it moved on to, by its survey photo (no detection id on screen)
-    expect(within(frame).getByText("Survey photo f0273")).toBeInTheDocument();
+    expect(within(frame).getByText("Survey photo 273")).toBeInTheDocument();
     expect(frame.textContent).not.toMatch(/f0\d{3}-d\d{2}/);
     await userEvent.keyboard("u");
     await userEvent.click(within(frame).getByRole("button", { name: /Not a person/ }));

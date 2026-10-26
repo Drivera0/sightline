@@ -151,7 +151,7 @@ export function pointFeatures(
   const camp = mission?.base_camp;
   const found = mission?.found;
   return [
-    ...(camp ? [point("base", "base", camp.name ? `Base camp: ${camp.name}` : "Base camp", "text", camp.lon, camp.lat)] : []),
+    ...(camp ? [point("base", "base", camp.name && !/^base camp$/i.test(camp.name.trim()) ? `Base camp: ${camp.name}` : "Base camp", "text", camp.lon, camp.lat)] : []),
     ...(found ? [point("found", "found", `Found by ${callsign(found.team)} in ${found.sector}`, "found", found.lon, found.lat)] : []),
     point("lkp", "", "Last known point", "accent", base.lkp.lon, base.lkp.lat),
     ...clueFeatures(clues, callsign, time),

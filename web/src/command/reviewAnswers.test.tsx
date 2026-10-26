@@ -42,7 +42,7 @@ describe("review answers", () => {
     expect(onAnswer).toHaveBeenLastCalledWith("f0501-d01", "not_subject");
     fireEvent.keyDown(window, { key: "o" });
     const picker = screen.getByRole("group", { name: "Object type" });
-    expect(within(picker).getAllByRole("button").map((b) => b.textContent)).toEqual(["backpack1", "fire ring2", "shelter3", "other4", "Cancel"]);
+    expect(within(picker).getAllByRole("button").map((b) => b.textContent)).toEqual(["backpack1", "clothing2", "water bottle / gear3", "fire ring4", "shelter5", "other6", "Cancel"]);
     fireEvent.keyDown(window, { key: "1" });
     expect(onAnswer).toHaveBeenLastCalledWith("f0502-d01", "object", "backpack");
   });

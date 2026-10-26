@@ -79,6 +79,8 @@ export interface PlainCtx {
 export function plainWords(text: string, ctx: PlainCtx = {}): string {
   const leg = (id: string) => ctx.legs?.get(id) ?? null;
   let s = text;
+  // the scenario's prior, said plainly (the model and its citations stay in the Trace)
+  s = s.replace(/^Demo scenario: ([^(;]+?) \(seed \d+\);.*\bprior$/, (_, name: string) => `Search area drawn from how ${priorWho(name)} usually travel (ISRID)`);
   // the scenario's scripted decisions are the search manager's
   s = s.replace(/the scenario's search manager/g, "the search manager").replace(/The scenario's search manager/g, "The search manager");
   // the visitor is the console's "Search manager": "you", so the scenario's decisions stay apart from theirs
@@ -124,5 +126,32 @@ export function plainWords(text: string, ctx: PlainCtx = {}): string {
   return s.replace(/\s{2,}/g, " ").replace(/^\s*·\s*/, "").trim();
 }
 
+/** Who a scenario's prior is about: "Missing child" → "lost children". */
+function priorWho(name: string): string {
+  if (/child/i.test(name)) return "lost children";
+  if (/despondent/i.test(name)) return "despondent people";
+  if (/dementia/i.test(name)) return "people with dementia";
+  if (/hiker/i.test(name)) return "lost hikers";
+  return "lost people";
+}
+
 /** The words a manager-facing console may not show (noJargon.test.tsx scans the rendered console for them). */
-export const BANNED = [/\btriage\b/i, /\blegs?\b/i, /\bsecond look\b/i, /\bf\d{4}-d\d{2}\b/, /\bserpentine\b/i, /\bre-task/i, /\bpromoted\b/i] as const;
+export const BANNED = [
+  /\btriage\b/i,
+  /\blegs?\b/i,
+  /\bsecond look\b/i,
+  /\bf\d{4}-d\d{2}\b/,
+  /\bserpentine\b/i,
+  /\bre-task/i,
+  /\bpromoted\b/i,
+  // usability test round 2's leftovers
+  /\bSurvey photo f\d{4}\b/,
+  /\bevery draw\b/i,
+  /\bAgent's line\b/i,
+  /\bline \d+ of \d+\b/,
+  /\bno quote in the trace\b/i,
+  /\(seed \d+\)/,
+  /\bterrain affinity\b/i,
+  /\bBase camp: Base camp\b/i,
+  /\bAI suggests: Detector score\b/i,
+] as const;

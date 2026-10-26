@@ -232,7 +232,7 @@ describe("the end screen", () => {
     );
     expect(screen.getByText("You vs the agent")).toBeTruthy();
     expect(container.querySelector("[data-verdict]")!.textContent).toBe(versus.verdict);
-    expect(container.querySelector("[data-decision-time]")!.textContent).toMatch(/^You took \d+ min \d\d s to make \d+ decisions \(median 20 s\); the agent proposed each as the data landed\.$/);
+    expect(container.querySelector("[data-decision-time]")!.textContent).toMatch(/^You took \d+ min \d\d s to make \d+ decisions \(median 20 s\); the AI proposed each as the data landed\.$/);
     expect((container.querySelector("[data-details]") as HTMLDetailsElement).open).toBe(false);
     expect(container.querySelector('[data-row="survey"]')!.textContent).toContain("+12 min");
     for (const name of ["Try again", "Replay, following the agent", "Another scenario"]) expect(screen.getByText(name)).toBeTruthy();

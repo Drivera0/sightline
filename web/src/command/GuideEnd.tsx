@@ -74,7 +74,7 @@ function FindBars({ you, agent }: { you: number | null; agent: number | null }) 
     <div className="flex flex-col gap-1" data-find-bars>
       <span className="text-small text-text-2">Time to find, mission minutes from the call</span>
       {row("Your search", you, "bg-accent")}
-      {row("Agent's line", agent, "bg-text-3")}
+      {row("The AI's choices", agent, "bg-text-3")}
     </div>
   );
 }
@@ -111,8 +111,8 @@ function Versus({ v, onReplay, onWatchAgent, followed }: { v: Comparison; onRepl
   const mine = v.times.length;
   const timeLine =
     mine > 0
-      ? `You took ${fmtDuration(v.totalMs)} to make ${mine} decision${mine === 1 ? "" : "s"}${v.medianMs !== null && mine > 1 ? ` (median ${fmtDuration(v.medianMs)})` : ""}; the agent proposed each as the data landed.`
-      : "Watch instead made every decision; the agent proposed each as the data landed.";
+      ? `You took ${fmtDuration(v.totalMs)} to make ${mine} decision${mine === 1 ? "" : "s"}${v.medianMs !== null && mine > 1 ? ` (median ${fmtDuration(v.medianMs)})` : ""}; the AI proposed each as the data landed.`
+      : "Watch instead made every decision; the AI proposed each as the data landed.";
   return (
     <section aria-labelledby="guide-versus-title" className="flex flex-col gap-4" data-versus>
       <div className="flex flex-col gap-1">
@@ -152,7 +152,7 @@ function Versus({ v, onReplay, onWatchAgent, followed }: { v: Comparison; onRepl
                   <>✓ {r.you}</>
                 ) : (
                   <>
-                    {r.you} <span className="text-text-3">(agent: {r.agent})</span>
+                    {r.you} <span className="text-text-3">(AI's pick: {r.agent})</span>
                   </>
                 )}
               </span>
@@ -242,7 +242,7 @@ export function GuideEnd({
             <span className="mr-1.5 inline-block transition-transform group-open:rotate-90" aria-hidden="true">
               ›
             </span>
-            Show the details: every decision, the sectors and every draw
+            Show the details: every decision, the sectors and how each pass went
           </summary>
           <div className="flex flex-col gap-5 p-3 pt-1">
             <section aria-label="Decisions" className="flex flex-col gap-2">
@@ -287,8 +287,8 @@ export function GuideEnd({
                 <p className="text-caption text-text-3">Shaded: searched without a find, at the POD shown. Green: the subject's sector and position.</p>
               </div>
               <div className="flex flex-col gap-2">
-                <h3 className="text-small font-medium text-text-2">Every draw</h3>
-                <p className="text-caption text-text-3">A pass detects the subject when its sector holds them and its draw is under its POD. The draws are fixed by the seed ({seed}) and the pass: the same choices give the same result.</p>
+                <h3 className="text-small font-medium text-text-2">How each pass went</h3>
+                <p className="text-caption text-text-3">A pass finds the subject when its sector holds them, with the chance its POD gives. That chance is fixed for this scenario ({seed}) and each pass: the same choices give the same result.</p>
                 <ul className="flex flex-col gap-0.5 font-mono text-caption text-text-2">
                   {wash.draws.map((d) => (
                     <li key={d}>{d}</li>

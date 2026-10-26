@@ -140,7 +140,7 @@ export function compare(input: GuideInput, wash: HotWash, lastLight: number): Co
   };
 
   const pip = (id: string) => PIPS.find((x) => x.id === id)?.label ?? id;
-  const label = (c: (typeof choices)[number]) => (c.inject === "triage" ? `Triage ${c.card ?? ""}`.trim() : c.key.startsWith("assign-") ? `Assign ${c.key.slice(7)}` : pip(c.inject));
+  const label = (c: (typeof choices)[number]) => (c.inject === "triage" ? pip("triage") : c.key.startsWith("assign-") ? `Assign ${c.key.slice(7)}` : pip(c.inject));
   const think = (c: (typeof choices)[number]) => (!c.watched && c.shownAt !== undefined && c.decidedAt !== undefined ? Math.max(0, c.decidedAt - c.shownAt) : null);
   const times: DecisionTime[] = choices.flatMap((c) => {
     const t = think(c);
@@ -151,7 +151,8 @@ export function compare(input: GuideInput, wash: HotWash, lastLight: number): Co
     key: c.key,
     label: label(c),
     you: c.label,
-    agent: c.agentLabel,
+    // a photo's AI pick without the photo's name again (the row's own answer names it)
+    agent: c.inject === "triage" ? c.agentLabel.replace(/^Photo \d+ \([^)]*\): /, "") : c.agentLabel,
     same: c.agent,
     costMin: c.costMs / 60_000,
     thinkMs: think(c),

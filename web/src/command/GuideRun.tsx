@@ -20,6 +20,7 @@ import {
   choiceFromConsole,
   costsOf,
   currentCard,
+  dronesWait,
   hotWash,
   injectDone,
   injects,
@@ -79,7 +80,7 @@ export function guidedOptsFor(scenario: DemoFull | null, seed: string, choices: 
   const chosen = choices.find((c) => c.inject === "clue");
   const confirmed = user.some((e) => e.type === "clue.added" && e.ref === readback && !!(e.data as { confirmed?: boolean } | null)?.confirmed && !/logged/.test(e.summary));
   const survey = choices.find((c) => c.inject === "survey") as { option: string; watched?: boolean } | undefined;
-  return { seed, readback, mapClue: chosen ? chosen.option !== "log" : confirmed, survey: survey ? { option: survey.option, watched: !!survey.watched } : null };
+  return { seed, readback, mapClue: chosen ? chosen.option !== "log" : confirmed, survey: survey ? { option: survey.option, watched: !!survey.watched } : null, dronesWait: dronesWait(scenario, choices) };
 }
 
 export function useGuideRun({
@@ -315,6 +316,12 @@ export function useGuideRun({
           if (optionId === "all") for (const sp of useMission.getState().proposals.filter((x) => x.status === "pending" && isSightingProposal(x))) await decide(sp.id, "approve", by);
           await decide(pid, "approve", by, undefined, team ? { team } : undefined);
         })();
+      } else if (i.id === "survey" && optionId === "override") {
+        m.emit("mission.note", `Drones fly anyway: an override of the grounding (${scenario?.data.conditions?.flyability_reason ?? "over the drones' limits"}), approved by ${by}`, null, { action: "fly_override", by });
+      } else if (i.id === "survey" && optionId === "wait") {
+        m.emit("mission.note", `Drones stay on the ground for the wind; the ground teams go first (by ${by})`, null, { action: "drones_wait", by });
+      } else if (i.id === "wind" && optionId === "finish") {
+        m.emit("mission.note", `Drones finish the flight line in gusts over the limit: an override, approved by ${by}`, null, { action: "fly_override", by });
       } else if (i.id === "link") {
         const who = watched ? "Watch instead chose it" : "you chose it";
         if (optionId === "relay") m.emit("mission.note", `Relay: ${i.link?.relayName ?? "a second drone"} holds over the ridge for ${i.link?.lostName ?? "the drone"} that lost its link; its own flight line stops (${who})`, null, { action: "relay", by, drone: i.link?.relay ?? null, lost: i.link?.drone ?? null });
@@ -336,7 +343,7 @@ export function useGuideRun({
     setStatus(null);
     if (!on || !guide!.watch || !active || !reached || guide!.ended || confirming) return undefined;
     const ag = agentOption(active, card);
-    const t1 = window.setTimeout(() => setStatus(`Agent's choice: ${ag.label}`), 3000);
+    const t1 = window.setTimeout(() => setStatus(`AI's choice: ${ag.label}`), 3000);
     const t2 = window.setTimeout(() => {
       setStatus(null);
       perform(active, ag.id, true);

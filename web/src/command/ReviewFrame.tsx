@@ -7,7 +7,7 @@
 // (the candidates stay in Needs you). The map pans to and pulses the candidate in view. Built by lane A.
 import { useEffect, useRef, useState } from "react";
 import { isTyping } from "../lib/keys";
-import { DetectorScore, focusCandidate, ObjectPhotoBadge, reviewKeys, type LiveAnswer, type OnAnswer, type ReviewCard } from "../review/LiveReview";
+import { AiPick, DetectorScore, focusCandidate, ObjectPhotoBadge, photoName, reviewKeys, type LiveAnswer, type OnAnswer, type ReviewCard } from "../review/LiveReview";
 import { answerForKey, ObjectPicker, REVIEW_ANSWERS, usePickerKeys, type ObjectKind } from "../review/answers";
 import { SecondLook, useSecondLook } from "../review/SecondLook";
 import { KeyHint } from "../shell/components";
@@ -148,7 +148,7 @@ export function ReviewFrame({
                 <Photo c={c} />
               </button>
               <figcaption className="flex flex-wrap items-baseline gap-x-3 text-caption text-text-3">
-                <span>{c.frame}</span>
+                <span title={c.id}>{photoName(c.frame)}</span>
                 <DetectorScore c={c} className="order-first" />
               </figcaption>
             </figure>
@@ -159,6 +159,7 @@ export function ReviewFrame({
                   {subject.charAt(0).toUpperCase() + subject.slice(1)}
                 </p>
               )}
+              {c.pick && <AiPick line={c.pick} className="text-small" />}
               {/* once the second look is done its result shows the crop beside the OpenCV 5 image */}
               {!looked && <img src={c.crop} alt={`Crop of ${c.id}`} className="aspect-square w-full max-w-72 rounded-md object-cover" />}
               <SecondLook c={c} large />
@@ -221,7 +222,7 @@ function Photo({ c }: { c: ReviewCard }) {
   const pct = (v: number, of: number) => `${(100 * v) / of}%`;
   return (
     <div className="relative w-full overflow-hidden rounded-md bg-surface-strong" style={{ aspectRatio: `${w} / ${h}` }}>
-      <img src={c.photo} alt={`${c.frame}, the whole photo`} className="absolute inset-0 h-full w-full object-cover" />
+      <img src={c.photo} alt={`${photoName(c.frame)}, the whole photo`} className="absolute inset-0 h-full w-full object-cover" />
       <span
         aria-hidden
         className="sl-new absolute rounded-[3px] border-2 border-accent"
