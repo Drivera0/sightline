@@ -98,3 +98,40 @@ def test_the_after_action_report_on_the_demo_mission(tmp_path: Path) -> None:
     md = after_action_markdown(r)
     assert "**Found** by Team One in sector C2" in md and "| C4 | Team Four | 40% |" in md
     assert "Proposals by" in md and "/ics204/T1.md" in md
+
+
+def test_the_ai_steps_are_nemotron_calls_on_token_factory_kept_word_for_word() -> None:
+    """``make_command_fixtures.py --live``: every second look and briefing the fixtures carry is a real
+    Nemotron call (measured ms and tokens, its answer word for word), and the story's trace says the
+    same: no stand-in (``fake/``) is left in it."""
+    trace = [json.loads(x) for x in (FIXTURE.parent / "demo_trace.jsonl").read_text().splitlines()]
+    calls = [e for e in trace if e["kind"] == "model_call"]
+    assert calls and all(e["model"].startswith("recorded/nvidia/") for e in calls)
+    assert [e["output"]["text"] for e in calls] == [c["text"] for c in FIX["model_calls"]]
+    for fx in [FIX, *(json.loads(p.read_text()) for p in sorted(SCENARIOS.glob("*.json")))]:
+        mc = fx["model_calls"]
+        assert {c["kind"] for c in mc} == {"vl", "briefing"}
+        assert all(c["ms"] > 0 and c["tokens_in"] > 0 and c["tokens_out"] > 0 for c in mc)
+        assert all("nemotron" in c["model"].lower() and c["called_at"] for c in mc)
+        briefed = {p["id"]: p["briefing"] for p in fx["proposals"] if p["kind"] == "assign_sector"}
+        assert {c["proposal"]: c["text"] for c in mc if c["kind"] == "briefing"} == briefed
+
+
+def test_a_run_without_live_replays_the_kept_answer_for_the_same_question() -> None:
+    import importlib.util
+
+    script = Path(__file__).parents[2] / "scripts/make_command_fixtures.py"
+    spec = importlib.util.spec_from_file_location("fixtures_script", script)
+    mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    msgs = [{"role": "user", "content": "Facts:\n{}"}]
+    kept = {"kind": "briefing", "detection": None, "model": "nvidia/m", "ms": 900, "tokens_in": 5,
+            "tokens_out": 3, "text": "Team One, Sightline. Over.", "called_at": "2026-10-26T09:00:00Z",
+            "source": "make_command_fixtures.py --live", "prompt_sha": mod.prompt_sha("m", msgs, None)}  # fmt: skip
+    models = mod.Models(replay=[kept])
+    r = models.chat(msgs, model="m")
+    assert (r.text, r.model, r.ms) == (kept["text"], "recorded/nvidia/m", 900)
+    assert models.calls[0]["called_at"] == kept["called_at"]
+    asked = [{"role": "user", "content": 'Facts:\n{"team": "T2", "sector": "B2"}'}]
+    other = models.chat(asked, model="m")  # a new question: the stand-in, not counted
+    assert other.model == "fake/m" and len(models.calls) == 1
