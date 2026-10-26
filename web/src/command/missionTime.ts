@@ -796,7 +796,7 @@ function guidedAt(full: DemoFull, clock: string, user: readonly MissionEvent[], 
   const s = relayed({ ...s0, fleet: fly.fleet, mapUpdates: [...s0.mapUpdates, ...fly.photos] }, mine);
   const ranked = rankPending(s, d.mapBase ? sectorsAt(d.mapBase, s.sectors, s.mapUpdates) : s.sectors);
   // a clue not on the map (waiting for its read-back, or logged without mapping) raised nothing: the reasons say so
-  const told = [...scenarioClues].filter((id) => !mapped(id) && clues.some((x) => x.id === id)).reduce((x, id) => unmappedReason(x, id, decision(id) ? "logged" : "waiting"), ranked);
+  const told = [...scenarioClues].filter((id) => !mapped(id) && clues.some((x) => x.id === id)).reduce((x, id) => unmappedReason(x, id, (decision(id)?.data as { logged?: boolean } | null | undefined)?.logged ? "logged" : "waiting"), ranked);
   return closedOnFind(told, mine);
 }
 

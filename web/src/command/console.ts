@@ -103,6 +103,35 @@ export function metres(a: { lat: number; lon: number }, b: { lat: number; lon: n
   return Math.hypot(a.lat - b.lat, (a.lon - b.lon) * k) * 111_320;
 }
 
+const POINTS = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"] as const;
+
+/** From `a` to `b`: the compass bearing (degrees, 0 north, 90 east; flat earth, a few km), its point in words, and the metres. */
+export function bearingFrom(a: { lat: number; lon: number }, b: { lat: number; lon: number }): { deg: number; word: (typeof POINTS)[number]; m: number } {
+  const dx = (b.lon - a.lon) * Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
+  const dy = b.lat - a.lat;
+  const deg = dx === 0 && dy === 0 ? 0 : ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+  return { deg: Math.round(deg) % 360, word: POINTS[Math.round(deg / 45) % 8]!, m: metres(a, b) };
+}
+
+/** "about 350 metres": a distance as a team says it on the radio (to 10 m under 100 m, else to 50 m). */
+const roughMetres = (m: number) => (m < 100 ? Math.max(10, Math.round(m / 10) * 10) : Math.round(m / 50) * 50);
+
+/**
+ * A team's answer to "say again your bearing": the bearing and distance from where it stands (else base
+ * camp) to the clue, worked out from the scenario's own positions; nothing else is said.
+ */
+export function bearingReply(callsign: string, from: { lat: number; lon: number }, to: { lat: number; lon: number }, place: "heard" | "here" | "base" = "here"): string {
+  const b = bearingFrom(from, to);
+  const where = place === "heard" ? "where we heard it" : place === "base" ? "base camp" : "our position";
+  return `Sightline, ${callsign}. From ${where}: ${b.word}, bearing ${String(b.deg).padStart(3, "0")}, about ${roughMetres(b.m)} metres, over.`;
+}
+
+/** A team's answer to "confirm the subject's description": the subject's description as the mission gives it, and where. */
+export function confirmReply(callsign: string, subject: string | null, sector: string): string {
+  const who = subject ? `${subject.charAt(0).toLowerCase()}${subject.slice(1)}` : null;
+  return `Sightline, ${callsign}. Confirmed${who ? `: ${who}, matches the description` : ": matches the subject's description"}; the subject is with us in ${sector}, over.`;
+}
+
 /** Within this of base camp, a team is at base camp. */
 export const AT_BASE_M = 150;
 /** A free team is at base camp unless its position says it is out in the field (the map and the list agree). */

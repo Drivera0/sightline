@@ -310,7 +310,7 @@ export function injects(input: GuideInput): Inject[] {
       agentSays: `${who}: ${clue.text}.`,
       options: [
         { key: "1", id: "confirm", label: `Confirm at ${clue.reliability ?? "low"} reliability`, costMin: 0, effect: "the map shifts toward it", agent: true, on: "Confirm clue on the card in Needs you" },
-        { key: "2", id: "bearing", label: "Ask for a bearing", costMin: 2, effect: "the map shifts toward it at medium reliability" },
+        { key: "2", id: "bearing", label: "Ask for a bearing", costMin: 2, effect: "the team radios its bearing and distance to it; the clue waits for you to confirm it" },
         { key: "3", id: "log", label: "Log without mapping", costMin: 0, effect: "it goes in the log; the map stays as it is" },
       ],
       target: [`[data-need="clue-${clue.id}"]`, '[aria-label="Awaiting read-back"]', `group:${REGION.timeline} li[data-kind="clue"], ${REGION.timeline} li[data-kind="radio"]`, REGION.needs],
@@ -722,8 +722,9 @@ export function hotWash(input: GuideInput, list: readonly Inject[]): HotWash {
   const passes = passesFrom(input.seed, subject, input.user).filter((p) => !p.cut);
   const foundEv = input.user.find(isFoundEvent);
   const fm = (foundEv?.data as { mission?: { found?: { team: string; sector: string } } } | null)?.mission?.found;
-  const findChoice = choices.find((c) => c.inject === "find");
-  const outcome: Outcome = { foundAt: foundEv ? real(ms(foundEv.at)) + (findChoice?.costMs ?? 0) : null, team: fm?.team ?? null, sector: fm?.sector ?? null, passes };
+  // the find at the time the timeline and the header give it (its event on the mission clock): the confirmation's
+  // minute was added here on top as well, so the end screen said 15:58 over a timeline's 15:57 (the cold test)
+  const outcome: Outcome = { foundAt: foundEv ? real(ms(foundEv.at)) : null, team: fm?.team ?? null, sector: fm?.sector ?? null, passes };
   const p = storyProposal(full);
   const line = agentLine(input.seed, subject, p?.target.team && p.target.sector ? { team: p.target.team, sector: p.target.sector, at: ms(p.created_at) } : null, poaOf(full), lastLight(full), full ? teamIds(full) : []);
   const agent = { ...line, team: p?.target.team ?? null, foundAt: line.found };
@@ -776,7 +777,10 @@ export function hotWash(input: GuideInput, list: readonly Inject[]): HotWash {
   const tryNext: string[] = [];
   const tri = choices.filter((c) => c.inject === "triage");
   if (tri.length && tri.every((c) => c.agent)) strengths.push("Review photos matched the AI's picks against the subject's description: only a photo that fits the subject went on the map as a sighting.");
-  if (clueChoice && clueChoice.option !== "log") strengths.push("The radio clue was read back and mapped before the first assignment.");
+  // a bearing asked for confirms nothing by itself: the clue counts once the manager confirmed it
+  const clueId = storyClue(full)?.id;
+  const confirmedLater = input.user.some((e) => e.type === "clue.added" && e.ref === clueId && (e.data as { confirmed?: boolean; logged?: boolean } | null)?.confirmed === true && !(e.data as { logged?: boolean }).logged);
+  if (clueChoice && (clueChoice.option === "confirm" || (clueChoice.option === "bearing" && confirmedLater))) strengths.push("The radio clue was read back and mapped before the first assignment.");
   if (firstAssign && subject && firstSector === subject.sector) strengths.push(`The first team went to ${subject.sector}, the sector that held the subject.`);
   if (clueChoice?.option === "log") tryNext.push("Confirm the radio clue next time and watch which sectors rise.");
   const wrongPin = choices.find((c) => c.inject === "triage" && c.option === "person" && c.card && !c.agent);
