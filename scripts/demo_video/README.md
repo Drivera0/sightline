@@ -132,6 +132,34 @@ The radio exchange stays in-world: Team One's call (Magpie speaker 3) and the de
 
 For each line the engine speaks each sentence (250 ms apart), up to `takes` samples (Magpie 3, ElevenLabs and Kokoro 1), and keeps the one Parakeet hears best; a line over its shot by more than 0.5 s loses its second sentence and is listed to rewrite (a verbatim, in-world or one-sentence line is listed, not cut). The lines start 250 ms into their shots (never on top of the line before), the track is normalised to −16 LUFS (ffmpeg `loudnorm`, two passes) and muxed as AAC into `cut_<name>_narrated.mp4`, with the engine's credit burned in over the first narrated shot just above its caption. Each line's time comes from `cut_<name>.json` checked against `shots.json`'s program times; a cut older than those is refused with "rerun captions.py --only cuts". Also `narration_<name>.srt`, `clips/`, and `narration_report.md` / `narration.json` (per line the text, seconds available and used, whether it fits, and the listen-check: Parakeet on each line cut back out of the finished mp4's audio, as word error rate with numbers spelled out on both sides; skipped, and said so, where NeMo isn't importable).
 
+## Scenes for Synthesia (`scenes.py`)
+
+Clean footage, one file per scene, for the Synthesia cuts: no narration, no captions, no music, no camera moves. It drives the current UI (the guided simulation's decisions, the review frame, Needs you, the Conditions panel, the Trace and the end screen) by role and label, and replaces `record.py`'s shot list for this purpose (that list follows the old pitch bar and coach marks).
+
+```bash
+uv run --extra video python scripts/demo_video/scenes.py                            # all ten scenes + architecture_4k.png
+uv run --extra video python scripts/demo_video/scenes.py --scenes s3,n2             # just those (name prefixes)
+uv run --extra video python scripts/demo_video/scenes.py --publish /mnt/c/Users/<you>/Desktop/sightline-video/final
+uv run --extra video python scripts/demo_video/scenes.py --url http://127.0.0.1:5301 --dist <build> --scale 1   # a quick dry run
+```
+
+It builds the site with `VITE_CACHE_DIR=demo`, serves it with `vite preview` on port 5301 (stopped by PID), and records every scene in a fresh context of one Chromium: the tour marked seen, dark scheme, America/Vancouver, the page clock at the demo fixture's `now`. Whatever comes before a scene (the guided run's earlier decisions, taken the AI's way; the clock run to the scene's decision) happens with the screencast stopped; then the capture starts on a held frame, the pointer (record.py's, without the sync mark) moves on eased curves and rests 0.6 s before each click, and the capture stops on a held frame. Frames are `capture.py`'s (3840×2160 at device scale 2); each clip is encoded at 30 fps, CRF 16, BT.709, no audio, `+faststart`, with a lanczos 1920×1080 copy in `1080p/` and a start/middle/end contact sheet in `contact/`.
+
+| File | Scenario | What it shows | Target |
+|---|---|---|---|
+| `s1_home_start` | home | the hero and Built with, a slow scroll past the stats and Agentic vision, Try the guided simulation, Overdue hiker's Start the simulation, the subject strip | 30 s |
+| `s2_photos_land` | Overdue hiker, guided | Survey: the AI's flight lines; the time-lapse at 1× (photos placed, the map lowering where it looked, the decision bar's lines) | 35 s |
+| `s3_second_look` | Overdue hiker, guided | Review photos: 336 The subject, the grey bag Not a person, 273 at 0.17 enlarged, Run AI re-check (crop, OpenCV 5 zoom, Nemotron VL, Nebius Token Factory), The subject; the sighting proposal, Approve | 45 s |
+| `s4_false_alarm` | Dementia walk-away, console | the backpack (photo 502, 0.15): Run AI re-check (no person, a backpack), Object… backpack, the possible clue it becomes | 25 s |
+| `s5_teams_find` | Overdue hiker, guided | Clue: the read-back, Confirm clue; Assign: send the free teams to the AI's picks; 4× and Skip ahead; Link; Team Four's report, Record find; Found · C2 | 30 s |
+| `s6_you_vs_ai` | Overdue hiker, end screen | Without Sightline vs with Sightline: the headline, the table, the bars, How this is worked out | 20 s |
+| `n1_photos_land` | Overdue hiker, guided | the fleet: drones on their flight lines, drone two's lost link, the drone rows, the teams moving | 25 s |
+| `n2_radio` | Overdue hiker, guided | the timeline on Radio: Team One's call and the desk's read-back with their voices, the read-back card, Confirm clue (`n2_radio_with_audio.mp4`: the clips the page played, laid back in at their times) | 25 s |
+| `n3_wind_recall` | Dementia walk-away, guided | the Conditions panel: the gust limit, the recorded Tavily lookup and its quote; the wind step's recall card, Approve | 25 s |
+| `n4_find_summary` | Overdue hiker, after the find | the Trace's "N Nemotron calls on Nebius Token Factory in this mission", one chain, a model call; the end screen's headline | 20 s |
+
+The overdue hiker is the demo mission itself, which has no distractor photos and no wind step, so `s4` and `n3` use Dementia walk-away (its flight has the backpack with a recorded re-check, and like Missing child and Despondent it reaches the wind step 87 mission minutes after the call). `n2`'s audio: headless Chromium plays the voice clips to no device, so an init script reports each `play`, `pause` and `ended` with the recorder's clock and ffmpeg mixes those files under the take. `architecture_4k.png` is figure 1 of `docs/architecture/sightline-architecture.html` (the SVG behind `system.png`) screenshotted at 3840 px wide. On this machine (WSL2, no GPU) the 4K takes run longer than the targets where a scene has many pointer moves or the clock's beats (s3 65 s, s5 51 s; the others within about 8 s of theirs), and `s6` is recorded at `--scale 1` and upscaled: at scale 2 the end screen's blurred backdrop drops the screencast to about 1 frame a second. Pass `--scale` for one scene to do the same; a 4K file recorded smaller says so in `scenes.json` (`upscaled_from`) and `README.txt`. `scenes.json` has each clip's probe, capture rate, page errors and (n2) the clips placed; `README.txt` lists the files for the editor.
+
 ## Capture test (this machine, 2026-10-22, the new capture)
 
 ```bash
