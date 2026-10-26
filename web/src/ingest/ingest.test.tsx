@@ -628,6 +628,26 @@ describe("free play (#m/demo/map): the console on its own, a fresh mission at th
     expect(g.choices.some((c) => c.inject === "find")).toBe(true);
   }, 90_000);
 
+  it("photos landing toast \"N photos to review\"; the review frame opens only when asked", async () => {
+    vi.stubGlobal("fetch", demoFetch());
+    useMission.setState({ ...EMPTY, status: "idle" });
+    useStory.getState().reset();
+    window.history.replaceState(null, "", "#m/demo/map");
+    render(<App base={null} />);
+    await screen.findByRole("group", { name: "Mission clock" }, { timeout: 5000 });
+    act(() => useGuide.getState().pause(true));
+    let review: HTMLElement | undefined;
+    for (let k = 0; k < 40 && !review; k++) {
+      act(() => useGuide.getState().setClock(useGuide.getState().guide!.clock + 2 * 60_000));
+      await settle();
+      review = screen.queryAllByRole("button", { name: "Review now" })[0];
+    }
+    expect(review).toBeDefined();
+    expect(useConsole.getState().review.open).toBe(false);
+    await userEvent.click(review!);
+    expect(useConsole.getState().review.open).toBe(true);
+  }, 30_000);
+
   it("Restart asks first, then starts the same scenario fresh from the call (free play and the guided run)", async () => {
     vi.stubGlobal("fetch", demoFetch());
     useMission.setState({ ...EMPTY, status: "idle" });
