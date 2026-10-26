@@ -87,11 +87,11 @@ opencv, python, onnx, yolo, ultralytics, pytorch, sahi, fastapi, pydantic, docke
 
 Files in `docs/submission/figures/` (and in the Desktop `devpost/` folder).
 
-1. `console-t0-the-call-pitch-bar.png`: 13:35, the call: the console on the overdue-hiker mission, the lost-hiker rings around the last known point on the probability map, the teams on standby.
+1. `console-t0-the-call-pitch-bar.png`: 13:35, the call: the console on the overdue-hiker mission, the lost-hiker rings around the last known point on the probability map, two teams out on a hasty search and two at base camp.
 2. `photos-land-t1-each-photo-ranked-and-placed.png`: Photos landing: each real HERIDAL photo, on a simulated flight path, is ranked by the OpenCV 5 cv2.dnn detector and placed on the map as it lands.
 3. `second-look-t2-a-017-candidate-this-flight-opencv5-zoom-nemotron-vl.png`: The second look: a 0.17 candidate, below the review threshold, zoomed from native pixels by OpenCV 5; Nemotron VL calls it two people standing, and a person decides.
 4. `trace-which-model-did-what-second-look.png`: The Trace view: detection, the OpenCV 5 zoom_native tool, the model's verdict and the proposal waiting for a person, step by step.
-5. `run-t4-fleet-flying-b4-pod-60-conditions.png`: The run: three simulated drones and four teams, a sector searched at POD 60 %, and the Conditions panel that gates the drones (forecast via Tavily, each value with its quote).
+5. `run-t4-fleet-flying-b4-pod-60-conditions.png`: The run: the simulated fleet (Drone 2 flying on with its link lost, Team Two heard via Drone 3's relay), B4 searched at POD 60 %, and the Conditions panel that gates the drones (forecast via Tavily, each value with its quote).
 6. `debrief-t6-after-action-report-what-breaks-first.png`: The Debrief after the find: the after-action report, the areas searched at their POD, and what breaks first, in the report's words.
 
 ---
@@ -105,7 +105,7 @@ Files in `docs/submission/figures/` (and in the Desktop `devpost/` folder).
 **How does the project use AWS? (deployment description)**
 The live pipeline runs in us-west-2, set up and torn down by scripts in [`deploy/aws/`](https://github.com/Drivera0/sightline/tree/main/deploy/aws). One EC2 c7i.2xlarge (Amazon Linux 2023) runs one Docker image as three containers: the API, the photo worker running OpenCV 5 `cv2.dnn` (no PyTorch in the image) and Caddy for HTTPS. Photos go to a private S3 bucket (deleted after 30 days), jobs to an SQS FIFO queue (one group per mission, dead-letter queue after 3 failures), metrics and logs to CloudWatch (`PhotoLatencyMs` per step, `DetectionsPerPhoto`, `AgentModelCalls`, a dashboard), and the Nebius and Tavily keys live in Secrets Manager. The instance role reaches only its own bucket prefix, queue, log group and secret; no SSH port is open (SSM). Measured: 7.1 s from upload to processed per 4000×3000 photo. The Arm path runs on COOL on Graviton (above). Report §4.
 
-**AWS endpoint:** https://44-227-39-234.sslip.io (the instance is stopped between demos to save cost; `<OWNER: start it before judging, run scripts/remote_check.py, or say "available on request">`)
+**AWS endpoint:** https://44-227-39-234.sslip.io (running through the judging period, Oct 27 – Nov 9; `GET /health` answers with the contract version and the cv2 backend)
 
 **Technical report:** https://github.com/Drivera0/sightline/blob/main/docs/report/OPENCV_REPORT.md (every claim, its file and how to regenerate it: [EVIDENCE_INDEX.md](https://github.com/Drivera0/sightline/blob/main/docs/report/EVIDENCE_INDEX.md))
 
