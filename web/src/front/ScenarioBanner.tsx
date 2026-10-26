@@ -5,7 +5,7 @@ import { Sheet } from "../shell/Sheet";
 import { cardFor } from "./scenarios";
 import { ScenarioCards } from "./ScenarioCards";
 
-export function ScenarioBanner({ seed, name, area, clock, disabled = false, brief = null }: { seed: string | null; name?: string; area: string; clock: string | null; disabled?: boolean; /** The subject brief (command/SubjectStrip.tsx), in place of the scenario's name. */ brief?: ReactNode }) {
+export function ScenarioBanner({ seed, name, area, clock, disabled = false, brief = null, setupHref = null }: { seed: string | null; name?: string; area: string; clock: string | null; disabled?: boolean; /** The subject brief (command/SubjectStrip.tsx), in place of the scenario's name. */ brief?: ReactNode; /** Open play: back to the visitor's setup (#play). */ setupHref?: string | null }) {
   const [open, setOpen] = useState(false);
   const title = name ?? cardFor(seed).name;
   return (
@@ -22,6 +22,11 @@ export function ScenarioBanner({ seed, name, area, clock, disabled = false, brie
             </>
           )}
         </span>)}
+        {setupHref && (
+          <a href={setupHref} title="Back to your setup: who is missing, where, base camp, teams, drones" className="sl-tap hidden text-small sm:inline text-text-2 underline underline-offset-2 hover:text-text">
+            Edit setup
+          </a>
+        )}
         <button
           type="button"
           onClick={() => setOpen(true)}

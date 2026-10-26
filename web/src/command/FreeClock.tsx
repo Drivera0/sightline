@@ -17,6 +17,7 @@ export function FreeClock({
   onRestart,
   guideHref,
   scenariosHref,
+  setupHref = null,
   waiting,
   atCall = false,
 }: {
@@ -30,6 +31,8 @@ export function FreeClock({
   onRestart: () => void;
   guideHref: string;
   scenariosHref: string;
+  /** Open play: the visitor's own setup (#play), offered in place of the guided search. */
+  setupHref?: string | null;
   /** Items in Needs you waiting for a person (said beside the clock). */
   waiting: number;
   /** Still at the call, never played: the console is the visitor's to set up first. */
@@ -66,9 +69,15 @@ export function FreeClock({
         <button type="button" onClick={() => setAsking(true)} aria-haspopup="dialog" aria-expanded={asking} className="sl-tap text-caption text-text-2 hover:text-text">
           Restart
         </button>
-        <a href={guideHref} className="sl-tap text-caption text-text-2 underline underline-offset-2 hover:text-text">
-          Start the guided simulation instead
-        </a>
+        {setupHref ? (
+          <a href={setupHref} className="sl-tap text-caption text-text-2 underline underline-offset-2 hover:text-text">
+            Edit setup
+          </a>
+        ) : (
+          <a href={guideHref} className="sl-tap text-caption text-text-2 underline underline-offset-2 hover:text-text">
+            Start the guided simulation instead
+          </a>
+        )}
         <a href={scenariosHref} className="sl-tap text-caption text-text-2 underline underline-offset-2 hover:text-text">
           Change scenario
         </a>
