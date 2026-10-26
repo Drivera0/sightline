@@ -26,7 +26,7 @@ The same three lines, for the web page and the video script: `docs/submission/WH
 The public build has no API address baked in, so New search (`#new`, the empty console) says "The live
 mission server runs during demos and judging; this site is the demo", with the form disabled and "Load the
 demo mission" (`#m/demo/map`), which works without a server (`web/src/ingest/NewSearch.tsx:92-96`, `:128`). The demo
-mission is the whole public site and needs no server (`web/src/App.tsx:74-75`); `#` is the home page, whose scenario cards open it. The AWS API is stopped between demos to save cost
+mission is the whole public site and needs no server (`web/src/App.tsx:60-61`); `#` is the home page, whose scenario cards open it. The AWS API is stopped between demos to save cost
 (`README.md:250-251`), so at 10 pm a live mission is not available unless it was started. During judging
 `.github/workflows/judging-check.yml` checks the API every 6 hours and opens an issue when it fails
 (`deploy/aws/README.md:107-115`); whether the instance stays up all through judging is still to be decided.

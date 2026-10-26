@@ -106,8 +106,9 @@ export function TryPhoto({ cache, dir, onResult }: { cache: CacheBundle; dir: st
   // Survey photos with a candidate: real HERIDAL sections, with the pipeline's boxes to compare.
   const samples = reviewItems(cache)
     .slice(0, 3)
-    .map((item) => ({
+    .map((item, i) => ({
       frame: item.frame,
+      name: `Survey photo ${i + 1}`,
       reference: (cache.detections.frames[item.frame.id] ?? [])
         .filter((d) => d.conf >= threshold)
         .map((d) => ({ box: d.box_px as [number, number, number, number], conf: d.conf })),
@@ -117,7 +118,7 @@ export function TryPhoto({ cache, dir, onResult }: { cache: CacheBundle; dir: st
     try {
       const res = await fetch(cacheUrl(dir, s.frame.file));
       const blob = await res.blob();
-      await run(blob, `Survey photo ${s.frame.id}`, s.reference);
+      await run(blob, s.name, s.reference);
     } catch {
       setPhase({ kind: "error", message: "Could not load that survey photo." });
     }
@@ -174,7 +175,7 @@ export function TryPhoto({ cache, dir, onResult }: { cache: CacheBundle; dir: st
             </label>
             {samples.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 text-small text-text-3">
-                Or a survey photo:
+                Or one from the survey:
                 {samples.map((s) => (
                   <button
                     key={s.frame.id}
@@ -184,7 +185,7 @@ export function TryPhoto({ cache, dir, onResult }: { cache: CacheBundle; dir: st
                     className="inline-flex items-center gap-2 rounded-full border border-border px-2 py-1 text-text-2 hover:border-accent/60 hover:text-text disabled:opacity-40"
                   >
                     <img loading="lazy" decoding="async" width={24} height={24} src={cacheUrl(dir, s.frame.file)} alt="" className="size-6 rounded-full object-cover" />
-                    {s.frame.id}
+                    {s.name}
                   </button>
                 ))}
               </div>

@@ -361,7 +361,7 @@ describe("the demo mission: the story on the one console", () => {
     expect(status()).toBe("approved");
   });
 
-  it("opens For judges in the debrief from #judges, and Try a photo in the Photos rail from #try", async () => {
+  it("opens For judges in the debrief from #judges, and Try a photo in the Photos rail from ?try", async () => {
     vi.stubGlobal("fetch", demoFetch());
     useStory.getState().reset();
     window.history.replaceState(null, "", "#judges");
@@ -369,7 +369,7 @@ describe("the demo mission: the story on the one console", () => {
     expect(screen.getAllByRole("button", { name: "Debrief", pressed: true })).toHaveLength(1);
     expect((await screen.findByText("For judges: where to look, in order")).closest("details")).toHaveAttribute("open");
     unmount();
-    window.history.replaceState(null, "", "#try");
+    window.history.replaceState(null, "", "#m/demo/photos?try");
     render(<App base={null} />);
     expect(screen.getAllByRole("button", { name: "Photos", pressed: true })).toHaveLength(1);
     expect(await screen.findByRole("button", { name: "Hide Try a photo" })).toHaveAttribute("aria-expanded", "true");

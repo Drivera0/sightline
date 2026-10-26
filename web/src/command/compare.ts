@@ -272,7 +272,11 @@ export function fmtDuration(msv: number): string {
   return `${m} min ${String(r % 60).padStart(2, "0")} s`;
 }
 
-export const fmtMin = (n: number) => (n < 60 ? `${Math.round(n)} min` : `${Math.floor(n / 60)} h ${String(Math.round(n % 60)).padStart(2, "0")} min`);
+/** "45 min", "2 h 05 min": rounded once to the minute, then split (59.6 was "60 min", 119.6 "1 h 60 min"). */
+export const fmtMin = (n: number) => {
+  const m = Math.round(n);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min`;
+};
 
 /**
  * One line's numbers from its passes, on the fixtures' clock: `until` is the find (or last light), and

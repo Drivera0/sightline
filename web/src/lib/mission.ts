@@ -268,11 +268,17 @@ interface MissionStore extends MissionData {
   // The command post's direct actions: the search manager acts without the agent; each is logged to the
   // timeline the way an approval is ("Search manager assigned C2 to Team One").
   assign: (teamId: string, sector: string, by?: string) => Promise<void>;
-  call: (teamId: string, text: string) => Promise<void>;
+  /**
+   * A call to a team. The demo's team answers it: `reply`, its words when the call asks for something it
+   * can say (a bearing, a confirmation), else "Copy, over."; `at` stamps the answer (demo only: an answer
+   * that takes mission minutes, after them); `sentAt` stamps the call itself (demo only).
+   */
+  call: (teamId: string, text: string, opts?: { reply?: string; at?: string; sentAt?: string }) => Promise<void>;
   recall: (teamId: string) => Promise<void>;
   searched: (sector: string, pod: number) => Promise<void>;
   recheck: (sector: string) => Promise<void>;
-  found: (teamId: string, sector: string, by?: string) => Promise<void>;
+  /** The find recorded; `at` (demo only): when, if not now (after a confirmation's minute). */
+  found: (teamId: string, sector: string, by?: string, at?: string) => Promise<void>;
   /** Send a drone over a sector: the demo flies one; a live mission approves the agent's leg for it. */
   droneLeg: (sector: string, droneId?: string) => Promise<void>;
   /** Bring a drone home: the demo lands it at base camp; a live mission approves the agent's recall for it. */
@@ -338,9 +344,9 @@ const now = () => demoClock ?? new Date().toISOString().replace(/\.\d+Z$/, "Z");
 
 export const useMission = create<MissionStore>((set, get) => {
   /** Demo mode: an event as the server would have sent it. */
-  const demoEvent = (type: MissionEvent["type"], summary: string, ref: string | null, data: unknown) => {
+  const demoEvent = (type: MissionEvent["type"], summary: string, ref: string | null, data: unknown, at: string = now()) => {
     demoSeq += 1;
-    const ev: MissionEvent = { id: `e${String(demoSeq).padStart(5, "0")}`, type, at: now(), summary, ref, data: data as MissionEvent["data"] };
+    const ev: MissionEvent = { id: `e${String(demoSeq).padStart(5, "0")}`, type, at, summary, ref, data: data as MissionEvent["data"] };
     set((s) => applyEvent(s, ev));
   };
   const mid = () => get().mission?.mission_id ?? "";
@@ -452,7 +458,7 @@ export const useMission = create<MissionStore>((set, get) => {
       if (!a) demoEvent("mission.note", `${by} assigned ${sector} to ${team?.callsign ?? teamId}`, sector, { action: "assign", by, team: teamId, sector });
     },
 
-    call: async (teamId, text) => {
+    call: async (teamId, text, opts = {}) => {
       const a = get().api;
       const team = get().teams.find((t) => t.id === teamId);
       if (a) {
@@ -464,14 +470,17 @@ export const useMission = create<MissionStore>((set, get) => {
         return;
       }
       const callsign = team?.callsign ?? teamId;
-      const turn = (id: string, direction: "in" | "out", transcript: string) => ({
+      const turn = (id: string, direction: "in" | "out", transcript: string, at: string) => ({
         id, direction, callsign, transcript, reply: null, audio: null, state: direction === "out" ? "transmitted" : "answered",
-        actions: [], asr_ms: null, llm_ms: null, tts_ms: null, at: now(),
+        actions: [], asr_ms: null, llm_ms: null, tts_ms: null, at,
       });
       const n = demoSeq + 1;
-      demoEvent("radio.turn", `Sightline to ${callsign}: ${text}`, `u-r${n}`, turn(`u-r${n}`, "out", text));
-      // the demo's teams answer every call (a simulation: the disclosure chip says so)
-      demoEvent("radio.turn", `${callsign}: copy`, `u-r${n}a`, turn(`u-r${n}a`, "in", `Sightline, ${callsign}. Copy, over.`));
+      const sent = opts.sentAt ?? now();
+      demoEvent("radio.turn", `Sightline to ${callsign}: ${text}`, `u-r${n}`, turn(`u-r${n}`, "out", text, sent), sent);
+      // the demo's teams answer every call (a simulation: the disclosure chip says so): what was asked, else a copy
+      const said = opts.reply ?? `Sightline, ${callsign}. Copy, over.`;
+      const back = opts.at ?? sent;
+      demoEvent("radio.turn", opts.reply ? `${callsign}: ${said}` : `${callsign}: copy`, `u-r${n}a`, turn(`u-r${n}a`, "in", said, back), back);
     },
 
     recall: async (teamId) => {
@@ -534,7 +543,7 @@ export const useMission = create<MissionStore>((set, get) => {
       if (!a) demoEvent("mission.note", `${by} opened ${sector} for a recheck`, sector, { action: "recheck", by, sector });
     },
 
-    found: async (teamId, sector, who) => {
+    found: async (teamId, sector, who, when) => {
       const a = get().api;
       const m = get().mission;
       if (a) {
@@ -550,8 +559,9 @@ export const useMission = create<MissionStore>((set, get) => {
       const team = get().teams.find((t) => t.id === teamId);
       const s = get().sectors.find((x) => x.sector_id === sector);
       const at = team?.position ?? sectorCentre(s ?? {}) ?? m.area.lkp;
-      const mission: Mission = { ...m, status: "found", found: { team: teamId, sector, lat: at.lat, lon: at.lon, at: now() } };
-      demoEvent("mission.note", `Found: ${team?.callsign ?? teamId} has the subject in ${sector}`, sector, { action: "found", by: who ?? operatorName(), mission });
+      const stamp = when ?? now();
+      const mission: Mission = { ...m, status: "found", found: { team: teamId, sector, lat: at.lat, lon: at.lon, at: stamp } };
+      demoEvent("mission.note", `Found: ${team?.callsign ?? teamId} has the subject in ${sector}`, sector, { action: "found", by: who ?? operatorName(), mission }, stamp);
     },
 
     recallDrone: async (droneId) => {

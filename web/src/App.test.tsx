@@ -51,7 +51,6 @@ describe("App: one console behind every address", () => {
     ["#results", "#m/demo?t=6", "demo null 6"],
     ["#command", "#m/demo/map", "demo map null"],
     ["#judges", "#m/demo?t=6&judges", "demo null 6 judges"],
-    ["#try", "#m/demo/photos?try", "demo photos null try"],
     ["#m/demo/command/conditions", "#m/demo/map/conditions", "demo map null conditions"],
   ])("sends the old address %s to %s", (from, to, shown) => {
     open(from);

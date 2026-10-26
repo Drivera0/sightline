@@ -49,6 +49,7 @@ import { useNeedsTotal } from "./NeedsYou";
 import { buildTimeline } from "./timeline";
 import { storyClue } from "./storyCopy";
 import { isLogged, isSightingProposal, overdueTeams, teamOrder, WATCH_BY } from "./console";
+import { askBearing, confirmThenFind } from "./radioAsks";
 import { keepBest, missionGoals, missionScore, type Goal, type Score } from "./goals";
 import { GoalsStrip } from "./GoalsStrip";
 import { Tour } from "./Tour";
@@ -435,10 +436,10 @@ export function useGuideRun({
     useMission.getState().emit("mission.note", `${photoTitle(i, id)}: ${label} (${who})`, id, { action: "photo_answer", by, answer: a });
   }
   /** The find recorded: the nearest other team goes to carry out. */
-  function carryOut(team: string, sector: string) {
+  function carryOut(team: string, sector: string, at?: string) {
     // (a radio call only: who goes is the radio's; the board shows the finding team on the carry-out)
     const carry = freeTeam(team);
-    if (carry) void useMission.getState().call(carry.id, `carry-out to ${sector}, over.`);
+    if (carry) void useMission.getState().call(carry.id, `carry-out to ${sector}, over.`, at ? { at, sentAt: at } : undefined);
   }
 
   const performRef = useRef<(i: Inject, optionId: string, watched?: boolean) => void>(() => {});
@@ -466,8 +467,8 @@ export function useGuideRun({
         if (!clue) return;
         const team = teams.find((t) => t.id === clue.reported_by);
         if (optionId === "bearing") {
-          if (team) void m.call(team.id, "say again your bearing to it, over.");
-          m.emit("clue.added", `${clue.id} confirmed with a bearing`, clue.id, { ...clue, confirmed: true, reliability: "medium", decided_by: by });
+          // the team answers with its bearing and distance to the clue; the clue waits for the manager's confirmation
+          askBearing(m, clue, by, iso(f + 1000));
         } else if (optionId === "log") {
           // logged as said: not confirmed, the map unchanged, and no longer waiting for a read-back
           m.emit("clue.added", `${clue.id} logged without mapping`, clue.id, { ...clue, confirmed: false, logged: true, decided_by: by });
@@ -506,9 +507,18 @@ export function useGuideRun({
         else m.emit("mission.note", `${i.link?.lostName ?? "The drone"} finishes its flight line on its own; its photos arrive when the link comes back (${who})`, null, { action: "let-finish", by });
       } else if (i.id === "find" && i.find) {
         const { team, sector } = i.find;
-        if (optionId === "confirm") void m.call(team, "confirm the subject's description, over.");
-        void m.found(team, sector, by);
-        carryOut(team, sector);
+        if (optionId === "confirm") {
+          // the team confirms first, the option's minute on, and the find is recorded after its answer (the cold
+          // test: "Copy, over." and the find in the same breath); the clock reads the minute it took
+          const cost = (i.options.find((o) => o.id === "confirm")?.costMin ?? 0) * 60_000;
+          const later = iso(f + 1000);
+          confirmThenFind(m, team, sector, by, later);
+          carryOut(team, sector, later);
+          useGuide.getState().setClock(useGuide.getState().guide!.clock + cost + 1000);
+        } else {
+          void m.found(team, sector, by);
+          carryOut(team, sector);
+        }
       }
       setHint(null);
     },
@@ -694,6 +704,7 @@ export function useGuideRun({
         }}
         onClose={() => useGuide.getState().close()}
         score={score ? { score, best: best?.best ?? null, beat: !!best?.beat, kept: !!best?.kept } : null}
+        opened={scenario?.data.mission?.created_at ?? null}
       />
     ) : null;
 

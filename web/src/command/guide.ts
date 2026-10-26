@@ -10,7 +10,7 @@
 import type { Clue, MissionEvent, Proposal, Team } from "../contract";
 import { clock, DEMO_TZ } from "../lib/time";
 import { SECOND_LOOK_ID } from "./demoReview";
-import { BOARD_AT, CHECKPOINTS, conditionsAt, hastyAt, hastyLeaves, isFoundEvent, pendingSightings, poaOf, subjectOf, type DemoFull } from "./missionTime";
+import { BOARD_AT, CHECKPOINTS, conditionsAt, hastyAt, hastyLeaves, isFoundEvent, pendingSightings, poaAtCall, poaOf, subjectOf, type DemoFull } from "./missionTime";
 import { agentLine, passesFrom, playStanding, RETURN_MS, type Cost, type Line, type Pass } from "./sim";
 import { WATCH_BY } from "./console";
 import { REGION, STORY_NOT_A_PERSON, storyClue, storyProposal } from "./storyCopy";
@@ -258,9 +258,9 @@ export function injects(input: GuideInput): Inject[] {
       target: [REGION.status, REGION.map],
     });
   } else if (drones.length) {
-    const poa = [...poaOf(full).entries()].sort((a, b) => b[1] - a[1]);
+    // the map at the call, the figures the sector table shows then (never the fixtures' end-of-mission map)
+    const poa = [...poaAtCall(full).entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     const top = poa.slice(0, 3);
-    const share = top.reduce((n, [, p]) => n + p, 0) / Math.max(1e-9, poa.reduce((n, [, p]) => n + p, 0));
     // the scenario's flight lines after the survey come with the AI's flight lines, and the option says so
     const lines = [...new Set((d.fleet?.legs ?? []).filter((l) => l.status !== "proposed" && l.sector_id).map((l) => l.sector_id as string))];
     const then = lines.length ? `; once the photos are in, flight lines over ${lines.length > 1 ? `${lines.slice(0, -1).join(", ")} and ${lines.at(-1)}` : lines[0]}` : "";
@@ -270,7 +270,7 @@ export function injects(input: GuideInput): Inject[] {
       at: ms(CHECKPOINTS[0]!.at),
       lead: "The call comes in; the agent drafts the survey.",
       prompt: `${hastyFact(full)}Launch the survey: fly ${TERMS.aiChoices.replace("choices", "flight lines")}, or a ${TERMS.lawnmower}.`,
-      agentSays: top.length ? `${top.map(([s]) => s).join(", ")} first: ${Math.round(share * 100)} % of the probability in ${top.length} of ${poa.length} sectors.` : undefined,
+      agentSays: top.length ? surveySays(top, poa.length) : undefined,
       options: [
         { key: "1", id: "planner", label: "The AI's flight lines", costMin: 0, effect: `${droneWord(drones[0]!.id, full)} photographs the likeliest sectors first${then}`, agent: true },
         { key: "2", id: "serpentine", label: "Lawnmower pattern, whole grid", costMin: 12, effect: `every sector once, row by row; the likeliest ones are photographed 12 min later${then ? "; no flight lines after it" : ""}` },
@@ -310,7 +310,7 @@ export function injects(input: GuideInput): Inject[] {
       agentSays: `${who}: ${clue.text}.`,
       options: [
         { key: "1", id: "confirm", label: `Confirm at ${clue.reliability ?? "low"} reliability`, costMin: 0, effect: "the map shifts toward it", agent: true, on: "Confirm clue on the card in Needs you" },
-        { key: "2", id: "bearing", label: "Ask for a bearing", costMin: 2, effect: "the map shifts toward it at medium reliability" },
+        { key: "2", id: "bearing", label: "Ask for a bearing", costMin: 2, effect: "the team radios its bearing and distance to it; the clue waits for you to confirm it" },
         { key: "3", id: "log", label: "Log without mapping", costMin: 0, effect: "it goes in the log; the map stays as it is" },
       ],
       target: [`[data-need="clue-${clue.id}"]`, '[aria-label="Awaiting read-back"]', `group:${REGION.timeline} li[data-kind="clue"], ${REGION.timeline} li[data-kind="radio"]`, REGION.needs],
@@ -450,6 +450,22 @@ export function injects(input: GuideInput): Inject[] {
   // nothing comes after the find (a lost link or the gusts that would have come later never ask)
   const find = sorted.find((i) => i.id === "find");
   return find && detected ? sorted.filter((i) => i.at <= find.at || i.id === "find" || injectDone(i, input.choices)) : sorted;
+}
+
+/**
+ * The survey's line from the AI: the likeliest sectors on the map now, each with the share the sector table
+ * shows (one decimal), and their sum, a share of the whole probability, the rest of world included (the
+ * cold test: "33 % of the probability" over three sectors of 1.9 % each, a share of another map).
+ */
+export function surveySays(top: readonly (readonly [string, number])[], of: number): string {
+  const pct = (p: number) => (p * 100).toFixed(1);
+  const shown = top.map(([, p]) => pct(p));
+  const each = shown.every((x) => x === shown[0]) ? `${shown[0]} % each` : `${shown.slice(0, -1).join(" %, ")} % and ${shown.at(-1)} %`;
+  const sum = shown.reduce((n, x) => n + Number(x), 0).toFixed(1);
+  const names = top.map(([s]) => s).join(", ");
+  return top.length === 1
+    ? `${names} first: the likeliest of the ${of} sectors on the map now, ${shown[0]} % of the probability.`
+    : `${names} first: the likeliest ${top.length} of the ${of} sectors on the map now (${each}), ${sum} % of the probability between them.`;
 }
 
 /**
@@ -710,7 +726,10 @@ export interface HotWash {
   tryNext: string[];
 }
 
-const fmtMin = (n: number) => (n < 60 ? `${Math.round(n)} min` : `${Math.floor(n / 60)} h ${String(Math.round(n % 60)).padStart(2, "0")} min`);
+const fmtMin = (n: number) => {
+  const m = Math.round(n);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min`;
+};
 
 /** The hot wash: the decisions against the agent's, the draws, one line per divergence. No score. */
 export function hotWash(input: GuideInput, list: readonly Inject[]): HotWash {
@@ -722,8 +741,9 @@ export function hotWash(input: GuideInput, list: readonly Inject[]): HotWash {
   const passes = passesFrom(input.seed, subject, input.user).filter((p) => !p.cut);
   const foundEv = input.user.find(isFoundEvent);
   const fm = (foundEv?.data as { mission?: { found?: { team: string; sector: string } } } | null)?.mission?.found;
-  const findChoice = choices.find((c) => c.inject === "find");
-  const outcome: Outcome = { foundAt: foundEv ? real(ms(foundEv.at)) + (findChoice?.costMs ?? 0) : null, team: fm?.team ?? null, sector: fm?.sector ?? null, passes };
+  // the find at the time the timeline and the header give it (its event on the mission clock): the confirmation's
+  // minute was added here on top as well, so the end screen said 15:58 over a timeline's 15:57 (the cold test)
+  const outcome: Outcome = { foundAt: foundEv ? real(ms(foundEv.at)) : null, team: fm?.team ?? null, sector: fm?.sector ?? null, passes };
   const p = storyProposal(full);
   const line = agentLine(input.seed, subject, p?.target.team && p.target.sector ? { team: p.target.team, sector: p.target.sector, at: ms(p.created_at) } : null, poaOf(full), lastLight(full), full ? teamIds(full) : []);
   const agent = { ...line, team: p?.target.team ?? null, foundAt: line.found };
@@ -776,7 +796,10 @@ export function hotWash(input: GuideInput, list: readonly Inject[]): HotWash {
   const tryNext: string[] = [];
   const tri = choices.filter((c) => c.inject === "triage");
   if (tri.length && tri.every((c) => c.agent)) strengths.push("Review photos matched the AI's picks against the subject's description: only a photo that fits the subject went on the map as a sighting.");
-  if (clueChoice && clueChoice.option !== "log") strengths.push("The radio clue was read back and mapped before the first assignment.");
+  // a bearing asked for confirms nothing by itself: the clue counts once the manager confirmed it
+  const clueId = storyClue(full)?.id;
+  const confirmedLater = input.user.some((e) => e.type === "clue.added" && e.ref === clueId && (e.data as { confirmed?: boolean; logged?: boolean } | null)?.confirmed === true && !(e.data as { logged?: boolean }).logged);
+  if (clueChoice && (clueChoice.option === "confirm" || (clueChoice.option === "bearing" && confirmedLater))) strengths.push("The radio clue was read back and mapped before the first assignment.");
   if (firstAssign && subject && firstSector === subject.sector) strengths.push(`The first team went to ${subject.sector}, the sector that held the subject.`);
   if (clueChoice?.option === "log") tryNext.push("Confirm the radio clue next time and watch which sectors rise.");
   const wrongPin = choices.find((c) => c.inject === "triage" && c.option === "person" && c.card && !c.agent);

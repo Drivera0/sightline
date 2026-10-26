@@ -7,7 +7,7 @@
 
 import type { CacheBundle, Clue, Frame, MissionEvent, TimelineEvent, Verdict } from "../contract";
 import { publicUrl, type DistractorFrame } from "../lib/fixtureExtras";
-import { DETECTOR_CV2, verdictChips, verdictWords, type ObjectKind, type ReviewCard } from "../review/LiveReview";
+import { DETECTOR_CV2, verdictChips, verdictWords, withSpots, type ObjectKind, type ReviewCard } from "../review/LiveReview";
 import secondLook from "./__fixtures__/second_look/verdict.json";
 import cropUrl from "./__fixtures__/second_look/f0273-d02-crop.jpg?url";
 import zoomUrl from "./__fixtures__/second_look/f0273-d02-zoom_native.jpg?url";
@@ -76,7 +76,8 @@ export function demoCards(bundle: CacheBundle | null, landed: readonly Frame[], 
     const f = bundle.survey?.frames.find((x) => x.id === SECOND_LOOK_ID.slice(0, 5));
     cards.splice(Math.min(2, cards.length), 0, f ? { ...own, photo: imageUrl(f.file), size: [f.width_px, f.height_px], box: secondLook.detection.box_px as [number, number, number, number] } : own);
   }
-  return cards;
+  // two candidates in one photo (the second look's f0273-d02 and the detector's own in f0273) say which spot
+  return withSpots(cards);
 }
 
 /** Where a demo candidate is on the map (its pin when a person confirms it). */
