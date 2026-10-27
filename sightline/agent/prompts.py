@@ -1,4 +1,4 @@
-"""Prompts the agent sends to Nemotron, versioned (docs/LANE_A_SPRINT.md §5.5).
+"""Prompts the agent sends to Nemotron, versioned (docs/sprint/LANE_A_SPRINT.md §5.5).
 
 Change a prompt → bump its version; the version goes into every trace entry that used it, so a
 result can always be traced back to the exact wording.

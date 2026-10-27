@@ -1,4 +1,4 @@
-"""The only Token Factory client (contract §14, docs/LANE_A_SPRINT.md §4 and §5.4).
+"""The only Token Factory client (contract §14, docs/sprint/LANE_A_SPRINT.md §4 and §5.4).
 
 Token Factory (Nebius) is OpenAI-compatible, so ``TokenFactoryClient`` wraps the ``openai`` SDK,
 imported lazily. Other lanes type against ``ChatClient`` and test against ``FakeChatClient``.

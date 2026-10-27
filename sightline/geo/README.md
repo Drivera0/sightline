@@ -213,7 +213,9 @@ Status: cache-backed base layers implemented.
 | `tests/geo/test_pose.py` | Real nadir metadata/footprint and oblique-frame flag checks; skipped when the test split is absent |
 | `tests/geo/test_pipeline_interface.py` | Lane D flight/georef calls resolve to real Lane B functions without placeholder notes |
 
-## TODO
+## Integration checklist (complete)
+
+Kept as a record of the build; every item below landed.
 
 ### Required backend integration
 
@@ -222,8 +224,9 @@ Status: cache-backed base layers implemented.
 - [x] Run Geo pytest and Ruff after
   Lane D adds the project configuration and dependencies.
 - [x] Select and set the demo `LKP` and `SECTOR_NW` values in `constants.py`.
-- [ ] Notify Lane C of the locked coordinates and confirm its grid uses the
-  same LKP.
+- [x] Notify Lane C of the locked coordinates and confirm its grid uses the
+  same LKP (`sightline/search/grid.py` centres the 1 km grid on it; the survey
+  sector in `sightline/geo/__init__.py` is centred on the same `LKP`).
 - [x] Consume Lane A's in-process `sightline.ml.types.Box` directly.
 - [x] Review Lane D's draft interfaces and provide compatible root adapters for
   `simulate_flight`, `footprint` and `georef_detection`.
@@ -247,9 +250,8 @@ Status: cache-backed base layers implemented.
 - [x] Implement the last-known-point marker and text label.
 - [x] Add the required simulated-flight-path and contract-provided uncertainty badges.
 - [x] Type-check and build the web project; the map unit tests pass in Node mode.
-- [ ] Run the complete jsdom suite once Lane D aligns its bleeding-edge web
-  dependency/runtime versions; workers currently fail inside transitive jsdom
-  dependencies before loading any tests.
+- [x] Run the complete jsdom suite (`web/vite.config.ts` sets `environment: "jsdom"`;
+  `npm test` in `web/` runs it).
 
 ### Final validation
 
