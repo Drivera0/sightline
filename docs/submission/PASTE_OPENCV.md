@@ -85,7 +85,7 @@ opencv, python, onnx, yolo, ultralytics, pytorch, sahi, fastapi, pydantic, docke
 
 ## Video demo link
 
-`<YOUTUBE LINK>`
+https://youtu.be/O5x4XPZH_xw (unlisted)
 
 ## Image gallery (upload in this order, 3:2)
 
