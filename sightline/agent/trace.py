@@ -1,4 +1,4 @@
-"""Trace helpers over ``MissionStore.trace`` (docs/LANE_A_SPRINT.md §4, contract §12.2).
+"""Trace helpers over ``MissionStore.trace`` (docs/sprint/LANE_A_SPRINT.md §4, contract §12.2).
 
 Every model and tool call the agent (or another lane) makes goes into ``trace.jsonl`` through
 ``trace_call``. What goes in is passed through ``trim`` first: images stay as paths, base64 is

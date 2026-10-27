@@ -1,4 +1,4 @@
-"""Which detector the pipeline runs (docs/LANE_A_SPRINT.md §5.2).
+"""Which detector the pipeline runs (docs/sprint/LANE_A_SPRINT.md §5.2).
 
 ``SIGHTLINE_BACKEND=cv2`` (the default) runs the ONNX export through OpenCV 5's ``cv2.dnn``
 (``CvDetector``); ``torch`` runs the same weights through Ultralytics + SAHI (``Detector``).

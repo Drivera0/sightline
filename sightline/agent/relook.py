@@ -1,4 +1,4 @@
-"""OpenCV 5 re-look tools for the verifier (docs/LANE_A_SPRINT.md §4, §5.5; A-V1).
+"""OpenCV 5 re-look tools for the verifier (docs/sprint/LANE_A_SPRINT.md §4, §5.5; A-V1).
 
 When the detector isn't sure, these give the Nemotron VL model a better look at the spot than the
 original crop. One tool per failure mode in docs/DETECTOR_LIMITS.md §2:
