@@ -6,7 +6,7 @@
 
 Sightline is the brain of a drone search for a missing person: it finds the likeliest people in hundreds of drone photos with OpenCV 5, and turns every photo, searched sector and radio report into one probability map of where the person could still be. From that map an agent proposes where drones and ground teams go next, and a search manager approves every move before anything happens. It assists searchers and never rules an area out; it began at BCS Hackathon 2026 and became a live system for the OpenCV and Nebius hackathons.
 
-🥈 **2nd place, OpenCV AI Competition 2026, powered by AWS** (520 projects) · 🏆 **Best Use of Technology for Social Good, BCS Hackathon 2026**
+🥈 **2nd place, [OpenCV AI Competition 2026, powered by AWS](https://www.youtube.com/watch?v=TNcrCUnTYHk)** (520 projects; winners announced on OpenCV Live) · 🏆 **Best Use of Technology for Social Good, BCS Hackathon 2026**
 
 **[Demo video (5 min)](https://youtu.be/O5x4XPZH_xw) · [Live demo](https://sightline-iota-sandy.vercel.app) · [Demo console, now](https://sightline-iota-sandy.vercel.app/#m/demo/map) · [Report](docs/report/OPENCV_REPORT.md) · [Architecture](docs/architecture/sightline-architecture.html) · [Run it](#reproduce-the-results-cpu-only-about-14-minutes)**
 
