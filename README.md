@@ -156,7 +156,7 @@ Live, Mount Seymour on the evening of Oct 21 (PDT): wind NW 20 km/h gusting 40 (
 
 ## Code layout
 
-Sightline is built by one person, Daniel Rivera. The code is split into five modules ("lanes" in the doc file names), each with its own folders and tests:
+Sightline's first version was built by four people at BCS Hackathon 2026: Daniel Rivera, Grace Chu, Harvir Nijjar and Jason Kim. Daniel has extended it on his own since then. The code is split into five modules ("lanes" in the doc file names), each with its own folders and tests:
 
 | Module | Covers | Code |
 |---|---|---|
